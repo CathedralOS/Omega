@@ -10,6 +10,8 @@ machine build(builder: &mut Build) {
     Build::select_provider<OpaqueEntry, OpaqueEntryMap>(builder, linux_arm64);
     Build::select_provider<LocalEntry, LocalMap>(builder, macos_arm64);
     Build::select_provider<LocalEntry, LocalMap>(builder, linux_arm64);
+    Build::select_provider<ArrayEntry, ArrayMap>(builder, macos_arm64);
+    Build::select_provider<ArrayEntry, ArrayMap>(builder, linux_arm64);
     Build::select_provider<NoResult, NoResultMap>(builder, macos_arm64);
     Build::select_provider<NoResult, NoResultMap>(builder, linux_arm64);
     Build::select_provider<ReferenceEntry, ReferenceMap>(builder, macos_arm64);

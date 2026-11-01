@@ -29,6 +29,42 @@ pub struct CallingStaticOperand {
     pub identity: TerminalIdentityIndex,
 }
 
+impl CallingAbiDeclaration {
+    /// Recover the complete portable key and authenticate its compact coordinate.
+    pub fn identity(
+        &self,
+        identities: &crate::TerminalIdentityTable,
+    ) -> Result<semantic_vocabulary::CallingAbiIdentity, String> {
+        let text = |identity| {
+            identities
+                .text(identity)
+                .filter(|text| !text.is_empty())
+                .map(str::to_owned)
+                .ok_or_else(|| "declaration ABI lost a portable identity".to_owned())
+        };
+        let identity = semantic_vocabulary::CallingAbiIdentity {
+            requirement_identity: text(self.requirement_identity)?,
+            declaring_application: text(self.declaring_application)?,
+            operands: self
+                .operands
+                .iter()
+                .map(|operand| {
+                    Ok(semantic_vocabulary::CallingStaticOperand {
+                        ordinal: operand.ordinal,
+                        kind: operand.kind,
+                        identity: text(operand.identity)?,
+                    })
+                })
+                .collect::<Result<_, String>>()?,
+        };
+        identity.validate()?;
+        if identity.id() != self.id {
+            return Err("declaration ABI compact coordinate differs from its complete key".into());
+        }
+        Ok(identity)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CallingAbiStorage {
     pub parameters: Vec<CallingAbiParameter>,
@@ -39,6 +75,10 @@ pub struct CallingAbiStorage {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CallingAbiParameter {
     pub structural_type: StructuralTypeId,
+    /// The direct formal carrier used to discover inline private callback
+    /// slots. Stored pointers remain leaves. None is an abstract pointee,
+    /// never a fabricated empty record or implicit dereference path.
+    pub callback_backing: Option<StructuralTypeId>,
     pub access: crate::StructuralAccess,
 }
 

@@ -137,13 +137,34 @@ pub(super) fn parameter_destination_inventory(
                 return None;
             }
             visited.push(reference);
-            let inventory = stored_origins::declared_origins_for_query(
+            let Some(inventory) = stored_origins::declared_origins_for_query(
                 program,
                 parameter.symbol,
                 parameter.name.as_str(),
                 reference,
                 true,
-            )?;
+            ) else {
+                // An owned recursive carrier has no finite slot paths. When its
+                // only undecided leaves are type parameters, it has no known
+                // slots here, and every selected closed instance re-checks the
+                // concrete carrier. Any other incomplete inventory stays unknown.
+                let mut open = Vec::new();
+                mentioned_type_parameters(program, reference, &mut open);
+                if !open.is_empty()
+                    && matches!(
+                        crate::borrow_contracts::declaration_lifetime_frontier(
+                            program, reference, &open
+                        ),
+                        crate::borrow_contracts::DeclarationLifetimeFrontier::TemplateDependent {
+                            has_borrows: false
+                        }
+                    )
+                {
+                    template_dependent = true;
+                    continue;
+                }
+                return None;
+            };
             for mut leaf in inventory.into_owned().references {
                 if leaf.kind == stored_origins::StoredOriginKind::LifetimeDependency {
                     if borrowed {
@@ -318,5 +339,47 @@ pub(in crate::machine_calls::calls::write_frames) fn seed_incoming_slots(
             },
         });
         record.references.push(slot);
+    }
+}
+
+/// Type parameters a type spells, through its applications and shells.
+fn mentioned_type_parameters(
+    program: &dyn crate::CheckingInput,
+    reference: typed_trees::types::TypeReferenceHandle,
+    open: &mut Vec<symbols::SymbolHandle>,
+) {
+    use typed_trees::types::TypeReferenceNode;
+    let mut pending = vec![reference];
+    let mut remaining = program.type_reference_table.type_reference_count();
+    while let Some(reference) = pending.pop() {
+        if remaining == 0
+            || !program
+                .type_reference_table
+                .contains_type_reference(reference)
+        {
+            return;
+        }
+        remaining -= 1;
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Named { symbol, .. }
+                if program.symbols.get(*symbol).kind == symbols::SymbolKind::TypeParameter =>
+            {
+                if !open.contains(symbol) {
+                    open.push(*symbol);
+                }
+            }
+            TypeReferenceNode::Generic { arguments, .. } => pending.extend(
+                program
+                    .type_reference_table
+                    .type_reference_handles(*arguments)
+                    .iter()
+                    .copied(),
+            ),
+            TypeReferenceNode::Reference { referee, .. } => pending.push(*referee),
+            TypeReferenceNode::Constrained { base_type, .. } => pending.push(*base_type),
+            TypeReferenceNode::FixedArray { element_type, .. }
+            | TypeReferenceNode::Slice { element_type } => pending.push(*element_type),
+            _ => {}
+        }
     }
 }

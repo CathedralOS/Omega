@@ -1,0 +1,131 @@
+// Expected exit: 0
+// Calling executes against two exact inline private-slot paths. The checked
+// registrar exercises the callback's logical contract; this is not an oracle
+// for a foreign registrar loading and invoking a stored native pointer.
+use omega_language_std::calling;
+use omega::language::core::layout;
+
+public data Payload [copy] { value: u64; }
+public boundary trait FixedCallback: Calling<SlotCalling> {
+    machine call(value: u64) -> u64 reaches;
+}
+public boundary trait VariableCallback: Calling<SlotCalling> {
+    machine call(value: u64) -> u64 reaches;
+}
+public FixedSlot satisfies PrivateCallbackSlot<Payload, Fixed, FixedCallback::call> {}
+public VariableSlot satisfies PrivateCallbackSlot<Payload, Variable, VariableCallback::call> {}
+public Fixed satisfies FixedLayout<Payload> {
+    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates {
+        let mut entries: [FieldEntry; 64];
+        entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };
+        let plan: LayoutPlan = LayoutPlan { entries: entries, entry_count: 1, size_fixed: 16, size_is_dynamic: false, align: 8 };
+        LayoutPlan::place_private<FixedSlot>(plan, 8)
+    }
+}
+public Variable satisfies FixedLayout<Payload> {
+    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates {
+        let facts: LayoutTargetFacts = layout_target_facts(&target);
+        transition facts.profile == "windows_x86_64" {
+            true -> place(schema, 24)
+            _ -> place(schema, 16)
+        }
+        machine place(schema: Schema, bytes: u64) -> LayoutPlan reaches terminates {
+            let mut entries: [FieldEntry; 64];
+            entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };
+            let plan: LayoutPlan = LayoutPlan { entries: entries, entry_count: 1, size_fixed: bytes, size_is_dynamic: false, align: 8 };
+            LayoutPlan::place_private<VariableSlot>(plan, 8)
+        }
+    }
+}
+public data Envelope {
+    before: u64;
+    first: LayoutStorage<Payload, Fixed>;
+    second: LayoutStorage<Payload, Variable>;
+    after: u64;
+}
+public boundary trait Registrar: Calling<SlotCalling> {
+    machine register<machine First, machine Second>(envelope: &Envelope) -> u64
+    requires machine First satisfies FixedCallback::call;
+    requires machine Second satisfies VariableCallback::call;
+    reaches FixedCallback + VariableCallback
+    invokes FixedCallback invokes VariableCallback;
+}
+// A second stored pointer does not authorize a direct write into its pointee.
+// This declaration still has a pointer ABI, but no inline private destinations.
+public boundary trait IndirectRegistrar: Calling<SlotCalling> {
+    machine register(envelope: & &Envelope) -> u64 reaches;
+}
+machine fixed_callback(value: u64) -> u64 satisfies FixedCallback::call { value ^ 13u64 }
+machine variable_callback(value: u64) -> u64 satisfies VariableCallback::call { value ^ 13u64 }
+RegistrarImpl satisfies Registrar {
+    machine register<machine First, machine Second>(envelope: &Envelope) -> u64
+    requires machine First satisfies FixedCallback::call;
+    requires machine Second satisfies VariableCallback::call;
+    reaches FixedCallback + VariableCallback
+    invokes FixedCallback invokes VariableCallback {
+        First(envelope.first.value) ^ Second(envelope.second.value)
+    }
+}
+public SlotCalling satisfies CallingPolicy {
+    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
+        transition signature.parameter_count == 1 && signature.has_result
+            && signature.callback_binder_count <= 2 && signature.callback_demand_count <= 2 {
+            true -> select(signature, signature.parameters[0], signature.result)
+            _ -> reject()
+        }
+        machine select(signature: BoundarySignature, parameter: u64, result: u64) -> BoundaryPlanResult {
+            transition parameter < 256 && result < 256 {
+                true -> accept(signature, parameter, result)
+                _ -> reject()
+            }
+        }
+        machine accept(signature: BoundarySignature, parameter: u64, result: u64) -> BoundaryPlanResult
+        requires parameter < 256 && result < 256 {
+            let mut plan: BoundaryEntryPlan;
+            plan.call.convention = CallingConvention::Aapcs64;
+            plan.call.parameter_count = 1;
+            plan.call.parameters[0].shape.class = AbiValueClass::Integer;
+            plan.call.parameters[0].shape.byte_size = signature.shapes[parameter].byte_size;
+            plan.call.parameters[0].shape.alignment = signature.shapes[parameter].alignment;
+            plan.call.parameters[0].location_count = 1;
+            plan.call.parameters[0].locations[0] = ValueLocation::Register { register: MachineRegister::Aarch64X { index: 0 }, value_byte_offset: 0, byte_size: 8 };
+            plan.call.has_result = true;
+            plan.call.result.shape.class = AbiValueClass::Integer;
+            plan.call.result.shape.byte_size = signature.shapes[result].byte_size;
+            plan.call.result.shape.alignment = signature.shapes[result].alignment;
+            plan.call.result.location_count = 1;
+            plan.call.result.locations[0] = ValueLocation::Register { register: MachineRegister::Aarch64X { index: 0 }, value_byte_offset: 0, byte_size: 8 };
+            plan.call.callback_materialization_count = signature.callback_demand_count;
+            plan.call.callback_materializations[0].binder = signature.callback_binders[0].binder;
+            plan.call.callback_materializations[0].destination = signature.callback_demands[0].destination;
+            plan.call.callback_materializations[1].binder = signature.callback_binders[1].binder;
+            plan.call.callback_materializations[1].destination = signature.callback_demands[1].destination;
+            plan.call.stack_alignment = 16;
+            plan.call.entry_control = EntryControl::CallReturn;
+            plan.state.initial_regime = MachineRegime::Aarch64A64 { exception_level: 0 };
+            plan.state.permitted_transitive_use.general_registers = true;
+            plan.state.permitted_transitive_use.flags = true;
+            plan.state.stack = EntryStack::ProviderSelected;
+            plan.state.preemption = Preemption::NotApplicable;
+            BoundaryPlanResult::Accepted { plan: plan }
+        }
+        machine reject() -> BoundaryPlanResult {
+            BoundaryPlanResult::Rejected { reason: CallingPolicyRejection { reason: "one parameter, one result, and at most two private destinations required" } }
+        }
+    }
+}
+machine main() reaches Registrar + FixedCallback + VariableCallback invokes Registrar invokes FixedCallback invokes VariableCallback crashes Trap {
+    let mut first: LayoutStorage<Payload, Fixed>;
+    first.value = 11;
+    let mut second: LayoutStorage<Payload, Variable>;
+    second.value = 37;
+    let envelope: Envelope = Envelope { before: 101, first: first, second: second, after: 203 };
+    let answer: u64 = Registrar::register<fixed_callback, variable_callback>(&envelope);
+    transition answer == 46 && envelope.before == 101 && envelope.first.value == 11
+        && envelope.second.value == 37 && envelope.after == 203 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

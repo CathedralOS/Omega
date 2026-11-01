@@ -1217,3 +1217,94 @@ fn deep_scalar_assumption_admission_uses_default_stack_and_exact_premise() {
         }
     }).join().expect("complete scalar admission and owned receipts stay on a default stack");
 }
+
+#[test]
+fn deep_open_integer_admission_preserves_exact_premises_on_default_stack() {
+    std::thread::spawn(|| {
+        let integer = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let scalar_type = ScalarType::Integer(integer);
+        let id = ValueId::new(1).expect("source scalar");
+        let context = PropositionContext::from_value_types([(id, scalar_type)]).expect("context");
+        let statement = |depth, valid| {
+            let mut value = if valid {
+                ScalarTerm::value(id, scalar_type)
+            } else {
+                ScalarTerm::integer(integer, IntegerValue::Unsigned(1)).expect("changed leaf")
+            };
+            for _ in 0..depth {
+                value = ScalarTerm::ExactIntegerAdd {
+                    scalar_type: integer,
+                    left: Box::new(
+                        ScalarTerm::integer(integer, IntegerValue::Unsigned(0)).expect("zero"),
+                    ),
+                    right: Box::new(value),
+                };
+            }
+            Proposition::Equal(value, ScalarTerm::value(id, scalar_type))
+        };
+        for (depth, valid) in [(128, true), (8192, true), (8192, false)] {
+            let goal = statement(depth, true);
+            context
+                .validate(&goal)
+                .expect("the complete source question is admitted");
+            let copied = goal.clone();
+            assert!(copied == goal);
+            use std::hash::{Hash, Hasher};
+            let mut original_hash = std::collections::hash_map::DefaultHasher::new();
+            let mut copied_hash = std::collections::hash_map::DefaultHasher::new();
+            goal.hash(&mut original_hash);
+            copied.hash(&mut copied_hash);
+            assert_eq!(original_hash.finish(), copied_hash.finish());
+            let assumptions = [statement(depth, true)];
+            let proof = ProofNode {
+                conclusion: statement(depth, valid),
+                rule: ProofRule::Assumption { index: 0 },
+            };
+            let before = verification_workers_started();
+            let result = super::accept_certificate_on_current_thread(
+                &context,
+                &goal,
+                &assumptions,
+                &[],
+                &BTreeSet::new(),
+                &proof,
+            );
+            if valid {
+                let accepted =
+                    result.expect("the independent kernel judges this exact open-integer premise");
+                assert_eq!(accepted.rules, vec![AcceptedProofRule::Assumption]);
+                assert_eq!(accepted.assumptions.len(), 1);
+                assert_eq!(accepted.assumptions[0].index, 0);
+                assert!(accepted.assumptions[0].proposition == goal);
+                assert!(accepted.semantic_axioms.is_empty());
+                let MathematicalCoreDecision::Judged(receipt) = accepted.mathematical_core else {
+                    panic!("bounded rule labels cannot replace the complete kernel judgment");
+                };
+                // The original public API's independently measured roster is
+                // Int, the exact source value, zero, and the shared add function.
+                assert_eq!(
+                    (
+                        receipt.declarations,
+                        receipt.assumption_closure,
+                        receipt.context_depth
+                    ),
+                    (4, 4, 1)
+                );
+                assert!(receipt.arena_slots > depth as u32);
+                eprintln!("complete open-integer admission depth={depth} {receipt:?}");
+            } else {
+                assert!(
+                    matches!(result, Err(ProofError::AssumptionConclusionMismatch(0))),
+                    "a changed deepest leaf cannot cite the original complete premise"
+                );
+            }
+            assert_eq!(
+                verification_workers_started(),
+                before,
+                "the complete current-thread route creates no wide worker"
+            );
+        }
+    })
+    .join()
+    .expect("open-integer admission and owned receipts use the platform default stack");
+}

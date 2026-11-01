@@ -903,6 +903,42 @@ pub(super) fn establish_citation(
     target: &CitationTarget,
     arguments: &[StructuralTerm],
 ) {
+    let prior_guarantees = guarantees.clone();
+    establish_citation_from_prefix(
+        program,
+        machine,
+        state,
+        statement_index,
+        environment,
+        judge,
+        classification,
+        hypotheses,
+        equations,
+        &prior_guarantees,
+        guarantees,
+        target,
+        arguments,
+    );
+}
+
+/// A completed prefix already owns its admitted citation frontier. Export
+/// history is an output here, not a fresh source of storage facts after writes.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn establish_citation_from_prefix(
+    program: &dyn CheckingInput,
+    machine: &Machine,
+    state: &State,
+    statement_index: usize,
+    environment: &[(String, StructuralTerm)],
+    judge: &StructuralJudge<'_>,
+    classification: &typed_trees::proof_only::ProofOnlyClassification,
+    hypotheses: &[(String, StructuralTerm)],
+    equations: &[(StructuralTerm, StructuralTerm)],
+    prior_guarantees: &CitationFacts,
+    guarantees: &mut CitationFacts,
+    target: &CitationTarget,
+    arguments: &[StructuralTerm],
+) {
     if !super::citations::can_establish_citation(
         program,
         classification,
@@ -916,7 +952,7 @@ pub(super) fn establish_citation(
     let mut diagnostics = Vec::new();
     let established = if super::citations::citation_needs_site_judge(program, target) {
         let mut site_judge = structural_arm_judge(program, judge, hypotheses, equations);
-        guarantees.intake(&mut site_judge);
+        prior_guarantees.intake(&mut site_judge);
         // Runtime invocations transport only checked tag guarantees. Their saved
         // results are individual values, not mathematical applications or an IH.
         if !judge.has_runtime_body_values() {

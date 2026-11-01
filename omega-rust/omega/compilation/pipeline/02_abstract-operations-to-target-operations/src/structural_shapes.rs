@@ -7,8 +7,7 @@ use calling_conventions::{
 };
 use semantic_vocabulary::{IeeeFloatFormat, ScalarType, StructuralTypeId};
 use terminal_psi::{
-    ByteSequenceCarrier, StructuralAccess, StructuralFieldType, StructuralTypeDeclaration,
-    StructuralTypeShape,
+    ByteSequenceCarrier, StructuralFieldType, StructuralTypeDeclaration, StructuralTypeShape,
 };
 
 #[derive(Debug, PartialEq, Eq)]
@@ -26,17 +25,6 @@ fn index_declarations(
         return Err(InvalidStructuralShape);
     }
     Ok(indexed)
-}
-
-pub(crate) fn parameter_shape(referent: ValueShape, access: StructuralAccess) -> ValueShape {
-    match access {
-        StructuralAccess::Owned => referent,
-        StructuralAccess::SharedBorrow
-        | StructuralAccess::MutableBorrow
-        | StructuralAccess::WriteOnlyBorrow => {
-            ValueShape::borrowed_reference(referent.byte_size, referent.alignment)
-        }
-    }
 }
 
 /// The by-value boundary shape one structural type carries under the calling

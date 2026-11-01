@@ -218,17 +218,18 @@ impl TerminalExecution<'_> {
                     if argument.access != StructuralAccess::Owned {
                         return Err(malformed());
                     }
-                    let member = StructuralRuntimePlace {
-                        opaque_identity: value.opaque_identity,
-                        path: vec![StructuralPathSegment::Field(declaration.identity.clone())],
-                    };
-                    // Custody retains the namespace; physical payload storage
-                    // overlays the sum and therefore omits its Case segment.
+                    // Common and payload declarations may share a stable field
+                    // identity. Retain the case namespace for a child subtree,
+                    // just as direct scalar cells retain CasePayload.
                     let mut claim_path = Vec::new();
                     if namespace == StructuralFieldNamespace::CasePayload {
                         claim_path.push(StructuralPathSegment::Case(result_case));
                     }
-                    claim_path.extend_from_slice(&member.path);
+                    claim_path.push(StructuralPathSegment::Field(declaration.identity));
+                    let member = StructuralRuntimePlace {
+                        opaque_identity: value.opaque_identity,
+                        path: claim_path.clone(),
+                    };
                     claim_operands.push((argument, claim_path.clone()));
                     let child = ConstructorValue::resolve(self, argument)?;
                     if let Some(bytes) = self.prepare_constructor_byte_field(
@@ -452,16 +453,11 @@ impl TerminalExecution<'_> {
             }
         };
         for leaf in &leaves {
-            // Runtime places name a case payload member by its field alone;
-            // the leaf's `Case` segment only selects that payload's fields.
+            // Descended payload subtrees retain their case namespace; a final
+            // Case instead selects the direct scalar/byte cell namespace.
             let storage_path = || {
                 let mut path = value.path.clone();
-                path.extend(
-                    leaf.path()
-                        .iter()
-                        .filter(|segment| !matches!(segment, StructuralPathSegment::Case(_)))
-                        .cloned(),
-                );
+                path.extend_from_slice(crate::values::structural_storage_path(leaf.path()));
                 path
             };
             match leaf {
@@ -1696,8 +1692,8 @@ impl TerminalExecution<'_> {
         }
         // Aggregate copies retain their independently stored descriptor leaves.
         // Every copied runtime association must rejoin that exact declaration;
-        // cloning storage cannot amplify an exclusive permission. Runtime paths
-        // omit Case, so the stored discriminator selects the declaration rather
+        // cloning storage cannot amplify an exclusive permission. Retained
+        // Case namespaces must still match the stored discriminator rather
         // than treating a possible payload catalogue as resident storage.
         for carrier in self.reference_referents.keys().filter(|carrier| {
             carrier.opaque_identity == source_place.opaque_identity

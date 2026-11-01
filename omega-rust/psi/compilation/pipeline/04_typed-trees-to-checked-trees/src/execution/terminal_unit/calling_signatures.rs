@@ -5,9 +5,7 @@
 //! the other local operands. Selected Handler bodies cannot choose storage.
 
 use super::types::{self, ShapeCollector};
-use checked_trees::{
-    CheckedCallingParameter, CheckedCallingSignaturePlan, CheckedCallingSignatureStorage,
-};
+use checked_trees::{CheckedCallingSignaturePlan, CheckedCallingSignatureStorage};
 use typed_trees::service_declarations::signatures::PreparedBoundarySignatures;
 
 pub(super) fn collect(
@@ -25,31 +23,12 @@ pub(super) fn collect(
                 let projection = projection.as_ref().map_err(Clone::clone)?;
                 let mut parameters = Vec::with_capacity(projection.parameters.len());
                 for (ordinal, reference) in projection.parameters.iter().copied().enumerate() {
-                    let identity = shapes
-                        .add_type(reference, &[], &projection.substitutions)
+                    let parameter = shapes
+                        .add_calling_parameter(reference, &projection.substitutions)
                         .ok_or_else(|| {
                             format!("declaration ABI parameter {ordinal} has no retained storage")
                         })?;
-                    // Only the formal's finite outer reference chain demands
-                    // backing geometry; pointers inside records remain leaves.
-                    shapes
-                        .add_logical_type(reference, &[], &projection.substitutions)
-                        .ok_or_else(|| {
-                            format!(
-                                "declaration ABI parameter {ordinal} has no complete formal backing"
-                            )
-                        })?;
-                    let effective = types::substituted_formal_type(
-                        program,
-                        reference,
-                        &projection.substitutions,
-                    );
-                    let access = types::structural_access_for_type_reference(program, effective)
-                        .ok_or("declaration ABI formal lost its checked access kind")?;
-                    parameters.push(CheckedCallingParameter {
-                        type_identity: identity,
-                        access,
-                    });
+                    parameters.push(parameter);
                 }
                 let effective_result = types::substituted_formal_type(
                     program,

@@ -20,7 +20,7 @@ pub(super) fn validate(service: &PackagePolicyTerminalService) -> Result<(), &'s
                 .copied()
                 .ne(0..service.lifetime_parameter_count)
             || method.signature.schema_arguments.len() != service.static_parameters.len()
-            || (!service.static_parameters.is_empty() && method.calling.is_some())
+            || (!service.static_parameters.is_empty() && !method.calling.is_empty())
             || method
                 .parameter_type_identities
                 .iter()

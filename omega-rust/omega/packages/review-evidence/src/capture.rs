@@ -55,7 +55,7 @@ impl<T> EvidenceOption<T> for Option<T> {
 }
 
 pub(crate) use callables::project_checked_callable_policy;
-pub(crate) use input::PackageReviewInput;
+pub use input::PackageReviewInput;
 pub use package_policy::project_checked_package_policy;
 pub(crate) use providers::project_checked_selected_provider_policy;
 pub(crate) use representation::project_checked_representation_policy;

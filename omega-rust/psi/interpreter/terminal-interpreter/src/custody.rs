@@ -1440,7 +1440,8 @@ pub(crate) fn resolve_single_structural_argument(
 }
 
 /// Resolve a typed projection onto its original runtime backing. Case steps
-/// choose a declaration namespace but add no physical storage component.
+/// choose a declaration namespace retained in descendant storage keys; a final
+/// Case selects the payload namespace on the same parent storage home.
 /// The execution loop validates every selected discriminator before dispatch;
 /// this geometry helper itself grants no access or membership authority.
 pub(crate) fn project_structural_value(
@@ -1498,11 +1499,9 @@ pub(crate) fn project_structural_value_with_leaf(
             &root.projected_qualifications,
             path,
         );
-    value.path.extend(
-        path.iter()
-            .filter(|segment| !matches!(segment, StructuralPathSegment::Case(_)))
-            .cloned(),
-    );
+    value
+        .path
+        .extend_from_slice(crate::values::structural_storage_path(path));
     Ok(value)
 }
 

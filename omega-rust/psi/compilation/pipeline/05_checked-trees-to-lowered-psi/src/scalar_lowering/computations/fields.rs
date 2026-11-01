@@ -1334,6 +1334,7 @@ pub(crate) fn type_roots(
             let references = validation::observed_storage_type_references(
                 &checked.typed,
                 *source_type,
+                &[],
                 &subject.path,
                 *field,
                 field_identity,

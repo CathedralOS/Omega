@@ -1,9 +1,11 @@
 //! Declaration calls consume admitted whole entry inputs. This joins their
 //! copy receipt to the ordinary storage argument planner; it manufactures no
 //! statement occurrence or aggregate from the scalar read roster. A shared
-//! call may lend this initialized, borrow-free entry home until its pure,
-//! total scalar invocation returns. That loan's authority is the complete
-//! application input, not a fictitious statement-access capture.
+//! call may lend this initialized entry home until its pure, total scalar
+//! invocation returns. Copyable shared descriptors retain their existing
+//! backing and lifetimes through the ordinary argument planner; this receipt
+//! grants no referent observation. The complete application input, not a
+//! fictitious statement-access capture, supplies that loan's authority.
 
 use super::super::{Builder, ExpressionHandle};
 
@@ -121,6 +123,17 @@ impl Builder<'_, '_> {
                 checked_trees::CheckedStructuralAccess::SharedBorrow
             }
             None => {
+                // Source Copy also admits shared-descriptor records, whose
+                // materialized carriers still end exactly once. Lending the
+                // established home above creates no extra record carrier;
+                // an owned operand needs independent disposal evidence.
+                if validation::reference_result_custody::result_multiplicity(
+                    self.program,
+                    target.type_reference,
+                ) != language_semantics::Multiplicity::Unrestricted
+                {
+                    return None;
+                }
                 if matches!(
                     self.program.expression_table.expression(argument),
                     typed_trees::expression::ExpressionNode::Borrow(_)
@@ -130,10 +143,11 @@ impl Builder<'_, '_> {
                 checked_trees::CheckedStructuralAccess::Owned
             }
         };
-        // The retained whole input proves initialized owned backing and Copy,
-        // and contains no references or linear descendants. Its declaration
-        // calls are already admitted pure/total scalar observations, so this
-        // shared window ends before body effects or another cycle begins.
+        // The retained whole input proves initialized owned backing and Copy.
+        // Shared descriptor fields keep their ordinary loan obligations;
+        // Copy cannot duplicate exclusive descriptors or linear descendants.
+        // The independently admitted pure/total declaration call finishes its
+        // shared window before body effects or another cycle begins.
         let mut argument_plan = crate::execution::terminal_unit::calls::owned_argument(
             self.program,
             &mut self.shapes,

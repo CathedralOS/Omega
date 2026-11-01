@@ -34,6 +34,7 @@ pub(crate) fn settle_provider_executions<'request>(
 > {
     let (mechanisms, cohort_rows) = derive_source_evaluated_mechanisms(
         input.plan(),
+        input.module(),
         request.selected_provider_plans,
         request.external_binding_rows,
         request.native_callbacks,

@@ -89,7 +89,21 @@ pub(super) fn retain(
     for (_, usage, registrar) in requested {
         // This module need not contain every checked machine's callbacks.
         let Some(registrar) = registrar else { continue };
+        let mut boundaries = lowered
+            .source_boundary_declarations
+            .iter()
+            .filter(|(source, _)| *source == usage.satisfaction_requirement);
+        let boundary = match (boundaries.next(), boundaries.next()) {
+            (Some((_, boundary)), None) => Some(*boundary),
+            (None, None) if usage.callback_entry.is_none() => None,
+            _ => {
+                return Err(
+                    "callback requirement has no unique exact emitted inbound declaration".into(),
+                );
+            }
+        };
         applications.push(TerminalCallbackApplication {
+            boundary,
             application_index: usage.application_index,
             registrar,
             static_machine_ordinal: usage.static_machine_ordinal,

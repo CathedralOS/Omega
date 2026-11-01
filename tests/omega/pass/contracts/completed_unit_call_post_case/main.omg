@@ -1,0 +1,14 @@
+// Expected exit: 0. A Unit call establishes a case only on its completed post-call subject.
+data Choice { case Cell(value: u32); case Empty; }
+machine reset(choice: &mut Choice) ensures choice in Choice::Cell {
+    choice = Choice::Cell { value: 3 };
+}
+machine read(choice: &Choice) -> u32 requires choice in Choice::Cell { choice.value }
+machine main() crashes Trap {
+    let mut choice: Choice = Choice::Empty {};
+    reset(&mut choice);
+    let value: u32 = read(&choice);
+    transition value == 3 { true -> done() false -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

@@ -142,14 +142,36 @@ fn validate_census(module: &TerminalModule) -> Result<(), CodecError> {
         };
         if application.is_empty()
             || storage.parameters.len() != storage.telescope.parameters.len()
+            || storage.parameters.iter().any(|parameter| {
+                module.structural_type(parameter.structural_type).is_none()
+                    && !(parameter.access != StructuralAccess::Owned
+                        && parameter.callback_backing.is_none()
+                        && module
+                            .foreign_reference_descriptor(parameter.structural_type)
+                            .is_some())
+            })
             || storage
-                .parameters
-                .iter()
-                .map(|parameter| parameter.structural_type)
-                .chain(storage.result)
-                .any(|identity| module.structural_type(identity).is_none())
+                .result
+                .is_some_and(|identity| module.structural_type(identity).is_none())
         {
             return malformed("declaration ABI storage lost an exact type or formal");
+        }
+        for parameter in &storage.parameters {
+            let backing = parameter.structural_type;
+            match parameter.callback_backing {
+                Some(actual) if actual == backing && module.structural_type(actual).is_some() => {}
+                None if parameter.access != StructuralAccess::Owned
+                    && module.structural_type(backing).is_none()
+                    && module
+                        .structural_referents
+                        .iter()
+                        .any(|row| row.id == backing && row.abstract_opaque) => {}
+                _ => {
+                    return malformed(
+                        "declaration ABI substitutes or omits its complete callback backing",
+                    );
+                }
+            }
         }
         let required = row
             .formals

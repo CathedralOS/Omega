@@ -7,7 +7,9 @@ use calling_conventions::{
     CallbackSlotGeometry, LayoutPlanId, NativeParameterId, NativePlace,
     callback_layout_field_slot_id, callback_layout_slot_id, callback_requirement_id,
 };
-use semantic_vocabulary::{AuthoredFieldStorage, ScalarApplicationId, StructuralTypeId};
+use semantic_vocabulary::{
+    AuthoredFieldStorage, ScalarApplicationId, StructuralFieldId, StructuralTypeId,
+};
 use target::TargetProfile;
 use terminal_psi::{StructuralTypeShape, TerminalModule};
 use terminal_semantics::{ReferenceRecordField, ReferenceStorageGeometry, StorageGeometryError};
@@ -18,6 +20,22 @@ pub struct CallbackStorageRoot {
     pub parameter: NativeParameterId,
     pub formal_ordinal: u32,
     pub native_ordinal: u32,
+}
+
+/// Exact canonical storage coordinates beside a completed physical path.
+/// These are geometry-free joins for source review, not ABI identity lanes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CallbackLayoutCoordinates {
+    pub destination: NativePlace,
+    pub root: StructuralTypeId,
+    pub fields: Vec<StructuralFieldId>,
+    pub terminal_record: StructuralTypeId,
+    pub slot_ordinal: u32,
+}
+
+pub struct MaterializedCallbackLayout {
+    pub geometry: BoundaryCallbackLayout,
+    pub coordinates: CallbackLayoutCoordinates,
 }
 
 pub struct TerminalCallbackLayouts<'module, Extents> {
@@ -36,6 +54,7 @@ struct ClosedRecord {
 
 #[derive(Clone)]
 struct InlineChild {
+    field: StructuralFieldId,
     record: StructuralTypeId,
     identity: String,
     offset: u64,
@@ -59,9 +78,9 @@ where
     pub fn for_parameter(
         &mut self,
         root: CallbackStorageRoot,
-    ) -> Result<Vec<BoundaryCallbackLayout>, String> {
+    ) -> Result<Vec<MaterializedCallbackLayout>, String> {
         let mut output = Vec::new();
-        if !Self::reaches_slot(self.module, self.target, root.record, &mut Vec::new())? {
+        if !callback_storage_has_slots(self.module, self.target, root.record)? {
             return Ok(output);
         }
         let root_index = self.close_record(root.record)?;
@@ -72,62 +91,17 @@ where
             root.record,
             &mut Vec::new(),
             &mut Vec::new(),
+            &mut Vec::new(),
             &mut output,
         )?;
-        output.sort_by(|left, right| left.destination.cmp(&right.destination));
+        output.sort_by(|left, right| left.geometry.destination.cmp(&right.geometry.destination));
         if output
             .windows(2)
-            .any(|pair| pair[0].destination == pair[1].destination)
+            .any(|pair| pair[0].geometry.destination == pair[1].geometry.destination)
         {
             return Err("canonical callback storage repeats one exact inline path".into());
         }
         Ok(output)
-    }
-
-    fn reaches_slot(
-        module: &TerminalModule,
-        target: TargetProfile,
-        record: StructuralTypeId,
-        active: &mut Vec<StructuralTypeId>,
-    ) -> Result<bool, String> {
-        if active.len() >= 128 || active.contains(&record) {
-            return Err("canonical callback storage has a recursive inline record path".into());
-        }
-        let declaration = module
-            .structural_type(record)
-            .ok_or("callback backing root has no retained storage declaration")?;
-        let StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
-            return Ok(false);
-        };
-        let native = module
-            .native_layouts
-            .record(record)
-            .ok_or("callback backing record lost its native layout association")?;
-        if module
-            .native_layouts
-            .for_target(native, target.target_name())?
-            .is_some_and(|row| !row.report.private_callback_demands.is_empty())
-        {
-            return Ok(true);
-        }
-        active.push(record);
-        let result = (|| {
-            for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
-                if let Some(child) = field.field_type.as_structural() {
-                    let child_declaration = module
-                        .structural_type(child)
-                        .ok_or("callback inline field has no retained storage declaration")?;
-                    if matches!(child_declaration.shape, StructuralTypeShape::Record { .. })
-                        && Self::reaches_slot(module, target, child, active)?
-                    {
-                        return Ok(true);
-                    }
-                }
-            }
-            Ok(false)
-        })();
-        active.pop();
-        result
     }
 
     fn close_record(&mut self, record: StructuralTypeId) -> Result<usize, String> {
@@ -197,7 +171,7 @@ where
                     .module
                     .structural_type(child)
                     .is_some_and(|child| matches!(child.shape, StructuralTypeShape::Record { .. }))
-                && Self::reaches_slot(self.module, self.target, child, &mut Vec::new())?
+                && callback_storage_has_slots(self.module, self.target, child)?
             {
                 if field.repeated.is_some()
                     || matches!(field.storage, Some(AuthoredFieldStorage::Fragmented(_)))
@@ -207,6 +181,7 @@ where
                     );
                 }
                 children.push(InlineChild {
+                    field: field.declaration.id,
                     record: child,
                     identity: identity.to_owned(),
                     offset: field
@@ -321,7 +296,8 @@ where
         record: StructuralTypeId,
         path: &mut Vec<CallbackInlineFieldGeometry>,
         active: &mut Vec<StructuralTypeId>,
-        output: &mut Vec<BoundaryCallbackLayout>,
+        source_path: &mut Vec<StructuralFieldId>,
+        output: &mut Vec<MaterializedCallbackLayout>,
     ) -> Result<(), String> {
         if active.contains(&record) || active.len() >= 128 {
             return Err("canonical callback inline path is recursive".into());
@@ -353,7 +329,17 @@ where
                 terminal,
             );
             layout.field_offset(self.target.native_target())?;
-            output.push(layout);
+            output.push(MaterializedCallbackLayout {
+                coordinates: CallbackLayoutCoordinates {
+                    destination: layout.destination.clone(),
+                    root: formal.record,
+                    fields: source_path.clone(),
+                    terminal_record: record,
+                    slot_ordinal: u32::try_from(ordinal)
+                        .map_err(|_| "callback slot roster exceeds u32")?,
+                },
+                geometry: layout,
+            });
         }
         for ordinal in 0..self.closed[index].children.len() {
             let field = self.closed[index].children[ordinal].clone();
@@ -367,12 +353,77 @@ where
                 offset: field.offset,
                 child: geometry,
             });
-            self.walk(formal, root, field.record, path, active, output)?;
+            source_path.push(field.field);
+            self.walk(
+                formal,
+                root,
+                field.record,
+                path,
+                active,
+                source_path,
+                output,
+            )?;
+            source_path.pop();
             path.pop();
         }
         active.pop();
         Ok(())
     }
+}
+
+/// Whether a formal backing actually demands private callback layout geometry.
+pub fn callback_storage_has_slots(
+    module: &TerminalModule,
+    target: TargetProfile,
+    record: StructuralTypeId,
+) -> Result<bool, String> {
+    storage_has_slots(module, target, record, &mut Vec::new())
+}
+
+fn storage_has_slots(
+    module: &TerminalModule,
+    target: TargetProfile,
+    record: StructuralTypeId,
+    active: &mut Vec<StructuralTypeId>,
+) -> Result<bool, String> {
+    if active.len() >= 128 || active.contains(&record) {
+        return Err("canonical callback storage has a recursive inline record path".into());
+    }
+    let declaration = module
+        .structural_type(record)
+        .ok_or("callback backing root has no retained storage declaration")?;
+    let StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
+        return Ok(false);
+    };
+    let native = module
+        .native_layouts
+        .record(record)
+        .ok_or("callback backing record lost its native layout association")?;
+    if module
+        .native_layouts
+        .for_target(native, target.target_name())?
+        .is_some_and(|row| !row.report.private_callback_demands.is_empty())
+    {
+        return Ok(true);
+    }
+    active.push(record);
+    let result = (|| {
+        for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
+            if let Some(child) = field.field_type.as_structural() {
+                let child_declaration = module
+                    .structural_type(child)
+                    .ok_or("callback inline field has no retained storage declaration")?;
+                if matches!(child_declaration.shape, StructuralTypeShape::Record { .. })
+                    && storage_has_slots(module, target, child, active)?
+                {
+                    return Ok(true);
+                }
+            }
+        }
+        Ok(false)
+    })();
+    active.pop();
+    result
 }
 
 enum OccupiedBytes {

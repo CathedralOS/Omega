@@ -666,18 +666,24 @@ impl TerminalExecution<'_> {
                 let (projected, projected_view) = match &byte_loan {
                     Some(loan) => (loan.referent.clone(), None),
                     None => {
-                        let projected = self.resolve_live_storage_projection(
-                            source.place,
-                            &source.path,
-                            source.access,
-                        )?;
-                        if collection_loan.is_none() {
+                        if let Some((backing, _)) = &collection_loan {
+                            // Packed arrays have a staged captured home, not a
+                            // structural-value row to rediscover. The loan above
+                            // already checked this exact source projection and
+                            // retained its original collection and access.
+                            (backing.clone(), None)
+                        } else {
+                            let projected = self.resolve_live_storage_projection(
+                                source.place,
+                                &source.path,
+                                source.access,
+                            )?;
                             collection_loan = projected
                                 .array_loan
                                 .clone()
                                 .map(|loan| (projected.value.clone(), loan));
+                            (projected.value, projected.view_tip)
                         }
-                        (projected.value, projected.view_tip)
                     }
                 };
                 let byte_offset = usize::try_from(byte_offset).map_err(|_| malformed())?;
@@ -1536,7 +1542,7 @@ impl TerminalExecution<'_> {
             };
             let supplying_array = array_loan.take();
             // Keep case selection and its payload field together. The ordinary
-            // projection owner strips declaration-only case steps from storage.
+            // projection owner retains the descended payload namespace.
             if !crate::structural_inputs::case_membership::case_projection_in_value_is_active(
                 &types,
                 &value,
@@ -2102,8 +2108,8 @@ impl TerminalExecution<'_> {
             ));
         }
         // Authenticate case guards before resolving the physical descriptor
-        // path (which omits Case). Every active slot must have its captured
-        // backing, and every resident descriptor must be accounted for. The
+        // path. Every active slot must have its captured backing, and every
+        // resident descriptor must be accounted for. The
         // ordinary return moves this owner identity without copying referents.
         let mut active_count = 0usize;
         for (ordinal, origin) in signature.reference_sources.iter().enumerate() {

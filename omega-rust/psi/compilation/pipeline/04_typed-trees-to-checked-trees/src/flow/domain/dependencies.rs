@@ -82,6 +82,48 @@ fn mathematical_captures_are_inline(
     domain: &typed_trees::domain::DomainDefinition,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> bool {
+    use typed_trees::expression::ExpressionNode;
+
+    // Ordinary scalar predicates are not prepared mathematical calls. Their
+    // complete operand trees still expose every observation. Recognize exact
+    // inline primitive projections, never just the final scalar type of a load
+    // through a reference. Opaque calls retain the checked capture route below.
+    if let Some(segments) = relative_place_segments_from_expression(program, expression, domain) {
+        if segments.iter().any(|segment| {
+            matches!(
+                segment,
+                facts::PlaceSegment::Index { .. } | facts::PlaceSegment::OpaqueRange
+            )
+        }) {
+            return false;
+        }
+        return (0..=segments.len()).all(|length| {
+            validation::project_type_reference_from_segments(
+                program,
+                domain.target_type,
+                &segments[..length],
+            )
+            .is_some_and(|reference| validation::reference_shell(program, reference).is_none())
+        }) && validation::project_type_reference_from_segments(
+            program,
+            domain.target_type,
+            &segments,
+        )
+        .is_some_and(|reference| program.primitive_type_reference(reference).is_some());
+    }
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Boolean(_) | ExpressionNode::Integer(_) | ExpressionNode::Float(_) => {
+            return true;
+        }
+        ExpressionNode::Binary(binary) => {
+            return mathematical_captures_are_inline(program, domain, binary.left)
+                && mathematical_captures_are_inline(program, domain, binary.right);
+        }
+        ExpressionNode::Unary(unary) => {
+            return mathematical_captures_are_inline(program, domain, unary.operand);
+        }
+        _ => {}
+    }
     let Some(mathematics) = program.prepared_mathematics() else {
         return false;
     };

@@ -231,6 +231,20 @@ pub struct TerminalModule {
 }
 
 impl TerminalModule {
+    /// Exact declaration ABI selected by this concrete boundary occurrence.
+    pub fn calling_abi_identity(
+        &self,
+        boundary: semantic_vocabulary::BoundaryMachineId,
+    ) -> Result<semantic_vocabulary::CallingAbiIdentity, String> {
+        let declaration = self
+            .calling_signatures
+            .iter()
+            .find(|row| row.boundary == boundary)
+            .ok_or("boundary has no Terminal calling declaration")?;
+        self.calling_abi_signature(*declaration.application.as_ref().map_err(Clone::clone)?)
+            .ok_or("boundary lost its exact declaration ABI")?
+            .identity(&self.identities)
+    }
     /// The machine keyed `id`, when the module declares it.
     /// Every machine's blocks, in machine order.
     pub fn blocks(&self) -> impl Iterator<Item = &Block> + '_ {

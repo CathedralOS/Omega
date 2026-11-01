@@ -612,10 +612,8 @@ pub fn validate_static_machine_bindings(
         })) && bindings.iter().all(|binding| match &binding.value {
             StaticMachineBindingValue::Machine(argument) => !argument.symbol.is_valid()
                 || program.symbols.get(argument.symbol).kind != symbols::SymbolKind::MachineParameter,
-            StaticMachineBindingValue::Const(actual) => !matches!(
-                program.type_reference_table.type_reference(*actual),
-                TypeReferenceNode::Named { symbol, .. } if symbol.is_valid()
-            ),
+            StaticMachineBindingValue::Const(actual) =>
+                typed_trees::domain::index_argument_is_closed(program, *actual),
             _ => true,
         });
         forwarded_evidence::validate(
@@ -658,28 +656,65 @@ fn validate_const_binding(
         | TypeParameterKind::Value {
             type_reference: expected,
         } = parameter.kind
-        && let Some(caller) = program.machine_by_symbol(application.lexical_owner)
-        && let Some(entry) = program.machine_states(caller).first()
         && crate::value_custody::const_expressions::has_carrier(
             program,
             *expression,
             &parameter.kind,
             application.lexical_owner,
         )
+        && let Some(supplier) = StaticDeclaration::find(program, application.lexical_owner)
     {
-        crate::value_custody::const_expressions::validate_formation(
-            program,
-            caller,
-            entry,
-            *expression,
-            expected,
-            &format!(
-                "machine `{}` const argument `{}`",
-                caller.name, parameter.name
-            ),
-            diagnostics,
-            formation_obligations,
-        );
+        if let Some(caller) = program.machine_by_symbol(application.lexical_owner)
+            && let Some(entry) = program.machine_states(caller).first()
+        {
+            crate::value_custody::const_expressions::validate_formation(
+                program,
+                caller,
+                entry,
+                *expression,
+                expected,
+                &format!(
+                    "machine `{}` const argument `{}`",
+                    caller.name, parameter.name
+                ),
+                diagnostics,
+                formation_obligations,
+            );
+        } else {
+            // A declaration-owned application has the same formation debt,
+            // but no machine entry or runtime prefix. Use the ordinary
+            // declaration judgment with only the supplier's own facts; the
+            // receiving hook's requirements cannot justify its argument.
+            let prior = program
+                .data_definition_by_symbol(supplier.symbol)
+                .map(|data| data.where_facts)
+                .or_else(|| {
+                    program
+                        .domain_definition(supplier.symbol)
+                        .map(|domain| domain.facts)
+                })
+                .into_iter()
+                .flat_map(|facts| program.proof_facts.span_or_empty(facts))
+                .filter_map(typed_trees::domain::ProofFact::as_expression)
+                .copied()
+                .collect::<Vec<_>>();
+            crate::value_custody::type_references::validate_const_argument_expression_formation(
+                program,
+                machine.name.as_str(),
+                parameter,
+                AppliedValueCarrier::applied(expected, machine.parameters, applied_arguments),
+                actual,
+                crate::value_custody::type_references::TypeParameterScope::authored(
+                    supplier.symbol,
+                    supplier.parameters,
+                    supplier.lifetime_parameters,
+                ),
+                &prior,
+                None,
+                diagnostics,
+                formation_obligations,
+            );
+        }
         return;
     }
     if let TypeReferenceNode::Named { symbol, .. } =

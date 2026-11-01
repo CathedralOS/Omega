@@ -1,0 +1,12 @@
+// A destination is formed before its RHS tests this same index.
+public machine exercise(items: &mut [u64; 1], index: u64)  crashes Trap {
+    items[index] = match index == 0 { true -> 0u64, _ -> failed() };
+    machine failed() -> u64 crashes Trap { crash Trap; }
+}
+machine main() crashes Trap {
+    let mut items: [u64; 1] = [641];
+    exercise(&mut items, 0);
+    transition items[0] == 0 { true -> done() false -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

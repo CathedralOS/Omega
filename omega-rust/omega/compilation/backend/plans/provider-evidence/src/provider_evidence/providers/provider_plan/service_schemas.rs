@@ -72,6 +72,7 @@ pub struct ServiceCallingPlan {
 pub struct ServiceCallingApplication {
     /// Coordinate in this schema's declaration identity table.
     pub requirement: ProviderIdentityId,
+    pub abi: semantic_vocabulary::CallingAbiIdentity,
     pub plan: ServiceCallingPlan,
 }
 
@@ -83,11 +84,44 @@ impl ServiceSchema {
         }
     }
 
-    pub fn calling_plan(&self, requirement: ProviderIdentityId) -> Option<&ServiceCallingPlan> {
+    /// Exact lookup for a concrete boundary application, never runtime geometry.
+    pub fn calling_application(
+        &self,
+        abi: &semantic_vocabulary::CallingAbiIdentity,
+    ) -> Option<&ServiceCallingPlan> {
         self.calling_applications
             .iter()
-            .find(|application| application.requirement == requirement)
+            .find(|application| &application.abi == abi)
             .map(|application| &application.plan)
+    }
+
+    /// Canonical complete application roster for declaration identity and custody.
+    pub fn calling_for_requirement(
+        &self,
+        requirement: ProviderIdentityId,
+    ) -> Vec<&ServiceCallingApplication> {
+        let mut applications = self
+            .calling_applications
+            .iter()
+            .filter(|application| application.requirement == requirement)
+            .collect::<Vec<_>>();
+        applications.sort_by(|left, right| left.abi.cmp(&right.abi));
+        applications
+    }
+
+    fn calling_matches(
+        &self,
+        requirement: ProviderIdentityId,
+        other: &Self,
+        other_requirement: ProviderIdentityId,
+    ) -> bool {
+        self.calling_for_requirement(requirement)
+            .iter()
+            .map(|application| (&application.abi, application.plan))
+            .eq(other
+                .calling_for_requirement(other_requirement)
+                .iter()
+                .map(|application| (&application.abi, application.plan)))
     }
 
     pub fn identity_text(&self, identity: ProviderIdentityId) -> &str {
@@ -125,9 +159,13 @@ impl ServiceSchema {
                     .any(|method| method.requirement_identity == application.requirement)
                 || self.calling_applications[..position]
                     .iter()
-                    .any(|previous| previous.requirement == application.requirement)
+                    .any(|previous| previous.abi == application.abi)
             {
                 return Err("calling evidence has a foreign or repeated requirement coordinate");
+            }
+            application.abi.validate()?;
+            if application.abi.requirement_identity != self.identity_text(application.requirement) {
+                return Err("calling evidence ABI key differs from its requirement coordinate");
             }
             if application.plan.report_fingerprint == 0 || application.plan.commitment.is_zero() {
                 return Err("calling evidence has an empty fingerprint or commitment");
@@ -164,9 +202,9 @@ impl ServiceSchema {
                 method,
                 &self.declaration.identities,
                 if include_calling {
-                    self.calling_plan(method.requirement_identity)
+                    self.calling_for_requirement(method.requirement_identity)
                 } else {
-                    None
+                    Vec::new()
                 },
             );
         }
@@ -184,8 +222,11 @@ impl PartialEq for ServiceSchema {
                 .iter()
                 .zip(&other.declaration.methods)
                 .all(|(left, right)| {
-                    self.calling_plan(left.requirement_identity)
-                        == other.calling_plan(right.requirement_identity)
+                    self.calling_matches(
+                        left.requirement_identity,
+                        other,
+                        right.requirement_identity,
+                    )
                 })
     }
 }
@@ -250,8 +291,11 @@ impl ServiceSchema {
                     &self.declaration.identities,
                     other_method,
                     &other.declaration.identities,
-                ) && self.calling_plan(method.requirement_identity)
-                    == other.calling_plan(other_method.requirement_identity)
+                ) && self.calling_matches(
+                    method.requirement_identity,
+                    other,
+                    other_method.requirement_identity,
+                )
             })
         })
     }

@@ -81,7 +81,6 @@ pub(crate) fn realize_native_artifact(
                         .collect(),
                     &input.plan().boundary_machines,
                     request.admission.providers.selected_provider_plans,
-                    &artifact.semantic_module().identities,
                     request.admission.providers.external_binding_rows,
                 )
             })

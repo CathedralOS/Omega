@@ -6,9 +6,7 @@ use crate::calling_policy_plans::boundary_signatures::{
     compatibility_call_signature, exact_compatibility_overload_index,
     materialize_prepared_signature,
 };
-use crate::calling_policy_plans::callback_bindings::{
-    close_callback_materializations, validate_retained_callback_binders,
-};
+use crate::calling_policy_plans::callback_bindings::validate_retained_callback_binders;
 use crate::calling_policy_plans::{BoundaryCallingPlanRealization, MaterializedBoundarySignature};
 use build_time_evaluation::BuildTimeProgram;
 use calling_conventions::callback_nominal_report_fingerprint;
@@ -56,6 +54,7 @@ pub(crate) fn evaluate_default_calling_application(
     let materialized = materialize_prepared_signature(
         services,
         declaration,
+        None,
         &[],
         layout_target,
         opaque_representation_selections,
@@ -70,9 +69,8 @@ pub(crate) fn evaluate_default_calling_application(
     publish_materialized_application(&materialized, &validated).map(Some)
 }
 
-/// Discover concrete `Calling<Policy>` relationships, evaluate the selected implementation row once for
-/// every method in the boundary service surface, and retain only canonical
-/// evaluated applications in the realization output. Source trees are borrowed.
+/// Prepare Source invocation admission and exact review coordinates only.
+/// Canonical publication owns declaration storage; target activation reads it.
 pub fn prepare_boundary_calling_plans<'checked>(
     checked: &'checked checked_trees::CheckedTrees,
     services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'_>,
@@ -87,14 +85,17 @@ pub fn prepare_boundary_calling_plans<'checked>(
             "calling plans require the exact Product source owner's prepared signature catalog",
         )]);
     }
-    // Provider selection consumes the source judgment. Retain it through
-    // policy admission rather than rechecking its internal call premises.
     let typed = &checked.typed;
-    let signatures = services.signatures();
+    let signatures = std::sync::Arc::clone(typed.boundary_signatures());
+    if !std::ptr::eq(signatures.as_ref(), services.signatures()) {
+        return Err(vec![Diagnostic::error(
+            "calling admission has a different frozen declaration census",
+        )]);
+    }
     let calling = signatures.calling();
     let mut pending = Vec::new();
-    for request in calling.requests() {
-        for instance in calling.instances(request)? {
+    for (request_ordinal, request) in calling.requests().enumerate() {
+        for (instance_ordinal, instance) in calling.instances(request)?.iter().enumerate() {
             let policy = instance.policy.as_ref().map_err(|reason| {
                 vec![
                     Diagnostic::error(format!(
@@ -110,146 +111,103 @@ pub fn prepare_boundary_calling_plans<'checked>(
                         .with_source_span(request.span),
                 ]
             })?;
-            // Psi retains the exact closed named map. Only deployment body
-            // selection remains here; a family head is not executable code.
-            let policy_machine = typed.machine_for_target(policy, target_profile.target_name())
-                .ok_or_else(|| vec![
-                    Diagnostic::error(format!(
-                        "boundary trait `{}` cannot evaluate Calling<Policy>: calling policy realization `{}` has no body for target `{}`",
-                        request.name, policy.name, target_profile.target_name(),
-                    )).with_source_span(request.span),
-                ])?;
+            let policy_machine = typed.machine_for_target(policy, target_profile.target_name()).ok_or_else(|| vec![
+                Diagnostic::error(format!("boundary trait `{}` cannot evaluate Calling<Policy>: calling policy realization `{}` has no body for target `{}`", request.name, policy.name, target_profile.target_name())).with_source_span(request.span)
+            ])?;
             for application in calling.signatures(instance) {
+                if let Some(reason) = &application.abi_refusal {
+                    return Err(vec![
+                        Diagnostic::error(reason).with_source_span(request.span),
+                    ]);
+                }
                 let declaration = signatures.applied_declaration(application).ok_or_else(|| {
                     vec![Diagnostic::error(
-                        "calling plan lost its exact prepared signature declaration",
+                        "calling admission lost its exact prepared signature declaration",
                     )]
                 })?;
-                let boundary_signature = materialize_prepared_signature(
-                    services,
-                    declaration,
-                    calling.bindings(application),
-                    layout::LayoutTarget::for_profile(target_profile)
-                        .map_err(|reason| vec![Diagnostic::error(reason)])?,
-                    opaque_representation_selections,
-                )
-                .map_err(|reason| {
-                    vec![
-                        Diagnostic::error(format!(
-                            "cannot materialize boundary signature `{}::{}` for `{}`: {reason}",
-                            request.name, declaration.method, policy_machine.name,
-                        ))
-                        .with_source_span(request.span),
-                    ]
-                })?;
-                pending.push(PreparedCallingPolicy {
-                    boundary_trait: request.boundary,
-                    boundary_arguments: calling.arguments(instance).to_vec(),
-                    argument_owner: instance.argument_owner,
-                    requirement_machine: declaration.symbol,
-                    policy_machine: policy_machine.name.as_str().to_owned(),
-                    policy_symbol: policy_machine.symbol,
-                    signature: boundary_signature,
-                    callback_context_closed: false,
-                    relationship_span: request.span,
-                    admission: Ok(()),
-                });
+                for &signature in &application.abi_signatures {
+                    pending.push(PreparedCallingPolicy {
+                        request_ordinal,
+                        instance_ordinal,
+                        signature,
+                        boundary_trait: request.boundary,
+                        boundary_arguments: calling.arguments(instance).to_vec(),
+                        argument_owner: instance.argument_owner,
+                        requirement_machine: declaration.symbol,
+                        policy_machine: policy_machine.name.as_str().to_owned(),
+                        policy_symbol: policy_machine.symbol,
+                        relationship_span: request.span,
+                        admission: Ok(()),
+                    });
+                }
             }
         }
     }
-
-    if pending.is_empty() {
-        return Ok(PreparedBoundaryCallingPlans {
-            checked,
-            pending,
-            target: target_profile,
-        });
-    }
-    // Complete the native telescope and private destinations before invoking
-    // any policy. A partial signature is not an earlier admissible ABI: a
-    // policy may correctly refuse it even though it accepts the actual call.
-    let layout_target = layout::LayoutTarget::for_profile(target_profile)
-        .map_err(|reason| vec![Diagnostic::error(reason)])?;
-    let callback_layout = layout::build_layout_plan_for_roots(
-        typed,
-        layout_target,
-        opaque_representation_selections,
-        pending.iter().flat_map(|policy| {
-            policy
-                .signature
-                .native_parameters
-                .iter()
-                .map(|parameter| parameter.layout_data_symbol)
-        }),
-    )
-    .map_err(|diagnostic| vec![diagnostic])?;
-    for policy in &mut pending {
-        policy.callback_context_closed = close_callback_materializations(
-            &mut policy.signature,
-            &callback_layout,
-            layout_target.native_target(),
+    if !pending.is_empty() {
+        // Source admission remains independent of geometry and policy results.
+        // Its exact selected-body map must agree with the canonical activation.
+        let machine_bodies = typed
+            .target_machine_families
+            .iter()
+            .filter_map(|family| {
+                typed
+                    .target_family_member(family.canonical, target_profile.target_name())
+                    .map(|body| build_time_evaluation::SelectedBuildTimeMachineBody {
+                        family: family.canonical,
+                        body: body.symbol,
+                    })
+            })
+            .collect::<Vec<_>>();
+        let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(
+            typed,
+            package_inputs.map(|inputs| {
+                std::sync::Arc::new(inputs.clone())
+                    as std::sync::Arc<dyn build_time_evaluation::BuildTimeSelectionAuthority>
+            }),
         )
-        .map_err(|reason| {
-            vec![Diagnostic::error(reason).with_source_span(policy.relationship_span)]
-        })?;
-    }
-    // Policy helpers use ordinary target families too. Select their exact
-    // retained bodies in Omega, then give admission and evaluation one shared
-    // identity mapping; Psi must neither guess the host nor pick a sibling.
-    let machine_bodies = typed
-        .target_machine_families
-        .iter()
-        .filter_map(|family| {
-            typed
-                .target_family_member(family.canonical, target_profile.target_name())
-                .map(|body| build_time_evaluation::SelectedBuildTimeMachineBody {
-                    family: family.canonical,
-                    body: body.symbol,
-                })
-        })
-        .collect::<Vec<_>>();
-    let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(
-        typed,
-        package_inputs.map(|inputs| {
-            std::sync::Arc::new(inputs.clone())
-                as std::sync::Arc<dyn build_time_evaluation::BuildTimeSelectionAuthority>
-        }),
-    )
-    .with_selected_machine_bodies(typed, &machine_bodies)
-    .map_err(|reason| vec![Diagnostic::error(reason)])?;
-    for policy in &mut pending {
-        policy.admission = admission
-            .admitted_program_machine_closure_symbols(
-                BuildTimeProgram::Checked(checked),
-                policy.policy_symbol,
-                build_time_evaluation::BuildTimeInvocationCustody::Source(policy.relationship_span),
-            )
-            .map(|_closure| ());
+        .with_selected_machine_bodies(typed, &machine_bodies)
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        for policy in &mut pending {
+            policy.admission = admission
+                .admitted_program_machine_closure_symbols(
+                    BuildTimeProgram::Checked(checked),
+                    policy.policy_symbol,
+                    build_time_evaluation::BuildTimeInvocationCustody::Source(
+                        policy.relationship_span,
+                    ),
+                )
+                .map(|_closure| ());
+        }
     }
     Ok(PreparedBoundaryCallingPlans {
         checked,
+        signatures,
         pending,
         target: target_profile,
+        representations: opaque_representation_selections.to_vec(),
     })
 }
 
-/// Source admission and signature preparation precede code publication.
-/// Activation consumes only this owned preparation and retained policy code.
 pub struct PreparedBoundaryCallingPlans<'checked> {
     checked: &'checked checked_trees::CheckedTrees,
+    signatures: std::sync::Arc<
+        checked_trees::typed_trees::service_declarations::signatures::PreparedBoundarySignatures,
+    >,
     pending: Vec<PreparedCallingPolicy>,
     target: target::TargetProfile,
+    representations: Vec<OpaqueRepresentationSelection>,
 }
 
 struct PreparedCallingPolicy {
+    request_ordinal: usize,
+    instance_ordinal: usize,
+    signature: semantic_vocabulary::CallingSignatureId,
     boundary_trait: symbols::SymbolHandle,
     boundary_arguments: Vec<checked_trees::typed_trees::types::TypeReferenceHandle>,
     argument_owner: symbols::SymbolHandle,
     requirement_machine: symbols::SymbolHandle,
     policy_machine: String,
     policy_symbol: symbols::SymbolHandle,
-    signature: MaterializedBoundarySignature,
-    callback_context_closed: bool,
     relationship_span: source::SourceSpan,
     admission: Result<(), String>,
 }
@@ -264,45 +222,97 @@ impl PreparedBoundaryCallingPlans<'_> {
         code: Option<&super::CallingPolicyCode>,
     ) -> Result<Vec<BoundaryCallingPlanRealization>, Vec<Diagnostic>> {
         let mut evaluated = Vec::with_capacity(self.pending.len());
-        for PreparedCallingPolicy {
-            boundary_trait,
-            boundary_arguments,
-            argument_owner,
-            requirement_machine,
-            policy_machine,
-            policy_symbol,
-            signature,
-            callback_context_closed,
-            relationship_span,
-            admission,
-        } in self.pending
-        {
-            admission.map_err(|reason| {
-                vec![Diagnostic::error(reason).with_source_span(relationship_span)]
-            })?;
+        for policy in self.pending {
+            let diagnostic = |reason: String| {
+                vec![Diagnostic::error(reason).with_source_span(policy.relationship_span)]
+            };
+            policy.admission.map_err(&diagnostic)?;
             let code = code.ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "calling policies have no published Terminal code",
-                )]
+                diagnostic("calling policies have no published Terminal code".into())
             })?;
-            code.require_owner(self.checked)
-                .map_err(|reason| vec![Diagnostic::error(reason)])?;
-            let validated = code
-                .evaluate(policy_symbol, self.target, &signature)
-                .map_err(|reason| {
-                    vec![Diagnostic::error(reason).with_source_span(relationship_span)]
+            code.require_owner(self.checked).map_err(&diagnostic)?;
+            let module = code.artifact.semantic_module();
+            let request = module
+                .calling_policy_requests
+                .get(policy.request_ordinal)
+                .ok_or_else(|| {
+                    diagnostic("calling policy lost its exact canonical request".into())
                 })?;
-            let (application_report_fingerprint, application_commitment) =
-                boundary_plan_application_identity(&signature, &validated)
-                    .map_err(|reason| vec![Diagnostic::error(reason)])?;
+            let owner = *request
+                .declaration
+                .as_ref()
+                .map_err(|reason| diagnostic(reason.clone()))?;
+            if module.identities.text(owner)
+                != self
+                    .checked
+                    .typed
+                    .normalized_hermetic_symbol_identity(policy.boundary_trait)
+                    .ok()
+                    .as_deref()
+            {
+                return Err(diagnostic(
+                    "calling policy request differs from its original source owner".into(),
+                ));
+            }
+            let instance = request
+                .instances
+                .as_ref()
+                .map_err(|reasons| diagnostic(reasons.join("; ")))?
+                .get(policy.instance_ordinal)
+                .ok_or_else(|| {
+                    diagnostic("calling policy lost its exact canonical instance".into())
+                })?;
+            let applications = instance
+                .signatures
+                .as_ref()
+                .map_err(|reason| diagnostic(reason.clone()))?;
+            if !applications.contains(&policy.signature) {
+                return Err(diagnostic(
+                    "calling policy instance does not contain its exact declaration ABI".into(),
+                ));
+            }
+            let callable = *instance
+                .policy
+                .as_ref()
+                .map_err(|reason| diagnostic(reason.clone()))?;
+            let (canonical, validated) = code
+                .evaluate(
+                    policy.policy_symbol,
+                    callable,
+                    self.target,
+                    policy.signature,
+                )
+                .map_err(&diagnostic)?;
+            let callback_context_closed = !canonical.policy.callbacks.binders.is_empty()
+                || !canonical.policy.callbacks.demands.is_empty();
+            let declaration = self
+                .signatures
+                .declarations()
+                .find(|row| row.symbol == policy.requirement_machine)
+                .ok_or_else(|| {
+                    diagnostic("calling review lost its original requirement declaration".into())
+                })?;
+            let signature = super::signature_source::attach(
+                canonical,
+                module,
+                declaration,
+                &self.checked.typed,
+                &code.source_records,
+                &self.representations,
+                self.target,
+            )
+            .map_err(&diagnostic)?;
+            let (report_fingerprint, commitment) =
+                boundary_plan_application_identity(&signature, &validated).map_err(&diagnostic)?;
             evaluated.push(BoundaryCallingPlanRealization {
-                boundary_trait,
-                boundary_arguments,
-                argument_owner,
-                requirement_machine,
-                report_fingerprint: application_report_fingerprint,
+                declaration: policy.signature,
+                boundary_trait: policy.boundary_trait,
+                boundary_arguments: policy.boundary_arguments,
+                argument_owner: policy.argument_owner,
+                requirement_machine: policy.requirement_machine,
+                report_fingerprint,
                 commitment: effects::provider_plan::BoundaryCallingPlanCommitment::from_digest(
-                    application_commitment,
+                    commitment,
                 ),
                 boundary_entry_plan: validated.plan().clone(),
                 validated_boundary_entry_plan: validated,
@@ -311,8 +321,8 @@ impl PreparedBoundaryCallingPlans<'_> {
                 callback_context_closed,
                 native_parameters: signature.native_parameters.clone(),
                 materialized_signature: signature,
-                policy_machine,
-                relationship_span,
+                policy_machine: policy.policy_machine,
+                relationship_span: policy.relationship_span,
             });
         }
         for realization in &evaluated {

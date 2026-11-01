@@ -232,9 +232,13 @@ pub(crate) fn handle_assignment<'program>(
         return;
     }; // Symbol diagnostics already prevent admission.
     let Some(origins) = frames.assignment_storage_origins(machine, statement) else {
-        diagnostics.push(Diagnostic::error(
-            "cannot establish assignment invariants: storage origins are unavailable",
-        ));
+        diagnostics.push(
+            Diagnostic::error(format!(
+                "cannot establish assignment invariants: performed write has unknown destination origins in machine `{}` state `{}` at statement {statement_index}",
+                machine.name.as_str(), state.name.as_str(),
+            ))
+            .with_source_span(program.expression_table.source_span(target)),
+        );
         return;
     };
     let definite = origins.destinations.len() == 1;

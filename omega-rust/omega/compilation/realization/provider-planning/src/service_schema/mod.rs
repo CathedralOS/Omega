@@ -44,19 +44,23 @@ fn attach_requirement_calling(
     let mut schema = ServiceSchema::from_declaration(declaration);
     if matches!(source, crate::ProviderSchemaDeclaration::BoundaryTrait(_)) {
         for (method, requirement) in schema.declaration.methods.iter().zip(requirements) {
-            if let Some(application) = calling_plans.iter().find(|application| {
+            for application in calling_plans.iter().filter(|application| {
                 application.boundary_trait == source.symbol()
                     && application.boundary_arguments == boundary_arguments
                     && application.argument_owner() == argument_owner
                     && application.requirement_machine == requirement
             }) {
-                schema.calling_applications.push(ServiceCallingApplication {
+                let attachment = ServiceCallingApplication {
                     requirement: method.requirement_identity,
+                    abi: application.materialized_signature().abi.clone(),
                     plan: ServiceCallingPlan {
                         report_fingerprint: application.report_fingerprint,
                         commitment: application.commitment,
                     },
-                });
+                };
+                if !schema.calling_applications.contains(&attachment) {
+                    schema.calling_applications.push(attachment);
+                }
             }
         }
     }

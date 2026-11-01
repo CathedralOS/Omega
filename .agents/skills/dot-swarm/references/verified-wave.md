@@ -12,7 +12,7 @@ were part of the wave.
 
 The coordinator checked the shared claims registry before selection.
 `SAMPLE-CORPUS` was already assigned, so the diagnostic slots used unclaimed
-`CANARY-CORPUS` and `FLOAT-PROVIDERS` subjects. Workers shared a pinned read-only
+`CANARY-CORPUS` and float-provider subjects. Workers shared a pinned read-only
 checkout and wrote separate scratch outputs. The coordinator retained an
 in-flight ledger, reconciled native handles, received partial findings, and drained
 both results. The original checkout remained clean on its original main revision.
@@ -46,7 +46,7 @@ The next acceptance is explicit executable input/output/exit coverage for each
 promised route, including byte-safe console output checking. The board item stays
 open; no acceptance was declared satisfied by this wave.
 
-### FLOAT-PROVIDERS: source-free proof obligations
+### Float providers: source-free proof obligations
 
 The worker confirmed that the current source still restricts FloatMeaning
 projection binding and independent Terminal replay to Meaning results and
@@ -81,7 +81,7 @@ open. No Rust tests or compiler execution were claimed from source inspection.
   29 tests passed, exit 0
 - Isolated synthetic corpus-output recording probe: expected behavior observed,
   exit 0; mocked runner, temporary fixtures/golden, no Omega execution
-- FLOAT-PROVIDERS source audit: 8 explicit source/evidence checks satisfied;
+- Float-provider source audit: 8 explicit source/evidence checks satisfied;
   these are source inspections, not compiler or Rust-test results
 - `python3 tools/swarm/worktree_status.py --offline --base 18d68e27ec1620c945d36ae74fa8e6902ee207d5`:
   exit 0

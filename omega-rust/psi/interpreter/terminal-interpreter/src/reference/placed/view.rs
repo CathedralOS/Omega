@@ -107,7 +107,10 @@ impl TerminalExecution<'_> {
                 storage.stage_reference(
                     StructuralRuntimePlace {
                         opaque_identity: value.opaque_identity,
-                        path: vec![StructuralPathSegment::Field(field.identity)],
+                        path: vec![
+                            StructuralPathSegment::Case(ready.id),
+                            StructuralPathSegment::Field(field.identity),
+                        ],
                     },
                     crate::reference::ReferenceReferent {
                         view: backing,
@@ -131,6 +134,7 @@ impl TerminalExecution<'_> {
                     failures,
                     reason_field,
                     value.opaque_identity,
+                    rejected.id,
                 )?;
             }
         }

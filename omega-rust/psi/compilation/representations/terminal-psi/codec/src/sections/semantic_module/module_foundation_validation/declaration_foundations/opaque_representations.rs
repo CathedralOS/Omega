@@ -262,6 +262,7 @@ mod tests {
                             schema_field: StructuralFieldId::new(ordinal as u64 + 5).unwrap(),
                             key: ordinal as u64 + 1,
                             identity: None,
+                            layout_source: terminal_psi::TargetLayoutFieldLayoutSource::Scalar,
                             byte_size: 8,
                             byte_alignment: 8,
                             kind: TargetLayoutSchemaFieldKind::Scalar,

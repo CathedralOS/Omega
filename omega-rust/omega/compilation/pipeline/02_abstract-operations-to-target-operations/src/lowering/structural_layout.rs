@@ -457,30 +457,12 @@ pub(crate) fn structural_shape(
     .map_err(geometry_error)
 }
 
-/// Internal scalar loans carry a descriptor; aggregate loans remain thin.
-pub(super) fn internal_parameter_shape(
-    structural_type: StructuralTypeId,
-    referent: ValueShape,
-    access: StructuralAccess,
-    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-) -> ValueShape {
-    if access != StructuralAccess::Owned
-        && scalar_storage_type(structural_type, declarations).is_some()
-    {
-        ValueShape::borrowed_scalar_reference()
-    } else {
-        structural_parameter_shape(referent, access)
-    }
-}
-
 pub(super) fn scalar_storage_type(
     structural_type: StructuralTypeId,
     declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
 ) -> Option<ScalarType> {
     calling_conventions::terminal_layout::scalar_storage_type(structural_type, declarations)
 }
-
-pub(super) use crate::structural_shapes::parameter_shape as structural_parameter_shape;
 
 pub(super) fn structural_sum_layout(
     structural_type: StructuralTypeId,

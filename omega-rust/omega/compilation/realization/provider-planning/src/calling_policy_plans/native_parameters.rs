@@ -5,7 +5,6 @@ use super::{
     BoundaryNativeParameterOrigin, BoundaryNativeParameterShape, MaterializedBoundarySignature,
 };
 use calling_conventions::{NativeCallbackDemand, NativeParameterId};
-use symbols::SymbolHandle;
 
 impl MaterializedBoundarySignature {
     /// Authored ABI order; compact identities remain compiler-only join keys.
@@ -41,9 +40,5 @@ impl BoundaryNativeParameter {
 
     pub const fn origin(&self) -> BoundaryNativeParameterOrigin {
         self.origin
-    }
-
-    pub const fn layout_data_symbol(&self) -> SymbolHandle {
-        self.layout_data_symbol
     }
 }

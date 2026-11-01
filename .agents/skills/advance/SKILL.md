@@ -29,8 +29,7 @@ run on `main` failed), then an actionable `TASKS.md` outcome starting with
 `## Priority (human-set only)` in top-down order (set and reordered only by
 humans), prioritizing ratified language-design and surface-syntax migrations
 by `.omg` blast radius (`NESTED-MACHINE-UNIFICATION`,
-`CANONICALIZE-SCALAR-RANGE-CONTRACTS`, `DOMAIN-DEFAULT-PREDICATE-UNIFICATION`,
-`STATIC-MACHINE-MIGRATION`, `BUILD-OWNED-TARGET-SELECTION`,
+`CANONICALIZE-SCALAR-RANGE-CONTRACTS`, `STATIC-MACHINE-MIGRATION`, `BUILD-OWNED-TARGET-SELECTION`,
 `BUILD-OWNED-NATIVE-BINDINGS`,
 `TOP-LEVEL-BOUNDARY-REQUIREMENTS`) before lower feature/library sections so new
 files are not authored in retired syntax. Compiler

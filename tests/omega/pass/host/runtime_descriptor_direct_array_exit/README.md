@@ -1,17 +1,22 @@
-On macOS AArch64, review this project's exact foreign supplies and run:
+The Linux and Darwin entries call concrete native boundary traits with
+`SystemVByteViewCalling` and `DarwinArm64ByteViewCalling`, respectively.
+Package-local `Build::bind` rows attach the reviewed native `write` symbol to
+each exact requirement. The entry bodies preserve the same write and backing
+oracle for both calling conventions.
+
+The complete array and its nonzero-offset slice lend their original pointer and
+exact length. A projected readonly scalar loan lends its four-byte field; the
+two-byte write preserves that field, including the remaining bytes.
+
+Expected output from each engine: `dir\nir\n` on stdout and `p\n` on stderr.
+
+Prepare and review this project's native supplies, then run on Linux x86-64 or
+macOS ARM64:
 
 ```sh
-cd tests/omega/pass/host/runtime_descriptor_direct_array_exit
-omega update
-# Review the generated decisions, then: omega update --resume
+omega update --project .
 omega run --both main.omg < /dev/null
 ```
 
-Both engines return zero. Each independently produces `dir\nir\n` on stdout
-and `p\n` on stderr; the corpus checks both stream oracles. The CLI currently
-compares exit presentation only.
-
-The whole fixed array and its nonzero-offset slice supply their original
-pointer and exact length to the same foreign byte-view ABI. A projected
-readonly scalar loan exposes only its four-byte field; writing two bytes must
-leave the source field, including the remaining bytes, unchanged.
+Expected native and Terminal exit: 0. The corpus checks stdout and stderr
+independently for both engines; the CLI compares exit presentation.

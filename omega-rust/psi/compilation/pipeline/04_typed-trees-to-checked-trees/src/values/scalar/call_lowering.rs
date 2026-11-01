@@ -380,26 +380,23 @@ fn family_argument_expression(
             primitive_type: expected_type,
         });
     }
-    let mut value_position = 0usize;
-    for local in locals {
-        if !local.is_value_binding() {
-            if local.symbol == argument.symbol {
-                return Some(CheckedScalarExpression::StorageRead {
-                    symbol: local.symbol,
-                    primitive_type: expected_type,
-                });
-            }
-            continue;
-        }
-        if local.symbol == argument.symbol {
-            return Some(CheckedScalarExpression::Local {
-                position: value_position,
-                primitive_type: expected_type,
-            });
-        }
-        value_position += 1;
+    let local = locals
+        .iter()
+        .find(|local| local.symbol == argument.symbol)?;
+    if !local.is_value_binding() {
+        return Some(CheckedScalarExpression::StorageRead {
+            symbol: local.symbol,
+            primitive_type: expected_type,
+        });
     }
-    None
+    // Local positions belong to the same parameter-plus-local roster retained
+    // with every other scalar expression. A local-only ordinal can instead
+    // select a caller parameter, including the leading implementation selector.
+    Some(CheckedScalarExpression::Local {
+        position: located_binding_symbols(scalar_parameters, locals)
+            .position(|symbol| symbol == argument.symbol)?,
+        primitive_type: expected_type,
+    })
 }
 
 #[allow(clippy::too_many_arguments)]

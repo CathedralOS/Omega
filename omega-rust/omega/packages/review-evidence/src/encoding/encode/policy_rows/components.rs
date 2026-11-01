@@ -129,6 +129,7 @@ pub(super) fn representation(
             false,
             false,
             |encoder| {
+                calling::encode_declaration_abi(encoder, &calling.abi)?;
                 encode_nominal(encoder, &calling.boundary_trait)?;
                 encoder.sequence(&calling.boundary_arguments, encode_type_identity)?;
                 encoder.u32(calling.boundary_lifetime_parameter_count);

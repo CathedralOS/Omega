@@ -376,8 +376,9 @@ impl AppliedProofBindings {
                 bindings.transport_parameters(&correspondence.parameters)?;
                 return Some(bindings);
             }
-            if let SelectedCallContract::Signature(signature) = owner
-                && let Some(declared) = program
+            let declared_requirement = match owner {
+                SelectedCallContract::DynamicSlot { signature, .. } => Some(*signature),
+                SelectedCallContract::Signature(signature) => program
                     .trait_machine_signature(application.binding_declaration)
                     .map(|(_, signature)| signature)
                     .or_else(|| {
@@ -390,8 +391,10 @@ impl AppliedProofBindings {
                                 )
                             })
                             .filter(|declared| std::ptr::eq(*declared, *signature))
-                    })
-            {
+                    }),
+                _ => None,
+            };
+            if let Some(declared) = declared_requirement {
                 let correspondence = crate::machine_calls::calls::call_binding_correspondence(
                     program, caller, &site,
                 )

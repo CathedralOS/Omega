@@ -79,6 +79,7 @@ fn identity_only_reference_transport_closes_geometry_but_not_owned_storage() {
                 id: referent,
                 identity: terminal_psi::TerminalIdentityIndex::ABSENT,
                 foreign_descriptor: descriptor,
+                abstract_opaque: false,
             });
         let mut recipes =
             super::TerminalBoundaryRecipes::new(&module, "macos_arm64", &|application| {

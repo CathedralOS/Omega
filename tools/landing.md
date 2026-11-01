@@ -33,25 +33,34 @@ Ordinary progress PRs do not wait for full Product/self-host builds, release
 matrices, or a new pinned qualification packet. Run those only when the assigned
 acceptance explicitly requires them. Stop expanding validation once the scoped
 checks pass; keep any remaining extended validation accurately reported.
-When GitHub reports the pull request mergeable and the required `compiler-check`
-is green, mark it ready and enqueue it. Do not mark a conflicting or red pull
-request ready. Never chase main by rebasing, rebuilding, or re-running gates:
-once the pull request is ready, GitHub Actions CI executes the integration
-build and checks in the merge queue. Required review follows changes to meaning,
-not each queue-generated SHA. Resolve actual conflicts or failed checks; do not
+Never chase main by rebasing, rebuilding, or re-running gates: once the pull
+request is ready, GitHub Actions CI executes the integration build and checks in
+the merge queue. Required review follows changes to meaning, not each
+queue-generated SHA. Resolve actual conflicts or failed checks; do not
 repeatedly refresh an otherwise eligible PR against moving main.
 
 Python 3, Git and an authenticated GitHub CLI (`gh`) work on Windows, macOS and
 Linux. Commands below use `python`; use `python3` if that is its installed name.
-Choose a unique remote ref name `work/NAME` and replace `NUMBER` and `FULL_HEAD_SHA` with
-the PR number and the full output of `git rev-parse HEAD`:
+
+Right after the first push, run one command in the background so the session is
+woken when it finishes. Replace `NUMBER` and `FULL_HEAD_SHA` with the PR number
+and the full output of `git rev-parse HEAD`:
 
 ```text
-gh pr checks NUMBER --required --watch
-gh pr ready NUMBER
-python tools/landing.py enqueue NUMBER --expected-head FULL_HEAD_SHA
-python tools/landing.py wait NUMBER --expected-head FULL_HEAD_SHA --wait-seconds 60
+python tools/landing.py land NUMBER --expected-head FULL_HEAD_SHA
 ```
+
+`land` waits for `compiler-check` on that exact head, runs `gh pr ready` (skipped
+if the PR is already ready), enqueues with the same fenced mutation as `enqueue`,
+and waits for MERGED. It exits 0 only for MERGED and prints the merged PR. Any
+other ending exits non-zero with the reason on stderr: 1 for a red check, a head
+that no longer matches `--expected-head`, a closed PR, a merge conflict, or
+removal from the queue; 2 when `--wait-seconds` (default 7200, at most 86400)
+runs out first. It never marks a conflicting or red PR ready and never
+re-enqueues. A rerun resumes from the PR's current state: a queued PR is only
+waited on, a merged PR returns at once. After a non-zero exit, inspect the
+failed run (`gh pr checks NUMBER`, `gh run view RUN_ID --log-failed`), fix the
+source, push, and run `land` with the new head.
 
 `PR_BODY` is a file containing the change's explanation and focused evidence.
 Include actual agent/model provenance there when known, not in commit trailers.
@@ -59,8 +68,9 @@ GitHub records the submitter and publication without a separate notes push.
 An existing PR for the owned branch is reused, not duplicated. Do not include
 unrelated local commits. Keep the candidate clean and committed before push.
 
-The enqueue helper uses GitHub's native `enqueuePullRequest` mutation, fenced by
-the expected source head. It does not enable repository-wide auto-merge, bypass
+`land` is `enqueue` and `wait` joined by the check and ready steps; the two
+remain for observing or resuming by hand. The enqueue helper uses GitHub's
+native `enqueuePullRequest` mutation, fenced by the expected source head. It does not enable repository-wide auto-merge, bypass
 checks, jump the queue, push, rebase or compile. GitHub refuses ineligible PRs.
 The UI's **Merge when ready / Add to merge queue** route is also supported.
 `gh pr merge` may try to enable auto-merge even for an eligible PR; use the
@@ -68,9 +78,9 @@ documented helper instead of changing repository settings.
 
 `wait` returns 0 only for MERGED, 1 for a closed/conflicting/unqueued PR or an
 error, and 2 while still queued at its deadline. A timeout is not a failed
-compile and does not remove the PR. Continue bounded observation without
-holding a local build slot. Inspect actual failed run logs before changing
-source or re-enqueueing. An uncertain enqueue response calls for `status`,
+compile and does not remove the PR. Continue bounded observation with `land`
+or `wait`, without holding a local build slot. Inspect actual failed run logs
+before changing source or re-enqueueing. An uncertain enqueue response calls for `status`,
 not another mutation.
 
 ```text

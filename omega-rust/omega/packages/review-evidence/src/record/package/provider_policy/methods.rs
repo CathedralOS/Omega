@@ -32,7 +32,7 @@ pub struct PackagePolicyServiceMethod {
     /// into; capture clones the schema's table, decoding rebuilds an
     /// equivalent one from the same canonical texts.
     pub(crate) identities: ProviderIdentityTable,
-    pub(crate) calling: Option<PackagePolicyCallingPlan>,
+    pub(crate) calling: Vec<PackagePolicyCallingPlan>,
 }
 
 impl PackagePolicyServiceMethod {
@@ -62,7 +62,7 @@ impl PackagePolicyServiceMethod {
     field_projection_accessors!(copied terminates_guarantee: bool);
     field_projection_accessors!(sliced termination_premises: &[ServiceProgressPremise]);
 
-    pub fn calling(&self) -> Option<&PackagePolicyCallingPlan> {
-        self.calling.as_ref()
+    pub fn calling(&self) -> &[PackagePolicyCallingPlan] {
+        &self.calling
     }
 }

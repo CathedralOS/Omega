@@ -101,6 +101,7 @@ impl<'a> TerminalProductionRequest<'a> {
         // Attribution is captured once while lowering owns source joins.
         // Requested roots attach to the sealed artifact after publication.
         let provenance = checked_trees_to_lowered_psi::lowered_module_provenance(checked, &lowered);
+        let source_records = std::mem::take(&mut lowered.source_records);
         let optimized = observer
             .record_result(PsiCompilationStage::Optimization, || {
                 run_psi_optimization(lowered, self.optimization_selections)
@@ -142,6 +143,7 @@ impl<'a> TerminalProductionRequest<'a> {
             build_filesystem,
             applications,
             provenance,
+            source_records,
         })
     }
 }

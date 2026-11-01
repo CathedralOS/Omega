@@ -1,5 +1,6 @@
 //! Recover source for comparison through existing custody issuers only.
 
+use crate::declarations::BuildDeclarationKind;
 use crate::declarations::PackageSelection;
 use crate::resolution::graph::{
     CanonicalDependencySourceRequest, CanonicalSourceClosureSubject, PackageRootSourceRequest,
@@ -33,7 +34,15 @@ pub(super) fn recover(
     }
     let cached = match expected.resolution() {
         ImmutableSourceResolution::ExternalLocal { content } => {
-            recover_cached_external_local_source(current, content, storage)
+            let dependencies = subject
+                .package_dependency_projection(expected.key())
+                .ok_or("recorded old Build dependency ledger is unavailable")?;
+            let role = if subject.root().selected().key() == expected.key() {
+                subject.root_role()
+            } else {
+                BuildDeclarationKind::Package
+            };
+            recover_cached_external_local_source(current, content, role, dependencies, storage)
                 .map_err(|_| "cached old local source could not be recovered or verified")?
         }
         _ => None,

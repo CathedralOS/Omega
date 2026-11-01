@@ -1,0 +1,15 @@
+// The old value cannot satisfy the target contract after the earlier actual writes.
+data Cell { value: u64; }
+machine replace(cell: &mut Cell) -> bool ensures cell.value == 9 {
+    cell.value = 9;
+    false
+}
+public machine finish(ignored: bool, observed: u64) requires observed == 7 crashes Trap {
+    transition observed == 9 { true -> done() false -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+machine main() crashes Trap {
+    let mut cell: Cell = Cell { value: 7 };
+    transition { _ -> finish(replace(&mut cell), cell.value) }
+}

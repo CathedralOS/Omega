@@ -136,6 +136,7 @@ pub(crate) fn stage_rejection_failure(
     failures: &[StructuralCaseDeclaration; 3],
     reason_field: &StructuralFieldDeclaration,
     opaque_identity: u64,
+    result_case: semantic_vocabulary::StructuralCaseId,
 ) -> Result<(), TerminalInterpretError> {
     let (failure, coordinates) = match rejection {
         InitializationRejection::RangeTooSmall {
@@ -149,7 +150,10 @@ pub(crate) fn stage_rejection_failure(
     };
     let reason = StructuralRuntimePlace {
         opaque_identity,
-        path: vec![StructuralPathSegment::Field(reason_field.identity)],
+        path: vec![
+            StructuralPathSegment::Case(result_case),
+            StructuralPathSegment::Field(reason_field.identity),
+        ],
     };
     storage.stage_case(
         reason.clone(),

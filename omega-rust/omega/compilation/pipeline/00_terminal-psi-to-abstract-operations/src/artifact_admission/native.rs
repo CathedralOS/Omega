@@ -214,6 +214,10 @@ impl VerifiedNativeArtifactInput {
     pub fn plan(&self) -> &AbstractOperationPlan {
         self.optimization_input.plan()
     }
+
+    pub fn module(&self) -> &terminal_psi::TerminalModule {
+        self.optimization_input.context().module()
+    }
 }
 
 impl NativeScopePreparation {

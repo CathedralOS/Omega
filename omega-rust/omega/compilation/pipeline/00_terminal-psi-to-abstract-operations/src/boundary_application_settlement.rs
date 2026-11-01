@@ -63,6 +63,7 @@ fn project_opaque_applications(
                     )
                     .map(|requirement_identity| {
                         boundary_applications::BoundaryOpaqueRepresentationApplication {
+                            abi: application.abi.clone(),
                             requirement_identity,
                             shape_root: use_.shape_root,
                             application_report_fingerprint: use_.application_report_fingerprint,

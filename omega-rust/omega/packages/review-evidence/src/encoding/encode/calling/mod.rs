@@ -4,7 +4,7 @@ mod application;
 mod callbacks;
 mod opaque;
 
-pub(crate) use application::encode_application;
+pub(crate) use application::{encode_application, encode_declaration_abi};
 
 use super::encoder::Encoder;
 pub(super) use super::type_identity;

@@ -1,0 +1,6 @@
+// An executed Build package name survives ordinary value transport, so the product imports that exact package and historical review reuses its recorded description at the verified source pin.
+data Naming { before: u64; name: &[u8]; after: u64; }
+machine build(builder: &mut Build) {
+    let naming: Naming = Naming { before: 17, name: "my_library", after: 29 };
+    Build::package(builder, naming.name);
+}

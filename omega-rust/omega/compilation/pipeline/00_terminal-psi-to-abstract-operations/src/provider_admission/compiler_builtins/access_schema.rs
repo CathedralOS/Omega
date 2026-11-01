@@ -99,14 +99,9 @@ pub(super) fn validate(
         || boundary.owning_service.is_some()
         || method.may_suspend
         || method.may_block
-        || schema
-            .calling_plan(method.requirement_identity)
-            .map(|plan| plan.report_fingerprint)
-            .is_some()
-        || schema
-            .calling_plan(method.requirement_identity)
-            .map(|plan| plan.commitment)
-            .is_some()
+        || !schema
+            .calling_for_requirement(method.requirement_identity)
+            .is_empty()
     {
         return Err(invalid());
     }

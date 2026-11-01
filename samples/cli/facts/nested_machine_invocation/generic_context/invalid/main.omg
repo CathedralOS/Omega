@@ -1,0 +1,16 @@
+// A nested machine returns its explicitly supplied value under the enclosing static type.
+// This changes only the generic-context witness's returned value: U is not T.
+machine identity<T>(value: T) -> T {
+    copy<bool>(value, true)
+    machine copy<U>(item: T, marker: U) -> T {
+        keep(item, marker)
+        machine keep(item: T, marker: U) -> T { marker }
+    }
+}
+
+machine main() crashes Trap {
+    let value: u64 = identity<u64>(42);
+    transition value == 42 { true -> done() _ -> failed() }
+    machine done() {}
+    machine failed() crashes Trap { crash Trap; }
+}

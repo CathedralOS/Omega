@@ -301,7 +301,8 @@ pub(super) fn reference_call_argument(
         &super::scalar_sources::ScalarSources::from(live),
     )?;
     if selected != declaration.structural_type
-        || crate::lowering::structural_layout::internal_parameter_shape(
+        || crate::lowering::structural_signature::StructuralCallSignature::parameter_shape(
+            crate::lowering::structural_signature::ParameterLane::Internal,
             selected,
             shape,
             declaration.access,

@@ -27,7 +27,7 @@ wire_record! {
         telescope: Telescope,
     }
     StaticOperand: CallingStaticOperand { ordinal: U32, kind: OperandKind, identity: Index }
-    AbiParameter: CallingAbiParameter { structural_type: Id, access: super::super::wire_fields::Access }
+    AbiParameter: CallingAbiParameter { structural_type: Id, callback_backing: Optional<Id>, access: super::super::wire_fields::Access }
     GenericFormal: CallingGenericFormal { ordinal: U32, kind: OperandKind, callback: Optional<BinderId> }
     PolicyRequest: CallingPolicyRequest {
         declaration: ResultField<Index, Text>,

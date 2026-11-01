@@ -1,6 +1,6 @@
 //! Semantic contents follow the active declaration, not native memory. Case
-//! steps authenticate an overlay; runtime storage omits that step only after
-//! choosing the nominal case. Common and payload fields keep distinct keys.
+//! steps authenticate an overlay and distinguish descended payload storage.
+//! Direct common and payload scalar fields keep their separate cell namespaces.
 
 use crate::effects::scalar_loans::{satisfies_source_restriction, scalar_qualification_owner};
 use crate::errors::{TerminalInterpretError, malformed};
@@ -402,6 +402,12 @@ fn collect_fields(
             });
         } else if let Some(child_type) = field.field_type.as_structural() {
             let mut child = parent.clone();
+            if payload {
+                let Some(Path::Case(case)) = path.iter().rev().nth(1) else {
+                    return Err(malformed());
+                };
+                child.path.push(StructuralPathSegment::Case(*case));
+            }
             child
                 .path
                 .push(StructuralPathSegment::Field(field.identity.clone()));

@@ -1,0 +1,6 @@
+// An executed Build package name survives ordinary value transport, so the product imports that exact package and historical review reuses its recorded description at the verified source pin.
+const PACKAGE_NAME: [u8; 10] = [109, 121, 95, 108, 105, 98, 114, 97, 114, 121];
+machine build(builder: &mut Build) {
+    let name: [u8; 10] = PACKAGE_NAME;
+    Build::package(builder, &name[..]);
+}

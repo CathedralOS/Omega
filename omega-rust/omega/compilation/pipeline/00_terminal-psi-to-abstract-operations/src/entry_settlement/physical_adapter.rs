@@ -35,6 +35,7 @@ impl PhysicalProgramEntry {
         let mut candidates = module.provider_candidates.iter().filter(|candidate| {
             module.identities.text(candidate.requirement_identity)
                 == Some(application.requirement_identity.as_str())
+                && module.calling_abi_identity(candidate.boundary).as_ref() == Ok(&application.abi)
                 && selected.iter().any(|selection| {
                     selection.requirement_identity == application.requirement_identity
                         && module.identities.text(candidate.candidate_identity)

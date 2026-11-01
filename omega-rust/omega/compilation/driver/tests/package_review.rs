@@ -7,6 +7,144 @@ mod fixture_package_inputs;
 use compiler::{CheckedCompileRequest, CompilationSession, PackageReviewFailure};
 use package_evidence::PackageReviewProjectionError;
 
+#[test]
+fn callback_review_rejoins_candidate_types_reports_and_target_members() {
+    use package_evidence::{PackageReviewInput, project_checked_package_policy};
+    let target = "macos_arm64";
+    let profile = target::TargetProfile::from_canonical_target_name(target).unwrap();
+    let fixture = fixture_package_inputs::repo_root()
+        .join("tests/omega/pass/build/terminal_private_callback_calling/main.omg");
+    let mut prepared =
+        fixture_package_inputs::reviewed_repository_fixture_package_inputs(&fixture, Some(target))
+            .expect("private callback fixture admission");
+    let checked = fixture_package_inputs::check_fixture(&mut prepared, target, Default::default())
+        .expect("checked private callback fixture");
+    let package = checked.sources().package_identity().expect("root package");
+    project_checked_package_policy(&checked, profile, package).expect("original callback review");
+    let indirect = checked
+        .providers()
+        .boundary_calling_plan_realizations
+        .iter()
+        .find(|row| {
+            row.materialized_signature()
+                .owner_requirement_identity()
+                .contains("IndirectRegistrar")
+        })
+        .expect("indirect registrar's source-authored declaration ABI")
+        .materialized_signature();
+    assert!(indirect.callback_layout_catalog().is_empty());
+    assert!(
+        indirect.callback_demands().is_empty(),
+        "a stored pointer grants no direct private field destination"
+    );
+    let parameter = indirect.parameters()[0];
+    assert_eq!(
+        indirect.shapes()[usize::from(parameter)].class,
+        calling_conventions::BoundaryValueClass::Reference
+    );
+    let signature = checked
+        .providers()
+        .boundary_calling_plan_realizations
+        .iter()
+        .map(|row| row.materialized_signature())
+        .find(|signature| signature.callback_layout_catalog().len() == 2)
+        .expect("registrar retains both private inline paths");
+    let entries = signature.callback_layout_catalog();
+    let fixed = entries
+        .iter()
+        .find(|entry| {
+            let source = entry.review_source();
+            let data = checked
+                .typed
+                .data_definition_by_symbol(source.root.declaration)
+                .unwrap();
+            checked
+                .typed
+                .data_field(data, source.fields.last().unwrap().declaration)
+                .unwrap()
+                .name
+                .as_str()
+                == "first"
+        })
+        .expect("fixed-layout callback path");
+    let variable = entries
+        .iter()
+        .find(|entry| {
+            entry.review_source().fields.last().unwrap().declaration
+                != fixed.review_source().fields.last().unwrap().declaration
+        })
+        .expect("target-member callback path");
+    let fixed_source = fixed.review_source();
+    let variable_source = variable.review_source();
+    let fixed_field = fixed_source.fields.last().unwrap();
+    let variable_field = variable_source.fields.last().unwrap();
+    assert_ne!(
+        fixed_field.child.storage_identity,
+        variable_field.child.storage_identity
+    );
+    assert_eq!(fixed.terminal_slot().size, variable.terminal_slot().size);
+    let reject = |typed: typed_trees::TypedTrees, fragment: &str| {
+        let candidate = checked_trees::CheckedTrees::with_roots(typed, checked.facts.clone());
+        let errors = project_checked_package_policy(
+            PackageReviewInput::supplied(&candidate, &checked),
+            profile,
+            package,
+        )
+        .expect_err("changed candidate must not retain the original callback review");
+        assert!(
+            errors.iter().any(|error| error.message.contains(fragment)),
+            "expected {fragment:?}, got {errors:?}"
+        );
+    };
+    let mut typed = checked.typed.clone().into_inner();
+    let data = typed
+        .data_definition_by_symbol(fixed_source.root.declaration)
+        .unwrap();
+    let alternative = typed
+        .data_field(data, variable_field.declaration)
+        .unwrap()
+        .type_reference;
+    let member = typed.data_members(data).iter().find(|member| matches!(member, typed_trees::data::DataMember::Field(field) if field.symbol == fixed_field.declaration)).unwrap();
+    let handle = typed.data_members.handle_of(member).unwrap();
+    let typed_trees::data::DataMember::Field(field) = typed.data_members.get_mut(handle) else {
+        panic!("record field")
+    };
+    field.type_reference = alternative;
+    reject(
+        typed,
+        "callback inline field selects another exact child application",
+    );
+
+    let mut typed = checked.typed.clone().into_inner();
+    let coordinate = fixed_field.child.layout.as_ref().unwrap();
+    let geometry = match &mut typed.plan_laid_layouts[coordinate.ordinal as usize].realizations {
+        typed_trees::PlanLaidRealizations::Invariant(geometry) => geometry,
+        typed_trees::PlanLaidRealizations::TargetInputs(_) => {
+            &mut typed
+                .plan_laid_target_layouts
+                .get_mut(fixed_field.child.realization.as_ref().unwrap().member)
+                .geometry
+        }
+    };
+    geometry.private_callback_demands[0].offset = 0;
+    reject(
+        typed,
+        "callback source layout changed its complete selected report",
+    );
+
+    let mut typed = checked.typed.clone().into_inner();
+    let coordinate = variable_field.child.realization.as_ref().unwrap();
+    typed
+        .plan_laid_target_layouts
+        .get_mut(coordinate.member)
+        .target_facts
+        .pointer_size = 4;
+    reject(
+        typed,
+        "callback source realization changed its exact target facts",
+    );
+}
+
 fn execute_build(
     session: &mut CompilationSession,
     request: CheckedCompileRequest,
@@ -23,6 +161,124 @@ fn execute_build(
     session
         .complete_package_build(invocation, returned)
         .expect("complete package Build")
+}
+
+#[test]
+fn review_retains_exact_same_geometry_phantom_local_applications() {
+    use package_evidence::encoding::PackagePolicyRecoveryLimits;
+    use package_evidence::record::PackagePolicyBaseline;
+
+    let fixture = fixture_package_inputs::repo_root()
+        .join("tests/omega/pass/providers/phantom_local_calling_applications/main.omg");
+    let prepared = fixture_package_inputs::reviewed_repository_fixture_package_inputs(
+        &fixture,
+        Some("macos_arm64"),
+    )
+    .expect("phantom application fixture inputs");
+    let inputs = prepared
+        .package_inputs
+        .expect("package-aware phantom fixture");
+    let package = inputs.root();
+    let mut session = CompilationSession::default();
+    let build = execute_build(
+        &mut session,
+        CheckedCompileRequest {
+            package_inputs: Some(inputs),
+            ..CheckedCompileRequest::new(&prepared.root_path, Some("macos_arm64"))
+        },
+    );
+    let checked = session
+        .check_package_build(build)
+        .expect("checked phantom applications");
+    let native = checked
+        .providers()
+        .calling_applications(&[])
+        .expect("complete native catalog");
+    for realization in &checked.providers().boundary_calling_plan_realizations {
+        assert!(
+            native.contains(&realization.native_application().unwrap()),
+            "deduplication must retain every distinct complete policy application"
+        );
+    }
+    let mut repeated = checked.providers().clone();
+    repeated.boundary_calling_plan_realizations.extend(
+        checked
+            .providers()
+            .boundary_calling_plan_realizations
+            .iter()
+            .cloned(),
+    );
+    assert_eq!(
+        native,
+        repeated.calling_applications(&[]).unwrap(),
+        "repeating complete applications cannot create ambiguous catalog entries"
+    );
+    let captured = package_evidence::project_checked_package_policy(
+        &checked,
+        target::TargetProfile::MacosArm64,
+        package,
+    )
+    .expect("capture every exact local application");
+    let policy = &captured;
+    let provider = policy
+        .selected_providers()
+        .plans()
+        .iter()
+        .find(|plan| plan.provider_type() == "ProbeMap")
+        .expect("selected ProbeMap review");
+    let method = provider
+        .methods()
+        .iter()
+        .find(|method| method.name() == "inspect")
+        .expect("inspect review");
+    let applications = method.calling();
+    assert_eq!(
+        applications.len(),
+        2,
+        "review must not drop or collapse either local application"
+    );
+    for application in applications {
+        assert_eq!(
+            application.abi().operands.len(),
+            1,
+            "callback actuals are not declaration ABI operands"
+        );
+        assert_eq!(application.abi().operands[0].ordinal, 0);
+    }
+    let first = &applications[0];
+    let second = &applications[1];
+    assert_eq!(
+        first.abi().requirement_identity,
+        second.abi().requirement_identity
+    );
+    assert_eq!(
+        first.abi().declaring_application,
+        second.abi().declaring_application
+    );
+    assert_eq!(first.shape_graph(), second.shape_graph());
+    assert_eq!(first.physical(), second.physical());
+    assert_ne!(first.abi(), second.abi());
+    assert_ne!(first.abi().id(), second.abi().id());
+    assert_ne!(
+        first.canonical_bytes().unwrap(),
+        second.canonical_bytes().unwrap()
+    );
+    let bytes = policy.canonical_bytes().unwrap();
+    let recovered =
+        PackagePolicyBaseline::recover_canonical(&bytes, PackagePolicyRecoveryLimits::default())
+            .unwrap();
+    assert_eq!(bytes, recovered.canonical_bytes().unwrap());
+    let recovered_method = recovered
+        .selected_providers()
+        .plans()
+        .iter()
+        .find(|plan| plan.provider_type() == "ProbeMap")
+        .unwrap()
+        .methods()
+        .iter()
+        .find(|method| method.name() == "inspect")
+        .unwrap();
+    assert_eq!(applications, recovered_method.calling());
 }
 
 #[test]

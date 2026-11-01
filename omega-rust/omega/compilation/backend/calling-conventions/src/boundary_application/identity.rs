@@ -6,14 +6,26 @@ use crate::{BoundaryNativeParameterOrigin, BoundaryValueClass};
 
 impl BoundaryCallingApplication {
     pub fn recomputed_commitment(&self) -> Result<[u8; 32], String> {
+        self.abi.validate()?;
+        if self.abi.requirement_identity != self.requirement_identity {
+            return Err("calling application requirement differs from its exact ABI key".into());
+        }
         let native_parameters = self
             .signature
             .native_parameters
             .span(self.signature.native_parameter_rows)
             .ok_or("native telescope has stale row storage")?;
         let mut strong =
-            crate::digest_encoder::DomainDigestEncoder::new(b"omega.boundary-plan-application.v6");
+            crate::digest_encoder::DomainDigestEncoder::new(b"omega.boundary-plan-application.v7");
         strong.string(&self.requirement_identity);
+        strong.string(&self.abi.declaring_application);
+        strong.u64(self.abi.id().get());
+        strong.len(self.abi.operands.len());
+        for operand in &self.abi.operands {
+            strong.raw(&operand.ordinal.to_le_bytes());
+            strong.byte(operand.kind as u8);
+            strong.string(&operand.identity);
+        }
         strong.byte(match self.target.architecture {
             target::Architecture::Aarch64 => 1,
             target::Architecture::X86_64 => 2,

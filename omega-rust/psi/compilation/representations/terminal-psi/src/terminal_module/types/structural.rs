@@ -66,6 +66,9 @@ pub struct StructuralReferentIdentity {
     /// Checked foreign transport role, even when this type has no demanded
     /// storage body. A descriptor still grants no dereference or owned layout.
     pub foreign_descriptor: bool,
+    /// The source declaration is boundary-opaque, independently of whether
+    /// pointer transport demanded a selected concrete representation.
+    pub abstract_opaque: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

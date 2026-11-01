@@ -634,7 +634,7 @@ fn selected_calling_consumes_source_correspondence_without_ast_search() {
         "../../realization/provider-planning/src/calling_policy_plans/selected_application.rs"
     );
     let selection = calling
-        .split("pub(crate) fn selected_source_calling_application(")
+        .split("pub(crate) fn selected_source_calling_applications(")
         .nth(1)
         .unwrap()
         .split("/// Materialize this producer")

@@ -49,7 +49,33 @@ pub(super) struct CitationFacts {
     cases: Vec<CaseGuarantee>,
 }
 
+/// A path admits each completed citation once. Export history is not a license
+/// to revive its storage-dependent facts after a later write.
+#[derive(Clone, Copy, Default)]
+pub(super) struct CitationFrontier {
+    equations: usize,
+    cases: usize,
+}
+
 impl CitationFacts {
+    pub(super) fn intake_since(
+        &self,
+        judge: &mut StructuralJudge<'_>,
+        frontier: &mut CitationFrontier,
+    ) -> bool {
+        let changed =
+            frontier.equations != self.equations.len() || frontier.cases != self.cases.len();
+        for (left, right) in &self.equations[frontier.equations..] {
+            judge.intake_equation(left.clone(), right.clone(), 0);
+        }
+        for guarantee in &self.cases[frontier.cases..] {
+            judge.intake_case_guarantee(guarantee);
+        }
+        frontier.equations = self.equations.len();
+        frontier.cases = self.cases.len();
+        changed
+    }
+
     pub(super) fn intake(&self, judge: &mut StructuralJudge<'_>) {
         for (left, right) in &self.equations {
             judge.intake_equation(left.clone(), right.clone(), 0);

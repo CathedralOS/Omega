@@ -99,7 +99,7 @@ impl ExternalBindingContext<'_> {
         row_index: usize,
         provenance: &crate::ProviderPlanProvenance,
     ) -> Result<Option<calling_conventions::ExternalBindingRow>, Vec<Diagnostic>> {
-        use crate::calling_policy_plans::selected_source_calling_application;
+        use crate::calling_policy_plans::selected_source_calling_applications;
         use calling_conventions::{CallingPolicy, ExternalBindingKind, ExternalBindingRow};
         use effects::provider_plan::ProviderBinding;
         let Self {
@@ -162,7 +162,7 @@ impl ExternalBindingContext<'_> {
             | ProviderBinding::VtableSlot { .. }
             | ProviderBinding::CheckedAdapter { .. } => return Ok(None),
         };
-        let calling_application = selected_source_calling_application(
+        let mut calling_applications = selected_source_calling_applications(
             services,
             boundary_calling_plan_realizations,
             plan,
@@ -176,10 +176,9 @@ impl ExternalBindingContext<'_> {
             }
             _ => Some(CallingPolicy::native_for_target(native_target)),
         };
-        let calling_application = match (calling_application, compatibility_policy) {
-            (Some(plan), _) => Some(plan),
-            (None, Some(policy)) => {
-                crate::calling_policy_plans::evaluate_default_calling_application(
+        if calling_applications.is_empty() {
+            if let Some(policy) = compatibility_policy {
+                if let Some(application) = crate::calling_policy_plans::evaluate_default_calling_application(
                     services,
                     layout_target,
                     trait_name_text(&plan.schema),
@@ -196,10 +195,9 @@ impl ExternalBindingContext<'_> {
                         trait_name_text(&plan.schema),
                         row.method
                     ))]
-                })?
+                })? { calling_applications.push(application); }
             }
-            (None, None) => None,
-        };
+        }
         Ok(Some(ExternalBindingRow {
             target_name: if plan.target.is_empty() {
                 selected_target.unwrap_or("cross_platform_cli").to_owned()
@@ -210,7 +208,7 @@ impl ExternalBindingContext<'_> {
             method: row.method.clone(),
             requirement_identity: plan.identities.text(row.requirement_identity).to_owned(),
             table_type: plan.provider_type.clone(),
-            calling_application,
+            calling_applications,
             binding,
         }))
     }

@@ -12,8 +12,8 @@ pub(super) mod call_entries;
 use super::call_requirements::establish_citation;
 use super::structural_prefix::StructuralPrefixVisitor;
 use crate::proof_contracts::contract_entailment::citations::{
-    CitationFacts, CitationTarget, citation_argument_types, citation_call_in_statement,
-    instantiate_citation, is_citation_statement,
+    CitationFacts, CitationFrontier, CitationTarget, citation_argument_types,
+    citation_call_in_statement, instantiate_citation, is_citation_statement,
 };
 use crate::proof_contracts::contract_entailment::is_arm_pattern_marker;
 use crate::proof_contracts::contract_entailment::self_induction::intake_available_self_induction_hypotheses;
@@ -528,11 +528,12 @@ fn local_symbol_is_never_branched_on_in_remaining_prefix(
     true
 }
 
-#[derive(Clone)]
 struct ActiveStatePrefixPath<'a> {
     judge: StructuralJudge<'a>,
     environment: Vec<(String, StructuralTerm)>,
     established_guarantees: CitationFacts,
+    admitted_citations: CitationFrontier,
+    completion: Option<super::structural_judgment::normal_returns::CompletedStatement<'a>>,
     checked_contradiction_state: Option<(usize, usize)>,
 }
 
@@ -542,7 +543,7 @@ struct ActiveStatePrefixPath<'a> {
 pub(super) fn recognize_structural_state_prefixes<'a>(
     program: &'a dyn crate::CheckingInput,
     machine: &Machine,
-    state: &typed_trees::state::State,
+    state: &'a typed_trees::state::State,
     judge: &StructuralJudge<'a>,
     classification: &typed_trees::proof_only::ProofOnlyClassification,
     visitors: &mut [&mut dyn StructuralPrefixVisitor],
@@ -573,6 +574,8 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
         judge: initial_judge,
         environment,
         established_guarantees: CitationFacts::default(),
+        admitted_citations: CitationFrontier::default(),
+        completion: None,
         checked_contradiction_state: None,
     }];
     let mut transitions = Vec::new();
@@ -595,7 +598,72 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
         if is_arm_pattern_marker(statement) {
             continue;
         }
+        // Prior completed citations are admitted once at this entry cut. The
+        // current statement's runtime guarantees are produced by completion;
+        // theorem conclusions are left pending for the following statement.
+        for path in &mut active_paths {
+            if path
+                .established_guarantees
+                .intake_since(&mut path.judge, &mut path.admitted_citations)
+            {
+                path.checked_contradiction_state = None;
+            }
+        }
         if !matches!(statement, StatementNode::Transition(_)) {
+            let at_site = |visitor: &dyn StructuralPrefixVisitor| {
+                visitor.site().state == state.symbol
+                    && visitor.site().statement_index == statement_index
+                    && !visitor.site().in_transition_target
+            };
+            let advance = visitors.iter().enumerate().any(|(index, visitor)| {
+                !valid[index] && !visitor.is_complete() && !at_site(&**visitor)
+            });
+            let mut requested = super::structural_prefix::StatementObservationRequest::default();
+            let mut completion_visitors = vec![false; visitors.len()];
+            for (index, visitor) in visitors.iter().enumerate() {
+                if at_site(&**visitor)
+                    && !visitor.is_complete()
+                    && let Some(request) = visitor.statement_observations()
+                {
+                    completion_visitors[index] = true;
+                    for value in request.values {
+                        if !requested.values.contains(&value) {
+                            requested.values.push(value);
+                        }
+                    }
+                    for operation in request.operations {
+                        if !requested.operations.contains(&operation) {
+                            requested.operations.push(operation);
+                        }
+                    }
+                }
+            }
+            if advance || completion_visitors.iter().any(|&requested| requested) {
+                let reference = match statement {
+                    StatementNode::LocalData(local) => local.type_reference,
+                    StatementNode::Expression(expression) => {
+                        crate::expression_result_type_reference(
+                            program,
+                            machine,
+                            state,
+                            *expression,
+                        )
+                        .unwrap_or(state.return_type)
+                    }
+                    _ => state.return_type,
+                };
+                for path in &mut active_paths {
+                    path.completion = path.judge.complete_prefix_statement(
+                        statement,
+                        statement_index,
+                        &path.environment,
+                        (machine, state, reference),
+                        &requested.values,
+                        &requested.operations,
+                        advance,
+                    );
+                }
+            }
             for (visitor_idx, visitor) in visitors.iter_mut().enumerate() {
                 if visitor.site().state == state.symbol
                     && visitor.site().statement_index == statement_index
@@ -611,27 +679,10 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
                             active_paths[idx].established_guarantees.equations.len(),
                         );
                         if active_paths[idx].checked_contradiction_state != Some(current_state) {
-                            let is_contradictory = if active_paths[idx]
-                                .established_guarantees
-                                .equations
-                                .is_empty()
-                            {
-                                active_paths[idx].judge.hypotheses_contradictory
-                                    || phase_profile::scope("05.num.visit.2_contra", || {
-                                        active_paths[idx].judge.integer_premises_contradictory()
-                                    })
-                            } else {
-                                let mut check_judge = active_paths[idx].judge.clone();
-                                if !check_judge.hypotheses_contradictory {
-                                    active_paths[idx]
-                                        .established_guarantees
-                                        .intake(&mut check_judge);
-                                }
-                                check_judge.hypotheses_contradictory
-                                    || phase_profile::scope("05.num.visit.2_contra", || {
-                                        check_judge.integer_premises_contradictory()
-                                    })
-                            };
+                            let is_contradictory = active_paths[idx].judge.hypotheses_contradictory
+                                || phase_profile::scope("05.num.visit.2_contra", || {
+                                    active_paths[idx].judge.integer_premises_contradictory()
+                                });
                             if is_contradictory {
                                 visitor.entered();
                                 active_paths.remove(idx);
@@ -641,6 +692,24 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
                         }
                         let path = &active_paths[idx];
                         phase_profile::scope("05.num.2a_visitor_visit", || {
+                            if completion_visitors[visitor_idx]
+                                && let Some(completed) = &path.completion
+                            {
+                                visitor.entered();
+                                if !visitor.is_complete() {
+                                    visitor.observe_completed(
+                                        (
+                                            program,
+                                            machine,
+                                            state,
+                                            path.judge.clone(),
+                                            &path.environment,
+                                        ),
+                                        completed,
+                                    );
+                                }
+                                return;
+                            }
                             visitor.visit_non_contradictory(
                                 program,
                                 machine,
@@ -648,7 +717,7 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
                                 &path.environment,
                                 &[],
                                 &[],
-                                &path.established_guarantees,
+                                &CitationFacts::default(),
                             );
                         });
                         idx += 1;
@@ -711,19 +780,20 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
                 && path.judge.has_runtime_body_values()
                 && path.judge.statement_has_runtime_completion(machine, call)
             {
-                let Some(outcomes) = path.judge.normal_statement_completion_paths(
-                    call,
-                    statement_index,
-                    &path.environment,
-                    (machine, state, state.return_type),
-                ) else {
+                let Some(outcomes) = path
+                    .completion
+                    .take()
+                    .and_then(|completed| completed.outcomes)
+                else {
                     return valid;
                 };
-                for judge in outcomes {
+                for outcome in outcomes {
                     next_paths.push(ActiveStatePrefixPath {
-                        judge,
+                        judge: outcome.judge,
                         environment: path.environment.clone(),
                         established_guarantees: path.established_guarantees.clone(),
+                        admitted_citations: path.admitted_citations,
+                        completion: None,
                         checked_contradiction_state: path.checked_contradiction_state,
                     });
                 }
@@ -772,16 +842,17 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
                     })
                     .collect::<Option<Vec<_>>>();
                 if let Some(arguments) = arguments {
-                    establish_citation(
+                    super::call_requirements::establish_citation_from_prefix(
                         program,
                         machine,
                         state,
                         statement_index,
                         &path.environment,
-                        &mut path.judge,
+                        &path.judge,
                         classification,
                         &[],
                         &[],
+                        &CitationFacts::default(),
                         &mut path.established_guarantees,
                         &target,
                         &arguments,
@@ -793,17 +864,19 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
             match statement {
                 StatementNode::LocalData(local) => {
                     let Some(mut outcomes) = (if local.initial_value.is_valid() {
-                        path.judge
-                            .normal_return_paths(
-                                local.initial_value,
-                                &path.environment,
-                                (machine, state, local.type_reference),
-                            )
-                            .map(|outcomes| {
+                        path.completion
+                            .take()
+                            .and_then(|completed| completed.outcomes)
+                            .and_then(|outcomes| {
                                 outcomes
                                     .into_iter()
-                                    .map(|outcome| (Some(outcome.value), outcome.judge))
-                                    .collect::<Vec<_>>()
+                                    .map(|outcome| {
+                                        Some((
+                                            Some(outcome.observed_value()?.clone()),
+                                            outcome.judge,
+                                        ))
+                                    })
+                                    .collect::<Option<Vec<_>>>()
                             })
                     } else {
                         Some(vec![(
@@ -883,16 +956,18 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
                             judge: outcome_judge,
                             environment,
                             established_guarantees: path.established_guarantees.clone(),
+                            admitted_citations: path.admitted_citations,
+                            completion: None,
                             checked_contradiction_state: path.checked_contradiction_state,
                         });
                     }
                 }
                 StatementNode::Assignment(_) if path.judge.has_runtime_body_values() => {
-                    let Some(outcomes) = path.judge.normal_assignment_paths(
-                        statement,
-                        &path.environment,
-                        (machine, state, state.return_type),
-                    ) else {
+                    let Some(outcomes) = path
+                        .completion
+                        .take()
+                        .and_then(|completed| completed.outcomes)
+                    else {
                         return valid;
                     };
                     for outcome in outcomes {
@@ -900,30 +975,27 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
                             judge: outcome.judge,
                             environment: path.environment.clone(),
                             established_guarantees: path.established_guarantees.clone(),
+                            admitted_citations: path.admitted_citations,
+                            completion: None,
                             checked_contradiction_state: path.checked_contradiction_state,
                         });
                     }
                 }
                 StatementNode::Expression(expression) => {
                     let is_tail = execution_position + 1 == execution.len();
-                    let result_type = if is_tail {
-                        state.return_type
-                    } else {
-                        crate::expression_result_type_reference(
-                            program,
-                            machine,
-                            state,
-                            *expression,
-                        )
-                        .unwrap_or_default()
-                    };
-                    let Some(outcomes) = path.judge.normal_return_paths(
-                        *expression,
-                        &path.environment,
-                        (machine, state, result_type),
-                    ) else {
+                    let Some(outcomes) = path
+                        .completion
+                        .take()
+                        .and_then(|completed| completed.outcomes)
+                    else {
                         return valid;
                     };
+                    if outcomes
+                        .iter()
+                        .any(|outcome| outcome.observed_value().is_none())
+                    {
+                        return valid;
+                    }
                     if !is_tail {
                         if outcomes.len() > 1
                             && outcomes.iter().all(|outcome| {
@@ -941,6 +1013,8 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
                                 judge: rejoined,
                                 environment: path.environment.clone(),
                                 established_guarantees: path.established_guarantees.clone(),
+                                admitted_citations: path.admitted_citations,
+                                completion: None,
                                 checked_contradiction_state: path.checked_contradiction_state,
                             });
                         } else {
@@ -949,6 +1023,8 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
                                     judge: outcome.judge,
                                     environment: path.environment.clone(),
                                     established_guarantees: path.established_guarantees.clone(),
+                                    admitted_citations: path.admitted_citations,
+                                    completion: None,
                                     checked_contradiction_state: path.checked_contradiction_state,
                                 });
                             }
@@ -996,7 +1072,7 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
                         &path.environment,
                         &[],
                         &[],
-                        &path.established_guarantees,
+                        &CitationFacts::default(),
                     );
                 }
                 valid[visitor_idx] = true;
@@ -1029,22 +1105,13 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
                             &path.environment,
                             &[],
                             &[],
-                            &path.established_guarantees,
+                            &CitationFacts::default(),
                         );
                     } else {
-                        let is_contradictory = if path.established_guarantees.equations.is_empty() {
-                            path.judge.hypotheses_contradictory
-                                || phase_profile::scope("05.num.visit.2_contra", || {
-                                    path.judge.integer_premises_contradictory()
-                                })
-                        } else {
-                            let mut probe_judge = path.judge.clone();
-                            path.established_guarantees.intake(&mut probe_judge);
-                            probe_judge.hypotheses_contradictory
-                                || phase_profile::scope("05.num.visit.2_contra", || {
-                                    probe_judge.integer_premises_contradictory()
-                                })
-                        };
+                        let is_contradictory = path.judge.hypotheses_contradictory
+                            || phase_profile::scope("05.num.visit.2_contra", || {
+                                path.judge.integer_premises_contradictory()
+                            });
                         if is_contradictory {
                             continue;
                         }
@@ -1056,7 +1123,7 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
                             &path.environment,
                             &[],
                             &[],
-                            &path.established_guarantees,
+                            &CitationFacts::default(),
                         );
                     }
                 }
@@ -1137,6 +1204,8 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
                         judge: next_judge,
                         environment: path.environment.clone(),
                         established_guarantees: path.established_guarantees.clone(),
+                        admitted_citations: path.admitted_citations,
+                        completion: None,
                         checked_contradiction_state: next_contra_state,
                     });
                 }
@@ -1309,20 +1378,21 @@ fn recognize_structural_state_leaves_from<'a>(
         // incomplete and its site lies ahead in this state, sits on a
         // transition the loop has yet to hand over, or lives in a body this
         // path may still enter.
-        let member_live_in_statements = |visitor: &&mut (dyn StructuralPrefixVisitor + '_),
-                                         at_position: usize,
-                                         path: &[SymbolHandle]| {
-            !visitor.is_complete()
-                && if visitor.site().state == state.symbol {
-                    match statements.get(visitor.site().statement_index) {
-                        Some(StatementNode::Transition(_)) => true,
-                        _ => position(visitor.site().statement_index)
-                            .is_some_and(|pending| pending > at_position),
+        let member_live_in_statements =
+            |visitor: &&mut (dyn StructuralPrefixVisitor + '_),
+             at_position: usize,
+             path: &[SymbolHandle]| {
+                !visitor.is_complete()
+                    && if visitor.site().state == state.symbol {
+                        match statements.get(visitor.site().statement_index) {
+                            Some(StatementNode::Transition(_)) => true,
+                            _ => position(visitor.site().statement_index)
+                                .is_some_and(|pending| pending > at_position),
+                        }
+                    } else {
+                        !path.contains(&visitor.site().state)
                     }
-                } else {
-                    !path.contains(&visitor.site().state)
-                }
-        };
+            };
         let mut transitions = Vec::new();
         let mut saw_transition = false;
         for (execution_position, statement_index) in
@@ -1373,9 +1443,9 @@ fn recognize_structural_state_leaves_from<'a>(
             // Nothing after this call can establish its entry premises.
             // Other incoming paths are still visited by the parent.
             if !visitors.is_empty()
-                && !visitors.iter().any(|visitor| {
-                    member_live_in_statements(visitor, execution_position, path)
-                })
+                && !visitors
+                    .iter()
+                    .any(|visitor| member_live_in_statements(visitor, execution_position, path))
             {
                 return Some(Vec::new());
             }
@@ -1919,31 +1989,31 @@ fn recognize_structural_state_leaves_from<'a>(
         let _s_trans = phase_profile::guard("05.d.7.3b.1.cap.2d.transitions");
         let mut leaves = Vec::new();
         let mut remaining_paths = vec![(judge.clone(), case_equations.clone())];
-        let transition_order: Vec<usize> =
-            transitions.iter().map(|(index, _)| *index).collect();
+        let transition_order: Vec<usize> = transitions.iter().map(|(index, _)| *index).collect();
         // The same liveness question as in the statement loop, resolved
         // against the collected transitions: a member sited on a later
         // transition still waits for its arm, while a member sited on this
         // transition's target side is served just below.
-        let member_live_in_transitions = |visitor: &&mut (dyn StructuralPrefixVisitor + '_),
-                                          at_position: usize,
-                                          include_current_target: bool,
-                                          path: &[SymbolHandle]| {
-            !visitor.is_complete()
-                && if visitor.site().state == state.symbol {
-                    transition_order
-                        .iter()
-                        .position(|index| *index == visitor.site().statement_index)
-                        .is_some_and(|pending| {
-                            pending > at_position
-                                || (include_current_target
-                                    && pending == at_position
-                                    && visitor.site().in_transition_target)
-                        })
-                } else {
-                    !path.contains(&visitor.site().state)
-                }
-        };
+        let member_live_in_transitions =
+            |visitor: &&mut (dyn StructuralPrefixVisitor + '_),
+             at_position: usize,
+             include_current_target: bool,
+             path: &[SymbolHandle]| {
+                !visitor.is_complete()
+                    && if visitor.site().state == state.symbol {
+                        transition_order
+                            .iter()
+                            .position(|index| *index == visitor.site().statement_index)
+                            .is_some_and(|pending| {
+                                pending > at_position
+                                    || (include_current_target
+                                        && pending == at_position
+                                        && visitor.site().in_transition_target)
+                            })
+                    } else {
+                        !path.contains(&visitor.site().state)
+                    }
+            };
         for (transition_position, (statement_index, transition)) in
             transitions.into_iter().enumerate()
         {
@@ -2275,11 +2345,7 @@ fn recognize_structural_state_leaves_from<'a>(
                                 (member.site().state != state.symbol
                                     && !path.contains(&member.site().state)
                                     && !member.is_complete()
-                                    && prefix_site_is_reachable(
-                                        program,
-                                        target_state,
-                                        &**member,
-                                    ))
+                                    && prefix_site_is_reachable(program, target_state, &**member))
                                 .then_some(&mut **member)
                             })
                             .collect();

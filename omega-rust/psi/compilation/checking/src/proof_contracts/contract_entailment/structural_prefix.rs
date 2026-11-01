@@ -8,10 +8,10 @@
 mod private_arrivals;
 pub use private_arrivals::private_invocation_entry_is_closed;
 
-pub(super) use private_arrivals::{observe_private_arrivals, observe_private_arrivals_batch};
 pub(crate) use private_arrivals::{
     ClosedArrivals, ProgramPrivateArrivalIndex, private_invocation_index,
 };
+pub(super) use private_arrivals::{observe_private_arrivals, observe_private_arrivals_batch};
 
 use super::citations::{CitationFacts, machine_requires_facts};
 use super::structural_case_arms::{
@@ -108,6 +108,48 @@ pub(super) fn expression_prefix_roots(
     Some(roots)
 }
 
+/// Maximal compatible schedules supplied by the existing prefix owner. Guard,
+/// target and continuation boundaries remain exactly those of that operation;
+/// grouping does not infer execution order from an inventory of syntax.
+#[derive(Default)]
+pub(super) struct ExpressionPrefixGroups {
+    pub groups: Vec<Vec<typed_trees::expression::ExpressionHandle>>,
+    pub unavailable: Vec<typed_trees::expression::ExpressionHandle>,
+}
+
+pub(super) fn expression_prefix_groups(
+    program: &dyn crate::CheckingInput,
+    state: &State,
+    statement_index: usize,
+) -> ExpressionPrefixGroups {
+    let mut plan = ExpressionPrefixGroups::default();
+    let Some(statement) = program.statement_table.statement_at(state, statement_index) else {
+        return plan;
+    };
+    for (_, expression) in program.tables.expression_roots(statement) {
+        if !expression.is_valid() {
+            continue;
+        }
+        let Some(prefix) = expression_prefix_roots(program, state, statement_index, expression)
+        else {
+            plan.unavailable.push(expression);
+            continue;
+        };
+        if let Some(group) = plan
+            .groups
+            .iter_mut()
+            .find(|group| group.starts_with(&prefix) || prefix.starts_with(group))
+        {
+            if prefix.len() > group.len() {
+                *group = prefix;
+            }
+        } else {
+            plan.groups.push(prefix);
+        }
+    }
+    plan
+}
+
 /// One reached arm of a visited prefix, in `observe`'s reading order: the
 /// program facts, the site's machine and resolved state, the arm's substitute
 /// judge carrying the selected call's published guarantees, and the
@@ -120,8 +162,29 @@ pub(super) type PrefixObservation<'a, 'program> = (
     &'a [(String, StructuralTerm)],
 );
 
+/// Output selection for the common statement completion, never execution policy.
+#[derive(Default)]
+pub(super) struct StatementObservationRequest {
+    pub values: Vec<typed_trees::expression::ExpressionHandle>,
+    pub operations: Vec<typed_trees::expression::ExpressionHandle>,
+}
+
 pub(super) trait StructuralPrefixVisitor {
     fn site(&self) -> StructuralPrefixSite;
+
+    fn statement_observations(&self) -> Option<StatementObservationRequest> {
+        None
+    }
+
+    /// The statement owner supplies the same normal completion used to advance
+    /// its frontier. The input remains the independently admitted entry cut.
+    fn observe_completed<'program>(
+        &mut self,
+        observation: PrefixObservation<'_, 'program>,
+        _completed: &super::structural_judgment::normal_returns::CompletedStatement<'program>,
+    ) {
+        self.observe(observation);
+    }
 
     /// One authenticated body arrival after its actuals completed. Coverage
     /// consumers distinguish these occurrences from lexical ancestry and from

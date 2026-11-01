@@ -85,6 +85,7 @@ impl StorageObservationTypePath {
 pub fn observed_storage_type_references(
     program: &dyn crate::CheckingInput,
     source_type: typed_trees::types::TypeReferenceHandle,
+    substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
     path: &[checked_trees::CheckedUnitStructuralPathSegment],
     field: SymbolHandle,
     field_identity: &checked_trees::CheckedMemberIdentity,
@@ -97,7 +98,11 @@ pub fn observed_storage_type_references(
         .is_valid()
         .then(|| Segment::Field(field_identity.clone()));
     let mut cursor = ObservationTypeCursor::new(source_type);
-    let mut references = vec![(source_type, 0)];
+    cursor
+        .projection
+        .substitutions
+        .extend_from_slice(substitutions);
+    let mut references = vec![(source_type, substitutions.len())];
     for (ordinal, segment) in path.iter().chain(final_field.iter()).enumerate() {
         let current = cursor.projection.normalize(program);
         let identity = substituted_identity(program, current, &cursor.projection.substitutions);

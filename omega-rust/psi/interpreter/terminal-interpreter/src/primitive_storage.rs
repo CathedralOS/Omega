@@ -1707,7 +1707,7 @@ impl TerminalExecution<'_> {
                     );
                 }
                 (semantic_vocabulary::CanonicalStructuralPathSegment::Field(identity), _) => {
-                    let payload = selected_case.is_some();
+                    let payload_case = selected_case.as_ref().map(|case| case.id);
                     let fields = if let Some(case) = selected_case.take() {
                         case.fields.as_slice()
                     } else {
@@ -1748,7 +1748,7 @@ impl TerminalExecution<'_> {
                         }
                         return Ok((
                             PrimitiveStorage::canonical(PrimitiveStorageEndpoint::ScalarField(
-                                if payload {
+                                if payload_case.is_some() {
                                     StructuralScalarRuntimeField::case_payload(
                                         StructuralRuntimePlace::from(&projected),
                                         field.id,
@@ -1767,6 +1767,9 @@ impl TerminalExecution<'_> {
                     let Some(child) = field.field_type.as_structural() else {
                         return Err(malformed());
                     };
+                    if let Some(case) = payload_case {
+                        projected.path.push(StructuralPathSegment::Case(case));
+                    }
                     projected
                         .path
                         .push(StructuralPathSegment::Field(field.identity.clone()));
@@ -2101,16 +2104,20 @@ impl TerminalExecution<'_> {
         let Some((prefix, field_path)) = scalar_field_projection(path) else {
             return Ok(None);
         };
-        let (carrier, view) =
-            self.resolve_live_view_projection(source, prefix, StructuralAccess::SharedBorrow)?;
+        let projection =
+            self.resolve_live_storage_projection(source, prefix, StructuralAccess::SharedBorrow)?;
+        let carrier = projection.value;
+        let view = projection.view_tip;
         if let Some(view) = view {
             let (storage, logical_scalar, shared_view) = self.aggregate_view_primitive_access(
                 &carrier,
                 view,
                 field_path,
-                self.aggregate_argument_backings
-                    .get(&source)
-                    .and_then(|backing| backing.collection_home.as_ref()),
+                projection.collection_home.as_ref().or_else(|| {
+                    self.aggregate_argument_backings
+                        .get(&source)
+                        .and_then(|backing| backing.collection_home.as_ref())
+                }),
                 false,
             )?;
             return self

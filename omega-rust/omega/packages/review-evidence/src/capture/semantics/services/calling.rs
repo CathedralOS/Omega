@@ -3,7 +3,7 @@ use crate::capture::PackageReviewInput;
 use crate::capture::semantics::services::rejected;
 use crate::record::PackagePolicyCallingPlan;
 use diagnostics::Diagnostic;
-use effects::provider_plan::ServiceCallingPlan;
+use effects::provider_plan::ServiceSchema;
 use provider_planning::ProviderSchemaDeclaration;
 use symbols::SymbolHandle;
 
@@ -12,13 +12,13 @@ pub(super) fn project(
     schema: ProviderSchemaDeclaration,
     provider_type: Option<SymbolHandle>,
     requirement: SymbolHandle,
-    calling: Option<&ServiceCallingPlan>,
-) -> Result<Option<PackagePolicyCallingPlan>, Vec<Diagnostic>> {
+    service_schema: &ServiceSchema,
+    requirement_coordinate: effects::provider_plan::ProviderIdentityId,
+) -> Result<Vec<PackagePolicyCallingPlan>, Vec<Diagnostic>> {
+    let applications = service_schema.calling_for_requirement(requirement_coordinate);
     let ProviderSchemaDeclaration::BoundaryTrait(schema_symbol) = schema else {
-        return if calling.map(|plan| plan.report_fingerprint).is_none()
-            && calling.map(|plan| plan.commitment).is_none()
-        {
-            Ok(None)
+        return if applications.is_empty() {
+            Ok(Vec::new())
         } else {
             Err(rejected(
                 "non-trait requirement carries a detached calling application",
@@ -39,26 +39,36 @@ pub(super) fn project(
                 && candidate.argument_owner() == argument_owner
         })
         .collect::<Vec<_>>();
-    if candidates.is_empty()
-        && calling.map(|plan| plan.report_fingerprint).is_none()
-        && calling.map(|plan| plan.commitment).is_none()
-    {
-        return Ok(None);
-    }
-    let Some(candidate) = candidates.first().copied() else {
+    if candidates.iter().any(|candidate| {
+        !applications
+            .iter()
+            .any(|application| &application.abi == candidate.materialized_signature().abi())
+    }) {
         return Err(rejected(
-            "service method has no exact target-closed calling realization",
-        ));
-    };
-    if candidates.iter().any(|other| *other != candidate)
-        || Some(candidate.report_fingerprint) != calling.map(|plan| plan.report_fingerprint)
-        || Some(candidate.commitment) != calling.map(|plan| plan.commitment)
-    {
-        return Err(rejected(
-            "service method has ambiguous or stale calling realization",
+            "service method omitted a source-owned exact calling application",
         ));
     }
-    crate::capture::calling::project_checked_calling_policy(compilation, candidate).map(Some)
+    applications
+        .into_iter()
+        .map(|application| {
+            let mut matching = candidates
+                .iter()
+                .copied()
+                .filter(|candidate| candidate.materialized_signature().abi() == &application.abi);
+            let candidate = matching.next().ok_or_else(|| {
+                rejected("service method lost its source-qualified exact calling application")
+            })?;
+            if matching.any(|other| other != candidate)
+                || candidate.report_fingerprint != application.plan.report_fingerprint
+                || candidate.commitment != application.plan.commitment
+            {
+                return Err(rejected(
+                    "service method has ambiguous or stale exact calling application",
+                ));
+            }
+            crate::capture::calling::project_checked_calling_policy(compilation, candidate)
+        })
+        .collect()
 }
 
 pub(super) fn boundary_arguments<'a>(

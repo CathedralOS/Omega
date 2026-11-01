@@ -16,6 +16,180 @@ pub struct TerminalCallingTelescope {
     pub binders: Vec<BoundaryCallbackBinding>,
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{BoundarySignatureGeometry, CallSignature, CallingPolicy};
+    use semantic_vocabulary::{BoundaryMachineId, CallingOperandKind, CallingSignatureId};
+
+    #[test]
+    fn phantom_local_application_cannot_borrow_equal_geometry() {
+        let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
+        let requirement = identities.intern("package::Service::call");
+        let declaring = identities.intern("package::Service<u8>");
+        let first_actual = identities.intern("u32");
+        let second_actual = identities.intern("u64");
+        let first = CallingSignatureId::for_application(
+            "package::Service::call",
+            "package::Service<u8>",
+            [(0, CallingOperandKind::Type, "u32")],
+        );
+        let second = CallingSignatureId::for_application(
+            "package::Service::call",
+            "package::Service<u8>",
+            [(0, CallingOperandKind::Type, "u64")],
+        );
+        let boundary = BoundaryMachineId::new(1).unwrap();
+        let mut module = TerminalModule::declarations();
+        module.identities = identities.build();
+        module.calling_abi_signatures = [(first, first_actual), (second, second_actual)]
+            .into_iter()
+            .map(|(id, actual)| terminal_psi::CallingAbiDeclaration {
+                id,
+                requirement_identity: requirement,
+                declaring_application: declaring,
+                operands: vec![terminal_psi::CallingStaticOperand {
+                    ordinal: 0,
+                    kind: CallingOperandKind::Type,
+                    identity: actual,
+                }],
+                formals: vec![semantic_vocabulary::CallingGenericFormal {
+                    ordinal: 0,
+                    kind: CallingOperandKind::Type,
+                    callback: None,
+                }],
+                default_eligible: true,
+                storage: Ok(terminal_psi::CallingAbiStorage {
+                    parameters: vec![],
+                    result: None,
+                    telescope: terminal_psi::CallingSignatureTelescope {
+                        parameters: vec![],
+                        binders: vec![],
+                        direct_callbacks: vec![],
+                    },
+                }),
+            })
+            .collect();
+        module.calling_abi_signatures.sort_by_key(|row| row.id);
+        module
+            .calling_signatures
+            .push(terminal_psi::CallingSignatureDeclaration {
+                boundary,
+                application: Ok(first),
+            });
+        module
+            .boundary_machines
+            .push(terminal_psi::BoundaryMachineDeclaration {
+                id: boundary,
+                declaration: None,
+                numeric_intrinsic: None,
+                role: terminal_psi::BoundaryDeclarationRole::Callable,
+                kind: semantic_vocabulary::BoundaryRequirementKind::Trait,
+                completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
+                unconditional_termination: true,
+                identity: requirement,
+                owner: terminal_psi::NominalDeclarationIdentity::new(declaring),
+                attachment: None,
+                parameter_order: vec![],
+                scalar_parameters: vec![],
+                crash_routes: vec![],
+                structural_parameters: vec![],
+                result: terminal_psi::BoundaryMachineResult::Unit,
+                requires: vec![],
+                normal_qualifications: vec![],
+                scalar_domain_requirements: vec![],
+                scalar_requires: vec![],
+                scalar_ensures: vec![],
+                reference_outputs: vec![],
+                program_local_root_introductions: vec![],
+                content_guarantees: vec![],
+                fixed_service_reach: vec![],
+                owning_service: None,
+                published_service_ceiling: vec![],
+            });
+        let plan = crate::evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::MicrosoftX64,
+            &CallSignature {
+                parameters: vec![],
+                result: None,
+            },
+        )
+        .unwrap();
+        let application = BoundaryCallingApplication {
+            abi: semantic_vocabulary::CallingAbiIdentity {
+                requirement_identity: "package::Service::call".into(),
+                declaring_application: "package::Service<u8>".into(),
+                operands: vec![semantic_vocabulary::CallingStaticOperand {
+                    ordinal: 0,
+                    kind: CallingOperandKind::Type,
+                    identity: "u32".into(),
+                }],
+            },
+            requirement_identity: "package::Service::call".into(),
+            target: target::NativeTarget::from_omega_target_name(Some("windows_x86_64")).unwrap(),
+            report_fingerprint: 1,
+            commitment: [0; 32],
+            plan,
+            signature: BoundarySignatureGeometry {
+                shapes: vec![],
+                fields: vec![],
+                parameters: vec![],
+                result: None,
+                native_parameters: Default::default(),
+                native_parameter_rows: Default::default(),
+                callback_layouts: Default::default(),
+                callback_layout_rows: Default::default(),
+                callback_bindings: Default::default(),
+                callback_binding_rows: Default::default(),
+            },
+            opaque_applications: vec![],
+            callback_context: Default::default(),
+            callback_context_closed: false,
+        };
+        assert!(TerminalCallingTelescope::for_application(&module, boundary, &application).is_ok());
+        module.calling_signatures[0].application = Ok(second);
+        assert!(
+            TerminalCallingTelescope::for_application(&module, boundary, &application).is_err(),
+            "equal geometry must not authorize another phantom actual"
+        );
+        let mut second_application = application.clone();
+        second_application.abi.operands[0].identity = "u64".into();
+        assert!(
+            TerminalCallingTelescope::for_application(&module, boundary, &second_application)
+                .is_ok()
+        );
+        assert_ne!(
+            application.recomputed_commitment().unwrap(),
+            second_application.recomputed_commitment().unwrap()
+        );
+        let commitment = application.recomputed_commitment().unwrap();
+        for mutation in 0..3 {
+            let mut abi = application.abi.clone();
+            match mutation {
+                0 => abi.operands[0].identity = "u64".into(),
+                1 => abi.operands[0].ordinal = 1,
+                _ => abi.declaring_application = "package::Service<u64>".into(),
+            }
+            let candidate = super::super::BoundaryCallingApplicationCandidate {
+                abi,
+                requirement_identity: application.requirement_identity.clone(),
+                target: application.target,
+                report_fingerprint: application.report_fingerprint,
+                commitment,
+                plan: application.plan.plan().clone(),
+                signature: application.signature.clone(),
+                opaque_applications: vec![],
+                callback_context: Default::default(),
+                callback_context_closed: false,
+            };
+            assert!(
+                candidate.validate().is_err(),
+                "mutated ABI key retained an old commitment"
+            );
+        }
+    }
+}
+
 impl TerminalCallingTelescope {
     /// Rejoin every retained binder to its complete requirement identity,
     /// including unused binders. Both policy input and proposal comparison use
@@ -62,10 +236,12 @@ impl TerminalCallingTelescope {
         let signature = module
             .calling_abi_signature(*declaration.application.as_ref().map_err(Clone::clone)?)
             .ok_or("calling boundary lost its exact declaration ABI")?;
-        if module.identities.text(signature.requirement_identity)
-            != Some(application.requirement_identity.as_str())
+        if signature.identity(&module.identities)? != application.abi
+            || application.requirement_identity != application.abi.requirement_identity
         {
-            return Err("calling application names a different Terminal requirement".into());
+            return Err(
+                "calling application names a different exact Terminal declaration ABI".into(),
+            );
         }
         let telescope = &signature.storage.as_ref().map_err(Clone::clone)?.telescope;
         let boundary = module

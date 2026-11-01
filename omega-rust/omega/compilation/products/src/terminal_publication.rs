@@ -72,6 +72,12 @@ impl ProductTerminalPublication {
         &self.optimizations
     }
 
+    /// Borrow already published code for descriptive consumers. This cannot
+    /// start production, retry a refusal, or grant target execution authority.
+    pub fn published(&self) -> Option<&PortableTerminalProgram> {
+        self.program.get()?.as_ref().ok().map(Arc::as_ref)
+    }
+
     /// Retain one exact Psi projection. Post-Terminal choices do not change
     /// portable code; a different Psi projection must belong to another source
     /// product, never silently replace this publication or borrow stale code.

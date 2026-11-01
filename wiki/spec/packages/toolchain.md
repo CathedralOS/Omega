@@ -55,6 +55,4 @@ See [operator supply and ownership](../language/expressions.md#executable-supply
 
 Current narrow roles and standalone compatibility limits live
 [beside package compilation](../../../omega-rust/omega/packages/compilation-inputs/semantic_bindings.md).
-Removing broad standalone library provenance is tracked by
-`OPTIONAL-STDLIB-SEMANTIC-BINDINGS`; package-aware compilation must not inherit
-that temporary compatibility behavior.
+Package-aware compilation does not inherit standalone library provenance.

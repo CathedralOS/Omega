@@ -657,7 +657,8 @@ def measure(cli, sample, target, timeout, build_unscored=False, accepted_inputs_
         if normalized(authored["stderr"]) != program_stderr(completed.stderr):
             mismatches.append("stderr differs from expected_stderr.txt")
     if mismatches:
-        return {"sample": sample, "state": "oracle-failed", "detail": "; ".join(mismatches)}
+        return {"sample": sample, "state": "oracle-failed", "detail": "; ".join(mismatches),
+                "diagnostic": combined}
     return {"sample": sample, "state": "pass", "detail": ""}
 
 

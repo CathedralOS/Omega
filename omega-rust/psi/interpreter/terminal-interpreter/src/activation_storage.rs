@@ -183,7 +183,7 @@ impl TerminalExecution<'_> {
             let [binding] = result.claims.as_slice() else {
                 return Err(malformed());
             };
-            let Some(StructuralPathSegment::Field(field)) = binding.path.last() else {
+            let Some(StructuralPathSegment::Field(_)) = binding.path.last() else {
                 return Err(malformed());
             };
             let descriptor = TerminalStructuralValue {
@@ -191,7 +191,7 @@ impl TerminalExecution<'_> {
                 structural_type: shape.claim_type,
                 qualifications: Vec::new(),
                 projected_qualifications: Vec::new(),
-                path: vec![StructuralPathSegment::Field(*field)],
+                path: binding.path.clone(),
             };
             self.activation_storage.claim_descriptors.insert(
                 StructuralRuntimePlace::from(&descriptor),
@@ -611,17 +611,17 @@ impl TerminalExecution<'_> {
         )?;
         let mut descriptors = RuntimeRows::new(self.account.as_ref());
         for binding in &result.claims {
-            let Some(StructuralPathSegment::Field(field)) = binding.path.last() else {
+            let Some(StructuralPathSegment::Field(_)) = binding.path.last() else {
                 continue;
             };
-            // Case selects the payload namespace and is not part of the
-            // physical descriptor path the arrival projection compares.
+            // Retain each candidate's exact payload namespace until publication
+            // selects the active case and discards the other descriptors.
             let descriptor = TerminalStructuralValue {
                 opaque_identity: value.opaque_identity,
                 structural_type: claim_type,
                 qualifications: Vec::new(),
                 projected_qualifications: Vec::new(),
-                path: vec![StructuralPathSegment::Field(*field)],
+                path: binding.path.clone(),
             };
             descriptors.insert(
                 StructuralRuntimePlace::from(&descriptor),
@@ -669,7 +669,7 @@ impl TerminalExecution<'_> {
             result
                 .claims
                 .iter()
-                .any(|binding| on_case(binding) && binding.path.last() == descriptor.path.last())
+                .any(|binding| on_case(binding) && binding.path == descriptor.path)
         });
         for binding in &result.claims {
             if !matches!(binding.path.last(), Some(StructuralPathSegment::Field(_)))

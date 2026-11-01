@@ -1,6 +1,34 @@
 //! Whole inherited receiver contracts retain calling and claim distinctions.
 use super::*;
 
+#[test]
+fn distinct_phantom_applications_share_a_requirement_without_collapsing() {
+    let mut schema = schema("Parent", 1, false);
+    let first = schema.calling_applications[0].clone();
+    let mut second = first.clone();
+    second
+        .abi
+        .operands
+        .push(semantic_vocabulary::CallingStaticOperand {
+            ordinal: 0,
+            kind: semantic_vocabulary::CallingOperandKind::Type,
+            identity: "u64".into(),
+        });
+    schema.calling_applications.push(second.clone());
+    schema.validate_calling_applications().unwrap();
+    assert_eq!(schema.calling_application(&first.abi), Some(&first.plan));
+    assert_eq!(schema.calling_application(&second.abi), Some(&second.plan));
+    let digest = schema.identity_digest();
+    schema.calling_applications.reverse();
+    assert_eq!(digest, schema.identity_digest());
+    let mut changed = schema.clone();
+    changed.calling_applications[0].abi.operands[0].identity = "u32".into();
+    assert_ne!(digest, changed.identity_digest());
+    assert_ne!(schema, changed);
+    schema.calling_applications.push(first);
+    assert!(schema.validate_calling_applications().is_err());
+}
+
 fn schema(root: &str, calling: u8, shift_identity_slots: bool) -> ServiceSchema {
     let mut identities = ProviderIdentityTable::default();
     if shift_identity_slots {
@@ -36,6 +64,11 @@ fn schema(root: &str, calling: u8, shift_identity_slots: bool) -> ServiceSchema 
         declaration,
         calling_applications: vec![ServiceCallingApplication {
             requirement,
+            abi: semantic_vocabulary::CallingAbiIdentity {
+                requirement_identity: "Parent::enter(u64)".into(),
+                declaring_application: "Parent".into(),
+                operands: vec![],
+            },
             plan: ServiceCallingPlan {
                 report_fingerprint: u64::from(calling),
                 commitment: BoundaryCallingPlanCommitment::from_digest([calling; 32]),

@@ -70,8 +70,8 @@ impl super::PackagePolicyServiceMethod {
             ..scope(&signature.static_parameters, lifetime_count as usize)
         };
         parameters(&scope, 0)?;
-        if let Some(calling) = &self.calling
-            && (signature.schema_arguments != calling.boundary_arguments
+        for calling in &self.calling {
+            if signature.schema_arguments != calling.boundary_arguments
                 || signature.schema_lifetime_parameter_count
                     != calling.boundary_lifetime_parameter_count
                 || signature.schema_lifetime_arguments != calling.boundary_lifetime_arguments
@@ -94,11 +94,12 @@ impl super::PackagePolicyServiceMethod {
                             || source.type_identity != physical.value_type
                             || source.is_const != physical.is_const
                             || source.is_mutable != physical.is_mutable
-                    }))
-        {
-            return Err(
-                "provider service signature is detached from its complete calling application",
-            );
+                    })
+            {
+                return Err(
+                    "provider service signature is detached from its complete calling application",
+                );
+            }
         }
         Ok(())
     }

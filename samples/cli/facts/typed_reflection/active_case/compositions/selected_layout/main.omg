@@ -1,0 +1,78 @@
+// Fact: Authorized sum visitation reports one exact active case, then common fields and only that case payload in declaration order using ordinary field loans.
+// Expected exit: 0
+use omega::language::core::layout;
+use omega::language::core::reflect;
+
+data Payload [copy] { first: u8; second: u64; last: u16; }
+Spread<const Marker: u64> satisfies FixedLayout<Payload> {
+    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates {
+        let mut entries: [FieldEntry; 64];
+        entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };
+        entries[1] = FieldEntry { key: schema.fields[1].key, representation: FieldPlan::At { offset: 16 } };
+        entries[2] = FieldEntry { key: schema.fields[2].key, representation: FieldPlan::At { offset: 32 } };
+        LayoutPlan { entries: entries, entry_count: 3, size_fixed: 40, size_is_dynamic: false, align: 8 }
+    }
+}
+data Subject [copy] {
+    #0 common: LayoutStorage<Payload, Spread<40u64>>;
+    #7 case Idle;
+    #9 case Item(#0 payload: LayoutStorage<Payload, Spread<40u64>>);
+}
+data Seen { cases: u64; tag: u64; fields: u64; order: u64; seconds: u64; lasts: u64; extent: u64; alignment: u64; }
+machine selected(seen: &mut Seen, info: &reflect::CaseInfo) {
+    seen.cases = ((seen.cases as u64 in Wrapping) + (1u64 as u64 in Wrapping)) as u64;
+    seen.tag = info.stable_number;
+}
+machine field<Kind>(seen: &mut Seen, info: &reflect::FieldInfo, value: &Kind)
+requires Kind == LayoutStorage<Payload, Spread<40u64>>
+{ read_payload<Kind>(seen, value); }
+machine read_payload<Kind>(seen: &mut Seen, value: &Kind)
+requires Kind == LayoutStorage<Payload, Spread<40u64>> || Kind == LayoutStorage<Payload, Spread<48u64>>
+{
+    transition {
+        Kind == LayoutStorage<Payload, Spread<40u64>> -> read40(seen, value)
+        _ -> read48(seen, value)
+    }
+    machine read40(seen: &mut Seen, value: &LayoutStorage<Payload, Spread<40u64>>) {
+        collect(seen, value.first as u64, value.second, value.last as u64, size_of<LayoutStorage<Payload, Spread<40u64>>>(), align_of<LayoutStorage<Payload, Spread<40u64>>>());
+    }
+    machine read48(seen: &mut Seen, value: &LayoutStorage<Payload, Spread<48u64>>) {
+        collect(seen, value.first as u64, value.second, value.last as u64, size_of<LayoutStorage<Payload, Spread<48u64>>>(), align_of<LayoutStorage<Payload, Spread<48u64>>>());
+    }
+}
+machine collect(seen: &mut Seen, first: u64, second: u64, last: u64, extent: u64, alignment: u64) {
+    seen.fields = ((seen.fields as u64 in Wrapping) + (1u64 as u64 in Wrapping)) as u64;
+    seen.order = (((seen.order as u64 in Wrapping) * (101u64 as u64 in Wrapping)) + (first as u64 in Wrapping)) as u64;
+    seen.seconds = ((seen.seconds as u64 in Wrapping) + (second as u64 in Wrapping)) as u64;
+    seen.lasts = ((seen.lasts as u64 in Wrapping) + (last as u64 in Wrapping)) as u64;
+    seen.extent = extent;
+    seen.alignment = alignment;
+}
+machine visit(value: &Subject, seen: &mut Seen) {
+    reflect::visit_active_fields<Subject, selected, field>(value, seen);
+}
+machine main() crashes Trap {
+    let mut common: LayoutStorage<Payload, Spread<40u64>>;
+    common.first = 11u8;
+    common.second = 7u64;
+    common.last = 3u16;
+    let mut payload: LayoutStorage<Payload, Spread<40u64>>;
+    payload.first = 23u8;
+    payload.second = 42u64;
+    payload.last = 9u16;
+    let subject: Subject = Subject::Item { common: common, payload: payload };
+    let mut seen: Seen;
+    visit(&subject, &mut seen);
+    let idle: Subject = Subject::Idle { common: common };
+    let mut empty: Seen;
+    visit(&idle, &mut empty);
+    // Every backing word, including padding, is initialized independently.
+    let words: [u64; 5] = [23u64, 0u64, 42u64, 0u64, 9u64];
+    let mapped: &LayoutStorage<Payload, Spread<40u64>> = &words as &LayoutStorage<Payload, Spread<40u64>>;
+    transition seen.cases == 1u64 && seen.tag == 9u64 && seen.fields == 2u64 && seen.order == 1134u64 && seen.seconds == 49u64 && seen.lasts == 12u64 && seen.extent == 40u64 && seen.alignment == 8u64 && empty.cases == 1u64 && empty.tag == 7u64 && empty.fields == 1u64 && empty.order == 11u64 && empty.seconds == 7u64 && empty.lasts == 3u64 && empty.extent == 40u64 && empty.alignment == 8u64 && mapped.first == 23u8 && mapped.second == 42u64 && mapped.last == 9u16 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

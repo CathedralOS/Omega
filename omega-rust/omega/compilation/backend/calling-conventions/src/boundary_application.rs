@@ -23,6 +23,7 @@ pub use terminal_telescope::TerminalCallingTelescope;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundaryCallingApplication {
+    pub abi: semantic_vocabulary::CallingAbiIdentity,
     pub requirement_identity: String,
     pub target: NativeTarget,
     pub report_fingerprint: u64,

@@ -45,7 +45,7 @@ pub(super) fn emit_callable_object(
             .collect(),
         &admitted.input.plan().boundary_machines,
         admission.providers.selected_provider_plans,
-        &artifact.semantic_module().identities,
+        artifact.semantic_module(),
         admission.providers.external_binding_rows,
     )
     .map_err(|reason| realization_error("callable runtime companions", reason))?;

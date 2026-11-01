@@ -13,6 +13,7 @@ use syntax_trees::identifier::Identifier;
 use syntax_trees::item::{Item, TypeAliasDefinition, TypeParameterKind};
 use syntax_trees::types::{TypeAliasApplicationOrigin, TypeReferenceHandle, TypeReferenceNode};
 
+mod expression_bindings;
 mod static_operands;
 
 struct Expansion<'a, 'base> {
@@ -219,6 +220,7 @@ impl Expansion<'_, '_> {
         let mut lifetime_uses = Vec::new();
         let mut array_length_uses = Vec::new();
         let mut unresolved_expression_operands = Vec::new();
+        let mut expression_uses = Vec::new();
         bind_type_occurrences(
             forest,
             alias.authored_expansion,
@@ -228,11 +230,14 @@ impl Expansion<'_, '_> {
             &mut types,
             &mut lifetime_uses,
             &mut array_length_uses,
+            &mut expression_uses,
             &mut unresolved_expression_operands,
         );
         if let Some(operand) = unresolved_expression_operands.first() {
             return Err(Diagnostic::error("transparent alias expansion cannot yet retain the declaration and supplying scopes of this expression operand").with_source_span(forest.expressions.source_span(*operand)));
         }
+        let expressions = expression_bindings::supplied_expressions(syntax, &expression_uses)
+            .map_err(|diagnostic| diagnostic.with_source_span(name.source_span()))?;
         let authored = syntax.type_references.type_reference(reference).clone();
         let raw = syntax.type_references.insert(authored);
         syntax
@@ -242,7 +247,7 @@ impl Expansion<'_, '_> {
             forest,
             alias.authored_expansion,
             &types,
-            &[],
+            &expressions,
             &lifetime_uses,
             &array_length_uses,
         );
@@ -323,6 +328,10 @@ fn bind_type_occurrences(
     types: &mut Vec<(TypeReferenceHandle, TypeReferenceHandle)>,
     lifetime_uses: &mut Vec<(SourceSpan, String, Identifier)>,
     array_length_uses: &mut Vec<(SourceSpan, String, TypeReferenceHandle)>,
+    expression_uses: &mut Vec<(
+        syntax_trees::expression::ExpressionHandle,
+        TypeReferenceHandle,
+    )>,
     unresolved_expression_operands: &mut Vec<syntax_trees::expression::ExpressionHandle>,
 ) {
     for application in templates.type_references.type_alias_applications(reference) {
@@ -335,6 +344,7 @@ fn bind_type_occurrences(
             types,
             lifetime_uses,
             array_length_uses,
+            expression_uses,
             unresolved_expression_operands,
         );
     }
@@ -387,33 +397,14 @@ fn bind_type_occurrences(
                 .to_vec()
         }
         TypeReferenceNode::ConstExpression(expression) => {
-            use syntax_trees::expression::ExpressionNode;
-            let mut expressions = std::collections::HashSet::new();
-            super::generic_data::collect_expression_handles(
+            expression_bindings::bind_const_expression(
                 templates,
                 *expression,
-                &mut expressions,
-            );
-            let mut children = Vec::new();
-            for expression in expressions {
-                super::generic_data::visit_expression_type_inputs(
-                    templates,
-                    expression,
-                    &mut |reference| children.push(reference),
-                );
-                // Until an expression has declaration-owned bindings, copying
-                // its names into the use's lexical scope could capture caller
-                // locals or rebind a supplied runtime subject. Retain this as
-                // unfinished source work, never as an alternative successful
-                // expansion or a static-value promotion.
-                if matches!(
-                    templates.expressions.expression(expression),
-                    ExpressionNode::Name(_) | ExpressionNode::Call(_)
-                ) {
-                    unresolved_expression_operands.push(expression);
-                }
-            }
-            children
+                alias,
+                arguments,
+                expression_uses,
+                unresolved_expression_operands,
+            )
         }
         TypeReferenceNode::Constrained {
             base_type,
@@ -479,6 +470,7 @@ fn bind_type_occurrences(
             types,
             lifetime_uses,
             array_length_uses,
+            expression_uses,
             unresolved_expression_operands,
         );
     }
@@ -643,8 +635,25 @@ impl Expansion<'_, '_> {
                 &bound,
             )?;
         }
+        let mut expression_bound = bound.clone();
+        expression_bound.extend(
+            syntax
+                .items
+                .state_parameters(signature.parameters)
+                .iter()
+                .map(|handle| {
+                    syntax
+                        .items
+                        .state_parameter(*handle)
+                        .name
+                        .as_str(syntax)
+                        .to_owned()
+                }),
+        );
+        Self::retain_contract_bindings(syntax, signature.contracts, &mut expression_bound);
+        self.contract_static_operands(syntax, signature.contracts, &expression_bound)?;
         let statements = syntax.items.statements(signature.default_body).to_vec();
-        self.statements(syntax, &statements, &bound)
+        self.statements(syntax, &statements, &expression_bound)
     }
 
     fn statements(
@@ -653,11 +662,47 @@ impl Expansion<'_, '_> {
         statements: &[syntax_trees::statement::StatementHandle],
         bound: &[String],
     ) -> Result<(), Diagnostic> {
+        let mut bound = bound.to_vec();
         for statement in statements {
-            self.statement_static_operands(syntax, *statement, bound)?;
-            for reference in super::generic_data::statement_type_inputs(syntax, *statement) {
-                self.reference(syntax, reference, bound)?;
+            if let syntax_trees::statement::StatementNode::Assembly(handle) =
+                syntax.statements.statement(*statement)
+            {
+                let blocks = syntax
+                    .statements
+                    .assembly_blocks(syntax.statements.assembly(*handle).blocks)
+                    .to_vec();
+                for block in blocks {
+                    let requires = syntax
+                        .statements
+                        .assembly_expressions(block.requires)
+                        .to_vec();
+                    for expression in requires {
+                        self.expression_static_operands(syntax, expression, &bound)?;
+                    }
+                    let instructions = syntax
+                        .statements
+                        .assembly_instructions(block.instructions)
+                        .to_vec();
+                    self.statements(syntax, &instructions, &bound)?;
+                    let mut completed_bound = bound.clone();
+                    for instruction in instructions {
+                        Self::retain_statement_bindings(syntax, instruction, &mut completed_bound);
+                    }
+                    let ensures = syntax
+                        .statements
+                        .assembly_expressions(block.ensures)
+                        .to_vec();
+                    for expression in ensures {
+                        self.expression_static_operands(syntax, expression, &completed_bound)?;
+                    }
+                }
+                continue;
             }
+            self.statement_static_operands(syntax, *statement, &bound)?;
+            for reference in super::generic_data::statement_type_inputs(syntax, *statement) {
+                self.reference(syntax, reference, &bound)?;
+            }
+            Self::retain_statement_bindings(syntax, *statement, &mut bound);
         }
         Ok(())
     }
@@ -668,8 +713,27 @@ impl Expansion<'_, '_> {
         machine: &syntax_trees::item::Machine,
         inherited: &[String],
     ) -> Result<(), Diagnostic> {
-        let bound = self.parameters(syntax, machine.type_parameters, inherited)?;
+        let mut bound = self.parameters(syntax, machine.type_parameters, inherited)?;
+        Self::retain_contract_bindings(syntax, machine.contracts, &mut bound);
         let states = syntax.items.state_handles(machine.states).to_vec();
+        let mut entry_bound = bound.clone();
+        if let Some(entry) = states.first() {
+            entry_bound.extend(
+                syntax
+                    .items
+                    .state_parameters(syntax.items.state(*entry).parameters)
+                    .iter()
+                    .map(|handle| {
+                        syntax
+                            .items
+                            .state_parameter(*handle)
+                            .name
+                            .as_str(syntax)
+                            .to_owned()
+                    }),
+            );
+        }
+        self.contract_static_operands(syntax, machine.contracts, &entry_bound)?;
         for handle in states {
             let state = syntax.items.state(handle).clone();
             self.reference(syntax, state.return_type, &bound)?;
@@ -681,8 +745,21 @@ impl Expansion<'_, '_> {
                     &bound,
                 )?;
             }
+            let mut expression_bound = bound.clone();
+            expression_bound.extend(syntax.items.state_parameters(state.parameters).iter().map(
+                |handle| {
+                    syntax
+                        .items
+                        .state_parameter(*handle)
+                        .name
+                        .as_str(syntax)
+                        .to_owned()
+                },
+            ));
+            Self::retain_contract_bindings(syntax, state.contracts, &mut expression_bound);
+            self.contract_static_operands(syntax, state.contracts, &expression_bound)?;
             let statements = syntax.items.statements(state.statements).to_vec();
-            self.statements(syntax, &statements, &bound)?;
+            self.statements(syntax, &statements, &expression_bound)?;
         }
         for position in 0..machine.nested_machines.count() {
             let item = syntax

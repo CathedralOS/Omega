@@ -320,47 +320,31 @@ impl<Intrinsic> ProviderSettlement<Intrinsic> {
         &self,
         exported: &[calling_conventions::BoundaryCallingApplication],
     ) -> Result<Vec<calling_conventions::BoundaryCallingApplication>, String> {
-        let mut applications = self
+        let explicit = self
             .boundary_calling_plan_realizations
             .iter()
             .map(BoundaryCallingPlanRealization::native_application)
             .collect::<Result<Vec<_>, _>>()?;
-        let explicit_count = applications.len();
+        let mut applications = Vec::with_capacity(explicit.len());
+        for application in explicit {
+            if !applications.contains(&application) {
+                applications.push(application);
+            }
+        }
         for application in self
             .external_binding_rows
             .iter()
-            .filter_map(|row| row.calling_application.as_ref())
+            .flat_map(|row| &row.calling_applications)
         {
-            // Callback closure updates the explicit policy catalog. Its
-            // finalized application supersedes the earlier external-row view;
-            // registrar settlement transfers that same completed application
-            // to the physical import before native admission.
-            if let Some(index) = applications.iter().position(|retained| {
-                retained.requirement_identity == application.requirement_identity
-                    && retained.target == application.target
-            }) {
-                if index >= explicit_count && applications[index] != *application {
-                    return Err(
-                        "default native policies disagree on one exact calling application"
-                            .to_owned(),
-                    );
-                }
-            } else {
+            // A declaration ABI can have several authored policy realizations.
+            // Retain each complete value; actual consumers join the selected
+            // schema's application commitment as well as its full ABI key.
+            if !applications.contains(application) {
                 applications.push(application.clone());
             }
         }
         for application in self.component_calling_applications.iter().chain(exported) {
-            if let Some(existing) = applications.iter().find(|existing| {
-                existing.requirement_identity == application.requirement_identity
-                    && existing.target == application.target
-            }) {
-                if existing != application {
-                    return Err(
-                        "component ABI differs from its complete selected boundary application"
-                            .into(),
-                    );
-                }
-            } else {
+            if !applications.contains(application) {
                 applications.push(application.clone());
             }
         }
@@ -397,12 +381,20 @@ fn demanded_provider_plans(
         .cloned()
         .collect();
     if std::env::var_os("OMEGA_PROVIDER_DEBUG").is_some() {
-        eprintln!("[prov] uses={} candidates={} demanded={}", uses.len(), candidates.len(), demanded.len());
+        eprintln!(
+            "[prov] uses={} candidates={} demanded={}",
+            uses.len(),
+            candidates.len(),
+            demanded.len()
+        );
         for candidate in candidates {
             eprintln!(
                 "[prov] candidate plan={} schema_trait={}",
                 candidate.plan.name,
-                candidate.plan.schema.identity_text(candidate.plan.schema.declaration.trait_name),
+                candidate
+                    .plan
+                    .schema
+                    .identity_text(candidate.plan.schema.declaration.trait_name),
             );
         }
         for choice in &choices {

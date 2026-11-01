@@ -11,6 +11,50 @@ use crate::{AssignmentStorageOrigins, LocalWriteSource};
 use facts::PlaceSegment;
 use symbols::SymbolHandle;
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn unknown_reference_inventory_cannot_rescue_a_snapshot() {
+        let root = SymbolHandle::from_parts(1, 1);
+        let changed = SymbolHandle::from_parts(2, 1);
+        let sibling = SymbolHandle::from_parts(3, 1);
+        let observation = |field, name: &str| Operand::Field {
+            receiver: Box::new(Operand::Place {
+                root,
+                path: "record".into(),
+            }),
+            field,
+            name: name.into(),
+            primitive: None,
+        };
+        let changed_value = observation(changed, "changed");
+        let sibling_value = observation(sibling, "sibling");
+        // The coarse frame overlaps both reads. Only complete captured
+        // reference evidence may refine it using the exact performed store.
+        let written = ["record".to_owned()];
+        let mut storage = AssignmentStorageOrigins {
+            destinations: vec![LocalWriteSource {
+                invocation_output: None,
+                is_image_storage: false,
+                recasts: Vec::new(),
+                representation: None,
+                path: "record.changed".into(),
+                collection_coarse: false,
+                root,
+                segments: vec![PlaceSegment::Field { symbol: changed }],
+            }],
+            references: None,
+        };
+        assert!(!changed_value.survives_assignment(&written, Some(&storage)));
+        assert!(!sibling_value.survives_assignment(&written, Some(&storage)));
+        storage.references = Some(Vec::new());
+        assert!(!changed_value.survives_assignment(&written, Some(&storage)));
+        assert!(sibling_value.survives_assignment(&written, Some(&storage)));
+    }
+}
+
 #[derive(Clone)]
 enum ReadSegment {
     Field(SymbolHandle),

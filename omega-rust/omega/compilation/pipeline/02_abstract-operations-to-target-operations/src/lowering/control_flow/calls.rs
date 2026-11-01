@@ -20,9 +20,7 @@ use abstract_operations::{
     AbstractCallSignature, AbstractCallTarget, AbstractFunction, AbstractFunctionResult,
     AbstractOperation, AbstractResult, AbstractStructuralCallResult, StructuralCallFormal,
 };
-use calling_conventions::{
-    CallSignature, CallingPolicy, ValueLocation, ValueShape, evaluate_call_plan,
-};
+use calling_conventions::{ValueLocation, ValueShape};
 use semantic_vocabulary::{
     MachineId, ObligationId, OperationId, PlaceId, StructuralTypeId, ValueId,
 };
@@ -144,7 +142,7 @@ pub(super) fn lower_no_normal(
     Ok(target_operations::TargetControlTerminator::InvokeNoNormal {
         psi_edge: *psi_edge,
         callee: *callee,
-        call_plan: signature.call_plan,
+        call_plan: signature.call_plan.into_call_plan(),
         scalar_arguments,
         arguments,
         access_bindings,
@@ -387,7 +385,7 @@ pub(super) fn lower_call(
                 slot,
             },
         },
-        call_plan: signature.call_plan,
+        call_plan: signature.call_plan.into_call_plan(),
         result,
         scalar_arguments,
         arguments,
@@ -518,14 +516,15 @@ fn published_scalar_contract(
         .iter()
         .map(|parameter| fixed_native_scalar_shape(parameter.scalar_type).ok_or_else(unsupported))
         .collect::<Result<Vec<_>, _>>()?;
-    let call_plan = evaluate_call_plan(
-        CallingPolicy::native_for_target(target),
-        &CallSignature {
-            parameters: parameter_shapes,
-            result: Some(result_shape),
-        },
-    )
-    .map_err(LoweringError::AbiPlan)?;
+    let call_plan = crate::lowering::structural_signature::StructuralCallSignature::derive(
+        &parameter_shapes,
+        [],
+        Some(result_shape),
+        &BTreeMap::new(),
+        &mut BTreeMap::new(),
+        &mut std::collections::BTreeSet::new(),
+    )?
+    .plan(target)?;
     if call.scalar_arguments.len() != callee_function.parameters.len()
         || call.scalar_arguments.len() != call_plan.parameters.len()
     {
@@ -566,11 +565,11 @@ fn published_scalar_contract(
             scalar_type: callee_result.scalar_type,
             placement: result_placement,
         }),
-        call_plan,
+        call_plan: call_plan.clone().into_call_plan(),
     };
     require_exact_target_abi(callee, scalar_abis.get(&callee), &expected_abi)?;
     Ok(PreparedFunctionSignature {
-        call_plan: expected_abi.call_plan,
+        call_plan,
         scalar_parameters: expected_abi.parameters,
         parameters: Vec::new(),
     })
@@ -997,7 +996,7 @@ pub(super) fn lower_cleanup_calls(
                         .map_err(|_| LoweringError::unsupported_control_flow(function.machine))?,
                 },
                 callee: cleanup.cleanup_machine,
-                call_plan: signature.call_plan,
+                call_plan: signature.call_plan.into_call_plan(),
                 arguments,
             });
         }

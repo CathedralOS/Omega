@@ -47,9 +47,9 @@ impl Region {
     }
 
     /// The remaining logical selection after reaching this physical carrier.
-    /// Case tags do not occupy storage-path segments; declaration-keyed payload
-    /// fields keep their own identities. A view edge may still owe an element
-    /// selection, while a reference edge is followed only at the endpoint.
+    /// Descended payloads retain their Case namespace, so selection compares
+    /// the complete path rather than merging common and payload fields. A view
+    /// edge may still owe an element selection; references end at their carrier.
     fn selected_suffix<'region>(
         &'region self,
         place: &StructuralRuntimePlace,
@@ -76,14 +76,6 @@ impl Region {
         };
         let mut projection = path.as_slice();
         loop {
-            while matches!(
-                projection.first(),
-                Some(ReferenceOriginProjection::Exact(
-                    StructuralPathSegment::Case(_)
-                ))
-            ) {
-                projection = &projection[1..];
-            }
             let Some((selected, remaining)) = projection.split_first() else {
                 return Some(&[]);
             };

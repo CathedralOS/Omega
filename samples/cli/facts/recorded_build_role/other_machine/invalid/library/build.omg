@@ -1,0 +1,6 @@
+// An executed Build package name survives ordinary value transport, so the product imports that exact package and historical review reuses its recorded description at the verified source pin.
+machine forward(builder: &mut Build, name: &[u8]) { declare(builder, name); }
+machine declare(builder: &mut Build, name: &[u8]) { Build::package(builder, name); }
+machine build(builder: &mut Build) {
+    forward(builder, "wrong_library");
+}

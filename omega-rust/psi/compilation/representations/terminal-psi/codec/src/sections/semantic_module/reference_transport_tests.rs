@@ -18,6 +18,7 @@ fn reference_module(foreign_descriptor: bool) -> TerminalModule {
             id: StructuralTypeId::new(1).unwrap(),
             identity: TerminalIdentityIndex(1),
             foreign_descriptor,
+            abstract_opaque: false,
         });
     module.structural_types.push(StructuralTypeDeclaration {
         id: StructuralTypeId::new(2).unwrap(),
@@ -204,6 +205,7 @@ fn inline_carrier_ingress_rejects_missing_incompatible_and_identity_only_types()
                         id: StructuralTypeId::new(4).unwrap(),
                         identity: TerminalIdentityIndex(4),
                         foreign_descriptor: true,
+                        abstract_opaque: false,
                     });
                 let mut reference = module.structural_types[0].clone();
                 reference.id = StructuralTypeId::new(5).unwrap();

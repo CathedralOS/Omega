@@ -17,6 +17,7 @@ pub(super) fn rejoin_system_call(
     external_rows: &[ExternalBindingRow],
     requirement: &str,
     target: NativeTarget,
+    abi: &semantic_vocabulary::CallingAbiIdentity,
 ) -> Result<NormalizedForeignCallBinding, Vec<Diagnostic>> {
     let invalid = |reason| {
         vec![Diagnostic::error(format!(
@@ -80,9 +81,9 @@ pub(super) fn rejoin_system_call(
             selected_plan.provider_type,
         )));
     }
-    let entry = external
-        .boundary_entry_plan()
-        .ok_or_else(|| invalid("has no retained calling plan"))?;
+    let entry = super::exact_plan::external_calling_application(external, selected_plan, abi)?
+        .plan
+        .plan();
     if entry.call.policy != policy {
         return Err(invalid(
             "does not retain the target's syscall calling policy",

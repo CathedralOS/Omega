@@ -51,6 +51,16 @@ pub(crate) struct StructuralRuntimePlace {
     pub(crate) path: Vec<StructuralPathSegment>,
 }
 
+/// Runtime subtrees retain case selection as a declaration namespace. A final
+/// Case selects a direct payload cell, whose key has its own CasePayload
+/// namespace; it does not introduce another aggregate storage home.
+pub(crate) fn structural_storage_path(path: &[StructuralPathSegment]) -> &[StructuralPathSegment] {
+    match path.split_last() {
+        Some((StructuralPathSegment::Case(_), parent)) => parent,
+        _ => path,
+    }
+}
+
 /// The declaration namespace a runtime scalar cell's field identity belongs
 /// to. A record's fields and a mixed shape's common fields sit directly on
 /// their parent place. A case payload overlays that same place -- the stored
