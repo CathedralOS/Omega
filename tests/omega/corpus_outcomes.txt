@@ -12,6 +12,8 @@ fail/build/activation_borrowed_field_replacement_refused rejected 361ms expected
 	the compiler-owned Build activation cannot be replaced as a whole value
 fail/build/activation_owned_field_refused rejected 227ms expected @3a020eca642a
 	the compiler-owned Build activation cannot be stored in field `builder`
+fail/build/component_borrowed_access_refused rejected 1178ms expected @fe24dd822497
+	argument `value` for state `touch` is declared `&mut` (`&mut Token`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/build/native_locator_nonzero_unused_coordinate rejected 290ms expected @b852a38544d0
 	StructuralArgumentPreparation { stage: "execute captured host call", detail: "EffectRejected { operation: OperationId(9), rejection: TerminalEffectRejection { reason: \\"PeByName VersionLength must be zero for this locator case\\" } }" } in MachineId(1)/BlockId(5) at Some(OperationId(9))
 fail/build/native_locator_wrong_owner rejected 258ms expected @b852a38544d0
@@ -2380,6 +2382,7 @@ pass/build/component_assumption_policy_changed checked 4054ms @ccdb99ca2214
 pass/build/component_assumption_policy_missing checked 3616ms @ccdb99ca2214
 pass/build/component_assumption_reborrow checked 2772ms @ccdb99ca2214
 pass/build/component_assumption_user_declaration checked 3193ms @ccdb99ca2214
+pass/build/component_borrowed_continuation checked 54350ms check-target:macos_arm64 terminal-runtime.mutable_lender_entry:unrequested terminal-runtime.reborrow_lender_entry:unrequested terminal-runtime.shared_lender_entry:unrequested terminal-runtime.owned_entry:unrequested terminal-runtime.guest_lender_entry:unrequested terminal-runtime.nested_lender_entry:unrequested terminal-runtime.borrowed_entry:unrequested terminal-inspections:match @fe24dd822497
 pass/build/component_declaration_scalar_conditions_exit checked 4486ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/conditional_root_binding checked 7552ms check-target:windows_x86_64 terminal-runtime.build:unrequested terminal-inspections:match @ccdb99ca2214
 pass/build/const_index_dependency_order_exit checked 3890ms check-target:macos_arm64 @ccdb99ca2214
