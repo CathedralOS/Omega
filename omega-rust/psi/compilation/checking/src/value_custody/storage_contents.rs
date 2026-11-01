@@ -18,6 +18,112 @@ use typed_trees::data::TypeParameterKind;
 use typed_trees::data::{DataField, DataMember};
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
+#[cfg(test)]
+mod substitution_tests {
+    use super::*;
+    use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+
+    #[test]
+    fn unrelated_static_operand_does_not_change_scalar_contents() {
+        let mut symbols = SymbolTableBuilder::default();
+        let parameter =
+            symbols.insert_root(SymbolKind::TypeParameter, SymbolNameRef::Static("Phantom"));
+        let holder = symbols.insert_root(SymbolKind::Data, SymbolNameRef::Static("Holder"));
+        let mut program = typed_trees::TypedTrees {
+            symbols: symbols.finish(),
+            ..Default::default()
+        };
+        let scalar = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: SymbolHandle::invalid(),
+                name: typed_trees::name::Identifier::from("u8"),
+            });
+        let formal = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: parameter,
+                name: typed_trees::name::Identifier::from("Phantom"),
+            });
+        let substitutions = [(parameter, TypeReferenceHandle::invalid())];
+        let parameters =
+            program
+                .data_type_parameters
+                .insert_many([typed_trees::data::TypeParameter {
+                    symbol: parameter,
+                    name: typed_trees::name::Identifier::from("Phantom"),
+                    ..Default::default()
+                }]);
+        let members = program
+            .data_members
+            .insert_many([DataMember::Field(DataField {
+                type_reference: formal,
+                relevance: language_core::BindingRelevance::Erased,
+                ..Default::default()
+            })]);
+        let data = DataDefinition {
+            symbol: holder,
+            name: typed_trees::name::Identifier::from("Holder"),
+            type_parameters: parameters,
+            members,
+            ..Default::default()
+        };
+        program.push_data_definition(data.clone());
+        for requirement in [
+            ContentsRequirement::RepresentedOwned,
+            ContentsRequirement::DescriptorCleanup,
+        ] {
+            assert!(has_contents(&program, scalar, &[], requirement));
+            assert!(has_contents(&program, scalar, &substitutions, requirement));
+            assert!(!has_contents(&program, formal, &substitutions, requirement));
+        }
+        // Erasure removes bytes, not resolution of the declared semantic
+        // field type. An unclassified lexical operand must not count as it.
+        assert!(!data_has_contents(
+            &program,
+            &data,
+            &substitutions,
+            ContentsRequirement::DescriptorCleanup
+        ));
+        assert!(data_has_contents(
+            &program,
+            &data,
+            &[(parameter, scalar)],
+            ContentsRequirement::DescriptorCleanup
+        ));
+        let extent = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: SymbolHandle::invalid(),
+                name: typed_trees::name::Identifier::from("6"),
+            });
+        let generic_array = program
+            .type_reference_table
+            .insert(TypeReferenceNode::FixedArray {
+                element_type: scalar,
+                length: typed_trees::types::FixedArrayLength::ConstParameter {
+                    symbol: parameter,
+                    name: typed_trees::name::Identifier::from("Phantom"),
+                },
+            });
+        for requirement in [
+            ContentsRequirement::RepresentedOwned,
+            ContentsRequirement::DescriptorCleanup,
+        ] {
+            assert!(
+                has_contents(&program, generic_array, &[(parameter, extent)], requirement),
+                "a closed array extent cannot change its contents capability"
+            );
+            assert!(!has_contents(
+                &program,
+                generic_array,
+                &substitutions,
+                requirement
+            ));
+        }
+    }
+}
+
 /// Temporary closed type arguments keep nested instantiations in their lexical
 /// environment. Reusing a declaration's parameter symbol must not capture an
 /// outer instantiation's argument or turn a stored reference into owned data.
@@ -44,12 +150,16 @@ enum ContentType {
     View,
     /// A closed const argument. It fills a const parameter's slot so data
     /// arguments stay positional, and is never itself a member's contents.
-    ConstValue,
+    ConstValue(Option<usize>),
     /// An admitted value index is an application operand, never a stored type.
     RuntimeIndex,
     /// A declared implementation slot retains code/evidence, not storage.
     /// Complete tuple/region admission is independent of contents checking.
     ImplementationSelection,
+    /// This lexical operand has no contents description for the current
+    /// query. Its presence cannot poison unrelated storage; using it as
+    /// stored contents still refuses. Application formation is checked apart.
+    UnclassifiedOperand,
     /// An existing provider handle; borrowing it neither installs a provider
     /// nor authorizes erasure. Shape collection retains that separate receipt.
     Provider,
@@ -60,9 +170,10 @@ impl ContentType {
         match self {
             Self::Scalar(_)
             | Self::Atomic(_)
-            | Self::ConstValue
+            | Self::ConstValue(_)
             | Self::RuntimeIndex
             | Self::ImplementationSelection
+            | Self::UnclassifiedOperand
             | Self::View
             | Self::Provider => 1,
             Self::Array(element, _) => 1 + element.size(),
@@ -367,8 +478,17 @@ fn contents_arguments(
             Some(parameter) => {
                 resolve_parameter_argument(program, parameter, *argument, &arguments, requirement)
             }
-            None => resolve(program, *argument, &arguments, requirement),
-        }?;
+            None => resolve(program, *argument, &arguments, requirement).or_else(|| {
+                program.declared_constant_extent(*argument).map(|extent| {
+                    ContentType::ConstValue(
+                        extent
+                            .literal()
+                            .and_then(|value| usize::try_from(value).ok()),
+                    )
+                })
+            }),
+        }
+        .unwrap_or(ContentType::UnclassifiedOperand);
         arguments.push((*symbol, argument));
     }
     Some(arguments)
@@ -392,7 +512,12 @@ fn resolve_parameter_argument(
             if matches!(program.type_reference_table.type_reference(reference),
                 TypeReferenceNode::Named { symbol, .. } if !symbol.is_valid()) =>
         {
-            Some(ContentType::ConstValue)
+            Some(ContentType::ConstValue(
+                program
+                    .declared_constant_extent(reference)
+                    .and_then(|extent| extent.literal())
+                    .and_then(|value| usize::try_from(value).ok()),
+            ))
         }
         _ => None,
     }
@@ -417,8 +542,11 @@ fn resolve(
             if let Some(argument) = crate::substitutions::actual_for(arguments, *symbol) {
                 // A code operand may fill another implementation slot, but it
                 // cannot become a field's type, including an erased field.
-                return (!matches!(argument, ContentType::ImplementationSelection))
-                    .then_some(argument);
+                return (!matches!(
+                    argument,
+                    ContentType::ImplementationSelection | ContentType::UnclassifiedOperand
+                ))
+                .then_some(argument);
             }
             if let Some(primitive) = program.primitive_type_reference(reference) {
                 let atomic = match program.symbols.builtin_type_atom(*symbol) {
@@ -518,11 +646,29 @@ fn resolve(
         // layout and indexing requirements are checked by their consumers.
         TypeReferenceNode::FixedArray {
             element_type,
-            length: typed_trees::types::FixedArrayLength::Literal(length),
-        } => Some(ContentType::Array(
-            Box::new(resolve(program, *element_type, arguments, requirement)?),
-            *length,
-        )),
+            length,
+        } => {
+            let length = match length {
+                typed_trees::types::FixedArrayLength::Literal(length) => *length,
+                typed_trees::types::FixedArrayLength::ConstParameter { symbol, .. } => {
+                    let ContentType::ConstValue(Some(length)) =
+                        crate::substitutions::actual_for(arguments, *symbol)?
+                    else {
+                        return None;
+                    };
+                    length
+                }
+                typed_trees::types::FixedArrayLength::Expression(reference) => {
+                    usize::try_from(program.declared_constant_extent(*reference)?.literal()?)
+                        .ok()?
+                }
+                typed_trees::types::FixedArrayLength::ConstCall { .. } => return None,
+            };
+            Some(ContentType::Array(
+                Box::new(resolve(program, *element_type, arguments, requirement)?),
+                length,
+            ))
+        }
         // In-place storage contains the already-formed descriptor, not its
         // referee. All access kinds have this same storage boundary; lending
         // the record neither moves its leaf permissions nor acquires backing
@@ -727,7 +873,6 @@ fn resolve(
         TypeReferenceNode::Reference { .. }
         | TypeReferenceNode::Slice { .. }
         | TypeReferenceNode::DynamicTrait { .. }
-        | TypeReferenceNode::FixedArray { .. }
         | TypeReferenceNode::ConstExpression(_)
         | TypeReferenceNode::Unit => None,
     }
@@ -824,9 +969,10 @@ fn check_contents(
             // the descriptor alone.
             ContentType::View | ContentType::Provider => true,
             // Compile-time/application operands are not a member's storage.
-            ContentType::ConstValue
+            ContentType::ConstValue(_)
             | ContentType::RuntimeIndex
-            | ContentType::ImplementationSelection => false,
+            | ContentType::ImplementationSelection
+            | ContentType::UnclassifiedOperand => false,
             ContentType::Data { .. } => unreachable!(),
         };
     };
