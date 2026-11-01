@@ -870,7 +870,7 @@ helper that passes does not close an item.
     explicit-reference interchange: Linux native/Terminal observe 42/17, while
     wrong returned input and undeclared-region controls reject.
     A [runtime Value alias](samples/cli/facts/transparent_generic_aliases/runtime_subject/README.md)
-    now preserves subject7 and payload42 after the source variable changes9 in
+    now preserves subject 7 and payload 42 after the source variable changes to 9 in
     Linux native/Terminal execution; retagged subject and erased-carrier twins
     reject.
     The complete alias row, remaining binder/case/pattern cases, alias-RHS
