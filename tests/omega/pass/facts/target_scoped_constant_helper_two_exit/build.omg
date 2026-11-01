@@ -1,0 +1,20 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "target_scoped_constant_realization_target_body_invalid");
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+
+    Build::select_provider<Answer, Small>(builder, linux_x86_64);
+    Build::select_provider<Answer, Large>(builder, windows_x86_64);
+    Build::select_provider<Answer, Small>(builder, linux_arm64);
+    Build::select_provider<Answer, Large>(builder, macos_arm64);
+    Build::select_provider<ExpectedExtent, FourByteExpectation>(builder, linux_x86_64);
+    Build::select_provider<ExpectedExtent, EightByteExpectation>(builder, windows_x86_64);
+    Build::select_provider<ExpectedExtent, FourByteExpectation>(builder, linux_arm64);
+    Build::select_provider<ExpectedExtent, EightByteExpectation>(builder, macos_arm64);
+    Build::select_provider<LayoutObservation, LayoutObservationCode>(builder, linux_x86_64);
+    Build::select_provider<LayoutObservation, LayoutObservationCode>(builder, windows_x86_64);
+    Build::select_provider<LayoutObservation, LayoutObservationCode>(builder, linux_arm64);
+    Build::select_provider<LayoutObservation, LayoutObservationCode>(builder, macos_arm64);
+}
