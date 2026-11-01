@@ -35,14 +35,23 @@ must reject even when no executable body reads that constant.
 
 ## Current evidence
 
-Full root execution is pending the measured general alias-static-operand and
-query scalar-retention repairs. The frozen source retains both size queries.
-A separate query-free diagnostic executed on optimized Mac ARM64 producer
-`363cb9e6a2200663ea536e700352df48167908a9`, image
-`1c69c8ae906f093b759f4d0094a613f5105a12fd7a4f7a1c21895edc2a84a1b9`:
-one positive plus three schema controls passed in 36 seconds. That diagnostic
-is not qualification of the complete root program. Wrong-policy checking
-separately rejected with the exact incompatible policy types.
+Optimized Linux x86_64 producer `47e16a76404460206b0a7382be7b93dd3d3de6db`,
+image `46349017e1955bd3102a8ac99497818bd07e85fdc398520b63d286abb4aeb892`,
+executes the complete root (including alias extent/alignment queries), the ordinary
+static-alias generic call, and the existing nominal size-query positive. All three
+agree between native and Terminal execution. The five schema/policy/copy-bound
+controls reject as intended. Pilot 41274535924 took 822.814 seconds to prepare the
+optimized producer and 35.463 seconds for its selected case stage.
+
+The same run exposed two remaining arithmetic failures: the existing nominal
+subtraction control was accepted, and the unused initializer reached an internal
+malformed-operation refusal. Source formation must remain independent of runtime
+body publication, and ready scalar obligations must reject before executing a
+root that would overflow. The two frozen programs retain their arithmetic;
+their expected messages name the canonical target-closure range refusal for
+`[-1, -1]` outside the `u64` bounds. Fixes and affected execution are pending;
+this pilot is not an overall pass. Earlier query-free Mac ARM64 diagnostic
+observations remain historical and are not qualification of the full witness.
 
 The nine transport places, complete nested C records/platform migration,
 other-host execution and the parent capability remain open. The installed
