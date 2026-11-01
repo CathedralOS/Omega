@@ -1405,6 +1405,24 @@ fail/facts/recast_parent_restoration_through_target_body_rejected rejected 1396m
 	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)
 fail/facts/recast_parent_restoration_unrestored_rejected rejected 789ms expected @b32b6171a411
 	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)
+fail/facts/recorded_build_role/call_result rejected 7895ms expected @1a41b8e686ed
+	failed to resolve tests/omega/fail/facts/recorded_build_role/call_result/my_library/values.omg: captured entry is absent: my_library
+fail/facts/recorded_build_role/const_name rejected 3143ms expected @1a41b8e686ed
+	failed to resolve tests/omega/fail/facts/recorded_build_role/const_name/my_library/values.omg: captured entry is absent: my_library
+fail/facts/recorded_build_role/field rejected 2760ms expected @1a41b8e686ed
+	failed to resolve tests/omega/fail/facts/recorded_build_role/field/my_library/values.omg: captured entry is absent: my_library
+fail/facts/recorded_build_role/local rejected 2266ms expected @1a41b8e686ed
+	failed to resolve tests/omega/fail/facts/recorded_build_role/local/my_library/values.omg: captured entry is absent: my_library
+fail/facts/recorded_build_role/match_join rejected 2076ms expected @1a41b8e686ed
+	failed to resolve tests/omega/fail/facts/recorded_build_role/match_join/my_library/values.omg: captured entry is absent: my_library
+fail/facts/recorded_build_role/other_machine rejected 2193ms expected @1a41b8e686ed
+	failed to resolve tests/omega/fail/facts/recorded_build_role/other_machine/my_library/values.omg: captured entry is absent: my_library
+fail/facts/recorded_build_role/other_state rejected 1866ms expected @1a41b8e686ed
+	failed to resolve tests/omega/fail/facts/recorded_build_role/other_state/my_library/values.omg: captured entry is absent: my_library
+fail/facts/recorded_build_role/parameter rejected 1541ms expected @1a41b8e686ed
+	failed to resolve tests/omega/fail/facts/recorded_build_role/parameter/my_library/values.omg: captured entry is absent: my_library
+fail/facts/recorded_build_role/target_body rejected 1250ms expected @1a41b8e686ed
+	failed to resolve tests/omega/fail/facts/recorded_build_role/target_body/my_library/values.omg: captured entry is absent: my_library
 fail/facts/saved_observation_snapshot_indexed_handback_call_result_rejected rejected 5494ms expected @755b31d334ff
 	cannot prove ensures contract for exit from preserve at statement 2: holder.items[kept_index] == 7 && holder.items[changed] == value
 fail/facts/saved_observation_snapshot_indexed_handback_const_name_rejected rejected 5593ms expected @755b31d334ff
@@ -8376,6 +8394,15 @@ pass/facts/record_layout_geometry_through_other_state_exit rejected 1139ms check
 	exact arithmetic in machine `step` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 pass/facts/record_layout_geometry_through_parameter_exit checked 3816ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/record_layout_geometry_through_target_body_exit checked 3646ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/recorded_build_role/call_result checked 23143ms check-target:macos_arm64 @1a41b8e686ed
+pass/facts/recorded_build_role/const_name checked 20714ms check-target:macos_arm64 @1a41b8e686ed
+pass/facts/recorded_build_role/field checked 20773ms check-target:macos_arm64 @1a41b8e686ed
+pass/facts/recorded_build_role/local checked 22548ms check-target:macos_arm64 @1a41b8e686ed
+pass/facts/recorded_build_role/match_join checked 21920ms check-target:macos_arm64 @1a41b8e686ed
+pass/facts/recorded_build_role/other_machine checked 17905ms check-target:macos_arm64 @1a41b8e686ed
+pass/facts/recorded_build_role/other_state checked 18217ms check-target:macos_arm64 @1a41b8e686ed
+pass/facts/recorded_build_role/parameter checked 19855ms check-target:macos_arm64 @1a41b8e686ed
+pass/facts/recorded_build_role/target_body checked 18785ms check-target:macos_arm64 @1a41b8e686ed
 pass/facts/recoverable_replacement_window_through_call_result_exit rejected 4000ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	linear state-call result first::Success.token in repair::entry at statement 1 has no unique conserved claim mapping; return a path-aligned source place or publish an explicit outcome mapping; join candidate in machine `repair` state `entry` statement 1 call 0 to `entry`: callee return frontier correspondence is unavailable; return state `entry` statement 1 TransitionTarget: returned capture omits a declared claim path on an alternative
 	linear state-call result second::Success.token in repair::entry at statement 4 has no unique conserved claim mapping; return a path-aligned source place or publish an explicit outcome mapping; join candidate in machine `repair` state `entry` statement 4 call 0 to `entry`: callee return frontier correspondence is unavailable; return state `entry` statement 1 TransitionTarget: returned capture omits a declared claim path on an alternative
