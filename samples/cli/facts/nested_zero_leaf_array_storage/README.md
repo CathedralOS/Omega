@@ -1,6 +1,6 @@
 # Nested zero-leaf array storage
 
-Owning task: `NORMALIZED-ABI-LOWERING`, bounded native codec preparation and ordinary storage materialization for nested empty scalar arrays.
+Owning tasks: `NORMALIZED-ABI-LOWERING`, bounded native codec preparation and ordinary storage materialization for nested empty scalar arrays; `BUILD-OWNED-TARGET-SELECTION` and `BUILD-OWNED-NATIVE-BINDINGS`, migration of this complete row to explicit Build-owned supply.
 
 Fact: an owned record with 512-by-512 zero-leaf array elements preserves its two stored sentinels and its last empty row through transport and copying with sixteen bytes of value storage.
 
@@ -38,3 +38,17 @@ The [four-host record](hosted_qualification.json) uses actual optimized source `
 Remaining: the parent task's qualified/view-backed carriers and retained-provider custody, and ordinary nested array literal results containing live borrowed-array subvalues. An auxiliary `snapshot_rows(rows: &[[u8;0];2]) -> [[u8;0];2] { [rows[0],rows[1]] }` refused before execution on both baseline70f and the first candidate (`returned scalar array`); that separate construction operation is not claimed repaired here.
 
 Contracts: [boundary shapes](../../../../wiki/spec/build/boundary_shapes.md), [layout plans](../../../../wiki/spec/layouts/plans.md), [byte views](../../../../wiki/spec/terminal-psi/byte_views.md), and [indexing](../../../../wiki/spec/language/counts_and_addresses.md).
+
+Build-owned supply migration: all 21 authored projects retain the same two
+`ZeroLeafProvider` requirement signatures and the same four-target locator tuples.
+The package Build binds those requirements directly using inferred locator lengths;
+product Source no longer duplicates bodyless native declarations or binding-value
+helpers. The target-body place uses ordinary `ObserverCode satisfies Observing`,
+selected explicitly for each target, and preserves the original observer body.
+The two scalar lanes, nested zero extents, exact bounds, `17/31 -> 28/60` sentinel
+checks, copied packet operation, and both match routes remain unchanged.
+
+The earlier four-host qualification above retains its original source and producer
+identities. Fresh migrated-row execution and invalid controls are being recorded
+before publication; no new foreign-host or memory measurement is inferred from the
+surface migration. The parent target/native migrations remain open.
