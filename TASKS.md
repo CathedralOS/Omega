@@ -1693,6 +1693,10 @@ defines the complete product bar.
     tagged/qualified owned results)
     through stage 05 `retention/retained_borrow_custody.rs` and the selected
     provider.
+  - Give `FinalFootprintCertificate` construction and region-inventory
+    validation the production caller that
+    [machine-state evidence](wiki/spec/build/machine_state_evidence.md)
+    requires; only tests construct them.
   Acceptance: `samples/cli/facts/opaque_closed_carrier_exchange`,
   `samples/cli/facts/foreign_retained_shared_borrow`,
   `samples/cli/facts/foreign_retained_mutable_borrow`,
