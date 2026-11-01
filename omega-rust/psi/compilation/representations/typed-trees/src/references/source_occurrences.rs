@@ -4,7 +4,7 @@
 
 use super::{
     DeclarationSelection, HashSet, StaticArgumentCall, TypeOccurrence, TypeOccurrences,
-    TypedReferences, visit_declarations, visit_machine, visit_program,
+    TypedReferences, visit_declarations, visit_machine, visit_program, visit_trait,
 };
 use crate::{TypedTrees, expression::ExpressionHandle, types::TypeReferenceHandle};
 use symbols::SymbolHandle;
@@ -23,8 +23,8 @@ pub fn collect_authored_program_type_occurrences(program: &TypedTrees) -> Vec<Ty
 
 /// Re-derive source occurrences for exactly these lexical owners without
 /// making their bodies executable. Current declaration roots supply ordinary
-/// owners and nested signatures. Omitted machines require unique original
-/// declarations; derived sidecars cannot attest their own source inputs.
+/// owners and nested signatures. Omitted machines and traits require unique
+/// original declarations; derived sidecars cannot attest their own source inputs.
 pub fn authored_type_occurrences(
     program: &TypedTrees,
     owners: &[SymbolHandle],
@@ -33,6 +33,8 @@ pub fn authored_type_occurrences(
     let mut ancestors = HashSet::default();
     let mut machines = Vec::new();
     let mut machine_owners = HashSet::default();
+    let mut traits = Vec::new();
+    let mut trait_owners = HashSet::default();
     for &owner in owners {
         if !owner.is_valid() || requested.contains(&owner) {
             continue;
@@ -44,6 +46,7 @@ pub fn authored_type_occurrences(
             current = program.symbols.get(current).parent;
         }
         let mut machine = None;
+        let mut trait_definition = None;
         let mut ambiguous = false;
         for &ancestor in &scope {
             if let Some(declaration) = program.machine_declaration_for_lexical_scope(ancestor) {
@@ -53,6 +56,19 @@ pub fn authored_type_occurrences(
             if program
                 .tables
                 .machines
+                .iter()
+                .any(|(_, declaration)| declaration.symbol == ancestor)
+            {
+                ambiguous = true;
+                break;
+            }
+            if let Some(declaration) = trait_declaration_for_lexical_scope(program, ancestor) {
+                trait_definition = Some(declaration);
+                break;
+            }
+            if program
+                .tables
+                .traits
                 .iter()
                 .any(|(_, declaration)| declaration.symbol == ancestor)
             {
@@ -70,15 +86,29 @@ pub fn authored_type_occurrences(
         {
             machines.push(machine);
         }
+        if let Some(definition) = trait_definition
+            && program
+                .trait_definition_by_symbol(definition.symbol)
+                .is_none()
+            && trait_owners.insert(definition.symbol)
+        {
+            traits.push(definition);
+        }
     }
     let mut source = AuthoredTypeOccurrences(TypeOccurrences {
         selection: DeclarationSelection::from_symbols(ancestors),
         ..TypeOccurrences::default()
     });
     // Traverse current non-machine roots once, then only the exact requested
-    // machine descriptions. No body or occurrence is collected from unrelated
-    // backing declarations, and no application row supplies its own evidence.
+    // machine and trait descriptions. No body or occurrence is collected from
+    // unrelated backing declarations, and no application row supplies its own
+    // evidence.
     visit_declarations(program, &mut source);
+    for definition in traits {
+        if source.declaration(definition.symbol) {
+            visit_trait(program, &mut source, definition);
+        }
+    }
     for machine in machines {
         visit_machine(program, &mut source, machine);
     }
@@ -88,6 +118,27 @@ pub fn authored_type_occurrences(
         .into_iter()
         .filter(|occurrence| requested.contains(&occurrence.lexical_owner))
         .collect()
+}
+
+/// An omitted trait header remains descriptive custody only when every backing
+/// copy agrees, just as an omitted machine's lexical declaration must agree.
+fn trait_declaration_for_lexical_scope(
+    program: &TypedTrees,
+    symbol: SymbolHandle,
+) -> Option<&crate::trait_definition::TraitDefinition> {
+    if let Some(definition) = program.trait_definition_by_symbol(symbol) {
+        return Some(definition);
+    }
+    let mut declarations = program
+        .tables
+        .traits
+        .iter()
+        .map(|(_, definition)| definition)
+        .filter(|definition| definition.symbol == symbol);
+    let definition = declarations.next()?;
+    declarations
+        .all(|copy| copy == definition)
+        .then_some(definition)
 }
 
 // The occurrence bookkeeping is shared with the ordinary census; only the
