@@ -1,0 +1,2 @@
+cannot prove requires contract for call finish from main
+needs fact `observed == 7`

@@ -109,6 +109,14 @@ pub(super) struct CaseGuarantee {
     case: SymbolHandle,
 }
 
+impl CaseGuarantee {
+    pub(super) fn same_resolution_payload(&self, other: &Self) -> bool {
+        self.data == other.data
+            && self.case == other.case
+            && self.subject.same_resolution_payload(&other.subject)
+    }
+}
+
 pub(crate) mod owned_snapshots;
 
 #[derive(Clone, PartialEq)]
@@ -271,6 +279,7 @@ pub(crate) enum StructuralTerm {
 mod rewrite_table;
 #[path = "structural_judgment/term_identity.rs"]
 mod term_identity;
+pub(super) use term_identity::same_static_selection_payload;
 
 impl StructuralTerm {
     /// Every contributing completed value must carry a recipe. The result

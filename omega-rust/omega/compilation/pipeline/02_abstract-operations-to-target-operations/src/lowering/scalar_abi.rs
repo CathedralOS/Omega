@@ -38,7 +38,7 @@ pub(super) fn derive_mixed_structural_scalar_function_abi(
         LoweringError::FixedIntegerScalarAbiPlanMissingResult(function.machine),
     )?;
     Ok(Some(MixedStructuralScalarFunctionAbi {
-        call_plan: prepared.call_plan,
+        call_plan: prepared.call_plan.into_call_plan(),
         scalar_parameters: prepared.scalar_parameters,
         structural_parameters: prepared.parameters,
         result: ScalarAbiValue {

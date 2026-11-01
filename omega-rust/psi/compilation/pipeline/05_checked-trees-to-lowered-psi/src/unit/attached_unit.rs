@@ -639,7 +639,8 @@ pub(crate) fn lower_unit_closure(
         target_families::lower(checked, &machine_ids, &lowered_boundary_parameters)?;
     let target_layout_applications =
         target_layouts::lower(checked, plans, &structural_types, &type_ids, identities)?;
-    let native_layouts = native_layouts::lower(checked, &native_records, identities)?;
+    let (native_layouts, source_records) =
+        native_layouts::lower(checked, &native_records, identities)?;
     let mut scalar_qualifications = qualifications.catalog().clone();
     crate::expression_preparation::qualifications::retain_returns(
         identities,
@@ -696,6 +697,7 @@ pub(crate) fn lower_unit_closure(
     let indexed_theorems =
         indexed_theorems(checked, identities, exact_toolchain_sources, &machine_ids)?;
     let lowered = LoweredPsi {
+        source_records,
         source_boundary_declarations: Vec::new(),
         source_machine_declarations: Vec::new(),
         build_provider_requirements: Vec::new(),

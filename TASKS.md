@@ -163,8 +163,7 @@ retired-syntax deletions to completion.
     contract (exact actuals/snapshots, live facts and write invalidation,
     result/Unit postconditions, effects/markers, loans, invariant/hole
     restoration, cleanup, linear custody, and joint SCC measures using
-    declaration calls borrowing reference-bearing inputs or needing exclusive-loan
-    or affine input custody or declaration-local
+    declaration calls needing exclusive-loan or affine input custody or declaration-local
     selectors, other remaining declared body forms, nonscalar orders beyond fixed-integer
     lexicographic products, or dependent distances with computed endpoints
     without ambient parent entry facts).
@@ -517,10 +516,8 @@ narrows realization only.
     plus target Build rows, and replace provisional completion-role nomination
     so unused external candidates do not make selected returning implementations
     fail closed.
-  - Publish boundary-value storage recipes, calling telescopes, the explicit
-    calling-policy application census and exact callback/policy captures in
-    canonical Terminal Psi, and move opaque selection, source-qualified review
-    and default ABI signature materialization onto them, so target planning
+  - Move opaque selection, source-qualified review and default ABI signature
+    materialization onto canonical Terminal Psi, so target planning
     drops its source-side signature preparation and passes source-discard/reload.
   - Move the remaining source-reading provider consumers onto prepared
     declarations: host classification's catalog-local source join, typed
@@ -662,7 +659,7 @@ compile-time, Build, CLI/corpus, and embedded execution through the common core.
     remaining host operations (including an admitted loan-carrier interface for
     explicit host loan returns), and the staged dependency preparation/provider
     park/resume contract to the production Build scheduler, replacing checked-tree Build
-    evaluation and static syntax projection in
+    evaluation and the live-source/Git static syntax projections in
     `omega-rust/omega/packages/build-declarations`.
   - Complete applied/inherited multi-slot provider readiness.
   - **BUILD-PRODUCT-REFERENCES / TERMINAL-BUILD-QUERIES:** keep `bind`,
@@ -840,7 +837,9 @@ helper that passes does not close an item.
     exposure, acyclic expansion and canonical type/ABI identity through both
     compiler producers and retained artifacts.
     The complete alias row, remaining binder/case/pattern cases, alias-RHS
-    expression operands and captured Product/Build alias transport remain open.
+    expression operands beyond the [first Const-expression place](samples/cli/facts/transparent_generic_aliases/rhs_const_expression/README.md),
+    including owner-preserving mixed-scope transport, and captured Product/Build
+    alias transport remain open.
   - Implement named `FixedLayout<T>` policies and `LayoutStorage<T, Policy>`
     through authorized schema reflection, explicit target facts, pure terminating
     compile-time evaluation, complete plan validation, field/case projection,
@@ -854,7 +853,8 @@ helper that passes does not close an item.
     remaining six transport places for
     [the shared Darwin stat ABI](samples/cli/facts/darwin_stat_abi/README.md),
     preserving complete SDK fields, timestamp pairs and signed carriers.
-  - Supply ordinary Representation/TryFrom contracts and reflection-specialized
+  - Complete the [fallible conversion transport row](samples/cli/facts/representation_conversion/README.md),
+    ordinary Representation agreement contracts and reflection-specialized
     library adapters with explicit resources, failures, full supported-value
     coverage, round-trip/preservation obligations and optional proved-total
     forwarding. Demonstrate a separately authored encoded format family and

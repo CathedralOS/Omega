@@ -59,7 +59,7 @@ its logical result and obligations; an encoded proof cannot select them.
 Scalar declarations encode a qualification-set identity after their payload
 type. Zero denotes the bare set and has no catalog row. The module's scalar
 qualification catalog follows the entry identity as six counted tables, in the
-order below. This layout uses semantic format marker 227 even when every table
+order below. This layout uses semantic format marker 229 even when every table
 is empty; older markers reject rather than selecting an optional dialect:
 
 | Catalog table | Row fields |
@@ -917,11 +917,22 @@ from the ABI key; phantom operands and other machine operands remain exact.
 The compact application id is checked against the complete retained key.
 
 A result begins with a success Boolean. Successful ABI storage contains counted
-structural-type/access parameter pairs, an optional structural result type and
+parameter rows (structural type, optional callback-backing structural type,
+access), an optional structural result type and
 the complete native telescope. A refusal contains its diagnostic string and
 remains dormant until consumed. Boundary associations retain the exact ABI id
 or their deferred refusal; selected callback implementations and invocation
 admission remain on their own boundary/callback application records.
+
+Marker 229 separates pointer transport from a formal's represented callback
+backing. A represented formal names its exact direct physical carrier after
+the ordinary loan shell; another stored reference remains a leaf, not an
+implicit dereference itinerary for callback writes. An abstract borrowed pointee may have no storage declaration:
+its checked foreign-reference descriptor survives, but no empty record or
+private-slot geometry is invented for it. Owned formals require storage;
+omitting or substituting the backing of a represented formal rejects at ingress.
+Identity-only referents retain a separate boundary-opaque declaration Boolean;
+ordinary identity-only nominal pointers cannot claim that abstract exemption.
 
 Explicit policy requests preserve checked-input order and all checked purposes.
 Each retains its declaration identity result, diagnostic display label and
@@ -1330,7 +1341,7 @@ producer state and rederives every ordering rule.
 | Row | Fields |
 | --- | --- |
 | structural type declaration | `bool` quotient-carrier presence + optional quotient carrier id + structural type id + `u32` interned identity + `bool` owns linear claim + `bool` no-code affine cleanup authority + `bool` descriptor cleanup + `bool` logical copy permission + structural type shape |
-| structural referent identity | structural type id + canonical closed-type identity string + `bool` foreign-reference descriptor role; no storage shape |
+| structural referent identity | structural type id + canonical closed-type identity string + `bool` foreign-reference descriptor role + `bool` boundary-opaque declaration role; no storage shape |
 | structural field | structural field id + identity string + binding relevance + structural field type |
 | structural case | structural case id + identity string + counted payload structural fields |
 | structural domain declaration | domain id + semantic domain id + identity string + carrier structural type id + optional content projection + counted establishment routes |

@@ -41,14 +41,21 @@ pub fn normalize_terminal_transition_calls(
                     let callable =
                         crate::terminal_callable_target(program, machine, path.symbol).is_some();
                     // A named implementation is code, not a state container.
-                    // Its exact scoped head permits ordinary member binding,
-                    // even before a selected member receives its final symbol.
-                    let implementation_namespace = !path.symbol.is_valid()
-                        && path.receiver_symbol.is_valid()
+                    // Its exact scoped head permits ordinary member binding.
+                    // An evidence binder can already resolve its requirement
+                    // child without supplying an executable body. Normalize
+                    // that exact child as well, so specialization can apply the
+                    // same selected-map rewrite as an expression call. A state
+                    // owned by another namespace remains a control coordinate.
+                    let implementation_namespace = path.receiver_symbol.is_valid()
                         && matches!(
                             program.symbols.get(path.receiver_symbol).kind,
                             SymbolKind::Conformance | SymbolKind::ConformanceParameter
-                        );
+                        )
+                        && (!path.symbol.is_valid()
+                            || (program.symbols.get(path.symbol).kind == SymbolKind::State
+                                && program.symbols.get(path.symbol).parent
+                                    == path.receiver_symbol));
                     if path.symbol.is_valid()
                         && !callable
                         && !implementation_namespace
