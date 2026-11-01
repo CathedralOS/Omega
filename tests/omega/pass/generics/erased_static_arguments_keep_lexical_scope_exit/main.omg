@@ -1,6 +1,6 @@
 
 machine ceiling<Element>() -> u64 { 70 }
-data Bounded<Element> where value <= ceiling<&Element>() { value: u64; }
+data Bounded<Element> requires value <= ceiling<&Element>() { value: u64; }
 
 machine unused<Element, const Tag: u8>() -> u64 { 70 }
 machine relay<Element>() -> u64 { unused<&Element, 7>() }

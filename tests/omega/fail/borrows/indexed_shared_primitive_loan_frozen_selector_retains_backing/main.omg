@@ -1,4 +1,4 @@
-data Cell where value >= 0 && value <= 1 { value: u8; }
+data Cell requires value >= 0 && value <= 1 { value: u8; }
 data Main { cells: [Cell; 2]; }
 machine take(value: &u8) -> u8 { value }
 machine observe(main: &mut Main) -> u8 {

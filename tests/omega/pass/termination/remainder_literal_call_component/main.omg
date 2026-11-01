@@ -3,7 +3,7 @@
 // `requires held.spare <= 4` at the `step -> walk` edge must read that
 // transported term through the record actual -- the destination's
 // `held.spare` names the same value the caller's literal leaf produced.
-data Limits where 0 <= bound, bound <= 20, 1 <= step, step <= 5 {
+data Limits requires 0 <= bound, bound <= 20, 1 <= step, step <= 5 {
     bound: u64;
     spare: u64;
     step: u64;

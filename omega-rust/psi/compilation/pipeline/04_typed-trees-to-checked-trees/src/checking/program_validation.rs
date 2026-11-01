@@ -5,7 +5,7 @@ use typed_trees::data::DataMember;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 pub(crate) struct PreparedTypedProgram<'program> {
-    pub(crate) dependency_body_judgments: Vec<validation::DependencyBodyJudgment>,
+    pub(crate) deferred_entailment: validation::DeferredEntailment,
     pub(crate) frozen_dependency_bodies: Vec<validation::FrozenDependencyBody>,
     pub(crate) integer_assignments: Vec<proof::checker::CheckedIntegerAssignment>,
     /// Comparisons the proof pass established against retained constant
@@ -46,22 +46,34 @@ pub(crate) fn prepare_typed_program<'program>(
     let proof_plan = phase_profile::scope("05.d.2.b.build_proof_plan", || {
         proof::obligations::build_proof_plan(program)
     });
+    let decisions = phase_profile::scope("05.d.2.c.check_proof_plan", || {
+        proof::checker::check_proof_plan_with_decisions(&proof_plan)
+    })
+    .and_then(|decisions| {
+        phase_profile::scope("05.d.2.d.bare_boundary_trait_values", || {
+            validate_no_bare_boundary_trait_values(program)
+        })
+        .map(|()| decisions)
+    });
     let proof::checker::ProofDecisions {
         integer_assignments,
         constant_recipe_obligations,
-    } = phase_profile::scope("05.d.2.c.check_proof_plan", || {
-        proof::checker::check_proof_plan_with_decisions(&proof_plan)
-    })?;
+    } = match decisions {
+        Ok(decisions) => decisions,
+        Err(errors) => {
+            return Err(entailment_errors_first(
+                program,
+                validated.deferred_entailment,
+                errors,
+            ));
+        }
+    };
 
     let operational = validated.operational;
-    phase_profile::scope("05.d.2.d.bare_boundary_trait_values", || {
-        validate_no_bare_boundary_trait_values(program)
-    })?;
 
-    let dependency_body_judgments = validated.dependency_body_judgments;
     let frozen_dependency_bodies = validated.frozen_dependency_bodies;
     Ok(PreparedTypedProgram {
-        dependency_body_judgments,
+        deferred_entailment: validated.deferred_entailment,
         frozen_dependency_bodies,
         integer_assignments,
         constant_recipe_obligations,
@@ -70,6 +82,20 @@ pub(crate) fn prepare_typed_program<'program>(
         validation_facts: validated.facts,
         service_reaches: validated.service_reaches,
     })
+}
+
+/// A program that fails after validation never reaches flow construction, so
+/// contract entailment judges it here. Its diagnostics come first, as they did
+/// when entailment ran inside validation; otherwise `errors` stand.
+pub(crate) fn entailment_errors_first(
+    program: &dyn ::validation::CheckingInput,
+    deferred: validation::DeferredEntailment,
+    errors: Vec<Diagnostic>,
+) -> Vec<Diagnostic> {
+    match validation::judge_contract_entailment(program, deferred) {
+        Ok(_) => errors,
+        Err(entailment) => entailment,
+    }
 }
 
 /// A bare boundary trait in value position does not denote a service carrier:

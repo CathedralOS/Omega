@@ -1,9 +1,9 @@
 // Freeze the runtime selection, then project the nested fields through that reference.
 use omega_language_std::console;
 
-data Cell where value >= 0, value <= 100 { stamp: i32; value: i32; ready: bool; }
+data Cell requires value >= 0, value <= 100 { stamp: i32; value: i32; ready: bool; }
 data Outer { prefix: i32; inner: Cell; }
-data Main where index <= 1 { items: [Outer; 2]; index: u64; }
+data Main requires index <= 1 { items: [Outer; 2]; index: u64; }
 
 machine Main::main(main: &mut Main) reaches Console {
     main.items[0].prefix = 3;

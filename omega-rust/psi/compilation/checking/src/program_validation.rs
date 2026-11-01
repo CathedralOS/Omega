@@ -91,11 +91,6 @@ pub struct ProgramValidationFacts {
     /// Independently judged exact self-call decreases for private progress;
     /// semantic predecessors do not authorize structural induction hypotheses.
     pub self_call_descents: Vec<crate::ValidatedSelfCallDescent>,
-    /// For each checked-body machine whose contract entailment this pass
-    /// judged, the postconditions it proved — the one judgment over bodies,
-    /// consumed by the stage-04 prover. Empty when the machine's entailment
-    /// raised a diagnostic or does not cover every exit.
-    pub proven_machine_contracts: Vec<(symbols::SymbolHandle, ProvenContractExpressions)>,
 }
 
 /// Postconditions retain the observation point used by their proof. Entry-only
@@ -124,10 +119,9 @@ pub struct ProgramValidation {
     pub facts: ProgramValidationFacts,
     pub operational: flow_effects::OperationalPlan,
     pub service_reaches: flow_effects::ServiceReachInferencePlan,
-    /// Entailment judgments of non-instance machines, recorded only for a
-    /// strict check that the caller will retain. Empty when this pass is not
-    /// recording. Consumers remap ordinals into their own arenas.
-    pub dependency_body_judgments: Vec<DependencyBodyJudgment>,
+    /// The dependency-body index the deferred contract entailment pass judges
+    /// against. It runs once checked flow facts exist (`judge_contract_entailment`).
+    pub deferred_entailment: DeferredEntailment,
     /// Bodies whose correspondence matched, including bodies whose entailment
     /// ordinals stay local. Query sites read these instead of source text.
     pub frozen_dependency_bodies: Vec<FrozenDependencyBody>,
@@ -144,6 +138,7 @@ pub fn validate_program(program: &dyn crate::CheckingInput) -> Result<(), Vec<Di
         &[],
         false,
     )
+    .and_then(|validated| judge_contract_entailment(program, validated.deferred_entailment))
     .map(|_| ())
 }
 
@@ -565,7 +560,6 @@ fn validate<'program>(
         }
     }
     let machine_loop_guard = phase_profile::guard("05.d.2.a.2.machine_loop");
-    let mut proven_machine_contracts = Vec::new();
     let has_plan_laid_integer_fields = program.plan_laid_layouts.iter().any(|plan| {
         plan.geometries(program.typed_program())
             .any(|geometry| !geometry.integer_fields.is_empty())
@@ -575,15 +569,13 @@ fn validate<'program>(
     // outputs and its lazy bound catalog; nothing below reads another
     // machine's rows. Merging in roster order keeps diagnostics, decisions
     // and first-wins contract rows identical to a sequential pass.
-    let validate_machine = |machine_index: usize,
-                            machine: &typed_trees::machine::Machine,
+    let validate_machine = |machine: &typed_trees::machine::Machine,
                             bound_lookup: &mut (
         &'program dyn crate::CheckingInput,
         Option<crate::proof_contracts::immutable_integer_bounds::ImmutableBoundLookup<'program>>,
     )|
      -> MachineValidation {
         let mut diagnostics = Vec::new();
-        let mut proven_machine_contract = None;
         let mut arithmetic_decisions = arithmetic_domains::ArithmeticDecisions::default();
         let mut formation_obligations = Vec::new();
         let mut stored_integer_writes = Vec::new();
@@ -635,58 +627,6 @@ fn validate<'program>(
                 &mut formation_obligations,
             ),
         );
-        // Pristine templates remain in the frozen roster. Judge their declared
-        // abstract envelope here, alongside concrete bodies; preparation cannot
-        // grant a blanket prevalidated exemption to either declaration.
-        // This is the one judgment over bodies: the stage-04 prover consumes
-        // the retained postconditions below. A dependency body already judged
-        // in this invocation transfers its raw proved ordinals and still runs
-        // exit coverage; it does not grow a second summary of the body.
-        let mut captured_entailment = None;
-        {
-            let _entail_guard = phase_profile::guard("05.d.2.a.2a.contract_entailment");
-            if let Some(proven) = body_index.reuse(program, machine, machine_index) {
-                phase_profile::count("05.d.2.a.2a.contract_entailment.reused", 1);
-                record_dependency_entailment(true);
-                if machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody {
-                    let judged =
-                        if crate::proof_contracts::contract_entailment::entailment_covers_all_exits(
-                            program, machine,
-                        ) {
-                            proven
-                        } else {
-                            ProvenContractExpressions::default()
-                        };
-                    proven_machine_contract = Some((machine.symbol, judged));
-                }
-            } else {
-                if body_index.active_observation() {
-                    phase_profile::count("05.d.2.a.2a.contract_entailment.judged", 1);
-                    record_dependency_entailment(false);
-                }
-                let mut machine_diagnostics = Vec::new();
-                let mut proven = ProvenContractExpressions::default();
-                crate::proof_contracts::contract_entailment::validate_machine_contract_entailment(
-                    program,
-                    machine,
-                    &mut machine_diagnostics,
-                    &mut proven,
-                );
-                captured_entailment = body_index.capture(program, machine, machine_index, &proven);
-                if machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody {
-                    let judged = if machine_diagnostics.is_empty()
-                        && crate::proof_contracts::contract_entailment::entailment_covers_all_exits(
-                            program, machine,
-                        ) {
-                        proven
-                    } else {
-                        ProvenContractExpressions::default()
-                    };
-                    proven_machine_contract = Some((machine.symbol, judged));
-                }
-                diagnostics.append(&mut machine_diagnostics);
-            }
-        }
         if effect_admission == EffectAdmission::Complete {
             validate_machine_trait_conformances(
                 program,
@@ -1033,8 +973,6 @@ fn validate<'program>(
         }
         MachineValidation {
             diagnostics,
-            proven_machine_contract,
-            captured_entailment,
             arithmetic_decisions,
             formation_obligations,
             stored_integer_writes,
@@ -1046,26 +984,14 @@ fn validate<'program>(
     let judged = checking_thread_pool().install(|| {
         machines
             .par_iter()
-            .enumerate()
             .map_init(
                 || (program, None),
-                |bound_lookup, (machine_index, machine)| {
-                    validate_machine(machine_index, machine, bound_lookup)
-                },
+                |bound_lookup, machine| validate_machine(machine, bound_lookup),
             )
             .collect::<Vec<_>>()
     });
-    let mut captured_entailments = Vec::with_capacity(judged.len());
     for machine in judged {
-        captured_entailments.push(machine.captured_entailment);
         diagnostics.extend(machine.diagnostics);
-        if let Some((symbol, judged)) = machine.proven_machine_contract
-            && !proven_machine_contracts
-                .iter()
-                .any(|(existing, _)| *existing == symbol)
-        {
-            proven_machine_contracts.push((symbol, judged));
-        }
         arithmetic_decisions.extend(machine.arithmetic_decisions);
         formation_obligations.extend(machine.formation_obligations);
         stored_integer_writes.extend(machine.stored_integer_writes);
@@ -1080,7 +1006,6 @@ fn validate<'program>(
         }
         self_call_descents.extend(machine.self_call_descents);
     }
-    let dependency_body_judgments = body_index.judgments(&captured_entailments);
     let frozen_dependency_bodies = body_index.frozen_bodies();
     drop(machine_loop_guard);
     let _post_machine_guard = phase_profile::guard("05.d.2.a.3.post_machine_validators");
@@ -1103,6 +1028,11 @@ fn validate<'program>(
         &expression_intervals,
         &mut diagnostics,
     );
+    if diagnostics.iter().any(Diagnostic::is_error) {
+        // A program that fails validation never reaches flow construction.
+        // Report its entailment diagnostics with the rest of validation.
+        diagnostics.append(&mut judge_machines(program, &body_index).diagnostics);
+    }
     finish_diagnostics(diagnostics)?;
     // Warning collection follows all formation and flow checks: a warning must
     // not make a clean assignment skip its range or value-environment update.
@@ -1177,11 +1107,161 @@ fn validate<'program>(
             integer_embedding_calls,
             proof_recursive_components,
             self_call_descents,
-            proven_machine_contracts,
         },
-        dependency_body_judgments,
+        deferred_entailment: DeferredEntailment { body_index },
         frozen_dependency_bodies,
     })
+}
+
+/// Inputs that contract entailment needs from validation. Entailment runs as
+/// its own pass after validation, so that it can read the checked flow facts.
+pub struct DeferredEntailment {
+    body_index: dependency_bodies::DependencyBodyIndex,
+}
+
+impl std::fmt::Debug for DeferredEntailment {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("DeferredEntailment")
+            .finish_non_exhaustive()
+    }
+}
+
+/// The one judgment over checked bodies, consumed by the stage-04 prover.
+pub struct ContractEntailment {
+    /// For each checked-body machine, the postconditions entailment proved.
+    /// Empty when the machine's entailment raised a diagnostic or does not
+    /// cover every exit.
+    pub proven_machine_contracts: Vec<(symbols::SymbolHandle, ProvenContractExpressions)>,
+    /// Entailment judgments of non-instance machines, recorded only for a
+    /// strict check that the caller will retain. Empty when this pass is not
+    /// recording. Consumers remap ordinals into their own arenas.
+    pub dependency_body_judgments: Vec<DependencyBodyJudgment>,
+}
+
+/// Judge every machine's contract entailment. Machines are independent, so
+/// workers partition them; merging in roster order keeps diagnostics and
+/// first-wins rows identical to a sequential pass.
+pub fn judge_contract_entailment(
+    program: &dyn crate::CheckingInput,
+    deferred: DeferredEntailment,
+) -> Result<ContractEntailment, Vec<Diagnostic>> {
+    let _guard = phase_profile::guard("05.d.3b.contract_entailment");
+    let judged = judge_machines(program, &deferred.body_index);
+    finish_diagnostics(judged.diagnostics)?;
+    Ok(ContractEntailment {
+        proven_machine_contracts: judged.proven_machine_contracts,
+        dependency_body_judgments: deferred.body_index.judgments(&judged.captured_entailments),
+    })
+}
+
+struct JudgedEntailment {
+    diagnostics: Vec<Diagnostic>,
+    proven_machine_contracts: Vec<(symbols::SymbolHandle, ProvenContractExpressions)>,
+    captured_entailments: Vec<Option<dependency_bodies::CapturedEntailment>>,
+}
+
+fn judge_machines(
+    program: &dyn crate::CheckingInput,
+    body_index: &dependency_bodies::DependencyBodyIndex,
+) -> JudgedEntailment {
+    let judge_machine = |machine_index: usize, machine: &typed_trees::machine::Machine| {
+        let mut diagnostics = Vec::new();
+        let mut proven_machine_contract = None;
+        // Pristine templates remain in the frozen roster. Judge their declared
+        // abstract envelope here, alongside concrete bodies; preparation cannot
+        // grant a blanket prevalidated exemption to either declaration.
+        // This is the one judgment over bodies: the stage-04 prover consumes
+        // the retained postconditions below. A dependency body already judged
+        // in this invocation transfers its raw proved ordinals and still runs
+        // exit coverage; it does not grow a second summary of the body.
+        let mut captured_entailment = None;
+        {
+            let _entail_guard = phase_profile::guard("05.d.2.a.2a.contract_entailment");
+            if let Some(proven) = body_index.reuse(program, machine, machine_index) {
+                phase_profile::count("05.d.2.a.2a.contract_entailment.reused", 1);
+                record_dependency_entailment(true);
+                if machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody {
+                    let judged =
+                        if crate::proof_contracts::contract_entailment::entailment_covers_all_exits(
+                            program, machine,
+                        ) {
+                            proven
+                        } else {
+                            ProvenContractExpressions::default()
+                        };
+                    proven_machine_contract = Some((machine.symbol, judged));
+                }
+            } else {
+                if body_index.active_observation() {
+                    phase_profile::count("05.d.2.a.2a.contract_entailment.judged", 1);
+                    record_dependency_entailment(false);
+                }
+                let mut machine_diagnostics = Vec::new();
+                let mut proven = ProvenContractExpressions::default();
+                crate::proof_contracts::contract_entailment::validate_machine_contract_entailment(
+                    program,
+                    machine,
+                    &mut machine_diagnostics,
+                    &mut proven,
+                );
+                captured_entailment = body_index.capture(program, machine, machine_index, &proven);
+                if machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody {
+                    let judged = if machine_diagnostics.is_empty()
+                        && crate::proof_contracts::contract_entailment::entailment_covers_all_exits(
+                            program, machine,
+                        ) {
+                        proven
+                    } else {
+                        ProvenContractExpressions::default()
+                    };
+                    proven_machine_contract = Some((machine.symbol, judged));
+                }
+                diagnostics.append(&mut machine_diagnostics);
+            }
+        }
+        // Machine-level checks mint only message text; the machine's own
+        // declaration owns their authored position.
+        if !diagnostics.is_empty() {
+            let machine_source_span = program
+                .symbols
+                .symbol_provenance_source_span(machine.symbol)
+                .filter(|source_span| *source_span != source::SourceSpan::default());
+            for diagnostic in &mut diagnostics {
+                if diagnostic.source_span.is_none() {
+                    diagnostic.source_span = machine_source_span;
+                }
+            }
+        }
+        (diagnostics, proven_machine_contract, captured_entailment)
+    };
+    let machines = program.machines();
+    let judged = checking_thread_pool().install(|| {
+        machines
+            .par_iter()
+            .enumerate()
+            .map(|(machine_index, machine)| judge_machine(machine_index, machine))
+            .collect::<Vec<_>>()
+    });
+    let mut diagnostics = Vec::new();
+    let mut proven_machine_contracts = Vec::new();
+    let mut captured_entailments = Vec::with_capacity(judged.len());
+    for (mut machine_diagnostics, proven_machine_contract, captured_entailment) in judged {
+        captured_entailments.push(captured_entailment);
+        diagnostics.append(&mut machine_diagnostics);
+        if let Some((symbol, judged)) = proven_machine_contract
+            && !proven_machine_contracts
+                .iter()
+                .any(|(existing, _)| *existing == symbol)
+        {
+            proven_machine_contracts.push((symbol, judged));
+        }
+    }
+    JudgedEntailment {
+        diagnostics,
+        proven_machine_contracts,
+        captured_entailments,
+    }
 }
 
 /// Errors fail the build; a WARNING-only batch surfaces on stderr and
@@ -1358,8 +1438,6 @@ fn validate_cleanup_normal_completion(
 /// merged into the program's rows in roster order.
 struct MachineValidation {
     diagnostics: Vec<Diagnostic>,
-    proven_machine_contract: Option<(symbols::SymbolHandle, ProvenContractExpressions)>,
-    captured_entailment: Option<dependency_bodies::CapturedEntailment>,
     arithmetic_decisions: arithmetic_domains::ArithmeticDecisions,
     formation_obligations: Vec<checked_trees::IntegerRangeObligation>,
     stored_integer_writes: Vec<checked_trees::CheckedStoredIntegerWrite>,

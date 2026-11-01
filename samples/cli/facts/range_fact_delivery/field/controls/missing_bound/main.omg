@@ -3,7 +3,7 @@
 machine count(index: u64) -> u64
 requires index <= 4
 { index }
-data Reading [copy] where index < 6 { index: u64; }
+data Reading [copy] requires index < 6 { index: u64; }
 machine read(reading: Reading) -> u64 { count(reading.index) }
 machine probe(input: u64) -> u64 requires input < 6 { read(Reading { index: input }) }
 machine main() crashes Trap {

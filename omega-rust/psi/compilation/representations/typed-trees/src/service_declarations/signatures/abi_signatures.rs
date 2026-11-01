@@ -24,6 +24,9 @@ pub struct PreparedAbiStorage {
 pub struct PreparedBoundaryAbiSignature {
     pub id: CallingSignatureId,
     pub template: SymbolHandle,
+    /// Original declaration occurrences which contributed this exact key.
+    /// Equal checked Build/Product copies may share its portable storage.
+    pub source_templates: Vec<SymbolHandle>,
     pub requirement_identity: String,
     /// Empty only on a deferred open declaration, never a complete application.
     pub declaring_application: String,
@@ -150,6 +153,75 @@ pub(super) fn prepare(catalog: &mut PreparedBoundarySignatures, typed: &TypedTre
             ))
         })();
         boundaries.push((closed.signature.symbol, prepared));
+    }
+
+    // A component can export a closed receiver without invoking its methods
+    // or authoring Calling. Use the same checked application roots as service
+    // preparation; do not infer an instance from its eventual native shape.
+    let roots = typed.applied_trait_roots().into_iter().chain(
+        typed
+            .captured_machine_applications
+            .iter()
+            .filter_map(|(_, application)| {
+                application.conformance_application.trait_scope.scope(typed)
+            }),
+    );
+    for root in roots {
+        root.visit(typed, &mut |scope| {
+            if !scope.declaration.is_boundary {
+                return;
+            }
+            for declared in typed.trait_machine_signatures(scope.declaration) {
+                let Some(declaration) = catalog
+                    .declarations()
+                    .find(|row| row.symbol == declared.symbol)
+                else {
+                    continue;
+                };
+                if typed
+                    .state_signature_type_parameters(declared)
+                    .iter()
+                    .any(|parameter| callback_binder(declaration, parameter).is_none())
+                {
+                    // Local actuals only come from checked applications. A
+                    // receiver cannot invent an unused generic argument tuple.
+                    continue;
+                }
+                let Some(outer) = scope
+                    .portable_application_identity(typed)
+                    .and_then(|identity| typed.type_identity_text(identity))
+                    .filter(|identity| !identity.is_empty())
+                else {
+                    continue;
+                };
+                let signature = typed
+                    .applied_callable_signature(scope, declaration.symbol)
+                    .or_else(|| {
+                        (scope.substitutions.is_empty()
+                            && scope.declaration.lifetime_parameters.is_empty())
+                        .then_some(declared)
+                    });
+                let projection = signature
+                    .map(|signature| PreparedAbiStorage {
+                        parameters: typed
+                            .state_signature_parameters(signature)
+                            .iter()
+                            .map(|parameter| parameter.type_reference)
+                            .collect(),
+                        result: signature.return_type,
+                        substitutions: Vec::new(),
+                    })
+                    .ok_or_else(|| "declaration ABI lost its applied logical signature".to_owned());
+                insert(
+                    typed,
+                    &mut rows,
+                    declaration,
+                    outer.to_owned(),
+                    Vec::new(),
+                    projection,
+                );
+            }
+        });
     }
 
     let mut applications = Vec::new();
@@ -283,6 +355,9 @@ fn insert(
             && row.declaring_application == declaring_application
             && row.operands == operands
     }) {
+        if !row.source_templates.contains(&declaration.symbol) {
+            row.source_templates.push(declaration.symbol);
+        }
         row.projections.push(projection);
         row.default_eligible |= declaration.default_eligible;
         return id;
@@ -306,6 +381,7 @@ fn insert(
     rows.push(PreparedBoundaryAbiSignature {
         id,
         template: declaration.symbol,
+        source_templates: vec![declaration.symbol],
         requirement_identity: declaration.requirement_identity.clone(),
         declaring_application,
         operands,

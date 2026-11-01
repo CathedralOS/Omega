@@ -2,7 +2,7 @@
 // valid only while `a <= b && b <= c` — a three-field ascending chain
 // written as a single boolean expression.
 data Ladder
-where
+requires
     a <= b && b <= c,
 {
     a: u64;

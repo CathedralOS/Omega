@@ -1,7 +1,7 @@
 // Expected exit: 0. A selected loan retains its captured element after the
 // selector changes, and only the selected match arm lends writable storage.
 data Cell { value: u32; stamp: u32; }
-data Grid where cursor < 3 { cells: [Cell; 3]; cursor: u64; selections: u32 in Wrapping; }
+data Grid requires cursor < 3 { cells: [Cell; 3]; cursor: u64; selections: u32 in Wrapping; }
 machine next(grid: &mut Grid) -> u64
 ensures result < 3
 {

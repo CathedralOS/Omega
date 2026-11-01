@@ -2,7 +2,7 @@
 // only while `first != second` — the pair carries distinct slots and equal
 // construction is rejected.
 data Pair
-where
+requires
     first != second,
 {
     first: u64;

@@ -1,4 +1,4 @@
-data Ordered [copy] where embed(lower) <= embed(upper) {
+data Ordered [copy] requires embed(lower) <= embed(upper) {
     lower: u64;
     upper: u64;
 }

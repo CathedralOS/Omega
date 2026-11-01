@@ -1,5 +1,5 @@
 // A stored shared reference keeps its referent in place until its last read.
-data Inventory where slots >= 0 && slots <= 100 { slots: i32; }
+data Inventory requires slots >= 0 && slots <= 100 { slots: i32; }
 data Loan { inventory: &Inventory; }
 data Main { inventory: Inventory; }
 

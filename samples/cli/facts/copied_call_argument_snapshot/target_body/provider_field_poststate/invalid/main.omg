@@ -3,7 +3,7 @@
 // Invalid control: the public provider establishes 6, which cannot satisfy the captured index 7.
 public data Scalar { value: u64; }
 data Counter { value: bool; }
-data Counted<Count: u64> [copy] where value == Count { value: u64; }
+data Counted<Count: u64> [copy] requires value == Count { value: u64; }
 public trait Installing {
     machine install(slot: &mut Scalar, replacement: u64) -> u64 ensures slot.value == replacement;
 }

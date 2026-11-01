@@ -46,7 +46,7 @@ ensures result >= 0 && result <= 1
     transition { _ -> (cells[0]) }
 }
 
-data Grid where cells_valid(&board) == true, cells_valid(&next) == true {
+data Grid requires cells_valid(&board) == true, cells_valid(&next) == true {
     board: [i32; 4];
     next: [i32; 4];
 }

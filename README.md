@@ -379,7 +379,8 @@ Both conditional successors are explicit, and register clobbers are inferred.
 ## Hardware access
 
 The same-sized memory is not always permitted to support the same operations.
-Assume the platform's `UartMmio` policy describes a write-only transmit register:
+Assume the platform's `DeviceRegisters` domain selects a policy describing a
+write-only transmit register:
 writing sends data to the device, but borrowing it as ordinary read/write RAM
 is not permitted. This example deliberately fails at the final borrow:
 
@@ -389,14 +390,14 @@ data UartRegisters {
 }
 
 machine broken_reset(
-    uart: &mut Access<UartMmio, UartRegisters>
+    uart: &mut (UartRegisters in DeviceRegisters)
 )
 reaches DeviceIo
 {
     let mut ram_word: u32 = 42;
 
     clear(&mut ram_word); // Valid: Ordinary RAM.
-    uart.transmit.write(0);
+    write(&mut uart.transmit, 0);
 
     clear(&mut uart.transmit); // Rejected: cannot borrow MMIO as RAM.
 
@@ -411,7 +412,7 @@ to pass a device accessor to a helper requiring an ordinary RAM reference.
 Even exclusive access to `uart` cannot manufacture the missing access mode.
 Recasts and checked assembly must respect that distinction too.
 
-The platform supplies the placement policy and its correspondence to the actual
+The platform supplies the domain access policy, independent layout and correspondence to the actual
 device. Omega checks against those contracts; it does not infer a datasheet from
 a field name.
 

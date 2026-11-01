@@ -1,5 +1,5 @@
 // Exact bounded borrowing and plain shared observation coexist in one catalog.
-data Main where position <= 1 { values: [i64; 2]; position: u64; }
+data Main requires position <= 1 { values: [i64; 2]; position: u64; }
 machine identity<'input, T>(position: &'input T) -> &'input T { position }
 machine observe(position: &u64) -> u64 { position }
 machine reset(position: &mut u64) -> i64

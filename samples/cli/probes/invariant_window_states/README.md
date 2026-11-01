@@ -1,7 +1,7 @@
 # invariant_window_states
 
 First sample with a standing invariant allowed to break
-mid-state: `data Main where start <= end` — `start = 10`
+mid-state: `data Main requires start <= end` — `start = 10`
 violates it transiently, `end = 20` restores it before the
 next transition; the bound is checked at state boundaries,
 not between statements.

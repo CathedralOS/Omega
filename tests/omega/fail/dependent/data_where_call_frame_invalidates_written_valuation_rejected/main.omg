@@ -2,7 +2,7 @@
 // main.pair, so the predecessor's right == 20 valuation cannot survive it.
 // Writing left = 15 afterward is not proven to restore left <= right.
 data Pair
-where
+requires
     left <= right,
 {
     left: i32;

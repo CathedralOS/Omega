@@ -2,7 +2,7 @@
 // only while `first < second` — the strict cross-field relation, no
 // slack allowed.
 data Order
-where
+requires
     first < second,
 {
     first: u64;

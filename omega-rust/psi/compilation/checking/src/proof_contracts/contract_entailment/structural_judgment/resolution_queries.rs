@@ -50,6 +50,7 @@ pub(super) struct ResolutionObservations<'program> {
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 enum StructuralQueryKind {
     Resolution,
+    IntegerProjection,
     Predicate,
 }
 
@@ -228,6 +229,26 @@ impl<'program> StructuralJudge<'program> {
         }
     }
 
+    /// Numeric projection has its own answer namespace: retaining a completed
+    /// scalar is not interchangeable with General's unfolded denotation. This
+    /// shares the existing full-context/dependency admission, not a looser key.
+    pub(super) fn completed_integer_projection(
+        &self,
+        term: StructuralTerm,
+        depth: usize,
+        compute: impl FnOnce(&Self, StructuralTerm) -> StructuralTerm,
+    ) -> StructuralTerm {
+        match self.completed_query(
+            StructuralQueryKind::IntegerProjection,
+            term,
+            depth,
+            |judge, term| StructuralQueryAnswer::Resolution(compute(judge, term)),
+        ) {
+            StructuralQueryAnswer::Resolution(value) => value,
+            StructuralQueryAnswer::Predicate(_) => unreachable!("projection query kind changed"),
+        }
+    }
+
     pub(super) fn completed_predicate(
         &self,
         term: StructuralTerm,
@@ -275,6 +296,9 @@ impl<'program> StructuralJudge<'program> {
             phase_profile::count(
                 match kind {
                     StructuralQueryKind::Resolution => "05.resolution.completed.hit",
+                    StructuralQueryKind::IntegerProjection => {
+                        "05.resolution.integer_projection.hit"
+                    }
                     StructuralQueryKind::Predicate => "05.resolution.predicate.hit",
                 },
                 1,
@@ -284,6 +308,7 @@ impl<'program> StructuralJudge<'program> {
         phase_profile::count(
             match kind {
                 StructuralQueryKind::Resolution => "05.resolution.completed.miss",
+                StructuralQueryKind::IntegerProjection => "05.resolution.integer_projection.miss",
                 StructuralQueryKind::Predicate => "05.resolution.predicate.miss",
             },
             1,

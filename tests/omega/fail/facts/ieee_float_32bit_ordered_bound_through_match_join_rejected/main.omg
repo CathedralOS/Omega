@@ -2,7 +2,7 @@
 // Invalid: upper bound is 3.5f32 which exceeds downstream requires bound 3.0f32. Place: match_join.
 // Expected diagnostic: cannot prove requires contract for call verify_f32_window
 
-data Reading [copy] where value >= 1.25f32 && value <= 3.5f32 {
+data Reading [copy] requires value >= 1.25f32 && value <= 3.5f32 {
     value: f32;
 }
 

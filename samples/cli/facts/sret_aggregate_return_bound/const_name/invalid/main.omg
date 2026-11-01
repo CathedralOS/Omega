@@ -2,7 +2,7 @@
 // Invalid: c field is 91u64 exceeding 90u64 bound, so 90u64 - c underflows. Place: const_name.
 // Expected diagnostic: may overflow `u64`
 
-data Triple [copy] where
+data Triple [copy] requires
     a >= 20u64 && a <= 20u64,
     b >= 30u64 && b <= 30u64,
     c >= 91u64 && c <= 91u64

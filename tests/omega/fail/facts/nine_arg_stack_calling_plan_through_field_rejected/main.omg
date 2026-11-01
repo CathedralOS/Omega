@@ -2,7 +2,7 @@
 // Place: field (invalid twin).
 // Expected diagnostic: exact subtraction underflow
 
-data NineArgs where
+data NineArgs requires
     f1 == 10u64, f2 == 20u64, f3 == 30u64, f4 == 40u64, f5 == 50u64,
     f6 == 60u64, f7 == 70u64, f8 == 80u64, f9 == 93u64
 {

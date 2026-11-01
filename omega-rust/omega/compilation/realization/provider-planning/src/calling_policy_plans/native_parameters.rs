@@ -2,9 +2,9 @@
 
 use super::{
     BoundaryCallbackBinder, BoundaryDirectCallbackParameter, BoundaryNativeParameter,
-    BoundaryNativeParameterOrigin, BoundaryNativeParameterShape, MaterializedBoundarySignature,
+    MaterializedBoundarySignature,
 };
-use calling_conventions::{NativeCallbackDemand, NativeParameterId};
+use calling_conventions::NativeCallbackDemand;
 
 impl MaterializedBoundarySignature {
     /// Authored ABI order; compact identities remain compiler-only join keys.
@@ -22,23 +22,5 @@ impl MaterializedBoundarySignature {
 
     pub fn direct_callback_parameters(&self) -> &[BoundaryDirectCallbackParameter] {
         &self.direct_callback_parameters
-    }
-}
-
-impl BoundaryNativeParameter {
-    pub const fn identity(&self) -> NativeParameterId {
-        self.identity
-    }
-
-    pub const fn native_ordinal(&self) -> u32 {
-        self.native_ordinal
-    }
-
-    pub const fn shape(&self) -> BoundaryNativeParameterShape {
-        self.shape
-    }
-
-    pub const fn origin(&self) -> BoundaryNativeParameterOrigin {
-        self.origin
     }
 }

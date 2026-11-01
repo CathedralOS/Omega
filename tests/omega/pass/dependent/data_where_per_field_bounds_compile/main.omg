@@ -2,7 +2,7 @@
 // facts: `Range` holds `start >= 1` and `end <= 4` as conjuncts of one
 // invariant. Literals inside both bounds construct.
 data Range
-where
+requires
     start >= 1,
     end <= 4,
 {

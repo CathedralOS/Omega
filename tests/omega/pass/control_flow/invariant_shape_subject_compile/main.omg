@@ -2,7 +2,7 @@
 // `main.margin.left >= main.margin.right` asks the same question the
 // record promises at construction — subjects can probe invariant edges.
 data Margin
-where
+requires
     left - right >= 2,
 {
     left: u64;

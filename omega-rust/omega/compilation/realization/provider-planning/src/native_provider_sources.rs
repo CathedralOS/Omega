@@ -8,6 +8,34 @@ use crate::{ProviderPlanningContext, SelectedProviderReviewProvenance};
 use backend_plan::{NativeProviderSources, TerminalTargetProviderPlan};
 use diagnostics::Diagnostic;
 
+/// Retain the selecting owner while its exact source custody is available.
+pub(crate) fn close_selecting_declaration(
+    context: ProviderPlanningContext<'_>,
+    exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
+    provider: &crate::ProviderPlanProvenance,
+) -> Result<Option<String>, Vec<Diagnostic>> {
+    provider
+        .provider_type
+        .map(|symbol| close_nominal_declaration(context, exact_toolchain_sources, symbol))
+        .transpose()
+}
+
+fn close_nominal_declaration(
+    context: ProviderPlanningContext<'_>,
+    exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
+    symbol: symbols::SymbolHandle,
+) -> Result<String, Vec<Diagnostic>> {
+    context
+        .typed
+        .exact_owner_nominal_identity(symbol, exact_toolchain_sources)
+        .and_then(|identity| context.typed.type_identity_text(identity))
+        .ok_or_else(|| {
+            vec![Diagnostic::error(
+                "native provider selection lost its exact declaration owner",
+            )]
+        })
+}
+
 /// Close declaration owners before family relationships, preserving diagnostic
 /// precedence. The caller retains failure until a native handoff demands it.
 pub fn prepare_native_provider_sources(
@@ -41,16 +69,7 @@ pub(crate) fn close_provider_declarations(
     provider: &crate::ProviderPlanProvenance,
 ) -> Result<TerminalTargetProviderPlan, Vec<Diagnostic>> {
     let typed = context.typed;
-    let nominal = |symbol| {
-        typed
-            .exact_owner_nominal_identity(symbol, exact_toolchain_sources)
-            .and_then(|identity| typed.type_identity_text(identity))
-            .ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "native provider selection lost its exact declaration owner",
-                )]
-            })
-    };
+    let nominal = |symbol| close_nominal_declaration(context, exact_toolchain_sources, symbol);
     if provider.row_realizations.len() != plan.rows.len()
         || provider.row_requirements.len() != plan.rows.len()
     {
@@ -58,7 +77,8 @@ pub(crate) fn close_provider_declarations(
             "native provider selection lost row realization custody",
         )]);
     }
-    let provider_declaration = provider.provider_type.map(nominal).transpose()?;
+    let provider_declaration =
+        close_selecting_declaration(context, exact_toolchain_sources, provider)?;
     let row_numeric_realizations = plan
         .rows
         .iter()

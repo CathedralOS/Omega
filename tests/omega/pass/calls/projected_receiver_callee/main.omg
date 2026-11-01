@@ -5,7 +5,7 @@
 // caller/callee join preserves the exact projection, callee identity,
 // return/cleanup, and the caller-visible write — `u64 [0..=8]`
 // interval return spelled on both.
-data Cursor where remaining <= 8 { remaining: u64; }
+data Cursor requires remaining <= 8 { remaining: u64; }
 machine Cursor::step(cursor: &mut Cursor, remaining: u64) -> u64
 requires remaining <= 8
 ensures result <= 8

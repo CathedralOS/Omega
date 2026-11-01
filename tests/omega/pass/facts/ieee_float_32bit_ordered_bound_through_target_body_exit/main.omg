@@ -2,7 +2,7 @@
 // Place: target_body. Each of four target bodies forwards the bounded reading to verify_f32_window.
 // Expected exit: 0
 
-data Reading [copy] where value >= 1.25f32 && value <= 2.75f32 {
+data Reading [copy] requires value >= 1.25f32 && value <= 2.75f32 {
     value: f32;
 }
 

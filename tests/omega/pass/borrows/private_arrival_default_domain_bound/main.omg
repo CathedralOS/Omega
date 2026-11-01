@@ -1,7 +1,7 @@
 // Expected exit: 0
 // The entry type's default domain and the caller's guard compose before
 // transfer. Private bodies do not need a duplicate handwritten precondition.
-data Table where self.count <= 4 {
+data Table requires self.count <= 4 {
     count: u64;
     rows: [u64; 4];
 }

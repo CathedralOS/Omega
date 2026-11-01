@@ -1,5 +1,61 @@
 # Closed opaque carrier exchange
 
+Build-owned source migration is owned by **BUILD-OWNED-TARGET-SELECTION** and
+**BUILD-OWNED-NATIVE-BINDINGS**. Every raw `AddressParts` binding belongs to the
+package that declares it. Its Build records the exact requirement, target and
+original libc or Windows shim locator, with byte lengths inferred from the
+literal. Independent consumers select the producer and its opaque representation;
+they do not repeat the producer's private native imports. The raw qualified-result
+controls retain their complete `UncheckedFactory` return obligations.
+
+The target-body places call `ExchangeObservation::observe` through ordinary
+named implementations selected by four hosted Build rows. The requirement retains
+the original complete service reach and boolean result; its selected body keeps
+the same construction, replacement and sibling checks. The qualified input twin
+keeps its original differing Linux body, so selecting other targets cannot hide
+its missing issuer. Copy permission, Linear consumption, qualification routes,
+Inert cleanup rejection, and every authored exit oracle are unchanged. The
+qualified target-body rejection names the new ordinary implementation in place of
+the retired `observe` family; its missing-issuer obligation is unchanged. The qualified continuation's remaining acceptance below stays open.
+
+The original macOS ARM64 migration evidence uses optimized producer
+`bf0acdf0aaa76237800c46b1b3209f29facf1ef6` and its own SDK snapshot. The frozen
+originals check 52 positives and 48 intended rejects and run all 52 positive pins
+at native 0 / Terminal 0. The 99 changed pins check 51 positives and 48 intended
+rejects; all 51 positives run at native 0 / Terminal 0 with agreement. Their
+runtime tuples equal the originals. Source rejection differences are limited to
+two target-body machine/state labels; the qualified caller-name oracle was
+updated to its exact ordinary implementation. The untouched scalar-parent-tag
+control retains applicable original evidence and its original golden row.
+All 56 public positives also pass ordinary package review and `omega run --both`.
+The four raw-result/laundering controls each check successfully and then reject
+native admission at `UncheckedFactory::make` for the original issuer-provenance
+obligation. All 53 public source-rejection controls refuse their intended obligation. The
+nested-import control uses the canonical direct `--check` route that preserves
+its captured package hierarchy; an earlier generic package-preparation refusal
+is retained separately as setup evidence. A false-result mutation of the selected
+observation produces native SIGTRAP and Terminal `Trap` with host agreement.
+One batch compile of the Linear target-body witness publishes actual PE, ELF
+x86-64, ELF ARM64 and Mach-O ARM64 artifacts; these extra artifacts are not
+executed. Historical foreign-host records below retain their actual producers;
+this migration makes no new foreign-host execution claim.
+
+After integrating Main's owned-store repair, optimized producer
+`60ee163d4f0f5f8b9349ecf253660a917917a7c7` and its own SDK freshly check all
+100 pins (52 positives and 48 intended rejects) and execute all 52 positives
+at native 0 / Terminal 0. All runtime tuples match the frozen originals;
+the two Source diagnostic differences only name the ordinary target-body
+implementations. Independent component verification now reads the complete v6
+calling-application roster, including exact declaration ABI keys and ordered
+static operands, rather than interpreting that roster as the retired optional
+calling fields. Complete commitments, schema coverage and admission stay checked.
+The affected public packages, issuer refusals, selected-observer trap and four
+native image formats were also freshly observed. The Std-backed root and its
+cleanup twin retain their separate, fresh Main-producer
+`ba899a24b8bb835013cc3db2ca7b8d4b70b7cd35` observations: their Build closures
+have no independent component descriptions and do not enter the changed reader.
+Those retained observations do not install an older compiler's review or product.
+
 Parent: [OPAQUE-BY-VALUE-BOUNDARY-ABI](../../../../TASKS.md).
 Requirement: preserve the exact selected closed Inert carrier and one owned
 occurrence through by-value foreign results, transport and consuming arguments,

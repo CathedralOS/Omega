@@ -55,7 +55,7 @@ fn fixed_array_equation_operands_retain_type_structure_through_grouping_and_copy
         "([[Element; Count]; 2]) == Backing",
     ] {
         let source = format!(
-            "data Buffer<Backing, Element, const Count: u64> where {equation} {{ storage: Backing; }}"
+            "data Buffer<Backing, Element, const Count: u64> requires {equation} {{ storage: Backing; }}"
         );
         let parsed = super::parse_source_verbose(
             &source,
@@ -116,7 +116,7 @@ fn proof_fact_array_values_remain_value_expressions() {
         "[match 1 { 1 -> 2, _ -> 3 }] == [2]",
         "&[1, 2] == &[1, 2]",
     ] {
-        let source = format!("data Buffer where {equation} {{ storage: u64; }}");
+        let source = format!("data Buffer requires {equation} {{ storage: u64; }}");
         let parsed = super::parse_source_verbose(
             &source,
             "tokenize array values",
@@ -145,7 +145,7 @@ fn reference_operands_retain_access_and_element_type_role_through_copy() {
         ("write ", language_core::ReferenceAccess::WriteOnly),
     ] {
         let source = format!(
-            "data Buffer<Backing, Element, const Count: u64> where Backing == (&{access}[&Element; Count]) {{ storage: Backing; }}"
+            "data Buffer<Backing, Element, const Count: u64> requires Backing == (&{access}[&Element; Count]) {{ storage: Backing; }}"
         );
         let tokens = Lexer::new(&source).tokenize().unwrap();
         let parsed = parse_syntax_trees(&tokens).expect("reference around a type-role operand");
@@ -191,7 +191,7 @@ fn reference_operands_retain_access_and_element_type_role_through_copy() {
 
 #[test]
 fn reference_value_operands_remain_borrows_and_recasts_reject_policy_suffixes() {
-    let tokens = Lexer::new("data Buffer where &left == &right { storage: u64; }")
+    let tokens = Lexer::new("data Buffer requires &left == &right { storage: u64; }")
         .tokenize()
         .unwrap();
     let parsed = parse_syntax_trees(&tokens).unwrap();
@@ -218,7 +218,7 @@ fn reference_value_operands_remain_borrows_and_recasts_reject_policy_suffixes() 
 
 #[test]
 fn fixed_array_equation_elements_use_existing_generic_type_grammar() {
-    let source = "data Buffer<Backing, Element, const Count: u64> where Backing == [Pair<Element, Element>; Count] { storage: Backing; }";
+    let source = "data Buffer<Backing, Element, const Count: u64> requires Backing == [Pair<Element, Element>; Count] { storage: Backing; }";
     let parsed = super::parse_source_verbose(
         source,
         "tokenize generic element",
@@ -264,7 +264,7 @@ fn fixed_array_equation_operands_use_the_type_grammars_rejections() {
         "[; 4]",
     ] {
         let source = format!(
-            "data Buffer<Backing, Element, const Count: u64> where Backing == {operand} {{ storage: Backing; }}"
+            "data Buffer<Backing, Element, const Count: u64> requires Backing == {operand} {{ storage: Backing; }}"
         );
         let tokens = Lexer::new(&source)
             .tokenize()

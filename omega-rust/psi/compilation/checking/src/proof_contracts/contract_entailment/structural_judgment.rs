@@ -1519,19 +1519,26 @@ impl<'program> StructuralJudge<'program> {
             self.invalidate_resolution_observations();
             return self.resolve_uncached(term, depth, purpose);
         }
-        // General answers and numeric completed-leaf retention use distinct
-        // namespaces. Keep the shared completed-query owner General-only.
-        if purpose != ResolutionPurpose::General
-            || !matches!(
-                term,
-                StructuralTerm::Application { .. } | StructuralTerm::CallProjection { .. }
-            )
-        {
+        if !matches!(
+            term,
+            StructuralTerm::Application { .. } | StructuralTerm::CallProjection { .. }
+        ) {
             return self.resolve_uncached(term, depth, purpose);
         }
-        self.completed_resolution(term, depth, |judge, term| {
-            judge.resolve_uncached(term, depth, purpose)
-        })
+        // Both purposes normalize the exact same immutable input cut, but
+        // numeric projection can retain a completed scalar where General
+        // unfolds its description. The shared query owner keys those answers
+        // separately while retaining its full context and dependency checks.
+        match purpose {
+            ResolutionPurpose::General => self.completed_resolution(term, depth, |judge, term| {
+                judge.resolve_uncached(term, depth, purpose)
+            }),
+            ResolutionPurpose::IntegerProjection => {
+                self.completed_integer_projection(term, depth, |judge, term| {
+                    judge.resolve_uncached(term, depth, purpose)
+                })
+            }
+        }
     }
 
     fn resolve_uncached(

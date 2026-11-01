@@ -1,7 +1,7 @@
 // A `data where` bound applies at u16 width: `Port` is valid only while
 // `port <= 1000` — the ceiling proves against the field's own width.
 data Port
-where
+requires
     port <= 1000,
 {
     port: u16;

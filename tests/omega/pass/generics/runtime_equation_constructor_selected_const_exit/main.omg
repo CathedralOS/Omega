@@ -14,15 +14,15 @@ where Payload == Flag<Counts::ENABLED>
 { 13 }
 
 data Recovered<Anchor [copy], Payload [copy]> [copy]
-where Payload == Mode<Counts::FOUR>
+requires Payload == Mode<Counts::FOUR>
 { value: Payload; anchor: Anchor; }
 
 data Verified<Payload [copy]> [copy]
-where Payload == Mode<Counts::FOUR>
+requires Payload == Mode<Counts::FOUR>
 { value: Payload; }
 
 data RecoveredFlag<Anchor [copy], Payload [copy]> [copy]
-where Flag<Counts::ENABLED> == Payload
+requires Flag<Counts::ENABLED> == Payload
 { value: Payload; anchor: Anchor; }
 
 data Main {

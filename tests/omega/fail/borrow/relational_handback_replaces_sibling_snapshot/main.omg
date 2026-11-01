@@ -1,4 +1,4 @@
-data Margin where left - right >= 2 { left: u64; right: u64; }
+data Margin requires left - right >= 2 { left: u64; right: u64; }
 machine fill(left: &mut u64, right: &mut u64)
 ensures left == 8 { left = 8; right = 9; }
 machine main() {

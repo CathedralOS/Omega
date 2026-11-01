@@ -299,7 +299,7 @@ impl ProviderPlan {
         )
     }
 
-    /// Exact canonical input to the v5 normalized-plan commitment. Receivers
+    /// Exact canonical input to the v6 normalized-plan commitment. Receivers
     /// recompute the commitment before admitting a historical folded closure.
     /// Reconstruct from current fields, independently of the digest memo.
     pub fn identity_preimage(&self) -> Vec<u8> {

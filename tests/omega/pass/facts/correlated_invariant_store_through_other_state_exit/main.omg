@@ -1,7 +1,7 @@
 // amount <= 320 - counter.total makes exact counter.total + amount preserve counter.total <= 320.
 // Place: other_state.
 // Expected exit: 0
-data Counter where total <= 320 { total: u64; }
+data Counter requires total <= 320 { total: u64; }
 machine advance(counter: &mut Counter, amount: u64)
 requires amount <= 320 - counter.total
 {

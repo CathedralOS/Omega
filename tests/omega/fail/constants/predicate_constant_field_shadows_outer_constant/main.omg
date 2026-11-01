@@ -1,4 +1,4 @@
 const value: u64 = 0;
-data Bounded [copy] where value <= 7 { value: u64; }
+data Bounded [copy] requires value <= 7 { value: u64; }
 const INVALID: Bounded = Bounded { value: 8 };
 machine main() -> u64 { 0 }

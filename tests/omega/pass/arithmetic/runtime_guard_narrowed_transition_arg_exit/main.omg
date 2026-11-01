@@ -6,7 +6,7 @@
 // count starts 0, bumps to 1 through the param. Exit 70. Differential.
 use omega_language_std::console;
 data Counter
-where
+requires
     0 <= count,
     count <= 100,
 {

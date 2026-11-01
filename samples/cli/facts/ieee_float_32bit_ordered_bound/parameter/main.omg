@@ -2,7 +2,7 @@
 // Place: parameter. The bounded reading is passed as an explicit machine parameter.
 // Expected exit: 0
 
-data Reading [copy] where value >= 1.25f32 && value <= 2.75f32 {
+data Reading [copy] requires value >= 1.25f32 && value <= 2.75f32 {
     value: f32;
 }
 

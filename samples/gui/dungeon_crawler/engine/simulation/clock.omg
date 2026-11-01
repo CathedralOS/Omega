@@ -3,7 +3,7 @@ module simulation::clock;
 use configuration::ANIMATION_PERIOD;
 
 public data FrameClock [copy]
-where ticks >= 0 && ticks < ANIMATION_PERIOD {
+requires ticks >= 0 && ticks < ANIMATION_PERIOD {
     ticks: i32;
 }
 

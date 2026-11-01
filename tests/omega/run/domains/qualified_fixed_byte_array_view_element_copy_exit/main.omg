@@ -1,6 +1,6 @@
 // Expected exit: 0
 domain [u8; 8]::Ascii requires ascii_only(self);
-data Name [copy] where used <= 8 { storage: [u8; 8] in Ascii; used: u64; }
+data Name [copy] requires used <= 8 { storage: [u8; 8] in Ascii; used: u64; }
 data Item [copy] { name: Name; marker: u8; }
 data Output { first: u8; name: Name; last: u8; }
 data Items [copy] { items: [Item; 2]; }

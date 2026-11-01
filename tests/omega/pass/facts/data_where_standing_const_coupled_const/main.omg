@@ -1,7 +1,7 @@
 // The complete coupled predicate is discharged from the actual constant fields.
 // Expected exit: 0
 data Counter [copy]
-where self.value <= self.ceiling && self.ceiling <= 60
+requires self.value <= self.ceiling && self.ceiling <= 60
 { value: i32; ceiling: i32; }
 const NAMED: Counter = Counter { value: 40, ceiling: 60 };
 public machine main() crashes Trap {

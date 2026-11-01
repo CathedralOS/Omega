@@ -1,4 +1,4 @@
-data Cell where value <= 100 { value: AtomicU32; }
+data Cell requires value <= 100 { value: AtomicU32; }
 machine reject() {
     let cell: Cell;
     cell.value.store(41, Publish);

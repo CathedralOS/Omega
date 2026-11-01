@@ -25,6 +25,9 @@ pub struct ProductOperandApplication {
     pub owner: SymbolHandle,
     pub role: Option<ProductOperandRole>,
     pub declaration: SymbolHandle,
+    /// Producer-known formal table, independent of later visible root rosters.
+    pub declaration_parameters: arena::HandleSpan<crate::data::TypeParameter>,
+    pub declaration_lifetime_count: u32,
     /// An executed Build row demands code; source-only formations do not.
     pub demand: ProductApplicationDemand,
     /// Original carrier and application recipe, before executable substitution.
@@ -46,30 +49,19 @@ impl TypedTrees {
         handle: Handle<ProductOperandApplication>,
     ) -> Result<Option<crate::type_identity::NormalizedTypeIdentity>, &'static str> {
         let application = self.product_operand_applications.get(handle);
-        let (parameters_empty, lifetimes_empty) = match application.role {
-            Some(ProductOperandRole::BoundarySubject) => {
-                let declaration = self
-                    .trait_definition_by_symbol(application.declaration)
-                    .ok_or("Product boundary application lost its declaration")?;
-                (
-                    self.trait_type_parameters(declaration).is_empty(),
-                    declaration.lifetime_parameters.is_empty(),
-                )
-            }
-            Some(ProductOperandRole::Provider) => {
-                let declaration = self
-                    .conformance_by_symbol(application.declaration)
-                    .ok_or("Product implementation application lost its declaration")?;
-                (
-                    self.conformance_type_parameters(declaration).is_empty(),
-                    declaration.lifetime_parameters.is_empty(),
-                )
-            }
-            _ => return Err("Product application has no nominal declaration role"),
-        };
+        if !matches!(
+            application.role,
+            Some(ProductOperandRole::BoundarySubject | ProductOperandRole::Provider)
+        ) {
+            return Err("Product application has no nominal declaration role");
+        }
+        let parameters = self
+            .data_type_parameters
+            .span(application.declaration_parameters)
+            .ok_or("Product application has a stale declared formal table")?;
         // Empty telescopes are the same declaration whether an empty <> was
         // authored or omitted. Nonempty applied telescopes retain every input.
-        if parameters_empty && lifetimes_empty {
+        if parameters.is_empty() && application.declaration_lifetime_count == 0 {
             return Ok(None);
         }
         let identity = match application.role {

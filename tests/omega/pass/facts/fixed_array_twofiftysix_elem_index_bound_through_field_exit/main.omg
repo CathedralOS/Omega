@@ -2,7 +2,7 @@
 // Place: field. A record field carries the bounded index alongside the fixed-size array.
 // Expected exit: 0
 
-data Container where idx < 256 {
+data Container requires idx < 256 {
     arr: [u64; 256];
     idx: u64;
 }

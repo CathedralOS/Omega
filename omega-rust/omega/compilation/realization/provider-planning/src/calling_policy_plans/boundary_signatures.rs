@@ -11,8 +11,7 @@ pub use calling_conventions::{
     BoundaryNativeParameterOrigin, BoundaryValueClass, BoundaryValueField, BoundaryValueShape,
 };
 use calling_conventions::{
-    CallbackRequirementId, NativeCallbackDemand, NativeParameterId, StaticMachineBinderId,
-    ValidatedBoundaryEntryPlan,
+    CallbackRequirementId, NativeCallbackDemand, StaticMachineBinderId, ValidatedBoundaryEntryPlan,
 };
 use target::NativeTarget;
 
@@ -95,18 +94,42 @@ impl MaterializedBoundarySignature {
                     .to_owned(),
             );
         }
+        BoundaryOpaqueMovementGeometry {
+            shapes: &self.shapes,
+            fields: &self.fields,
+            parameters: &self.parameters,
+            result: self.result,
+            native_parameters: &self.native_parameters,
+        }
+        .movement(representation.shape_root, validated, 0)
+    }
+}
+
+/// Borrowed geometry shared by Source review and canonical ABI publication.
+/// It contains no Source identities or representation-selection authority.
+pub(super) struct BoundaryOpaqueMovementGeometry<'geometry> {
+    pub shapes: &'geometry [BoundaryValueShape],
+    pub fields: &'geometry [BoundaryValueField],
+    pub parameters: &'geometry [u16],
+    pub result: Option<u16>,
+    pub native_parameters: &'geometry [calling_conventions::BoundaryNativeParameterGeometry],
+}
+
+impl BoundaryOpaqueMovementGeometry<'_> {
+    pub fn movement(
+        &self,
+        shape_root: u16,
+        validated: &ValidatedBoundaryEntryPlan,
+        dispatch_only_parameter_count: usize,
+    ) -> Result<BoundaryOpaqueRepresentationMovement, String> {
         let mut carrying_parameters = Vec::new();
         for (formal_ordinal, root) in self.parameters.iter().copied().enumerate() {
-            if let Some(path) =
-                boundary_shape_path(&self.shapes, &self.fields, root, representation.shape_root)?
-            {
+            if let Some(path) = boundary_shape_path(&self.shapes, &self.fields, root, shape_root)? {
                 carrying_parameters.push((formal_ordinal, root, path));
             }
         }
         let result_path = match self.result {
-            Some(root) => {
-                boundary_shape_path(&self.shapes, &self.fields, root, representation.shape_root)?
-            }
+            Some(root) => boundary_shape_path(&self.shapes, &self.fields, root, shape_root)?,
             None => None,
         };
         if carrying_parameters.len() + usize::from(result_path.is_some()) != 1 {
@@ -139,15 +162,20 @@ impl MaterializedBoundarySignature {
                     matching.len(),
                 ));
             };
+            let projection = calling_conventions::NativeCallProjection::new(
+                self.native_parameters,
+                self.parameters.len(),
+                u32::try_from(dispatch_only_parameter_count)
+                    .map_err(|_| "dispatch prefix exceeds u32")?,
+            )?;
+            let wire_ordinal = projection
+                .parameter_ordinal(native.native_ordinal)?
+                .ok_or("opaque occurrence belongs to a dispatch-only formal")?;
             let placement = validated
                 .plan()
                 .call
                 .parameters
-                .get(
-                    usize::try_from(native.native_ordinal).map_err(|_| {
-                        "opaque representation native ordinal exceeds usize".to_owned()
-                    })?,
-                )
+                .get(wire_ordinal)
                 .ok_or_else(|| {
                     "opaque representation native parameter has no validated placement".to_owned()
                 })?
@@ -167,7 +195,7 @@ impl MaterializedBoundarySignature {
             })?;
         Ok(BoundaryOpaqueRepresentationMovement {
             role: BoundaryOpaqueRepresentationMovementRole::Result,
-            path: result_path.expect("one validated result occurrence has a path"),
+            path: result_path.ok_or("opaque result occurrence lost its checked path")?,
             placement,
         })
     }
@@ -240,13 +268,7 @@ pub(crate) fn boundary_shape_path(
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct BoundaryNativeParameter {
-    pub(crate) identity: NativeParameterId,
-    pub(crate) native_ordinal: u32,
-    pub(crate) shape: BoundaryNativeParameterShape,
-    pub(crate) origin: BoundaryNativeParameterOrigin,
-}
+pub(crate) use calling_conventions::BoundaryNativeParameterGeometry as BoundaryNativeParameter;
 
 pub use calling_conventions::BoundaryNativeParameterShape;
 
@@ -262,4 +284,89 @@ pub struct BoundaryCallbackBinder {
     pub requirement_machine: symbols::SymbolHandle,
     pub requirement_identity: String,
     pub invokes_synchronously: bool,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use calling_conventions::{
+        BoundaryNativeParameterGeometry, CallSignature, CallingPolicy, NativeParameterId,
+        ValueShape, evaluate_ordinary_boundary_entry_plan,
+    };
+
+    #[test]
+    fn dispatch_projection_preserves_public_ordinals_and_native_only_lanes() {
+        let shapes = [
+            BoundaryValueShape {
+                class: BoundaryValueClass::Reference,
+                byte_size: 8,
+                alignment: 8,
+            },
+            BoundaryValueShape {
+                class: BoundaryValueClass::Integer,
+                byte_size: 8,
+                alignment: 8,
+            },
+        ];
+        for has_callback in [false, true] {
+            let mut native = vec![BoundaryNativeParameterGeometry {
+                identity: NativeParameterId::new(1).unwrap(),
+                native_ordinal: 0,
+                shape: BoundaryNativeParameterShape::Semantic(0),
+                origin: BoundaryNativeParameterOrigin::SemanticFormal { formal_ordinal: 0 },
+            }];
+            if has_callback {
+                native.push(BoundaryNativeParameterGeometry {
+                    identity: NativeParameterId::new(2).unwrap(),
+                    native_ordinal: 1,
+                    shape: BoundaryNativeParameterShape::TargetFunctionPointer {
+                        byte_size: 8,
+                        alignment: 8,
+                    },
+                    origin: BoundaryNativeParameterOrigin::PrivateCallback {
+                        binder: StaticMachineBinderId::new(1).unwrap(),
+                        requirement: CallbackRequirementId::new(1).unwrap(),
+                    },
+                });
+            }
+            let ordinal = u32::try_from(native.len()).unwrap();
+            native.push(BoundaryNativeParameterGeometry {
+                identity: NativeParameterId::new(u64::from(ordinal) + 1).unwrap(),
+                native_ordinal: ordinal,
+                shape: BoundaryNativeParameterShape::Semantic(1),
+                origin: BoundaryNativeParameterOrigin::SemanticFormal { formal_ordinal: 1 },
+            });
+            let classified = CallSignature {
+                parameters: vec![ValueShape::integer(8, 8); native.len() - 1],
+                result: None,
+            };
+            let plan =
+                evaluate_ordinary_boundary_entry_plan(CallingPolicy::Aapcs64, &classified).unwrap();
+            let geometry = BoundaryOpaqueMovementGeometry {
+                shapes: &shapes,
+                fields: &[],
+                parameters: &[0, 1],
+                result: None,
+                native_parameters: &native,
+            };
+            let movement = geometry.movement(1, &plan, 1).unwrap();
+            assert_eq!(
+                movement.role(),
+                BoundaryOpaqueRepresentationMovementRole::Parameter {
+                    formal_ordinal: 1,
+                    native_ordinal: ordinal,
+                }
+            );
+            assert_eq!(
+                movement.placement(),
+                plan.plan().call.parameters.last().unwrap()
+            );
+            assert!(
+                geometry
+                    .movement(0, &plan, 1)
+                    .unwrap_err()
+                    .contains("dispatch-only formal")
+            );
+        }
+    }
 }

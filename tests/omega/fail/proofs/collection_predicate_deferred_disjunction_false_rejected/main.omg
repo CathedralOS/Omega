@@ -123,7 +123,7 @@ ensures cells[index] >= 1
 {
 }
 
-data Grid where cells_valid(&board) == true {
+data Grid requires cells_valid(&board) == true {
     board: [i32; 16];
 }
 

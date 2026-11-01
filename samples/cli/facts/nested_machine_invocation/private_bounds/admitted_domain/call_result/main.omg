@@ -1,6 +1,6 @@
 // Every private arrival carries index < table.bytes.len, so the helper can read table.bytes[index].
 // Expected exit: 0
-data Table [copy] where count <= 4 { bytes: [u8; 4]; count: u64; canary: u64; }
+data Table [copy] requires count <= 4 { bytes: [u8; 4]; count: u64; canary: u64; }
 machine lookup(table: &Table, index: u64 in Trapping) -> u8 {
     transition index < table.count { true -> read(table, index) false -> (0) }
     machine read(table: &Table, index: u64 in Trapping) -> u8 { table.bytes[index] }

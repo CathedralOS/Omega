@@ -4,7 +4,7 @@
 const CAP: u64 = 8;
 
 data Ring
-where
+requires
     head < CAP,
 {
     head: u64;

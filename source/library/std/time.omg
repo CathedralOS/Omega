@@ -38,7 +38,7 @@ public data Ordering [copy] {
     case Greater;
 }
 
-public data Duration [copy] where subsecond_nanoseconds <= 999_999_999 {
+public data Duration [copy] requires subsecond_nanoseconds <= 999_999_999 {
     seconds: u64;
     subsecond_nanoseconds: u32;
 }
@@ -465,7 +465,7 @@ public machine Duration::is_greater_than(duration: &Duration, other: Duration) -
 // subsecond nanoseconds since an UNSPECIFIED epoch. Opaque-by-convention --
 // only differences between two Instants from the same process are meaningful.
 // Same field shapes as Duration, so the subtraction machinery mirrors it.
-public data Instant [copy] where subsecond_nanoseconds <= 999_999_999 {
+public data Instant [copy] requires subsecond_nanoseconds <= 999_999_999 {
     seconds: u64;
     subsecond_nanoseconds: u32;
 }
@@ -654,7 +654,7 @@ public machine Instant::duration_since(instant: &Instant, earlier: Instant) -> D
 // A point on the WALL clock (D7): signed Unix-epoch seconds (pre-1970
 // timestamps exist -- filesystem metadata bridges here) + subsecond
 // nanoseconds. ZII zero IS the Unix epoch.
-public data SystemTime [copy] where subsecond_nanoseconds <= 999_999_999 {
+public data SystemTime [copy] requires subsecond_nanoseconds <= 999_999_999 {
     seconds_since_unix_epoch: i64;
     subsecond_nanoseconds: u32;
 }

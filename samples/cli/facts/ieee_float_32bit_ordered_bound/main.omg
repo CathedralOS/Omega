@@ -1,7 +1,7 @@
 // Fact: a 32-bit IEEE f32 ordered comparison guard (reading >= 1.25f32 && reading <= 2.75f32) establishes a finite, non-NaN sub-interval that satisfies a downstream contract requiring reading >= 1.0f32 && reading <= 3.0f32 across all nine places.
 // Expected exit: 0
 
-data Reading [copy] where value >= 1.25f32 && value <= 2.75f32 {
+data Reading [copy] requires value >= 1.25f32 && value <= 2.75f32 {
     value: f32;
 }
 

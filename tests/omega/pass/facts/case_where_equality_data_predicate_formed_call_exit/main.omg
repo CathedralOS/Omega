@@ -4,7 +4,7 @@ machine same(lower: u64, upper: u64) -> bool { lower == upper }
 machine needs_equal(lower: u64, upper: u64) -> bool
 requires lower == upper
 { true }
-data Interval [copy] where (self in Interval::Empty) || ((self in Interval::Point) && self.lo == self.hi && needs_equal(self.lo, self.hi) == true) {
+data Interval [copy] requires (self in Interval::Empty) || ((self in Interval::Point) && self.lo == self.hi && needs_equal(self.lo, self.hi) == true) {
     case Empty;
     case Point(lo: u64, hi: u64);
 }

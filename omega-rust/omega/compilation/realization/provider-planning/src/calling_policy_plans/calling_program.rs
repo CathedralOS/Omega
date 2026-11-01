@@ -1,4 +1,4 @@
-//! Shared executable policy content and exact source-issued entry associations.
+//! Shared calling declarations, executable policies and original review coordinates.
 //!
 //! This catalog borrows the same artifact as the final Product. Publication is
 //! owned by the compiler's ordinary Psi production request. Source admission
@@ -16,7 +16,18 @@ use semantic_vocabulary::MachineId;
 use symbols::SymbolHandle;
 use terminal_codec::CanonicalTerminalArtifact;
 
-pub struct CallingCatalog {
+const CALLING_EVALUATION_FUEL: u64 = 100_000;
+
+enum CallingStorageScope<'account> {
+    Policy {
+        entry: MachineId,
+        account: &'account evaluation_accounting::EvaluationInvocationAccount,
+    },
+    Description,
+}
+
+#[derive(Debug)]
+pub struct CallingProgram {
     /// Association only: this never keeps source alive or enters the interpreter.
     pub source_owner: std::sync::Weak<checked_trees::CheckedTrees>,
     pub artifact: std::sync::Arc<CanonicalTerminalArtifact>,
@@ -24,12 +35,23 @@ pub struct CallingCatalog {
     pub source_records: std::sync::Arc<[checked_trees::typed_trees::SourceRecordCorrespondence]>,
 }
 
-impl CallingCatalog {
+impl PartialEq for CallingProgram {
+    fn eq(&self, other: &Self) -> bool {
+        std::sync::Weak::ptr_eq(&self.source_owner, &other.source_owner)
+            && self.artifact == other.artifact
+            && self.entries == other.entries
+            && self.source_records == other.source_records
+    }
+}
+
+impl Eq for CallingProgram {}
+
+impl CallingProgram {
     pub(crate) fn require_owner(
         &self,
-        checked: &checked_trees::CheckedTrees,
+        source_owner: &std::sync::Weak<checked_trees::CheckedTrees>,
     ) -> Result<(), String> {
-        if std::ptr::eq(self.source_owner.as_ptr(), checked) {
+        if std::sync::Weak::ptr_eq(&self.source_owner, source_owner) {
             return Ok(());
         }
         Err("calling-policy code belongs to a different checked source owner".into())
@@ -59,7 +81,14 @@ impl CallingCatalog {
         // charges. Logical storage/results are independently metered. No host
         // import is installed, regardless of the account's nonzero I/O limits.
         let limits = BuildEvaluationSponsorLimits::new(
-            100_000, 1, 1, 1, 1_000_000, 1_000_000, 1_000_000, 1_000_000,
+            CALLING_EVALUATION_FUEL,
+            1,
+            1,
+            1,
+            1_000_000,
+            1_000_000,
+            1_000_000,
+            1_000_000,
         )
         .ok_or("invalid compiler calling-policy resource limits")?;
         let sponsor = BuildEvaluationSponsor::new_with_measurement(limits, measurement)
@@ -83,29 +112,98 @@ impl CallingCatalog {
                 "calling policy canonical body differs from its admitted source entry".into(),
             );
         }
-        let requested = CanonicalCallingSignature::extent_demands(
-            self.artifact.semantic_module(),
-            declaration,
+        let abi = self
+            .artifact
+            .semantic_module()
+            .calling_abi_signature(declaration)
+            .ok_or("calling policy lost its exact declaration ABI")?
+            .identity(&self.artifact.semantic_module().identities)?;
+        let canonical = self.materialize_storage(
+            &abi,
             target,
+            CallingStorageScope::Policy {
+                entry: selected_entry,
+                account: &account,
+            },
         )?;
-        let mut extents = Vec::with_capacity(requested.len());
-        if !requested.is_empty() {
+        let (plan, _) = super::evaluate_terminal_calling_policy(TerminalCallingPolicyInvocation {
+            artifact: &self.artifact,
+            entry: policy,
+            target,
+            signature: &canonical.policy,
+            account,
+        })?;
+        Ok((canonical, plan))
+    }
+    /// Describe default ABI storage without invoking the boundary or borrowing
+    /// a policy's unrelated proof scope.
+    pub(crate) fn materialize_default(
+        &self,
+        declaration: &semantic_vocabulary::CallingAbiIdentity,
+        target: target::TargetProfile,
+    ) -> Result<CanonicalCallingSignature, String> {
+        let row = self
+            .artifact
+            .semantic_module()
+            .calling_abi_signature(declaration.id())
+            .ok_or("default calling application has no published ABI declaration")?;
+        if !row.default_eligible {
+            return Err(
+                "default calling application is outside the Product declaration census".into(),
+            );
+        }
+        self.materialize_storage(declaration, target, CallingStorageScope::Description)
+    }
+
+    fn materialize_storage(
+        &self,
+        declaration: &semantic_vocabulary::CallingAbiIdentity,
+        target: target::TargetProfile,
+        scope: CallingStorageScope<'_>,
+    ) -> Result<CanonicalCallingSignature, String> {
+        let demand = terminal_installation::CallingAbiStorageDemand::new(
+            self.artifact.view(),
+            target.target_name(),
+            declaration,
+        )?;
+        let mut extents = Vec::with_capacity(demand.applications().len());
+        if !demand.applications().is_empty() {
             let providers =
                 terminal_installation::admit_provider_installation(self.artifact.view(), &[], &[])
                     .map_err(|error| format!("calling ABI scalar providers: {error:?}"))?;
-            let mut meter =
-                terminal_fuel::TerminalFuelMeter::with_invocation(account.clone(), None)
-                    .map_err(|error| format!("calling ABI scalar fuel: {error:?}"))?;
-            let values = super::scalar_completion::complete_policy_scalar_inputs(
+            let (request, mut meter) = match scope {
+                CallingStorageScope::Policy { entry, account } => {
+                    let declaration = self
+                        .artifact
+                        .view()
+                        .module()
+                        .scalar_applications
+                        .proof_scope
+                        .callable_declaration(terminal_psi::TargetMachineCallable::Machine(entry))
+                        .ok_or("calling policy entry has no exact checked proof declaration")?;
+                    (
+                        super::scalar_completion::CallingScalarScope::Invocation {
+                            declaration,
+                            applications: demand.applications(),
+                        },
+                        terminal_fuel::TerminalFuelMeter::with_invocation(account.clone(), None)
+                            .map_err(|error| format!("calling ABI scalar fuel: {error:?}"))?,
+                    )
+                }
+                CallingStorageScope::Description => (
+                    super::scalar_completion::CallingScalarScope::AbiStorage(&demand),
+                    terminal_fuel::TerminalFuelMeter::with_allowance(CALLING_EVALUATION_FUEL),
+                ),
+            };
+            let completed = super::scalar_completion::complete_calling_scalar_inputs(
                 &self.artifact,
                 target,
-                policy,
-                &requested,
+                request,
                 &providers,
                 &mut meter,
             )?;
-            for application in requested {
-                let value = match values.values().value(application) {
+            for &application in demand.applications() {
+                let value = match completed.values().value(application) {
                     Some(terminal_installation::TerminalScalarValue::Integer {
                         value: semantic_vocabulary::IntegerValue::Unsigned(value),
                         ..
@@ -120,9 +218,9 @@ impl CallingCatalog {
                 extents.push((application, value));
             }
         }
-        let canonical = CanonicalCallingSignature::materialize(
+        CanonicalCallingSignature::materialize(
             self.artifact.semantic_module(),
-            declaration,
+            demand.declaration().id(),
             target,
             &|application| {
                 extents
@@ -133,14 +231,6 @@ impl CallingCatalog {
                         application,
                     ))
             },
-        )?;
-        let (plan, _) = super::evaluate_terminal_calling_policy(TerminalCallingPolicyInvocation {
-            artifact: &self.artifact,
-            entry: policy,
-            target,
-            signature: &canonical.policy,
-            account,
-        })?;
-        Ok((canonical, plan))
+        )
     }
 }

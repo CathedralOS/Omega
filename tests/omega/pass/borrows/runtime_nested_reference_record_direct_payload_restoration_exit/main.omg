@@ -1,7 +1,7 @@
 // Cross two stored references before retiring both owners and restoring backing.
 use omega_language_std::console;
 
-data Cell where value >= 0, value <= 100 { prefix: i32; value: i32; ready: bool; }
+data Cell requires value >= 0, value <= 100 { prefix: i32; value: i32; ready: bool; }
 data Message { stamp: i32; body: &Cell; }
 data Envelope { stamp: i32; message: &Message; }
 data Main { cell: Cell; }

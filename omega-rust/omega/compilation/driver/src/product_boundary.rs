@@ -438,6 +438,7 @@ fn terminal_calling_activation_uses_only_canonical_geometry() {
     );
 }
 
+
 #[test]
 fn native_telescope_construction_is_shared_by_preparation_and_canonical_replay() {
     let source = include_str!(
@@ -534,32 +535,6 @@ fn service_catalog_consumers_do_not_keep_retired_binding_projection() {
             "classify_exact_bound_service_carrier(",
             "classify_exact_service_parameter_carrier(",
             "service_schema::from_typed",
-        ],
-    );
-}
-
-#[test]
-fn selected_calling_consumes_source_correspondence_without_ast_search() {
-    let calling = include_str!(
-        "../../realization/provider-planning/src/calling_policy_plans/selected_application.rs"
-    );
-    let selection = calling
-        .split("pub(crate) fn selected_source_calling_applications(")
-        .nth(1)
-        .unwrap()
-        .split("/// Materialize this producer")
-        .next()
-        .unwrap();
-    assert_absent(
-        &[selection],
-        "selected calling reopens",
-        &[
-            ".traits()",
-            ".operators()",
-            ".machines()",
-            "trait_machine_signatures(",
-            "service_schema::from_typed",
-            "matching_methods",
         ],
     );
 }

@@ -3,7 +3,7 @@
 // `right == 3` — the checker treats member writes as re-admission, not
 // blind pokes.
 data Margin
-where
+requires
     left - right >= 2,
 {
     left: u64;
