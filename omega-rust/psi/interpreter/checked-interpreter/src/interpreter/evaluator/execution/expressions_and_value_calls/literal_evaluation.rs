@@ -1,7 +1,7 @@
 use crate::interpreter::evaluator::{
-    BTreeMap, Cell, DataMember, EvalResult, Evaluator, ExpressionHandle, Frame, Value, trap,
+    BTreeMap, Cell, EvalResult, Evaluator, ExpressionHandle, Frame, Value, trap,
 };
-use validation::selected_construction_definition;
+use validation::{selected_construction_case, selected_construction_definition};
 
 impl<'program> Evaluator<'program> {
     pub(super) fn expression_receiver_is_namespace(&self, receiver: ExpressionHandle) -> bool {
@@ -81,16 +81,7 @@ impl<'program> Evaluator<'program> {
                 "case `{type_name}::{case_name}` has no exact receiving data shape"
             ));
         };
-        let Some(variant) =
-            self.program
-                .data_members(data)
-                .iter()
-                .find_map(|member| match member {
-                    DataMember::Variant(variant) if Some(variant.symbol) == literal.case_symbol => {
-                        Some(variant)
-                    }
-                    _ => None,
-                })
+        let Some(variant) = selected_construction_case(self.program, expression, literal, data)
         else {
             return trap(format!("`{type_name}` has no case `{case_name}`"));
         };
