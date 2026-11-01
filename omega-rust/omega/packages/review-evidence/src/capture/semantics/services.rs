@@ -121,7 +121,7 @@ fn project_inner(
         None
     } else {
         calling::project(
-            compilation,
+            projection,
             schema,
             provider_type,
             requirement,

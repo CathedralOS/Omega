@@ -4,21 +4,22 @@ mod native;
 pub(crate) mod signature;
 
 use super::{callbacks, opaque};
-use crate::capture::PackageReviewInput;
 use crate::capture::representation::physical_contract::{
     project_boundary_shape_graph, project_representation_target,
 };
+use crate::capture::semantics::signatures::SignatureProjection;
 use crate::record::{PackagePolicyCallingPlan, PackagePolicyPhysicalCallingContract};
 use diagnostics::Diagnostic;
 use provider_planning::calling_policy_plans::BoundaryCallingPlanRealization;
 
 /// Capture the complete published calling application. This is inert policy,
 /// not a validator certificate and not a replacement for fresh compilation.
-pub(crate) fn project_checked_calling_policy<'a>(
-    input: impl Into<PackageReviewInput<'a>>,
+pub(crate) fn project_checked_calling_policy(
+    projection: &mut SignatureProjection<'_>,
     realization: &BoundaryCallingPlanRealization,
 ) -> Result<PackagePolicyCallingPlan, Vec<Diagnostic>> {
-    let compilation = &input.into();
+    let input = projection.input();
+    let compilation = &input;
     let candidates = compilation
         .custody
         .providers()
@@ -62,7 +63,7 @@ pub(crate) fn project_checked_calling_policy<'a>(
     {
         return Err(super::rejected("stale calling application custody"));
     }
-    let semantic = signature::project(compilation, realization)?;
+    let semantic = signature::project(projection, realization)?;
     let semantic_parameters = semantic
         .semantic_parameters
         .iter()

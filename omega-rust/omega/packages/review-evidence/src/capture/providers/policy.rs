@@ -64,6 +64,7 @@ pub(crate) fn project_checked_selected_provider_policy<'a>(
                 .map(|plan| (index, plan))
         })
         .collect::<Result<Vec<_>, _>>()?;
+    drop(signatures);
     plans.sort_by(|(_, left), (_, right)| left.compare_canonical(right));
     // Row-local substitution checks cannot justify a circular collection of
     // mutually asserted rows. Require grounded checked dependency paths before

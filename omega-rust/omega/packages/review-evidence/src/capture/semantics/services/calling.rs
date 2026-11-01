@@ -1,6 +1,7 @@
 //! Report coordinates are only a checked join to the complete calling value.
 use crate::capture::PackageReviewInput;
 use crate::capture::semantics::services::rejected;
+use crate::capture::semantics::signatures::SignatureProjection;
 use crate::record::PackagePolicyCallingPlan;
 use diagnostics::Diagnostic;
 use effects::provider_plan::ServiceCallingPlan;
@@ -8,12 +9,14 @@ use provider_planning::ProviderSchemaDeclaration;
 use symbols::SymbolHandle;
 
 pub(super) fn project(
-    compilation: &PackageReviewInput<'_>,
+    projection: &mut SignatureProjection<'_>,
     schema: ProviderSchemaDeclaration,
     provider_type: Option<SymbolHandle>,
     requirement: SymbolHandle,
     calling: Option<&ServiceCallingPlan>,
 ) -> Result<Option<PackagePolicyCallingPlan>, Vec<Diagnostic>> {
+    let input = projection.input();
+    let compilation = &input;
     let ProviderSchemaDeclaration::BoundaryTrait(schema_symbol) = schema else {
         return if calling.map(|plan| plan.report_fingerprint).is_none()
             && calling.map(|plan| plan.commitment).is_none()
@@ -58,7 +61,7 @@ pub(super) fn project(
             "service method has ambiguous or stale calling realization",
         ));
     }
-    crate::capture::calling::project_checked_calling_policy(compilation, candidate).map(Some)
+    crate::capture::calling::project_checked_calling_policy(projection, candidate).map(Some)
 }
 
 pub(super) fn boundary_arguments<'a>(
