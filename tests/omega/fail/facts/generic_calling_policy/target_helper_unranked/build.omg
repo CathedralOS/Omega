@@ -8,9 +8,9 @@ machine build(builder: &mut Build) {
     Build::select_provider<LocalEntry, LocalMap>(builder, linux_x86_64);
     Build::select_provider<ValuePlan, SysVValuePlan>(builder, linux_x86_64);
     Build::select_provider<LocalEntry, LocalMap>(builder, windows_x86_64);
-    Build::select_provider<ValuePlan, MicrosoftValuePlan>(builder, windows_x86_64);
+    Build::select_provider<ValuePlan, SysVValuePlan>(builder, windows_x86_64);
     Build::select_provider<LocalEntry, LocalMap>(builder, macos_arm64);
-    Build::select_provider<ValuePlan, AapcsValuePlan>(builder, macos_arm64);
+    Build::select_provider<ValuePlan, SysVValuePlan>(builder, macos_arm64);
     Build::select_provider<LocalEntry, LocalMap>(builder, linux_arm64);
-    Build::select_provider<ValuePlan, AapcsValuePlan>(builder, linux_arm64);
+    Build::select_provider<ValuePlan, SysVValuePlan>(builder, linux_arm64);
 }
