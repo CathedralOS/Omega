@@ -1591,6 +1591,9 @@ fail/layouts/local_access_declaration_shadows_core_view rejected 648ms expected 
 	generic data `Access` expected 0 arguments but got 2
 	data `AccessPlan` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 	duplicate data `Access`
+fail/machines/cyclic_private_arrival_maximum_rejected rejected 383ms expected @f58fe154c6f3
+	exact arithmetic in machine `pair` state `entry` terminal call operands may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `right` state `entry` terminal call operands may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
 fail/machines/private_where_store_through_cycle_control rejected 1737ms expected @ba463c24b333+wt
 	machine `next` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
 fail/ownership/selected_constructor_missing_linear_move rejected 1028ms expected @a92f16431042
@@ -11314,6 +11317,7 @@ pass/locals/runtime_unrestricted_record_rebinding_exit checked 3759ms check-targ
 pass/locals/static_local_field_names_exit checked 3969ms check-target:macos_arm64 @ccdb99ca2214
 pass/machines/composite_state_args checked 3716ms @ccdb99ca2214
 pass/machines/computed_arrival_state checked 3041ms @ccdb99ca2214
+pass/machines/cyclic_private_arrival_guard_context_exit checked 1920ms check-target:macos_arm64 @f58fe154c6f3
 pass/machines/fresh_literal_arrival checked 3297ms @ccdb99ca2214
 pass/machines/hold_state_call checked 3284ms @ccdb99ca2214
 pass/machines/machine_param_data checked 3607ms @ccdb99ca2214

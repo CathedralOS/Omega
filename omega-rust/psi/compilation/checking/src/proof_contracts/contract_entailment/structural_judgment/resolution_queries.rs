@@ -580,6 +580,44 @@ impl<'program> StructuralJudge<'program> {
             && Arc::ptr_eq(&self.case_substitutions, &other.case_substitutions)
             && self.hypotheses_contradictory == other.hypotheses_contradictory
     }
+
+    /// A traversal may reuse only the same immutable proof/storage inputs and
+    /// the same dynamic resolution observers. This is stricter than resolver
+    /// membership, whose query records independently replay their reads.
+    pub(in crate::proof_contracts::contract_entailment) fn same_traversal_inputs(
+        &self,
+        other: &Self,
+    ) -> bool {
+        fn same_owner<T>(left: &Option<Arc<T>>, right: &Option<Arc<T>>) -> bool {
+            match (left, right) {
+                (None, None) => true,
+                (Some(left), Some(right)) => Arc::ptr_eq(left, right),
+                _ => false,
+            }
+        }
+        self.same_resolution_inputs(other)
+            && self.specification_terms == other.specification_terms
+            && self.same_returned_field_trace(other)
+            && same_owner(&self.active_application, &other.active_application)
+            && same_owner(
+                &self.resolution_observations,
+                &other.resolution_observations,
+            )
+            && self.ring_licenses.len() == other.ring_licenses.len()
+            && self
+                .ring_licenses
+                .iter()
+                .zip(&other.ring_licenses)
+                .all(|(left, right)| left.add_machine == right.add_machine)
+            && self.semiring_licenses.len() == other.semiring_licenses.len()
+            && self
+                .semiring_licenses
+                .iter()
+                .zip(&other.semiring_licenses)
+                .all(|(left, right)| {
+                    left.add_machine == right.add_machine && left.mul_machine == right.mul_machine
+                })
+    }
 }
 
 #[cfg(test)]
