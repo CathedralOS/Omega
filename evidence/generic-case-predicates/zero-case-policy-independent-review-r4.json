@@ -1,0 +1,2493 @@
+{
+  "decision": "accept",
+  "reviewer": "Codex independent semantic/policy reviewer",
+  "current_review_sha256": "5d8f8f267c23b11ad8e2e4d2576b578c88bfabe3d6aef9f6a6dc7744f0ecc3bb",
+  "comparison_sha256": "ce52e8e113ac7d0d1d08974107f76963689130d90092a5dbc2609c2a87c6a6a1",
+  "review_candidate_digest": "532565e521b1b42fffaf4ab126a685eed3ad37ba9939b44b1497fe2d5ab0b69c",
+  "source_base": "0948d66c9cda2a14b141212ba98e6d126a08752d",
+  "producer_source": "0948d66c9cda2a14b141212ba98e6d126a08752d",
+  "producer_patch_sha256": "1aef1b714c207d620e762d538be481cd33ae0c2c3940384f2ec1fb0cb28939cc",
+  "producer_cli_sha256": "7eedd23e9a2a901ee7e7a2015fdf9d9d38d915dd66d6f8eebd09ffd423fe0df5",
+  "target": "macos_arm64",
+  "row_count": 262,
+  "exact_historical_reuse_count": 257,
+  "individually_reviewed_unmatched_count": 5,
+  "changed_rows": [
+    {
+      "row_id": "12c0dd72c621ff525c0fadb1f2f73f7df19cc4047e91b852de5cc2d37fec54ce",
+      "decision": "accept",
+      "kind": "callable",
+      "meaning_sha256": "158c142fa16cc72a28efbede6f2c977da985f80db93c5f1f35e5119303fc2c1a",
+      "historical_comparison_key": "28db884c52cede441863f2c7370c06a8c521ae6127cc2c20a60110fb30d4484e",
+      "rationale": "Explicit review of changed Darwin futimens signature: fd:i32, shared reference to two CLayout<DarwinTimespec> elements, result:i32. DarwinTimespec is exactly signed64 seconds and signed64 nanoseconds, matching the installed primary Apple timespec/futimens declarations and the source two-element array, rather than the old custom timestamp-record signature. Current provider guards32 input bytes, decodes four words into aligned typed two-element storage and calls the same libSystem _futimens binding. Requirement/source owner, macos_arm64 target, binding producer, dylib/symbol and service envelope are preserved; published requirement reaches FilesystemMetadataMutation. This is an exact representation/signature update, not a new service grant. Runtime execution of futimens is not qualified by this review."
+    },
+    {
+      "row_id": "5559683f5923e02188ad3c2591bf67a7932cb862daf806028b1d9a41f96dfd58",
+      "decision": "accept",
+      "kind": "external_supply",
+      "meaning_sha256": "84868ac78a4ee4feabe6434eaa6eb19e7c517241919b5394df2054ba924c1fd3",
+      "historical_comparison_key": "28db884c52cede441863f2c7370c06a8c521ae6127cc2c20a60110fb30d4484e",
+      "rationale": "Explicit review of changed Darwin futimens signature: fd:i32, shared reference to two CLayout<DarwinTimespec> elements, result:i32. DarwinTimespec is exactly signed64 seconds and signed64 nanoseconds, matching the installed primary Apple timespec/futimens declarations and the source two-element array, rather than the old custom timestamp-record signature. Current provider guards32 input bytes, decodes four words into aligned typed two-element storage and calls the same libSystem _futimens binding. Requirement/source owner, macos_arm64 target, binding producer, dylib/symbol and service envelope are preserved; published requirement reaches FilesystemMetadataMutation. This is an exact representation/signature update, not a new service grant. Runtime execution of futimens is not qualified by this review. Full external-supply payload retains normalized /usr/lib/libSystem.B.dylib::_futimens import and exact matching requirement/supplier signatures."
+    },
+    {
+      "row_id": "149248ac16cd21455b0b8cf9257bf0cfea0977b3db4fafb5aea8f33f20f1cb45",
+      "decision": "accept",
+      "kind": "terminal_permission",
+      "meaning_sha256": "256fd4ab66b38d181c3d89ee3a50e2e56f08644db3bd2d4b2a705a50cecc571a",
+      "historical_comparison_key": "15fe9da2f7b79268c402c8f0a705f3d5dba38193a3d63d62caec3a2539335c43",
+      "rationale": "Console::read_byte permission has exactly the historical accepted payload with only owning root package substituted. Current root imports Console, declares reaches Console and selects ordinary ProgramEntry on all four hosted targets; this review is macos_arm64. The Console public service includes byte input/output and process exit; accepting the row does not claim that this exit65 witness performs input/output or donate filesystem authority."
+    },
+    {
+      "row_id": "97b0f54a0e104a3374f740d27059945b6523107ebf306ff23323779a9674e265",
+      "decision": "accept",
+      "kind": "terminal_permission",
+      "meaning_sha256": "5d772cf3cd88a8bac9831f0c46587bdb0c21b2b2529292e20e6389fa9a70e7c8",
+      "historical_comparison_key": "1e15884dd1dc9390b71f70ed82443a932c33e8ec70fd7a1a0956c27dd6f54b56",
+      "rationale": "Console::exit_process permission has exactly the historical accepted payload with only owning root package substituted. Current root imports Console, declares reaches Console and selects ordinary ProgramEntry on all four hosted targets; this review is macos_arm64. The Console public service includes byte input/output and process exit; accepting the row does not claim that this exit65 witness performs input/output or donate filesystem authority."
+    },
+    {
+      "row_id": "3421a766dfe73e0270a43f7764f53c948a1c431c6ece57801bff6de7613ec33f",
+      "decision": "accept",
+      "kind": "terminal_permission",
+      "meaning_sha256": "f37867cd3812c7ba2ec6b67ef1ea3e14118903c8cce766a5615361b4eb8e3c2a",
+      "historical_comparison_key": "5427925904a950d8085c4f0d40efe09a8643b383d00ca2a287b6d8a1fa69a6e5",
+      "rationale": "Console::write_byte permission has exactly the historical accepted payload with only owning root package substituted. Current root imports Console, declares reaches Console and selects ordinary ProgramEntry on all four hosted targets; this review is macos_arm64. The Console public service includes byte input/output and process exit; accepting the row does not claim that this exit65 witness performs input/output or donate filesystem authority."
+    }
+  ],
+  "approved_rows": [
+    {
+      "row_id": "71c1bd770a23cd70722c3eeb230cd061fca630e0117dc0fa4acb2fe8a73ed0cd",
+      "decision": "accept",
+      "meaning_sha256": "071517029ec1169537412d21f63cac37da0c7d5132c9071728f903312be87b21",
+      "accepted_historical_keys": [
+        "044d44be42abe6db1751c075cdb8ab7f13472082fc1ab3a0233e3107074b357a"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "159b18add766fa2addce986cbf8b99c6bf1f702ed3dd0bcf72f6ae68078946b2",
+      "decision": "accept",
+      "meaning_sha256": "07b38be9dcea046739afa4b64953adee8f2a2d8a3f3edf054b3ac81ab1e6e169",
+      "accepted_historical_keys": [
+        "04f26e1f5815e12e28f8afd6e8c62607e4b7d0f421e25e68dabbb23f80a1d386"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "c0a86690d14069667f97d744beb38b3716bb9725b317812b9b03a604d9f068d5",
+      "decision": "accept",
+      "meaning_sha256": "d2bb1ddcbd3d77244333f65c75a6c71ec6c87364701be413f385e2d92f669e92",
+      "accepted_historical_keys": [
+        "055a63b53f1c0b3110946527c97555ae875256de50843af6cf3bb5ba5a5fdc20"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "160322764bbad783e6063877ad32555b0b713121e64f9e9c4350891923534a61",
+      "decision": "accept",
+      "meaning_sha256": "c624efcfd0bf6dd53e66617ea2b3debb74ef72846c8e0ec0f48cee9e3092028f",
+      "accepted_historical_keys": [
+        "082b9ca12c148e7186e30240e2cf15c6c73b5d4c9828653cbf61a6d9f2d5c732"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "ca58e109fb209f9b9fe919b0c7c41dbe470746f90ce148a398a4d80a01b7d002",
+      "decision": "accept",
+      "meaning_sha256": "4e045456ed7a4e2fe7b71be1dbd999336398c9012947e8260b2c09eca4a47a18",
+      "accepted_historical_keys": [
+        "11db461b068c15e6e3f2beaec932074d4fbadc6587e87526786443cada3e2ea0"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "fa27a5bd078fb125b6ad24ea6674fe29f45a588b4b8c38349f1f24984d86f431",
+      "decision": "accept",
+      "meaning_sha256": "260f16e60e73cad11897d3d71baac89ca0701dccbe6db4309d3ed9ffd024cb37",
+      "accepted_historical_keys": [
+        "124e0d4b5d5ab2395cb957e9f36e0e6c3a11785ebb431d444fa98550b0df39b6"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "97a4a63c6334c8c2f69012121e7673c88b2874ec8bc252cdf39df9de3bfb07d9",
+      "decision": "accept",
+      "meaning_sha256": "f52819da1643c4595fef35169dd991821cb2c2a906e5c94c2c05cad40a009362",
+      "accepted_historical_keys": [
+        "144f4091827f6612eb5e65afaa334e61e51f65efc15e5dbf10d3eb49e13d34f3"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "5b5463e40ea533a37aa218c24996111996f2ef533acae77f12534a808ed01f6c",
+      "decision": "accept",
+      "meaning_sha256": "cea1e4a7ff6a73d3408e6946169198e77a379faa669794ff56a102de1e9aa045",
+      "accepted_historical_keys": [
+        "1488a7aa8dbf66d333977a3f7cd8c733f349100b0be1b49acaf9d9151ce1edc6"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "80d94292975494bb0680d1685b4d95206d7959d4e8f1f8a2a59a41a2fbcbdd05",
+      "decision": "accept",
+      "meaning_sha256": "dfa038d003f72fea0349907afe916a1e3f5d6943fbc62283f332805b19f971d4",
+      "accepted_historical_keys": [
+        "15ad23b7f96e8c012a56b997eed30202361e771bd86498a53337c0f7457ebef5"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "dcbc65380ccd3258a280907bb0d864fd76f9d80f88a095fdbef6e30381c4fc61",
+      "decision": "accept",
+      "meaning_sha256": "41dd857a10503072fe5d22c7e5476c80bb99e72a7e71f722da867bf92d360b07",
+      "accepted_historical_keys": [
+        "1690b1a57444729dc552ecba74c257e00dce4bca8ff2057718e8b2512b72ba1c"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "1887cf2ed471db83bad0890bc9062b71a3bd0f1b48a79f495e3df71401afd04f",
+      "decision": "accept",
+      "meaning_sha256": "798670a7b02c1bb547470ab0ad82b926de4d2db3150ec877701b70fc07ff9a90",
+      "accepted_historical_keys": [
+        "195d5d78d2dde092a13c9639d231a1902e08e81cc3efd95f2fa4f111d72c8f25"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "d7bc82019d588f32af036a7fc77f191ed4ff51d893ead20492b358433610d2fd",
+      "decision": "accept",
+      "meaning_sha256": "e8b7948f479b3878082b4418ab59120951188a887463d42ca4100a19849b105a",
+      "accepted_historical_keys": [
+        "1b93bd1789a9d102de90961ecdf618d1071262d54d962b21ab36cd19a2f1cd9b"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "95db20700981a3b2f1e0b1b194b787c917f3eaacf5da1a02846f0faf81424778",
+      "decision": "accept",
+      "meaning_sha256": "920ba63bc26570a53132511cae505abae14e8f19354b1ee5d52198bbd584ef5f",
+      "accepted_historical_keys": [
+        "1d6a726eda6a168d0bd073966682d9c8a7e921494b4e7d92b0e8ec223da6b5c6"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "e428f6dd4d10cb48179cf748b0f5bdb74749cb5af074c6fd00eb590c15f53d3e",
+      "decision": "accept",
+      "meaning_sha256": "71f1f3f31d81257ea047c581d3555ed402233e601b933c6f70afd6f0d6eb9448",
+      "accepted_historical_keys": [
+        "23d784aaab055d69afd3a309268898d05935b4431b42c0a7273bb68b5a595225"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "b146fd71ff004c554c1b1c38d86b7b02fa7c1039535e87772d1bd70f1c5695d7",
+      "decision": "accept",
+      "meaning_sha256": "4d448751a824829ee4f67f12d8411e2bf126a4440ae7f3b323654a5fdcf2614a",
+      "accepted_historical_keys": [
+        "2642a6225899bf147330c91478d7b6f6131b93a0a8c6064a404a796e03e21d68"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "e796424d4ff013d5e05ff79891cae4b30f5dfa1aa0cf5ca2ae9072078ddb213e",
+      "decision": "accept",
+      "meaning_sha256": "731613851108aa036164dc795a20535f2bbda07524764abcff93cc05704ded32",
+      "accepted_historical_keys": [
+        "26d711928fd8585ce627848dceb420e15502de45badebd57a1c4cd4d0dc63528"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "05c9c498aacefe91aa184727d1222eefc7fef20d393f65e098db99c104e6e38d",
+      "decision": "accept",
+      "meaning_sha256": "549ca98dfdac0afab33a0606df113e85872d9cdf4bedffdf420f2485645dbffc",
+      "accepted_historical_keys": [
+        "29081a5d32297e06ca96496a62e51c641d59e53f748cb993df1f1c68c67e2181"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "230b6767b8778e4d46042a2b9de2e299fb9d78b3480867ab38babddc8fe15a26",
+      "decision": "accept",
+      "meaning_sha256": "d5b0304f6d459210f95a11cef9e4f45de33640f810ebe4c6939e3c23619a13a2",
+      "accepted_historical_keys": [
+        "2c6d83d879796075f4a32f0ad38db1200b6e753babfb5bfdced90d72754fe36a"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "7d2782fdbd7d1a31ad5112b62890bf6a3b204f97c05ad00236c4c68a71ef95c1",
+      "decision": "accept",
+      "meaning_sha256": "c86b79d51cb061ae5f68a6dc541a691dd348550894ed0854ea57021c723d8d1b",
+      "accepted_historical_keys": [
+        "2ccb547a6272fbe48419ec3f1421ff81b9ca0a0379f19b211802d94a448fc13b"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "1539d63c1db904de916b1d849606986be5785ff448ff8be98f0b2b9df070289c",
+      "decision": "accept",
+      "meaning_sha256": "81816e3c587322a0cb74b827361e99339b9481a63104f6e567df16cc946cff80",
+      "accepted_historical_keys": [
+        "2da6c98346ebeeb19f7ed395e2db5fd84cb72db92d0c1542b1847bf370eb9f67"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "b1247e7e182078bc4a3ca564e7ad5f011c937b8007bd2ff22d9ba15a1d34b732",
+      "decision": "accept",
+      "meaning_sha256": "78717bab78f2b7bf5514d5f97a68ec5f6369c1cc1934ef12ac3f3f95031d6059",
+      "accepted_historical_keys": [
+        "2f05f2a86a6582a4346db98a466573f5ff6000c7d8adf1b03c704a46dbb07041"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "e1376a4aa957a7443f8cc9dbba8cc925264ab6c8f65116cd5de9fccdc8e75ed4",
+      "decision": "accept",
+      "meaning_sha256": "79811b69bb33e1d176ae77ef8a01a85174363dae7c4804846537468920025b1e",
+      "accepted_historical_keys": [
+        "30798f5ad02f0c87c4d0712082e3d517e7f8c800efb8d0d1d441b4f091a10f82"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "54b556b064440bae02f7406d23492149dccd475f1ab211a28e83b52489e45488",
+      "decision": "accept",
+      "meaning_sha256": "845321c7729121cce29d0e6c7160f0b163ef142f7dd1db545a1b8f45e86bedb4",
+      "accepted_historical_keys": [
+        "333510654735443b072ace5c2d35bbc3f18d774096432e2723aa3ab958df18c9"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "60fba085f553fbdeb9e1cecdd60697f5fab4390e76790b56b0d00c423752d3f4",
+      "decision": "accept",
+      "meaning_sha256": "ffb6a5f014778be601be5cb0e75e0da551fbf415d7860ad34b11530272ec2cd0",
+      "accepted_historical_keys": [
+        "33c7e9ad98394afe0884003f852e1cfe271db60a994b538fa26001a9f3b2ca0a"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "2946d731e6ba51b1e4bc4b8cf94358bf184417e5c7c72d301b46c416f4e57ffc",
+      "decision": "accept",
+      "meaning_sha256": "b7dcec3d897203cdf3081f00d86d1b04afb293e5a287982808729a2025e97f89",
+      "accepted_historical_keys": [
+        "3455f617b3fd3a1b1846d2dc6dda94e205697528662bee4e5359fb74fdbdbee5"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "fcb2a5d1c3b909bc924b2087669d4400c99555cbfa2f1577ec0588710f2ebe9f",
+      "decision": "accept",
+      "meaning_sha256": "449a12ea7b62bbe3413fa907f7584a5e5129dfad0d8356032f6c938ec0328e56",
+      "accepted_historical_keys": [
+        "37073e52fa47d6e143e72efdc30f9c7224e14d78919fdbd6dbf9dcf403b46aaf"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "4cffd31dfc67ec481dbe6cf7b58676bb5ef2bba0220764b273e504e870f51ad0",
+      "decision": "accept",
+      "meaning_sha256": "d861aca1be72a55922df3843d572fe4de986d3961c21505acc8aec71eb88fd4a",
+      "accepted_historical_keys": [
+        "3dbb4edaa45dd93f074909aad0769ceb2b1312fdb11ac213095a47ffb014142a"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "a9f55498523b929826eb704b682ed5f46a0aeb8d84229eb4e8584e0e8ff85990",
+      "decision": "accept",
+      "meaning_sha256": "e1abba02f5d73b2c5e11841e694df0728a7d45712a1aff15b6c64b9d78ccc922",
+      "accepted_historical_keys": [
+        "421adbc4095188f08660fada0ec0bf5532925e6730e5999175d7810d32c0f69f"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "4d4c5170bbd644bfeeb237efb58230f2581ca91a6967c3b59873dec99cd8cb82",
+      "decision": "accept",
+      "meaning_sha256": "a37c9ac74b961a9a30c48fa5a28153fc70dcc72e855ae521d6988d7ea3a85751",
+      "accepted_historical_keys": [
+        "42d9211b40bf8a87f4ffeb020af29551e496c5051b1fbae06aff4fba252e8a0f"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "c66f106e6b1bfb51a690b67fc4969f14c68918018a2ef82339f26b03fcc83c36",
+      "decision": "accept",
+      "meaning_sha256": "e75431fad91377e4cb919424f8b9bcfc3d264eb5dd28757d16dd100d75dc8863",
+      "accepted_historical_keys": [
+        "4612cc42b6c9592dd38d239caf0ea1246251382d6e5d763ebaa9e3949fc6ef34"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "7bf5a5cc74ecdd314a1e51265a7b905704c842a243c0e966e1c63eb0d671f9b5",
+      "decision": "accept",
+      "meaning_sha256": "f66f11e9f207810849560179ef98c157d58bfc483569fbcf7a831ad87cf3a6aa",
+      "accepted_historical_keys": [
+        "4a3d732aeb80602ab1722d70442ee6bbecd91596973f24f896aae50dbbd038c6"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "bc4a3e3eb75d758490e49888fc1fec03b915421d511c86789b49c201e440be6e",
+      "decision": "accept",
+      "meaning_sha256": "15f3ec0c9994d59d7e693d6ce91168ce7c2062a7becc06ae5501f2ca6322322f",
+      "accepted_historical_keys": [
+        "4d77fe46e371c63e31e7ce3e98e56ad6c5ac12917ca8f0d29593b363a0095661"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "228347673726fbff6cf03bef7249d715681d0405b38bc8146b5afe7bc6931572",
+      "decision": "accept",
+      "meaning_sha256": "d79f49045f76126118228336eacfb2dad7004e78071f0690da471a156024589d",
+      "accepted_historical_keys": [
+        "4fbe3e95d34f556443b2eda22159e85806b3a26beec2d9d78a37e913cd910a0e"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "448c9ec32fc6ddc4e17746273aca349f4bf47dd2684e13f273922598cfa3226e",
+      "decision": "accept",
+      "meaning_sha256": "1c228567070216951c3710b0b60de457099fddaaa5cf12c19cda414f42c63fde",
+      "accepted_historical_keys": [
+        "5126e60435dd3f73bc5f3bb444bd3c9abe026993c7bb380914da2797f82f2aee"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "15df720fa1b1dfe407d31566d5b6093f67916a6dae6913f29bafbc1f57b1cd2c",
+      "decision": "accept",
+      "meaning_sha256": "0d4d5921a5587e7492a61eec1d592f2a5300b07752595b4d908bd9a27f4ec3e8",
+      "accepted_historical_keys": [
+        "58e213d38123d68eb52bc29c9fe0526507b1b8809981f0a49a6b1e4df6ae3836"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "d4be4fe8a35082ee1440276a13f02c0d5e2e9ab0bab0d4d88834a452652f5c2b",
+      "decision": "accept",
+      "meaning_sha256": "a6b6094b73806b8f45d8a607d484d9144e87241c7acbb2a37585e2d30f02fbb8",
+      "accepted_historical_keys": [
+        "5ad3a4c413eb406c2c1b9127441ed112aee54c9c4fe4d828a870c6ddaf4b516a"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "279e9e06db6402c845f136e035c6792ae49e87b07aa6a741baa1fa74dec75201",
+      "decision": "accept",
+      "meaning_sha256": "aa597eceda83a697c8a7b30ffb2e02f1166e170aca15ad6f6d5b46a5694653fd",
+      "accepted_historical_keys": [
+        "5b20f4b2a7fcc207494901f7adff7dbc9d3f5d7afe8b146473a66039792e55e0"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "156cd5100c717d48e525d0bc183eabdd2f28070b965115661ec0233164d87319",
+      "decision": "accept",
+      "meaning_sha256": "777072ec1512508e21e75620c75b99f3cb8eaf1ad6789fcdd5e17c28fcb92c9d",
+      "accepted_historical_keys": [
+        "5ccca8d82bbb1008bd318def09652572b95d7cfdf5d23f94a78b99ffc9a967fc"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "cd750384a135aa819009c3fbe9df0ea94acab5f03a6abf6947b0040b8c67cfc4",
+      "decision": "accept",
+      "meaning_sha256": "440b4c34eadb1f774952e8d0772fedc24df026a438230bc26922ffee5bd15809",
+      "accepted_historical_keys": [
+        "5cd54c5df745fa601a5ee5143309f68f099823add0f04dc9757c035da68abe93"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "2fb3a5ce8cb0d13dd461d5336ea7c79e2112151657bfd7558e8c9a1e9083e333",
+      "decision": "accept",
+      "meaning_sha256": "2abcdd13b278eb93752ef381102fdf3f521a5cf91ad87626f6d9d05e2ea0f549",
+      "accepted_historical_keys": [
+        "5cf9d111b3fe2034b7e1adda28f34cdc5e4048337e06a5559d0efb4f151dfcca"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "3a32a80a837697ff4a3b58bca9ee3a6b9013609a28bfca87728e49486e1e66d7",
+      "decision": "accept",
+      "meaning_sha256": "8fca87f11785b5ef51b97d8f3578ea8cd0a7d85e767391eee95d1fa67606ce97",
+      "accepted_historical_keys": [
+        "5e4f08e7018840c6d14a9e00422685bf2c682d997a1930b26a44281a30c2f770"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "7ff1824c5c4276bfece567c15ae0552d0b9e556433dbbdde01147c16eab65dd0",
+      "decision": "accept",
+      "meaning_sha256": "f54eb446573cb3e602ac55870b543bd057efa4c76b1cbf0070b8df607ad0a67b",
+      "accepted_historical_keys": [
+        "5fa21ced4ecbcc6ca00eec3e20048dad9984f72706515496c52c25b7a78a128f"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "5e6e8f46d88b088da4b3dc6cf0ea9175b7b354bbdcc3ee13984524f96d8de966",
+      "decision": "accept",
+      "meaning_sha256": "e3a5259a7e3eb563fdd0c97dc1b5ce2a072ab44eb6d58151d22510ef34b5723a",
+      "accepted_historical_keys": [
+        "613efef61eea4f3937140f3c849916b04b8bc2564e90f2ccf38dae4362ebe358"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "6bf18f8eabf0e34048d1fcb6424ee38eb3e9f2640e8fb34ad3cd066d8b096021",
+      "decision": "accept",
+      "meaning_sha256": "aa1f91d7c5e47154d26a27307ec9b317accc00d8909501cd8bf7be6afa093ff0",
+      "accepted_historical_keys": [
+        "636574dc23bce07e6fb7b818c40a01448322ef43daa75d3c228c2bc66b6b2339"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "2fd5c124eb480579dd3edbced5ca9f1cea8bbc05ef209506316a94a398f5805c",
+      "decision": "accept",
+      "meaning_sha256": "c894f9af6570a158be3d59b3b6dbfc7c375916c9903c6e8ec333c4f3c841b2ed",
+      "accepted_historical_keys": [
+        "636bb236c77abb56688bc09c000773c013966317596737a1e86e84cea99f373e"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "2c148f60f0df7d54c8b337836c3b123b47992d4c55a03e3b1444209450c25f9c",
+      "decision": "accept",
+      "meaning_sha256": "d4cbfaf2e0463cd1464e8b026899cc1610dd765d2450590c2627cc5a60e16708",
+      "accepted_historical_keys": [
+        "64a9bb63d261ceabf2124dcf0476246865692339b256698760ab1a8d16bdb93d"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "75d6690ea901889809e8de81402e614e758d491783081cad85f76020073f1dbf",
+      "decision": "accept",
+      "meaning_sha256": "14eefacaaa83ed26e8a374d6212ad84fab589fddee01ced868ad7fbe7dbcfa65",
+      "accepted_historical_keys": [
+        "660f73eb162f2cd67386756e4f5d3398028a20cabc4eacd9148998805104402b"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "82bb4967bb3004318e9c4e2ca337c02a304ea17a283ea5c6d9043d3e679e6747",
+      "decision": "accept",
+      "meaning_sha256": "0de695343aa8b94482fe5055bbd43675c03364740b2635d3ad232cc1009a83a0",
+      "accepted_historical_keys": [
+        "661879099a5fb824a893a365ce0bebdd586f06fea5e8d49bc95efa6ad9009d56"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "69a295428ee84a8d824f2eb646a276fef513c62088ac0857cefe539e652f020c",
+      "decision": "accept",
+      "meaning_sha256": "f5a697fd8db3fc4cf4b0bc2602c49aba3dd6ed363ea19aa1c72de2ce6c72f9a0",
+      "accepted_historical_keys": [
+        "6830392dd0af50b8c710a465a4829df577f9b7dee03061d47f840bc08328c8ec"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "d9a7c5b9cdfea9b056cee1148bd5f76bc6b839d9ed963f50c8d9e82bc0a1b1cd",
+      "decision": "accept",
+      "meaning_sha256": "5f84c4b6f1113a9a1580db81c4e704162bebef0dce8b9044f46cb8e5a0289b9a",
+      "accepted_historical_keys": [
+        "6aa2d5935fb5d826f69493769fbc56b01e06a19eb2b31258cb4be21710c4f116"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "343f676c463fef4cbfdb202aaf1ec1d31e6169b7671db928ad71a0b6b08f483d",
+      "decision": "accept",
+      "meaning_sha256": "e15e67aada93f7da3f744d43f3e5ca0bb63d0d87b7d877470825fada5e539eec",
+      "accepted_historical_keys": [
+        "6ac4044ca7ac2588735b4c3635e36a119000bf810f10ca593574c6b0d9ddca0d"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "540b20d0e8349c07dc7fce276c888a01288834bce7ac3f8e7a18f52bade1ba76",
+      "decision": "accept",
+      "meaning_sha256": "7b28610fa9e130baece25a502199986454dfd9450b4955b6bbcfd0795ae1a221",
+      "accepted_historical_keys": [
+        "6bbb33c388258bc3605537e700162de1cf75cdc6df6344b3bd7a091c9b11391a"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "3dc4736f6b0c0ec0b343dbd1366a1b848105301228c64c8e9831e2492fd3c896",
+      "decision": "accept",
+      "meaning_sha256": "8da4dd4563f44e49d8613d00c2579a2be9cdb55962de91320f98c70ffaf2770f",
+      "accepted_historical_keys": [
+        "6cd67561594c9fd6609d1cb953cf26b295d8815514986e65223e6ad520dda04e"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "96ad71f2efb47423af5c65b9d58f06758d9b3a8229067ab205a25fcdd7840157",
+      "decision": "accept",
+      "meaning_sha256": "2861998f5c844d4ed32994075d9a9dfae002adf6477c519fea042916946b5688",
+      "accepted_historical_keys": [
+        "758fcbc1fb9b579c8254cf9a2419fc11aabea9ca71da78f2fcf7557c49fa19b2"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "2e757041084fb0d6fa93defa9d4e62acec13d402b6445ca532b3fb595bc18bb0",
+      "decision": "accept",
+      "meaning_sha256": "8e8734844af131e192ee7ac01c5c5a3ca324c1b028a16be113621f57bf5a59f5",
+      "accepted_historical_keys": [
+        "7717e40404ecc1404fbf40a93abbecebd9711473b86d89d4502f39f877ed8b9b"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "828993b8a4b14bf1c17aa6e5f2af2122b007d87ac1341221c1c5a5a2337987ad",
+      "decision": "accept",
+      "meaning_sha256": "37808c3aab64cb41494b82339bc82e5040211ea8f6dcba6c2d5b54fc2b1b0a40",
+      "accepted_historical_keys": [
+        "798fbbf1989198faacd4d9dc6ca9c3c3ca88180bb17875f424090fab5671c8c0"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "287a9aa576dd395ba0cc7b4f2aa860fae6abaed2e533e5d553689623217380b8",
+      "decision": "accept",
+      "meaning_sha256": "53c5ba0b53f99f22b1a7d04599f9d87b18261ff94e60087f776e56fa6072d7e0",
+      "accepted_historical_keys": [
+        "7e8c26d71620705d2e6f73ef569b25b82bc901705f67674b7a4955a84cf9ce78"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "a56161b3dd21df2036db76dde49f57f9c2de89f75349564b36c679bed97c1f63",
+      "decision": "accept",
+      "meaning_sha256": "acd87d5cf9f7e881441b3d25c6ed4b62ee81dcc759b521cee35395aa9d6ffac6",
+      "accepted_historical_keys": [
+        "815e07c21d1d677fcfdb219eb3be59bb13149503ce6cbd25dcf7cc73770f7e69"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "8e76f0122472e1327788982f0565cedfd40eb9a74c0ad43d00935f10ea05e32d",
+      "decision": "accept",
+      "meaning_sha256": "753d078e17141ce54ce7897921c83f55b9fd8eefbc09784c86134a93946e425c",
+      "accepted_historical_keys": [
+        "82cb0d17b8ac7130d37ee9e0ac40a34c0b37b78c2895739bb114cbee97550fac"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "037ce580da827b05ee0a957d13d55075d5e7185aa5f7b00153b740b04073048f",
+      "decision": "accept",
+      "meaning_sha256": "556262594c03c0100f1ea388eeed2de2ae005b47b46b676ac77084208d686c38",
+      "accepted_historical_keys": [
+        "87b213db8438a021a93859321ca0200f1f730dd429f9a26cb38a74bc0600aba4"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "a3015d298cb40940f24e5857c53d9c4509b4482fc2f7cc0d879a01c61fca4945",
+      "decision": "accept",
+      "meaning_sha256": "b6d2e8303c81ec79047b4c8c6a65166a4c1d2043734fe83f0ac784eb22586b02",
+      "accepted_historical_keys": [
+        "8843d9b9bbf94f78e4a5c59949165ee5b699531d6338889834b1b2de8e5d7a82"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "f1e9cf8c9f8913d0d6e15bf66a45eda2213079c8cdc4e0a7bb26567f1c4bb450",
+      "decision": "accept",
+      "meaning_sha256": "a2e4f4cca6897adbc4168fa78bf1430779f9431f2b1e289c31e6a4ff495293e0",
+      "accepted_historical_keys": [
+        "88874bc125e72302304f1ae6e13252855e1d27504a2133a4f8b286789b89f719"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "f1da06727868fae4b8e38f0424b1b8a4df488bd28e3a28ae3a5e10bbc5f90201",
+      "decision": "accept",
+      "meaning_sha256": "ed00890bc7a7bda2722ffaea6e9832313ba358cc0ae612a6c7cdd78f2bcf337c",
+      "accepted_historical_keys": [
+        "8a397816448098480f810882c0d6bede2178d3e3fba4c6888a3829ad6cc70d02"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "a406004805ad91a0b21c63fb00a45f1ca75ab13198bba7f100084995141fde6a",
+      "decision": "accept",
+      "meaning_sha256": "dd46d102c5e234a458ad9893b850d678f1026dc91c088a5c90c43d9152acd97d",
+      "accepted_historical_keys": [
+        "8a8722c459c30dbe60dc48b2edbd431a1eeda99d2cb0b1278876ac64e7f741bd"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "8640f21298829e97e5151894697203746f4146ea71c6c4e3452112c6553ac3fd",
+      "decision": "accept",
+      "meaning_sha256": "49cb03d2012c83f6884fef59626b3dd338c9f37486b760d1201026b2c62bf383",
+      "accepted_historical_keys": [
+        "8c2b2aee183460962e8b12849425e656e42d16000b654e74daf7fbb3a53379b1"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "031ad6928127ba1c47538cbc13d0d113b9006c769546bd2fce78b66556836e16",
+      "decision": "accept",
+      "meaning_sha256": "5cd5682fdf9967a76f53d8c2e2181ae5982ceb873de290f45e517fed4e2233a1",
+      "accepted_historical_keys": [
+        "8f58847c976403ee7604b195fc373f31d865c0c8a6ff46de83b0d83e6384a5e3"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "011c7fe475f9c2fa8656ce3e80fa3cf8eda8f7a9ff9ebdae0ab1901b76481962",
+      "decision": "accept",
+      "meaning_sha256": "241de267040063f65ba2ad42342d99ae0fb4c4418ed01624a46183e2163f5267",
+      "accepted_historical_keys": [
+        "90602b636e80d3f44e19890981d591e32cf5dfaf584025fe53b7ab12bbbb3b1c"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "c20cfe6176d15a18fda3a50ab47b3c0b19d8ba8ea566859d72888ee2e4ce00ce",
+      "decision": "accept",
+      "meaning_sha256": "e4d1fe1723d68ab70fb0662f05c1790833f18b1bc1f1cc66ccb3e57df55a5029",
+      "accepted_historical_keys": [
+        "924068551c40866ed950c9214405c373e05e59d421fbe83d5320e53c6125da93"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "f7634502903eb9b4a2204e952fc473132e6b953cb13d89f262a4fb6147760867",
+      "decision": "accept",
+      "meaning_sha256": "d008efc3cbdd3ef4c030883aca394de22d006dd57539153ecb83f7ae1344108c",
+      "accepted_historical_keys": [
+        "935a41ddba8959009b1aef5436c8283f44f66be09b711ee71870da6d4fc9a184"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "86f3fee7c24da61da7e018d3b67384dcba9b594b16f88a484ac36ea80a1386d4",
+      "decision": "accept",
+      "meaning_sha256": "5013d9342bd5d68e3fee93a2910043387aae05578ea60524c813f9541442d668",
+      "accepted_historical_keys": [
+        "938969f43fd5e3e496fbb38d25e8fb317d0679781f69de4ca525f6baafbd9128"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "5dbebb89021a73bbe66dbc8c824a4c77c41b4861135fce808453e9982052f439",
+      "decision": "accept",
+      "meaning_sha256": "0b2328bf738f2f8794b64cf36c5c12d5ad65217fcc184b559886db3b03c3c829",
+      "accepted_historical_keys": [
+        "93d5b150cf2b1dd70af034a2ff47fbe2a2d8ac22fda786c041bc1091ae1b8625"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "37bed4dd9324997ae027f52faa9a845cd96d7d54137f49c6bf8d765f56ddaaa6",
+      "decision": "accept",
+      "meaning_sha256": "fefdf958b0c2fcae510a42c7ebec41e0ae903dec7501bad1717aeba737425bb6",
+      "accepted_historical_keys": [
+        "9a5807bc5939744c27c87b95e61793d67484d34afe5d7b4b7bdc7212ae324591"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "7a7adbe1088e0db5e48de35d17111dc208117a257d1b6681325513979913bbc4",
+      "decision": "accept",
+      "meaning_sha256": "c4671afeebbc362b5d60a26c5be22d2e1a23e41b9a956fe5c86de37879d4d341",
+      "accepted_historical_keys": [
+        "9a729b9d7e4a0de32c26f458cb402cb474b466c3825a9f6944dee84a079de7db"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "89e2f04e5b399e52604175543bf5ae110929019fe45b6903020e2c603a3ef422",
+      "decision": "accept",
+      "meaning_sha256": "c4eee1c9c0b08742005e8f9742a2374efc7defab8a1f98bc6baf0d99e05828d6",
+      "accepted_historical_keys": [
+        "9a9478686af61f4e14fd399f061b812d3f3d4e5cb332a1b2388b9d33990cba27"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "f35ce02a43e1763e09f780002ec042908f507b9bd487b97b97b2babd6240f614",
+      "decision": "accept",
+      "meaning_sha256": "eb88658d5b38745910c1afa64b31b9422ced4ae6ba75a9afc372d7307b862782",
+      "accepted_historical_keys": [
+        "9bee03f90d8f0ce939a38e769eb6e487d40b08f5ffbeff4bb8610c7c5cdc8322"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "e3e8a4cf32f974d76e98bd0d84a1e71bd6959dd1b9d8b18f31b46b9925f7bc37",
+      "decision": "accept",
+      "meaning_sha256": "b2529a842d1f7761f29e317d6bdc13487f52e4073b8cb5789f1cc18bf7550f5d",
+      "accepted_historical_keys": [
+        "9ccd4ed67346072f98f07f5114caebcdca48e405427470f7b3284c4a761cb70b"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "314bbdbecf8c981de01a7b7b9d27942aba702adc008e42ed83689ec04ecc3318",
+      "decision": "accept",
+      "meaning_sha256": "5021dc7838460ce16698b469a383e85d39878de03ce5bcf77100202d89be487f",
+      "accepted_historical_keys": [
+        "a01804af947db1b1f14c491ac6e8ba75ebbf76587eaa5272bfadc0ad94d7b2c2"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "53521868a40f24c04a19305ac35732d6fc4af2e072751a78b0079e6971c2c2bf",
+      "decision": "accept",
+      "meaning_sha256": "f9ce31c28e0f7098331d87e06a3930c64a23970ebcf2c51e97b0be70a2c85e0c",
+      "accepted_historical_keys": [
+        "a35e0803dc9da331deee26b152529037e496c66054b3ad4947f8b08d1ccb5dfb"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "35bf6550bab29787dd89b24526ba029a98372c0dcdd1c1a927a0811d0e3a6cd7",
+      "decision": "accept",
+      "meaning_sha256": "fcec39b91fa62318ac3fbc126d7c5edf1cb94d8fcee12bb34b2b51f1e45c7c76",
+      "accepted_historical_keys": [
+        "a78c50c6335213b4103007c828d0ecf281bf7cf1532a4abf01ab97e2d62afba4"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "c96c4ce1ad714120e2cff5398d70857b98f7231a5154b9a1e8ae2eba0a666091",
+      "decision": "accept",
+      "meaning_sha256": "a956a9ef84c2b2ec81cf5cca22b5c83ea79bc203c840d74adc5db14678fbab74",
+      "accepted_historical_keys": [
+        "a8b85595380275bf13082fcc6f689da768d9e7c18e104e074c55a50550c4557a"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "84addda00da2509b06987b2515fc293e60d4f2c1ae36925ffded7846116cac0b",
+      "decision": "accept",
+      "meaning_sha256": "047e2758038129b8ee956b5114c5dea190f1920d29ea00560c62182ea32f41ea",
+      "accepted_historical_keys": [
+        "abf306c80cc12778acfe9a439abc423f9af20aba7cd78bd246048717797809d6"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "40d0e4904711bb29b8cddf4a5a45a9faa3f567a4e1c06c539d7b38b55d984340",
+      "decision": "accept",
+      "meaning_sha256": "c7b7b7ade25b2c7a946d14e077eeb36d2c695d5350e789e00009c68dd01603e0",
+      "accepted_historical_keys": [
+        "adac0cd7c4d2bd2e4b2aa4a697d441d9b404b956ed7feeb26eb3057eff9e5a6d"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "e98ebe0b9bc91ba4fa4781ef56719b77ca87fd613eac846f7319d9b3527910d5",
+      "decision": "accept",
+      "meaning_sha256": "d0d68ac2b62520fe081dd0563e91d033cadc45e1b183e1ab3c4d775e20e2a5aa",
+      "accepted_historical_keys": [
+        "ae010a845cb32dfa4be011c6779b2620262032a96fdcce354592975cf2b1b3d7"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "319c680e8135e625d4f2efdfaadd5a150de8821228011f895fbf76c0db297ce7",
+      "decision": "accept",
+      "meaning_sha256": "cd2c41d5cf1a5081c2f1fddb4bd052c289e1b7f4e7eabd52b5b88ac2c9a414f7",
+      "accepted_historical_keys": [
+        "ae35c8d0d39f582b9c91c77962e8fc1958089b99012696c8ee9a76e336f3dd42"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "20c85f7cbfeaa9e78f49f3570fd7d4e3776b772cb3184d58a2eac273163d9dd5",
+      "decision": "accept",
+      "meaning_sha256": "46bd00d0fdfe56a51a3c964220a422533e82fa3650143d5fa189d0f26864eb21",
+      "accepted_historical_keys": [
+        "af23c3fa7028a792aa9c83d211d0a9c0594513b1a0b184ece76b0af4d57fe12e"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "46ff36e123b90555a061d3dc59b35ca5944d1318cc356fb62d073efb72e70fca",
+      "decision": "accept",
+      "meaning_sha256": "97a23e321c5d341cdeb3c271990c24792622667745760e4f403ad259b8938910",
+      "accepted_historical_keys": [
+        "b272080fe9cdac29aac67703755de7b3fe0ae6c1e241883ee5718a9ea99550cc"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "5d7c5ffeaea22ca86386cbadb9f0447e8999adeda65905628b32eb0f4c8f2d57",
+      "decision": "accept",
+      "meaning_sha256": "d89270461ae4d826e563924993a1bbf307b5a4dfeb8c172607f99e28d5f0946b",
+      "accepted_historical_keys": [
+        "b31ea8f79fcb8b969d7961f86eb713d1aa0bb0ea2a1dd6e382ce72b8884d070d"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "289432ba5951dfec3ff12ea7a630afbd08230c2c966ab710694d0daf5dc7f2c9",
+      "decision": "accept",
+      "meaning_sha256": "20936bb468013bbcab2a8fe87c7b227ee27393c9c242bada457c08c368cb42f6",
+      "accepted_historical_keys": [
+        "b4a2d1b91f2bb6150bcfe31bfe9b3c6a82d23ae680038272f16ca385241d49d3"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "b9731a4e717f08e28c70c7d4bf4b65dfd294bf4ef4949931d98f4a956162ba8e",
+      "decision": "accept",
+      "meaning_sha256": "b0cb30eb7a3420e25865803e6a0a766ea1ce95ae27c530218535fe67b29ed513",
+      "accepted_historical_keys": [
+        "b4d6326f9361dfbe56eb2082fc928beabc09e97dabca37885f0308d45ffddce0"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "480b088aac6b75f4a34495ebee30b21b4c2e6f14b65d67643f791c64fd833f33",
+      "decision": "accept",
+      "meaning_sha256": "b3de4740eea488ab6381ada3f675652ec4d69bf438793452066a1d379d651f39",
+      "accepted_historical_keys": [
+        "b6c11fcdd553bb6a99d908eb69e6d7faf3b0d8f29d3110a3aeba1144743edd11"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "f5dbd3ba65e3e2628817920765ee7207d9648b4eaa0c590b7ab1427d2b10fc03",
+      "decision": "accept",
+      "meaning_sha256": "481082f540d7bd5c5170e4461bca6649a6b60e50ad55a0f3e71c2763fb8aa2b3",
+      "accepted_historical_keys": [
+        "b8ad0577c4a5cea7a46efb4309d9f28c5a203165f57598c6bb0040a955cf99f9"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "70eae7da6802ae3a4bff4e731a2e99a758b208c75235ec6eac01c01c8c6b69af",
+      "decision": "accept",
+      "meaning_sha256": "8a2fcace52b8a6b9b3b20091dee65a0cbc60f32431b85ff07acb953a98d3e459",
+      "accepted_historical_keys": [
+        "bf2c7c62dd8e4a294bc5fd49d97ae50033d6c192161ac9f2112f0fcdbc709717"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "6e0e0b5e30f6dacb7adf4e09515559e579a2f6f030091559bbece188ac71ed1d",
+      "decision": "accept",
+      "meaning_sha256": "afc0c9d132d12af02a97a591e0b72f875004cabb3df051923a469e2d42b37bce",
+      "accepted_historical_keys": [
+        "c126496b37d42ad6a2b71bb2a781e632eea6966dc9d9a13b8b63dfa601afa223"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "ff4ea849966d11833fa162318f08b9b9ba4f03b02304b48181d4ef32232b41ea",
+      "decision": "accept",
+      "meaning_sha256": "d5f7e720085047628ed99a9aea0e3b29c1bc8b501eef76447ccebdaa77ef59ae",
+      "accepted_historical_keys": [
+        "c166abe6ca94c180da959ea1f9a32b98404c633a924ab6a4bca040af121b9cb7"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "aaaf6ee1ab74a1b1e39d937ccf656fa14afb4125155d159e67f823c36d6c5d25",
+      "decision": "accept",
+      "meaning_sha256": "2f28260f2e4277a33aa18cf79e4c7474e3a4d2506deed41ab3bdee593d873fa5",
+      "accepted_historical_keys": [
+        "c60b91c99a7867d55ff9237f2cb4c69dd464756ab558c7620ff331bb323e358d"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "23b84ae97978eb3990bb0b31cd7d1ee4dd5b5a1be14c144cd6ea685ccb07fd8f",
+      "decision": "accept",
+      "meaning_sha256": "9f122715e45a5900b6ab6d26cec856b3cef0de26909518995910e7e8e7cb9e4f",
+      "accepted_historical_keys": [
+        "c86b69bd41e83e851458167fe31fb5c5f3df94ceed24e7765e3627f91beeef8c"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "2f235b1a91198bbaf9b86119999129ad5fc59cbd02df17235be75485f1ba56eb",
+      "decision": "accept",
+      "meaning_sha256": "d5e6cf589c355c77dcedd1833f3bd816530b3c13a5030637642b76275c04d37a",
+      "accepted_historical_keys": [
+        "cbbe1c4a4b352ba2a760aa9dd6f4f81c7052b46697d8970d2f8039d07c37a85f"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "74d2df46f30586d3922aff09c4bfff320aa95d21e46b8424caddabf7cbca827e",
+      "decision": "accept",
+      "meaning_sha256": "2d0c371292343c6ed862d60e783f10d8c8608c75550553d0ce6819e9097af559",
+      "accepted_historical_keys": [
+        "cfc838dd027aa0ef0d1358c707fa5de7dcac7ee0f6167648c06a23362d74ddc4"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "b5f15257bf1d5521ff889393e6acfa46eb7b2584b48de8774db6c16a1a4aaeb4",
+      "decision": "accept",
+      "meaning_sha256": "04be42f59f7088e361254991c2ac0a0c6343a1bdd7cf72949e7c9203363cbda9",
+      "accepted_historical_keys": [
+        "d20acaee59a523cc8629bf57db6ae74b143adca14788c96825ba669184cf8099"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "640f1cd2363249c16d33f97d84d9c590854c400069a2f9a64104c3fb47540135",
+      "decision": "accept",
+      "meaning_sha256": "33d6faad5369b96c10fc61fda664395a034ef5e60212afe1bd4fd21acd0432e2",
+      "accepted_historical_keys": [
+        "d3bff8793c84953263335caf4de4ebae41e9986e104bba1c4518f55fe336415f"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "56795214a45f34f8f0d3c64a4b00c6366ff0694eea169d377dd0061dee2c23df",
+      "decision": "accept",
+      "meaning_sha256": "248855fe88d0dd5e4501b18dc5c167140eac0699d2061102795840ce5d504ed6",
+      "accepted_historical_keys": [
+        "da446837dc6f12c8355373fba6b599df3d66927025914dbdf36280874a55846d"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "d4152a22200c67df7bced6b68a37bdd18fbed591e22aa876c28cf92d58c4d190",
+      "decision": "accept",
+      "meaning_sha256": "c314d65e9b8b32af80f41296f36cf023cda8364dac4723b9c5d501d23b08c60d",
+      "accepted_historical_keys": [
+        "df0c048d5418fa530cfa07fdfe9f05408c136e9f75dbd83e2bbe7b585439412b"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "2cbefd59a4be7f5d527298f8d35f1cd03126d83844c0bc027301955ea84153e8",
+      "decision": "accept",
+      "meaning_sha256": "cb52ecc42ee9f02fa966c5bed5fe2071a2071aed115cac7a9b6e8aa7c66ed88a",
+      "accepted_historical_keys": [
+        "e1fa0e933fb5e0fa8e3857151af10e36e060f8edef69357e2a3ba58fae709751"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "754d39f9b691537e8fb140ebd97f69729cb16d287ba46958eaab5f5752f908b6",
+      "decision": "accept",
+      "meaning_sha256": "11f16704e3bd88184432177c595ff987f6d271c6cab69373df177982de96ac78",
+      "accepted_historical_keys": [
+        "e63f4016cad471090a89a5223c5148dda51884c81d9514920fd4ce0487afe25e"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "93ccc0b0e1e6fce3362267810522586c2021516db9d3cb1f6965fcd91f0a81d9",
+      "decision": "accept",
+      "meaning_sha256": "54d68e573cb0ee042d40a1300df41d4811389800ef0ff11859dc14b10ce8ba5b",
+      "accepted_historical_keys": [
+        "e7cc8e33571372f57235974dc2f5ddbf2dccb0273b84a05ccb56960325107baa"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "4268fc1a21dd8b88167a681f54500a5c2436350df32da576e4d75e5aeb2b6fe5",
+      "decision": "accept",
+      "meaning_sha256": "3d4ad99420c213f3e6c9f1b427e0487349eb94b98d94b804ab184b175c4c29c9",
+      "accepted_historical_keys": [
+        "edf3f7f1a620487a52e1df575fc37b4f42c46337fe85a1e163519758d8074dfc"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "a8034c85f4bb3a203b440efc14210639d8ca6652fcecff5a514bf2b77da2f882",
+      "decision": "accept",
+      "meaning_sha256": "5b852d6e8b89a30b4e4d519f860c512cf880f980696cd100eb6d610e973be43a",
+      "accepted_historical_keys": [
+        "f356436272239384f8cc7375568546e84b868d2ff9af11a5b83d19e3058eba76"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "0dbab4249b8e810f73066f2c6408664cfc52e1fb13d0af2cba09cbcb4e210df2",
+      "decision": "accept",
+      "meaning_sha256": "676d135d0672f74a9340fd2a64663a0822a0e8c80b01f694a72e7f9e262d910a",
+      "accepted_historical_keys": [
+        "f395ccddcefb48a38687a93aa4da5a6e1e239138999186015f541ddd5a0efba1"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "b8afd63ad3402e1a9496756665fdfa5f7cd9065f900949b43c2152221c9e5e9c",
+      "decision": "accept",
+      "meaning_sha256": "4f558c419a58c73b6c7d70fcbdb168647e748d8a2f431d7fc1cdf9bf308d56df",
+      "accepted_historical_keys": [
+        "f4e69583d77fdb48eb018e8bdd323481be522fa4ee64a1ce161b094cbba6dec6"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "f945ae09f975cd04d4c646ea02b5abcc3e0aefc22ccf7537fb6f04233c00f858",
+      "decision": "accept",
+      "meaning_sha256": "55550f9d2dd6acf2c35beeda1943442c1d945d0292d8664522d53b5c34810697",
+      "accepted_historical_keys": [
+        "f9c93552005c7407ef8a1776499506771d595a371cd8d17bf0c88271c9e7b584"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "4bb04c2a9ccd6d1674132823f374df73041626d203e6c8ff862baa7040aa4441",
+      "decision": "accept",
+      "meaning_sha256": "8ff3ea479edef4041893149ea6ed18fa2b77b35dd5deb7d067037779156d9232",
+      "accepted_historical_keys": [
+        "fcb04d209c63745f9e34332a126e563af1c6101093a7099406be80dd4836e050"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "6628c5370956943789cc234560e1dd3a94e8ec9dcd458b24653880beefcde886",
+      "decision": "accept",
+      "meaning_sha256": "36d1c1d17580b8e8a265922d7fa52f5b03d1bc5528c379a346f575d6ab9492c0",
+      "accepted_historical_keys": [
+        "fee000d08aa5463e44c346df178b505e4efb9cfba516080a93a531c22a46e05c"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "7c47184a082d53808022c50994f191e995a99dd27f2b7347d72d08aa1fde44be",
+      "decision": "accept",
+      "meaning_sha256": "0940d8859d45c621a50919b414857856b6968c3ad2699359f47e28d6d922199d",
+      "accepted_historical_keys": [
+        "fff96c6a87a676491c9947fd524086528151eb42adca0cbf0a48a94338c156b1"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "35ae49b6bc8a799d651f82cee98ecc2bb87e0cb0e7479a1f49d4866eae3f11c9",
+      "decision": "accept",
+      "meaning_sha256": "fc40dfd0c09b477aae4af3fac272477af4691c6b429d63c12c1eea8d76d6057f",
+      "accepted_historical_keys": [
+        "044d44be42abe6db1751c075cdb8ab7f13472082fc1ab3a0233e3107074b357a"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "2dea6e88b1748b33e2ac29aac3b446f93f2ed96fb520b32f440a1a8241c2eb13",
+      "decision": "accept",
+      "meaning_sha256": "a154dbdb4ab9ec1194ff483069b80230016fbea1148b3dae9e1f6089643b22b3",
+      "accepted_historical_keys": [
+        "04f26e1f5815e12e28f8afd6e8c62607e4b7d0f421e25e68dabbb23f80a1d386"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "2feb957f891e5a74400b34a38833bdd31bf6a71b8f1507fe373ba5d521d9cf91",
+      "decision": "accept",
+      "meaning_sha256": "809162bc7cc3b463e184d6469ebd927e47e7bb1eb3c67703b2a097f43a15938d",
+      "accepted_historical_keys": [
+        "055a63b53f1c0b3110946527c97555ae875256de50843af6cf3bb5ba5a5fdc20"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "8e72a1f239a9a6cf4bda25bd45f926e0888269bba48de471398d5b2706715bd3",
+      "decision": "accept",
+      "meaning_sha256": "cfbf4692fda74438f33606e401d7653e0e7e5b2b569b1b827553dec7aff5b8ff",
+      "accepted_historical_keys": [
+        "082b9ca12c148e7186e30240e2cf15c6c73b5d4c9828653cbf61a6d9f2d5c732"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "d64337799a443f72610ff41dcb66c0a49004d87f59a1c1058db3b4a587e79752",
+      "decision": "accept",
+      "meaning_sha256": "15327c714da09e0cb68ab0238a61fae4ad9330dd9aa8a2ce09008c94eaae13a1",
+      "accepted_historical_keys": [
+        "11db461b068c15e6e3f2beaec932074d4fbadc6587e87526786443cada3e2ea0"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "06acabe2e3b81569595a3e92d4c816ee0fbeffeb41216634a529cdb3d804da26",
+      "decision": "accept",
+      "meaning_sha256": "9dceb1f860398cc5d983c51273e471d7a35d88fb70e599068cb2bdb110d67ea5",
+      "accepted_historical_keys": [
+        "124e0d4b5d5ab2395cb957e9f36e0e6c3a11785ebb431d444fa98550b0df39b6"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "d3923771738c8b58eba8d629924ce8f77eeb2f25784cd202ef2fc5ff2602bdc7",
+      "decision": "accept",
+      "meaning_sha256": "7d8116f128f8c74c094d24a0cfd096c05aa5d0ac84591a17ac1475fea07c9167",
+      "accepted_historical_keys": [
+        "144f4091827f6612eb5e65afaa334e61e51f65efc15e5dbf10d3eb49e13d34f3"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "a2370b9d988ff1580bead07dd564a6afed8aa144a52253db69467b7882d76ff7",
+      "decision": "accept",
+      "meaning_sha256": "bbe8dcea3ea67cb1a53821b63307c947fdc5361aabcfc7e85de05fac61757eb7",
+      "accepted_historical_keys": [
+        "1488a7aa8dbf66d333977a3f7cd8c733f349100b0be1b49acaf9d9151ce1edc6"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "a287132059db0f2ee6292bd23840dc243c7a0a6ec660b2dfbf2ec6006899ae8a",
+      "decision": "accept",
+      "meaning_sha256": "5dc9f2db2529e8167a86f9898e1265c129b117bb4d94d6229618d6401fcef200",
+      "accepted_historical_keys": [
+        "15ad23b7f96e8c012a56b997eed30202361e771bd86498a53337c0f7457ebef5"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "a198181456975ff937bf9ff00d50e01a7c475eee481fb2c9f76128e98675d6c4",
+      "decision": "accept",
+      "meaning_sha256": "624879cbe03401cb5ce48889abfe06cc4b8af030ddec954489cec24d13354bb6",
+      "accepted_historical_keys": [
+        "1690b1a57444729dc552ecba74c257e00dce4bca8ff2057718e8b2512b72ba1c"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "258e76da3af9e6b35069fe340bfed736255904d400eff1a97b5370be3f13a359",
+      "decision": "accept",
+      "meaning_sha256": "107d74e09a4e12708639cb64e504e4ef159d2c90b99d76f471e0a3bcd9a427a1",
+      "accepted_historical_keys": [
+        "195d5d78d2dde092a13c9639d231a1902e08e81cc3efd95f2fa4f111d72c8f25"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "1056dbd3e343635a8b52d8cd26df7dc134c8583ec7d29698c089bc8335312b58",
+      "decision": "accept",
+      "meaning_sha256": "08e83795a4b0e9290273c89b8624ac478505b60ded20ea81dc79db3ff660decf",
+      "accepted_historical_keys": [
+        "1b93bd1789a9d102de90961ecdf618d1071262d54d962b21ab36cd19a2f1cd9b"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "c6b59c9ff904fc84341870fd6eb5c755824f5e9c4b0d61f2eba2e5bb0dfa4099",
+      "decision": "accept",
+      "meaning_sha256": "2cd15ca0000f9263e06754af37befa546fc4d056ad674beb7c4c95135de13421",
+      "accepted_historical_keys": [
+        "1d6a726eda6a168d0bd073966682d9c8a7e921494b4e7d92b0e8ec223da6b5c6"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "1a470d40110a338a1f4624f2eba12b82926103b3a7b65b3f5cd6395d4c9a9eb5",
+      "decision": "accept",
+      "meaning_sha256": "3985931a6ea2f9b677a999e261c96f5d7abf40b070317f01c3de838016f7d4a1",
+      "accepted_historical_keys": [
+        "23d784aaab055d69afd3a309268898d05935b4431b42c0a7273bb68b5a595225"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "6b1d667b75096a0f62c4d85a94a4a7e93209ce0f47c6f159d9ce369e566f820e",
+      "decision": "accept",
+      "meaning_sha256": "273257d434af4699fbeade6e1858f666182d3f9cb49dcb905d5d02104d099465",
+      "accepted_historical_keys": [
+        "2642a6225899bf147330c91478d7b6f6131b93a0a8c6064a404a796e03e21d68"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "5743d56c3c02523899096be3b53b8aeb3cb997c4126e12fd09d1c4158fd75099",
+      "decision": "accept",
+      "meaning_sha256": "1b4fb7e6dd7996b7cb3f716c980e8bc7c6a8a7cbe456454e7d258f108359e3c4",
+      "accepted_historical_keys": [
+        "26d711928fd8585ce627848dceb420e15502de45badebd57a1c4cd4d0dc63528"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "b34303fe0087f05b04a5b25a9b63092a03115ab745e93a0bee2900c03542e63b",
+      "decision": "accept",
+      "meaning_sha256": "bd51817b908d294a60acff8ed4bfb0522482768cb586eb436c75fb9287566c3c",
+      "accepted_historical_keys": [
+        "29081a5d32297e06ca96496a62e51c641d59e53f748cb993df1f1c68c67e2181"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "2d954a9655a33acc7b4deab61a8ba10135cd423603563ce79bda87b99e3cd645",
+      "decision": "accept",
+      "meaning_sha256": "506cfda864d8609fa69b27d818121ea86fe42bc3c31c6d5762e6db16ccfc093c",
+      "accepted_historical_keys": [
+        "2c6d83d879796075f4a32f0ad38db1200b6e753babfb5bfdced90d72754fe36a"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "55822d308012cd9f5f4fe2611fd7eb0fd8b022821960f9fc51cc491f3108c17f",
+      "decision": "accept",
+      "meaning_sha256": "81fd5ac20d9c687d37fcf28eb57e9af15f0b4e038ed813849f75417ceb0e9c72",
+      "accepted_historical_keys": [
+        "2ccb547a6272fbe48419ec3f1421ff81b9ca0a0379f19b211802d94a448fc13b"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "f989cde78ad249fff152da0b3d57e630d912caa08f03637cf69f0d8ff6858ba1",
+      "decision": "accept",
+      "meaning_sha256": "6f8d5d206bc92434d1fbdf8afa27414c2c94ed1d5de06b9800c2235cd38cec95",
+      "accepted_historical_keys": [
+        "2da6c98346ebeeb19f7ed395e2db5fd84cb72db92d0c1542b1847bf370eb9f67"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "92812cf82f0bfd55c1e164e8398312e2fd6a899ccd6ddfe47638a4798b6a4ab8",
+      "decision": "accept",
+      "meaning_sha256": "62213b8e7e8c2065ba3ae143b533799e64a4be18f896e1993b0586c3bed6a943",
+      "accepted_historical_keys": [
+        "2f05f2a86a6582a4346db98a466573f5ff6000c7d8adf1b03c704a46dbb07041"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "6ae8a1dc487c0ff2b40acd62db12365f423b18a4d44ef891dba7b6db99b9428f",
+      "decision": "accept",
+      "meaning_sha256": "3e94484407c9c68002eaac0f925ab0075fd5a474e6e5ed05a2ed7ad96d58bcd3",
+      "accepted_historical_keys": [
+        "30798f5ad02f0c87c4d0712082e3d517e7f8c800efb8d0d1d441b4f091a10f82"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "88292217be7427509454bcbf9747e3cbbd740733f1a3fd7889cf570b8095eba7",
+      "decision": "accept",
+      "meaning_sha256": "4102af8418c45442007f36b03eba0f0da5a7ef394bb12f91e53e1a6772051ced",
+      "accepted_historical_keys": [
+        "333510654735443b072ace5c2d35bbc3f18d774096432e2723aa3ab958df18c9"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "06c58397b3c64771484e2fd4b142433be4a3965331c5fc58c03098da795ae6c2",
+      "decision": "accept",
+      "meaning_sha256": "a8513ddffb9559e116af0a5e1f9b8f965aeccbc88c1b698b005fe0b2c454d413",
+      "accepted_historical_keys": [
+        "33c7e9ad98394afe0884003f852e1cfe271db60a994b538fa26001a9f3b2ca0a"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "90413db2e98b38d1038643bb9954246a743ba81450066898ef79decd502d03b7",
+      "decision": "accept",
+      "meaning_sha256": "d5bbefd7cecd15de83a7a9670c4cdc4efae3295a68e977f37c361d709878d56f",
+      "accepted_historical_keys": [
+        "3455f617b3fd3a1b1846d2dc6dda94e205697528662bee4e5359fb74fdbdbee5"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "5c0ea45e8e3ca7f407389399245cfe716e435ca7c1d2ecad85856177aac41ed9",
+      "decision": "accept",
+      "meaning_sha256": "5ff4e89cd779c03afc4272d5ba15ea8d71342e15dcd8a9d596e96215cda14de7",
+      "accepted_historical_keys": [
+        "37073e52fa47d6e143e72efdc30f9c7224e14d78919fdbd6dbf9dcf403b46aaf"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "b2add9a88a09816fba325512269b80f6492933a6bb7fa3c6c7ccf8680305144a",
+      "decision": "accept",
+      "meaning_sha256": "24a42585809ce9d0d2388709a8b477883acaea39065988952dad466bb6fb6cfb",
+      "accepted_historical_keys": [
+        "3dbb4edaa45dd93f074909aad0769ceb2b1312fdb11ac213095a47ffb014142a"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "effd6eaf4f2231ebd6cb8a333c6a8ba9c75013f89cd45a0b0cfd3992f19d86f8",
+      "decision": "accept",
+      "meaning_sha256": "a24972bd40de159f4761a15c4d243cd68701d08ca1d239a56d95ea6dd06b82f9",
+      "accepted_historical_keys": [
+        "421adbc4095188f08660fada0ec0bf5532925e6730e5999175d7810d32c0f69f"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "754acb5f57395073d20b4f5b955c7be325dabbd78b2cb19814b794c0f41aa53b",
+      "decision": "accept",
+      "meaning_sha256": "bfa690b53199fd2f1c01643066ce68af7dc96488bb790e0fc6da5d30af11b89d",
+      "accepted_historical_keys": [
+        "42d9211b40bf8a87f4ffeb020af29551e496c5051b1fbae06aff4fba252e8a0f"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "ab5b596b7cbdfb7f2943ea976e2597b029ee44725d8b9f1d6dd4c9ac23de6da6",
+      "decision": "accept",
+      "meaning_sha256": "197717dc433792f6254b6e09bdd46a3ded3f5ff4b4992ac8cecb4a3141baf8cf",
+      "accepted_historical_keys": [
+        "4612cc42b6c9592dd38d239caf0ea1246251382d6e5d763ebaa9e3949fc6ef34"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "25a3e932ef085cea2b9e7d34a77b8ed0807740b97d74cf3cae5eab7a4a4c3e99",
+      "decision": "accept",
+      "meaning_sha256": "1847d1925f9b7dbb93cd665032a455bf25d2a3cdded4702ba266c3681d603654",
+      "accepted_historical_keys": [
+        "4a3d732aeb80602ab1722d70442ee6bbecd91596973f24f896aae50dbbd038c6"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "3c43af0c46f869c5079fa60732d8a1f7bf48bf33468bbed6cd83c82765e9a3b8",
+      "decision": "accept",
+      "meaning_sha256": "da6c1c239607f5b2a6c295d317c059507bdfd468b9ea2003ca92ef98f1281813",
+      "accepted_historical_keys": [
+        "4d77fe46e371c63e31e7ce3e98e56ad6c5ac12917ca8f0d29593b363a0095661"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "b779b9c34c88c5789c132af20f23889e08a61d3b1e32a43776c3b4f0a3071e9f",
+      "decision": "accept",
+      "meaning_sha256": "3df56d2a63a38fb2f959959d879f83af528215d075501bb78cffc79de97b565e",
+      "accepted_historical_keys": [
+        "4fbe3e95d34f556443b2eda22159e85806b3a26beec2d9d78a37e913cd910a0e"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "e4adfa987473d84435d10a701cdc5f9f359fb25776ff0c771f03369170f34a1f",
+      "decision": "accept",
+      "meaning_sha256": "89f923840b9440b4105a810263a47b54d8ab24f59c674b826d9f59fb0efb90ce",
+      "accepted_historical_keys": [
+        "5126e60435dd3f73bc5f3bb444bd3c9abe026993c7bb380914da2797f82f2aee"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "d1b044b0cbbe4fcc8a2071371951a3bba1b3dc22ffc70016633d468f088ce6f2",
+      "decision": "accept",
+      "meaning_sha256": "6368796281f43468bc1a82dff927d253c2fa52b9f2608917704193c0c362e2ff",
+      "accepted_historical_keys": [
+        "58e213d38123d68eb52bc29c9fe0526507b1b8809981f0a49a6b1e4df6ae3836"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "e2484ccad1489f0037f869223ce8a228250a754cf60bfcb7753131082f99e9f7",
+      "decision": "accept",
+      "meaning_sha256": "9b4c37255c360ad201aa4872e110a77819b9b71579879b92138882850566da0f",
+      "accepted_historical_keys": [
+        "5ad3a4c413eb406c2c1b9127441ed112aee54c9c4fe4d828a870c6ddaf4b516a"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "53830a8360b6fdec3e7037dc94ddf216929fd9c309af89dedd9b5bb44d63a4a7",
+      "decision": "accept",
+      "meaning_sha256": "563ebe4c39a786764b0c8360d981b1eb6cf54bfcd946c46a06b1d001414140b4",
+      "accepted_historical_keys": [
+        "5b20f4b2a7fcc207494901f7adff7dbc9d3f5d7afe8b146473a66039792e55e0"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "4f4e6d856edf49f92784bd48f36d557585ac3445365659bf40bd1570e46314c7",
+      "decision": "accept",
+      "meaning_sha256": "37637fde7d6a6670af34b0bad47b2703252a4517ae0bdc66aa0a2759627af6ff",
+      "accepted_historical_keys": [
+        "5ccca8d82bbb1008bd318def09652572b95d7cfdf5d23f94a78b99ffc9a967fc"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "d7853060f8de2ac9883b1a1834e3804c3ea524be39750e10b48d1e104328a7db",
+      "decision": "accept",
+      "meaning_sha256": "f19c2e0d6840a5e62ad15541ca42f3a006563de5eb95d16cc2c8d7e732969202",
+      "accepted_historical_keys": [
+        "5cd54c5df745fa601a5ee5143309f68f099823add0f04dc9757c035da68abe93"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "2302de2e76f0705f6ff675bb3d14ee81fce4262a06f74ca5f40ad314b8844dfc",
+      "decision": "accept",
+      "meaning_sha256": "7deaa59565e82b448f9675dc0d3c37a64042e5f19e69af019dde03476d904d47",
+      "accepted_historical_keys": [
+        "5cf9d111b3fe2034b7e1adda28f34cdc5e4048337e06a5559d0efb4f151dfcca"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "e14b62e3c4104a6ad79d1b4eb1bfef7a33601f97eece6f8b7f4e510e260d1a38",
+      "decision": "accept",
+      "meaning_sha256": "e981766b4b71a717ce117f880a5be3ad7f4014ca6506aaf891aa79571332e4fd",
+      "accepted_historical_keys": [
+        "5e4f08e7018840c6d14a9e00422685bf2c682d997a1930b26a44281a30c2f770"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "9d22028be685663761e84d9dc735893d91044d05b2a243df7896107d17ba626c",
+      "decision": "accept",
+      "meaning_sha256": "94f08af24ed0603a05f88e85ab8dc37b0c7d8d4b5c7b0668746b4d4804be59fd",
+      "accepted_historical_keys": [
+        "5fa21ced4ecbcc6ca00eec3e20048dad9984f72706515496c52c25b7a78a128f"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "2f2fe070272ff434d427ab9886eda5fec800d6594d52fc57969374f9b4395115",
+      "decision": "accept",
+      "meaning_sha256": "b2e30af41724a05352cc942fe33d71bcc6be19aa55993271680e7af143e3a36e",
+      "accepted_historical_keys": [
+        "613efef61eea4f3937140f3c849916b04b8bc2564e90f2ccf38dae4362ebe358"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "6157c26bbeebb2822e689e95001212afa1c2e9dda356b8b6d2d435be481ce3e0",
+      "decision": "accept",
+      "meaning_sha256": "8acf62e80336a7a0007839da77aa22f93ca94030b97c52261fcea418f18a3167",
+      "accepted_historical_keys": [
+        "636574dc23bce07e6fb7b818c40a01448322ef43daa75d3c228c2bc66b6b2339"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "b68d1f4ec5723c6b87b0c54c4747ffad6ef1db473c46d84933a05f1c911f3a19",
+      "decision": "accept",
+      "meaning_sha256": "7f7010ddb450ea907645a7c3dfc3ef614ec7d851b1169163c0d489cb534d8552",
+      "accepted_historical_keys": [
+        "636bb236c77abb56688bc09c000773c013966317596737a1e86e84cea99f373e"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "27bd661a32dbcce4264cd646c871051c05b4b3fb63e18502e191c5c2b889d718",
+      "decision": "accept",
+      "meaning_sha256": "114b748b95aacbfe1cb9b9cc0c6dd0d09a649e2cef6b14c98e1dbb4435915d82",
+      "accepted_historical_keys": [
+        "64a9bb63d261ceabf2124dcf0476246865692339b256698760ab1a8d16bdb93d"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "735d753d48ee4fb02ed7a3ea48e6527871ddfe0199525442af61ff10c16859c5",
+      "decision": "accept",
+      "meaning_sha256": "bf333e699fea4571d3a5abd8eafbcc8a382880869ef47b29fba5afcad26ccf10",
+      "accepted_historical_keys": [
+        "660f73eb162f2cd67386756e4f5d3398028a20cabc4eacd9148998805104402b"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "6471556b5961f112b445cdd8bcc9f8da6c6c8aaa64ca15960b5d08e9475bde24",
+      "decision": "accept",
+      "meaning_sha256": "fceb59f34c8731ae457294a917ff9b5407132ba1020b209f61767b8867706635",
+      "accepted_historical_keys": [
+        "661879099a5fb824a893a365ce0bebdd586f06fea5e8d49bc95efa6ad9009d56"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "43427db1e87166efad4a8bf333004d53860b52d06d1294baf3dff05c53abfa2e",
+      "decision": "accept",
+      "meaning_sha256": "a6f1a9d67df06ef5c06221589c9bed1cc5f87177861a92e325db2b69a2ffb44a",
+      "accepted_historical_keys": [
+        "6830392dd0af50b8c710a465a4829df577f9b7dee03061d47f840bc08328c8ec"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "ccbf2503427b98ff2bbbaa9fb31d91a223676d8ee75859bf6a8f9efa7ab0c0bd",
+      "decision": "accept",
+      "meaning_sha256": "787d47f36f4d9a38b118a36986c355668dab5493bdb3e85718410183670e6548",
+      "accepted_historical_keys": [
+        "6aa2d5935fb5d826f69493769fbc56b01e06a19eb2b31258cb4be21710c4f116"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "fddc607c1482cb99e0308f21db9e026ec20769f2182b1a7eb15d6c8d769c9915",
+      "decision": "accept",
+      "meaning_sha256": "e8301fbe6efa46fde0c9df75ade331ecb416bb1e7bce5855f2546714be32cfe9",
+      "accepted_historical_keys": [
+        "6ac4044ca7ac2588735b4c3635e36a119000bf810f10ca593574c6b0d9ddca0d"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "fd15a9863769fb9e42b1971148ed23dffcb442ddba1478ab6643a08d9aa44c4c",
+      "decision": "accept",
+      "meaning_sha256": "6a2a52b95361b2d6aef5c8c7999535d48e046db06711d1960f3982ce060c925a",
+      "accepted_historical_keys": [
+        "6bbb33c388258bc3605537e700162de1cf75cdc6df6344b3bd7a091c9b11391a"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "78093481ac3c2a7901532b5778d3f473ca14bcbdd1ca7ac3434a929b4ca0f9b0",
+      "decision": "accept",
+      "meaning_sha256": "58c667686dcbce1a6c54820496b1f52cdbd6ab55af69cb1f3899cb2fa4ef8bcd",
+      "accepted_historical_keys": [
+        "6cd67561594c9fd6609d1cb953cf26b295d8815514986e65223e6ad520dda04e"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "4446d0a66033269b97551b1f972ad93814c1682f0cf79898e6da6889787cbc7a",
+      "decision": "accept",
+      "meaning_sha256": "240c6321fb18869cd23621a8b919aebb6d5d2ccaa7c9fb7a60b2ac209d67734b",
+      "accepted_historical_keys": [
+        "758fcbc1fb9b579c8254cf9a2419fc11aabea9ca71da78f2fcf7557c49fa19b2"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "e6e80a73b19d306446b1cbc3d38649ed719bf6dfdf70ee40b2f42f1a9704f858",
+      "decision": "accept",
+      "meaning_sha256": "7b4b4fa9cfec0decc595a38e7f8c7437ffbc5ac5be0e516e75b76f3f73b54e87",
+      "accepted_historical_keys": [
+        "7717e40404ecc1404fbf40a93abbecebd9711473b86d89d4502f39f877ed8b9b"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "8fe823fb26fcb594af21d456aead1c37b20ef1a5ceda236bd0b5e6dcdac1b578",
+      "decision": "accept",
+      "meaning_sha256": "9210907863fc23fd38023d3d825be8b29baead33e9fe69af749def672caab2fd",
+      "accepted_historical_keys": [
+        "798fbbf1989198faacd4d9dc6ca9c3c3ca88180bb17875f424090fab5671c8c0"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "46b1c5095f357877d09b4fb6036159075e60c1b04e61a8815123e8f8b464d2b2",
+      "decision": "accept",
+      "meaning_sha256": "7df1aef6bb4ebe15690fe1cc70d5670e01995260147df8261e553cf4025a7269",
+      "accepted_historical_keys": [
+        "7e8c26d71620705d2e6f73ef569b25b82bc901705f67674b7a4955a84cf9ce78"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "5a28c24ca23d34b0cc5a357a7924459e285c8c97520ec4e3e9d57930b8eddbe1",
+      "decision": "accept",
+      "meaning_sha256": "5d951a7ff7168b52a38dd0a8f1c63de09e6f7a46e0a34a30eb9cf88e8b337cb7",
+      "accepted_historical_keys": [
+        "815e07c21d1d677fcfdb219eb3be59bb13149503ce6cbd25dcf7cc73770f7e69"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "67ee983efb6d9c0e6cfc344df44839dd0bec64fb7d9cf6ca05b0596b64c270df",
+      "decision": "accept",
+      "meaning_sha256": "eb67bbacc19998a71c0c7d954f5ca81db81e061b68ea2d775b95a4c754ca9b5d",
+      "accepted_historical_keys": [
+        "82cb0d17b8ac7130d37ee9e0ac40a34c0b37b78c2895739bb114cbee97550fac"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "823f47bfb2d3c8fb846c8fd66a6d3dac51e08d9f58b5955fce2a6c43359e1b84",
+      "decision": "accept",
+      "meaning_sha256": "6a4b82b34ad7d2c03518974e35405f862a68ca3d69d5893f03cae19805322485",
+      "accepted_historical_keys": [
+        "87b213db8438a021a93859321ca0200f1f730dd429f9a26cb38a74bc0600aba4"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "fca93668a8a4a6b3a3e09f748c3728084ca9e7a457c3cab99a60281f2a59d183",
+      "decision": "accept",
+      "meaning_sha256": "6dc13a54d2d7751a08379bfb71dad6b2212b95eef75875fa24bb02d75a362d5c",
+      "accepted_historical_keys": [
+        "8843d9b9bbf94f78e4a5c59949165ee5b699531d6338889834b1b2de8e5d7a82"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "53ff8265bf001b5df64406fd65c51d07354876872dceb6f32e59cd93c9dfd1a9",
+      "decision": "accept",
+      "meaning_sha256": "885e5e33123db1348dba1188d4959d0948716608dec52d4056ecc15b6c1e5e62",
+      "accepted_historical_keys": [
+        "88874bc125e72302304f1ae6e13252855e1d27504a2133a4f8b286789b89f719"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "3537ebc9f2e66b3d1c3b8809fb20d35ee3b986c80bac369271ee5a700fbf8574",
+      "decision": "accept",
+      "meaning_sha256": "372f4eaa79a6bb88c6e09eef66e7f80c42da36f1d59917e9e085312cf7871f15",
+      "accepted_historical_keys": [
+        "8a397816448098480f810882c0d6bede2178d3e3fba4c6888a3829ad6cc70d02"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "c90b0dc85b8be22a308235c7891581d9dc9538c95375525fa64f1c4eb32e4f63",
+      "decision": "accept",
+      "meaning_sha256": "0321b637229accbea33b550d456c146817e266898e20dc4127e9eaef8f82a630",
+      "accepted_historical_keys": [
+        "8a8722c459c30dbe60dc48b2edbd431a1eeda99d2cb0b1278876ac64e7f741bd"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "e15fd1fe4b2faf04a452494b3f0d4931b99e3bd7669e1a00131df24238d2b71d",
+      "decision": "accept",
+      "meaning_sha256": "a58708b844fdf394d69da36cce5523b9a090c7f512650ea284dfe14ae7b407d8",
+      "accepted_historical_keys": [
+        "8c2b2aee183460962e8b12849425e656e42d16000b654e74daf7fbb3a53379b1"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "c03262266947f3322030bad3bcb64bdd9732164bf4dd1947c6154ee9bc558b13",
+      "decision": "accept",
+      "meaning_sha256": "a7ec987f89ac8490844df5037d091ff6ff16383d6706b364c53d1c342b68e7c7",
+      "accepted_historical_keys": [
+        "8f58847c976403ee7604b195fc373f31d865c0c8a6ff46de83b0d83e6384a5e3"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "70933c6c3430b03b2e022a1b1afac116e7b054a7ce6d27c96a81ca8fd6d2f258",
+      "decision": "accept",
+      "meaning_sha256": "5c4b406004a58b52e052d79541f15b26fc7aad469e3cf6789d4c6011dbe67d5f",
+      "accepted_historical_keys": [
+        "90602b636e80d3f44e19890981d591e32cf5dfaf584025fe53b7ab12bbbb3b1c"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "40897928a8c86281ac9e2940dfa9ed30b576da43b2568802d4da0b3824050c6b",
+      "decision": "accept",
+      "meaning_sha256": "b2ebbc4005599035bef38b9bb96537c6d6445afc0f3518323ce7eeff5eb0df56",
+      "accepted_historical_keys": [
+        "924068551c40866ed950c9214405c373e05e59d421fbe83d5320e53c6125da93"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "a1b88107b5a0232220e79f64ab8e2bb1502ac62d211c35b3e27b88cc3511a3f5",
+      "decision": "accept",
+      "meaning_sha256": "5bdfdada9934580446dac6de3c52ec679a48784916da56a461544f2c01fbc3bd",
+      "accepted_historical_keys": [
+        "935a41ddba8959009b1aef5436c8283f44f66be09b711ee71870da6d4fc9a184"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "5ad74b55616508ac861a6258b8ce971eefd70df3fd7c853d00a60ae35b7f3384",
+      "decision": "accept",
+      "meaning_sha256": "58c1f76b3248678515e444b09396c021aa7e068fd79e4143d17c33144aac2dfd",
+      "accepted_historical_keys": [
+        "938969f43fd5e3e496fbb38d25e8fb317d0679781f69de4ca525f6baafbd9128"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "17cd84d06f729c1fbd849e171400c7e7a7c394b517b47b5e04b7d7debc165469",
+      "decision": "accept",
+      "meaning_sha256": "45db933e3e854f45e60ebdcd3e2faf30896c5d14bc587d86fcc6d1160f37e217",
+      "accepted_historical_keys": [
+        "93d5b150cf2b1dd70af034a2ff47fbe2a2d8ac22fda786c041bc1091ae1b8625"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "d1c3f58870dba45454c6e4e6d07b8abbc4ceb8396c07f2980dee6e7db4370ac9",
+      "decision": "accept",
+      "meaning_sha256": "8871b4b94f0a94ec89fe94c95af267bf5e4c681632471ff0316d5f29f273b767",
+      "accepted_historical_keys": [
+        "9a5807bc5939744c27c87b95e61793d67484d34afe5d7b4b7bdc7212ae324591"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "18bff48d73f248625fb6f88d68c89773a461392daf5718f31276f5cbbfaa3f7f",
+      "decision": "accept",
+      "meaning_sha256": "ff047d46585c291fa9b13e7dad7099725c1bb9a9d02b6d06423a9b9ff9cfc5de",
+      "accepted_historical_keys": [
+        "9a729b9d7e4a0de32c26f458cb402cb474b466c3825a9f6944dee84a079de7db"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "b1f40f3b40c41c951f6bd4fcb2a7257166d9240a0c0bdb956f93a05a0fc9f474",
+      "decision": "accept",
+      "meaning_sha256": "2704f6a1d00018838b04fa5021b08be85b6f8dcd907b5eac66c08794d666f397",
+      "accepted_historical_keys": [
+        "9a9478686af61f4e14fd399f061b812d3f3d4e5cb332a1b2388b9d33990cba27"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "949ef847569816a2e7aea29d07125fc36cfda480d5ac421619eedbe3225e23a9",
+      "decision": "accept",
+      "meaning_sha256": "7f31f4783be35e457d98bdc9c132607e860dd07a6fb6f13ce2223243443f9e17",
+      "accepted_historical_keys": [
+        "9bee03f90d8f0ce939a38e769eb6e487d40b08f5ffbeff4bb8610c7c5cdc8322"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "01ef84c196b7b31ee7a32463e2c2d7f6a230c8c836c707067442a94c23315f93",
+      "decision": "accept",
+      "meaning_sha256": "d9840a9eb68cdfa52c8a56eacf5ee41bd29478a55c4c2623da95e2bd5772348b",
+      "accepted_historical_keys": [
+        "9ccd4ed67346072f98f07f5114caebcdca48e405427470f7b3284c4a761cb70b"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "4f5b311a18c27f34e6948fbbdd17f7fcdd5e8e28d208e2b27bdc4ac99d87620d",
+      "decision": "accept",
+      "meaning_sha256": "b211945ced2c9d38c08621650a727512dbab13bb821a39661d39432918132cf5",
+      "accepted_historical_keys": [
+        "a01804af947db1b1f14c491ac6e8ba75ebbf76587eaa5272bfadc0ad94d7b2c2"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "9644ce380e86d34cff3d0491a60efb7cd384f96b4454d72c53e71172ad8004d8",
+      "decision": "accept",
+      "meaning_sha256": "14b11aafafcce955fa417f5e1633bd051c780e884f53847323c45de88d3c0b51",
+      "accepted_historical_keys": [
+        "a35e0803dc9da331deee26b152529037e496c66054b3ad4947f8b08d1ccb5dfb"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "7ad037639d7d62ef9ba8a5d80cd11aae8118e44c16e0f3d18bad5a8e582f43a1",
+      "decision": "accept",
+      "meaning_sha256": "65082128bb076c5167dc7c7c9d85233f9eff2eb6a8f1c5055350527ab4b0840d",
+      "accepted_historical_keys": [
+        "a78c50c6335213b4103007c828d0ecf281bf7cf1532a4abf01ab97e2d62afba4"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "2d5ad32bdda0736e09c835e366786b33002929708003d19c0f02fd5adc5781ce",
+      "decision": "accept",
+      "meaning_sha256": "24eb96d59f954a4a7a3bbc37a81fa6b63f3e4690dc64bffa436b204d344e0985",
+      "accepted_historical_keys": [
+        "a8b85595380275bf13082fcc6f689da768d9e7c18e104e074c55a50550c4557a"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "fb79fb2604d09f6b76c5702f6aef962524f707f239ffa728ed60f1087880f73c",
+      "decision": "accept",
+      "meaning_sha256": "8bc10a6f0799e56c5befd82c74a6b894ccf5fa69ede91cb47bc3c7e214f31edd",
+      "accepted_historical_keys": [
+        "abf306c80cc12778acfe9a439abc423f9af20aba7cd78bd246048717797809d6"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "f2812857ef5c2ed0abd629245934912c4976490c927847c39c58fdfe93e27e89",
+      "decision": "accept",
+      "meaning_sha256": "a471cf2c8facc26ae9480183ae32b41c32db676d2628b3f8549ad1948ea1f3c1",
+      "accepted_historical_keys": [
+        "adac0cd7c4d2bd2e4b2aa4a697d441d9b404b956ed7feeb26eb3057eff9e5a6d"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "b70e42079629375ed382590ff68249071272daa7b0c659b652634b9ba3e60870",
+      "decision": "accept",
+      "meaning_sha256": "2aef55a503ee3b4ea2c20b86c63d3f4c496694a5fe33048dc78d065252391ace",
+      "accepted_historical_keys": [
+        "ae010a845cb32dfa4be011c6779b2620262032a96fdcce354592975cf2b1b3d7"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "29924d0730d4252f8947f354d07d5f11a5234197629bba315106d28d0d089359",
+      "decision": "accept",
+      "meaning_sha256": "60205cf6a6760bbdf6b9c0e0db2b5ae92c4cdf6cb021b2bf6f635df03ea77841",
+      "accepted_historical_keys": [
+        "ae35c8d0d39f582b9c91c77962e8fc1958089b99012696c8ee9a76e336f3dd42"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "80e03d01e092c0eca7f239e5ced9c060192340c3ff0711963a043c3ed0459aad",
+      "decision": "accept",
+      "meaning_sha256": "8071e931dc51caa0ef6df58d3159b1e5853b051bf3fdb60f2fc2ce9903118583",
+      "accepted_historical_keys": [
+        "af23c3fa7028a792aa9c83d211d0a9c0594513b1a0b184ece76b0af4d57fe12e"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "f97b3d8d6a5418c87ad555bdb2d5e2e1246626eb062f6f459ae32f9a57d028a8",
+      "decision": "accept",
+      "meaning_sha256": "6fbabf119150e589cf388964ed68a984d8f73628cafb2a0a701bca19036e7d39",
+      "accepted_historical_keys": [
+        "b272080fe9cdac29aac67703755de7b3fe0ae6c1e241883ee5718a9ea99550cc"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "142bfd3c245f10fb9606e89c68348c30726bfe0b691560724ef365f64554c13d",
+      "decision": "accept",
+      "meaning_sha256": "a8890c3d6bb402928ede2a916392b344fec93f4fff975ae218cdb9c5f10f5913",
+      "accepted_historical_keys": [
+        "b31ea8f79fcb8b969d7961f86eb713d1aa0bb0ea2a1dd6e382ce72b8884d070d"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "63859950ffb49fdd21f2187fc47b64f373d2bb2e01d4327e4ee92cfbafa256ba",
+      "decision": "accept",
+      "meaning_sha256": "ec9cd0d59094c3ac878b191f87c1ffbdd221f7ea0bbf8b420acc912a764d6498",
+      "accepted_historical_keys": [
+        "b4a2d1b91f2bb6150bcfe31bfe9b3c6a82d23ae680038272f16ca385241d49d3"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "58a59fb7fc07d8a8fe561c382b9139badf0098bfbeac6b7dc4cf1cf4d3f4d24a",
+      "decision": "accept",
+      "meaning_sha256": "f9afb05e60bf73a34e8cec4437c636581e7669dba9c6f8a0e39d5c7b0af64cfa",
+      "accepted_historical_keys": [
+        "b4d6326f9361dfbe56eb2082fc928beabc09e97dabca37885f0308d45ffddce0"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "08a5559d8e4c69671958739c57a471a1821387fe7a940a66d17161edfdea94b3",
+      "decision": "accept",
+      "meaning_sha256": "00497dc89cfd27babf25208bd1554927a79f147b143b904f83b176af51f9e5ac",
+      "accepted_historical_keys": [
+        "b6c11fcdd553bb6a99d908eb69e6d7faf3b0d8f29d3110a3aeba1144743edd11"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "0d746c5d50e3d76d75d0274facc20479bea7d88d0aa7791ea26cfe99c0c71241",
+      "decision": "accept",
+      "meaning_sha256": "18fa532b42a132be0076fa5c852c7aecf0c1b7dbe8824fac9f07035c2cc88a2a",
+      "accepted_historical_keys": [
+        "b8ad0577c4a5cea7a46efb4309d9f28c5a203165f57598c6bb0040a955cf99f9"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "2d9a5180ee660cf26a2b73195e287737a004f977ea3866ecdf44e7ca8d54cd29",
+      "decision": "accept",
+      "meaning_sha256": "a3dc7fc20fcbd8e65adfad7b82a82c67a25d6b2f0973646807e5aaff954266b7",
+      "accepted_historical_keys": [
+        "bf2c7c62dd8e4a294bc5fd49d97ae50033d6c192161ac9f2112f0fcdbc709717"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "5c507a9fce3652c112224f5ee980c6a5d672f4e06144dc666cd8cdd4a79e624c",
+      "decision": "accept",
+      "meaning_sha256": "edd9757c5283769cf46e101ecfac3aeb028e452d2aed2dff77ea1cb7e99daf68",
+      "accepted_historical_keys": [
+        "c126496b37d42ad6a2b71bb2a781e632eea6966dc9d9a13b8b63dfa601afa223"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "f6cfec229e2b790f6469ab23e631db2b8e7477bf552da9d6a98422200b91b1ea",
+      "decision": "accept",
+      "meaning_sha256": "4e121a850b62730941e34be8dd3d42c48d8050af45d32bc82edbebea5e381a1f",
+      "accepted_historical_keys": [
+        "c166abe6ca94c180da959ea1f9a32b98404c633a924ab6a4bca040af121b9cb7"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "0be74fb03b5ea8a1c9393e7ea2fdb5d4080d13dbfb01d1cbd0d5938acf7a9c71",
+      "decision": "accept",
+      "meaning_sha256": "426233bb7ee2e30380f6af0b95a079d8d27776301f256da9b519841bfc2a2bdf",
+      "accepted_historical_keys": [
+        "c60b91c99a7867d55ff9237f2cb4c69dd464756ab558c7620ff331bb323e358d"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "cb14e52835a8da2480181938cc1ace52f7065e6ede029a04fc1d12c4299ccacc",
+      "decision": "accept",
+      "meaning_sha256": "cf5a91ca30c1eb7510c28b60d14db75447aa41752a45708e36a156867e53a0c6",
+      "accepted_historical_keys": [
+        "c86b69bd41e83e851458167fe31fb5c5f3df94ceed24e7765e3627f91beeef8c"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "e74e277a479ec99b105a2566fadf7e84b1b798501f66d0ba681ef68412878e35",
+      "decision": "accept",
+      "meaning_sha256": "9c7170c89c79a6280fe8039b1f218bfac8e59f6eeeb4787f6e1a1cbb7b048ab5",
+      "accepted_historical_keys": [
+        "cbbe1c4a4b352ba2a760aa9dd6f4f81c7052b46697d8970d2f8039d07c37a85f"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "b0eb415485483644edc52289fc8c4fbb042dd844ef337fd88cefc5c2f943adaa",
+      "decision": "accept",
+      "meaning_sha256": "6e9f08dea422da3bfc520662cac0996c8ae891fded90cf92b53cddbffd86fd25",
+      "accepted_historical_keys": [
+        "cfc838dd027aa0ef0d1358c707fa5de7dcac7ee0f6167648c06a23362d74ddc4"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "570866d5dac7f2b5b43881924b086846d91ba4300c20e9c19ba450e2e7d1dd9c",
+      "decision": "accept",
+      "meaning_sha256": "6fedaa584bceee98ee8c45aa93c0f44203d4b888ecbe187fe86a3ac3111b52ef",
+      "accepted_historical_keys": [
+        "d20acaee59a523cc8629bf57db6ae74b143adca14788c96825ba669184cf8099"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "5252834ad6f005a2a212909c1231e87752decad236421c073640b487b9908780",
+      "decision": "accept",
+      "meaning_sha256": "46c5091bd3701bb06a3b4b2d3fc2a2c9a15995007d4d74a98e9f9b7febcb4a25",
+      "accepted_historical_keys": [
+        "d3bff8793c84953263335caf4de4ebae41e9986e104bba1c4518f55fe336415f"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "f3a8ed4e4fda43a9e4e50d5aae60364957bf7fa26fa3045abe7fc3a2b2ce18f8",
+      "decision": "accept",
+      "meaning_sha256": "369d343deaf52ee26305a83077be1a944a8724ecb472661756b22ad188dab2cf",
+      "accepted_historical_keys": [
+        "da446837dc6f12c8355373fba6b599df3d66927025914dbdf36280874a55846d"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "3033ea6b69c819e40acc3097363bce299468b47d1355256b921fbe3e2507b6b1",
+      "decision": "accept",
+      "meaning_sha256": "8213f67291edb42158b8ff7940e0462454cc44b07b644da434fa0a4f415eb541",
+      "accepted_historical_keys": [
+        "df0c048d5418fa530cfa07fdfe9f05408c136e9f75dbd83e2bbe7b585439412b"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "cbd846847fcd9f8ce8f8836e35148f8f79dd11a076e997b6b3adc2575e2029dd",
+      "decision": "accept",
+      "meaning_sha256": "938d2336dd0e88c615c267b75f21049977bfc275fdc919853f98c26c712d92fb",
+      "accepted_historical_keys": [
+        "e1fa0e933fb5e0fa8e3857151af10e36e060f8edef69357e2a3ba58fae709751"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "27e3e734176105ea9506245db4632af6b460e11e0806c86db2d3c21076f182f7",
+      "decision": "accept",
+      "meaning_sha256": "c56b1044c9de6a81b11c1ac98617276db36bb697880fd1dccff820d692255f41",
+      "accepted_historical_keys": [
+        "e63f4016cad471090a89a5223c5148dda51884c81d9514920fd4ce0487afe25e"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "55c35151f78a26f73a34fa04a30cecf587e6d4fda94c0964f1fa0fc10f8c0cf5",
+      "decision": "accept",
+      "meaning_sha256": "9a534fa5b47c4b380b0ce4d4eb443efedb95d429674477631ed75e5a6aa900bd",
+      "accepted_historical_keys": [
+        "e7cc8e33571372f57235974dc2f5ddbf2dccb0273b84a05ccb56960325107baa"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "886f97ca2a3612a76e00d5aa5de948ab44d9a5db639dc8455c00f8a3e200cc9c",
+      "decision": "accept",
+      "meaning_sha256": "6a45d4eb132e13e245931c18470a339e1c34a296aecf9a2fda37f38d6cbb9afc",
+      "accepted_historical_keys": [
+        "edf3f7f1a620487a52e1df575fc37b4f42c46337fe85a1e163519758d8074dfc"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "6192410a058a655d972f42f6d7addf05db7eb5da35fc8374b41c949b12f7452e",
+      "decision": "accept",
+      "meaning_sha256": "e76f72b78e908c17b18ceec8ef628857a1ddf54f9ef337173b817cdf20c350f8",
+      "accepted_historical_keys": [
+        "f356436272239384f8cc7375568546e84b868d2ff9af11a5b83d19e3058eba76"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "44956890558e889843fc6bb253c7dedc4847844491dc400cb15ed5b9757fd5c3",
+      "decision": "accept",
+      "meaning_sha256": "162622cdaa28475723656bb34a1d70a73ebb60ac3e2a48a0e69aa9e7cf65bcbf",
+      "accepted_historical_keys": [
+        "f395ccddcefb48a38687a93aa4da5a6e1e239138999186015f541ddd5a0efba1"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "3587a53209a76d98e73e4f3d4e0dcdaff15d08759a591fd5b067026c11adb4f3",
+      "decision": "accept",
+      "meaning_sha256": "36c9cde0717234859f19245d80d3465af395062cf7f941c74ded5468d61cacf1",
+      "accepted_historical_keys": [
+        "f4e69583d77fdb48eb018e8bdd323481be522fa4ee64a1ce161b094cbba6dec6"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "43f20b29b9354d03542efaff76085ac6b028e5671552be33943adf20fec05ace",
+      "decision": "accept",
+      "meaning_sha256": "21ec7a11c5cfa3887e83b5d680b9d025ffbc4677c4eb736dc6894734a1141a82",
+      "accepted_historical_keys": [
+        "f9c93552005c7407ef8a1776499506771d595a371cd8d17bf0c88271c9e7b584"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "bd30cb15253d34d9e4f3b9e701a42fb9417f8f4b6d1de5efcfee3144787c552a",
+      "decision": "accept",
+      "meaning_sha256": "5e58e1096138fcb44d92f25ae3c6d2fe525019a1043d8aedbb8fe672c77f0430",
+      "accepted_historical_keys": [
+        "fcb04d209c63745f9e34332a126e563af1c6101093a7099406be80dd4836e050"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "4e3b14a48302065cdcee4b05a9e17273beba762326eb2ab6f328658173997df7",
+      "decision": "accept",
+      "meaning_sha256": "7b9275d77e3dd28bcbcea4e0ae4d35e867fdefd2fe53a562d4b041b8c527f91d",
+      "accepted_historical_keys": [
+        "fee000d08aa5463e44c346df178b505e4efb9cfba516080a93a531c22a46e05c"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "0bcd128cc5a157d4a4b455b3303eed5e72d247c706fd2f747d89daa059afbed1",
+      "decision": "accept",
+      "meaning_sha256": "3a909d2705e5c61cc22cf881621d21a008ef4e38fb58ea5ceb5d825e790447d7",
+      "accepted_historical_keys": [
+        "fff96c6a87a676491c9947fd524086528151eb42adca0cbf0a48a94338c156b1"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "2a3c6aa63350799b2d20ef2ae0e3ed91c4ccd1e9a7c1ad6f093bb5cbb4a17200",
+      "decision": "accept",
+      "meaning_sha256": "3153c3cffdabe88f512e9aa64c41a145dbc0481495ed68ec6a405fd87e6b798e",
+      "accepted_historical_keys": [
+        "1d30071088c80eda461936eebefecbbe97bf6c49f8f22f512fb05710d9db4db8"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "f5c16c9ad3e0bbe8390b1bbe057ff7710393efb9a6bede443f8b3a3fc6c3466f",
+      "decision": "accept",
+      "meaning_sha256": "370262e83738985b196725df9a0ca141b665cff672bdcd316ae28a79ea0ed62a",
+      "accepted_historical_keys": [
+        "20cf13a0bf841e701bcd332ae0a5c2702cd8dc2c0dad28e19a717cbb8ddfd956"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "4492e87d7f45c895dbf54ccf0a27da5f066983ba6da7ee703b00b99db897de48",
+      "decision": "accept",
+      "meaning_sha256": "86c8c2ab9e256f26c3d5c922fc064d80aa91037411fe2830a1a651de7f2335c8",
+      "accepted_historical_keys": [
+        "27502f75adb163bef6ac158844d45ffdebf91f0c99b8df9e8f5853d3025f4382"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "0a45c4f24890859c453da2dd166d8af15b5e5e8fd0936475739c275817d7e295",
+      "decision": "accept",
+      "meaning_sha256": "707bcffa74b106948f545932dc161720e520a4209272e6a63021ddd620fdf09f",
+      "accepted_historical_keys": [
+        "5dcc5208117251137ca632ba9f4fbda95809b7a498e04237ffe2d14dbd4bc7f2"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "eb2c9da2c6bc03e0df2f2c4a02ae407fe4fc48b8ebf030e41ada275eb2f86874",
+      "decision": "accept",
+      "meaning_sha256": "37a606fc328be4b6f4355e9fc9335636e5dcbcf7deb17f0408055ade99e9ab70",
+      "accepted_historical_keys": [
+        "669352d73bc48cd90bc94518539228f0df99136d5fe4fe3648cfb1113b77fa66"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "a3703ed82a00d716ada2714ca92526d94ad61dc163082002a538a6d953e80b89",
+      "decision": "accept",
+      "meaning_sha256": "4c87fa70c69a5102a0a53de12b96a1a5c1866d9a21b1572a0a4199cace1e8589",
+      "accepted_historical_keys": [
+        "6dee41fee9b9a8208af5c3dce7f468fed9d45053b309f03a589d1df567e97941"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "76d786417605ce621ce5649f9da54c574fc1b29bf9e496256de6051cd59b0112",
+      "decision": "accept",
+      "meaning_sha256": "127aba8713fefaadec4fa99903bd56546b1d2f833c928c239332c82d5d74f0bd",
+      "accepted_historical_keys": [
+        "a3aa9595f847e49bbbdfbc7f27b91fb2425987b554dbf58fab6952f5ee5d7289"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "416d4bef5c58eb395d80c1b9541063a6c9a12b8caa6cb88706bf73d2e5cd12ba",
+      "decision": "accept",
+      "meaning_sha256": "8fdadd560738545f80e6535ca856e61b369f4765de5df859eb9e21b17c560866",
+      "accepted_historical_keys": [
+        "ab7aa509dd772290da766d957d681a271e08b31ff4656ff21242d817301b0381"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "15e255d6813312cd53648934e42512daf40760162b417b2dddc47e049ea3c4c7",
+      "decision": "accept",
+      "meaning_sha256": "8c3b957a224c8cc51fd187a3220d4a58a71c9b6fda50f6d1339027e5e709fc00",
+      "accepted_historical_keys": [
+        "e37e587dd5f533c2f420cb67ec7a3c5eb4b861b425c23712506a1f7a669cdaea"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "25b5ababc84f679a518e11814834708593e285d0036371d912ac7d80baac4bb6",
+      "decision": "accept",
+      "meaning_sha256": "a14c131d8494af81402cbd761c887f05cc1078921a7fbb554ada84b48653e7ee",
+      "accepted_historical_keys": [
+        "f3b7217b3c708dc75583d8cbe08eee1704be957a2111d8e14099718def9ca707"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "4eea993d8852144b3f90a416966b9b7c1a5f21a92f23a62155e6630905a2f593",
+      "decision": "accept",
+      "meaning_sha256": "929db3db2026054e1031db8c5fe79389557f28babf74ec508574bbc3bcb46f67",
+      "accepted_historical_keys": [
+        "09022e34e87e82dd9c11c1b6797427d3cd436d15f5326ad481a478eccc5d6b23"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "acd5d98abe6f91ad4498d15769af140bb90787cc49c0c45bde64491beff53080",
+      "decision": "accept",
+      "meaning_sha256": "20f73ad07041a97b8481b04728582399aea13aba2423d3f19b3bd2785069ade4",
+      "accepted_historical_keys": [
+        "0aa208a01fe5d937aa756928e9a941a3eb27c2aa2f9f0cb7b9f038e4b3a1df06"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "c97b7661a962044e2bf66987151965849e0228c8bbf03aba72dae1e6989d1d8c",
+      "decision": "accept",
+      "meaning_sha256": "1b3550e45b4d1b74c1a065aca107c6927aca5b5d7efb784c4bbfbab9e4f843f1",
+      "accepted_historical_keys": [
+        "0b89b3bdcc45fce6586840034f835336148971eba62a03a486743210db88de6c"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "fd72b814a1d25491b24ad707a965dce40df300b06ad2d491ba4d2e1a48905bb0",
+      "decision": "accept",
+      "meaning_sha256": "2dff1d447bd798e665ef77c6615ad65f9ffb0ca2fb590ee05502012b4ec41097",
+      "accepted_historical_keys": [
+        "0f3b17bf09788e1503174498b346086ff32f670eee88740f516743900c0c3c7e"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "3331a0aaa066a1df7c6a5f4b7e099990c90558968d339178d785037591a472e0",
+      "decision": "accept",
+      "meaning_sha256": "c10fcd63e97181aa084b61cf7ab9401cabebc08f1d3d3c377ffd44005895c128",
+      "accepted_historical_keys": [
+        "1e4cf5e0a931fb75435ec1d64f450e46437fb20ec640acc7a4d206d8936bcca9"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "2a209f9babc449dcea9fccbcff50923b63e86fc97ed86a2ced7fabe7615755ea",
+      "decision": "accept",
+      "meaning_sha256": "f8a68c1903dbf9107157e2e4d3f9a158923196300660bbe378e5bb8961101a94",
+      "accepted_historical_keys": [
+        "2073a22c8affa5c76a5cd171feb173797b9964c3a8e10b5a0fd8e20b96113bac"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "b222ae236a4ddeeb08c7b5c3ebc137d157ca28e240b379129df3c19179b6ce82",
+      "decision": "accept",
+      "meaning_sha256": "c976bc15c9fad8aafa61128583213935ec949353865c8809bc80b0ec8dc3169c",
+      "accepted_historical_keys": [
+        "3ae51e93bdb6a9a486bcca45b60f38739ac1019b7df24229a35db34fe1d1452b"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "c2d891a0e6a44aae052cbe01586f378f720ef2229dca4f0fdbd4237fb44d64b1",
+      "decision": "accept",
+      "meaning_sha256": "367f89824972e3b9646036359ce1effc1be8551a832e1f9048462def43507baf",
+      "accepted_historical_keys": [
+        "3d2a7e5ed0cf3cc95baf2bcb6c7d2eb3e97792cc28d65c470c193212f7739628"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "466a632c183442c3b77c1d4a43100cd8ae11c20354f6f612615d58d3e6dbda44",
+      "decision": "accept",
+      "meaning_sha256": "484e52a4f43506e992b30d78a1c81c0742f471623e81a7d02d623ee73e95f9bf",
+      "accepted_historical_keys": [
+        "4006a6f3e31432fe2805558f1d7d35211923a4f52f6b525b2eeb12435b9652ab"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "ba46e40b0f3a1204b18c14b31c0b023296ce66b21dc8160c95505d9e5e99170e",
+      "decision": "accept",
+      "meaning_sha256": "7a180f48a79476cea3e9cc0f83f47190a998419a5648484ebb1839747c3f1d32",
+      "accepted_historical_keys": [
+        "46ee3af5840c88098ce1e4711f364f0226d1afbc48b5b9614e27247ee513471b"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "ebbb117eb30785b560dea8dde6d168c4b5f7c246826e5ba5c005c3ba51a59ef0",
+      "decision": "accept",
+      "meaning_sha256": "f165afb21ec2a2b37a0df2db899e25cb16b4a44c802a91a66881a6c25ada73c2",
+      "accepted_historical_keys": [
+        "58c234106d72b31573db3f2cfdb83ad6d708b6892e1272bca037b065d36bb964"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "c54265fa8b59137dc6c3032c99822bb4d0753bdd15671125b182c0a063c7c9e6",
+      "decision": "accept",
+      "meaning_sha256": "f377c13ec592beb81fe162b34fa50dc7b198717376fa8473787612545ce8fe3e",
+      "accepted_historical_keys": [
+        "5b57e3124b3ee0223b23754d1a804e1bb8975a4b3ec4cb2958eb8ec307de0295"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "a8b89426b2770fb6ef2194a8c79192081772115a534fb600c5f0c561d3cf07aa",
+      "decision": "accept",
+      "meaning_sha256": "a0d0f8a2433c05c770dd9543578efe25026102a13797c3601bbab3f762ea5fa1",
+      "accepted_historical_keys": [
+        "649c59564e94af220557f612b0af3f09b34bb058f310435bfe48da0a132351c6"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "8770ede35a07b8aa4f76642bb8aa975ca6dd63b4b2e8ee503bd25d7d2caa780d",
+      "decision": "accept",
+      "meaning_sha256": "590c92cec67d23214b7d9d851f6011a4c5efd612d8130e5c41e306f09e396c98",
+      "accepted_historical_keys": [
+        "65346af9f0cbea046f2ee686c07e7c26c015bfde7c1524dc50b7565a61ead778"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "0254b5ed6a3b139e893198b714b2d2c497ce0503add56e2c198eb61657282a80",
+      "decision": "accept",
+      "meaning_sha256": "36d7ceec278b57518dfea3ae11274f0dd3392aa7f4e19d0d7793bc8f63d61765",
+      "accepted_historical_keys": [
+        "74438eef50f60d0d3f27142323ae3ed1ce2b5a7b2ecabf8a33b78fd5e260cb23"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "f57ded93227bd76533461557c777d31d1862044e7da4a56a3c0cb5f2881a941e",
+      "decision": "accept",
+      "meaning_sha256": "216daecece2289a6b9de80624b31a620b65501530a3c21cb02dc379f41022acc",
+      "accepted_historical_keys": [
+        "8a40a799ee161734fe5ea76524bab408a0858e74493569c3e6afbf923eef7fb6"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "dfba42da5e4793c536e711c584b684cd1c183166ffda0d347dbd9a574fae196e",
+      "decision": "accept",
+      "meaning_sha256": "5e14dd8ff0d378e5f10754fd57a5feff77b2e9c6df4ecb41a269b83af31a219a",
+      "accepted_historical_keys": [
+        "a739f3dad6143c2ab811e54a30f3d10b3e5cba1d9b4b3fb4ba5de32b14ef04f7"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "99e348d484adc32660b1520ff1a4ef13bb6ecc94843824f288133355a610b780",
+      "decision": "accept",
+      "meaning_sha256": "a1319cc631025b5cd9fbd783a9e39c46ffbecd3025fc225468a11b8013b1fc0a",
+      "accepted_historical_keys": [
+        "a8d63206fb8a4e2441c7143cf7da173fa64d7a00aa52397b3e72fdbe4c7823e9"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "c2a17e9a4ecd75a2bbb8f708dfaf26fc74021957ebd00b4cfd7374046b01e045",
+      "decision": "accept",
+      "meaning_sha256": "09f10a4c1e775812c83c27b0ea680e21f80e994eaff77720dcea2db539ead46c",
+      "accepted_historical_keys": [
+        "b4a93c9201e79b91118af6dfeb4c65573881550f3c8f31a03818d4e6301bc7ff"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "875b709e36227e87c8cc76608f22fd413e4c7d890cb34b09e070a761410a666a",
+      "decision": "accept",
+      "meaning_sha256": "e629c3cd1508c6da59457c49e875d3ec8e57802e274f3bafb7b6daf05b51228a",
+      "accepted_historical_keys": [
+        "bfd3527dd9f78090dea43bea2a874d34d28b27742c2d8cdc2807d8de645f5950"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "aad922c4ce070ce5635ba483ed5e746a0e30b52740cfb09936dd82020675abce",
+      "decision": "accept",
+      "meaning_sha256": "105d66977b2e70d4a3289f10f61ef785d3d88b9a716dab22d7f3e925dc8f348d",
+      "accepted_historical_keys": [
+        "f0188649a44008abb98fee76f6061f02067f49889ba003f39b7d0959a4e4484f"
+      ],
+      "rationale": "Exact full meaning bytes match an accepted row of the hash-pinned historical lock; no owner, occurrence-payload, target, ABI, contract, capability or permission normalization was applied."
+    },
+    {
+      "row_id": "12c0dd72c621ff525c0fadb1f2f73f7df19cc4047e91b852de5cc2d37fec54ce",
+      "decision": "accept",
+      "kind": "callable",
+      "meaning_sha256": "158c142fa16cc72a28efbede6f2c977da985f80db93c5f1f35e5119303fc2c1a",
+      "historical_comparison_key": "28db884c52cede441863f2c7370c06a8c521ae6127cc2c20a60110fb30d4484e",
+      "rationale": "Explicit review of changed Darwin futimens signature: fd:i32, shared reference to two CLayout<DarwinTimespec> elements, result:i32. DarwinTimespec is exactly signed64 seconds and signed64 nanoseconds, matching the installed primary Apple timespec/futimens declarations and the source two-element array, rather than the old custom timestamp-record signature. Current provider guards32 input bytes, decodes four words into aligned typed two-element storage and calls the same libSystem _futimens binding. Requirement/source owner, macos_arm64 target, binding producer, dylib/symbol and service envelope are preserved; published requirement reaches FilesystemMetadataMutation. This is an exact representation/signature update, not a new service grant. Runtime execution of futimens is not qualified by this review."
+    },
+    {
+      "row_id": "5559683f5923e02188ad3c2591bf67a7932cb862daf806028b1d9a41f96dfd58",
+      "decision": "accept",
+      "kind": "external_supply",
+      "meaning_sha256": "84868ac78a4ee4feabe6434eaa6eb19e7c517241919b5394df2054ba924c1fd3",
+      "historical_comparison_key": "28db884c52cede441863f2c7370c06a8c521ae6127cc2c20a60110fb30d4484e",
+      "rationale": "Explicit review of changed Darwin futimens signature: fd:i32, shared reference to two CLayout<DarwinTimespec> elements, result:i32. DarwinTimespec is exactly signed64 seconds and signed64 nanoseconds, matching the installed primary Apple timespec/futimens declarations and the source two-element array, rather than the old custom timestamp-record signature. Current provider guards32 input bytes, decodes four words into aligned typed two-element storage and calls the same libSystem _futimens binding. Requirement/source owner, macos_arm64 target, binding producer, dylib/symbol and service envelope are preserved; published requirement reaches FilesystemMetadataMutation. This is an exact representation/signature update, not a new service grant. Runtime execution of futimens is not qualified by this review. Full external-supply payload retains normalized /usr/lib/libSystem.B.dylib::_futimens import and exact matching requirement/supplier signatures."
+    },
+    {
+      "row_id": "149248ac16cd21455b0b8cf9257bf0cfea0977b3db4fafb5aea8f33f20f1cb45",
+      "decision": "accept",
+      "kind": "terminal_permission",
+      "meaning_sha256": "256fd4ab66b38d181c3d89ee3a50e2e56f08644db3bd2d4b2a705a50cecc571a",
+      "historical_comparison_key": "15fe9da2f7b79268c402c8f0a705f3d5dba38193a3d63d62caec3a2539335c43",
+      "rationale": "Console::read_byte permission has exactly the historical accepted payload with only owning root package substituted. Current root imports Console, declares reaches Console and selects ordinary ProgramEntry on all four hosted targets; this review is macos_arm64. The Console public service includes byte input/output and process exit; accepting the row does not claim that this exit65 witness performs input/output or donate filesystem authority."
+    },
+    {
+      "row_id": "97b0f54a0e104a3374f740d27059945b6523107ebf306ff23323779a9674e265",
+      "decision": "accept",
+      "kind": "terminal_permission",
+      "meaning_sha256": "5d772cf3cd88a8bac9831f0c46587bdb0c21b2b2529292e20e6389fa9a70e7c8",
+      "historical_comparison_key": "1e15884dd1dc9390b71f70ed82443a932c33e8ec70fd7a1a0956c27dd6f54b56",
+      "rationale": "Console::exit_process permission has exactly the historical accepted payload with only owning root package substituted. Current root imports Console, declares reaches Console and selects ordinary ProgramEntry on all four hosted targets; this review is macos_arm64. The Console public service includes byte input/output and process exit; accepting the row does not claim that this exit65 witness performs input/output or donate filesystem authority."
+    },
+    {
+      "row_id": "3421a766dfe73e0270a43f7764f53c948a1c431c6ece57801bff6de7613ec33f",
+      "decision": "accept",
+      "kind": "terminal_permission",
+      "meaning_sha256": "f37867cd3812c7ba2ec6b67ef1ea3e14118903c8cce766a5615361b4eb8e3c2a",
+      "historical_comparison_key": "5427925904a950d8085c4f0d40efe09a8643b383d00ca2a287b6d8a1fa69a6e5",
+      "rationale": "Console::write_byte permission has exactly the historical accepted payload with only owning root package substituted. Current root imports Console, declares reaches Console and selects ordinary ProgramEntry on all four hosted targets; this review is macos_arm64. The Console public service includes byte input/output and process exit; accepting the row does not claim that this exit65 witness performs input/output or donate filesystem authority."
+    }
+  ],
+  "unchanged_rows_reuse_rationale": "All262 current payloads were independently re-extracted from exact original review bytes and all claimed meaning hashes verified. For257, the entire payload equals a length-delimited meaning in the historical accepted WindowDemo lock, with exact accepted keys verified. No broad name/count comparison substitutes for bytes. Historical Source/producer/runtime identities are not relabeled.",
+  "source_applicability": "Package SourceID std9c13 is unchanged, but SDK source-byte identity to the historical R9 acceptance is not assumed: filesystem_abi.omg was added and filesystem_impl.omg/posix_filesystem_impl.omg changed between old5d013 and current0948. Those changes explain the two reviewed timestamp carrier payloads. The old lock does not contain the current content205e14 marker; current content is bound through the current review and exact source blobs.",
+  "source_identities": [
+    {
+      "path": "source/library/std/targets/macos_arm64/filesystem_abi.omg",
+      "git_blob": "4b227dd2053fc1c59c75913f38f563c5d15ce9c3",
+      "sha256": "14a12c108d2590f0ef812fcc638bc4e42aba6cc275bf8bd479c9ad37655565c2"
+    },
+    {
+      "path": "source/library/std/targets/macos_arm64/posix_filesystem_impl.omg",
+      "git_blob": "3c5834e74e311ee5bf623c097a68853e2ed2b182",
+      "sha256": "8e8293b8c8d396e7cbb95edeb711f04543440ac178ec4b254501f652847d9250"
+    },
+    {
+      "path": "source/library/std/targets/macos_arm64/filesystem_impl.omg",
+      "git_blob": "8c4ff46e9dde50e723e072e1844bd5574ce03ece",
+      "sha256": "e3b71af8629da8a5e23c929ce518635d6fb07cbee39056bee18267bcd4e32f61"
+    },
+    {
+      "path": "source/library/std/posix_filesystem_host.omg",
+      "git_blob": "e6f69f62a523685e27f5c92ab2d9ae743cbd5219",
+      "sha256": "d093be4d1ab0ef9db290902e2a4647bb1c3fb746266ad141a3c49a744f44a403"
+    },
+    {
+      "path": "source/library/std/console.omg",
+      "git_blob": "4a1ced6b337b1ad04f4e0180b7f2c7d24fc709fa",
+      "sha256": "902beaf8897722608018c49918b1e484b9c4223cfea6db3baa142ab257262256"
+    },
+    {
+      "path": "source/library/core/c_layout.omg",
+      "git_blob": "350344b4768825c0c4454da864b246e6efdfcc3a",
+      "sha256": "0549fd3542786bba54471e60451efca3b486f25bc7696d20cf856da1fa5d4edf"
+    },
+    {
+      "path": "tests/omega/pass/dependent/zero_case_predicate_entry_exit/main.omg",
+      "git_blob": "5cf6170ae4847e9500cda27504057b0310842495",
+      "sha256": "64d498e9c91de7e283f409b6308c9f4f154e5edb29e531c54ae9f464159cf649"
+    },
+    {
+      "path": "tests/omega/pass/dependent/zero_case_predicate_entry_exit/build.omg",
+      "git_blob": "ca17d6312ceb6b9fe1ed68195cf278c70a2c715e",
+      "sha256": "34aeaadba7971fe0579e75ced0414e47b71c94f97afb49df5a7f1b587b53eec9"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/zero-case-policy-review-r4-original.txt",
+      "sha256": "5d8f8f267c23b11ad8e2e4d2576b578c88bfabe3d6aef9f6a6dc7744f0ecc3bb"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/zero-case-policy-meaning-comparison-r4.json",
+      "sha256": "ce52e8e113ac7d0d1d08974107f76963689130d90092a5dbc2609c2a87c6a6a1"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/window-canonical-r9-update-output.omega.lock",
+      "sha256": "20317dbc3787ae06fe90a62b52e59ab520fae2c807da236d78621d20d9145748"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-bound-applied-r4-producer.json",
+      "sha256": "ec3a0f0f896de82769a5e6df2c368865528b3ccea51d3ade07a6f4c730cf93ac"
+    }
+  ],
+  "primary_sdk_headers": [
+    {
+      "path": "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/sys/stat.h",
+      "sha256": "31c8f252b05785343ca577c007657c0fbab45a182b60fc5b73994c621dc318d4"
+    },
+    {
+      "path": "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/sys/_types/_timespec.h",
+      "sha256": "3314f260a6b3ce09c02df185ba2253577b2a268dac05d3cad55f76bb3e8019e8"
+    }
+  ],
+  "limitations": [
+    "Recommendations apply only to these exact262 pending IDs/payloads in review SHA5d8f8f..., not future reviews or blanket package acceptance.",
+    "Project owner must apply exact decisions and complete ordinary resume; this review makes no package or lock mutation.",
+    "No fresh compiler, native or Terminal execution launched by reviewer; case repair final execution/source approval remains separate.",
+    "This is bounded retained policy meaning and source correspondence review, not a whole SDK safety proof or new filesystem runtime qualification.",
+    "A full Console requirement permission set covers its service surface even when the selected witness only calls exit_process; no additional filesystem capability is donated to the root."
+  ],
+  "blocking_findings": [],
+  "policy_or_source_mutations": false
+}

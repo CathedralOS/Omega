@@ -1,0 +1,1216 @@
+{
+  "accepted": true,
+  "decision": "accept",
+  "reviewer": "Codex independent semantic reviewer",
+  "candidate": "1fd11b2b41ed1ce30708eaee1fa7a1c2a3869d78",
+  "fixed_base": "0948d66c9cda2a14b141212ba98e6d126a08752d",
+  "scope": "Applied generic data-field correspondence across selected-case arithmetic, structural observations and complete declaration predicate transport, plus exact completed integer Const carrier labeling. Strengthened existing Interval<32> fact row and restored original zero-case customer.",
+  "blocking_findings": [],
+  "findings": [],
+  "producer": {
+    "source": "0948d66c9cda2a14b141212ba98e6d126a08752d",
+    "patch_sha256": "1aef1b714c207d620e762d538be481cd33ae0c2c3940384f2ec1fb0cb28939cc",
+    "command": [
+      "cargo",
+      "rustc",
+      "--locked",
+      "-p",
+      "omega",
+      "--bin",
+      "omega",
+      "--message-format=json",
+      "--",
+      "-C",
+      "strip=none"
+    ],
+    "exit": 0,
+    "seconds": 212.801156709,
+    "executable": {
+      "binary": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-bound-applied-r4-omega",
+      "sha256": "7eedd23e9a2a901ee7e7a2015fdf9d9d38d915dd66d6f8eebd09ffd423fe0df5",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "1"
+      }
+    }
+  },
+  "producer_equivalence": "Final Rust diff exactly equals retained R4 patch1aef1b714c207d620e762d538be481cd33ae0c2c3940384f2ec1fb0cb28939cc. Final differs from corpus source72e only in two selected golden files. R4 observations retain original producer identities.",
+  "semantic_assessment": [
+    "Exact receiving application and retained declaration/member coordinates replace template-symbol mismatch and guard-narrowing spelling fallback. Selected-case/common-field and fixed-integer restrictions remain.",
+    "Applied-field resolution supplies declaration identity only. Subject/version, operator meaning, readable observation, case admission and unobserved-descriptor fences remain authoritative; no new premise is manufactured.",
+    "Bare-field translation then reads the supplied definition row and its own types/relevance. Recursive full-roster checking and call/arrival/exclusive-return obligations remain intact.",
+    "Const label reads only an already completed receiving-declaration integer and formats its exact value. Full nominal/argument/payload validation remains independent; unsupported recipes refuse.",
+    "Nine twins remove only the default Interval ceiling, leaving named-domain ceiling, lo<=hi and type equations unchanged. They reject width_range proof. Valid Interval<64>hi40 cannot supply<=32. Missing Boolean type equation remains rejected.",
+    "Both runtime bundles discriminate signed/Boolean payloads and Range4/Empty77 plus named width6; both match-join choices execute. Nonzero front/back canaries retain their original values.",
+    "Restoration returns widths8/5; stale/open-window controls reject. Supplemental dirty-tag probe rejects whole-value observation and consumption while predicate is false: a tag guard does not repair dirty data.",
+    "Original unchanged Command<100> customer baseline rejects amount*10; reviewed ordinary R4 resume succeeds and actual native/Terminal return65. Fresh authored const replay updates/runs0/0 and rejects missing-ceiling twin."
+  ],
+  "evidence_summary": {
+    "direct_row_stages": 27,
+    "direct_row_native_terminal_agreements": 9,
+    "direct_row_intended_ceiling_rejects": 9,
+    "restoration_native_terminal_exit": "0/0",
+    "zero_case_native_terminal_exit": "65/65",
+    "fresh_const_replay": "update0; native0/Terminal0; ceiling reject1",
+    "corpus_source_total": 24,
+    "corpus_checked": 11,
+    "corpus_intended_rejects": 13,
+    "corpus_wrong_reason": 0,
+    "corpus_actual_engine_agreements": 11,
+    "not_24_executions": true,
+    "dirty_tag_guard_reject": true
+  },
+  "raw_records_verified": [
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-local-update.json",
+      "exit": 0,
+      "inputs_and_raw_outcome_verified": true
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-local-native.json",
+      "exit": 0,
+      "inputs_and_raw_outcome_verified": true
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-local-reject.json",
+      "exit": 1,
+      "inputs_and_raw_outcome_verified": true
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-field-update.json",
+      "exit": 0,
+      "inputs_and_raw_outcome_verified": true
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-field-native.json",
+      "exit": 0,
+      "inputs_and_raw_outcome_verified": true
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-field-reject.json",
+      "exit": 1,
+      "inputs_and_raw_outcome_verified": true
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-parameter-update.json",
+      "exit": 0,
+      "inputs_and_raw_outcome_verified": true
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-parameter-native.json",
+      "exit": 0,
+      "inputs_and_raw_outcome_verified": true
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-parameter-reject.json",
+      "exit": 1,
+      "inputs_and_raw_outcome_verified": true
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-call_result-update.json",
+      "exit": 0,
+      "inputs_and_raw_outcome_verified": true
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-call_result-native.json",
+      "exit": 0,
+      "inputs_and_raw_outcome_verified": true
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-call_result-reject.json",
+      "exit": 1,
+      "inputs_and_raw_outcome_verified": true
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-match_join-update.json",
+      "exit": 0,
+      "inputs_and_raw_outcome_verified": true
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-match_join-native.json",
+      "exit": 0,
+      "inputs_and_raw_outcome_verified": true
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-match_join-reject.json",
+      "exit": 1,
+      "inputs_and_raw_outcome_verified": true
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-const_name-update.json",
+      "exit": 0,
+      "inputs_and_raw_outcome_verified": true
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-const_name-native.json",
+      "exit": 0,
+      "inputs_and_raw_outcome_verified": true
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-const_name-reject.json",
+      "exit": 1,
+      "inputs_and_raw_outcome_verified": true
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-other_state-update.json",
+      "exit": 0,
+      "inputs_and_raw_outcome_verified": true
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-other_state-native.json",
+      "exit": 0,
+      "inputs_and_raw_outcome_verified": true
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-other_state-reject.json",
+      "exit": 1,
+      "inputs_and_raw_outcome_verified": true
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-other_machine-update.json",
+      "exit": 0,
+      "inputs_and_raw_outcome_verified": true
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-other_machine-native.json",
+      "exit": 0,
+      "inputs_and_raw_outcome_verified": true
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-other_machine-reject.json",
+      "exit": 1,
+      "inputs_and_raw_outcome_verified": true
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-target_body-update.json",
+      "exit": 0,
+      "inputs_and_raw_outcome_verified": true
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-target_body-native.json",
+      "exit": 0,
+      "inputs_and_raw_outcome_verified": true
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-target_body-reject.json",
+      "exit": 1,
+      "inputs_and_raw_outcome_verified": true
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-controls-r4-missing_type_equation-reject.json",
+      "exit": 1,
+      "inputs_and_raw_outcome_verified": true
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-controls-r4-other_default_argument-reject.json",
+      "exit": 1,
+      "inputs_and_raw_outcome_verified": true
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-controls-r4-stale_write-reject.json",
+      "exit": 1,
+      "inputs_and_raw_outcome_verified": true
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-controls-r4-case_write-reject.json",
+      "exit": 1,
+      "inputs_and_raw_outcome_verified": true
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-controls-r4-restoration-update.json",
+      "exit": 0,
+      "inputs_and_raw_outcome_verified": true
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-controls-r4-restoration-native.json",
+      "exit": 0,
+      "inputs_and_raw_outcome_verified": true
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-r4-zero-resume-r2.json",
+      "exit": 0,
+      "inputs_and_raw_outcome_verified": true
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-r4-zero-native-r2.json",
+      "exit": 65,
+      "inputs_and_raw_outcome_verified": true
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-r4-fresh-update.json",
+      "exit": 0,
+      "inputs_and_raw_outcome_verified": true
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-r4-fresh-native.json",
+      "exit": 0,
+      "inputs_and_raw_outcome_verified": true
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-r4-fresh-reject.json",
+      "exit": 1,
+      "inputs_and_raw_outcome_verified": true
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-r4-dirty-case-guard.json",
+      "exit": 1,
+      "inputs_and_raw_outcome_verified": true
+    }
+  ],
+  "pin_equivalence": "All nine positives/twins main.omg and build.omg match corpus pins byte-for-byte; negative expected diagnostic fragments match.",
+  "golden_attribution": [
+    {
+      "path": "tests/omega/corpus_outcomes.txt",
+      "changed_fixtures": [
+        "fail/dependent/case_where_payload_write_exit_open",
+        "fail/facts/case_dependent_default_domain_through_call_result_rejected",
+        "fail/facts/case_dependent_default_domain_through_const_name_rejected",
+        "fail/facts/case_dependent_default_domain_through_field_rejected",
+        "fail/facts/case_dependent_default_domain_through_local_rejected",
+        "fail/facts/case_dependent_default_domain_through_match_join_rejected",
+        "fail/facts/case_dependent_default_domain_through_other_machine_rejected",
+        "fail/facts/case_dependent_default_domain_through_other_state_rejected",
+        "fail/facts/case_dependent_default_domain_through_parameter_rejected",
+        "fail/facts/case_dependent_default_domain_through_target_body_rejected",
+        "fail/facts/case_predicate_missing_type_equation_rejected",
+        "fail/facts/case_predicate_other_default_argument_rejected",
+        "fail/facts/case_predicate_stale_write_rejected",
+        "pass/dependent/zero_case_predicate_entry_exit",
+        "pass/facts/case_dependent_default_domain_through_call_result_exit",
+        "pass/facts/case_dependent_default_domain_through_const_name_exit",
+        "pass/facts/case_dependent_default_domain_through_field_exit",
+        "pass/facts/case_dependent_default_domain_through_local_exit",
+        "pass/facts/case_dependent_default_domain_through_match_join_exit",
+        "pass/facts/case_dependent_default_domain_through_other_machine_exit",
+        "pass/facts/case_dependent_default_domain_through_other_state_exit",
+        "pass/facts/case_dependent_default_domain_through_parameter_exit",
+        "pass/facts/case_dependent_default_domain_through_target_body_exit",
+        "pass/facts/case_predicate_restoration_exit"
+      ],
+      "unselected_blocks_unchanged": true
+    },
+    {
+      "path": "tests/omega/corpus_both_macos_arm64.txt",
+      "changed_fixtures": [
+        "pass/dependent/zero_case_predicate_entry_exit",
+        "pass/facts/case_dependent_default_domain_through_call_result_exit",
+        "pass/facts/case_dependent_default_domain_through_const_name_exit",
+        "pass/facts/case_dependent_default_domain_through_field_exit",
+        "pass/facts/case_dependent_default_domain_through_local_exit",
+        "pass/facts/case_dependent_default_domain_through_match_join_exit",
+        "pass/facts/case_dependent_default_domain_through_other_machine_exit",
+        "pass/facts/case_dependent_default_domain_through_other_state_exit",
+        "pass/facts/case_dependent_default_domain_through_parameter_exit",
+        "pass/facts/case_dependent_default_domain_through_target_body_exit",
+        "pass/facts/case_predicate_restoration_exit"
+      ],
+      "unselected_blocks_unchanged": true
+    }
+  ],
+  "source_identities": [
+    {
+      "path": "omega-rust/psi/compilation/checking/src/machine_calls/structural_call_custody/declaration_predicates.rs",
+      "git_blob": "da082b0256059bcfdaa9394ecceb9ad88d233e70"
+    },
+    {
+      "path": "omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/guard_narrowing/case_facts.rs",
+      "git_blob": "3bebb0d53774367c8bae5d03b3705a4b049430ef"
+    },
+    {
+      "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/observed_projections.rs",
+      "git_blob": "3b2a374dd9e8f04989a85932c290da728a9a09c7"
+    },
+    {
+      "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/selected_contracts/terms.rs",
+      "git_blob": "1c06f125ecb662d50af7f1100238dc7c2ef10897"
+    },
+    {
+      "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_terms.rs",
+      "git_blob": "868c8e398a0b80a02edb34ab05a13d81cc544e36"
+    },
+    {
+      "path": "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/constant/initializer_normalization/resolved_payload.rs",
+      "git_blob": "a2c5453ba89e05c3c4dad51bcc157c52d35fee04"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/README.md",
+      "git_blob": "19f6215d7692fb0f3b0b35dfb604068efed67d92"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/call_result/invalid/expected.txt",
+      "git_blob": "08c8259349c03ee472c628f1d7a7dd69d128e8b5"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/call_result/invalid/main.omg",
+      "git_blob": "eca2fea56c03bc2e05fcdcb0b54a1d56a9d040f6"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/call_result/invalid/sample.json",
+      "git_blob": "3044f7fadd48bc489f72710feefacddb903c87c2"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/call_result/main.omg",
+      "git_blob": "eaf1fbe7877657496be8dfd70d9ae688af745ce6"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/const_name/invalid/expected.txt",
+      "git_blob": "08c8259349c03ee472c628f1d7a7dd69d128e8b5"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/const_name/invalid/main.omg",
+      "git_blob": "6236962cb2b55246365e92a053bf72af76c30334"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/const_name/invalid/sample.json",
+      "git_blob": "3044f7fadd48bc489f72710feefacddb903c87c2"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/const_name/main.omg",
+      "git_blob": "e0065a27352287cefdf6ed3db4baa2c609ba2e6d"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/controls/missing_type_equation/expected.txt",
+      "git_blob": "6b8def75df91f3072a5294ed6c9a4730d351d11b"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/controls/missing_type_equation/main.omg",
+      "git_blob": "e840aaa34946ae627fe219905ff589c33d1ab13f"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/controls/missing_type_equation/sample.json",
+      "git_blob": "a3a6ee687b2f24baa37d8f8218f0c6fb61386684"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/controls/other_default_argument/expected.txt",
+      "git_blob": "08c8259349c03ee472c628f1d7a7dd69d128e8b5"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/controls/other_default_argument/main.omg",
+      "git_blob": "baf4ffb6845aa154de28dc151b77b2cb688ac3f1"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/controls/other_default_argument/sample.json",
+      "git_blob": "3044f7fadd48bc489f72710feefacddb903c87c2"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/controls/restoration/main.omg",
+      "git_blob": "0fa7dc82d8369a1aee5fd65a05002afed4151b64"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/controls/stale_write/main.omg",
+      "git_blob": "50d4b5d3a452edc4d5156c6486f411f52de3cf95"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/field/invalid/expected.txt",
+      "git_blob": "08c8259349c03ee472c628f1d7a7dd69d128e8b5"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/field/invalid/main.omg",
+      "git_blob": "159445af338c9807c183bf189fad0f06485bd793"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/field/invalid/sample.json",
+      "git_blob": "3044f7fadd48bc489f72710feefacddb903c87c2"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/field/main.omg",
+      "git_blob": "42b8aa308039f7ba7f9fb7fbd510eaf325e1c536"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/local/invalid/expected.txt",
+      "git_blob": "08c8259349c03ee472c628f1d7a7dd69d128e8b5"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/local/invalid/main.omg",
+      "git_blob": "197cd6b85214139dc37af1ba6dedcca086ae04f9"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/local/invalid/sample.json",
+      "git_blob": "3044f7fadd48bc489f72710feefacddb903c87c2"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/local/main.omg",
+      "git_blob": "57c543b290a156f9f9099cb308b02cd50efe3314"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/match_join/invalid/expected.txt",
+      "git_blob": "08c8259349c03ee472c628f1d7a7dd69d128e8b5"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/match_join/invalid/main.omg",
+      "git_blob": "f7de96d92009f1a0ff2a4d99d8f58598f757f0dd"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/match_join/invalid/sample.json",
+      "git_blob": "3044f7fadd48bc489f72710feefacddb903c87c2"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/match_join/main.omg",
+      "git_blob": "2cf3426a978ccf40f8a821889e031fe9fdd1a2e7"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/other_machine/invalid/expected.txt",
+      "git_blob": "08c8259349c03ee472c628f1d7a7dd69d128e8b5"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/other_machine/invalid/main.omg",
+      "git_blob": "e05b12f579c6014553af350c91846f24fa98635a"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/other_machine/invalid/sample.json",
+      "git_blob": "3044f7fadd48bc489f72710feefacddb903c87c2"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/other_machine/main.omg",
+      "git_blob": "2aae7025d2b8b6af5e0144bf08d3f142ab4ec7c6"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/other_state/invalid/expected.txt",
+      "git_blob": "08c8259349c03ee472c628f1d7a7dd69d128e8b5"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/other_state/invalid/main.omg",
+      "git_blob": "af4c4d971ab3d0ff637461643747252e429da2f1"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/other_state/invalid/sample.json",
+      "git_blob": "3044f7fadd48bc489f72710feefacddb903c87c2"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/other_state/main.omg",
+      "git_blob": "912f9277b2f23aaf7e784ce12f4945d45ff8702e"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/parameter/invalid/expected.txt",
+      "git_blob": "08c8259349c03ee472c628f1d7a7dd69d128e8b5"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/parameter/invalid/main.omg",
+      "git_blob": "88b3eff43de2006435674e222fef69d936c1c260"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/parameter/invalid/sample.json",
+      "git_blob": "3044f7fadd48bc489f72710feefacddb903c87c2"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/parameter/main.omg",
+      "git_blob": "2e5d3eb17302d51f799f9d6dcdde6b80f0660e74"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/target_body/invalid/expected.txt",
+      "git_blob": "08c8259349c03ee472c628f1d7a7dd69d128e8b5"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/target_body/invalid/main.omg",
+      "git_blob": "abd0dd05adf5c8fd0d3a0d2815a150fb2797b710"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/target_body/invalid/sample.json",
+      "git_blob": "3044f7fadd48bc489f72710feefacddb903c87c2"
+    },
+    {
+      "path": "samples/cli/facts/case_dependent_default_domain/target_body/main.omg",
+      "git_blob": "e1aca4434c04e380182559b5b1cbc395c7989d37"
+    },
+    {
+      "path": "tests/omega/corpus_both_macos_arm64.txt",
+      "git_blob": "52a0d7fb6304e4056da181768ad6fcc61b1565cd"
+    },
+    {
+      "path": "tests/omega/corpus_outcomes.txt",
+      "git_blob": "038708d168aab231a2ca2869b577776b3c789c67"
+    },
+    {
+      "path": "tests/omega/fail/dependent/case_where_payload_write_exit_open/expected.txt",
+      "git_blob": "bb610f628f9864195fedfb03a6cca8ecab62dec1"
+    },
+    {
+      "path": "tests/omega/fail/facts/case_dependent_default_domain_through_call_result_rejected/expected.txt",
+      "git_blob": "08c8259349c03ee472c628f1d7a7dd69d128e8b5"
+    },
+    {
+      "path": "tests/omega/fail/facts/case_dependent_default_domain_through_call_result_rejected/main.omg",
+      "git_blob": "eca2fea56c03bc2e05fcdcb0b54a1d56a9d040f6"
+    },
+    {
+      "path": "tests/omega/fail/facts/case_dependent_default_domain_through_const_name_rejected/expected.txt",
+      "git_blob": "08c8259349c03ee472c628f1d7a7dd69d128e8b5"
+    },
+    {
+      "path": "tests/omega/fail/facts/case_dependent_default_domain_through_const_name_rejected/main.omg",
+      "git_blob": "6236962cb2b55246365e92a053bf72af76c30334"
+    },
+    {
+      "path": "tests/omega/fail/facts/case_dependent_default_domain_through_field_rejected/expected.txt",
+      "git_blob": "08c8259349c03ee472c628f1d7a7dd69d128e8b5"
+    },
+    {
+      "path": "tests/omega/fail/facts/case_dependent_default_domain_through_field_rejected/main.omg",
+      "git_blob": "159445af338c9807c183bf189fad0f06485bd793"
+    },
+    {
+      "path": "tests/omega/fail/facts/case_dependent_default_domain_through_local_rejected/expected.txt",
+      "git_blob": "08c8259349c03ee472c628f1d7a7dd69d128e8b5"
+    },
+    {
+      "path": "tests/omega/fail/facts/case_dependent_default_domain_through_local_rejected/main.omg",
+      "git_blob": "197cd6b85214139dc37af1ba6dedcca086ae04f9"
+    },
+    {
+      "path": "tests/omega/fail/facts/case_dependent_default_domain_through_match_join_rejected/expected.txt",
+      "git_blob": "08c8259349c03ee472c628f1d7a7dd69d128e8b5"
+    },
+    {
+      "path": "tests/omega/fail/facts/case_dependent_default_domain_through_match_join_rejected/main.omg",
+      "git_blob": "f7de96d92009f1a0ff2a4d99d8f58598f757f0dd"
+    },
+    {
+      "path": "tests/omega/fail/facts/case_dependent_default_domain_through_other_machine_rejected/expected.txt",
+      "git_blob": "08c8259349c03ee472c628f1d7a7dd69d128e8b5"
+    },
+    {
+      "path": "tests/omega/fail/facts/case_dependent_default_domain_through_other_machine_rejected/main.omg",
+      "git_blob": "e05b12f579c6014553af350c91846f24fa98635a"
+    },
+    {
+      "path": "tests/omega/fail/facts/case_dependent_default_domain_through_other_state_rejected/expected.txt",
+      "git_blob": "08c8259349c03ee472c628f1d7a7dd69d128e8b5"
+    },
+    {
+      "path": "tests/omega/fail/facts/case_dependent_default_domain_through_other_state_rejected/main.omg",
+      "git_blob": "af4c4d971ab3d0ff637461643747252e429da2f1"
+    },
+    {
+      "path": "tests/omega/fail/facts/case_dependent_default_domain_through_parameter_rejected/expected.txt",
+      "git_blob": "08c8259349c03ee472c628f1d7a7dd69d128e8b5"
+    },
+    {
+      "path": "tests/omega/fail/facts/case_dependent_default_domain_through_parameter_rejected/main.omg",
+      "git_blob": "88b3eff43de2006435674e222fef69d936c1c260"
+    },
+    {
+      "path": "tests/omega/fail/facts/case_dependent_default_domain_through_target_body_rejected/expected.txt",
+      "git_blob": "08c8259349c03ee472c628f1d7a7dd69d128e8b5"
+    },
+    {
+      "path": "tests/omega/fail/facts/case_dependent_default_domain_through_target_body_rejected/main.omg",
+      "git_blob": "abd0dd05adf5c8fd0d3a0d2815a150fb2797b710"
+    },
+    {
+      "path": "tests/omega/fail/facts/case_predicate_missing_type_equation_rejected/expected.txt",
+      "git_blob": "6b8def75df91f3072a5294ed6c9a4730d351d11b"
+    },
+    {
+      "path": "tests/omega/fail/facts/case_predicate_missing_type_equation_rejected/main.omg",
+      "git_blob": "e840aaa34946ae627fe219905ff589c33d1ab13f"
+    },
+    {
+      "path": "tests/omega/fail/facts/case_predicate_other_default_argument_rejected/expected.txt",
+      "git_blob": "08c8259349c03ee472c628f1d7a7dd69d128e8b5"
+    },
+    {
+      "path": "tests/omega/fail/facts/case_predicate_other_default_argument_rejected/main.omg",
+      "git_blob": "baf4ffb6845aa154de28dc151b77b2cb688ac3f1"
+    },
+    {
+      "path": "tests/omega/fail/facts/case_predicate_stale_write_rejected/main.omg",
+      "git_blob": "50d4b5d3a452edc4d5156c6486f411f52de3cf95"
+    },
+    {
+      "path": "tests/omega/pass/facts/case_dependent_default_domain_through_call_result_exit/main.omg",
+      "git_blob": "eaf1fbe7877657496be8dfd70d9ae688af745ce6"
+    },
+    {
+      "path": "tests/omega/pass/facts/case_dependent_default_domain_through_const_name_exit/main.omg",
+      "git_blob": "e0065a27352287cefdf6ed3db4baa2c609ba2e6d"
+    },
+    {
+      "path": "tests/omega/pass/facts/case_dependent_default_domain_through_field_exit/main.omg",
+      "git_blob": "42b8aa308039f7ba7f9fb7fbd510eaf325e1c536"
+    },
+    {
+      "path": "tests/omega/pass/facts/case_dependent_default_domain_through_local_exit/main.omg",
+      "git_blob": "57c543b290a156f9f9099cb308b02cd50efe3314"
+    },
+    {
+      "path": "tests/omega/pass/facts/case_dependent_default_domain_through_match_join_exit/main.omg",
+      "git_blob": "2cf3426a978ccf40f8a821889e031fe9fdd1a2e7"
+    },
+    {
+      "path": "tests/omega/pass/facts/case_dependent_default_domain_through_other_machine_exit/main.omg",
+      "git_blob": "2aae7025d2b8b6af5e0144bf08d3f142ab4ec7c6"
+    },
+    {
+      "path": "tests/omega/pass/facts/case_dependent_default_domain_through_other_state_exit/main.omg",
+      "git_blob": "912f9277b2f23aaf7e784ce12f4945d45ff8702e"
+    },
+    {
+      "path": "tests/omega/pass/facts/case_dependent_default_domain_through_parameter_exit/main.omg",
+      "git_blob": "2e5d3eb17302d51f799f9d6dcdde6b80f0660e74"
+    },
+    {
+      "path": "tests/omega/pass/facts/case_dependent_default_domain_through_target_body_exit/main.omg",
+      "git_blob": "e1aca4434c04e380182559b5b1cbc395c7989d37"
+    },
+    {
+      "path": "tests/omega/pass/facts/case_predicate_restoration_exit/main.omg",
+      "git_blob": "0fa7dc82d8369a1aee5fd65a05002afed4151b64"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-local-update.json",
+      "sha256": "97c114f904441a1321aa848131614e286c36142551f3d48d9698380a8e0fd479"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-local-update.stdout",
+      "sha256": "f1bd91d3a5eea1c96747d640363c0636bde99ab773e7d4c2175e9059058a82e7"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-local-update.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-local-native.json",
+      "sha256": "e9def294ff56aeff5a57dda95aa020c70d063905e43d8364dcd5e179680183c0"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-local-native.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-local-native.stderr",
+      "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-local-reject.json",
+      "sha256": "e2df069a59551bdfc36cf51027fba6b2d340a929bde54841fae23f2726a69e11"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-local-reject.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-local-reject.stderr",
+      "sha256": "8f1613c7d3b512c4b69967b20b17f86262ea637bf460a39a6756b560e4bfdb2d"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-field-update.json",
+      "sha256": "e01eb744fbdc60b4ad3e5ed5fbe81602cbe177a875dce8c893b76a64bbeb3d22"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-field-update.stdout",
+      "sha256": "9eb1c98ab156408cc2d4fc82905601105420274f8a92312d9f357268aa89237f"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-field-update.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-field-native.json",
+      "sha256": "7aafc6265d2080500907826747806ecd935aab83ab550c043883313ee19e7a8e"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-field-native.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-field-native.stderr",
+      "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-field-reject.json",
+      "sha256": "6ae0060f30d68fa58219bb960499d39171645353721b311287291001f7330bce"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-field-reject.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-field-reject.stderr",
+      "sha256": "e2102cafc08bf785f613c2920b29b8226d47e0ab01aa15b6085da9a09092aa7f"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-parameter-update.json",
+      "sha256": "4cc9e81d6561b034f3be497731e742f7811e2498de982ff631c0d940f02ae099"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-parameter-update.stdout",
+      "sha256": "0214bc63f2c6da2c38e7418d48d014df670f0d812316ea5fc23c098949ea4020"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-parameter-update.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-parameter-native.json",
+      "sha256": "fd94d91355f4ffdd9a0bc07e4cccab4b3dbc485a92a3e63e2db5ad612f23ae0e"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-parameter-native.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-parameter-native.stderr",
+      "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-parameter-reject.json",
+      "sha256": "1f5274cb80116d8cbaeaf9b153ee381bd00fffb738c99e459c7e8435e20358ca"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-parameter-reject.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-parameter-reject.stderr",
+      "sha256": "68213b140b095ab58fefee3965e033febd5f5716e4900deafc4dbddab8785c43"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-call_result-update.json",
+      "sha256": "cb95d3c1f2967973dc59b0c841796e54ccd8b67faa038654396ecadfbbb04964"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-call_result-update.stdout",
+      "sha256": "88d69ee5fbed499ad1c9a13056eea3554517b660160412fdaaef4800f2d4aed1"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-call_result-update.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-call_result-native.json",
+      "sha256": "173f9819de26dd616f4376c5cf3daa8b2c05bd02bec190b4256b3625da6be896"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-call_result-native.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-call_result-native.stderr",
+      "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-call_result-reject.json",
+      "sha256": "81b1ccd070cd7c23f19fac7a2cef56213afcfaa23f8eb907db1d7ea1c755709e"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-call_result-reject.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-call_result-reject.stderr",
+      "sha256": "a79b4e76e3674eb7fe97a6581f6efa30c4072dbff096a84036020a99c0a40bc3"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-match_join-update.json",
+      "sha256": "34a0b658e46950ff23a231055b9a0028a0d1348150c95591391c5b0d0d00d477"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-match_join-update.stdout",
+      "sha256": "36378ecf6efa3ecae71337899207ecaf65716124b84f3ba6068b32e4b5e29321"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-match_join-update.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-match_join-native.json",
+      "sha256": "bf9bcd4520e465ea96406dec668f3429cb342d551c525fe9e259b273e00c436d"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-match_join-native.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-match_join-native.stderr",
+      "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-match_join-reject.json",
+      "sha256": "f0736c19fccbb8e217ed99a8b8f19032cac3b6ded269e49a5d607e7560155b39"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-match_join-reject.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-match_join-reject.stderr",
+      "sha256": "31176e74409676c9a3ce80aefeba6bf02eb03a25bd5fe54df2f622af0e5f5786"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-const_name-update.json",
+      "sha256": "5ebf7710d938e8ce7303ed48c79f0437cf895ac890f95e66036ad3b2523ad7be"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-const_name-update.stdout",
+      "sha256": "bc3044df19ddc076f6f63ccf552cb1cb0e3e1e7abaeaf846026c7f0bab31dd2f"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-const_name-update.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-const_name-native.json",
+      "sha256": "bc6477b6452293479eee8b28f7a0e72a126bea11343906d6bda7c3cfaf04350a"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-const_name-native.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-const_name-native.stderr",
+      "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-const_name-reject.json",
+      "sha256": "b5b8dc30fa3911c8ca8998d15b98bdef2f10e49a227c1c5e88b6adbf9dd326d6"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-const_name-reject.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-const_name-reject.stderr",
+      "sha256": "49ee551788d3837de31bcb2a6723818a02b46fa72cbd6eb6c563565c7749ad9d"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-other_state-update.json",
+      "sha256": "ec3566b18b2945e5573cdd2900c73da35a3a8f38cf46c82cb63c63c395dccfd1"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-other_state-update.stdout",
+      "sha256": "c71a81a7b7549475e0e7c79888b8319cdc3a1181966061bdf8812cbe96b078fa"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-other_state-update.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-other_state-native.json",
+      "sha256": "c53c968fc3229bb53d1d2bb1f85cee78275448b37e5cfe66159faaf70240ac4d"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-other_state-native.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-other_state-native.stderr",
+      "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-other_state-reject.json",
+      "sha256": "5bae1f309803ad7f2402f13dbcc901ebb4ed41b8897883553fb1af35eacd5c7f"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-other_state-reject.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-other_state-reject.stderr",
+      "sha256": "e2ffd8f4ad2e0d5a6541a7816f870f1eec220d9b1a8f2c2272e0bcf0e32cfa19"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-other_machine-update.json",
+      "sha256": "3f3b4c2214742f802bf79e5a90cb786df3d4b44b60af206068ff96ac3343383a"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-other_machine-update.stdout",
+      "sha256": "130d40af7e1f0cced4450ce8a616bb7bacd80641a941f7629af7f9b718433ef8"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-other_machine-update.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-other_machine-native.json",
+      "sha256": "1ad94ffb3c24c1f663edce43542eef14c3e83362dfac8ef90dca1cf9b0e9969b"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-other_machine-native.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-other_machine-native.stderr",
+      "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-other_machine-reject.json",
+      "sha256": "d2ac0e2bdcf66a959353a7c94c157edf802121f9cabef6db7c458556baac68da"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-other_machine-reject.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-other_machine-reject.stderr",
+      "sha256": "83788d8b5e3eb80cc4e9addc10782edb727a5ecb28359b6e65496ac5e462900c"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-target_body-update.json",
+      "sha256": "2e6a9cba6844d9b5481e2342a66e25b76e0ffddeb87989716c9b5bc804890841"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-target_body-update.stdout",
+      "sha256": "b21cc1d578f766f603a2ab8a560655c0a8c7a57e551138000694a61253f996da"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-target_body-update.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-target_body-native.json",
+      "sha256": "ca981bc00fc8ab336870dc125039fe216eeef2fa91dd1ee92a34a14d403c2e0c"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-target_body-native.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-target_body-native.stderr",
+      "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-target_body-reject.json",
+      "sha256": "55a7a6074338e362bc25d5a5e231491b0e1ee091bcfa9f73fc516d55cb191911"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-target_body-reject.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-target_body-reject.stderr",
+      "sha256": "31895bfecebf307991950dd46cbbcb00fe2ca2b339e2f54387ae77a0da3e73d9"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-controls-r4-missing_type_equation-reject.json",
+      "sha256": "6526b28ad2b62abd2b41f93019df5804727661353b02d1b3e967e33830f1a3f6"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-controls-r4-missing_type_equation-reject.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-controls-r4-missing_type_equation-reject.stderr",
+      "sha256": "93656d01d6fda607c1d30ec37d8afb32b8fe51ffb40f27de2f3c86ae939f8c19"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-controls-r4-other_default_argument-reject.json",
+      "sha256": "5571ab8b04612703327dd75ee1f12b5b86ee6657c829c5ad52bb9b37ce6be34c"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-controls-r4-other_default_argument-reject.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-controls-r4-other_default_argument-reject.stderr",
+      "sha256": "13cebb3b1156bf0a12ad6e54a752768159535dd13fdc57b76ead4809bfc1db69"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-controls-r4-stale_write-reject.json",
+      "sha256": "1c5ccd3786094ec03e6bb27b606fb52109baf6b528646d714c90e6c60417a09d"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-controls-r4-stale_write-reject.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-controls-r4-stale_write-reject.stderr",
+      "sha256": "a8610b7c02d3c285d9f9ad2b7a244cdb4662d3512647570dadbb7e431bbdaf85"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-controls-r4-case_write-reject.json",
+      "sha256": "1513f14d956913109816616bda64f1c230190ed3b7249e45bf3aa3d7a5dd34c5"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-controls-r4-case_write-reject.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-controls-r4-case_write-reject.stderr",
+      "sha256": "a4f405f813b63218e0a921b4d5260b020aa9062db13e01ef92378af19eb69f7e"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-controls-r4-restoration-update.json",
+      "sha256": "b534bd7a4f0875ae24866d7cd9a8fbadf4438d493770c566905d02591d3c1de4"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-controls-r4-restoration-update.stdout",
+      "sha256": "1369a8b8403681a825b4e62eff9e3d55ab1a208de21f4194fed30a53b67bf1ba"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-controls-r4-restoration-update.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-controls-r4-restoration-native.json",
+      "sha256": "52afe2adcdae88ebfb8c76cf56ee18fbbfeacf293d79538d83eab64c303ce14d"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-controls-r4-restoration-native.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-controls-r4-restoration-native.stderr",
+      "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-r4-zero-resume-r2.json",
+      "sha256": "8cc01cee443939b746f3dc4aa859b67cb3a187b51f37cbd2cc19e59f0d543d9f"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-r4-zero-resume-r2.stdout",
+      "sha256": "2b69012df098dad6a586857cc3cfaef834ccf0c83f4c32059fbf5f262f47564d"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-r4-zero-resume-r2.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-r4-zero-native-r2.json",
+      "sha256": "defc4303ebe6433004e11956dc5d559e2afdd2569011322739048f8b870be319"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-r4-zero-native-r2.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-r4-zero-native-r2.stderr",
+      "sha256": "62fc26f18430219046112fb84e52ea750caa7664109d3503ca25ec2c70c30355"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-r4-fresh-update.json",
+      "sha256": "3d5a1c38bf543d16edda308dcfeaa2d658428cabe8875dff6ff0d0d1dc9bfd93"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-r4-fresh-update.stdout",
+      "sha256": "1bdbd018084f275f2c4f1f0beab01a7cf41041faf76571a7e31f86352eea3109"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-r4-fresh-update.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-r4-fresh-native.json",
+      "sha256": "8c414f2d904bdb3cbc821f7691807a1fd7888a6845436c2dad2bb6713b94d652"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-r4-fresh-native.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-r4-fresh-native.stderr",
+      "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-r4-fresh-reject.json",
+      "sha256": "28a598f0825c4c273dedd8adecfa7b3d6ca17d6e5005569e268a78fff23611de"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-r4-fresh-reject.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-r4-fresh-reject.stderr",
+      "sha256": "7c8387a4766d52d1daf7bd6d7a66045e51f466912652a126152506cccd51644d"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-r4-dirty-case-guard.json",
+      "sha256": "56f6166f7e0a0e5ffc024cf8e3d49e533745126f73803fc8bbbb033c4939128c"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-r4-dirty-case-guard.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-r4-dirty-case-guard.stderr",
+      "sha256": "04422627a1396e667e53d689cfd7fd904b5342ff6ea9678a1944f7ff55375a19"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-corpus-r4-check-gate.json",
+      "sha256": "a708cd85678dfd8679d1cec4d4e656c0e6ff2dfe2d4e15eca203833c01614b40"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-corpus-r4-both-gate.json",
+      "sha256": "3c103e769ed7f164b837dec349f42689aeee1a428c9807b1113103a4925515eb"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-bound-applied-r4-producer.json",
+      "sha256": "ec3a0f0f896de82769a5e6df2c368865528b3ccea51d3ade07a6f4c730cf93ac"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-bound-applied-r4-omega.compiler-profile.json",
+      "sha256": "1c263e0986824278608939988d1af2b01484206cb2c566450218dabf8f313adb"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-bound-corpus-r4-producer.json",
+      "sha256": "b6762c5431ad3c228939eb674538aa2303b26c799797819dbfeb8592a5408be4"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-bound-corpus-r4-omega.compiler-profile.json",
+      "sha256": "c947ff137e09dc2ac390d02af682dfb9293ef725042ec3a418a4048998773534"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-final-review-context.json",
+      "sha256": "d788a0b0be0ace62d047997f1c27b5614f21401b7a7ef4135e4d8fde49d6c012"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-final-evidence-ledger.json",
+      "sha256": "6a6038900400248e303ffe568c2e69fb841f81d790bd9d501beec8d3ebb2cf61"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-results.json",
+      "sha256": "a0833c4f8545a3ac4849c158d125f6b1e8c47965c501d8320419a85199f8a923"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-controls-r4-results.json",
+      "sha256": "205fa0b9074807c721a15610d252500ef8913b021338ddad85849fa98a6a6616"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-corpus-r4-results.json",
+      "sha256": "6a1ba8fec0a0aba7d48e5bbca9da078432112fd6c1c209e78e35eeeeb4d0ab44"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/main0948-zero-case-check-r1.json",
+      "sha256": "2b2a0eec12521a570f7874db9c50c4d648cd90129dc224c59e368dcf2b9596d5"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/main0948-zero-case-check-r1.stderr",
+      "sha256": "305b8ebd776bd711ed2154214dffef103c612e99ca1563710c80c69fe7353945"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/zero-case-policy-independent-review-r4.json",
+      "sha256": "a507ce8d6eb540ac31935dd31d10ebd1fef273e72981af11c53046950e0574d2"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/zero-case-policy-review-r4-original.txt",
+      "sha256": "5d8f8f267c23b11ad8e2e4d2576b578c88bfabe3d6aef9f6a6dc7744f0ecc3bb"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-r4-check-rules-final.stdout",
+      "sha256": "eb24129dc2a283951837658a2b999c84b7ff07e037a132a4bdb70693026e4f2c"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-r4-check-rules-final.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-bound-applied-r4-source.patch",
+      "sha256": "1aef1b714c207d620e762d538be481cd33ae0c2c3940384f2ec1fb0cb28939cc"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/build/corpus-source/72e837cecddfd751c8529dc6c52df07b87f5a95f.bundle",
+      "sha256": "cd43b8b654325c09aac16a4b78685360247f578035cd1f10b7a2a68b1a1997e4"
+    }
+  ],
+  "limitations": [
+    "Abstract symbolic old-hi snapshot save/restore remains refused at default-domain restoration; this concrete correspondence repair does not close that broader parent frontier.",
+    "Actual execution is macos_arm64 only. Other hosted entry bindings are authored; other-host runtime is unverified.",
+    "No GUI qualification, filesystem API runtime, full SDK audit, broad CANON migration closure or suffix retirement is claimed.",
+    "Unsupported predicate/Const forms remain conservative refusals; no independent Gamma reconstruction claim.",
+    "First-use policy pending and invalid resume --target setup attempt remain historical, not guest results; exact reviewed262 decisions and normal resume establish ordinary customer admission.",
+    "Corpus dirty flag reflects recording; source fixtures match72e and only scoped golden files differ at finalHEAD. Historical README results retain original host/producer attribution."
+  ],
+  "reviewer_launched_builds_tests_or_compiler": false,
+  "source_policy_or_lock_mutation_by_reviewer": false
+}

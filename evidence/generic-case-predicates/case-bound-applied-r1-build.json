@@ -1,0 +1,19 @@
+{
+  "source": "0948d66c9cda2a14b141212ba98e6d126a08752d",
+  "patch_sha256": "f1bd371f7049ecd94c6b905756f856ddc7bd5fb684fe99538c7376ea0220b792",
+  "command": [
+    "cargo",
+    "rustc",
+    "--locked",
+    "-p",
+    "omega",
+    "--bin",
+    "omega",
+    "--message-format=json",
+    "--",
+    "-C",
+    "strip=none"
+  ],
+  "exit": 0,
+  "seconds": 217.218727291
+}

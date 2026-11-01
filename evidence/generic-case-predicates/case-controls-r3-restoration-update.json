@@ -1,0 +1,28 @@
+{
+  "command": [
+    "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-bound-applied-r3-omega",
+    "update",
+    "--project",
+    "samples/cli/facts/case_dependent_default_domain/controls/restoration",
+    "--target",
+    "macos_arm64",
+    "--offline"
+  ],
+  "producer": {
+    "binary": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-bound-applied-r3-omega",
+    "sha256": "fe3cf9736a3a9c0f610f5545016c1adccc8cd99c7c69af1045abf6be10eee650",
+    "profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "1"
+    }
+  },
+  "inputs": {
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/case_dependent_default_domain/controls/restoration/build.omg": "02870a7635eba1e7ac1c6a7a335a95a3f117f62d29aa7c8a5a4aa7b0ad437147",
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/case_dependent_default_domain/controls/restoration/main.omg": "dd530d6ee04304d0519994b47714ee13bbd97b341f3a030c9f3794441062dbc8"
+  },
+  "utc": "2026-11-01T22:04:04.355492+00:00",
+  "exit": 1,
+  "seconds": 2.199436334,
+  "stdout": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-controls-r3-restoration-update.stdout",
+  "stderr": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-controls-r3-restoration-update.stderr"
+}

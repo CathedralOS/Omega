@@ -1,0 +1,2 @@
+native exit 65
+interp exit: 65

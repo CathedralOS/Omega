@@ -1,0 +1,8 @@
+{
+  "base": "0948d66c9cda2a14b141212ba98e6d126a08752d",
+  "fetched_main": "cfc81afeb60",
+  "owned_rust_paths_changed_on_main": [],
+  "open_prs_checked": [1164,1244,1269,1286,1291,1307],
+  "1164_overlap": "Different DataComponentSelector::Case early arms and observed-carrier wrapper matching; the named generic-field selector joins repaired here remain untouched. Source inspection found no duplicate repair or prerequisite. The existing case-only sum programs do not enter the new anonymous case-component branch.",
+  "integration": "No integration or main-driven rebuild performed. Queue owns current-main admission."
+}

@@ -1,0 +1,8 @@
+No accepted lock baseline: reviewing the complete candidate graph.
+macos_arm64: checked 1 source packages.
+New package source: case_predicate_const_name [754620794a36]: no prior revision to compare.
+Standalone candidate source: case_predicate_const_name [754620794a36]: 6 changed entries.
+Source-code output (separate from editable capability review): /Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-fresh-replay/build/package-manager/source-diff.txt
+
+Published build.omg and omega.lock for 1 packages across 1 targets.
+review: /Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-fresh-replay/build/package-manager/review-macos_arm64.txt

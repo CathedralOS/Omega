@@ -1,0 +1,64 @@
+[
+  {
+    "name": "missing_type_equation",
+    "stage": "reject",
+    "exit": 1,
+    "seconds": 0.41256270799999994,
+    "expected": false,
+    "markers": [
+      "match arms produce incompatible values"
+    ],
+    "record": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-controls-r3-missing_type_equation-reject.json"
+  },
+  {
+    "name": "other_default_argument",
+    "stage": "reject",
+    "exit": 1,
+    "seconds": 1.2397359170000002,
+    "expected": true,
+    "markers": [
+      "cannot prove requires contract for call width_range"
+    ],
+    "record": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-controls-r3-other_default_argument-reject.json"
+  },
+  {
+    "name": "stale_write",
+    "stage": "reject",
+    "exit": 1,
+    "seconds": 0.6090827910000001,
+    "expected": true,
+    "markers": [
+      "default domain is still FALSE"
+    ],
+    "record": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-controls-r3-stale_write-reject.json"
+  },
+  {
+    "name": "case_write",
+    "stage": "reject",
+    "exit": 1,
+    "seconds": 0.413301167,
+    "expected": true,
+    "markers": [
+      "default domain is still FALSE"
+    ],
+    "record": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-controls-r3-case_write-reject.json"
+  },
+  {
+    "name": "restoration",
+    "stage": "update",
+    "exit": 1,
+    "seconds": 2.199436334,
+    "expected": false,
+    "markers": [],
+    "record": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-controls-r3-restoration-update.json"
+  },
+  {
+    "name": "zero_case",
+    "stage": "update",
+    "exit": 1,
+    "seconds": 49.503758792,
+    "expected": false,
+    "markers": [],
+    "record": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-controls-r3-zero_case-update.json"
+  }
+]

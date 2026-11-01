@@ -1,0 +1,96 @@
+    Checking typenum v1.20.1
+    Checking compiler-storage v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/omega-rust/psi/foundation/compiler-storage)
+    Checking libc v0.2.189
+    Checking cfg-if v1.0.4
+    Checking cpufeatures v0.2.17
+    Checking arc-swap v1.9.2
+    Checking serde_core v1.0.229
+    Checking arena v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/omega-rust/psi/foundation/arena)
+    Checking generic-array v0.14.7
+    Checking zmij v1.0.23
+    Checking crypto-common v0.1.7
+    Checking block-buffer v0.10.4
+    Checking extents v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/omega-rust/psi/foundation/extents)
+    Checking digest v0.10.7
+    Checking sha2 v0.10.9
+    Checking optimization v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/omega-rust/psi/foundation/optimization-selections)
+    Checking memchr v2.8.3
+    Checking semantic-vocabulary v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/omega-rust/psi/foundation/semantic-vocabulary)
+    Checking numerics v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/omega-rust/psi/foundation/numerics)
+    Checking itoa v1.0.18
+    Checking serde_json v1.0.151
+    Checking language-core v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/omega-rust/psi/foundation/language-core)
+    Checking serde v1.0.229
+    Checking source v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/omega-rust/psi/foundation/source)
+    Checking layout-plans v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/omega-rust/psi/foundation/layout-plans)
+    Checking crossbeam-utils v0.8.23
+    Checking symbols v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/omega-rust/psi/foundation/symbols)
+    Checking build-time-values v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/omega-rust/psi/foundation/build-time-values)
+    Checking diagnostics v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/omega-rust/psi/foundation/diagnostics)
+    Checking access-plans v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/omega-rust/psi/foundation/access-plans)
+    Checking phase-profile v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/omega-rust/psi/foundation/phase-profile)
+    Checking language-semantics v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/omega-rust/psi/foundation/language-semantics)
+    Checking crossbeam-epoch v0.9.21
+    Checking crossbeam-deque v0.8.8
+    Checking rayon-core v1.13.0
+    Checking either v1.19.0
+    Checking syntax-trees v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/omega-rust/psi/compilation/representations/syntax-trees)
+    Checking rayon v1.12.0
+warning: unused import: `FixedArrayLength`
+  --> omega-rust/psi/compilation/representations/syntax-trees/src/syntax_trees/body_copies.rs:25:23
+   |
+25 |     DomainConstraint, FixedArrayLength, TypeConstraintNode, TypeReferenc...
+   |                       ^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `MatchSubjectCapture`
+ --> omega-rust/psi/compilation/representations/syntax-trees/src/syntax_trees/item_copies.rs:7:43
+  |
+7 | use crate::expression::{ExpressionHandle, MatchSubjectCapture, StaticMach...
+  |                                           ^^^^^^^^^^^^^^^^^^^
+
+    Checking flow-effects v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/omega-rust/psi/foundation/flow-effects)
+    Checking typed-trees v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/omega-rust/psi/compilation/representations/typed-trees)
+    Checking terminal-psi v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/omega-rust/psi/compilation/representations/terminal-psi)
+warning: `syntax-trees` (lib) generated 2 warnings (run `cargo fix --lib -p syntax-trees` to apply 2 suggestions)
+    Checking symbol-resolved-trees v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/omega-rust/psi/compilation/representations/symbol-resolved-trees)
+    Checking syntax-trees-to-symbol-resolved-trees v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees)
+    Checking proof-admission v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/omega-rust/psi/compilation/proof/admission)
+warning: unreachable pattern
+   --> omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation/type_aliases.rs:845:25
+    |
+840 | /                         ConformanceMember::Machine(machine)
+841 | |                         | ConformanceMember::Synthesized(machine)
+842 | |                         | ConformanceMember::TraitDefault { machine, .. } => {
+    | |_________________________________________________________________________- matches all the relevant values
+...
+845 |                           _ => {}
+    |                           ^ no value can reach this
+    |
+    = note: `#[warn(unreachable_patterns)]` (part of `#[warn(unused)]`) on by default
+
+warning: `syntax-trees-to-symbol-resolved-trees` (lib) generated 1 warning
+    Checking facts v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/omega-rust/psi/compilation/representations/checked-trees/facts)
+    Checking representation-selections v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/omega-rust/psi/compilation/checking/representation-planning/selections)
+    Checking checked-trees v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/omega-rust/psi/compilation/representations/checked-trees)
+warning: unused import: `numerics::bignum::BigInt`
+  --> omega-rust/psi/compilation/representations/checked-trees/src/checked_trees/facts/constant_predicate_obligations.rs:15:5
+   |
+15 | use numerics::bignum::BigInt;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `checked-trees` (lib) generated 1 warning (run `cargo fix --lib -p checked-trees` to apply 1 suggestion)
+    Checking validation v0.1.0 (/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/omega-rust/psi/compilation/checking)
+warning: function `data_field_named` is never used
+  --> omega-rust/psi/compilation/checking/src/declarations/data_queries.rs:41:15
+   |
+41 | pub(crate) fn data_field_named<'a>(
+   |               ^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `validation` (lib) generated 1 warning
+    Finished `dev` profile [optimized] target(s) in 19.33s

@@ -1,0 +1,4 @@
+corpus_gate: recorded 11 fixture outcomes to /Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/tests/omega/corpus_both_macos_arm64.txt; 0 unimplemented rows remain, 1 rows record a lost success
+corpus_gate: measured at jobs=runner default, golden jobs=2
+corpus_gate: 2 pass/run row(s) pinned without a success and 0 fail row(s) pinned as a success (1 carry regressed-from)
+corpus_gate:   list them with --list-pinned-regressions

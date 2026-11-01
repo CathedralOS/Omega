@@ -1,0 +1,24 @@
+{
+  "command": [
+    "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/main0948-scalar-frontier-r1-omega",
+    "--check",
+    "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-payload-probes/field-transition/main.omg"
+  ],
+  "producer": {
+    "binary": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/main0948-scalar-frontier-r1-omega",
+    "sha256": "2c685936c8987252eefe4ef1da84492847702db9da351be93a70c9d0bc3d55bc",
+    "profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "1"
+    }
+  },
+  "inputs": {
+    "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-payload-probes/field-transition/build.omg": "b005e2fe983a0734a2e7bf0fb603d1cc9e5a262af9976dbb943a920f0c731b4d",
+    "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-payload-probes/field-transition/main.omg": "71c27059b91e959add5c65f85fbef70a93f258210f9d2faefad41fa06e04d450"
+  },
+  "utc": "2026-11-01T21:37:34.293897+00:00",
+  "exit": 1,
+  "seconds": 0.5872562090000001,
+  "stdout": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/main0948-case-probe-r2-field-transition.stdout",
+  "stderr": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/main0948-case-probe-r2-field-transition.stderr"
+}

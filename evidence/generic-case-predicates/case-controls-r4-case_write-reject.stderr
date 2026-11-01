@@ -1,0 +1,1 @@
+error: data `Interval`'s default domain is still FALSE at a call: the invariant window opened on `main.interval` must close first -- restore the `where` facts before this consumption point (ch11)

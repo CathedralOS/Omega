@@ -1,0 +1,3804 @@
+diff --git a/omega-rust/psi/compilation/checking/src/machine_calls/structural_call_custody/declaration_predicates.rs b/omega-rust/psi/compilation/checking/src/machine_calls/structural_call_custody/declaration_predicates.rs
+index 1378766001c..da082b02560 100644
+--- a/omega-rust/psi/compilation/checking/src/machine_calls/structural_call_custody/declaration_predicates.rs
++++ b/omega-rust/psi/compilation/checking/src/machine_calls/structural_call_custody/declaration_predicates.rs
+@@ -696,6 +696,18 @@ fn find_data_field<'program>(
+     symbol: SymbolHandle,
+     name: &str,
+ ) -> Option<&'program DataField> {
++    // Copied predicates retain declaration selectors. Rejoin an instance's
++    // selector through its complete application before reading this exact
++    // borrowed field view; a matching name cannot repair a foreign selector.
++    let symbol = if symbol.is_valid()
++        && let Some(application) = definition.generic_instance
++    {
++        program
++            .data_constructor_field(application, definition.symbol, symbol)?
++            .symbol
++    } else {
++        symbol
++    };
+     program.data_members(definition).iter().find_map(|member| {
+         let field = member.as_field()?;
+         if field.relevance.is_erased() {
+@@ -1167,12 +1179,10 @@ impl FactSpelling<'_> {
+             ExpressionNode::Member(member) => {
+                 let (mut path, receiver_type) = self.field_path(member.receiver)?;
+                 let owner = owned_data_definition(self.program, receiver_type)?;
+-                let field = crate::value_custody::places::exact_data_member_field(
++                let field = crate::value_custody::places::applied_data_member_field(
+                     self.program,
+-                    owner,
+-                    member.member_symbol,
+-                    member.member.as_str(),
+-                    member.case_variant.as_ref().map(|case| case.as_str()),
++                    receiver_type,
++                    member,
+                 )?;
+                 if !field.symbol.is_valid() {
+                     return None;
+diff --git a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/guard_narrowing/case_facts.rs b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/guard_narrowing/case_facts.rs
+index 56d04f89d87..3bebb0d5377 100644
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/guard_narrowing/case_facts.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/guard_narrowing/case_facts.rs
+@@ -125,8 +125,8 @@ fn contribute_fact_expression(
+ 
+ /// Project one side of a case requirement onto the dispatched subject.
+ /// A `self.field` leaf over the predicate subject, or a bare `Name` leaf,
+-/// resolves to the case's payload or the record's common field (symbol first,
+-/// the leaf's own field-name spelling when its symbol was not retained); a
++/// selects the case's payload or the record's common field through the exact
++/// receiving application's declaration correspondence; a
+ /// literal stays a literal. Anything else -- calls, longer member chains,
+ /// arithmetic inside the requirement -- has no operand projection here and
+ /// skips the whole comparison.
+@@ -145,24 +145,11 @@ fn fact_side(
+         {
+             Some(ProjectedOperand::literal(literal))
+         }
+-        ExpressionNode::Name(path) => {
+-            let name = expression_table(program)
+-                .name_path_members(path.members)
+-                .last()?
+-                .as_str();
+-            field_operand(program, owner, variant, subject, path.symbol, name)
+-        }
++        ExpressionNode::Name(path) => field_operand(program, owner, variant, subject, path.symbol),
+         ExpressionNode::Member(member)
+             if names_predicate_subject(program, owner, member.receiver) =>
+         {
+-            field_operand(
+-                program,
+-                owner,
+-                variant,
+-                subject,
+-                member.member_symbol,
+-                member.member.as_str(),
+-            )
++            field_operand(program, owner, variant, subject, member.member_symbol)
+         }
+         _ => None,
+     }
+@@ -190,22 +177,19 @@ fn field_operand(
+     variant: &DataVariant,
+     subject: &ordered_values::Operand,
+     symbol: symbols::SymbolHandle,
+-    name: &str,
+ ) -> Option<ProjectedOperand> {
+-    let field = if symbol.is_valid() {
+-        payload_field(program, variant)
+-            .chain(common_fields(program, owner))
+-            .find(|field| field.symbol == symbol)?
+-    } else {
+-        let mut matches = payload_field(program, variant)
+-            .chain(common_fields(program, owner))
+-            .filter(|field| field.name.as_str() == name);
+-        let field = matches.next()?;
+-        if matches.next().is_some() {
+-            return None;
+-        }
+-        field
+-    };
++    // Predicate expressions may retain the authored template's field symbol.
++    // Translate its declaration coordinate through this exact application,
++    // then require a common field or the already selected case's payload.
++    // Matching spelling in another case or specialization supplies no fact.
++    let field =
++        program.data_constructor_field(owner.predicate_subject_type, owner.symbol, symbol)?;
++    if !payload_field(program, variant)
++        .chain(common_fields(program, owner))
++        .any(|selected| selected.symbol == field.symbol)
++    {
++        return None;
++    }
+     // This environment records integer differences (a strict order
+     // contributes a distance of at least one). A case's IEEE or
+     // nominal facts cannot supply those relations or integer intervals.
+diff --git a/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/observed_projections.rs b/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/observed_projections.rs
+index 40e94dff722..3b2a374dd9e 100644
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/observed_projections.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/observed_projections.rs
+@@ -402,14 +402,7 @@ pub(super) fn declared_scalar_field_read(
+     };
+     let receiver =
+         crate::expression_result_type_reference(program, machine, state, member.receiver)?;
+-    let data = crate::value_custody::places::data_definition_for_type(program, receiver)?;
+-    let field = crate::value_custody::places::exact_data_member_field(
+-        program,
+-        data,
+-        member.member_symbol,
+-        member.member.as_str(),
+-        member.case_variant.as_ref().map(|case| case.as_str()),
+-    )?;
++    let field = crate::value_custody::places::applied_data_member_field(program, receiver, member)?;
+     if !field.symbol.is_valid() || program.symbols.get(field.symbol).kind != SymbolKind::Field {
+         return None;
+     }
+diff --git a/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/selected_contracts/terms.rs b/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/selected_contracts/terms.rs
+index bc93c353614..1c06f125ecb 100644
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/selected_contracts/terms.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/selected_contracts/terms.rs
+@@ -145,18 +145,10 @@ impl StructuralJudge<'_> {
+                 {
+                     return Some(measure);
+                 }
+-                let carrier =
+-                    crate::value_custody::places::unwrapped_type_reference(program, reference)?;
+                 // The applied contract's fields belong to its selected data
+                 // application, not a same-named field on the generic base.
+-                let data =
+-                    crate::value_custody::places::data_definition_for_type(program, carrier)?;
+-                let field = crate::value_custody::places::exact_data_member_field(
+-                    program,
+-                    data,
+-                    member.member_symbol,
+-                    member.member.as_str(),
+-                    member.case_variant.as_ref().map(|case| case.as_str()),
++                let field = crate::value_custody::places::applied_data_member_field(
++                    program, reference, member,
+                 )?;
+                 let value = self.bound_contract_term(
+                     member.receiver,
+diff --git a/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_terms.rs b/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_terms.rs
+index a78e5876819..868c8e398a0 100644
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_terms.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_terms.rs
+@@ -900,14 +900,8 @@ pub(super) fn structural_term(
+             }
+             let declared_field = receiver_type
+                 .and_then(|reference| {
+-                    let data =
+-                        crate::value_custody::places::data_definition_for_type(program, reference)?;
+-                    crate::value_custody::places::exact_data_member_field(
+-                        program,
+-                        data,
+-                        member.member_symbol,
+-                        member.member.as_str(),
+-                        member.case_variant.as_ref().map(|case| case.as_str()),
++                    crate::value_custody::places::applied_data_member_field(
++                        program, reference, member,
+                     )
+                 })
+                 .is_some();
+diff --git a/omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/constant/initializer_normalization/resolved_payload.rs b/omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/constant/initializer_normalization/resolved_payload.rs
+index 5a308c99fb5..a2c5453ba89 100644
+--- a/omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/constant/initializer_normalization/resolved_payload.rs
++++ b/omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/constant/initializer_normalization/resolved_payload.rs
+@@ -547,6 +547,25 @@ impl<'program> Encoder<'program> {
+         }
+         let operand = self.unconstrained(operand)?;
+         match operand.reference {
++            TypeReference::ConstExpression(recipe) => {
++                // Closed scalar arguments keep their exact value in the
++                // declaration label, as in syntax-side application labeling.
++                // This reads the receiving declaration's completed operand;
++                // a result receipt cannot supply or replace that argument.
++                match self
++                    .program
++                    .tables
++                    .bodies
++                    .expressions
++                    .expression(recipe.expression)
++                {
++                    ExpressionNode::Integer(literal) => literal
++                        .value_bignum()
++                        .map(|value| value.to_string())
++                        .ok_or_else(|| "materialized carrier argument has no integer value".into()),
++                    _ => Err("materialized carrier argument is not a completed scalar".into()),
++                }
++            }
+             TypeReference::Named { symbol, name, .. } => {
+                 Ok(self.program.data_definition_by_symbol(*symbol).map_or_else(
+                     || name.as_str().to_owned(),
+diff --git a/samples/cli/facts/case_dependent_default_domain/README.md b/samples/cli/facts/case_dependent_default_domain/README.md
+index 6834f0e411c..19f6215d769 100644
+--- a/samples/cli/facts/case_dependent_default_domain/README.md
++++ b/samples/cli/facts/case_dependent_default_domain/README.md
+@@ -8,7 +8,11 @@ supplies the type equation; callers add no type test or equality guard.
+ `NamedValue in Typed<T>` has the same predicate over a carrier with no data
+ predicate, so its extractor depends on the named domain itself.
+ 
+-`Interval` and `NamedInterval in Ordered<32>` express the same Empty-or-Range
++Owning task: **CANONICALIZE-SCALAR-RANGE-CONTRACTS**, carrying a closed generic
++data application's complete payload predicate through construction, matching,
++calls, stored values and materialized constants to its scalar consumers.
++
++`Interval<32>` and `NamedInterval in Ordered<32>` express the same Empty-or-Range
+ predicate. The Range case carries `lo <= hi && hi <= 32` to `width_range`.
+ That consumer establishes `lo in AtMost<32>` and computes `hi - lo` directly.
+ Neither caller reconstructs the bound after transport.
+@@ -33,9 +37,12 @@ home makes `main()` trap.
+ | another machine | [other_machine/main.omg](other_machine/main.omg) | [invalid](other_machine/invalid/main.omg) |
+ | selected implementation | [target_body/main.omg](target_body/main.omg) | [invalid](target_body/invalid/main.omg) |
+ 
+-The reject twins remove only `T == bool` from `Value<T>`'s Boolean alternative.
+-Construction still permits the authored values, but the generic extractor
+-cannot deliver a Boolean payload as an arbitrary T. Samples and their twins
++The reject twins remove only `hi <= Bound` from `Interval<Bound>`'s Range
++alternative. Construction still permits the authored values, but the public
++extractor cannot promise the missing ceiling for every admitted input.
++The [missing type equation](controls/missing_type_equation/main.omg) control
++retains the earlier twins' obligation once: a Boolean payload cannot be
++delivered as an arbitrary T without its type equation. Samples and their twins
+ are pinned under
+ `tests/omega/{pass,fail}/facts/case_dependent_default_domain_through_<place>_{exit,rejected}`.
+ Every positive binds all four hosted targets; the target-body place selects four
+@@ -50,7 +57,8 @@ The specification requirements exercised by the row are:
+   cannot justify this extraction.
+ - **Composition:** the nine transports preserve the same values, predicates,
+   consuming operations and oracles; both join choices execute.
+-- **Soundness:** omitted type equality rejects the universal extractor. Other
++- **Soundness:** the missing ceiling rejects the interval consumer, and omitted
++  type equality still rejects the universal extractor. Other
+   controls cover invalid cases, inactive payloads, reversed bounds, mutation
+   restoration, zero establishment and retired syntax.
+ - **Psi 05–07:** the complete source predicate supplies case-local proof
+@@ -93,6 +101,24 @@ Their source copies and diagnostic fragments live in
+ `tests/omega/fail/facts/case_predicate_<control>_rejected`; the four positives
+ have native and interpreter exit oracles under the matching pass paths.
+ 
++The interval's bound is an ordinary Const argument; its value remains 32, its
++payloads and `hi - lo` operation are unchanged. This strengthens the existing
++row for the generic-declaration transfer that wrongly rejects the migrated
++`zero_case_predicate_entry_exit` customer's `amount * 10`. On optimized base
++`0948d66c9cda2a14b141212ba98e6d126a08752d`, the otherwise unchanged local
++program with `Interval<32>` rejects `width_range`'s requirement; the earlier
++non-generic interval passed. The [other default argument](controls/other_default_argument/main.omg)
++control admits `Interval<64>` with `hi = 40` and must still refuse a ceiling of
++32. The hexadecimal canaries denote the earlier decimal values exactly.
++Current run records retain their producer identities separately from the
++historical qualifications below.
++
++The generic restoration control writes an invalid intermediate upper endpoint
++and repairs both endpoints before consumption. Its stale-write twin still
++rejects the open invariant window. This carrier correspondence repair does not
++close the parent's separate snapshot-based relational restoration, other
++predicate productions, product/compiler migration or suffix retirement.
++
+ ## Initial qualification
+ 
+ On Linux x86-64, the final optimized reference producer (`opt_level=1`, SHA-256
+diff --git a/samples/cli/facts/case_dependent_default_domain/call_result/invalid/expected.txt b/samples/cli/facts/case_dependent_default_domain/call_result/invalid/expected.txt
+index 6393357a46b..08c8259349c 100644
+--- a/samples/cli/facts/case_dependent_default_domain/call_result/invalid/expected.txt
++++ b/samples/cli/facts/case_dependent_default_domain/call_result/invalid/expected.txt
+@@ -1 +1 @@
+-match arms produce incompatible values
++cannot prove requires contract for call width_range
+diff --git a/samples/cli/facts/case_dependent_default_domain/call_result/invalid/main.omg b/samples/cli/facts/case_dependent_default_domain/call_result/invalid/main.omg
+index 8589551ce1e..eca2fea56c0 100644
+--- a/samples/cli/facts/case_dependent_default_domain/call_result/invalid/main.omg
++++ b/samples/cli/facts/case_dependent_default_domain/call_result/invalid/main.omg
+@@ -2,7 +2,7 @@
+ // Expected exit: 0.
+ data Value<T> [copy]
+     requires ((self in Value::Integer) && T == i32)
+-        || (self in Value::Boolean)
++        || ((self in Value::Boolean) && T == bool)
+ {
+     case Integer(value: i32);
+     case Boolean(value: bool);
+@@ -14,9 +14,9 @@ data NamedValue [copy] {
+ domain<T> NamedValue::Typed<T>
+     requires ((self in NamedValue::Integer) && T == i32)
+         || ((self in NamedValue::Boolean) && T == bool);
+-data Interval [copy]
++data Interval<const Bound: u64> [copy]
+     requires (self in Interval::Empty)
+-        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= 32)
++        || ((self in Interval::Range) && self.lo <= self.hi)
+ {
+     case Empty;
+     case Range(lo: u64, hi: u64);
+@@ -41,7 +41,7 @@ machine pick_named<T>(value: NamedValue in Typed<T>) -> T {
+         NamedValue::Boolean { value } -> value
+     }
+ }
+-machine width(span: Interval) -> u64 {
++machine width(span: Interval<32>) -> u64 {
+     match span {
+         Interval::Empty -> 77
+         Interval::Range { lo, hi } -> width_range(lo, hi)
+@@ -61,14 +61,14 @@ data Bundle [copy] {
+     front: u64;
+     number: Value<i32>;
+     flag: Value<bool>;
+-    span: Interval;
++    span: Interval<32>;
+     named_number: NamedValue in Typed<i32>;
+     named_flag: NamedValue in Typed<bool>;
+     named_span: NamedInterval in Ordered<32>;
+     back: u64;
+ }
+ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expected_width: u64, expected_named_number: i32, expected_named_flag: bool, expected_named_width: u64) -> bool {
+-    value.front == 19088743 && value.back == 4275878552
++    value.front == 0x0123_4567 && value.back == 0xFEDC_BA98
+         && pick<i32>(value.number) == expected_number
+         && pick<bool>(value.flag) == expected_flag
+         && width(value.span) == expected_width
+@@ -79,24 +79,24 @@ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expect
+         && raw_case(value.named_flag as NamedValue) == 2
+ }
+ machine first() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: 42 },
+     flag: Value::Boolean { value: true },
+     span: Interval::Range { lo: 17, hi: 21 },
+     named_number: (NamedValue::Integer { value: -7 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: false }) as NamedValue in Typed<bool>,
+     named_span: (NamedInterval::Range { lo: 3, hi: 9 }) as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine second() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: -13 },
+     flag: Value::Boolean { value: false },
+     span: Interval::Empty,
+     named_number: (NamedValue::Integer { value: 23 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: true }) as NamedValue in Typed<bool>,
+     named_span: NamedInterval::Empty as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine raw_case(value: NamedValue) -> u64 {
+     match value {
+diff --git a/samples/cli/facts/case_dependent_default_domain/call_result/invalid/sample.json b/samples/cli/facts/case_dependent_default_domain/call_result/invalid/sample.json
+index 5f1ad191e63..3044f7fadd4 100644
+--- a/samples/cli/facts/case_dependent_default_domain/call_result/invalid/sample.json
++++ b/samples/cli/facts/case_dependent_default_domain/call_result/invalid/sample.json
+@@ -2,6 +2,6 @@
+   "role": "intended-invalid",
+   "entry": "main.omg",
+   "rejection_contains": [
+-    "match arms produce incompatible values"
++    "cannot prove requires contract for call width_range"
+   ]
+ }
+diff --git a/samples/cli/facts/case_dependent_default_domain/call_result/main.omg b/samples/cli/facts/case_dependent_default_domain/call_result/main.omg
+index 052198f65bf..eaf1fbe7877 100644
+--- a/samples/cli/facts/case_dependent_default_domain/call_result/main.omg
++++ b/samples/cli/facts/case_dependent_default_domain/call_result/main.omg
+@@ -14,9 +14,9 @@ data NamedValue [copy] {
+ domain<T> NamedValue::Typed<T>
+     requires ((self in NamedValue::Integer) && T == i32)
+         || ((self in NamedValue::Boolean) && T == bool);
+-data Interval [copy]
++data Interval<const Bound: u64> [copy]
+     requires (self in Interval::Empty)
+-        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= 32)
++        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= Bound)
+ {
+     case Empty;
+     case Range(lo: u64, hi: u64);
+@@ -41,7 +41,7 @@ machine pick_named<T>(value: NamedValue in Typed<T>) -> T {
+         NamedValue::Boolean { value } -> value
+     }
+ }
+-machine width(span: Interval) -> u64 {
++machine width(span: Interval<32>) -> u64 {
+     match span {
+         Interval::Empty -> 77
+         Interval::Range { lo, hi } -> width_range(lo, hi)
+@@ -61,14 +61,14 @@ data Bundle [copy] {
+     front: u64;
+     number: Value<i32>;
+     flag: Value<bool>;
+-    span: Interval;
++    span: Interval<32>;
+     named_number: NamedValue in Typed<i32>;
+     named_flag: NamedValue in Typed<bool>;
+     named_span: NamedInterval in Ordered<32>;
+     back: u64;
+ }
+ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expected_width: u64, expected_named_number: i32, expected_named_flag: bool, expected_named_width: u64) -> bool {
+-    value.front == 19088743 && value.back == 4275878552
++    value.front == 0x0123_4567 && value.back == 0xFEDC_BA98
+         && pick<i32>(value.number) == expected_number
+         && pick<bool>(value.flag) == expected_flag
+         && width(value.span) == expected_width
+@@ -79,24 +79,24 @@ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expect
+         && raw_case(value.named_flag as NamedValue) == 2
+ }
+ machine first() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: 42 },
+     flag: Value::Boolean { value: true },
+     span: Interval::Range { lo: 17, hi: 21 },
+     named_number: (NamedValue::Integer { value: -7 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: false }) as NamedValue in Typed<bool>,
+     named_span: (NamedInterval::Range { lo: 3, hi: 9 }) as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine second() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: -13 },
+     flag: Value::Boolean { value: false },
+     span: Interval::Empty,
+     named_number: (NamedValue::Integer { value: 23 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: true }) as NamedValue in Typed<bool>,
+     named_span: NamedInterval::Empty as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine raw_case(value: NamedValue) -> u64 {
+     match value {
+diff --git a/samples/cli/facts/case_dependent_default_domain/const_name/invalid/expected.txt b/samples/cli/facts/case_dependent_default_domain/const_name/invalid/expected.txt
+index 6393357a46b..08c8259349c 100644
+--- a/samples/cli/facts/case_dependent_default_domain/const_name/invalid/expected.txt
++++ b/samples/cli/facts/case_dependent_default_domain/const_name/invalid/expected.txt
+@@ -1 +1 @@
+-match arms produce incompatible values
++cannot prove requires contract for call width_range
+diff --git a/samples/cli/facts/case_dependent_default_domain/const_name/invalid/main.omg b/samples/cli/facts/case_dependent_default_domain/const_name/invalid/main.omg
+index f573e563999..6236962cb2b 100644
+--- a/samples/cli/facts/case_dependent_default_domain/const_name/invalid/main.omg
++++ b/samples/cli/facts/case_dependent_default_domain/const_name/invalid/main.omg
+@@ -2,7 +2,7 @@
+ // Expected exit: 0.
+ data Value<T> [copy]
+     requires ((self in Value::Integer) && T == i32)
+-        || (self in Value::Boolean)
++        || ((self in Value::Boolean) && T == bool)
+ {
+     case Integer(value: i32);
+     case Boolean(value: bool);
+@@ -14,9 +14,9 @@ data NamedValue [copy] {
+ domain<T> NamedValue::Typed<T>
+     requires ((self in NamedValue::Integer) && T == i32)
+         || ((self in NamedValue::Boolean) && T == bool);
+-data Interval [copy]
++data Interval<const Bound: u64> [copy]
+     requires (self in Interval::Empty)
+-        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= 32)
++        || ((self in Interval::Range) && self.lo <= self.hi)
+ {
+     case Empty;
+     case Range(lo: u64, hi: u64);
+@@ -41,7 +41,7 @@ machine pick_named<T>(value: NamedValue in Typed<T>) -> T {
+         NamedValue::Boolean { value } -> value
+     }
+ }
+-machine width(span: Interval) -> u64 {
++machine width(span: Interval<32>) -> u64 {
+     match span {
+         Interval::Empty -> 77
+         Interval::Range { lo, hi } -> width_range(lo, hi)
+@@ -61,14 +61,14 @@ data Bundle [copy] {
+     front: u64;
+     number: Value<i32>;
+     flag: Value<bool>;
+-    span: Interval;
++    span: Interval<32>;
+     named_number: NamedValue in Typed<i32>;
+     named_flag: NamedValue in Typed<bool>;
+     named_span: NamedInterval in Ordered<32>;
+     back: u64;
+ }
+ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expected_width: u64, expected_named_number: i32, expected_named_flag: bool, expected_named_width: u64) -> bool {
+-    value.front == 19088743 && value.back == 4275878552
++    value.front == 0x0123_4567 && value.back == 0xFEDC_BA98
+         && pick<i32>(value.number) == expected_number
+         && pick<bool>(value.flag) == expected_flag
+         && width(value.span) == expected_width
+@@ -79,24 +79,24 @@ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expect
+         && raw_case(value.named_flag as NamedValue) == 2
+ }
+ machine first() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: 42 },
+     flag: Value::Boolean { value: true },
+     span: Interval::Range { lo: 17, hi: 21 },
+     named_number: (NamedValue::Integer { value: -7 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: false }) as NamedValue in Typed<bool>,
+     named_span: (NamedInterval::Range { lo: 3, hi: 9 }) as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine second() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: -13 },
+     flag: Value::Boolean { value: false },
+     span: Interval::Empty,
+     named_number: (NamedValue::Integer { value: 23 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: true }) as NamedValue in Typed<bool>,
+     named_span: NamedInterval::Empty as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine raw_case(value: NamedValue) -> u64 {
+     match value {
+@@ -105,24 +105,24 @@ machine raw_case(value: NamedValue) -> u64 {
+     }
+ }
+ const FIRST: Bundle = Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: 42 },
+     flag: Value::Boolean { value: true },
+     span: Interval::Range { lo: 17, hi: 21 },
+     named_number: (NamedValue::Integer { value: -7 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: false }) as NamedValue in Typed<bool>,
+     named_span: (NamedInterval::Range { lo: 3, hi: 9 }) as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ };
+ const SECOND: Bundle = Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: -13 },
+     flag: Value::Boolean { value: false },
+     span: Interval::Empty,
+     named_number: (NamedValue::Integer { value: 23 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: true }) as NamedValue in Typed<bool>,
+     named_span: NamedInterval::Empty as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ };
+ 
+ machine main() crashes Trap {
+diff --git a/samples/cli/facts/case_dependent_default_domain/const_name/invalid/sample.json b/samples/cli/facts/case_dependent_default_domain/const_name/invalid/sample.json
+index 5f1ad191e63..3044f7fadd4 100644
+--- a/samples/cli/facts/case_dependent_default_domain/const_name/invalid/sample.json
++++ b/samples/cli/facts/case_dependent_default_domain/const_name/invalid/sample.json
+@@ -2,6 +2,6 @@
+   "role": "intended-invalid",
+   "entry": "main.omg",
+   "rejection_contains": [
+-    "match arms produce incompatible values"
++    "cannot prove requires contract for call width_range"
+   ]
+ }
+diff --git a/samples/cli/facts/case_dependent_default_domain/const_name/main.omg b/samples/cli/facts/case_dependent_default_domain/const_name/main.omg
+index 06eb9c18f85..e0065a27352 100644
+--- a/samples/cli/facts/case_dependent_default_domain/const_name/main.omg
++++ b/samples/cli/facts/case_dependent_default_domain/const_name/main.omg
+@@ -14,9 +14,9 @@ data NamedValue [copy] {
+ domain<T> NamedValue::Typed<T>
+     requires ((self in NamedValue::Integer) && T == i32)
+         || ((self in NamedValue::Boolean) && T == bool);
+-data Interval [copy]
++data Interval<const Bound: u64> [copy]
+     requires (self in Interval::Empty)
+-        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= 32)
++        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= Bound)
+ {
+     case Empty;
+     case Range(lo: u64, hi: u64);
+@@ -41,7 +41,7 @@ machine pick_named<T>(value: NamedValue in Typed<T>) -> T {
+         NamedValue::Boolean { value } -> value
+     }
+ }
+-machine width(span: Interval) -> u64 {
++machine width(span: Interval<32>) -> u64 {
+     match span {
+         Interval::Empty -> 77
+         Interval::Range { lo, hi } -> width_range(lo, hi)
+@@ -61,14 +61,14 @@ data Bundle [copy] {
+     front: u64;
+     number: Value<i32>;
+     flag: Value<bool>;
+-    span: Interval;
++    span: Interval<32>;
+     named_number: NamedValue in Typed<i32>;
+     named_flag: NamedValue in Typed<bool>;
+     named_span: NamedInterval in Ordered<32>;
+     back: u64;
+ }
+ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expected_width: u64, expected_named_number: i32, expected_named_flag: bool, expected_named_width: u64) -> bool {
+-    value.front == 19088743 && value.back == 4275878552
++    value.front == 0x0123_4567 && value.back == 0xFEDC_BA98
+         && pick<i32>(value.number) == expected_number
+         && pick<bool>(value.flag) == expected_flag
+         && width(value.span) == expected_width
+@@ -79,24 +79,24 @@ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expect
+         && raw_case(value.named_flag as NamedValue) == 2
+ }
+ machine first() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: 42 },
+     flag: Value::Boolean { value: true },
+     span: Interval::Range { lo: 17, hi: 21 },
+     named_number: (NamedValue::Integer { value: -7 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: false }) as NamedValue in Typed<bool>,
+     named_span: (NamedInterval::Range { lo: 3, hi: 9 }) as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine second() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: -13 },
+     flag: Value::Boolean { value: false },
+     span: Interval::Empty,
+     named_number: (NamedValue::Integer { value: 23 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: true }) as NamedValue in Typed<bool>,
+     named_span: NamedInterval::Empty as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine raw_case(value: NamedValue) -> u64 {
+     match value {
+@@ -105,24 +105,24 @@ machine raw_case(value: NamedValue) -> u64 {
+     }
+ }
+ const FIRST: Bundle = Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: 42 },
+     flag: Value::Boolean { value: true },
+     span: Interval::Range { lo: 17, hi: 21 },
+     named_number: (NamedValue::Integer { value: -7 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: false }) as NamedValue in Typed<bool>,
+     named_span: (NamedInterval::Range { lo: 3, hi: 9 }) as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ };
+ const SECOND: Bundle = Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: -13 },
+     flag: Value::Boolean { value: false },
+     span: Interval::Empty,
+     named_number: (NamedValue::Integer { value: 23 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: true }) as NamedValue in Typed<bool>,
+     named_span: NamedInterval::Empty as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ };
+ 
+ machine main() crashes Trap {
+diff --git a/samples/cli/facts/case_dependent_default_domain/controls/missing_type_equation/expected.txt b/samples/cli/facts/case_dependent_default_domain/controls/missing_type_equation/expected.txt
+new file mode 100644
+index 00000000000..6b8def75df9
+--- /dev/null
++++ b/samples/cli/facts/case_dependent_default_domain/controls/missing_type_equation/expected.txt
+@@ -0,0 +1 @@
++return value expects `T`, but the value is delivered as `bool`
+diff --git a/samples/cli/facts/case_dependent_default_domain/controls/missing_type_equation/main.omg b/samples/cli/facts/case_dependent_default_domain/controls/missing_type_equation/main.omg
+new file mode 100644
+index 00000000000..e840aaa3494
+--- /dev/null
++++ b/samples/cli/facts/case_dependent_default_domain/controls/missing_type_equation/main.omg
+@@ -0,0 +1,13 @@
++data Value<T> [copy]
++    requires ((self in Value::Integer) && T == i32) || (self in Value::Boolean)
++{
++    case Integer(value: i32);
++    case Boolean(value: bool);
++}
++machine pick<T>(value: Value<T>) -> T {
++    match value {
++        Value::Integer { value } -> value
++        Value::Boolean { value } -> value
++    }
++}
++machine main() { }
+diff --git a/samples/cli/facts/case_dependent_default_domain/controls/missing_type_equation/sample.json b/samples/cli/facts/case_dependent_default_domain/controls/missing_type_equation/sample.json
+new file mode 100644
+index 00000000000..a3a6ee687b2
+--- /dev/null
++++ b/samples/cli/facts/case_dependent_default_domain/controls/missing_type_equation/sample.json
+@@ -0,0 +1,7 @@
++{
++  "role": "intended-invalid",
++  "entry": "main.omg",
++  "rejection_contains": [
++    "return value expects `T`, but the value is delivered as `bool`"
++  ]
++}
+diff --git a/samples/cli/facts/case_dependent_default_domain/controls/other_default_argument/expected.txt b/samples/cli/facts/case_dependent_default_domain/controls/other_default_argument/expected.txt
+new file mode 100644
+index 00000000000..08c8259349c
+--- /dev/null
++++ b/samples/cli/facts/case_dependent_default_domain/controls/other_default_argument/expected.txt
+@@ -0,0 +1 @@
++cannot prove requires contract for call width_range
+diff --git a/samples/cli/facts/case_dependent_default_domain/controls/other_default_argument/main.omg b/samples/cli/facts/case_dependent_default_domain/controls/other_default_argument/main.omg
+new file mode 100644
+index 00000000000..baf4ffb6845
+--- /dev/null
++++ b/samples/cli/facts/case_dependent_default_domain/controls/other_default_argument/main.omg
+@@ -0,0 +1,18 @@
++data Interval<const Bound: u64> [copy]
++    requires (self in Interval::Empty)
++        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= Bound)
++{
++    case Empty;
++    case Range(lo: u64, hi: u64);
++}
++machine width_range(lo: u64, hi: u64) -> u64 requires lo <= hi && hi <= 32 { hi - lo }
++machine invalid(span: Interval<64>) -> u64 {
++    match span {
++        Interval::Empty -> 77
++        Interval::Range { lo, hi } -> width_range(lo, hi)
++    }
++}
++machine main() {
++    let valid: Interval<64> = Interval::Range { lo: 1, hi: 40 };
++    _ = invalid(valid);
++}
+diff --git a/samples/cli/facts/case_dependent_default_domain/controls/other_default_argument/sample.json b/samples/cli/facts/case_dependent_default_domain/controls/other_default_argument/sample.json
+new file mode 100644
+index 00000000000..3044f7fadd4
+--- /dev/null
++++ b/samples/cli/facts/case_dependent_default_domain/controls/other_default_argument/sample.json
+@@ -0,0 +1,7 @@
++{
++  "role": "intended-invalid",
++  "entry": "main.omg",
++  "rejection_contains": [
++    "cannot prove requires contract for call width_range"
++  ]
++}
+diff --git a/samples/cli/facts/case_dependent_default_domain/controls/restoration/main.omg b/samples/cli/facts/case_dependent_default_domain/controls/restoration/main.omg
+index 4bfc2561b62..0fa7dc82d83 100644
+--- a/samples/cli/facts/case_dependent_default_domain/controls/restoration/main.omg
++++ b/samples/cli/facts/case_dependent_default_domain/controls/restoration/main.omg
+@@ -14,9 +14,9 @@ data NamedValue [copy] {
+ domain<T> NamedValue::Typed<T>
+     requires ((self in NamedValue::Integer) && T == i32)
+         || ((self in NamedValue::Boolean) && T == bool);
+-data Interval [copy]
++data Interval<const Bound: u64> [copy]
+     requires (self in Interval::Empty)
+-        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= 32)
++        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= Bound)
+ {
+     case Empty;
+     case Range(lo: u64, hi: u64);
+@@ -41,7 +41,7 @@ machine pick_named<T>(value: NamedValue in Typed<T>) -> T {
+         NamedValue::Boolean { value } -> value
+     }
+ }
+-machine width(span: Interval) -> u64 {
++machine width(span: Interval<32>) -> u64 {
+     match span {
+         Interval::Empty -> 77
+         Interval::Range { lo, hi } -> width_range(lo, hi)
+@@ -59,7 +59,7 @@ machine width_range(lo: u64, hi: u64) -> u64 requires lo <= hi && hi <= 32 {
+ }
+ 
+ machine main() crashes Trap {
+-    let mut value: Interval = Interval::Range { lo: 1, hi: 5 };
++    let mut value: Interval<32> = Interval::Range { lo: 1, hi: 5 };
+     value.hi = 0;
+     value.lo = 0;
+     value.hi = 8;
+diff --git a/samples/cli/facts/case_dependent_default_domain/controls/stale_write/main.omg b/samples/cli/facts/case_dependent_default_domain/controls/stale_write/main.omg
+index 08a3269a489..50d4b5d3a45 100644
+--- a/samples/cli/facts/case_dependent_default_domain/controls/stale_write/main.omg
++++ b/samples/cli/facts/case_dependent_default_domain/controls/stale_write/main.omg
+@@ -14,9 +14,9 @@ data NamedValue [copy] {
+ domain<T> NamedValue::Typed<T>
+     requires ((self in NamedValue::Integer) && T == i32)
+         || ((self in NamedValue::Boolean) && T == bool);
+-data Interval [copy]
++data Interval<const Bound: u64> [copy]
+     requires (self in Interval::Empty)
+-        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= 32)
++        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= Bound)
+ {
+     case Empty;
+     case Range(lo: u64, hi: u64);
+@@ -41,7 +41,7 @@ machine pick_named<T>(value: NamedValue in Typed<T>) -> T {
+         NamedValue::Boolean { value } -> value
+     }
+ }
+-machine width(span: Interval) -> u64 {
++machine width(span: Interval<32>) -> u64 {
+     match span {
+         Interval::Empty -> 77
+         Interval::Range { lo, hi } -> width_range(lo, hi)
+@@ -58,4 +58,4 @@ machine width_range(lo: u64, hi: u64) -> u64 requires lo <= hi && hi <= 32 {
+     hi - (qualified as u64)
+ }
+ 
+-machine main() { let mut value: Interval = Interval::Range { lo: 1, hi: 5 }; value.hi = 0; let result: u64 = width(value); }
++machine main() { let mut value: Interval<32> = Interval::Range { lo: 1, hi: 5 }; value.hi = 0; let result: u64 = width(value); }
+diff --git a/samples/cli/facts/case_dependent_default_domain/field/invalid/expected.txt b/samples/cli/facts/case_dependent_default_domain/field/invalid/expected.txt
+index 6393357a46b..08c8259349c 100644
+--- a/samples/cli/facts/case_dependent_default_domain/field/invalid/expected.txt
++++ b/samples/cli/facts/case_dependent_default_domain/field/invalid/expected.txt
+@@ -1 +1 @@
+-match arms produce incompatible values
++cannot prove requires contract for call width_range
+diff --git a/samples/cli/facts/case_dependent_default_domain/field/invalid/main.omg b/samples/cli/facts/case_dependent_default_domain/field/invalid/main.omg
+index 42775389c15..159445af338 100644
+--- a/samples/cli/facts/case_dependent_default_domain/field/invalid/main.omg
++++ b/samples/cli/facts/case_dependent_default_domain/field/invalid/main.omg
+@@ -2,7 +2,7 @@
+ // Expected exit: 0.
+ data Value<T> [copy]
+     requires ((self in Value::Integer) && T == i32)
+-        || (self in Value::Boolean)
++        || ((self in Value::Boolean) && T == bool)
+ {
+     case Integer(value: i32);
+     case Boolean(value: bool);
+@@ -14,9 +14,9 @@ data NamedValue [copy] {
+ domain<T> NamedValue::Typed<T>
+     requires ((self in NamedValue::Integer) && T == i32)
+         || ((self in NamedValue::Boolean) && T == bool);
+-data Interval [copy]
++data Interval<const Bound: u64> [copy]
+     requires (self in Interval::Empty)
+-        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= 32)
++        || ((self in Interval::Range) && self.lo <= self.hi)
+ {
+     case Empty;
+     case Range(lo: u64, hi: u64);
+@@ -41,7 +41,7 @@ machine pick_named<T>(value: NamedValue in Typed<T>) -> T {
+         NamedValue::Boolean { value } -> value
+     }
+ }
+-machine width(span: Interval) -> u64 {
++machine width(span: Interval<32>) -> u64 {
+     match span {
+         Interval::Empty -> 77
+         Interval::Range { lo, hi } -> width_range(lo, hi)
+@@ -61,14 +61,14 @@ data Bundle [copy] {
+     front: u64;
+     number: Value<i32>;
+     flag: Value<bool>;
+-    span: Interval;
++    span: Interval<32>;
+     named_number: NamedValue in Typed<i32>;
+     named_flag: NamedValue in Typed<bool>;
+     named_span: NamedInterval in Ordered<32>;
+     back: u64;
+ }
+ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expected_width: u64, expected_named_number: i32, expected_named_flag: bool, expected_named_width: u64) -> bool {
+-    value.front == 19088743 && value.back == 4275878552
++    value.front == 0x0123_4567 && value.back == 0xFEDC_BA98
+         && pick<i32>(value.number) == expected_number
+         && pick<bool>(value.flag) == expected_flag
+         && width(value.span) == expected_width
+@@ -79,24 +79,24 @@ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expect
+         && raw_case(value.named_flag as NamedValue) == 2
+ }
+ machine first() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: 42 },
+     flag: Value::Boolean { value: true },
+     span: Interval::Range { lo: 17, hi: 21 },
+     named_number: (NamedValue::Integer { value: -7 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: false }) as NamedValue in Typed<bool>,
+     named_span: (NamedInterval::Range { lo: 3, hi: 9 }) as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine second() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: -13 },
+     flag: Value::Boolean { value: false },
+     span: Interval::Empty,
+     named_number: (NamedValue::Integer { value: 23 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: true }) as NamedValue in Typed<bool>,
+     named_span: NamedInterval::Empty as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine raw_case(value: NamedValue) -> u64 {
+     match value {
+diff --git a/samples/cli/facts/case_dependent_default_domain/field/invalid/sample.json b/samples/cli/facts/case_dependent_default_domain/field/invalid/sample.json
+index 5f1ad191e63..3044f7fadd4 100644
+--- a/samples/cli/facts/case_dependent_default_domain/field/invalid/sample.json
++++ b/samples/cli/facts/case_dependent_default_domain/field/invalid/sample.json
+@@ -2,6 +2,6 @@
+   "role": "intended-invalid",
+   "entry": "main.omg",
+   "rejection_contains": [
+-    "match arms produce incompatible values"
++    "cannot prove requires contract for call width_range"
+   ]
+ }
+diff --git a/samples/cli/facts/case_dependent_default_domain/field/main.omg b/samples/cli/facts/case_dependent_default_domain/field/main.omg
+index 483bbbf61da..42b8aa30803 100644
+--- a/samples/cli/facts/case_dependent_default_domain/field/main.omg
++++ b/samples/cli/facts/case_dependent_default_domain/field/main.omg
+@@ -14,9 +14,9 @@ data NamedValue [copy] {
+ domain<T> NamedValue::Typed<T>
+     requires ((self in NamedValue::Integer) && T == i32)
+         || ((self in NamedValue::Boolean) && T == bool);
+-data Interval [copy]
++data Interval<const Bound: u64> [copy]
+     requires (self in Interval::Empty)
+-        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= 32)
++        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= Bound)
+ {
+     case Empty;
+     case Range(lo: u64, hi: u64);
+@@ -41,7 +41,7 @@ machine pick_named<T>(value: NamedValue in Typed<T>) -> T {
+         NamedValue::Boolean { value } -> value
+     }
+ }
+-machine width(span: Interval) -> u64 {
++machine width(span: Interval<32>) -> u64 {
+     match span {
+         Interval::Empty -> 77
+         Interval::Range { lo, hi } -> width_range(lo, hi)
+@@ -61,14 +61,14 @@ data Bundle [copy] {
+     front: u64;
+     number: Value<i32>;
+     flag: Value<bool>;
+-    span: Interval;
++    span: Interval<32>;
+     named_number: NamedValue in Typed<i32>;
+     named_flag: NamedValue in Typed<bool>;
+     named_span: NamedInterval in Ordered<32>;
+     back: u64;
+ }
+ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expected_width: u64, expected_named_number: i32, expected_named_flag: bool, expected_named_width: u64) -> bool {
+-    value.front == 19088743 && value.back == 4275878552
++    value.front == 0x0123_4567 && value.back == 0xFEDC_BA98
+         && pick<i32>(value.number) == expected_number
+         && pick<bool>(value.flag) == expected_flag
+         && width(value.span) == expected_width
+@@ -79,24 +79,24 @@ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expect
+         && raw_case(value.named_flag as NamedValue) == 2
+ }
+ machine first() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: 42 },
+     flag: Value::Boolean { value: true },
+     span: Interval::Range { lo: 17, hi: 21 },
+     named_number: (NamedValue::Integer { value: -7 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: false }) as NamedValue in Typed<bool>,
+     named_span: (NamedInterval::Range { lo: 3, hi: 9 }) as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine second() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: -13 },
+     flag: Value::Boolean { value: false },
+     span: Interval::Empty,
+     named_number: (NamedValue::Integer { value: 23 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: true }) as NamedValue in Typed<bool>,
+     named_span: NamedInterval::Empty as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine raw_case(value: NamedValue) -> u64 {
+     match value {
+diff --git a/samples/cli/facts/case_dependent_default_domain/local/invalid/expected.txt b/samples/cli/facts/case_dependent_default_domain/local/invalid/expected.txt
+index 6393357a46b..08c8259349c 100644
+--- a/samples/cli/facts/case_dependent_default_domain/local/invalid/expected.txt
++++ b/samples/cli/facts/case_dependent_default_domain/local/invalid/expected.txt
+@@ -1 +1 @@
+-match arms produce incompatible values
++cannot prove requires contract for call width_range
+diff --git a/samples/cli/facts/case_dependent_default_domain/local/invalid/main.omg b/samples/cli/facts/case_dependent_default_domain/local/invalid/main.omg
+index 090c8afe2a9..197cd6b8521 100644
+--- a/samples/cli/facts/case_dependent_default_domain/local/invalid/main.omg
++++ b/samples/cli/facts/case_dependent_default_domain/local/invalid/main.omg
+@@ -2,7 +2,7 @@
+ // Expected exit: 0.
+ data Value<T> [copy]
+     requires ((self in Value::Integer) && T == i32)
+-        || (self in Value::Boolean)
++        || ((self in Value::Boolean) && T == bool)
+ {
+     case Integer(value: i32);
+     case Boolean(value: bool);
+@@ -14,9 +14,9 @@ data NamedValue [copy] {
+ domain<T> NamedValue::Typed<T>
+     requires ((self in NamedValue::Integer) && T == i32)
+         || ((self in NamedValue::Boolean) && T == bool);
+-data Interval [copy]
++data Interval<const Bound: u64> [copy]
+     requires (self in Interval::Empty)
+-        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= 32)
++        || ((self in Interval::Range) && self.lo <= self.hi)
+ {
+     case Empty;
+     case Range(lo: u64, hi: u64);
+@@ -41,7 +41,7 @@ machine pick_named<T>(value: NamedValue in Typed<T>) -> T {
+         NamedValue::Boolean { value } -> value
+     }
+ }
+-machine width(span: Interval) -> u64 {
++machine width(span: Interval<32>) -> u64 {
+     match span {
+         Interval::Empty -> 77
+         Interval::Range { lo, hi } -> width_range(lo, hi)
+@@ -61,14 +61,14 @@ data Bundle [copy] {
+     front: u64;
+     number: Value<i32>;
+     flag: Value<bool>;
+-    span: Interval;
++    span: Interval<32>;
+     named_number: NamedValue in Typed<i32>;
+     named_flag: NamedValue in Typed<bool>;
+     named_span: NamedInterval in Ordered<32>;
+     back: u64;
+ }
+ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expected_width: u64, expected_named_number: i32, expected_named_flag: bool, expected_named_width: u64) -> bool {
+-    value.front == 19088743 && value.back == 4275878552
++    value.front == 0x0123_4567 && value.back == 0xFEDC_BA98
+         && pick<i32>(value.number) == expected_number
+         && pick<bool>(value.flag) == expected_flag
+         && width(value.span) == expected_width
+@@ -79,24 +79,24 @@ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expect
+         && raw_case(value.named_flag as NamedValue) == 2
+ }
+ machine first() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: 42 },
+     flag: Value::Boolean { value: true },
+     span: Interval::Range { lo: 17, hi: 21 },
+     named_number: (NamedValue::Integer { value: -7 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: false }) as NamedValue in Typed<bool>,
+     named_span: (NamedInterval::Range { lo: 3, hi: 9 }) as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine second() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: -13 },
+     flag: Value::Boolean { value: false },
+     span: Interval::Empty,
+     named_number: (NamedValue::Integer { value: 23 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: true }) as NamedValue in Typed<bool>,
+     named_span: NamedInterval::Empty as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine raw_case(value: NamedValue) -> u64 {
+     match value {
+diff --git a/samples/cli/facts/case_dependent_default_domain/local/invalid/sample.json b/samples/cli/facts/case_dependent_default_domain/local/invalid/sample.json
+index 5f1ad191e63..3044f7fadd4 100644
+--- a/samples/cli/facts/case_dependent_default_domain/local/invalid/sample.json
++++ b/samples/cli/facts/case_dependent_default_domain/local/invalid/sample.json
+@@ -2,6 +2,6 @@
+   "role": "intended-invalid",
+   "entry": "main.omg",
+   "rejection_contains": [
+-    "match arms produce incompatible values"
++    "cannot prove requires contract for call width_range"
+   ]
+ }
+diff --git a/samples/cli/facts/case_dependent_default_domain/local/main.omg b/samples/cli/facts/case_dependent_default_domain/local/main.omg
+index 5d386d02eb1..57c543b290a 100644
+--- a/samples/cli/facts/case_dependent_default_domain/local/main.omg
++++ b/samples/cli/facts/case_dependent_default_domain/local/main.omg
+@@ -14,9 +14,9 @@ data NamedValue [copy] {
+ domain<T> NamedValue::Typed<T>
+     requires ((self in NamedValue::Integer) && T == i32)
+         || ((self in NamedValue::Boolean) && T == bool);
+-data Interval [copy]
++data Interval<const Bound: u64> [copy]
+     requires (self in Interval::Empty)
+-        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= 32)
++        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= Bound)
+ {
+     case Empty;
+     case Range(lo: u64, hi: u64);
+@@ -41,7 +41,7 @@ machine pick_named<T>(value: NamedValue in Typed<T>) -> T {
+         NamedValue::Boolean { value } -> value
+     }
+ }
+-machine width(span: Interval) -> u64 {
++machine width(span: Interval<32>) -> u64 {
+     match span {
+         Interval::Empty -> 77
+         Interval::Range { lo, hi } -> width_range(lo, hi)
+@@ -61,14 +61,14 @@ data Bundle [copy] {
+     front: u64;
+     number: Value<i32>;
+     flag: Value<bool>;
+-    span: Interval;
++    span: Interval<32>;
+     named_number: NamedValue in Typed<i32>;
+     named_flag: NamedValue in Typed<bool>;
+     named_span: NamedInterval in Ordered<32>;
+     back: u64;
+ }
+ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expected_width: u64, expected_named_number: i32, expected_named_flag: bool, expected_named_width: u64) -> bool {
+-    value.front == 19088743 && value.back == 4275878552
++    value.front == 0x0123_4567 && value.back == 0xFEDC_BA98
+         && pick<i32>(value.number) == expected_number
+         && pick<bool>(value.flag) == expected_flag
+         && width(value.span) == expected_width
+@@ -79,24 +79,24 @@ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expect
+         && raw_case(value.named_flag as NamedValue) == 2
+ }
+ machine first() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: 42 },
+     flag: Value::Boolean { value: true },
+     span: Interval::Range { lo: 17, hi: 21 },
+     named_number: (NamedValue::Integer { value: -7 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: false }) as NamedValue in Typed<bool>,
+     named_span: (NamedInterval::Range { lo: 3, hi: 9 }) as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine second() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: -13 },
+     flag: Value::Boolean { value: false },
+     span: Interval::Empty,
+     named_number: (NamedValue::Integer { value: 23 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: true }) as NamedValue in Typed<bool>,
+     named_span: NamedInterval::Empty as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine raw_case(value: NamedValue) -> u64 {
+     match value {
+diff --git a/samples/cli/facts/case_dependent_default_domain/match_join/invalid/expected.txt b/samples/cli/facts/case_dependent_default_domain/match_join/invalid/expected.txt
+index 6393357a46b..08c8259349c 100644
+--- a/samples/cli/facts/case_dependent_default_domain/match_join/invalid/expected.txt
++++ b/samples/cli/facts/case_dependent_default_domain/match_join/invalid/expected.txt
+@@ -1 +1 @@
+-match arms produce incompatible values
++cannot prove requires contract for call width_range
+diff --git a/samples/cli/facts/case_dependent_default_domain/match_join/invalid/main.omg b/samples/cli/facts/case_dependent_default_domain/match_join/invalid/main.omg
+index bca3296a15e..f7de96d9200 100644
+--- a/samples/cli/facts/case_dependent_default_domain/match_join/invalid/main.omg
++++ b/samples/cli/facts/case_dependent_default_domain/match_join/invalid/main.omg
+@@ -2,7 +2,7 @@
+ // Expected exit: 0.
+ data Value<T> [copy]
+     requires ((self in Value::Integer) && T == i32)
+-        || (self in Value::Boolean)
++        || ((self in Value::Boolean) && T == bool)
+ {
+     case Integer(value: i32);
+     case Boolean(value: bool);
+@@ -14,9 +14,9 @@ data NamedValue [copy] {
+ domain<T> NamedValue::Typed<T>
+     requires ((self in NamedValue::Integer) && T == i32)
+         || ((self in NamedValue::Boolean) && T == bool);
+-data Interval [copy]
++data Interval<const Bound: u64> [copy]
+     requires (self in Interval::Empty)
+-        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= 32)
++        || ((self in Interval::Range) && self.lo <= self.hi)
+ {
+     case Empty;
+     case Range(lo: u64, hi: u64);
+@@ -41,7 +41,7 @@ machine pick_named<T>(value: NamedValue in Typed<T>) -> T {
+         NamedValue::Boolean { value } -> value
+     }
+ }
+-machine width(span: Interval) -> u64 {
++machine width(span: Interval<32>) -> u64 {
+     match span {
+         Interval::Empty -> 77
+         Interval::Range { lo, hi } -> width_range(lo, hi)
+@@ -61,14 +61,14 @@ data Bundle [copy] {
+     front: u64;
+     number: Value<i32>;
+     flag: Value<bool>;
+-    span: Interval;
++    span: Interval<32>;
+     named_number: NamedValue in Typed<i32>;
+     named_flag: NamedValue in Typed<bool>;
+     named_span: NamedInterval in Ordered<32>;
+     back: u64;
+ }
+ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expected_width: u64, expected_named_number: i32, expected_named_flag: bool, expected_named_width: u64) -> bool {
+-    value.front == 19088743 && value.back == 4275878552
++    value.front == 0x0123_4567 && value.back == 0xFEDC_BA98
+         && pick<i32>(value.number) == expected_number
+         && pick<bool>(value.flag) == expected_flag
+         && width(value.span) == expected_width
+@@ -79,24 +79,24 @@ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expect
+         && raw_case(value.named_flag as NamedValue) == 2
+ }
+ machine first() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: 42 },
+     flag: Value::Boolean { value: true },
+     span: Interval::Range { lo: 17, hi: 21 },
+     named_number: (NamedValue::Integer { value: -7 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: false }) as NamedValue in Typed<bool>,
+     named_span: (NamedInterval::Range { lo: 3, hi: 9 }) as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine second() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: -13 },
+     flag: Value::Boolean { value: false },
+     span: Interval::Empty,
+     named_number: (NamedValue::Integer { value: 23 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: true }) as NamedValue in Typed<bool>,
+     named_span: NamedInterval::Empty as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine raw_case(value: NamedValue) -> u64 {
+     match value {
+diff --git a/samples/cli/facts/case_dependent_default_domain/match_join/invalid/sample.json b/samples/cli/facts/case_dependent_default_domain/match_join/invalid/sample.json
+index 5f1ad191e63..3044f7fadd4 100644
+--- a/samples/cli/facts/case_dependent_default_domain/match_join/invalid/sample.json
++++ b/samples/cli/facts/case_dependent_default_domain/match_join/invalid/sample.json
+@@ -2,6 +2,6 @@
+   "role": "intended-invalid",
+   "entry": "main.omg",
+   "rejection_contains": [
+-    "match arms produce incompatible values"
++    "cannot prove requires contract for call width_range"
+   ]
+ }
+diff --git a/samples/cli/facts/case_dependent_default_domain/match_join/main.omg b/samples/cli/facts/case_dependent_default_domain/match_join/main.omg
+index 01d5c6258ca..2cf3426a978 100644
+--- a/samples/cli/facts/case_dependent_default_domain/match_join/main.omg
++++ b/samples/cli/facts/case_dependent_default_domain/match_join/main.omg
+@@ -14,9 +14,9 @@ data NamedValue [copy] {
+ domain<T> NamedValue::Typed<T>
+     requires ((self in NamedValue::Integer) && T == i32)
+         || ((self in NamedValue::Boolean) && T == bool);
+-data Interval [copy]
++data Interval<const Bound: u64> [copy]
+     requires (self in Interval::Empty)
+-        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= 32)
++        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= Bound)
+ {
+     case Empty;
+     case Range(lo: u64, hi: u64);
+@@ -41,7 +41,7 @@ machine pick_named<T>(value: NamedValue in Typed<T>) -> T {
+         NamedValue::Boolean { value } -> value
+     }
+ }
+-machine width(span: Interval) -> u64 {
++machine width(span: Interval<32>) -> u64 {
+     match span {
+         Interval::Empty -> 77
+         Interval::Range { lo, hi } -> width_range(lo, hi)
+@@ -61,14 +61,14 @@ data Bundle [copy] {
+     front: u64;
+     number: Value<i32>;
+     flag: Value<bool>;
+-    span: Interval;
++    span: Interval<32>;
+     named_number: NamedValue in Typed<i32>;
+     named_flag: NamedValue in Typed<bool>;
+     named_span: NamedInterval in Ordered<32>;
+     back: u64;
+ }
+ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expected_width: u64, expected_named_number: i32, expected_named_flag: bool, expected_named_width: u64) -> bool {
+-    value.front == 19088743 && value.back == 4275878552
++    value.front == 0x0123_4567 && value.back == 0xFEDC_BA98
+         && pick<i32>(value.number) == expected_number
+         && pick<bool>(value.flag) == expected_flag
+         && width(value.span) == expected_width
+@@ -79,24 +79,24 @@ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expect
+         && raw_case(value.named_flag as NamedValue) == 2
+ }
+ machine first() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: 42 },
+     flag: Value::Boolean { value: true },
+     span: Interval::Range { lo: 17, hi: 21 },
+     named_number: (NamedValue::Integer { value: -7 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: false }) as NamedValue in Typed<bool>,
+     named_span: (NamedInterval::Range { lo: 3, hi: 9 }) as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine second() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: -13 },
+     flag: Value::Boolean { value: false },
+     span: Interval::Empty,
+     named_number: (NamedValue::Integer { value: 23 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: true }) as NamedValue in Typed<bool>,
+     named_span: NamedInterval::Empty as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine raw_case(value: NamedValue) -> u64 {
+     match value {
+diff --git a/samples/cli/facts/case_dependent_default_domain/other_machine/invalid/expected.txt b/samples/cli/facts/case_dependent_default_domain/other_machine/invalid/expected.txt
+index 6393357a46b..08c8259349c 100644
+--- a/samples/cli/facts/case_dependent_default_domain/other_machine/invalid/expected.txt
++++ b/samples/cli/facts/case_dependent_default_domain/other_machine/invalid/expected.txt
+@@ -1 +1 @@
+-match arms produce incompatible values
++cannot prove requires contract for call width_range
+diff --git a/samples/cli/facts/case_dependent_default_domain/other_machine/invalid/main.omg b/samples/cli/facts/case_dependent_default_domain/other_machine/invalid/main.omg
+index 9311e30d397..e05b12f579c 100644
+--- a/samples/cli/facts/case_dependent_default_domain/other_machine/invalid/main.omg
++++ b/samples/cli/facts/case_dependent_default_domain/other_machine/invalid/main.omg
+@@ -2,7 +2,7 @@
+ // Expected exit: 0.
+ data Value<T> [copy]
+     requires ((self in Value::Integer) && T == i32)
+-        || (self in Value::Boolean)
++        || ((self in Value::Boolean) && T == bool)
+ {
+     case Integer(value: i32);
+     case Boolean(value: bool);
+@@ -14,9 +14,9 @@ data NamedValue [copy] {
+ domain<T> NamedValue::Typed<T>
+     requires ((self in NamedValue::Integer) && T == i32)
+         || ((self in NamedValue::Boolean) && T == bool);
+-data Interval [copy]
++data Interval<const Bound: u64> [copy]
+     requires (self in Interval::Empty)
+-        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= 32)
++        || ((self in Interval::Range) && self.lo <= self.hi)
+ {
+     case Empty;
+     case Range(lo: u64, hi: u64);
+@@ -41,7 +41,7 @@ machine pick_named<T>(value: NamedValue in Typed<T>) -> T {
+         NamedValue::Boolean { value } -> value
+     }
+ }
+-machine width(span: Interval) -> u64 {
++machine width(span: Interval<32>) -> u64 {
+     match span {
+         Interval::Empty -> 77
+         Interval::Range { lo, hi } -> width_range(lo, hi)
+@@ -61,14 +61,14 @@ data Bundle [copy] {
+     front: u64;
+     number: Value<i32>;
+     flag: Value<bool>;
+-    span: Interval;
++    span: Interval<32>;
+     named_number: NamedValue in Typed<i32>;
+     named_flag: NamedValue in Typed<bool>;
+     named_span: NamedInterval in Ordered<32>;
+     back: u64;
+ }
+ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expected_width: u64, expected_named_number: i32, expected_named_flag: bool, expected_named_width: u64) -> bool {
+-    value.front == 19088743 && value.back == 4275878552
++    value.front == 0x0123_4567 && value.back == 0xFEDC_BA98
+         && pick<i32>(value.number) == expected_number
+         && pick<bool>(value.flag) == expected_flag
+         && width(value.span) == expected_width
+@@ -79,24 +79,24 @@ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expect
+         && raw_case(value.named_flag as NamedValue) == 2
+ }
+ machine first() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: 42 },
+     flag: Value::Boolean { value: true },
+     span: Interval::Range { lo: 17, hi: 21 },
+     named_number: (NamedValue::Integer { value: -7 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: false }) as NamedValue in Typed<bool>,
+     named_span: (NamedInterval::Range { lo: 3, hi: 9 }) as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine second() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: -13 },
+     flag: Value::Boolean { value: false },
+     span: Interval::Empty,
+     named_number: (NamedValue::Integer { value: 23 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: true }) as NamedValue in Typed<bool>,
+     named_span: NamedInterval::Empty as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine raw_case(value: NamedValue) -> u64 {
+     match value {
+diff --git a/samples/cli/facts/case_dependent_default_domain/other_machine/invalid/sample.json b/samples/cli/facts/case_dependent_default_domain/other_machine/invalid/sample.json
+index 5f1ad191e63..3044f7fadd4 100644
+--- a/samples/cli/facts/case_dependent_default_domain/other_machine/invalid/sample.json
++++ b/samples/cli/facts/case_dependent_default_domain/other_machine/invalid/sample.json
+@@ -2,6 +2,6 @@
+   "role": "intended-invalid",
+   "entry": "main.omg",
+   "rejection_contains": [
+-    "match arms produce incompatible values"
++    "cannot prove requires contract for call width_range"
+   ]
+ }
+diff --git a/samples/cli/facts/case_dependent_default_domain/other_machine/main.omg b/samples/cli/facts/case_dependent_default_domain/other_machine/main.omg
+index 17b4a6c11e3..2aae7025d2b 100644
+--- a/samples/cli/facts/case_dependent_default_domain/other_machine/main.omg
++++ b/samples/cli/facts/case_dependent_default_domain/other_machine/main.omg
+@@ -14,9 +14,9 @@ data NamedValue [copy] {
+ domain<T> NamedValue::Typed<T>
+     requires ((self in NamedValue::Integer) && T == i32)
+         || ((self in NamedValue::Boolean) && T == bool);
+-data Interval [copy]
++data Interval<const Bound: u64> [copy]
+     requires (self in Interval::Empty)
+-        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= 32)
++        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= Bound)
+ {
+     case Empty;
+     case Range(lo: u64, hi: u64);
+@@ -41,7 +41,7 @@ machine pick_named<T>(value: NamedValue in Typed<T>) -> T {
+         NamedValue::Boolean { value } -> value
+     }
+ }
+-machine width(span: Interval) -> u64 {
++machine width(span: Interval<32>) -> u64 {
+     match span {
+         Interval::Empty -> 77
+         Interval::Range { lo, hi } -> width_range(lo, hi)
+@@ -61,14 +61,14 @@ data Bundle [copy] {
+     front: u64;
+     number: Value<i32>;
+     flag: Value<bool>;
+-    span: Interval;
++    span: Interval<32>;
+     named_number: NamedValue in Typed<i32>;
+     named_flag: NamedValue in Typed<bool>;
+     named_span: NamedInterval in Ordered<32>;
+     back: u64;
+ }
+ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expected_width: u64, expected_named_number: i32, expected_named_flag: bool, expected_named_width: u64) -> bool {
+-    value.front == 19088743 && value.back == 4275878552
++    value.front == 0x0123_4567 && value.back == 0xFEDC_BA98
+         && pick<i32>(value.number) == expected_number
+         && pick<bool>(value.flag) == expected_flag
+         && width(value.span) == expected_width
+@@ -79,24 +79,24 @@ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expect
+         && raw_case(value.named_flag as NamedValue) == 2
+ }
+ machine first() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: 42 },
+     flag: Value::Boolean { value: true },
+     span: Interval::Range { lo: 17, hi: 21 },
+     named_number: (NamedValue::Integer { value: -7 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: false }) as NamedValue in Typed<bool>,
+     named_span: (NamedInterval::Range { lo: 3, hi: 9 }) as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine second() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: -13 },
+     flag: Value::Boolean { value: false },
+     span: Interval::Empty,
+     named_number: (NamedValue::Integer { value: 23 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: true }) as NamedValue in Typed<bool>,
+     named_span: NamedInterval::Empty as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine raw_case(value: NamedValue) -> u64 {
+     match value {
+diff --git a/samples/cli/facts/case_dependent_default_domain/other_state/invalid/expected.txt b/samples/cli/facts/case_dependent_default_domain/other_state/invalid/expected.txt
+index 6393357a46b..08c8259349c 100644
+--- a/samples/cli/facts/case_dependent_default_domain/other_state/invalid/expected.txt
++++ b/samples/cli/facts/case_dependent_default_domain/other_state/invalid/expected.txt
+@@ -1 +1 @@
+-match arms produce incompatible values
++cannot prove requires contract for call width_range
+diff --git a/samples/cli/facts/case_dependent_default_domain/other_state/invalid/main.omg b/samples/cli/facts/case_dependent_default_domain/other_state/invalid/main.omg
+index 6f49489d78d..af4c4d971ab 100644
+--- a/samples/cli/facts/case_dependent_default_domain/other_state/invalid/main.omg
++++ b/samples/cli/facts/case_dependent_default_domain/other_state/invalid/main.omg
+@@ -2,7 +2,7 @@
+ // Expected exit: 0.
+ data Value<T> [copy]
+     requires ((self in Value::Integer) && T == i32)
+-        || (self in Value::Boolean)
++        || ((self in Value::Boolean) && T == bool)
+ {
+     case Integer(value: i32);
+     case Boolean(value: bool);
+@@ -14,9 +14,9 @@ data NamedValue [copy] {
+ domain<T> NamedValue::Typed<T>
+     requires ((self in NamedValue::Integer) && T == i32)
+         || ((self in NamedValue::Boolean) && T == bool);
+-data Interval [copy]
++data Interval<const Bound: u64> [copy]
+     requires (self in Interval::Empty)
+-        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= 32)
++        || ((self in Interval::Range) && self.lo <= self.hi)
+ {
+     case Empty;
+     case Range(lo: u64, hi: u64);
+@@ -41,7 +41,7 @@ machine pick_named<T>(value: NamedValue in Typed<T>) -> T {
+         NamedValue::Boolean { value } -> value
+     }
+ }
+-machine width(span: Interval) -> u64 {
++machine width(span: Interval<32>) -> u64 {
+     match span {
+         Interval::Empty -> 77
+         Interval::Range { lo, hi } -> width_range(lo, hi)
+@@ -61,14 +61,14 @@ data Bundle [copy] {
+     front: u64;
+     number: Value<i32>;
+     flag: Value<bool>;
+-    span: Interval;
++    span: Interval<32>;
+     named_number: NamedValue in Typed<i32>;
+     named_flag: NamedValue in Typed<bool>;
+     named_span: NamedInterval in Ordered<32>;
+     back: u64;
+ }
+ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expected_width: u64, expected_named_number: i32, expected_named_flag: bool, expected_named_width: u64) -> bool {
+-    value.front == 19088743 && value.back == 4275878552
++    value.front == 0x0123_4567 && value.back == 0xFEDC_BA98
+         && pick<i32>(value.number) == expected_number
+         && pick<bool>(value.flag) == expected_flag
+         && width(value.span) == expected_width
+@@ -79,24 +79,24 @@ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expect
+         && raw_case(value.named_flag as NamedValue) == 2
+ }
+ machine first() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: 42 },
+     flag: Value::Boolean { value: true },
+     span: Interval::Range { lo: 17, hi: 21 },
+     named_number: (NamedValue::Integer { value: -7 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: false }) as NamedValue in Typed<bool>,
+     named_span: (NamedInterval::Range { lo: 3, hi: 9 }) as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine second() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: -13 },
+     flag: Value::Boolean { value: false },
+     span: Interval::Empty,
+     named_number: (NamedValue::Integer { value: 23 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: true }) as NamedValue in Typed<bool>,
+     named_span: NamedInterval::Empty as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine raw_case(value: NamedValue) -> u64 {
+     match value {
+diff --git a/samples/cli/facts/case_dependent_default_domain/other_state/invalid/sample.json b/samples/cli/facts/case_dependent_default_domain/other_state/invalid/sample.json
+index 5f1ad191e63..3044f7fadd4 100644
+--- a/samples/cli/facts/case_dependent_default_domain/other_state/invalid/sample.json
++++ b/samples/cli/facts/case_dependent_default_domain/other_state/invalid/sample.json
+@@ -2,6 +2,6 @@
+   "role": "intended-invalid",
+   "entry": "main.omg",
+   "rejection_contains": [
+-    "match arms produce incompatible values"
++    "cannot prove requires contract for call width_range"
+   ]
+ }
+diff --git a/samples/cli/facts/case_dependent_default_domain/other_state/main.omg b/samples/cli/facts/case_dependent_default_domain/other_state/main.omg
+index bde683be2c4..912f9277b2f 100644
+--- a/samples/cli/facts/case_dependent_default_domain/other_state/main.omg
++++ b/samples/cli/facts/case_dependent_default_domain/other_state/main.omg
+@@ -14,9 +14,9 @@ data NamedValue [copy] {
+ domain<T> NamedValue::Typed<T>
+     requires ((self in NamedValue::Integer) && T == i32)
+         || ((self in NamedValue::Boolean) && T == bool);
+-data Interval [copy]
++data Interval<const Bound: u64> [copy]
+     requires (self in Interval::Empty)
+-        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= 32)
++        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= Bound)
+ {
+     case Empty;
+     case Range(lo: u64, hi: u64);
+@@ -41,7 +41,7 @@ machine pick_named<T>(value: NamedValue in Typed<T>) -> T {
+         NamedValue::Boolean { value } -> value
+     }
+ }
+-machine width(span: Interval) -> u64 {
++machine width(span: Interval<32>) -> u64 {
+     match span {
+         Interval::Empty -> 77
+         Interval::Range { lo, hi } -> width_range(lo, hi)
+@@ -61,14 +61,14 @@ data Bundle [copy] {
+     front: u64;
+     number: Value<i32>;
+     flag: Value<bool>;
+-    span: Interval;
++    span: Interval<32>;
+     named_number: NamedValue in Typed<i32>;
+     named_flag: NamedValue in Typed<bool>;
+     named_span: NamedInterval in Ordered<32>;
+     back: u64;
+ }
+ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expected_width: u64, expected_named_number: i32, expected_named_flag: bool, expected_named_width: u64) -> bool {
+-    value.front == 19088743 && value.back == 4275878552
++    value.front == 0x0123_4567 && value.back == 0xFEDC_BA98
+         && pick<i32>(value.number) == expected_number
+         && pick<bool>(value.flag) == expected_flag
+         && width(value.span) == expected_width
+@@ -79,24 +79,24 @@ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expect
+         && raw_case(value.named_flag as NamedValue) == 2
+ }
+ machine first() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: 42 },
+     flag: Value::Boolean { value: true },
+     span: Interval::Range { lo: 17, hi: 21 },
+     named_number: (NamedValue::Integer { value: -7 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: false }) as NamedValue in Typed<bool>,
+     named_span: (NamedInterval::Range { lo: 3, hi: 9 }) as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine second() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: -13 },
+     flag: Value::Boolean { value: false },
+     span: Interval::Empty,
+     named_number: (NamedValue::Integer { value: 23 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: true }) as NamedValue in Typed<bool>,
+     named_span: NamedInterval::Empty as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine raw_case(value: NamedValue) -> u64 {
+     match value {
+diff --git a/samples/cli/facts/case_dependent_default_domain/parameter/invalid/expected.txt b/samples/cli/facts/case_dependent_default_domain/parameter/invalid/expected.txt
+index 6393357a46b..08c8259349c 100644
+--- a/samples/cli/facts/case_dependent_default_domain/parameter/invalid/expected.txt
++++ b/samples/cli/facts/case_dependent_default_domain/parameter/invalid/expected.txt
+@@ -1 +1 @@
+-match arms produce incompatible values
++cannot prove requires contract for call width_range
+diff --git a/samples/cli/facts/case_dependent_default_domain/parameter/invalid/main.omg b/samples/cli/facts/case_dependent_default_domain/parameter/invalid/main.omg
+index 8a780ac8705..88b3eff43de 100644
+--- a/samples/cli/facts/case_dependent_default_domain/parameter/invalid/main.omg
++++ b/samples/cli/facts/case_dependent_default_domain/parameter/invalid/main.omg
+@@ -2,7 +2,7 @@
+ // Expected exit: 0.
+ data Value<T> [copy]
+     requires ((self in Value::Integer) && T == i32)
+-        || (self in Value::Boolean)
++        || ((self in Value::Boolean) && T == bool)
+ {
+     case Integer(value: i32);
+     case Boolean(value: bool);
+@@ -14,9 +14,9 @@ data NamedValue [copy] {
+ domain<T> NamedValue::Typed<T>
+     requires ((self in NamedValue::Integer) && T == i32)
+         || ((self in NamedValue::Boolean) && T == bool);
+-data Interval [copy]
++data Interval<const Bound: u64> [copy]
+     requires (self in Interval::Empty)
+-        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= 32)
++        || ((self in Interval::Range) && self.lo <= self.hi)
+ {
+     case Empty;
+     case Range(lo: u64, hi: u64);
+@@ -41,7 +41,7 @@ machine pick_named<T>(value: NamedValue in Typed<T>) -> T {
+         NamedValue::Boolean { value } -> value
+     }
+ }
+-machine width(span: Interval) -> u64 {
++machine width(span: Interval<32>) -> u64 {
+     match span {
+         Interval::Empty -> 77
+         Interval::Range { lo, hi } -> width_range(lo, hi)
+@@ -61,14 +61,14 @@ data Bundle [copy] {
+     front: u64;
+     number: Value<i32>;
+     flag: Value<bool>;
+-    span: Interval;
++    span: Interval<32>;
+     named_number: NamedValue in Typed<i32>;
+     named_flag: NamedValue in Typed<bool>;
+     named_span: NamedInterval in Ordered<32>;
+     back: u64;
+ }
+ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expected_width: u64, expected_named_number: i32, expected_named_flag: bool, expected_named_width: u64) -> bool {
+-    value.front == 19088743 && value.back == 4275878552
++    value.front == 0x0123_4567 && value.back == 0xFEDC_BA98
+         && pick<i32>(value.number) == expected_number
+         && pick<bool>(value.flag) == expected_flag
+         && width(value.span) == expected_width
+@@ -79,24 +79,24 @@ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expect
+         && raw_case(value.named_flag as NamedValue) == 2
+ }
+ machine first() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: 42 },
+     flag: Value::Boolean { value: true },
+     span: Interval::Range { lo: 17, hi: 21 },
+     named_number: (NamedValue::Integer { value: -7 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: false }) as NamedValue in Typed<bool>,
+     named_span: (NamedInterval::Range { lo: 3, hi: 9 }) as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine second() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: -13 },
+     flag: Value::Boolean { value: false },
+     span: Interval::Empty,
+     named_number: (NamedValue::Integer { value: 23 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: true }) as NamedValue in Typed<bool>,
+     named_span: NamedInterval::Empty as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine raw_case(value: NamedValue) -> u64 {
+     match value {
+diff --git a/samples/cli/facts/case_dependent_default_domain/parameter/invalid/sample.json b/samples/cli/facts/case_dependent_default_domain/parameter/invalid/sample.json
+index 5f1ad191e63..3044f7fadd4 100644
+--- a/samples/cli/facts/case_dependent_default_domain/parameter/invalid/sample.json
++++ b/samples/cli/facts/case_dependent_default_domain/parameter/invalid/sample.json
+@@ -2,6 +2,6 @@
+   "role": "intended-invalid",
+   "entry": "main.omg",
+   "rejection_contains": [
+-    "match arms produce incompatible values"
++    "cannot prove requires contract for call width_range"
+   ]
+ }
+diff --git a/samples/cli/facts/case_dependent_default_domain/parameter/main.omg b/samples/cli/facts/case_dependent_default_domain/parameter/main.omg
+index b415bce46df..2e5d3eb1730 100644
+--- a/samples/cli/facts/case_dependent_default_domain/parameter/main.omg
++++ b/samples/cli/facts/case_dependent_default_domain/parameter/main.omg
+@@ -14,9 +14,9 @@ data NamedValue [copy] {
+ domain<T> NamedValue::Typed<T>
+     requires ((self in NamedValue::Integer) && T == i32)
+         || ((self in NamedValue::Boolean) && T == bool);
+-data Interval [copy]
++data Interval<const Bound: u64> [copy]
+     requires (self in Interval::Empty)
+-        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= 32)
++        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= Bound)
+ {
+     case Empty;
+     case Range(lo: u64, hi: u64);
+@@ -41,7 +41,7 @@ machine pick_named<T>(value: NamedValue in Typed<T>) -> T {
+         NamedValue::Boolean { value } -> value
+     }
+ }
+-machine width(span: Interval) -> u64 {
++machine width(span: Interval<32>) -> u64 {
+     match span {
+         Interval::Empty -> 77
+         Interval::Range { lo, hi } -> width_range(lo, hi)
+@@ -61,14 +61,14 @@ data Bundle [copy] {
+     front: u64;
+     number: Value<i32>;
+     flag: Value<bool>;
+-    span: Interval;
++    span: Interval<32>;
+     named_number: NamedValue in Typed<i32>;
+     named_flag: NamedValue in Typed<bool>;
+     named_span: NamedInterval in Ordered<32>;
+     back: u64;
+ }
+ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expected_width: u64, expected_named_number: i32, expected_named_flag: bool, expected_named_width: u64) -> bool {
+-    value.front == 19088743 && value.back == 4275878552
++    value.front == 0x0123_4567 && value.back == 0xFEDC_BA98
+         && pick<i32>(value.number) == expected_number
+         && pick<bool>(value.flag) == expected_flag
+         && width(value.span) == expected_width
+@@ -79,24 +79,24 @@ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expect
+         && raw_case(value.named_flag as NamedValue) == 2
+ }
+ machine first() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: 42 },
+     flag: Value::Boolean { value: true },
+     span: Interval::Range { lo: 17, hi: 21 },
+     named_number: (NamedValue::Integer { value: -7 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: false }) as NamedValue in Typed<bool>,
+     named_span: (NamedInterval::Range { lo: 3, hi: 9 }) as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine second() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: -13 },
+     flag: Value::Boolean { value: false },
+     span: Interval::Empty,
+     named_number: (NamedValue::Integer { value: 23 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: true }) as NamedValue in Typed<bool>,
+     named_span: NamedInterval::Empty as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine raw_case(value: NamedValue) -> u64 {
+     match value {
+diff --git a/samples/cli/facts/case_dependent_default_domain/target_body/invalid/expected.txt b/samples/cli/facts/case_dependent_default_domain/target_body/invalid/expected.txt
+index 6393357a46b..08c8259349c 100644
+--- a/samples/cli/facts/case_dependent_default_domain/target_body/invalid/expected.txt
++++ b/samples/cli/facts/case_dependent_default_domain/target_body/invalid/expected.txt
+@@ -1 +1 @@
+-match arms produce incompatible values
++cannot prove requires contract for call width_range
+diff --git a/samples/cli/facts/case_dependent_default_domain/target_body/invalid/main.omg b/samples/cli/facts/case_dependent_default_domain/target_body/invalid/main.omg
+index fffae77a8e4..abd0dd05adf 100644
+--- a/samples/cli/facts/case_dependent_default_domain/target_body/invalid/main.omg
++++ b/samples/cli/facts/case_dependent_default_domain/target_body/invalid/main.omg
+@@ -2,7 +2,7 @@
+ // Expected exit: 0.
+ data Value<T> [copy]
+     requires ((self in Value::Integer) && T == i32)
+-        || (self in Value::Boolean)
++        || ((self in Value::Boolean) && T == bool)
+ {
+     case Integer(value: i32);
+     case Boolean(value: bool);
+@@ -14,9 +14,9 @@ data NamedValue [copy] {
+ domain<T> NamedValue::Typed<T>
+     requires ((self in NamedValue::Integer) && T == i32)
+         || ((self in NamedValue::Boolean) && T == bool);
+-data Interval [copy]
++data Interval<const Bound: u64> [copy]
+     requires (self in Interval::Empty)
+-        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= 32)
++        || ((self in Interval::Range) && self.lo <= self.hi)
+ {
+     case Empty;
+     case Range(lo: u64, hi: u64);
+@@ -41,7 +41,7 @@ machine pick_named<T>(value: NamedValue in Typed<T>) -> T {
+         NamedValue::Boolean { value } -> value
+     }
+ }
+-machine width(span: Interval) -> u64 {
++machine width(span: Interval<32>) -> u64 {
+     match span {
+         Interval::Empty -> 77
+         Interval::Range { lo, hi } -> width_range(lo, hi)
+@@ -61,14 +61,14 @@ data Bundle [copy] {
+     front: u64;
+     number: Value<i32>;
+     flag: Value<bool>;
+-    span: Interval;
++    span: Interval<32>;
+     named_number: NamedValue in Typed<i32>;
+     named_flag: NamedValue in Typed<bool>;
+     named_span: NamedInterval in Ordered<32>;
+     back: u64;
+ }
+ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expected_width: u64, expected_named_number: i32, expected_named_flag: bool, expected_named_width: u64) -> bool {
+-    value.front == 19088743 && value.back == 4275878552
++    value.front == 0x0123_4567 && value.back == 0xFEDC_BA98
+         && pick<i32>(value.number) == expected_number
+         && pick<bool>(value.flag) == expected_flag
+         && width(value.span) == expected_width
+@@ -79,24 +79,24 @@ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expect
+         && raw_case(value.named_flag as NamedValue) == 2
+ }
+ machine first() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: 42 },
+     flag: Value::Boolean { value: true },
+     span: Interval::Range { lo: 17, hi: 21 },
+     named_number: (NamedValue::Integer { value: -7 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: false }) as NamedValue in Typed<bool>,
+     named_span: (NamedInterval::Range { lo: 3, hi: 9 }) as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine second() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: -13 },
+     flag: Value::Boolean { value: false },
+     span: Interval::Empty,
+     named_number: (NamedValue::Integer { value: 23 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: true }) as NamedValue in Typed<bool>,
+     named_span: NamedInterval::Empty as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine raw_case(value: NamedValue) -> u64 {
+     match value {
+diff --git a/samples/cli/facts/case_dependent_default_domain/target_body/invalid/sample.json b/samples/cli/facts/case_dependent_default_domain/target_body/invalid/sample.json
+index 5f1ad191e63..3044f7fadd4 100644
+--- a/samples/cli/facts/case_dependent_default_domain/target_body/invalid/sample.json
++++ b/samples/cli/facts/case_dependent_default_domain/target_body/invalid/sample.json
+@@ -2,6 +2,6 @@
+   "role": "intended-invalid",
+   "entry": "main.omg",
+   "rejection_contains": [
+-    "match arms produce incompatible values"
++    "cannot prove requires contract for call width_range"
+   ]
+ }
+diff --git a/samples/cli/facts/case_dependent_default_domain/target_body/main.omg b/samples/cli/facts/case_dependent_default_domain/target_body/main.omg
+index 9e02c6e47e4..e1aca4434c0 100644
+--- a/samples/cli/facts/case_dependent_default_domain/target_body/main.omg
++++ b/samples/cli/facts/case_dependent_default_domain/target_body/main.omg
+@@ -14,9 +14,9 @@ data NamedValue [copy] {
+ domain<T> NamedValue::Typed<T>
+     requires ((self in NamedValue::Integer) && T == i32)
+         || ((self in NamedValue::Boolean) && T == bool);
+-data Interval [copy]
++data Interval<const Bound: u64> [copy]
+     requires (self in Interval::Empty)
+-        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= 32)
++        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= Bound)
+ {
+     case Empty;
+     case Range(lo: u64, hi: u64);
+@@ -41,7 +41,7 @@ machine pick_named<T>(value: NamedValue in Typed<T>) -> T {
+         NamedValue::Boolean { value } -> value
+     }
+ }
+-machine width(span: Interval) -> u64 {
++machine width(span: Interval<32>) -> u64 {
+     match span {
+         Interval::Empty -> 77
+         Interval::Range { lo, hi } -> width_range(lo, hi)
+@@ -61,14 +61,14 @@ data Bundle [copy] {
+     front: u64;
+     number: Value<i32>;
+     flag: Value<bool>;
+-    span: Interval;
++    span: Interval<32>;
+     named_number: NamedValue in Typed<i32>;
+     named_flag: NamedValue in Typed<bool>;
+     named_span: NamedInterval in Ordered<32>;
+     back: u64;
+ }
+ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expected_width: u64, expected_named_number: i32, expected_named_flag: bool, expected_named_width: u64) -> bool {
+-    value.front == 19088743 && value.back == 4275878552
++    value.front == 0x0123_4567 && value.back == 0xFEDC_BA98
+         && pick<i32>(value.number) == expected_number
+         && pick<bool>(value.flag) == expected_flag
+         && width(value.span) == expected_width
+@@ -79,24 +79,24 @@ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expect
+         && raw_case(value.named_flag as NamedValue) == 2
+ }
+ machine first() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: 42 },
+     flag: Value::Boolean { value: true },
+     span: Interval::Range { lo: 17, hi: 21 },
+     named_number: (NamedValue::Integer { value: -7 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: false }) as NamedValue in Typed<bool>,
+     named_span: (NamedInterval::Range { lo: 3, hi: 9 }) as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine second() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: -13 },
+     flag: Value::Boolean { value: false },
+     span: Interval::Empty,
+     named_number: (NamedValue::Integer { value: 23 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: true }) as NamedValue in Typed<bool>,
+     named_span: NamedInterval::Empty as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine raw_case(value: NamedValue) -> u64 {
+     match value {
+diff --git a/tests/omega/corpus_both_macos_arm64.txt b/tests/omega/corpus_both_macos_arm64.txt
+index 01f091df9ad..52a0d7fb630 100644
+--- a/tests/omega/corpus_both_macos_arm64.txt
++++ b/tests/omega/corpus_both_macos_arm64.txt
+@@ -162,6 +162,16 @@ pass/facts/captured_window_slot_retirement_through_other_machine_exit built 1118
+ pass/facts/captured_window_slot_retirement_through_other_state_exit built 1137ms exit:0 interpreter-exit:0 interpreter:agrees @04f5793fae62
+ pass/facts/captured_window_slot_retirement_through_parameter_exit built 1151ms exit:0 interpreter-exit:0 interpreter:agrees @04f5793fae62
+ pass/facts/captured_window_slot_retirement_through_target_body_exit built 1510ms exit:0 interpreter-exit:0 terminal-target.linux_arm64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @04f5793fae62
++pass/facts/case_dependent_default_domain_through_call_result_exit built 7788ms exit:0 interpreter-exit:0 interpreter:agrees @72e837cecddf
++pass/facts/case_dependent_default_domain_through_const_name_exit built 5702ms exit:0 interpreter-exit:0 interpreter:agrees @72e837cecddf
++pass/facts/case_dependent_default_domain_through_field_exit built 7760ms exit:0 interpreter-exit:0 interpreter:agrees @72e837cecddf
++pass/facts/case_dependent_default_domain_through_local_exit built 6649ms exit:0 interpreter-exit:0 interpreter:agrees @72e837cecddf
++pass/facts/case_dependent_default_domain_through_match_join_exit built 7492ms exit:0 interpreter-exit:0 interpreter:agrees @72e837cecddf
++pass/facts/case_dependent_default_domain_through_other_machine_exit built 8681ms exit:0 interpreter-exit:0 interpreter:agrees @72e837cecddf
++pass/facts/case_dependent_default_domain_through_other_state_exit built 7740ms exit:0 interpreter-exit:0 interpreter:agrees @72e837cecddf
++pass/facts/case_dependent_default_domain_through_parameter_exit built 7795ms exit:0 interpreter-exit:0 interpreter:agrees @72e837cecddf
++pass/facts/case_dependent_default_domain_through_target_body_exit built 4857ms exit:0 interpreter-exit:0 interpreter:agrees @72e837cecddf
++pass/facts/case_predicate_restoration_exit built 3422ms exit:0 interpreter-exit:0 interpreter:agrees @72e837cecddf
+ pass/facts/checked_asm_compare_preserves_ambient_capture_through_call_result_exit built 3628ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
+ pass/facts/checked_asm_compare_preserves_ambient_capture_through_const_name_exit built 3891ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
+ pass/facts/checked_asm_compare_preserves_ambient_capture_through_field_exit built 3905ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
+@@ -5010,7 +5020,7 @@ pass/borrows/runtime_byte_view_element_reference_calls_exit built 3607ms exit:0
+ pass/borrows/runtime_copied_byte_predicate_snapshot_exit built 3506ms exit:0 interpreter-exit:0 interpreter:agrees @54d47902d575+wt
+ pass/build/entry_schema_same_leaf_exit built 3580ms exit:0 interpreter-exit:0 interpreter:agrees @92558d90488a+wt
+ pass/entry/nested_where_record_binding_field_exit built 4394ms exit:70 interpreter-exit:70 interpreter:agrees @92558d90488a+wt
+-pass/dependent/zero_case_predicate_entry_exit built 5876ms exit:65 interpreter-exit:65 interpreter:agrees @2b888a3f0e32
++pass/dependent/zero_case_predicate_entry_exit built 24465ms exit:65 interpreter-exit:65 interpreter:agrees @72e837cecddf
+ pass/providers/calling_application_region_scopes_exit built 4804ms exit:0 interpreter-exit:0 interpreter:agrees @c03720bf6cb3
+ pass/traits/runtime_qualified_byte_crash_equality_exit built 6310ms exit:70 interpreter-exit:70 interpreter:agrees @6d0b8da07bdd+wt
+ pass/contracts/runtime_float_case_crash_guard_exit built 7188ms exit:0 interpreter-exit:0 interpreter:agrees @c294657097ec+wt
+diff --git a/tests/omega/corpus_outcomes.txt b/tests/omega/corpus_outcomes.txt
+index 300e22ac842..038708d168a 100644
+--- a/tests/omega/corpus_outcomes.txt
++++ b/tests/omega/corpus_outcomes.txt
+@@ -245,6 +245,10 @@ fail/facts/captured_storage_bounds_through_parameter_rejected rejected 1434ms @9
+ 	machine `pump_next` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+ fail/facts/captured_storage_bounds_through_target_body_rejected rejected 1187ms @9150cfa6fe03
+ 	machine `pump_next` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
++fail/facts/case_predicate_missing_type_equation_rejected rejected 427ms expected @72e837cecddf
++	machine `pick` state `entry` return value expects `T`, but the value is delivered as `bool`
++fail/facts/case_predicate_other_default_argument_rejected rejected 1856ms expected @72e837cecddf
++	cannot prove requires contract for call width_range from invalid: <saved subject #1:1>.lo <= <saved subject #1:1>.hi && <saved subject #1:1>.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+ fail/facts/case_type_equation_recovery_through_call_result_rejected rejected 3011ms expected @0402685c2f27+wt
+ 	machine `extract` state `entry` return value expects `T`, but the value is delivered as `bool`
+ 	match arms produce incompatible values
+@@ -3870,8 +3874,7 @@ pass/dependent/valuation_order_cycle rejected 655ms regressed-from:checked @ccdb
+ 	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `storage.pair` must close first -- restore the `where` facts before this consumption point (ch11)
+ pass/dependent/where_field_shadows_module_const_exit checked 11956ms check-target:macos_arm64 @ccdb99ca2214
+ pass/dependent/zero_case_absorbs_nested_gate_compile checked 17327ms check-target:macos_arm64 @ccdb99ca2214
+-pass/dependent/zero_case_predicate_entry_exit rejected 13524ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
+-	exact arithmetic in machine `Main::main` state `main` terminal call operands may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
++pass/dependent/zero_case_predicate_entry_exit checked 26374ms check-target:macos_arm64 @72e837cecddf
+ pass/dependent/zero_gated_record_field_store_exit checked 17771ms check-target:macos_arm64 @ccdb99ca2214
+ pass/dependent/zero_valid_qualified_storage checked 6135ms @ccdb99ca2214
+ pass/dependent/zeroed_record_member_sum_elision checked 17842ms check-target:macos_arm64 @ccdb99ca2214
+@@ -4864,15 +4867,15 @@ pass/facts/case_const_equal_literals_with_predicate checked 2486ms @ccdb99ca2214
+ pass/facts/case_const_equal_literals_without_predicate checked 3045ms @ccdb99ca2214
+ pass/facts/case_const_forwarded_binder_compile rejected 1075ms regressed-from:checked @ccdb99ca2214
+ 	exact arithmetic in machine `take` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+-pass/facts/case_dependent_default_domain_through_call_result_exit checked 60511ms check-target:macos_arm64 @a91a8de86514+wt
+-pass/facts/case_dependent_default_domain_through_const_name_exit checked 58469ms check-target:macos_arm64 @a91a8de86514+wt
+-pass/facts/case_dependent_default_domain_through_field_exit checked 61467ms check-target:macos_arm64 @a91a8de86514+wt
+-pass/facts/case_dependent_default_domain_through_local_exit checked 46594ms check-target:macos_arm64 @a91a8de86514+wt
+-pass/facts/case_dependent_default_domain_through_match_join_exit checked 41399ms check-target:macos_arm64 @a91a8de86514+wt
+-pass/facts/case_dependent_default_domain_through_other_machine_exit checked 34824ms check-target:macos_arm64 @a91a8de86514+wt
+-pass/facts/case_dependent_default_domain_through_other_state_exit checked 52013ms check-target:macos_arm64 @a91a8de86514+wt
+-pass/facts/case_dependent_default_domain_through_parameter_exit checked 47242ms check-target:macos_arm64 @a91a8de86514+wt
+-pass/facts/case_dependent_default_domain_through_target_body_exit checked 77954ms check-target:macos_arm64 @a91a8de86514+wt
++pass/facts/case_dependent_default_domain_through_call_result_exit checked 6693ms check-target:macos_arm64 @72e837cecddf
++pass/facts/case_dependent_default_domain_through_const_name_exit checked 6805ms check-target:macos_arm64 @72e837cecddf
++pass/facts/case_dependent_default_domain_through_field_exit checked 7797ms check-target:macos_arm64 @72e837cecddf
++pass/facts/case_dependent_default_domain_through_local_exit checked 5860ms check-target:macos_arm64 @72e837cecddf
++pass/facts/case_dependent_default_domain_through_match_join_exit checked 6812ms check-target:macos_arm64 @72e837cecddf
++pass/facts/case_dependent_default_domain_through_other_machine_exit checked 4810ms check-target:macos_arm64 @72e837cecddf
++pass/facts/case_dependent_default_domain_through_other_state_exit checked 9006ms check-target:macos_arm64 @72e837cecddf
++pass/facts/case_dependent_default_domain_through_parameter_exit checked 6789ms check-target:macos_arm64 @72e837cecddf
++pass/facts/case_dependent_default_domain_through_target_body_exit checked 8050ms check-target:macos_arm64 @72e837cecddf
+ pass/facts/case_equality_through_call_result_compile checked 2279ms @ccdb99ca2214
+ pass/facts/case_equality_through_const_name_compile rejected 899ms regressed-from:checked @ccdb99ca2214
+ 	exact arithmetic in machine `take` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+@@ -17354,7 +17357,7 @@ fail/dependent/borrowed_coupled_invalid_zero rejected 1114ms expected @ccdb99ca2
+ 	data `Coupled` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+ fail/dependent/borrowed_coupled_unrestored_count rejected 1550ms expected @ccdb99ca2214
+ 	data `Coupled`'s default domain is still FALSE at state exit: the invariant window opened on `record` must close first -- restore the `where` facts before this consumption point (ch11)
+-fail/dependent/case_where_payload_write_exit_open rejected 876ms unexpected @ccdb99ca2214
++fail/dependent/case_where_payload_write_exit_open rejected 433ms expected @72e837cecddf
+ 	data `Interval`'s default domain is still FALSE at a call: the invariant window opened on `main.interval` must close first -- restore the `where` facts before this consumption point (ch11)
+ fail/dependent/case_where_sibling_payload_scope rejected 697ms expected @ccdb99ca2214
+ 	cannot form specification operator `>=` in data `Pair` case `B` predicate: no exact selected meaning
+@@ -19683,51 +19686,24 @@ fail/facts/case_const_unequal_literals_subtraction_rejected rejected 647ms unexp
+ 	exact arithmetic in machine `take` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+ fail/facts/case_const_unequal_predicate_rejected rejected 75ms unexpected @ccdb99ca2214
+ 	data `Interval` case `Point` literal violates the case constraint: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+-fail/facts/case_dependent_default_domain_through_call_result_rejected rejected 49134ms expected @a91a8de86514+wt
+-	match arms produce incompatible values
+-	machine `pick` state `entry` return value expects `T`, but the value is delivered as `bool`
+-	match arms produce incompatible values
+-	machine `pick$specialized$46338aa91c283922$0` state `entry` stores a boolean into a `i32` return value, which holds a numeric value
+-fail/facts/case_dependent_default_domain_through_const_name_rejected rejected 43310ms expected @a91a8de86514+wt
+-	match arms produce incompatible values
+-	machine `pick` state `entry` return value expects `T`, but the value is delivered as `bool`
+-	match arms produce incompatible values
+-	machine `pick$specialized$46338aa91c283922$0` state `entry` stores a boolean into a `i32` return value, which holds a numeric value
+-fail/facts/case_dependent_default_domain_through_field_rejected rejected 39504ms expected @a91a8de86514+wt
+-	match arms produce incompatible values
+-	machine `pick` state `entry` return value expects `T`, but the value is delivered as `bool`
+-	match arms produce incompatible values
+-	machine `pick$specialized$46338aa91c283922$0` state `entry` stores a boolean into a `i32` return value, which holds a numeric value
+-fail/facts/case_dependent_default_domain_through_local_rejected rejected 35118ms expected @a91a8de86514+wt
+-	match arms produce incompatible values
+-	machine `pick` state `entry` return value expects `T`, but the value is delivered as `bool`
+-	match arms produce incompatible values
+-	machine `pick$specialized$46338aa91c283922$0` state `entry` stores a boolean into a `i32` return value, which holds a numeric value
+-fail/facts/case_dependent_default_domain_through_match_join_rejected rejected 44209ms expected @a91a8de86514+wt
+-	match arms produce incompatible values
+-	machine `pick` state `entry` return value expects `T`, but the value is delivered as `bool`
+-	match arms produce incompatible values
+-	machine `pick$specialized$46338aa91c283922$0` state `entry` stores a boolean into a `i32` return value, which holds a numeric value
+-fail/facts/case_dependent_default_domain_through_other_machine_rejected rejected 32119ms expected @a91a8de86514+wt
+-	match arms produce incompatible values
+-	machine `pick` state `entry` return value expects `T`, but the value is delivered as `bool`
+-	match arms produce incompatible values
+-	machine `pick$specialized$46338aa91c283922$0` state `entry` stores a boolean into a `i32` return value, which holds a numeric value
+-fail/facts/case_dependent_default_domain_through_other_state_rejected rejected 56710ms expected @a91a8de86514+wt
+-	match arms produce incompatible values
+-	machine `pick` state `entry` return value expects `T`, but the value is delivered as `bool`
+-	match arms produce incompatible values
+-	machine `pick$specialized$46338aa91c283922$0` state `entry` stores a boolean into a `i32` return value, which holds a numeric value
+-fail/facts/case_dependent_default_domain_through_parameter_rejected rejected 41160ms expected @a91a8de86514+wt
+-	match arms produce incompatible values
+-	machine `pick` state `entry` return value expects `T`, but the value is delivered as `bool`
+-	match arms produce incompatible values
+-	machine `pick$specialized$46338aa91c283922$0` state `entry` stores a boolean into a `i32` return value, which holds a numeric value
+-fail/facts/case_dependent_default_domain_through_target_body_rejected rejected 39750ms expected @a91a8de86514+wt
+-	match arms produce incompatible values
+-	machine `pick` state `entry` return value expects `T`, but the value is delivered as `bool`
+-	match arms produce incompatible values
+-	machine `pick$specialized$46338aa91c283922$0` state `entry` stores a boolean into a `i32` return value, which holds a numeric value
++fail/facts/case_dependent_default_domain_through_call_result_rejected rejected 2698ms expected @72e837cecddf
++	cannot prove requires contract for call width_range from width: <saved subject #3:1>.lo <= <saved subject #3:1>.hi && <saved subject #3:1>.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
++fail/facts/case_dependent_default_domain_through_const_name_rejected rejected 4901ms expected @72e837cecddf
++	cannot prove requires contract for call width_range from width: <saved subject #3:1>.lo <= <saved subject #3:1>.hi && <saved subject #3:1>.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
++fail/facts/case_dependent_default_domain_through_field_rejected rejected 4797ms expected @72e837cecddf
++	cannot prove requires contract for call width_range from width: <saved subject #3:1>.lo <= <saved subject #3:1>.hi && <saved subject #3:1>.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
++fail/facts/case_dependent_default_domain_through_local_rejected rejected 4701ms expected @72e837cecddf
++	cannot prove requires contract for call width_range from width: <saved subject #3:1>.lo <= <saved subject #3:1>.hi && <saved subject #3:1>.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
++fail/facts/case_dependent_default_domain_through_match_join_rejected rejected 5178ms expected @72e837cecddf
++	cannot prove requires contract for call width_range from width: <saved subject #3:1>.lo <= <saved subject #3:1>.hi && <saved subject #3:1>.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
++fail/facts/case_dependent_default_domain_through_other_machine_rejected rejected 3726ms expected @72e837cecddf
++	cannot prove requires contract for call width_range from width: <saved subject #3:1>.lo <= <saved subject #3:1>.hi && <saved subject #3:1>.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
++fail/facts/case_dependent_default_domain_through_other_state_rejected rejected 3458ms expected @72e837cecddf
++	cannot prove requires contract for call width_range from width: <saved subject #3:1>.lo <= <saved subject #3:1>.hi && <saved subject #3:1>.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
++fail/facts/case_dependent_default_domain_through_parameter_rejected rejected 2523ms expected @72e837cecddf
++	cannot prove requires contract for call width_range from width: <saved subject #3:1>.lo <= <saved subject #3:1>.hi && <saved subject #3:1>.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
++fail/facts/case_dependent_default_domain_through_target_body_rejected rejected 2583ms expected @72e837cecddf
++	cannot prove requires contract for call width_range from width: <saved subject #3:1>.lo <= <saved subject #3:1>.hi && <saved subject #3:1>.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+ fail/facts/case_equality_through_call_result_compile rejected 831ms expected @ccdb99ca2214
+ 	exact arithmetic in machine `take` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+ fail/facts/case_equality_through_const_name_compile rejected 692ms unexpected @ccdb99ca2214
+@@ -35245,9 +35221,9 @@ fail/facts/case_predicate_reversed_bounds_rejected rejected 7072ms expected @a91
+ fail/facts/case_predicate_stale_type_rejected rejected 9460ms expected @a91a8de86514+wt
+ 	match arms produce incompatible values
+ 	machine `invalid` state `entry` return value expects `T`, but the value is delivered as `i32`
+-fail/facts/case_predicate_stale_write_rejected rejected 7652ms expected @a91a8de86514+wt
+-	machine `main` state `entry` statement 2: the next whole-value read of `value` occurs inside an OPEN invariant window: a prior write left data `Interval`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
+-	data `Interval`'s default domain is still FALSE at a call: the invariant window opened on `value` must close first -- restore the `where` facts before this consumption point (ch11)
++fail/facts/case_predicate_stale_write_rejected rejected 493ms expected @72e837cecddf
++	machine `main` state `entry` statement 2: the next whole-value read of `value` occurs inside an OPEN invariant window: a prior write left data `Interval<32>`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
++	data `Interval<32>`'s default domain is still FALSE at a call: the invariant window opened on `value` must close first -- restore the `where` facts before this consumption point (ch11)
+ fail/facts/case_predicate_wrong_case_type_rejected rejected 13703ms expected @a91a8de86514+wt
+ 	data `Value<i32>` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+ 	data `Value<i32>` case `Boolean` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+@@ -35255,5 +35231,5 @@ fail/facts/case_predicate_wrong_named_type_rejected rejected 15863ms expected @a
+ 	`as ... in Typed` cannot prove every domain predicate from the checked operand value; constrain that value with a guarantee or guard
+ pass/facts/case_predicate_guard_effects_exit checked 53779ms check-target:macos_arm64 @a91a8de86514+wt
+ pass/facts/case_predicate_named_coverage_exit checked 21533ms check-target:macos_arm64 @a91a8de86514+wt
+-pass/facts/case_predicate_restoration_exit checked 25899ms check-target:macos_arm64 @a91a8de86514+wt
++pass/facts/case_predicate_restoration_exit checked 4403ms check-target:macos_arm64 @72e837cecddf
+ pass/facts/case_predicate_zero_exit checked 22678ms check-target:macos_arm64 @a91a8de86514+wt
+diff --git a/tests/omega/fail/dependent/case_where_payload_write_exit_open/expected.txt b/tests/omega/fail/dependent/case_where_payload_write_exit_open/expected.txt
+index dea4116b0a1..bb610f628f9 100644
+--- a/tests/omega/fail/dependent/case_where_payload_write_exit_open/expected.txt
++++ b/tests/omega/fail/dependent/case_where_payload_write_exit_open/expected.txt
+@@ -1 +1 @@
+-in a predecessor state must close first
++default domain is still FALSE at a call
+diff --git a/tests/omega/fail/facts/case_dependent_default_domain_through_call_result_rejected/expected.txt b/tests/omega/fail/facts/case_dependent_default_domain_through_call_result_rejected/expected.txt
+index 6393357a46b..08c8259349c 100644
+--- a/tests/omega/fail/facts/case_dependent_default_domain_through_call_result_rejected/expected.txt
++++ b/tests/omega/fail/facts/case_dependent_default_domain_through_call_result_rejected/expected.txt
+@@ -1 +1 @@
+-match arms produce incompatible values
++cannot prove requires contract for call width_range
+diff --git a/tests/omega/fail/facts/case_dependent_default_domain_through_call_result_rejected/main.omg b/tests/omega/fail/facts/case_dependent_default_domain_through_call_result_rejected/main.omg
+index 8589551ce1e..eca2fea56c0 100644
+--- a/tests/omega/fail/facts/case_dependent_default_domain_through_call_result_rejected/main.omg
++++ b/tests/omega/fail/facts/case_dependent_default_domain_through_call_result_rejected/main.omg
+@@ -2,7 +2,7 @@
+ // Expected exit: 0.
+ data Value<T> [copy]
+     requires ((self in Value::Integer) && T == i32)
+-        || (self in Value::Boolean)
++        || ((self in Value::Boolean) && T == bool)
+ {
+     case Integer(value: i32);
+     case Boolean(value: bool);
+@@ -14,9 +14,9 @@ data NamedValue [copy] {
+ domain<T> NamedValue::Typed<T>
+     requires ((self in NamedValue::Integer) && T == i32)
+         || ((self in NamedValue::Boolean) && T == bool);
+-data Interval [copy]
++data Interval<const Bound: u64> [copy]
+     requires (self in Interval::Empty)
+-        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= 32)
++        || ((self in Interval::Range) && self.lo <= self.hi)
+ {
+     case Empty;
+     case Range(lo: u64, hi: u64);
+@@ -41,7 +41,7 @@ machine pick_named<T>(value: NamedValue in Typed<T>) -> T {
+         NamedValue::Boolean { value } -> value
+     }
+ }
+-machine width(span: Interval) -> u64 {
++machine width(span: Interval<32>) -> u64 {
+     match span {
+         Interval::Empty -> 77
+         Interval::Range { lo, hi } -> width_range(lo, hi)
+@@ -61,14 +61,14 @@ data Bundle [copy] {
+     front: u64;
+     number: Value<i32>;
+     flag: Value<bool>;
+-    span: Interval;
++    span: Interval<32>;
+     named_number: NamedValue in Typed<i32>;
+     named_flag: NamedValue in Typed<bool>;
+     named_span: NamedInterval in Ordered<32>;
+     back: u64;
+ }
+ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expected_width: u64, expected_named_number: i32, expected_named_flag: bool, expected_named_width: u64) -> bool {
+-    value.front == 19088743 && value.back == 4275878552
++    value.front == 0x0123_4567 && value.back == 0xFEDC_BA98
+         && pick<i32>(value.number) == expected_number
+         && pick<bool>(value.flag) == expected_flag
+         && width(value.span) == expected_width
+@@ -79,24 +79,24 @@ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expect
+         && raw_case(value.named_flag as NamedValue) == 2
+ }
+ machine first() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: 42 },
+     flag: Value::Boolean { value: true },
+     span: Interval::Range { lo: 17, hi: 21 },
+     named_number: (NamedValue::Integer { value: -7 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: false }) as NamedValue in Typed<bool>,
+     named_span: (NamedInterval::Range { lo: 3, hi: 9 }) as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine second() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: -13 },
+     flag: Value::Boolean { value: false },
+     span: Interval::Empty,
+     named_number: (NamedValue::Integer { value: 23 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: true }) as NamedValue in Typed<bool>,
+     named_span: NamedInterval::Empty as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine raw_case(value: NamedValue) -> u64 {
+     match value {
+diff --git a/tests/omega/fail/facts/case_dependent_default_domain_through_const_name_rejected/expected.txt b/tests/omega/fail/facts/case_dependent_default_domain_through_const_name_rejected/expected.txt
+index 6393357a46b..08c8259349c 100644
+--- a/tests/omega/fail/facts/case_dependent_default_domain_through_const_name_rejected/expected.txt
++++ b/tests/omega/fail/facts/case_dependent_default_domain_through_const_name_rejected/expected.txt
+@@ -1 +1 @@
+-match arms produce incompatible values
++cannot prove requires contract for call width_range
+diff --git a/tests/omega/fail/facts/case_dependent_default_domain_through_const_name_rejected/main.omg b/tests/omega/fail/facts/case_dependent_default_domain_through_const_name_rejected/main.omg
+index f573e563999..6236962cb2b 100644
+--- a/tests/omega/fail/facts/case_dependent_default_domain_through_const_name_rejected/main.omg
++++ b/tests/omega/fail/facts/case_dependent_default_domain_through_const_name_rejected/main.omg
+@@ -2,7 +2,7 @@
+ // Expected exit: 0.
+ data Value<T> [copy]
+     requires ((self in Value::Integer) && T == i32)
+-        || (self in Value::Boolean)
++        || ((self in Value::Boolean) && T == bool)
+ {
+     case Integer(value: i32);
+     case Boolean(value: bool);
+@@ -14,9 +14,9 @@ data NamedValue [copy] {
+ domain<T> NamedValue::Typed<T>
+     requires ((self in NamedValue::Integer) && T == i32)
+         || ((self in NamedValue::Boolean) && T == bool);
+-data Interval [copy]
++data Interval<const Bound: u64> [copy]
+     requires (self in Interval::Empty)
+-        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= 32)
++        || ((self in Interval::Range) && self.lo <= self.hi)
+ {
+     case Empty;
+     case Range(lo: u64, hi: u64);
+@@ -41,7 +41,7 @@ machine pick_named<T>(value: NamedValue in Typed<T>) -> T {
+         NamedValue::Boolean { value } -> value
+     }
+ }
+-machine width(span: Interval) -> u64 {
++machine width(span: Interval<32>) -> u64 {
+     match span {
+         Interval::Empty -> 77
+         Interval::Range { lo, hi } -> width_range(lo, hi)
+@@ -61,14 +61,14 @@ data Bundle [copy] {
+     front: u64;
+     number: Value<i32>;
+     flag: Value<bool>;
+-    span: Interval;
++    span: Interval<32>;
+     named_number: NamedValue in Typed<i32>;
+     named_flag: NamedValue in Typed<bool>;
+     named_span: NamedInterval in Ordered<32>;
+     back: u64;
+ }
+ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expected_width: u64, expected_named_number: i32, expected_named_flag: bool, expected_named_width: u64) -> bool {
+-    value.front == 19088743 && value.back == 4275878552
++    value.front == 0x0123_4567 && value.back == 0xFEDC_BA98
+         && pick<i32>(value.number) == expected_number
+         && pick<bool>(value.flag) == expected_flag
+         && width(value.span) == expected_width
+@@ -79,24 +79,24 @@ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expect
+         && raw_case(value.named_flag as NamedValue) == 2
+ }
+ machine first() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: 42 },
+     flag: Value::Boolean { value: true },
+     span: Interval::Range { lo: 17, hi: 21 },
+     named_number: (NamedValue::Integer { value: -7 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: false }) as NamedValue in Typed<bool>,
+     named_span: (NamedInterval::Range { lo: 3, hi: 9 }) as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine second() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: -13 },
+     flag: Value::Boolean { value: false },
+     span: Interval::Empty,
+     named_number: (NamedValue::Integer { value: 23 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: true }) as NamedValue in Typed<bool>,
+     named_span: NamedInterval::Empty as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine raw_case(value: NamedValue) -> u64 {
+     match value {
+@@ -105,24 +105,24 @@ machine raw_case(value: NamedValue) -> u64 {
+     }
+ }
+ const FIRST: Bundle = Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: 42 },
+     flag: Value::Boolean { value: true },
+     span: Interval::Range { lo: 17, hi: 21 },
+     named_number: (NamedValue::Integer { value: -7 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: false }) as NamedValue in Typed<bool>,
+     named_span: (NamedInterval::Range { lo: 3, hi: 9 }) as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ };
+ const SECOND: Bundle = Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: -13 },
+     flag: Value::Boolean { value: false },
+     span: Interval::Empty,
+     named_number: (NamedValue::Integer { value: 23 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: true }) as NamedValue in Typed<bool>,
+     named_span: NamedInterval::Empty as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ };
+ 
+ machine main() crashes Trap {
+diff --git a/tests/omega/fail/facts/case_dependent_default_domain_through_field_rejected/expected.txt b/tests/omega/fail/facts/case_dependent_default_domain_through_field_rejected/expected.txt
+index 6393357a46b..08c8259349c 100644
+--- a/tests/omega/fail/facts/case_dependent_default_domain_through_field_rejected/expected.txt
++++ b/tests/omega/fail/facts/case_dependent_default_domain_through_field_rejected/expected.txt
+@@ -1 +1 @@
+-match arms produce incompatible values
++cannot prove requires contract for call width_range
+diff --git a/tests/omega/fail/facts/case_dependent_default_domain_through_field_rejected/main.omg b/tests/omega/fail/facts/case_dependent_default_domain_through_field_rejected/main.omg
+index 42775389c15..159445af338 100644
+--- a/tests/omega/fail/facts/case_dependent_default_domain_through_field_rejected/main.omg
++++ b/tests/omega/fail/facts/case_dependent_default_domain_through_field_rejected/main.omg
+@@ -2,7 +2,7 @@
+ // Expected exit: 0.
+ data Value<T> [copy]
+     requires ((self in Value::Integer) && T == i32)
+-        || (self in Value::Boolean)
++        || ((self in Value::Boolean) && T == bool)
+ {
+     case Integer(value: i32);
+     case Boolean(value: bool);
+@@ -14,9 +14,9 @@ data NamedValue [copy] {
+ domain<T> NamedValue::Typed<T>
+     requires ((self in NamedValue::Integer) && T == i32)
+         || ((self in NamedValue::Boolean) && T == bool);
+-data Interval [copy]
++data Interval<const Bound: u64> [copy]
+     requires (self in Interval::Empty)
+-        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= 32)
++        || ((self in Interval::Range) && self.lo <= self.hi)
+ {
+     case Empty;
+     case Range(lo: u64, hi: u64);
+@@ -41,7 +41,7 @@ machine pick_named<T>(value: NamedValue in Typed<T>) -> T {
+         NamedValue::Boolean { value } -> value
+     }
+ }
+-machine width(span: Interval) -> u64 {
++machine width(span: Interval<32>) -> u64 {
+     match span {
+         Interval::Empty -> 77
+         Interval::Range { lo, hi } -> width_range(lo, hi)
+@@ -61,14 +61,14 @@ data Bundle [copy] {
+     front: u64;
+     number: Value<i32>;
+     flag: Value<bool>;
+-    span: Interval;
++    span: Interval<32>;
+     named_number: NamedValue in Typed<i32>;
+     named_flag: NamedValue in Typed<bool>;
+     named_span: NamedInterval in Ordered<32>;
+     back: u64;
+ }
+ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expected_width: u64, expected_named_number: i32, expected_named_flag: bool, expected_named_width: u64) -> bool {
+-    value.front == 19088743 && value.back == 4275878552
++    value.front == 0x0123_4567 && value.back == 0xFEDC_BA98
+         && pick<i32>(value.number) == expected_number
+         && pick<bool>(value.flag) == expected_flag
+         && width(value.span) == expected_width
+@@ -79,24 +79,24 @@ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expect
+         && raw_case(value.named_flag as NamedValue) == 2
+ }
+ machine first() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: 42 },
+     flag: Value::Boolean { value: true },
+     span: Interval::Range { lo: 17, hi: 21 },
+     named_number: (NamedValue::Integer { value: -7 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: false }) as NamedValue in Typed<bool>,
+     named_span: (NamedInterval::Range { lo: 3, hi: 9 }) as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine second() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: -13 },
+     flag: Value::Boolean { value: false },
+     span: Interval::Empty,
+     named_number: (NamedValue::Integer { value: 23 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: true }) as NamedValue in Typed<bool>,
+     named_span: NamedInterval::Empty as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine raw_case(value: NamedValue) -> u64 {
+     match value {
+diff --git a/tests/omega/fail/facts/case_dependent_default_domain_through_local_rejected/expected.txt b/tests/omega/fail/facts/case_dependent_default_domain_through_local_rejected/expected.txt
+index 6393357a46b..08c8259349c 100644
+--- a/tests/omega/fail/facts/case_dependent_default_domain_through_local_rejected/expected.txt
++++ b/tests/omega/fail/facts/case_dependent_default_domain_through_local_rejected/expected.txt
+@@ -1 +1 @@
+-match arms produce incompatible values
++cannot prove requires contract for call width_range
+diff --git a/tests/omega/fail/facts/case_dependent_default_domain_through_local_rejected/main.omg b/tests/omega/fail/facts/case_dependent_default_domain_through_local_rejected/main.omg
+index 090c8afe2a9..197cd6b8521 100644
+--- a/tests/omega/fail/facts/case_dependent_default_domain_through_local_rejected/main.omg
++++ b/tests/omega/fail/facts/case_dependent_default_domain_through_local_rejected/main.omg
+@@ -2,7 +2,7 @@
+ // Expected exit: 0.
+ data Value<T> [copy]
+     requires ((self in Value::Integer) && T == i32)
+-        || (self in Value::Boolean)
++        || ((self in Value::Boolean) && T == bool)
+ {
+     case Integer(value: i32);
+     case Boolean(value: bool);
+@@ -14,9 +14,9 @@ data NamedValue [copy] {
+ domain<T> NamedValue::Typed<T>
+     requires ((self in NamedValue::Integer) && T == i32)
+         || ((self in NamedValue::Boolean) && T == bool);
+-data Interval [copy]
++data Interval<const Bound: u64> [copy]
+     requires (self in Interval::Empty)
+-        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= 32)
++        || ((self in Interval::Range) && self.lo <= self.hi)
+ {
+     case Empty;
+     case Range(lo: u64, hi: u64);
+@@ -41,7 +41,7 @@ machine pick_named<T>(value: NamedValue in Typed<T>) -> T {
+         NamedValue::Boolean { value } -> value
+     }
+ }
+-machine width(span: Interval) -> u64 {
++machine width(span: Interval<32>) -> u64 {
+     match span {
+         Interval::Empty -> 77
+         Interval::Range { lo, hi } -> width_range(lo, hi)
+@@ -61,14 +61,14 @@ data Bundle [copy] {
+     front: u64;
+     number: Value<i32>;
+     flag: Value<bool>;
+-    span: Interval;
++    span: Interval<32>;
+     named_number: NamedValue in Typed<i32>;
+     named_flag: NamedValue in Typed<bool>;
+     named_span: NamedInterval in Ordered<32>;
+     back: u64;
+ }
+ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expected_width: u64, expected_named_number: i32, expected_named_flag: bool, expected_named_width: u64) -> bool {
+-    value.front == 19088743 && value.back == 4275878552
++    value.front == 0x0123_4567 && value.back == 0xFEDC_BA98
+         && pick<i32>(value.number) == expected_number
+         && pick<bool>(value.flag) == expected_flag
+         && width(value.span) == expected_width
+@@ -79,24 +79,24 @@ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expect
+         && raw_case(value.named_flag as NamedValue) == 2
+ }
+ machine first() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: 42 },
+     flag: Value::Boolean { value: true },
+     span: Interval::Range { lo: 17, hi: 21 },
+     named_number: (NamedValue::Integer { value: -7 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: false }) as NamedValue in Typed<bool>,
+     named_span: (NamedInterval::Range { lo: 3, hi: 9 }) as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine second() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: -13 },
+     flag: Value::Boolean { value: false },
+     span: Interval::Empty,
+     named_number: (NamedValue::Integer { value: 23 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: true }) as NamedValue in Typed<bool>,
+     named_span: NamedInterval::Empty as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine raw_case(value: NamedValue) -> u64 {
+     match value {
+diff --git a/tests/omega/fail/facts/case_dependent_default_domain_through_match_join_rejected/expected.txt b/tests/omega/fail/facts/case_dependent_default_domain_through_match_join_rejected/expected.txt
+index 6393357a46b..08c8259349c 100644
+--- a/tests/omega/fail/facts/case_dependent_default_domain_through_match_join_rejected/expected.txt
++++ b/tests/omega/fail/facts/case_dependent_default_domain_through_match_join_rejected/expected.txt
+@@ -1 +1 @@
+-match arms produce incompatible values
++cannot prove requires contract for call width_range
+diff --git a/tests/omega/fail/facts/case_dependent_default_domain_through_match_join_rejected/main.omg b/tests/omega/fail/facts/case_dependent_default_domain_through_match_join_rejected/main.omg
+index bca3296a15e..f7de96d9200 100644
+--- a/tests/omega/fail/facts/case_dependent_default_domain_through_match_join_rejected/main.omg
++++ b/tests/omega/fail/facts/case_dependent_default_domain_through_match_join_rejected/main.omg
+@@ -2,7 +2,7 @@
+ // Expected exit: 0.
+ data Value<T> [copy]
+     requires ((self in Value::Integer) && T == i32)
+-        || (self in Value::Boolean)
++        || ((self in Value::Boolean) && T == bool)
+ {
+     case Integer(value: i32);
+     case Boolean(value: bool);
+@@ -14,9 +14,9 @@ data NamedValue [copy] {
+ domain<T> NamedValue::Typed<T>
+     requires ((self in NamedValue::Integer) && T == i32)
+         || ((self in NamedValue::Boolean) && T == bool);
+-data Interval [copy]
++data Interval<const Bound: u64> [copy]
+     requires (self in Interval::Empty)
+-        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= 32)
++        || ((self in Interval::Range) && self.lo <= self.hi)
+ {
+     case Empty;
+     case Range(lo: u64, hi: u64);
+@@ -41,7 +41,7 @@ machine pick_named<T>(value: NamedValue in Typed<T>) -> T {
+         NamedValue::Boolean { value } -> value
+     }
+ }
+-machine width(span: Interval) -> u64 {
++machine width(span: Interval<32>) -> u64 {
+     match span {
+         Interval::Empty -> 77
+         Interval::Range { lo, hi } -> width_range(lo, hi)
+@@ -61,14 +61,14 @@ data Bundle [copy] {
+     front: u64;
+     number: Value<i32>;
+     flag: Value<bool>;
+-    span: Interval;
++    span: Interval<32>;
+     named_number: NamedValue in Typed<i32>;
+     named_flag: NamedValue in Typed<bool>;
+     named_span: NamedInterval in Ordered<32>;
+     back: u64;
+ }
+ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expected_width: u64, expected_named_number: i32, expected_named_flag: bool, expected_named_width: u64) -> bool {
+-    value.front == 19088743 && value.back == 4275878552
++    value.front == 0x0123_4567 && value.back == 0xFEDC_BA98
+         && pick<i32>(value.number) == expected_number
+         && pick<bool>(value.flag) == expected_flag
+         && width(value.span) == expected_width
+@@ -79,24 +79,24 @@ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expect
+         && raw_case(value.named_flag as NamedValue) == 2
+ }
+ machine first() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: 42 },
+     flag: Value::Boolean { value: true },
+     span: Interval::Range { lo: 17, hi: 21 },
+     named_number: (NamedValue::Integer { value: -7 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: false }) as NamedValue in Typed<bool>,
+     named_span: (NamedInterval::Range { lo: 3, hi: 9 }) as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine second() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: -13 },
+     flag: Value::Boolean { value: false },
+     span: Interval::Empty,
+     named_number: (NamedValue::Integer { value: 23 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: true }) as NamedValue in Typed<bool>,
+     named_span: NamedInterval::Empty as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine raw_case(value: NamedValue) -> u64 {
+     match value {
+diff --git a/tests/omega/fail/facts/case_dependent_default_domain_through_other_machine_rejected/expected.txt b/tests/omega/fail/facts/case_dependent_default_domain_through_other_machine_rejected/expected.txt
+index 6393357a46b..08c8259349c 100644
+--- a/tests/omega/fail/facts/case_dependent_default_domain_through_other_machine_rejected/expected.txt
++++ b/tests/omega/fail/facts/case_dependent_default_domain_through_other_machine_rejected/expected.txt
+@@ -1 +1 @@
+-match arms produce incompatible values
++cannot prove requires contract for call width_range
+diff --git a/tests/omega/fail/facts/case_dependent_default_domain_through_other_machine_rejected/main.omg b/tests/omega/fail/facts/case_dependent_default_domain_through_other_machine_rejected/main.omg
+index 9311e30d397..e05b12f579c 100644
+--- a/tests/omega/fail/facts/case_dependent_default_domain_through_other_machine_rejected/main.omg
++++ b/tests/omega/fail/facts/case_dependent_default_domain_through_other_machine_rejected/main.omg
+@@ -2,7 +2,7 @@
+ // Expected exit: 0.
+ data Value<T> [copy]
+     requires ((self in Value::Integer) && T == i32)
+-        || (self in Value::Boolean)
++        || ((self in Value::Boolean) && T == bool)
+ {
+     case Integer(value: i32);
+     case Boolean(value: bool);
+@@ -14,9 +14,9 @@ data NamedValue [copy] {
+ domain<T> NamedValue::Typed<T>
+     requires ((self in NamedValue::Integer) && T == i32)
+         || ((self in NamedValue::Boolean) && T == bool);
+-data Interval [copy]
++data Interval<const Bound: u64> [copy]
+     requires (self in Interval::Empty)
+-        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= 32)
++        || ((self in Interval::Range) && self.lo <= self.hi)
+ {
+     case Empty;
+     case Range(lo: u64, hi: u64);
+@@ -41,7 +41,7 @@ machine pick_named<T>(value: NamedValue in Typed<T>) -> T {
+         NamedValue::Boolean { value } -> value
+     }
+ }
+-machine width(span: Interval) -> u64 {
++machine width(span: Interval<32>) -> u64 {
+     match span {
+         Interval::Empty -> 77
+         Interval::Range { lo, hi } -> width_range(lo, hi)
+@@ -61,14 +61,14 @@ data Bundle [copy] {
+     front: u64;
+     number: Value<i32>;
+     flag: Value<bool>;
+-    span: Interval;
++    span: Interval<32>;
+     named_number: NamedValue in Typed<i32>;
+     named_flag: NamedValue in Typed<bool>;
+     named_span: NamedInterval in Ordered<32>;
+     back: u64;
+ }
+ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expected_width: u64, expected_named_number: i32, expected_named_flag: bool, expected_named_width: u64) -> bool {
+-    value.front == 19088743 && value.back == 4275878552
++    value.front == 0x0123_4567 && value.back == 0xFEDC_BA98
+         && pick<i32>(value.number) == expected_number
+         && pick<bool>(value.flag) == expected_flag
+         && width(value.span) == expected_width
+@@ -79,24 +79,24 @@ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expect
+         && raw_case(value.named_flag as NamedValue) == 2
+ }
+ machine first() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: 42 },
+     flag: Value::Boolean { value: true },
+     span: Interval::Range { lo: 17, hi: 21 },
+     named_number: (NamedValue::Integer { value: -7 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: false }) as NamedValue in Typed<bool>,
+     named_span: (NamedInterval::Range { lo: 3, hi: 9 }) as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine second() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: -13 },
+     flag: Value::Boolean { value: false },
+     span: Interval::Empty,
+     named_number: (NamedValue::Integer { value: 23 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: true }) as NamedValue in Typed<bool>,
+     named_span: NamedInterval::Empty as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine raw_case(value: NamedValue) -> u64 {
+     match value {
+diff --git a/tests/omega/fail/facts/case_dependent_default_domain_through_other_state_rejected/expected.txt b/tests/omega/fail/facts/case_dependent_default_domain_through_other_state_rejected/expected.txt
+index 6393357a46b..08c8259349c 100644
+--- a/tests/omega/fail/facts/case_dependent_default_domain_through_other_state_rejected/expected.txt
++++ b/tests/omega/fail/facts/case_dependent_default_domain_through_other_state_rejected/expected.txt
+@@ -1 +1 @@
+-match arms produce incompatible values
++cannot prove requires contract for call width_range
+diff --git a/tests/omega/fail/facts/case_dependent_default_domain_through_other_state_rejected/main.omg b/tests/omega/fail/facts/case_dependent_default_domain_through_other_state_rejected/main.omg
+index 6f49489d78d..af4c4d971ab 100644
+--- a/tests/omega/fail/facts/case_dependent_default_domain_through_other_state_rejected/main.omg
++++ b/tests/omega/fail/facts/case_dependent_default_domain_through_other_state_rejected/main.omg
+@@ -2,7 +2,7 @@
+ // Expected exit: 0.
+ data Value<T> [copy]
+     requires ((self in Value::Integer) && T == i32)
+-        || (self in Value::Boolean)
++        || ((self in Value::Boolean) && T == bool)
+ {
+     case Integer(value: i32);
+     case Boolean(value: bool);
+@@ -14,9 +14,9 @@ data NamedValue [copy] {
+ domain<T> NamedValue::Typed<T>
+     requires ((self in NamedValue::Integer) && T == i32)
+         || ((self in NamedValue::Boolean) && T == bool);
+-data Interval [copy]
++data Interval<const Bound: u64> [copy]
+     requires (self in Interval::Empty)
+-        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= 32)
++        || ((self in Interval::Range) && self.lo <= self.hi)
+ {
+     case Empty;
+     case Range(lo: u64, hi: u64);
+@@ -41,7 +41,7 @@ machine pick_named<T>(value: NamedValue in Typed<T>) -> T {
+         NamedValue::Boolean { value } -> value
+     }
+ }
+-machine width(span: Interval) -> u64 {
++machine width(span: Interval<32>) -> u64 {
+     match span {
+         Interval::Empty -> 77
+         Interval::Range { lo, hi } -> width_range(lo, hi)
+@@ -61,14 +61,14 @@ data Bundle [copy] {
+     front: u64;
+     number: Value<i32>;
+     flag: Value<bool>;
+-    span: Interval;
++    span: Interval<32>;
+     named_number: NamedValue in Typed<i32>;
+     named_flag: NamedValue in Typed<bool>;
+     named_span: NamedInterval in Ordered<32>;
+     back: u64;
+ }
+ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expected_width: u64, expected_named_number: i32, expected_named_flag: bool, expected_named_width: u64) -> bool {
+-    value.front == 19088743 && value.back == 4275878552
++    value.front == 0x0123_4567 && value.back == 0xFEDC_BA98
+         && pick<i32>(value.number) == expected_number
+         && pick<bool>(value.flag) == expected_flag
+         && width(value.span) == expected_width
+@@ -79,24 +79,24 @@ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expect
+         && raw_case(value.named_flag as NamedValue) == 2
+ }
+ machine first() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: 42 },
+     flag: Value::Boolean { value: true },
+     span: Interval::Range { lo: 17, hi: 21 },
+     named_number: (NamedValue::Integer { value: -7 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: false }) as NamedValue in Typed<bool>,
+     named_span: (NamedInterval::Range { lo: 3, hi: 9 }) as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine second() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: -13 },
+     flag: Value::Boolean { value: false },
+     span: Interval::Empty,
+     named_number: (NamedValue::Integer { value: 23 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: true }) as NamedValue in Typed<bool>,
+     named_span: NamedInterval::Empty as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine raw_case(value: NamedValue) -> u64 {
+     match value {
+diff --git a/tests/omega/fail/facts/case_dependent_default_domain_through_parameter_rejected/expected.txt b/tests/omega/fail/facts/case_dependent_default_domain_through_parameter_rejected/expected.txt
+index 6393357a46b..08c8259349c 100644
+--- a/tests/omega/fail/facts/case_dependent_default_domain_through_parameter_rejected/expected.txt
++++ b/tests/omega/fail/facts/case_dependent_default_domain_through_parameter_rejected/expected.txt
+@@ -1 +1 @@
+-match arms produce incompatible values
++cannot prove requires contract for call width_range
+diff --git a/tests/omega/fail/facts/case_dependent_default_domain_through_parameter_rejected/main.omg b/tests/omega/fail/facts/case_dependent_default_domain_through_parameter_rejected/main.omg
+index 8a780ac8705..88b3eff43de 100644
+--- a/tests/omega/fail/facts/case_dependent_default_domain_through_parameter_rejected/main.omg
++++ b/tests/omega/fail/facts/case_dependent_default_domain_through_parameter_rejected/main.omg
+@@ -2,7 +2,7 @@
+ // Expected exit: 0.
+ data Value<T> [copy]
+     requires ((self in Value::Integer) && T == i32)
+-        || (self in Value::Boolean)
++        || ((self in Value::Boolean) && T == bool)
+ {
+     case Integer(value: i32);
+     case Boolean(value: bool);
+@@ -14,9 +14,9 @@ data NamedValue [copy] {
+ domain<T> NamedValue::Typed<T>
+     requires ((self in NamedValue::Integer) && T == i32)
+         || ((self in NamedValue::Boolean) && T == bool);
+-data Interval [copy]
++data Interval<const Bound: u64> [copy]
+     requires (self in Interval::Empty)
+-        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= 32)
++        || ((self in Interval::Range) && self.lo <= self.hi)
+ {
+     case Empty;
+     case Range(lo: u64, hi: u64);
+@@ -41,7 +41,7 @@ machine pick_named<T>(value: NamedValue in Typed<T>) -> T {
+         NamedValue::Boolean { value } -> value
+     }
+ }
+-machine width(span: Interval) -> u64 {
++machine width(span: Interval<32>) -> u64 {
+     match span {
+         Interval::Empty -> 77
+         Interval::Range { lo, hi } -> width_range(lo, hi)
+@@ -61,14 +61,14 @@ data Bundle [copy] {
+     front: u64;
+     number: Value<i32>;
+     flag: Value<bool>;
+-    span: Interval;
++    span: Interval<32>;
+     named_number: NamedValue in Typed<i32>;
+     named_flag: NamedValue in Typed<bool>;
+     named_span: NamedInterval in Ordered<32>;
+     back: u64;
+ }
+ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expected_width: u64, expected_named_number: i32, expected_named_flag: bool, expected_named_width: u64) -> bool {
+-    value.front == 19088743 && value.back == 4275878552
++    value.front == 0x0123_4567 && value.back == 0xFEDC_BA98
+         && pick<i32>(value.number) == expected_number
+         && pick<bool>(value.flag) == expected_flag
+         && width(value.span) == expected_width
+@@ -79,24 +79,24 @@ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expect
+         && raw_case(value.named_flag as NamedValue) == 2
+ }
+ machine first() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: 42 },
+     flag: Value::Boolean { value: true },
+     span: Interval::Range { lo: 17, hi: 21 },
+     named_number: (NamedValue::Integer { value: -7 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: false }) as NamedValue in Typed<bool>,
+     named_span: (NamedInterval::Range { lo: 3, hi: 9 }) as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine second() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: -13 },
+     flag: Value::Boolean { value: false },
+     span: Interval::Empty,
+     named_number: (NamedValue::Integer { value: 23 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: true }) as NamedValue in Typed<bool>,
+     named_span: NamedInterval::Empty as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine raw_case(value: NamedValue) -> u64 {
+     match value {
+diff --git a/tests/omega/fail/facts/case_dependent_default_domain_through_target_body_rejected/expected.txt b/tests/omega/fail/facts/case_dependent_default_domain_through_target_body_rejected/expected.txt
+index 6393357a46b..08c8259349c 100644
+--- a/tests/omega/fail/facts/case_dependent_default_domain_through_target_body_rejected/expected.txt
++++ b/tests/omega/fail/facts/case_dependent_default_domain_through_target_body_rejected/expected.txt
+@@ -1 +1 @@
+-match arms produce incompatible values
++cannot prove requires contract for call width_range
+diff --git a/tests/omega/fail/facts/case_dependent_default_domain_through_target_body_rejected/main.omg b/tests/omega/fail/facts/case_dependent_default_domain_through_target_body_rejected/main.omg
+index fffae77a8e4..abd0dd05adf 100644
+--- a/tests/omega/fail/facts/case_dependent_default_domain_through_target_body_rejected/main.omg
++++ b/tests/omega/fail/facts/case_dependent_default_domain_through_target_body_rejected/main.omg
+@@ -2,7 +2,7 @@
+ // Expected exit: 0.
+ data Value<T> [copy]
+     requires ((self in Value::Integer) && T == i32)
+-        || (self in Value::Boolean)
++        || ((self in Value::Boolean) && T == bool)
+ {
+     case Integer(value: i32);
+     case Boolean(value: bool);
+@@ -14,9 +14,9 @@ data NamedValue [copy] {
+ domain<T> NamedValue::Typed<T>
+     requires ((self in NamedValue::Integer) && T == i32)
+         || ((self in NamedValue::Boolean) && T == bool);
+-data Interval [copy]
++data Interval<const Bound: u64> [copy]
+     requires (self in Interval::Empty)
+-        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= 32)
++        || ((self in Interval::Range) && self.lo <= self.hi)
+ {
+     case Empty;
+     case Range(lo: u64, hi: u64);
+@@ -41,7 +41,7 @@ machine pick_named<T>(value: NamedValue in Typed<T>) -> T {
+         NamedValue::Boolean { value } -> value
+     }
+ }
+-machine width(span: Interval) -> u64 {
++machine width(span: Interval<32>) -> u64 {
+     match span {
+         Interval::Empty -> 77
+         Interval::Range { lo, hi } -> width_range(lo, hi)
+@@ -61,14 +61,14 @@ data Bundle [copy] {
+     front: u64;
+     number: Value<i32>;
+     flag: Value<bool>;
+-    span: Interval;
++    span: Interval<32>;
+     named_number: NamedValue in Typed<i32>;
+     named_flag: NamedValue in Typed<bool>;
+     named_span: NamedInterval in Ordered<32>;
+     back: u64;
+ }
+ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expected_width: u64, expected_named_number: i32, expected_named_flag: bool, expected_named_width: u64) -> bool {
+-    value.front == 19088743 && value.back == 4275878552
++    value.front == 0x0123_4567 && value.back == 0xFEDC_BA98
+         && pick<i32>(value.number) == expected_number
+         && pick<bool>(value.flag) == expected_flag
+         && width(value.span) == expected_width
+@@ -79,24 +79,24 @@ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expect
+         && raw_case(value.named_flag as NamedValue) == 2
+ }
+ machine first() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: 42 },
+     flag: Value::Boolean { value: true },
+     span: Interval::Range { lo: 17, hi: 21 },
+     named_number: (NamedValue::Integer { value: -7 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: false }) as NamedValue in Typed<bool>,
+     named_span: (NamedInterval::Range { lo: 3, hi: 9 }) as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine second() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: -13 },
+     flag: Value::Boolean { value: false },
+     span: Interval::Empty,
+     named_number: (NamedValue::Integer { value: 23 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: true }) as NamedValue in Typed<bool>,
+     named_span: NamedInterval::Empty as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine raw_case(value: NamedValue) -> u64 {
+     match value {
+diff --git a/tests/omega/fail/facts/case_predicate_missing_type_equation_rejected/expected.txt b/tests/omega/fail/facts/case_predicate_missing_type_equation_rejected/expected.txt
+new file mode 100644
+index 00000000000..6b8def75df9
+--- /dev/null
++++ b/tests/omega/fail/facts/case_predicate_missing_type_equation_rejected/expected.txt
+@@ -0,0 +1 @@
++return value expects `T`, but the value is delivered as `bool`
+diff --git a/tests/omega/fail/facts/case_predicate_missing_type_equation_rejected/main.omg b/tests/omega/fail/facts/case_predicate_missing_type_equation_rejected/main.omg
+new file mode 100644
+index 00000000000..e840aaa3494
+--- /dev/null
++++ b/tests/omega/fail/facts/case_predicate_missing_type_equation_rejected/main.omg
+@@ -0,0 +1,13 @@
++data Value<T> [copy]
++    requires ((self in Value::Integer) && T == i32) || (self in Value::Boolean)
++{
++    case Integer(value: i32);
++    case Boolean(value: bool);
++}
++machine pick<T>(value: Value<T>) -> T {
++    match value {
++        Value::Integer { value } -> value
++        Value::Boolean { value } -> value
++    }
++}
++machine main() { }
+diff --git a/tests/omega/fail/facts/case_predicate_other_default_argument_rejected/expected.txt b/tests/omega/fail/facts/case_predicate_other_default_argument_rejected/expected.txt
+new file mode 100644
+index 00000000000..08c8259349c
+--- /dev/null
++++ b/tests/omega/fail/facts/case_predicate_other_default_argument_rejected/expected.txt
+@@ -0,0 +1 @@
++cannot prove requires contract for call width_range
+diff --git a/tests/omega/fail/facts/case_predicate_other_default_argument_rejected/main.omg b/tests/omega/fail/facts/case_predicate_other_default_argument_rejected/main.omg
+new file mode 100644
+index 00000000000..baf4ffb6845
+--- /dev/null
++++ b/tests/omega/fail/facts/case_predicate_other_default_argument_rejected/main.omg
+@@ -0,0 +1,18 @@
++data Interval<const Bound: u64> [copy]
++    requires (self in Interval::Empty)
++        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= Bound)
++{
++    case Empty;
++    case Range(lo: u64, hi: u64);
++}
++machine width_range(lo: u64, hi: u64) -> u64 requires lo <= hi && hi <= 32 { hi - lo }
++machine invalid(span: Interval<64>) -> u64 {
++    match span {
++        Interval::Empty -> 77
++        Interval::Range { lo, hi } -> width_range(lo, hi)
++    }
++}
++machine main() {
++    let valid: Interval<64> = Interval::Range { lo: 1, hi: 40 };
++    _ = invalid(valid);
++}
+diff --git a/tests/omega/fail/facts/case_predicate_stale_write_rejected/main.omg b/tests/omega/fail/facts/case_predicate_stale_write_rejected/main.omg
+index 08a3269a489..50d4b5d3a45 100644
+--- a/tests/omega/fail/facts/case_predicate_stale_write_rejected/main.omg
++++ b/tests/omega/fail/facts/case_predicate_stale_write_rejected/main.omg
+@@ -14,9 +14,9 @@ data NamedValue [copy] {
+ domain<T> NamedValue::Typed<T>
+     requires ((self in NamedValue::Integer) && T == i32)
+         || ((self in NamedValue::Boolean) && T == bool);
+-data Interval [copy]
++data Interval<const Bound: u64> [copy]
+     requires (self in Interval::Empty)
+-        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= 32)
++        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= Bound)
+ {
+     case Empty;
+     case Range(lo: u64, hi: u64);
+@@ -41,7 +41,7 @@ machine pick_named<T>(value: NamedValue in Typed<T>) -> T {
+         NamedValue::Boolean { value } -> value
+     }
+ }
+-machine width(span: Interval) -> u64 {
++machine width(span: Interval<32>) -> u64 {
+     match span {
+         Interval::Empty -> 77
+         Interval::Range { lo, hi } -> width_range(lo, hi)
+@@ -58,4 +58,4 @@ machine width_range(lo: u64, hi: u64) -> u64 requires lo <= hi && hi <= 32 {
+     hi - (qualified as u64)
+ }
+ 
+-machine main() { let mut value: Interval = Interval::Range { lo: 1, hi: 5 }; value.hi = 0; let result: u64 = width(value); }
++machine main() { let mut value: Interval<32> = Interval::Range { lo: 1, hi: 5 }; value.hi = 0; let result: u64 = width(value); }
+diff --git a/tests/omega/pass/facts/case_dependent_default_domain_through_call_result_exit/main.omg b/tests/omega/pass/facts/case_dependent_default_domain_through_call_result_exit/main.omg
+index 052198f65bf..eaf1fbe7877 100644
+--- a/tests/omega/pass/facts/case_dependent_default_domain_through_call_result_exit/main.omg
++++ b/tests/omega/pass/facts/case_dependent_default_domain_through_call_result_exit/main.omg
+@@ -14,9 +14,9 @@ data NamedValue [copy] {
+ domain<T> NamedValue::Typed<T>
+     requires ((self in NamedValue::Integer) && T == i32)
+         || ((self in NamedValue::Boolean) && T == bool);
+-data Interval [copy]
++data Interval<const Bound: u64> [copy]
+     requires (self in Interval::Empty)
+-        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= 32)
++        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= Bound)
+ {
+     case Empty;
+     case Range(lo: u64, hi: u64);
+@@ -41,7 +41,7 @@ machine pick_named<T>(value: NamedValue in Typed<T>) -> T {
+         NamedValue::Boolean { value } -> value
+     }
+ }
+-machine width(span: Interval) -> u64 {
++machine width(span: Interval<32>) -> u64 {
+     match span {
+         Interval::Empty -> 77
+         Interval::Range { lo, hi } -> width_range(lo, hi)
+@@ -61,14 +61,14 @@ data Bundle [copy] {
+     front: u64;
+     number: Value<i32>;
+     flag: Value<bool>;
+-    span: Interval;
++    span: Interval<32>;
+     named_number: NamedValue in Typed<i32>;
+     named_flag: NamedValue in Typed<bool>;
+     named_span: NamedInterval in Ordered<32>;
+     back: u64;
+ }
+ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expected_width: u64, expected_named_number: i32, expected_named_flag: bool, expected_named_width: u64) -> bool {
+-    value.front == 19088743 && value.back == 4275878552
++    value.front == 0x0123_4567 && value.back == 0xFEDC_BA98
+         && pick<i32>(value.number) == expected_number
+         && pick<bool>(value.flag) == expected_flag
+         && width(value.span) == expected_width
+@@ -79,24 +79,24 @@ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expect
+         && raw_case(value.named_flag as NamedValue) == 2
+ }
+ machine first() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: 42 },
+     flag: Value::Boolean { value: true },
+     span: Interval::Range { lo: 17, hi: 21 },
+     named_number: (NamedValue::Integer { value: -7 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: false }) as NamedValue in Typed<bool>,
+     named_span: (NamedInterval::Range { lo: 3, hi: 9 }) as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine second() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: -13 },
+     flag: Value::Boolean { value: false },
+     span: Interval::Empty,
+     named_number: (NamedValue::Integer { value: 23 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: true }) as NamedValue in Typed<bool>,
+     named_span: NamedInterval::Empty as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine raw_case(value: NamedValue) -> u64 {
+     match value {
+diff --git a/tests/omega/pass/facts/case_dependent_default_domain_through_const_name_exit/main.omg b/tests/omega/pass/facts/case_dependent_default_domain_through_const_name_exit/main.omg
+index 06eb9c18f85..e0065a27352 100644
+--- a/tests/omega/pass/facts/case_dependent_default_domain_through_const_name_exit/main.omg
++++ b/tests/omega/pass/facts/case_dependent_default_domain_through_const_name_exit/main.omg
+@@ -14,9 +14,9 @@ data NamedValue [copy] {
+ domain<T> NamedValue::Typed<T>
+     requires ((self in NamedValue::Integer) && T == i32)
+         || ((self in NamedValue::Boolean) && T == bool);
+-data Interval [copy]
++data Interval<const Bound: u64> [copy]
+     requires (self in Interval::Empty)
+-        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= 32)
++        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= Bound)
+ {
+     case Empty;
+     case Range(lo: u64, hi: u64);
+@@ -41,7 +41,7 @@ machine pick_named<T>(value: NamedValue in Typed<T>) -> T {
+         NamedValue::Boolean { value } -> value
+     }
+ }
+-machine width(span: Interval) -> u64 {
++machine width(span: Interval<32>) -> u64 {
+     match span {
+         Interval::Empty -> 77
+         Interval::Range { lo, hi } -> width_range(lo, hi)
+@@ -61,14 +61,14 @@ data Bundle [copy] {
+     front: u64;
+     number: Value<i32>;
+     flag: Value<bool>;
+-    span: Interval;
++    span: Interval<32>;
+     named_number: NamedValue in Typed<i32>;
+     named_flag: NamedValue in Typed<bool>;
+     named_span: NamedInterval in Ordered<32>;
+     back: u64;
+ }
+ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expected_width: u64, expected_named_number: i32, expected_named_flag: bool, expected_named_width: u64) -> bool {
+-    value.front == 19088743 && value.back == 4275878552
++    value.front == 0x0123_4567 && value.back == 0xFEDC_BA98
+         && pick<i32>(value.number) == expected_number
+         && pick<bool>(value.flag) == expected_flag
+         && width(value.span) == expected_width
+@@ -79,24 +79,24 @@ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expect
+         && raw_case(value.named_flag as NamedValue) == 2
+ }
+ machine first() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: 42 },
+     flag: Value::Boolean { value: true },
+     span: Interval::Range { lo: 17, hi: 21 },
+     named_number: (NamedValue::Integer { value: -7 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: false }) as NamedValue in Typed<bool>,
+     named_span: (NamedInterval::Range { lo: 3, hi: 9 }) as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine second() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: -13 },
+     flag: Value::Boolean { value: false },
+     span: Interval::Empty,
+     named_number: (NamedValue::Integer { value: 23 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: true }) as NamedValue in Typed<bool>,
+     named_span: NamedInterval::Empty as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine raw_case(value: NamedValue) -> u64 {
+     match value {
+@@ -105,24 +105,24 @@ machine raw_case(value: NamedValue) -> u64 {
+     }
+ }
+ const FIRST: Bundle = Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: 42 },
+     flag: Value::Boolean { value: true },
+     span: Interval::Range { lo: 17, hi: 21 },
+     named_number: (NamedValue::Integer { value: -7 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: false }) as NamedValue in Typed<bool>,
+     named_span: (NamedInterval::Range { lo: 3, hi: 9 }) as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ };
+ const SECOND: Bundle = Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: -13 },
+     flag: Value::Boolean { value: false },
+     span: Interval::Empty,
+     named_number: (NamedValue::Integer { value: 23 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: true }) as NamedValue in Typed<bool>,
+     named_span: NamedInterval::Empty as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ };
+ 
+ machine main() crashes Trap {
+diff --git a/tests/omega/pass/facts/case_dependent_default_domain_through_field_exit/main.omg b/tests/omega/pass/facts/case_dependent_default_domain_through_field_exit/main.omg
+index 483bbbf61da..42b8aa30803 100644
+--- a/tests/omega/pass/facts/case_dependent_default_domain_through_field_exit/main.omg
++++ b/tests/omega/pass/facts/case_dependent_default_domain_through_field_exit/main.omg
+@@ -14,9 +14,9 @@ data NamedValue [copy] {
+ domain<T> NamedValue::Typed<T>
+     requires ((self in NamedValue::Integer) && T == i32)
+         || ((self in NamedValue::Boolean) && T == bool);
+-data Interval [copy]
++data Interval<const Bound: u64> [copy]
+     requires (self in Interval::Empty)
+-        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= 32)
++        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= Bound)
+ {
+     case Empty;
+     case Range(lo: u64, hi: u64);
+@@ -41,7 +41,7 @@ machine pick_named<T>(value: NamedValue in Typed<T>) -> T {
+         NamedValue::Boolean { value } -> value
+     }
+ }
+-machine width(span: Interval) -> u64 {
++machine width(span: Interval<32>) -> u64 {
+     match span {
+         Interval::Empty -> 77
+         Interval::Range { lo, hi } -> width_range(lo, hi)
+@@ -61,14 +61,14 @@ data Bundle [copy] {
+     front: u64;
+     number: Value<i32>;
+     flag: Value<bool>;
+-    span: Interval;
++    span: Interval<32>;
+     named_number: NamedValue in Typed<i32>;
+     named_flag: NamedValue in Typed<bool>;
+     named_span: NamedInterval in Ordered<32>;
+     back: u64;
+ }
+ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expected_width: u64, expected_named_number: i32, expected_named_flag: bool, expected_named_width: u64) -> bool {
+-    value.front == 19088743 && value.back == 4275878552
++    value.front == 0x0123_4567 && value.back == 0xFEDC_BA98
+         && pick<i32>(value.number) == expected_number
+         && pick<bool>(value.flag) == expected_flag
+         && width(value.span) == expected_width
+@@ -79,24 +79,24 @@ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expect
+         && raw_case(value.named_flag as NamedValue) == 2
+ }
+ machine first() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: 42 },
+     flag: Value::Boolean { value: true },
+     span: Interval::Range { lo: 17, hi: 21 },
+     named_number: (NamedValue::Integer { value: -7 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: false }) as NamedValue in Typed<bool>,
+     named_span: (NamedInterval::Range { lo: 3, hi: 9 }) as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine second() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: -13 },
+     flag: Value::Boolean { value: false },
+     span: Interval::Empty,
+     named_number: (NamedValue::Integer { value: 23 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: true }) as NamedValue in Typed<bool>,
+     named_span: NamedInterval::Empty as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine raw_case(value: NamedValue) -> u64 {
+     match value {
+diff --git a/tests/omega/pass/facts/case_dependent_default_domain_through_local_exit/main.omg b/tests/omega/pass/facts/case_dependent_default_domain_through_local_exit/main.omg
+index 5d386d02eb1..57c543b290a 100644
+--- a/tests/omega/pass/facts/case_dependent_default_domain_through_local_exit/main.omg
++++ b/tests/omega/pass/facts/case_dependent_default_domain_through_local_exit/main.omg
+@@ -14,9 +14,9 @@ data NamedValue [copy] {
+ domain<T> NamedValue::Typed<T>
+     requires ((self in NamedValue::Integer) && T == i32)
+         || ((self in NamedValue::Boolean) && T == bool);
+-data Interval [copy]
++data Interval<const Bound: u64> [copy]
+     requires (self in Interval::Empty)
+-        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= 32)
++        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= Bound)
+ {
+     case Empty;
+     case Range(lo: u64, hi: u64);
+@@ -41,7 +41,7 @@ machine pick_named<T>(value: NamedValue in Typed<T>) -> T {
+         NamedValue::Boolean { value } -> value
+     }
+ }
+-machine width(span: Interval) -> u64 {
++machine width(span: Interval<32>) -> u64 {
+     match span {
+         Interval::Empty -> 77
+         Interval::Range { lo, hi } -> width_range(lo, hi)
+@@ -61,14 +61,14 @@ data Bundle [copy] {
+     front: u64;
+     number: Value<i32>;
+     flag: Value<bool>;
+-    span: Interval;
++    span: Interval<32>;
+     named_number: NamedValue in Typed<i32>;
+     named_flag: NamedValue in Typed<bool>;
+     named_span: NamedInterval in Ordered<32>;
+     back: u64;
+ }
+ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expected_width: u64, expected_named_number: i32, expected_named_flag: bool, expected_named_width: u64) -> bool {
+-    value.front == 19088743 && value.back == 4275878552
++    value.front == 0x0123_4567 && value.back == 0xFEDC_BA98
+         && pick<i32>(value.number) == expected_number
+         && pick<bool>(value.flag) == expected_flag
+         && width(value.span) == expected_width
+@@ -79,24 +79,24 @@ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expect
+         && raw_case(value.named_flag as NamedValue) == 2
+ }
+ machine first() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: 42 },
+     flag: Value::Boolean { value: true },
+     span: Interval::Range { lo: 17, hi: 21 },
+     named_number: (NamedValue::Integer { value: -7 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: false }) as NamedValue in Typed<bool>,
+     named_span: (NamedInterval::Range { lo: 3, hi: 9 }) as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine second() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: -13 },
+     flag: Value::Boolean { value: false },
+     span: Interval::Empty,
+     named_number: (NamedValue::Integer { value: 23 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: true }) as NamedValue in Typed<bool>,
+     named_span: NamedInterval::Empty as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine raw_case(value: NamedValue) -> u64 {
+     match value {
+diff --git a/tests/omega/pass/facts/case_dependent_default_domain_through_match_join_exit/main.omg b/tests/omega/pass/facts/case_dependent_default_domain_through_match_join_exit/main.omg
+index 01d5c6258ca..2cf3426a978 100644
+--- a/tests/omega/pass/facts/case_dependent_default_domain_through_match_join_exit/main.omg
++++ b/tests/omega/pass/facts/case_dependent_default_domain_through_match_join_exit/main.omg
+@@ -14,9 +14,9 @@ data NamedValue [copy] {
+ domain<T> NamedValue::Typed<T>
+     requires ((self in NamedValue::Integer) && T == i32)
+         || ((self in NamedValue::Boolean) && T == bool);
+-data Interval [copy]
++data Interval<const Bound: u64> [copy]
+     requires (self in Interval::Empty)
+-        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= 32)
++        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= Bound)
+ {
+     case Empty;
+     case Range(lo: u64, hi: u64);
+@@ -41,7 +41,7 @@ machine pick_named<T>(value: NamedValue in Typed<T>) -> T {
+         NamedValue::Boolean { value } -> value
+     }
+ }
+-machine width(span: Interval) -> u64 {
++machine width(span: Interval<32>) -> u64 {
+     match span {
+         Interval::Empty -> 77
+         Interval::Range { lo, hi } -> width_range(lo, hi)
+@@ -61,14 +61,14 @@ data Bundle [copy] {
+     front: u64;
+     number: Value<i32>;
+     flag: Value<bool>;
+-    span: Interval;
++    span: Interval<32>;
+     named_number: NamedValue in Typed<i32>;
+     named_flag: NamedValue in Typed<bool>;
+     named_span: NamedInterval in Ordered<32>;
+     back: u64;
+ }
+ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expected_width: u64, expected_named_number: i32, expected_named_flag: bool, expected_named_width: u64) -> bool {
+-    value.front == 19088743 && value.back == 4275878552
++    value.front == 0x0123_4567 && value.back == 0xFEDC_BA98
+         && pick<i32>(value.number) == expected_number
+         && pick<bool>(value.flag) == expected_flag
+         && width(value.span) == expected_width
+@@ -79,24 +79,24 @@ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expect
+         && raw_case(value.named_flag as NamedValue) == 2
+ }
+ machine first() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: 42 },
+     flag: Value::Boolean { value: true },
+     span: Interval::Range { lo: 17, hi: 21 },
+     named_number: (NamedValue::Integer { value: -7 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: false }) as NamedValue in Typed<bool>,
+     named_span: (NamedInterval::Range { lo: 3, hi: 9 }) as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine second() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: -13 },
+     flag: Value::Boolean { value: false },
+     span: Interval::Empty,
+     named_number: (NamedValue::Integer { value: 23 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: true }) as NamedValue in Typed<bool>,
+     named_span: NamedInterval::Empty as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine raw_case(value: NamedValue) -> u64 {
+     match value {
+diff --git a/tests/omega/pass/facts/case_dependent_default_domain_through_other_machine_exit/main.omg b/tests/omega/pass/facts/case_dependent_default_domain_through_other_machine_exit/main.omg
+index 17b4a6c11e3..2aae7025d2b 100644
+--- a/tests/omega/pass/facts/case_dependent_default_domain_through_other_machine_exit/main.omg
++++ b/tests/omega/pass/facts/case_dependent_default_domain_through_other_machine_exit/main.omg
+@@ -14,9 +14,9 @@ data NamedValue [copy] {
+ domain<T> NamedValue::Typed<T>
+     requires ((self in NamedValue::Integer) && T == i32)
+         || ((self in NamedValue::Boolean) && T == bool);
+-data Interval [copy]
++data Interval<const Bound: u64> [copy]
+     requires (self in Interval::Empty)
+-        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= 32)
++        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= Bound)
+ {
+     case Empty;
+     case Range(lo: u64, hi: u64);
+@@ -41,7 +41,7 @@ machine pick_named<T>(value: NamedValue in Typed<T>) -> T {
+         NamedValue::Boolean { value } -> value
+     }
+ }
+-machine width(span: Interval) -> u64 {
++machine width(span: Interval<32>) -> u64 {
+     match span {
+         Interval::Empty -> 77
+         Interval::Range { lo, hi } -> width_range(lo, hi)
+@@ -61,14 +61,14 @@ data Bundle [copy] {
+     front: u64;
+     number: Value<i32>;
+     flag: Value<bool>;
+-    span: Interval;
++    span: Interval<32>;
+     named_number: NamedValue in Typed<i32>;
+     named_flag: NamedValue in Typed<bool>;
+     named_span: NamedInterval in Ordered<32>;
+     back: u64;
+ }
+ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expected_width: u64, expected_named_number: i32, expected_named_flag: bool, expected_named_width: u64) -> bool {
+-    value.front == 19088743 && value.back == 4275878552
++    value.front == 0x0123_4567 && value.back == 0xFEDC_BA98
+         && pick<i32>(value.number) == expected_number
+         && pick<bool>(value.flag) == expected_flag
+         && width(value.span) == expected_width
+@@ -79,24 +79,24 @@ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expect
+         && raw_case(value.named_flag as NamedValue) == 2
+ }
+ machine first() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: 42 },
+     flag: Value::Boolean { value: true },
+     span: Interval::Range { lo: 17, hi: 21 },
+     named_number: (NamedValue::Integer { value: -7 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: false }) as NamedValue in Typed<bool>,
+     named_span: (NamedInterval::Range { lo: 3, hi: 9 }) as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine second() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: -13 },
+     flag: Value::Boolean { value: false },
+     span: Interval::Empty,
+     named_number: (NamedValue::Integer { value: 23 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: true }) as NamedValue in Typed<bool>,
+     named_span: NamedInterval::Empty as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine raw_case(value: NamedValue) -> u64 {
+     match value {
+diff --git a/tests/omega/pass/facts/case_dependent_default_domain_through_other_state_exit/main.omg b/tests/omega/pass/facts/case_dependent_default_domain_through_other_state_exit/main.omg
+index bde683be2c4..912f9277b2f 100644
+--- a/tests/omega/pass/facts/case_dependent_default_domain_through_other_state_exit/main.omg
++++ b/tests/omega/pass/facts/case_dependent_default_domain_through_other_state_exit/main.omg
+@@ -14,9 +14,9 @@ data NamedValue [copy] {
+ domain<T> NamedValue::Typed<T>
+     requires ((self in NamedValue::Integer) && T == i32)
+         || ((self in NamedValue::Boolean) && T == bool);
+-data Interval [copy]
++data Interval<const Bound: u64> [copy]
+     requires (self in Interval::Empty)
+-        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= 32)
++        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= Bound)
+ {
+     case Empty;
+     case Range(lo: u64, hi: u64);
+@@ -41,7 +41,7 @@ machine pick_named<T>(value: NamedValue in Typed<T>) -> T {
+         NamedValue::Boolean { value } -> value
+     }
+ }
+-machine width(span: Interval) -> u64 {
++machine width(span: Interval<32>) -> u64 {
+     match span {
+         Interval::Empty -> 77
+         Interval::Range { lo, hi } -> width_range(lo, hi)
+@@ -61,14 +61,14 @@ data Bundle [copy] {
+     front: u64;
+     number: Value<i32>;
+     flag: Value<bool>;
+-    span: Interval;
++    span: Interval<32>;
+     named_number: NamedValue in Typed<i32>;
+     named_flag: NamedValue in Typed<bool>;
+     named_span: NamedInterval in Ordered<32>;
+     back: u64;
+ }
+ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expected_width: u64, expected_named_number: i32, expected_named_flag: bool, expected_named_width: u64) -> bool {
+-    value.front == 19088743 && value.back == 4275878552
++    value.front == 0x0123_4567 && value.back == 0xFEDC_BA98
+         && pick<i32>(value.number) == expected_number
+         && pick<bool>(value.flag) == expected_flag
+         && width(value.span) == expected_width
+@@ -79,24 +79,24 @@ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expect
+         && raw_case(value.named_flag as NamedValue) == 2
+ }
+ machine first() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: 42 },
+     flag: Value::Boolean { value: true },
+     span: Interval::Range { lo: 17, hi: 21 },
+     named_number: (NamedValue::Integer { value: -7 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: false }) as NamedValue in Typed<bool>,
+     named_span: (NamedInterval::Range { lo: 3, hi: 9 }) as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine second() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: -13 },
+     flag: Value::Boolean { value: false },
+     span: Interval::Empty,
+     named_number: (NamedValue::Integer { value: 23 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: true }) as NamedValue in Typed<bool>,
+     named_span: NamedInterval::Empty as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine raw_case(value: NamedValue) -> u64 {
+     match value {
+diff --git a/tests/omega/pass/facts/case_dependent_default_domain_through_parameter_exit/main.omg b/tests/omega/pass/facts/case_dependent_default_domain_through_parameter_exit/main.omg
+index b415bce46df..2e5d3eb1730 100644
+--- a/tests/omega/pass/facts/case_dependent_default_domain_through_parameter_exit/main.omg
++++ b/tests/omega/pass/facts/case_dependent_default_domain_through_parameter_exit/main.omg
+@@ -14,9 +14,9 @@ data NamedValue [copy] {
+ domain<T> NamedValue::Typed<T>
+     requires ((self in NamedValue::Integer) && T == i32)
+         || ((self in NamedValue::Boolean) && T == bool);
+-data Interval [copy]
++data Interval<const Bound: u64> [copy]
+     requires (self in Interval::Empty)
+-        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= 32)
++        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= Bound)
+ {
+     case Empty;
+     case Range(lo: u64, hi: u64);
+@@ -41,7 +41,7 @@ machine pick_named<T>(value: NamedValue in Typed<T>) -> T {
+         NamedValue::Boolean { value } -> value
+     }
+ }
+-machine width(span: Interval) -> u64 {
++machine width(span: Interval<32>) -> u64 {
+     match span {
+         Interval::Empty -> 77
+         Interval::Range { lo, hi } -> width_range(lo, hi)
+@@ -61,14 +61,14 @@ data Bundle [copy] {
+     front: u64;
+     number: Value<i32>;
+     flag: Value<bool>;
+-    span: Interval;
++    span: Interval<32>;
+     named_number: NamedValue in Typed<i32>;
+     named_flag: NamedValue in Typed<bool>;
+     named_span: NamedInterval in Ordered<32>;
+     back: u64;
+ }
+ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expected_width: u64, expected_named_number: i32, expected_named_flag: bool, expected_named_width: u64) -> bool {
+-    value.front == 19088743 && value.back == 4275878552
++    value.front == 0x0123_4567 && value.back == 0xFEDC_BA98
+         && pick<i32>(value.number) == expected_number
+         && pick<bool>(value.flag) == expected_flag
+         && width(value.span) == expected_width
+@@ -79,24 +79,24 @@ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expect
+         && raw_case(value.named_flag as NamedValue) == 2
+ }
+ machine first() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: 42 },
+     flag: Value::Boolean { value: true },
+     span: Interval::Range { lo: 17, hi: 21 },
+     named_number: (NamedValue::Integer { value: -7 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: false }) as NamedValue in Typed<bool>,
+     named_span: (NamedInterval::Range { lo: 3, hi: 9 }) as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine second() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: -13 },
+     flag: Value::Boolean { value: false },
+     span: Interval::Empty,
+     named_number: (NamedValue::Integer { value: 23 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: true }) as NamedValue in Typed<bool>,
+     named_span: NamedInterval::Empty as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine raw_case(value: NamedValue) -> u64 {
+     match value {
+diff --git a/tests/omega/pass/facts/case_dependent_default_domain_through_target_body_exit/main.omg b/tests/omega/pass/facts/case_dependent_default_domain_through_target_body_exit/main.omg
+index 9e02c6e47e4..e1aca4434c0 100644
+--- a/tests/omega/pass/facts/case_dependent_default_domain_through_target_body_exit/main.omg
++++ b/tests/omega/pass/facts/case_dependent_default_domain_through_target_body_exit/main.omg
+@@ -14,9 +14,9 @@ data NamedValue [copy] {
+ domain<T> NamedValue::Typed<T>
+     requires ((self in NamedValue::Integer) && T == i32)
+         || ((self in NamedValue::Boolean) && T == bool);
+-data Interval [copy]
++data Interval<const Bound: u64> [copy]
+     requires (self in Interval::Empty)
+-        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= 32)
++        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= Bound)
+ {
+     case Empty;
+     case Range(lo: u64, hi: u64);
+@@ -41,7 +41,7 @@ machine pick_named<T>(value: NamedValue in Typed<T>) -> T {
+         NamedValue::Boolean { value } -> value
+     }
+ }
+-machine width(span: Interval) -> u64 {
++machine width(span: Interval<32>) -> u64 {
+     match span {
+         Interval::Empty -> 77
+         Interval::Range { lo, hi } -> width_range(lo, hi)
+@@ -61,14 +61,14 @@ data Bundle [copy] {
+     front: u64;
+     number: Value<i32>;
+     flag: Value<bool>;
+-    span: Interval;
++    span: Interval<32>;
+     named_number: NamedValue in Typed<i32>;
+     named_flag: NamedValue in Typed<bool>;
+     named_span: NamedInterval in Ordered<32>;
+     back: u64;
+ }
+ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expected_width: u64, expected_named_number: i32, expected_named_flag: bool, expected_named_width: u64) -> bool {
+-    value.front == 19088743 && value.back == 4275878552
++    value.front == 0x0123_4567 && value.back == 0xFEDC_BA98
+         && pick<i32>(value.number) == expected_number
+         && pick<bool>(value.flag) == expected_flag
+         && width(value.span) == expected_width
+@@ -79,24 +79,24 @@ machine observe(value: Bundle, expected_number: i32, expected_flag: bool, expect
+         && raw_case(value.named_flag as NamedValue) == 2
+ }
+ machine first() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: 42 },
+     flag: Value::Boolean { value: true },
+     span: Interval::Range { lo: 17, hi: 21 },
+     named_number: (NamedValue::Integer { value: -7 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: false }) as NamedValue in Typed<bool>,
+     named_span: (NamedInterval::Range { lo: 3, hi: 9 }) as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine second() -> Bundle { Bundle {
+-    front: 19088743,
++    front: 0x0123_4567,
+     number: Value::Integer { value: -13 },
+     flag: Value::Boolean { value: false },
+     span: Interval::Empty,
+     named_number: (NamedValue::Integer { value: 23 }) as NamedValue in Typed<i32>,
+     named_flag: (NamedValue::Boolean { value: true }) as NamedValue in Typed<bool>,
+     named_span: NamedInterval::Empty as NamedInterval in Ordered<32>,
+-    back: 4275878552
++    back: 0xFEDC_BA98
+ } }
+ machine raw_case(value: NamedValue) -> u64 {
+     match value {
+diff --git a/tests/omega/pass/facts/case_predicate_restoration_exit/main.omg b/tests/omega/pass/facts/case_predicate_restoration_exit/main.omg
+index 4bfc2561b62..0fa7dc82d83 100644
+--- a/tests/omega/pass/facts/case_predicate_restoration_exit/main.omg
++++ b/tests/omega/pass/facts/case_predicate_restoration_exit/main.omg
+@@ -14,9 +14,9 @@ data NamedValue [copy] {
+ domain<T> NamedValue::Typed<T>
+     requires ((self in NamedValue::Integer) && T == i32)
+         || ((self in NamedValue::Boolean) && T == bool);
+-data Interval [copy]
++data Interval<const Bound: u64> [copy]
+     requires (self in Interval::Empty)
+-        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= 32)
++        || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= Bound)
+ {
+     case Empty;
+     case Range(lo: u64, hi: u64);
+@@ -41,7 +41,7 @@ machine pick_named<T>(value: NamedValue in Typed<T>) -> T {
+         NamedValue::Boolean { value } -> value
+     }
+ }
+-machine width(span: Interval) -> u64 {
++machine width(span: Interval<32>) -> u64 {
+     match span {
+         Interval::Empty -> 77
+         Interval::Range { lo, hi } -> width_range(lo, hi)
+@@ -59,7 +59,7 @@ machine width_range(lo: u64, hi: u64) -> u64 requires lo <= hi && hi <= 32 {
+ }
+ 
+ machine main() crashes Trap {
+-    let mut value: Interval = Interval::Range { lo: 1, hi: 5 };
++    let mut value: Interval<32> = Interval::Range { lo: 1, hi: 5 };
+     value.hi = 0;
+     value.lo = 0;
+     value.hi = 8;

@@ -1,0 +1,25 @@
+data Command<const Maximum: i32> [copy]
+    requires ((self in Command::SetLevel) && (self.level >= 0 && self.level <= Maximum))
+        || ((self in Command::Dim) && (self.amount >= 0 && self.amount <= 10))
+        || (self in Command::Off)
+{
+    case SetLevel(level: i32);
+    case Dim(amount: i32);
+    case Off;
+}
+data Storage { command: Command<100>; }
+machine apply(target: i32) -> i32 requires target >= 0 && target <= 100 { target }
+machine evaluate(storage: &mut Storage) -> i32 {
+match storage.command {
+ Command::SetLevel { level } -> apply(level)
+ Command::Dim { amount } -> apply(amount * 10)
+ Command::Off -> apply(0)
+}
+}
+machine main() crashes Trap {
+let mut storage: Storage = Storage { command: Command::Dim { amount: 10 } };
+let result: i32 = evaluate(&mut storage);
+transition result == 100 { true -> done() false -> bad() }
+machine done() {}
+machine bad() { crash Trap; }
+}

@@ -1,0 +1,3 @@
+package candidate checking failed: checked compilation failed for package `zero_case_predicate_entry_exit` with 1 diagnostic(s)
+  error: `entry_start` calls `Main::main`; `Main::main` has no executable body: this compiler does not lower a statement of it yet (structural field store: carrier path); in state `Main::main::main`, statement 0
+    in package `zero_case_predicate_entry_exit`, /Users/zcanann/Library/Caches/CathedralOS/Omega/source/v1/external-local-sources/local-snapshots/source-v2-9eedcc1a245cfb2a8b46d723ffc5444b696e94b90e83a2d81479d1263d613bc3/source/main.omg:22:10

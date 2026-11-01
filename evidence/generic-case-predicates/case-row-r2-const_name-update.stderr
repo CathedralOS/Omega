@@ -1,0 +1,3 @@
+package candidate checking failed: checked compilation failed for package `case_predicate_const_name` with 1 diagnostic(s)
+  error: constant initializer normalization: materialized value is not canonical: materialized initializer carrier has no canonical label
+    in package `case_predicate_const_name`, /Users/zcanann/Library/Caches/CathedralOS/Omega/source/v1/external-local-sources/local-snapshots/source-v2-7aa816afcfc0f14e7325347ca7a5d555c8b12d29b0a3f1bac0ef949ba879e6d4/source/main.omg:107:7

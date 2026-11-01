@@ -1,0 +1,25 @@
+{
+  "command": [
+    "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-bound-applied-r3-omega",
+    "run",
+    "--both",
+    "samples/cli/facts/case_dependent_default_domain/field/main.omg"
+  ],
+  "producer": {
+    "binary": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-bound-applied-r3-omega",
+    "sha256": "fe3cf9736a3a9c0f610f5545016c1adccc8cd99c7c69af1045abf6be10eee650",
+    "profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "1"
+    }
+  },
+  "inputs": {
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/case_dependent_default_domain/field/build.omg": "a2415a45e05e37754aa177e836a3b00ae05574be7c50d5abcfbca344f922c2b3",
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/case_dependent_default_domain/field/main.omg": "33221316470990bbd15359e96efbb71bccd161c7b642517ba282392317017928"
+  },
+  "utc": "2026-11-01T22:02:54.997007+00:00",
+  "exit": 0,
+  "seconds": 3.1421324580000003,
+  "stdout": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r3-field-native.stdout",
+  "stderr": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r3-field-native.stderr"
+}

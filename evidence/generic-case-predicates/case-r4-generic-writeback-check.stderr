@@ -1,0 +1,2 @@
+cannot compile admitted project: checked compilation failed for package `generic_writeback` with 1 diagnostic(s)
+  error: data `Interval<32>`'s default domain is still FALSE at a call: the invariant window opened on `span` must close first -- restore the `where` facts before this consumption point (ch11)

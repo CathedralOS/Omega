@@ -1,0 +1,46 @@
+{
+  "context": {
+    "host": "macos_arm64",
+    "target": "macos_arm64",
+    "toolchain": "rust-toolchain.toml"
+  },
+  "checks": [
+    {
+      "id": "selected-payload-bounds",
+      "kind": "tests",
+      "command": [
+        "python3",
+        "tools/corpus_gate.py",
+        "--filter",
+        "dependent/zero_case_predicate_entry_exit"
+      ],
+      "inputs": [
+        "omega-rust",
+        "source/library",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "tests/omega/pass/dependent/zero_case_predicate_entry_exit"
+      ],
+      "artifacts": [],
+      "closure_reason": "Complete compiler/library inputs and exact customer exercise selected case payload formation; focused nine-place row and controls added after isolation. This is context before implementation, not a run receipt.",
+      "final": false,
+      "expected_exit": 0,
+      "timeout_seconds": 300
+    }
+  ],
+  "semantic_contracts": [
+    {
+      "implementation": [
+        "omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains"
+      ],
+      "contract": "wiki/spec/language/data_and_literals.md",
+      "classification": "missing_implementation",
+      "reason": "Selected case default-domain consequences must reach exact arithmetic operands, not only structural contract checking. Current baseline rejects declared0<=amount<=10 times10 aftercase dispatch.",
+      "passages": [
+        "Construction proves the complete default domain before producing an established\nvalue. Matching combines that domain with the selected case fact through ordinary\n[arm-local fact rules](patterns.md). For Value<T>, selecting Integer therefore\nestablishes T == i32; selecting Range in Interval establishes self.lo <= self.hi.",
+        "Value couplings obey the same [establishment and mutation rules](dependent_values.md)\nas type-wide invariants. Replacing a case or changing its payload invalidates\ndependent place facts as appropriate; snapshots keep their own exact subjects.\nBefore observation, the active value's complete conditions must hold again."
+      ]
+    }
+  ]
+}

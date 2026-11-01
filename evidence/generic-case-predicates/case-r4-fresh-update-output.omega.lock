@@ -1,0 +1,48 @@
+omega_lock 4
+targets 1
+target omega.target-profile.v1:macos_arm64
+source 1013
+omega-source-closure 2
+target "omega.target-profile.v1:macos_arm64"
+root
+role application
+request external-local "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-fresh-replay" "b360a6ae6c2dbb0438279eae88b117d5979e8c83fdbfafb2d979fa2c0bc3af29"
+selected
+source
+name "case_predicate_const_name"
+lineage external-local "b360a6ae6c2dbb0438279eae88b117d5979e8c83fdbfafb2d979fa2c0bc3af29" "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-fresh-replay"
+resolution external-local "10ec99bc677385f4fb8ffc09eb74b4beae2adb445f18f0cbd19a07ea3d4f752e"
+packages 1
+package
+source
+name "case_predicate_const_name"
+lineage external-local "b360a6ae6c2dbb0438279eae88b117d5979e8c83fdbfafb2d979fa2c0bc3af29" "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-fresh-replay"
+resolution external-local "10ec99bc677385f4fb8ffc09eb74b4beae2adb445f18f0cbd19a07ea3d4f752e"
+navigation root
+authored 0
+authored-build 0
+edges 0
+end
+occurrences 1
+occurrence 0 product omega.target-profile.v1:macos_arm64 omega.target-profile.v1:macos_arm64
+acceptance 42
+acceptance_schema 7
+rows 0
+end_acceptance
+compilation 279
+compiler ea60aa732bea932bed0c4b6a0e1ceaac6a390e2a785f37e03832fdd5daf189bf
+package 754620794a360158bf5ad24c1ceb66329c1cb0918691497a096d2a51c09a18c6
+purpose product
+target omega.target-profile.v1:macos_arm64
+execution omega.target-profile.v1:macos_arm64
+bindings 0
+end_compilation
+decisions 203
+omega-policy-decisions 2
+source cc11cdb671b868d713b53b8a159c46972c6773af470e228c920f79698296c1b7
+baseline none
+comparison e70dfe0d3903ae0950c465251f381fa1876b0a652063f9328b670658e9550f1e
+decisions 0
+end
+end_target
+end

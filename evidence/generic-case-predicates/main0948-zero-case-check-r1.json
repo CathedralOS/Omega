@@ -1,0 +1,24 @@
+{
+  "command": [
+    "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/main0948-scalar-frontier-r1-omega",
+    "--check",
+    "tests/omega/pass/dependent/zero_case_predicate_entry_exit/main.omg"
+  ],
+  "producer": {
+    "binary": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/main0948-scalar-frontier-r1-omega",
+    "sha256": "2c685936c8987252eefe4ef1da84492847702db9da351be93a70c9d0bc3d55bc",
+    "profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "1"
+    }
+  },
+  "inputs": {
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/tests/omega/pass/dependent/zero_case_predicate_entry_exit/build.omg": "34aeaadba7971fe0579e75ced0414e47b71c94f97afb49df5a7f1b587b53eec9",
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/tests/omega/pass/dependent/zero_case_predicate_entry_exit/main.omg": "64d498e9c91de7e283f409b6308c9f4f154e5edb29e531c54ae9f464159cf649"
+  },
+  "utc": "2026-11-01T21:36:11.365991+00:00",
+  "exit": 1,
+  "seconds": 6.5589975,
+  "stdout": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/main0948-zero-case-check-r1.stdout",
+  "stderr": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/main0948-zero-case-check-r1.stderr"
+}

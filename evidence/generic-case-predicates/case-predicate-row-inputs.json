@@ -1,0 +1,110 @@
+[
+  {
+    "sample": "samples/cli/facts/case_dependent_default_domain/local/main.omg",
+    "pin": "tests/omega/pass/facts/case_dependent_default_domain_through_local_exit/main.omg",
+    "original_sha256": "4250b8c25177a41149514963a79a6ad763dd5c530468027803db5ec30594a560",
+    "new_sha256": "f60201014edb57953936e2baf653b9351a9973997a9d053d11e54228b60b383a"
+  },
+  {
+    "sample": "samples/cli/facts/case_dependent_default_domain/local/invalid/main.omg",
+    "pin": "tests/omega/fail/facts/case_dependent_default_domain_through_local_rejected/main.omg",
+    "original_sha256": "01f19e0093b0857db76fe6176c986156544f2a8c1b85cb8c3ac1b715cf4efb29",
+    "new_sha256": "c423713833aa6fbc71ed860c38c2f9852ade3b356875e20b2b0104e1bae00744"
+  },
+  {
+    "sample": "samples/cli/facts/case_dependent_default_domain/field/main.omg",
+    "pin": "tests/omega/pass/facts/case_dependent_default_domain_through_field_exit/main.omg",
+    "original_sha256": "d313ec2830cf9d391be2c8d91d0bd8baa6293bf5ded5dc40029d098b297a0e55",
+    "new_sha256": "1ff0ceb2d2b1dfa78c5a78729d03d4d30e810139db81636324d2fc665fdfcd5c"
+  },
+  {
+    "sample": "samples/cli/facts/case_dependent_default_domain/field/invalid/main.omg",
+    "pin": "tests/omega/fail/facts/case_dependent_default_domain_through_field_rejected/main.omg",
+    "original_sha256": "11d738db0980759c3682818c2e6ec88cc2d5ce148025a982498d1996439b36fc",
+    "new_sha256": "2a9b107fefe1d91eb3a25ce061110a6ec58daa2b900f99be77fc22420957c7ce"
+  },
+  {
+    "sample": "samples/cli/facts/case_dependent_default_domain/parameter/main.omg",
+    "pin": "tests/omega/pass/facts/case_dependent_default_domain_through_parameter_exit/main.omg",
+    "original_sha256": "b14c37c9fadb6d44511bb0823d0d32e1756dd43c5e057b4e9da5a3335f4ff3b7",
+    "new_sha256": "21898a08453700218d5dcb58228461b46301f2090580d770a617506ceff00a69"
+  },
+  {
+    "sample": "samples/cli/facts/case_dependent_default_domain/parameter/invalid/main.omg",
+    "pin": "tests/omega/fail/facts/case_dependent_default_domain_through_parameter_rejected/main.omg",
+    "original_sha256": "c6001818729c778064515384fe1c97ceb6dfff13beffeede8f89fe80ec4163e2",
+    "new_sha256": "754772fa53b3099ce3c880b38283bf584656ce71a6810f094a3c1cef767bd3a0"
+  },
+  {
+    "sample": "samples/cli/facts/case_dependent_default_domain/call_result/main.omg",
+    "pin": "tests/omega/pass/facts/case_dependent_default_domain_through_call_result_exit/main.omg",
+    "original_sha256": "14fd8dc4e50ab02692685c0423c28d07e1dccbb61500965efe71804c73b4aa56",
+    "new_sha256": "0d704ff56fb9b5a7128a5f42bf49b120a6ffec0d35cc387238dd85f3fd206fc2"
+  },
+  {
+    "sample": "samples/cli/facts/case_dependent_default_domain/call_result/invalid/main.omg",
+    "pin": "tests/omega/fail/facts/case_dependent_default_domain_through_call_result_rejected/main.omg",
+    "original_sha256": "e957c340d287383e0f933fb0d73f2acc91e13ab7ee7154166f04582c041073f4",
+    "new_sha256": "2b7e43e91d1047ed81b7629f3aa1e7e3451d788aebe0651342d5069296ac4900"
+  },
+  {
+    "sample": "samples/cli/facts/case_dependent_default_domain/match_join/main.omg",
+    "pin": "tests/omega/pass/facts/case_dependent_default_domain_through_match_join_exit/main.omg",
+    "original_sha256": "808d904d673449068aac546d718451ded85472041afdb66187c9b71ef4eead45",
+    "new_sha256": "4d12d1483752bf85a3ae2b06619567a91c6811f4068d0327b8a42aaaf9c64899"
+  },
+  {
+    "sample": "samples/cli/facts/case_dependent_default_domain/match_join/invalid/main.omg",
+    "pin": "tests/omega/fail/facts/case_dependent_default_domain_through_match_join_rejected/main.omg",
+    "original_sha256": "020be34bd6d0818996a2b9323a8817328d676a3220723b697cbdc3e31e0a9f1e",
+    "new_sha256": "6039280d84249eba9d997a62c50810465cc1100902b9bc85553d7fa7f16e7a5b"
+  },
+  {
+    "sample": "samples/cli/facts/case_dependent_default_domain/const_name/main.omg",
+    "pin": "tests/omega/pass/facts/case_dependent_default_domain_through_const_name_exit/main.omg",
+    "original_sha256": "ad619dd457608b8e04c7874c074479d57e3a1f465abe559fb9633e3c2e672aa1",
+    "new_sha256": "27d72dd5cc9d6ad5063c70eecd7724a5a8cedb9f8156944525adf4d75b7db13e"
+  },
+  {
+    "sample": "samples/cli/facts/case_dependent_default_domain/const_name/invalid/main.omg",
+    "pin": "tests/omega/fail/facts/case_dependent_default_domain_through_const_name_rejected/main.omg",
+    "original_sha256": "403e9aae7d58e63e222a41c205f7e37198f5bc16f648a1357cb59951a50d7e83",
+    "new_sha256": "ec189cc76b1c661a5477472cc6d274eb8b5b0b40dcb5c957ebdd494dee329422"
+  },
+  {
+    "sample": "samples/cli/facts/case_dependent_default_domain/other_state/main.omg",
+    "pin": "tests/omega/pass/facts/case_dependent_default_domain_through_other_state_exit/main.omg",
+    "original_sha256": "103719cd276fc875ae15f66ef1605a3830ebd41b02768844a9f12ebc2c383f12",
+    "new_sha256": "0b3d3abb47f6e20b39f996762384e9dfdb1666793efff780568d3ffa9101825e"
+  },
+  {
+    "sample": "samples/cli/facts/case_dependent_default_domain/other_state/invalid/main.omg",
+    "pin": "tests/omega/fail/facts/case_dependent_default_domain_through_other_state_rejected/main.omg",
+    "original_sha256": "b0bf4b8c8085744c3873e0bcfc59d284d29e31dfdfcf13f4544cd1eab4ad6030",
+    "new_sha256": "6977a55d05a3875fdb4e45701bec0fe47087b003d25d343a3f965ce5149f1a0f"
+  },
+  {
+    "sample": "samples/cli/facts/case_dependent_default_domain/other_machine/main.omg",
+    "pin": "tests/omega/pass/facts/case_dependent_default_domain_through_other_machine_exit/main.omg",
+    "original_sha256": "72c938f9659ff775cf4c1ae02b095226a238cd7a682015d93a35d0503579aa25",
+    "new_sha256": "3d5c6cd1bef18be96ca325ab16db74b4d46b1c82d935008f5215d2d5c6b92cca"
+  },
+  {
+    "sample": "samples/cli/facts/case_dependent_default_domain/other_machine/invalid/main.omg",
+    "pin": "tests/omega/fail/facts/case_dependent_default_domain_through_other_machine_rejected/main.omg",
+    "original_sha256": "5daabe4c920feed287e8bb56374bf6b0d26b0e6c2c3d3af9b650d51f851792fc",
+    "new_sha256": "66c5c7e39706f4cdb28c9c067bb3a532eaa670ab0d32d768587fd4efab0f3201"
+  },
+  {
+    "sample": "samples/cli/facts/case_dependent_default_domain/target_body/main.omg",
+    "pin": "tests/omega/pass/facts/case_dependent_default_domain_through_target_body_exit/main.omg",
+    "original_sha256": "887864080b844c59485ad0062d0eff7ea2f904a02bb67b7319875038c928f385",
+    "new_sha256": "a5812fb67c5446e3b1a9c53eed377702c6b324a6e69e87fb90ca72113664c4e0"
+  },
+  {
+    "sample": "samples/cli/facts/case_dependent_default_domain/target_body/invalid/main.omg",
+    "pin": "tests/omega/fail/facts/case_dependent_default_domain_through_target_body_rejected/main.omg",
+    "original_sha256": "26a0653596e5ccdc6322820cd2b32120864c88f6095569e930bc3858aa52c157",
+    "new_sha256": "b9d97f367507d28c02e37e640af869c9aa4311a66f46d6a58e86075082ac0514"
+  }
+]

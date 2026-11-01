@@ -1,0 +1,8 @@
+No accepted lock baseline: reviewing the complete candidate graph.
+macos_arm64: checked 1 source packages.
+New package source: parameter_match [7632bf03bd61]: no prior revision to compare.
+Standalone candidate source: parameter_match [7632bf03bd61]: 3 changed entries.
+Source-code output (separate from editable capability review): /Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-payload-probes/parameter-match/build/package-manager/source-diff.txt
+
+Published build.omg and omega.lock for 1 packages across 1 targets.
+review: /Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-payload-probes/parameter-match/build/package-manager/review-macos_arm64.txt

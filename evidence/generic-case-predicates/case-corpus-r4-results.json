@@ -1,0 +1,45 @@
+[
+  {
+    "leg": "check",
+    "command": [
+      "/Library/Developer/CommandLineTools/usr/bin/python3",
+      "tools/corpus_gate.py",
+      "--runner",
+      "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-bound-corpus-r4-omega",
+      "--record",
+      "--filter",
+      "facts/case_dependent_default_domain_through_,facts/case_predicate_missing_type_equation_rejected,facts/case_predicate_other_default_argument_rejected,facts/case_predicate_restoration_exit,facts/case_predicate_stale_write_rejected,dependent/zero_case_predicate_entry_exit,dependent/case_where_payload_write_exit_open",
+      "--write-moves",
+      "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-corpus-r4-check-moves.txt",
+      "--json",
+      "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-corpus-r4-check-gate.json"
+    ],
+    "exit": 0,
+    "seconds": 30.341071833,
+    "fixture_count": 24,
+    "source": "72e837cecddfd751c8529dc6c52df07b87f5a95f",
+    "runner_sha256": "877a0ab168c210c74c85c82a91ac6cfc699924d3c1d91a2b5466be98908f81bb"
+  },
+  {
+    "leg": "both",
+    "command": [
+      "/Library/Developer/CommandLineTools/usr/bin/python3",
+      "tools/corpus_gate.py",
+      "--runner",
+      "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-bound-corpus-r4-omega",
+      "--record",
+      "--both",
+      "--filter",
+      "facts/case_dependent_default_domain_through_,facts/case_predicate_missing_type_equation_rejected,facts/case_predicate_other_default_argument_rejected,facts/case_predicate_restoration_exit,facts/case_predicate_stale_write_rejected,dependent/zero_case_predicate_entry_exit,dependent/case_where_payload_write_exit_open",
+      "--write-moves",
+      "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-corpus-r4-both-moves.txt",
+      "--json",
+      "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-corpus-r4-both-gate.json"
+    ],
+    "exit": 0,
+    "seconds": 27.24946775,
+    "fixture_count": 24,
+    "source": "72e837cecddfd751c8529dc6c52df07b87f5a95f",
+    "runner_sha256": "877a0ab168c210c74c85c82a91ac6cfc699924d3c1d91a2b5466be98908f81bb"
+  }
+]

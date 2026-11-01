@@ -1,0 +1,47 @@
+diff --git a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/guard_narrowing/case_facts.rs b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/guard_narrowing/case_facts.rs
+index 56d04f89d87..408970f68de 100644
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/guard_narrowing/case_facts.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/guard_narrowing/case_facts.rs
+@@ -45,13 +45,17 @@ pub(super) fn contribute_case_requirements(
+     let Some(state) = state else {
+         return;
+     };
+-    let Some(selected) = meaning::applied_case_membership_variant(
++    let selection = meaning::applied_case_membership_variant(
+         program,
+         machine,
+         Some(state),
+         condition,
+         comparison,
+-    ) else {
++    );
++    if std::env::var_os("OMEGA_CASE_BOUND_TRACE").is_some() {
++        eprintln!("CASE_BOUND machine={} condition={condition:?} comparison={comparison:?} selected={selection:?}", machine.name);
++    }
++    let Some(selected) = selection else {
+         return;
+     };
+     let Some((owner_index, _)) = program.data_variant_position_for_symbol(selected) else {
+@@ -64,6 +68,12 @@ pub(super) fn contribute_case_requirements(
+     let requirements = crate::proof_contracts::default_domains::selected_case_requirements(
+         program, owner, selected,
+     );
++    if std::env::var_os("OMEGA_CASE_BOUND_TRACE").is_some() {
++        eprintln!("CASE_BOUND owner={} subject={:?} variant={} requirements={requirements:?}", owner.name, owner.predicate_subject_symbol, variant.name);
++        for requirement in &requirements {
++            eprintln!("CASE_BOUND requirement={:?}", expression_table(program).expression(*requirement));
++        }
++    }
+     if requirements.is_empty() {
+         return;
+     }
+@@ -73,6 +83,9 @@ pub(super) fn contribute_case_requirements(
+     for requirement in requirements {
+         contribute_fact_expression(program, owner, variant, &subject, environment, requirement);
+     }
++    if std::env::var_os("OMEGA_CASE_BOUND_TRACE").is_some() {
++        eprintln!("CASE_BOUND environment={environment:?}");
++    }
+ }
+ 
+ /// One case requirement: `a && b` distributes (each conjunct holds on the

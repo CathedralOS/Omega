@@ -1,0 +1,48 @@
+omega_lock 4
+targets 1
+target omega.target-profile.v1:macos_arm64
+source 1105
+omega-source-closure 2
+target "omega.target-profile.v1:macos_arm64"
+root
+role application
+request external-local "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/case_dependent_default_domain/call_result" "b360a6ae6c2dbb0438279eae88b117d5979e8c83fdbfafb2d979fa2c0bc3af29"
+selected
+source
+name "case_predicate_call_result"
+lineage external-local "b360a6ae6c2dbb0438279eae88b117d5979e8c83fdbfafb2d979fa2c0bc3af29" "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/case_dependent_default_domain/call_result"
+resolution external-local "9d100fe135f98a6c2571a0ce283bd65b9bcbc1353b24158bb6c2a096e9ce94d4"
+packages 1
+package
+source
+name "case_predicate_call_result"
+lineage external-local "b360a6ae6c2dbb0438279eae88b117d5979e8c83fdbfafb2d979fa2c0bc3af29" "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/case_dependent_default_domain/call_result"
+resolution external-local "9d100fe135f98a6c2571a0ce283bd65b9bcbc1353b24158bb6c2a096e9ce94d4"
+navigation root
+authored 0
+authored-build 0
+edges 0
+end
+occurrences 1
+occurrence 0 product omega.target-profile.v1:macos_arm64 omega.target-profile.v1:macos_arm64
+acceptance 42
+acceptance_schema 7
+rows 0
+end_acceptance
+compilation 279
+compiler 2ccbaa78a976cc0e0a2b82f79bf4a8b4440254cc133c8fde2082fdde5bdee255
+package fa6006be3bc2a0b1f3edb66713a0b53e499726d5b504a5be88fa2484e114cf05
+purpose product
+target omega.target-profile.v1:macos_arm64
+execution omega.target-profile.v1:macos_arm64
+bindings 0
+end_compilation
+decisions 203
+omega-policy-decisions 2
+source 86f7d6de4783ae2d1e937a1bd59a206dadf1f602fdd3214672e5e3ea88e4a6f2
+baseline none
+comparison 9f4aa03e056289e104473714f448142ca87eed5467613b1245ea18872d3cf040
+decisions 0
+end
+end_target
+end

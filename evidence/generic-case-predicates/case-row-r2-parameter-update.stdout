@@ -1,0 +1,8 @@
+No accepted lock baseline: reviewing the complete candidate graph.
+macos_arm64: checked 1 source packages.
+New package source: case_predicate_parameter [83f5786825eb]: no prior revision to compare.
+Standalone candidate source: case_predicate_parameter [83f5786825eb]: 7 changed entries.
+Source-code output (separate from editable capability review): /Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/case_dependent_default_domain/parameter/build/package-manager/source-diff.txt
+
+Published build.omg and omega.lock for 1 packages across 1 targets.
+review: /Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/case_dependent_default_domain/parameter/build/package-manager/review-macos_arm64.txt

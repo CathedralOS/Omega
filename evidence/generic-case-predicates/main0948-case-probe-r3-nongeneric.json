@@ -1,0 +1,24 @@
+{
+  "command": [
+    "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/main0948-scalar-frontier-r1-omega",
+    "--check",
+    "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-payload-probes/nongeneric/main.omg"
+  ],
+  "producer": {
+    "binary": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/main0948-scalar-frontier-r1-omega",
+    "sha256": "2c685936c8987252eefe4ef1da84492847702db9da351be93a70c9d0bc3d55bc",
+    "profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "1"
+    }
+  },
+  "inputs": {
+    "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-payload-probes/nongeneric/build.omg": "b9a8115d7c48c9815ef266cb211188112886bbcdeae359e7f77d5bf704ab72f4",
+    "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-payload-probes/nongeneric/main.omg": "1944839be2e80de61c0d7acde157b76ec2e6ff0287f6db1a439101f841c3f25c"
+  },
+  "utc": "2026-11-01T21:38:49.566502+00:00",
+  "exit": 0,
+  "seconds": 2.909422583,
+  "stdout": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/main0948-case-probe-r3-nongeneric.stdout",
+  "stderr": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/main0948-case-probe-r3-nongeneric.stderr"
+}

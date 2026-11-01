@@ -1,0 +1,15 @@
+{
+  "candidate": "72e837cecddfd751c8529dc6c52df07b87f5a95f",
+  "producer_source": "0948d66c9cda2a14b141212ba98e6d126a08752d",
+  "compiler_library_patch_sha256": "1aef1b714c207d620e762d538be481cd33ae0c2c3940384f2ec1fb0cb28939cc",
+  "candidate_compiler_library_inputs_equivalent": true,
+  "producer": {
+    "binary": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-bound-applied-r4-omega",
+    "sha256": "7eedd23e9a2a901ee7e7a2015fdf9d9d38d915dd66d6f8eebd09ffd423fe0df5",
+    "profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "1"
+    }
+  },
+  "scope": "HistoricalR4observations retain base+patch producer identity; this binds unchanged compiler/library bytes to the current source checkpoint, not a new build or runtime observation."
+}

@@ -1,0 +1,48 @@
+omega_lock 4
+targets 1
+target omega.target-profile.v1:macos_arm64
+source 1052
+omega-source-closure 2
+target "omega.target-profile.v1:macos_arm64"
+root
+role application
+request external-local "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-payload-probes/field-transition" "b360a6ae6c2dbb0438279eae88b117d5979e8c83fdbfafb2d979fa2c0bc3af29"
+selected
+source
+name "field_transition"
+lineage external-local "b360a6ae6c2dbb0438279eae88b117d5979e8c83fdbfafb2d979fa2c0bc3af29" "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-payload-probes/field-transition"
+resolution external-local "00249d72154ec2eb26e62550ebd04d9fb1d2ad3f82f5592bcff0522bc61231c7"
+packages 1
+package
+source
+name "field_transition"
+lineage external-local "b360a6ae6c2dbb0438279eae88b117d5979e8c83fdbfafb2d979fa2c0bc3af29" "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-payload-probes/field-transition"
+resolution external-local "00249d72154ec2eb26e62550ebd04d9fb1d2ad3f82f5592bcff0522bc61231c7"
+navigation root
+authored 0
+authored-build 0
+edges 0
+end
+occurrences 1
+occurrence 0 product omega.target-profile.v1:macos_arm64 omega.target-profile.v1:macos_arm64
+acceptance 42
+acceptance_schema 7
+rows 0
+end_acceptance
+compilation 279
+compiler ea60aa732bea932bed0c4b6a0e1ceaac6a390e2a785f37e03832fdd5daf189bf
+package d3247ef84cc888672eda098b7698c2e7523bde3aa9553a2b3455a23542c0f60f
+purpose product
+target omega.target-profile.v1:macos_arm64
+execution omega.target-profile.v1:macos_arm64
+bindings 0
+end_compilation
+decisions 203
+omega-policy-decisions 2
+source 5845d4957831afc91eabfd75fa44af5c90694377b618834db58964a84b54ac60
+baseline none
+comparison 2846647a5538b6974ac1f9285f4083817cc8346d865d66b4ef937f408a172f35
+decisions 0
+end
+end_target
+end

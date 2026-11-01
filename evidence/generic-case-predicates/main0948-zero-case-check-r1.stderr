@@ -1,0 +1,3 @@
+cannot compile admitted project: checked compilation failed for package `zero_case_predicate_entry_exit` with 1 diagnostic(s)
+  error: exact arithmetic in machine `Main::main` state `main` terminal call operands may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+    in package `zero_case_predicate_entry_exit`, /Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/tests/omega/pass/dependent/zero_case_predicate_entry_exit/main.omg:27:33

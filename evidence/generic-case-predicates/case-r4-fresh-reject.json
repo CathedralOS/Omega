@@ -1,0 +1,23 @@
+{
+  "command": [
+    "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-bound-applied-r4-omega",
+    "--check",
+    "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-fresh-replay/invalid/main.omg"
+  ],
+  "producer": {
+    "binary": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-bound-applied-r4-omega",
+    "sha256": "7eedd23e9a2a901ee7e7a2015fdf9d9d38d915dd66d6f8eebd09ffd423fe0df5",
+    "profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "1"
+    }
+  },
+  "inputs": {
+    "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-fresh-replay/invalid/main.omg": "c9d17914a66de6c58f472d01e248ad8684ae821db816c50b4f47e5c6b1f4d297"
+  },
+  "utc": "2026-11-01T22:29:19.811267+00:00",
+  "exit": 1,
+  "seconds": 1.4536830410000001,
+  "stdout": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-r4-fresh-reject.stdout",
+  "stderr": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-r4-fresh-reject.stderr"
+}

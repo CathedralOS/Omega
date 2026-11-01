@@ -1,0 +1,77 @@
+diff --git a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/guard_narrowing/case_facts.rs b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/guard_narrowing/case_facts.rs
+index 56d04f89d87..3bebb0d5377 100644
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/guard_narrowing/case_facts.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/guard_narrowing/case_facts.rs
+@@ -125,8 +125,8 @@ fn contribute_fact_expression(
+ 
+ /// Project one side of a case requirement onto the dispatched subject.
+ /// A `self.field` leaf over the predicate subject, or a bare `Name` leaf,
+-/// resolves to the case's payload or the record's common field (symbol first,
+-/// the leaf's own field-name spelling when its symbol was not retained); a
++/// selects the case's payload or the record's common field through the exact
++/// receiving application's declaration correspondence; a
+ /// literal stays a literal. Anything else -- calls, longer member chains,
+ /// arithmetic inside the requirement -- has no operand projection here and
+ /// skips the whole comparison.
+@@ -145,24 +145,11 @@ fn fact_side(
+         {
+             Some(ProjectedOperand::literal(literal))
+         }
+-        ExpressionNode::Name(path) => {
+-            let name = expression_table(program)
+-                .name_path_members(path.members)
+-                .last()?
+-                .as_str();
+-            field_operand(program, owner, variant, subject, path.symbol, name)
+-        }
++        ExpressionNode::Name(path) => field_operand(program, owner, variant, subject, path.symbol),
+         ExpressionNode::Member(member)
+             if names_predicate_subject(program, owner, member.receiver) =>
+         {
+-            field_operand(
+-                program,
+-                owner,
+-                variant,
+-                subject,
+-                member.member_symbol,
+-                member.member.as_str(),
+-            )
++            field_operand(program, owner, variant, subject, member.member_symbol)
+         }
+         _ => None,
+     }
+@@ -190,22 +177,19 @@ fn field_operand(
+     variant: &DataVariant,
+     subject: &ordered_values::Operand,
+     symbol: symbols::SymbolHandle,
+-    name: &str,
+ ) -> Option<ProjectedOperand> {
+-    let field = if symbol.is_valid() {
+-        payload_field(program, variant)
+-            .chain(common_fields(program, owner))
+-            .find(|field| field.symbol == symbol)?
+-    } else {
+-        let mut matches = payload_field(program, variant)
+-            .chain(common_fields(program, owner))
+-            .filter(|field| field.name.as_str() == name);
+-        let field = matches.next()?;
+-        if matches.next().is_some() {
+-            return None;
+-        }
+-        field
+-    };
++    // Predicate expressions may retain the authored template's field symbol.
++    // Translate its declaration coordinate through this exact application,
++    // then require a common field or the already selected case's payload.
++    // Matching spelling in another case or specialization supplies no fact.
++    let field =
++        program.data_constructor_field(owner.predicate_subject_type, owner.symbol, symbol)?;
++    if !payload_field(program, variant)
++        .chain(common_fields(program, owner))
++        .any(|selected| selected.symbol == field.symbol)
++    {
++        return None;
++    }
+     // This environment records integer differences (a strict order
+     // contributes a distance of at least one). A case's IEEE or
+     // nominal facts cannot supply those relations or integer intervals.

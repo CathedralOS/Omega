@@ -1,0 +1,12 @@
+data Interval<const Bound: u64> [copy]
+    requires (self in Interval::Empty) || ((self in Interval::Range) && self.lo <= self.hi && self.hi <= Bound)
+{ case Empty; case Range(lo: u64, hi: u64); }
+machine consume(lo: u64, hi: u64) -> u64 requires lo <= hi && hi <= 32 { hi - lo }
+machine main() -> u64 {
+    let mut value: Interval<32> = Interval::Range { lo: 1, hi: 5 };
+    value.hi = 0;
+    transition value in Interval::Range {
+        true -> consume(value.lo, value.hi)
+        false -> 0
+    }
+}

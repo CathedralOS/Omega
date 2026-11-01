@@ -1,0 +1,18 @@
+[
+  {
+    "project": "parameter-match",
+    "sha256": "9f88adff0d38e235b338588c3937f4530864b24f1da77de1da79f2140589b9c4"
+  },
+  {
+    "project": "parameter-transition",
+    "sha256": "c2f5aab007cc1a6853fb689ac0ef2b3fb3c9448a841c163011e2753f5f57f23f"
+  },
+  {
+    "project": "field-match",
+    "sha256": "f640e89ff0629b13de6244db8bbbc51a0f03fa99c86a3510a75bce8b59e46960"
+  },
+  {
+    "project": "field-transition",
+    "sha256": "71c27059b91e959add5c65f85fbef70a93f258210f9d2faefad41fa06e04d450"
+  }
+]

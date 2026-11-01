@@ -1,0 +1,76 @@
+[
+  {
+    "name": "missing_type_equation",
+    "stage": "reject",
+    "exit": 1,
+    "seconds": 0.413761167,
+    "expected": true,
+    "markers": [
+      "return value expects `T`, but the value is delivered as `bool`"
+    ],
+    "record": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-controls-r4-missing_type_equation-reject.json"
+  },
+  {
+    "name": "other_default_argument",
+    "stage": "reject",
+    "exit": 1,
+    "seconds": 1.3403582079999998,
+    "expected": true,
+    "markers": [
+      "cannot prove requires contract for call width_range"
+    ],
+    "record": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-controls-r4-other_default_argument-reject.json"
+  },
+  {
+    "name": "stale_write",
+    "stage": "reject",
+    "exit": 1,
+    "seconds": 0.624805209,
+    "expected": true,
+    "markers": [
+      "default domain is still FALSE"
+    ],
+    "record": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-controls-r4-stale_write-reject.json"
+  },
+  {
+    "name": "case_write",
+    "stage": "reject",
+    "exit": 1,
+    "seconds": 0.41688541599999995,
+    "expected": true,
+    "markers": [
+      "default domain is still FALSE"
+    ],
+    "record": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-controls-r4-case_write-reject.json"
+  },
+  {
+    "name": "restoration",
+    "stage": "update",
+    "exit": 0,
+    "seconds": 0.881269125,
+    "expected": true,
+    "markers": [],
+    "record": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-controls-r4-restoration-update.json"
+  },
+  {
+    "name": "restoration",
+    "stage": "native",
+    "exit": 0,
+    "seconds": 3.369691291,
+    "expected": true,
+    "markers": [
+      "native exit 0",
+      "interp exit: 0"
+    ],
+    "record": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-controls-r4-restoration-native.json"
+  },
+  {
+    "name": "zero_case",
+    "stage": "update",
+    "exit": 3,
+    "seconds": 70.932186459,
+    "expected": false,
+    "markers": [],
+    "record": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-controls-r4-zero_case-update.json"
+  }
+]

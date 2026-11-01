@@ -1,0 +1,27 @@
+{
+  "source": "0948d66c9cda2a14b141212ba98e6d126a08752d",
+  "patch_sha256": "f1bd371f7049ecd94c6b905756f856ddc7bd5fb684fe99538c7376ea0220b792",
+  "command": [
+    "cargo",
+    "rustc",
+    "--locked",
+    "-p",
+    "omega",
+    "--bin",
+    "omega",
+    "--message-format=json",
+    "--",
+    "-C",
+    "strip=none"
+  ],
+  "exit": 0,
+  "seconds": 217.218727291,
+  "executable": {
+    "binary": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-bound-applied-r1-omega",
+    "sha256": "e63e4f84d93daed50b40cecb4f3342742e01da8b0ead940531a588e2c17e68cf",
+    "profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "1"
+    }
+  }
+}

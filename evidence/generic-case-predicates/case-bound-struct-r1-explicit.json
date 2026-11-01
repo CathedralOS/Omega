@@ -1,0 +1,24 @@
+{
+  "command": [
+    "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-bound-applied-r1-omega",
+    "--check",
+    "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-payload-probes/explicit_callee/main.omg"
+  ],
+  "producer": {
+    "binary": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-bound-applied-r1-omega",
+    "sha256": "e63e4f84d93daed50b40cecb4f3342742e01da8b0ead940531a588e2c17e68cf",
+    "profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "1"
+    }
+  },
+  "inputs": {
+    "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-payload-probes/explicit_callee/build.omg": "a67b37a7f22f25e07ffbd0dc4cc6a47527f085f892182a33b2bc1240c550a4e6",
+    "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-payload-probes/explicit_callee/main.omg": "05014694812eb98de8dcf076088c2e752b8d1300a8a5f685880f01aff29753d2"
+  },
+  "utc": "2026-11-01T21:49:09.418804+00:00",
+  "exit": 1,
+  "seconds": 1.8903825,
+  "stdout": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-bound-struct-r1-explicit.stdout",
+  "stderr": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-bound-struct-r1-explicit.stderr"
+}

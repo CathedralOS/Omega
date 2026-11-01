@@ -1,0 +1,1 @@
+error: project source discovery failed: StructuralArgumentPreparation { stage: "execute captured host call", detail: "EffectRejected { operation: OperationId(13), rejection: TerminalEffectRejection { reason: \"Build project name or alias is not a canonical identifier\" } }" } in MachineId(2)/BlockId(12) at Some(OperationId(13))

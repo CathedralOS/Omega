@@ -1,0 +1,58 @@
+{
+  "context": {
+    "host": "macos_arm64",
+    "target": "macos_arm64",
+    "toolchain": "rust-toolchain.toml"
+  },
+  "checks": [
+    {
+      "id": "selected-payload-bounds",
+      "kind": "tests",
+      "command": [
+        "python3",
+        "tools/corpus_gate.py",
+        "--filter",
+        "dependent/zero_case_predicate_entry_exit"
+      ],
+      "inputs": [
+        "omega-rust",
+        "source/library",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "tests/omega/pass/dependent/zero_case_predicate_entry_exit"
+      ],
+      "artifacts": [],
+      "closure_reason": "Complete compiler/library inputs and exact customer exercise selected case payload formation; focused nine-place row and controls added after isolation. This is context before implementation, not a run receipt.",
+      "final": false,
+      "expected_exit": 0,
+      "timeout_seconds": 300
+    }
+  ],
+  "semantic_contracts": [
+    {
+      "implementation": [
+        "omega-rust/psi/compilation/checking/src/proof_contracts"
+      ],
+      "contract": "wiki/spec/language/data_and_literals.md",
+      "classification": "missing_implementation",
+      "reason": "The same exact applied declaration/member correspondence must feed case payload arithmetic, selected contract terms and completed scalar observation. Direct comparison of template selectors to applied fields loses generic default-domain facts; current baseline rejects both matching forms.",
+      "passages": [
+        "Construction proves the complete default domain before producing an established\nvalue. Matching combines that domain with the selected case fact through ordinary\n[arm-local fact rules](patterns.md). For Value<T>, selecting Integer therefore\nestablishes T == i32; selecting Range in Interval establishes self.lo <= self.hi.",
+        "Value couplings obey the same [establishment and mutation rules](dependent_values.md)\nas type-wide invariants. Replacing a case or changing its payload invalidates\ndependent place facts as appropriate; snapshots keep their own exact subjects.\nBefore observation, the active value's complete conditions must hold again."
+      ]
+    },
+    {
+      "implementation": [
+        "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/constant/initializer_normalization/resolved_payload.rs"
+      ],
+      "contract": "wiki/spec/language/constants.md",
+      "classification": "missing_implementation",
+      "reason": "The existingconstantname place exposescanonicalmaterialization rejecting an ordinary closedConst integer application insideaCopy sum; canonicalcarrierlabels must preserve completeclosedarguments before independently validatingmaterializedpayload. Source/expectedvalue remainunchanged.",
+      "passages": [
+        "Constants are not fields and do not contribute to `size_of<T>()`. Their complete\ntypes recursively permit copying and have no cleanup obligation, shared\nownership, or interior mutability. Fixed arrays, records, and copy-eligible sums\nare eligible; selecting an unrestricted active case does not make a structurally\nlinear sum eligible.",
+        "Materialization requires a selected layout determining every observable bit of\nthe realized active value, recursively through its active fields and case."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,212 @@
+diff --git a/omega-rust/psi/compilation/checking/src/machine_calls/structural_call_custody/declaration_predicates.rs b/omega-rust/psi/compilation/checking/src/machine_calls/structural_call_custody/declaration_predicates.rs
+index 1378766001c..da082b02560 100644
+--- a/omega-rust/psi/compilation/checking/src/machine_calls/structural_call_custody/declaration_predicates.rs
++++ b/omega-rust/psi/compilation/checking/src/machine_calls/structural_call_custody/declaration_predicates.rs
+@@ -696,6 +696,18 @@ fn find_data_field<'program>(
+     symbol: SymbolHandle,
+     name: &str,
+ ) -> Option<&'program DataField> {
++    // Copied predicates retain declaration selectors. Rejoin an instance's
++    // selector through its complete application before reading this exact
++    // borrowed field view; a matching name cannot repair a foreign selector.
++    let symbol = if symbol.is_valid()
++        && let Some(application) = definition.generic_instance
++    {
++        program
++            .data_constructor_field(application, definition.symbol, symbol)?
++            .symbol
++    } else {
++        symbol
++    };
+     program.data_members(definition).iter().find_map(|member| {
+         let field = member.as_field()?;
+         if field.relevance.is_erased() {
+@@ -1167,12 +1179,10 @@ impl FactSpelling<'_> {
+             ExpressionNode::Member(member) => {
+                 let (mut path, receiver_type) = self.field_path(member.receiver)?;
+                 let owner = owned_data_definition(self.program, receiver_type)?;
+-                let field = crate::value_custody::places::exact_data_member_field(
++                let field = crate::value_custody::places::applied_data_member_field(
+                     self.program,
+-                    owner,
+-                    member.member_symbol,
+-                    member.member.as_str(),
+-                    member.case_variant.as_ref().map(|case| case.as_str()),
++                    receiver_type,
++                    member,
+                 )?;
+                 if !field.symbol.is_valid() {
+                     return None;
+diff --git a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/guard_narrowing/case_facts.rs b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/guard_narrowing/case_facts.rs
+index 56d04f89d87..3bebb0d5377 100644
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/guard_narrowing/case_facts.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/guard_narrowing/case_facts.rs
+@@ -125,8 +125,8 @@ fn contribute_fact_expression(
+ 
+ /// Project one side of a case requirement onto the dispatched subject.
+ /// A `self.field` leaf over the predicate subject, or a bare `Name` leaf,
+-/// resolves to the case's payload or the record's common field (symbol first,
+-/// the leaf's own field-name spelling when its symbol was not retained); a
++/// selects the case's payload or the record's common field through the exact
++/// receiving application's declaration correspondence; a
+ /// literal stays a literal. Anything else -- calls, longer member chains,
+ /// arithmetic inside the requirement -- has no operand projection here and
+ /// skips the whole comparison.
+@@ -145,24 +145,11 @@ fn fact_side(
+         {
+             Some(ProjectedOperand::literal(literal))
+         }
+-        ExpressionNode::Name(path) => {
+-            let name = expression_table(program)
+-                .name_path_members(path.members)
+-                .last()?
+-                .as_str();
+-            field_operand(program, owner, variant, subject, path.symbol, name)
+-        }
++        ExpressionNode::Name(path) => field_operand(program, owner, variant, subject, path.symbol),
+         ExpressionNode::Member(member)
+             if names_predicate_subject(program, owner, member.receiver) =>
+         {
+-            field_operand(
+-                program,
+-                owner,
+-                variant,
+-                subject,
+-                member.member_symbol,
+-                member.member.as_str(),
+-            )
++            field_operand(program, owner, variant, subject, member.member_symbol)
+         }
+         _ => None,
+     }
+@@ -190,22 +177,19 @@ fn field_operand(
+     variant: &DataVariant,
+     subject: &ordered_values::Operand,
+     symbol: symbols::SymbolHandle,
+-    name: &str,
+ ) -> Option<ProjectedOperand> {
+-    let field = if symbol.is_valid() {
+-        payload_field(program, variant)
+-            .chain(common_fields(program, owner))
+-            .find(|field| field.symbol == symbol)?
+-    } else {
+-        let mut matches = payload_field(program, variant)
+-            .chain(common_fields(program, owner))
+-            .filter(|field| field.name.as_str() == name);
+-        let field = matches.next()?;
+-        if matches.next().is_some() {
+-            return None;
+-        }
+-        field
+-    };
++    // Predicate expressions may retain the authored template's field symbol.
++    // Translate its declaration coordinate through this exact application,
++    // then require a common field or the already selected case's payload.
++    // Matching spelling in another case or specialization supplies no fact.
++    let field =
++        program.data_constructor_field(owner.predicate_subject_type, owner.symbol, symbol)?;
++    if !payload_field(program, variant)
++        .chain(common_fields(program, owner))
++        .any(|selected| selected.symbol == field.symbol)
++    {
++        return None;
++    }
+     // This environment records integer differences (a strict order
+     // contributes a distance of at least one). A case's IEEE or
+     // nominal facts cannot supply those relations or integer intervals.
+diff --git a/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/observed_projections.rs b/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/observed_projections.rs
+index 40e94dff722..3b2a374dd9e 100644
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/observed_projections.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/observed_projections.rs
+@@ -402,14 +402,7 @@ pub(super) fn declared_scalar_field_read(
+     };
+     let receiver =
+         crate::expression_result_type_reference(program, machine, state, member.receiver)?;
+-    let data = crate::value_custody::places::data_definition_for_type(program, receiver)?;
+-    let field = crate::value_custody::places::exact_data_member_field(
+-        program,
+-        data,
+-        member.member_symbol,
+-        member.member.as_str(),
+-        member.case_variant.as_ref().map(|case| case.as_str()),
+-    )?;
++    let field = crate::value_custody::places::applied_data_member_field(program, receiver, member)?;
+     if !field.symbol.is_valid() || program.symbols.get(field.symbol).kind != SymbolKind::Field {
+         return None;
+     }
+diff --git a/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/selected_contracts/terms.rs b/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/selected_contracts/terms.rs
+index bc93c353614..1c06f125ecb 100644
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/selected_contracts/terms.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/selected_contracts/terms.rs
+@@ -145,18 +145,10 @@ impl StructuralJudge<'_> {
+                 {
+                     return Some(measure);
+                 }
+-                let carrier =
+-                    crate::value_custody::places::unwrapped_type_reference(program, reference)?;
+                 // The applied contract's fields belong to its selected data
+                 // application, not a same-named field on the generic base.
+-                let data =
+-                    crate::value_custody::places::data_definition_for_type(program, carrier)?;
+-                let field = crate::value_custody::places::exact_data_member_field(
+-                    program,
+-                    data,
+-                    member.member_symbol,
+-                    member.member.as_str(),
+-                    member.case_variant.as_ref().map(|case| case.as_str()),
++                let field = crate::value_custody::places::applied_data_member_field(
++                    program, reference, member,
+                 )?;
+                 let value = self.bound_contract_term(
+                     member.receiver,
+diff --git a/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_terms.rs b/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_terms.rs
+index a78e5876819..868c8e398a0 100644
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_terms.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_terms.rs
+@@ -900,14 +900,8 @@ pub(super) fn structural_term(
+             }
+             let declared_field = receiver_type
+                 .and_then(|reference| {
+-                    let data =
+-                        crate::value_custody::places::data_definition_for_type(program, reference)?;
+-                    crate::value_custody::places::exact_data_member_field(
+-                        program,
+-                        data,
+-                        member.member_symbol,
+-                        member.member.as_str(),
+-                        member.case_variant.as_ref().map(|case| case.as_str()),
++                    crate::value_custody::places::applied_data_member_field(
++                        program, reference, member,
+                     )
+                 })
+                 .is_some();
+diff --git a/omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/constant/initializer_normalization/resolved_payload.rs b/omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/constant/initializer_normalization/resolved_payload.rs
+index 5a308c99fb5..a2c5453ba89 100644
+--- a/omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/constant/initializer_normalization/resolved_payload.rs
++++ b/omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/constant/initializer_normalization/resolved_payload.rs
+@@ -547,6 +547,25 @@ impl<'program> Encoder<'program> {
+         }
+         let operand = self.unconstrained(operand)?;
+         match operand.reference {
++            TypeReference::ConstExpression(recipe) => {
++                // Closed scalar arguments keep their exact value in the
++                // declaration label, as in syntax-side application labeling.
++                // This reads the receiving declaration's completed operand;
++                // a result receipt cannot supply or replace that argument.
++                match self
++                    .program
++                    .tables
++                    .bodies
++                    .expressions
++                    .expression(recipe.expression)
++                {
++                    ExpressionNode::Integer(literal) => literal
++                        .value_bignum()
++                        .map(|value| value.to_string())
++                        .ok_or_else(|| "materialized carrier argument has no integer value".into()),
++                    _ => Err("materialized carrier argument is not a completed scalar".into()),
++                }
++            }
+             TypeReference::Named { symbol, name, .. } => {
+                 Ok(self.program.data_definition_by_symbol(*symbol).map_or_else(
+                     || name.as_str().to_owned(),

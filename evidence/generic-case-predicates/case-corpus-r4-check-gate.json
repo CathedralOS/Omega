@@ -1,0 +1,353 @@
+{
+  "schema": "omega-corpus-verdict-v1",
+  "revision": "72e837cecddfd751c8529dc6c52df07b87f5a95f",
+  "dirty": true,
+  "leg": "checked",
+  "target": null,
+  "golden": "tests/omega/corpus_outcomes.txt",
+  "golden_reason_gaps": {
+    "rows": 1,
+    "of": 19301
+  },
+  "subset": true,
+  "filter": "facts/case_dependent_default_domain_through_,facts/case_predicate_missing_type_equation_rejected,facts/case_predicate_other_default_argument_rejected,facts/case_predicate_restoration_exit,facts/case_predicate_stale_write_rejected,dependent/zero_case_predicate_entry_exit,dependent/case_where_payload_write_exit_open",
+  "shard": null,
+  "verdict": "recorded",
+  "exit_code": 0,
+  "counts": {
+    "fixtures": 24,
+    "by_status": {
+      "checked": 11,
+      "rejected": 13
+    },
+    "wrong_reason": 0,
+    "wrong_reason_fixtures": [],
+    "fail_not_rejected": 0,
+    "fail_not_rejected_fixtures": [],
+    "lost_successes": 0,
+    "lost_success_fixtures": [],
+    "pinned_off_target": 0,
+    "pinned_off_target_fixtures": [],
+    "by_verdict": {}
+  },
+  "oracle_failures": [],
+  "infrastructure_error": null,
+  "golden_provenance": null,
+  "perf_context": null,
+  "observations": [
+    {
+      "fixture": "pass/dependent/zero_case_predicate_entry_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 26374,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "72e837cecddf"
+    },
+    {
+      "fixture": "pass/facts/case_dependent_default_domain_through_call_result_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6693,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "72e837cecddf"
+    },
+    {
+      "fixture": "pass/facts/case_dependent_default_domain_through_const_name_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6805,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "72e837cecddf"
+    },
+    {
+      "fixture": "pass/facts/case_dependent_default_domain_through_field_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 7797,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "72e837cecddf"
+    },
+    {
+      "fixture": "pass/facts/case_dependent_default_domain_through_local_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 5860,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "72e837cecddf"
+    },
+    {
+      "fixture": "pass/facts/case_dependent_default_domain_through_match_join_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6812,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "72e837cecddf"
+    },
+    {
+      "fixture": "pass/facts/case_dependent_default_domain_through_other_machine_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4810,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "72e837cecddf"
+    },
+    {
+      "fixture": "pass/facts/case_dependent_default_domain_through_other_state_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 9006,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "72e837cecddf"
+    },
+    {
+      "fixture": "pass/facts/case_dependent_default_domain_through_parameter_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 6789,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "72e837cecddf"
+    },
+    {
+      "fixture": "pass/facts/case_dependent_default_domain_through_target_body_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 8050,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "72e837cecddf"
+    },
+    {
+      "fixture": "pass/facts/case_predicate_restoration_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 4403,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "72e837cecddf"
+    },
+    {
+      "fixture": "fail/dependent/case_where_payload_write_exit_open",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 433,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "data `Interval`'s default domain is still FALSE at a call: the invariant window opened on `main.interval` must close first -- restore the `where` facts before this consumption point (ch11)"
+      ],
+      "regressed_from": null,
+      "recorded_at": "72e837cecddf"
+    },
+    {
+      "fixture": "fail/facts/case_dependent_default_domain_through_call_result_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2698,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call width_range from width: <saved subject #3:1>.lo <= <saved subject #3:1>.hi && <saved subject #3:1>.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": "72e837cecddf"
+    },
+    {
+      "fixture": "fail/facts/case_dependent_default_domain_through_const_name_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 4901,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call width_range from width: <saved subject #3:1>.lo <= <saved subject #3:1>.hi && <saved subject #3:1>.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": "72e837cecddf"
+    },
+    {
+      "fixture": "fail/facts/case_dependent_default_domain_through_field_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 4797,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call width_range from width: <saved subject #3:1>.lo <= <saved subject #3:1>.hi && <saved subject #3:1>.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": "72e837cecddf"
+    },
+    {
+      "fixture": "fail/facts/case_dependent_default_domain_through_local_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 4701,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call width_range from width: <saved subject #3:1>.lo <= <saved subject #3:1>.hi && <saved subject #3:1>.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": "72e837cecddf"
+    },
+    {
+      "fixture": "fail/facts/case_dependent_default_domain_through_match_join_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 5178,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call width_range from width: <saved subject #3:1>.lo <= <saved subject #3:1>.hi && <saved subject #3:1>.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": "72e837cecddf"
+    },
+    {
+      "fixture": "fail/facts/case_dependent_default_domain_through_other_machine_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 3726,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call width_range from width: <saved subject #3:1>.lo <= <saved subject #3:1>.hi && <saved subject #3:1>.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": "72e837cecddf"
+    },
+    {
+      "fixture": "fail/facts/case_dependent_default_domain_through_other_state_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 3458,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call width_range from width: <saved subject #3:1>.lo <= <saved subject #3:1>.hi && <saved subject #3:1>.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": "72e837cecddf"
+    },
+    {
+      "fixture": "fail/facts/case_dependent_default_domain_through_parameter_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2523,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call width_range from width: <saved subject #3:1>.lo <= <saved subject #3:1>.hi && <saved subject #3:1>.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": "72e837cecddf"
+    },
+    {
+      "fixture": "fail/facts/case_dependent_default_domain_through_target_body_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 2583,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call width_range from width: <saved subject #3:1>.lo <= <saved subject #3:1>.hi && <saved subject #3:1>.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": "72e837cecddf"
+    },
+    {
+      "fixture": "fail/facts/case_predicate_missing_type_equation_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 427,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `pick` state `entry` return value expects `T`, but the value is delivered as `bool`"
+      ],
+      "regressed_from": null,
+      "recorded_at": "72e837cecddf"
+    },
+    {
+      "fixture": "fail/facts/case_predicate_other_default_argument_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1856,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call width_range from invalid: <saved subject #1:1>.lo <= <saved subject #1:1>.hi && <saved subject #1:1>.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": "72e837cecddf"
+    },
+    {
+      "fixture": "fail/facts/case_predicate_stale_write_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 493,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "machine `main` state `entry` statement 2: the next whole-value read of `value` occurs inside an OPEN invariant window: a prior write left data `Interval<32>`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)",
+        "data `Interval<32>`'s default domain is still FALSE at a call: the invariant window opened on `value` must close first -- restore the `where` facts before this consumption point (ch11)"
+      ],
+      "regressed_from": null,
+      "recorded_at": "72e837cecddf"
+    }
+  ],
+  "fixtures": []
+}

@@ -1,0 +1,2 @@
+error: machine `main` state `entry` statement 2: the next whole-value read of `value` occurs inside an OPEN invariant window: a prior write left data `Interval<32>`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
+error: data `Interval<32>`'s default domain is still FALSE at a call: the invariant window opened on `value` must close first -- restore the `where` facts before this consumption point (ch11)

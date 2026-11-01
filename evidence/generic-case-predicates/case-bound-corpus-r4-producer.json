@@ -1,0 +1,27 @@
+{
+  "source": "0948d66c9cda2a14b141212ba98e6d126a08752d",
+  "patch_sha256": "1aef1b714c207d620e762d538be481cd33ae0c2c3940384f2ec1fb0cb28939cc",
+  "command": [
+    "cargo",
+    "rustc",
+    "--locked",
+    "-p",
+    "compiler",
+    "--test",
+    "corpus_runner",
+    "--message-format=json",
+    "--",
+    "-C",
+    "strip=none"
+  ],
+  "exit": 0,
+  "seconds": 63.175573375,
+  "executable": {
+    "binary": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-bound-corpus-r4-omega",
+    "sha256": "877a0ab168c210c74c85c82a91ac6cfc699924d3c1d91a2b5466be98908f81bb",
+    "profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "1"
+    }
+  }
+}

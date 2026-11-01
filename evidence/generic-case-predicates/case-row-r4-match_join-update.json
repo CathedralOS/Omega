@@ -1,0 +1,28 @@
+{
+  "command": [
+    "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-bound-applied-r4-omega",
+    "update",
+    "--project",
+    "samples/cli/facts/case_dependent_default_domain/match_join",
+    "--target",
+    "macos_arm64",
+    "--offline"
+  ],
+  "producer": {
+    "binary": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-bound-applied-r4-omega",
+    "sha256": "7eedd23e9a2a901ee7e7a2015fdf9d9d38d915dd66d6f8eebd09ffd423fe0df5",
+    "profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "1"
+    }
+  },
+  "inputs": {
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/case_dependent_default_domain/match_join/build.omg": "1b276448c24a81c1033031c96a9e444eb8411ba050aa56933e27ef049383ead4",
+    "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/case_dependent_default_domain/match_join/main.omg": "98e307d394720c3b5748b96031af214913599c018fa967f2020a4f1621423282"
+  },
+  "utc": "2026-11-01T22:18:39.249797+00:00",
+  "exit": 0,
+  "seconds": 4.100122084,
+  "stdout": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-match_join-update.stdout",
+  "stderr": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-row-r4-match_join-update.stderr"
+}

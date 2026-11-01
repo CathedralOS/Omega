@@ -1,0 +1,30 @@
+[
+  {
+    "shape": "parameter-match",
+    "stage": "update",
+    "exit": 0,
+    "expected": true,
+    "record": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-r4-scaled-parameter-match-update.json"
+  },
+  {
+    "shape": "parameter-match",
+    "stage": "native",
+    "exit": 0,
+    "expected": true,
+    "record": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-r4-scaled-parameter-match-native.json"
+  },
+  {
+    "shape": "field-transition",
+    "stage": "update",
+    "exit": 0,
+    "expected": true,
+    "record": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-r4-scaled-field-transition-update.json"
+  },
+  {
+    "shape": "field-transition",
+    "stage": "native",
+    "exit": 0,
+    "expected": true,
+    "record": "/Users/zcanann/Documents/Projects/Omega/build/window-demo-qualification-20261101/case-r4-scaled-field-transition-native.json"
+  }
+]

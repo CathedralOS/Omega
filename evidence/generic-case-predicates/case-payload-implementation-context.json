@@ -1,0 +1,70 @@
+{
+  "schema": "qualification-handoff-1",
+  "role": "implementation",
+  "candidate": "0948d66c9cda2a14b141212ba98e6d126a08752d",
+  "source_revision": "0948d66c9cda2a14b141212ba98e6d126a08752d",
+  "changed_paths": [],
+  "canonical_context": [
+    {
+      "implementation": [
+        "omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains"
+      ],
+      "contract": "wiki/spec/language/data_and_literals.md",
+      "classification": "missing_implementation",
+      "reason": "Selected case default-domain consequences must reach exact arithmetic operands, not only structural contract checking. Current baseline rejects declared0<=amount<=10 times10 aftercase dispatch.",
+      "passages": [
+        "Construction proves the complete default domain before producing an established\nvalue. Matching combines that domain with the selected case fact through ordinary\n[arm-local fact rules](patterns.md). For Value<T>, selecting Integer therefore\nestablishes T == i32; selecting Range in Interval establishes self.lo <= self.hi.",
+        "Value couplings obey the same [establishment and mutation rules](dependent_values.md)\nas type-wide invariants. Replacing a case or changing its payload invalidates\ndependent place facts as appropriate; snapshots keep their own exact subjects.\nBefore observation, the active value's complete conditions must hold again."
+      ],
+      "revision": "0948d66c9cda2a14b141212ba98e6d126a08752d",
+      "blob": "cf61203c9f4d6aad9ec520dd7331e530a7440b6a"
+    }
+  ],
+  "context_fingerprint": "797399f56dc478e8264e76194ce5c870dfca43d911d193d8eb3f0c2c9d294e6c",
+  "reinject_context": [
+    {
+      "implementation": [
+        "omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains"
+      ],
+      "contract": "wiki/spec/language/data_and_literals.md",
+      "classification": "missing_implementation",
+      "reason": "Selected case default-domain consequences must reach exact arithmetic operands, not only structural contract checking. Current baseline rejects declared0<=amount<=10 times10 aftercase dispatch.",
+      "passages": [
+        "Construction proves the complete default domain before producing an established\nvalue. Matching combines that domain with the selected case fact through ordinary\n[arm-local fact rules](patterns.md). For Value<T>, selecting Integer therefore\nestablishes T == i32; selecting Range in Interval establishes self.lo <= self.hi.",
+        "Value couplings obey the same [establishment and mutation rules](dependent_values.md)\nas type-wide invariants. Replacing a case or changing its payload invalidates\ndependent place facts as appropriate; snapshots keep their own exact subjects.\nBefore observation, the active value's complete conditions must hold again."
+      ],
+      "revision": "0948d66c9cda2a14b141212ba98e6d126a08752d",
+      "blob": "cf61203c9f4d6aad9ec520dd7331e530a7440b6a"
+    }
+  ],
+  "context_refresh": true,
+  "checks": [
+    {
+      "id": "selected-payload-bounds",
+      "kind": "tests",
+      "command": [
+        "python3",
+        "tools/corpus_gate.py",
+        "--filter",
+        "dependent/zero_case_predicate_entry_exit"
+      ],
+      "inputs": [
+        "Cargo.lock",
+        "Cargo.toml",
+        "omega-rust",
+        "rust-toolchain.toml",
+        "source/library",
+        "tests/omega/pass/dependent/zero_case_predicate_entry_exit",
+        "wiki/spec/language/data_and_literals.md"
+      ],
+      "artifacts": [],
+      "closure_reason": "Complete compiler/library inputs and exact customer exercise selected case payload formation; focused nine-place row and controls added after isolation. This is context before implementation, not a run receipt.",
+      "final": false,
+      "expected_exit": 0,
+      "timeout_seconds": 300
+    }
+  ],
+  "assessments": [],
+  "review_instruction": "Judge behavior against these passages; uncovered semantics need an explicit owner decision. Inspect the candidate diff and check evidence; passage identity alone is not semantic compliance.",
+  "prior_context_retained": false
+}
