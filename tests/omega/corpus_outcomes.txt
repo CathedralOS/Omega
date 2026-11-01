@@ -302,6 +302,18 @@ fail/facts/coupled_requires_construction_parameter_rejected rejected 1329ms expe
 fail/facts/coupled_requires_construction_target_body_rejected rejected 1636ms expected @b9a2381a9f27+wt
 	data `Counter` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 	data `Counter` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/darwin_stat_abi/record_darwin_file_times_array_rejected rejected 24459ms expected @2c538b4be9f6
+	machine `main` state `entry` local `transported` expects `[DarwinTimespec; 2]`, but the value is delivered as `[LayoutStorage<DarwinTimespec, CAbiPolicy<DarwinTimespec>>; 2]`
+	argument `value` for state `check` expects `&[LayoutStorage<DarwinTimespec, CAbiPolicy<DarwinTimespec>>; 2]`, got `named value`
+fail/facts/darwin_stat_abi/record_through_field_rejected rejected 28559ms expected @2c538b4be9f6
+	construction of `Holder` field `value` expects `LayoutStorage<DarwinStatRecord, CAbiPolicy<DarwinStatRecord>>`, but the value is delivered as `LayoutStorage<DarwinStatRecord, OtherPolicy>`
+	machine `main` state `entry` local `transported` expects `LayoutStorage<DarwinStatRecord, OtherPolicy>`, but the value is delivered as `LayoutStorage<DarwinStatRecord, CAbiPolicy<DarwinStatRecord>>`
+fail/facts/darwin_stat_abi/record_through_local_rejected rejected 27944ms expected @2c538b4be9f6
+	machine `main` state `entry` local `transported` expects `LayoutStorage<DarwinStatRecord, OtherPolicy>`, but the value is delivered as `LayoutStorage<DarwinStatRecord, CAbiPolicy<DarwinStatRecord>>`
+	argument `value` for state `check` expects `&LayoutStorage<DarwinStatRecord, CAbiPolicy<DarwinStatRecord>>`, got `named value`
+fail/facts/darwin_stat_abi/record_through_parameter_rejected rejected 27108ms expected @2c538b4be9f6
+	machine `main` state `entry` local `transported` expects `LayoutStorage<DarwinStatRecord, OtherPolicy>`, but the value is delivered as `LayoutStorage<DarwinStatRecord, CAbiPolicy<DarwinStatRecord>>`
+	argument `value` for state `entry` expects `LayoutStorage<DarwinStatRecord, CAbiPolicy<DarwinStatRecord>>`, got `named value`
 fail/facts/domain_predicate_call_through_call_result_rejected rejected 1895ms expected @8515a99cf21b+wt
 	cannot prove initializer of `direct` in main is in domain `bool::Held`; an annotation cannot establish routed qualification
 fail/facts/domain_predicate_call_through_const_name_rejected rejected 1684ms expected @8515a99cf21b+wt
@@ -5540,6 +5552,10 @@ pass/facts/crash_entry_signed_zero_through_other_machine_exit checked 6168ms che
 pass/facts/crash_entry_signed_zero_through_other_state_exit checked 5748ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/crash_entry_signed_zero_through_parameter_exit checked 6815ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/crash_entry_signed_zero_through_target_body_exit checked 6697ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/darwin_file_times_array_exit checked 110390ms check-target:macos_arm64 @2c538b4be9f6
+pass/facts/darwin_stat_abi_through_field_exit checked 173201ms check-target:macos_arm64 @2c538b4be9f6
+pass/facts/darwin_stat_abi_through_local_exit checked 92870ms check-target:macos_arm64 @2c538b4be9f6
+pass/facts/darwin_stat_abi_through_parameter_exit checked 90019ms check-target:macos_arm64 @2c538b4be9f6
 pass/facts/data_where_private_write_multiple_arrivals_exit checked 3925ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/data_where_private_write_snapshot_exit checked 3281ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/data_where_private_write_through_call_result_exit checked 3348ms check-target:macos_arm64 @ccdb99ca2214
