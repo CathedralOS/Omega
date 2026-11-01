@@ -42,25 +42,38 @@ repeatedly refresh an otherwise eligible PR against moving main.
 Python 3, Git and an authenticated GitHub CLI (`gh`) work on Windows, macOS and
 Linux. Commands below use `python`; use `python3` if that is its installed name.
 
-Right after the first push, run one command in the background so the session is
-woken when it finishes. Replace `NUMBER` and `FULL_HEAD_SHA` with the PR number
-and the full output of `git rev-parse HEAD`:
+When the work is finished and its last commit is pushed, run one command in the
+foreground. Replace `NUMBER` and `FULL_HEAD_SHA` with the PR number and the full
+output of `git rev-parse HEAD`:
 
 ```text
 python tools/landing.py land NUMBER --expected-head FULL_HEAD_SHA
 ```
 
-`land` waits for `compiler-check` on that exact head, runs `gh pr ready` (skipped
-if the PR is already ready), enqueues with the same fenced mutation as `enqueue`,
-and waits for MERGED. It exits 0 only for MERGED and prints the merged PR. Any
-other ending exits non-zero with the reason on stderr: 1 for a red check, a head
-that no longer matches `--expected-head`, a closed PR, a merge conflict, or
-removal from the queue; 2 when `--wait-seconds` (default 7200, at most 86400)
-runs out first. It never marks a conflicting or red PR ready and never
-re-enqueues. A rerun resumes from the PR's current state: a queued PR is only
-waited on, a merged PR returns at once. After a non-zero exit, inspect the
-failed run (`gh pr checks NUMBER`, `gh run view RUN_ID --log-failed`), fix the
-source, push, and run `land` with the new head.
+`land` hands the wait to GitHub. It refuses a red `compiler-check`, a merge
+conflict, a closed PR or a head that differs from `--expected-head`, without
+changing anything. Otherwise it runs `gh pr ready` (skipped if the PR is already
+ready) and either enqueues at once, when the check on that head is already
+green, or asks the queue to take the PR when the check passes. On a merge-queue
+branch that request is the queue's own "merge when ready", which GitHub honours
+with repository auto-merge disabled. It returns in seconds and prints the PR,
+exit 0. No session has to stay alive, poll CI or be woken for its work to land;
+before this, 9 of 70 PRs from desktop sessions sat green for 66 to 262 minutes
+because nothing woke the session that had to enqueue them.
+
+Arming is the landing decision. A later push to the same PR stays armed and lands
+when its check passes, so push only finished work after `land`, or disarm first
+with `gh pr merge NUMBER --disable-auto`. A red check leaves the PR out of the
+queue: inspect the failed run (`gh pr checks NUMBER`, `gh run view RUN_ID
+--log-failed`), fix the source and push; the request stays armed for the new
+head.
+
+Verify the landing on a later turn with `python tools/landing.py status NUMBER`
+(`state` MERGED and `mergeCommit`), or, where the host lets a command run in the
+background, add `--wait-seconds N` (at most 86400) so `land` also waits: it exits
+0 for MERGED, 2 at the deadline, and 1 for a red check, a conflict, a closed PR
+or removal from the queue. It never re-enqueues. A rerun resumes from the PR's
+current state and repeats no mutation.
 
 `PR_BODY` is a file containing the change's explanation and focused evidence.
 Include actual agent/model provenance there when known, not in commit trailers.
@@ -68,8 +81,8 @@ GitHub records the submitter and publication without a separate notes push.
 An existing PR for the owned branch is reused, not duplicated. Do not include
 unrelated local commits. Keep the candidate clean and committed before push.
 
-`land` is `enqueue` and `wait` joined by the check and ready steps; the two
-remain for observing or resuming by hand. The enqueue helper uses GitHub's
+`land` is the check and ready steps, then `enqueue` or the queue request, then
+optionally `wait`; `enqueue` and `wait` remain for observing or resuming by hand. The enqueue helper uses GitHub's
 native `enqueuePullRequest` mutation, fenced by the expected source head. It does not enable repository-wide auto-merge, bypass
 checks, jump the queue, push, rebase or compile. GitHub refuses ineligible PRs.
 The UI's **Merge when ready / Add to merge queue** route is also supported.

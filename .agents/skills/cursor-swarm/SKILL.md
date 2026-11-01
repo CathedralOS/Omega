@@ -238,8 +238,8 @@ conversation. Include:
   current: parent task, requirement removed, remaining acceptance, witness,
   current failure, next action, prerequisites
 - Publish the validated Cursor branch as a draft PR and follow tools/landing.md.
-  Mark it ready only when it can enter the merge queue, then enqueue it, wait
-  for MERGED, and verify its source head and published commit in fetched main.
+  When the work is finished, run `tools/landing.py land` (it marks the PR ready
+  and the queue takes it when `compiler-check` passes), confirm MERGED, and verify its source head and published commit in fetched main.
   An open or draft PR is not completion. No local lease or repeated author
   build/review merely for a queue-generated SHA
 - Report the actual OS. State Windows, macOS, and QEMU acceptance as
