@@ -20,12 +20,47 @@ pub(crate) fn retained(
     contexts: &[FactContextHandle],
     point: ProgramPoint,
 ) -> Vec<BoundPredicate> {
+    retained_rows(program, operators, semantic, contexts, point, None)
+}
+
+/// The rows `retained` returns, less those domain-membership rows that bind
+/// no storage under `root`. Membership binds only its own subject and the
+/// places below it, so a consumer that reads a predicate's consequence at
+/// places under `root` sees no difference. A fixed array declares one
+/// membership fact per element and context; the rows of every element would
+/// otherwise be rebuilt for each query about an unrelated scalar.
+pub(crate) fn retained_at_root(
+    program: &dyn validation::CheckingInput,
+    operators: &checked_trees::CheckedOperatorFacts,
+    semantic: &FactPlan,
+    contexts: &[FactContextHandle],
+    point: ProgramPoint,
+    root: facts::PlaceRoot,
+) -> Vec<BoundPredicate> {
+    retained_rows(program, operators, semantic, contexts, point, Some(root))
+}
+
+fn retained_rows(
+    program: &dyn validation::CheckingInput,
+    operators: &checked_trees::CheckedOperatorFacts,
+    semantic: &FactPlan,
+    contexts: &[FactContextHandle],
+    point: ProgramPoint,
+    only_root: Option<facts::PlaceRoot>,
+) -> Vec<BoundPredicate> {
     let mut rows = Vec::new();
     let mut domains = Vec::new();
     let availability =
         super::availability::CasePremiseAvailability::new(program, semantic, contexts, point);
     for handle in semantic.unique_context_facts(contexts.iter().copied()) {
         let fact = semantic.facts.get(handle);
+        if let Some(root) = only_root
+            && fact.payload.domain_membership().is_some()
+            && let Some(place) = fact.place.as_place()
+            && semantic.places.get(place).root != root
+        {
+            continue;
+        }
         if let Some(predicates) = domain_predicates(
             program,
             operators,
