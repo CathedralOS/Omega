@@ -5,6 +5,8 @@
 //! no projected plan or host grant. Selected execution joins target/accepted
 //! bindings and constructs complete leaves without reopening checked source.
 
+mod direct_calling;
+
 use crate::DerivedProviderPlan;
 use diagnostics::Diagnostic;
 use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow};
@@ -220,13 +222,32 @@ impl DirectBoundaryInput {
                 "boundary leaf does not bind one exact requirement contract",
             ));
         };
-        let previous_requirement = method.requirement_identity;
         method.requirement_identity = declaration.identities.intern(&self.callable_identity);
-        for application in &mut plan.schema.calling_applications {
-            if application.requirement == previous_requirement {
-                application.requirement = method.requirement_identity;
-            }
-        }
+        // The satisfied schema retains the original selected policy custody.
+        // This executable projection carries separately produced applications
+        // of the actual callable declaration, never relabeled source receipts.
+        plan.schema.calling_applications = match &execution {
+            backend_plan::DirectBoundaryExecution::Foreign(Ok(binding)) => binding
+                .calling_applications
+                .iter()
+                .map(
+                    |application| effects::provider_plan::ServiceCallingApplication {
+                        requirement: method.requirement_identity,
+                        abi: application.abi.clone(),
+                        plan: effects::provider_plan::ServiceCallingPlan {
+                            report_fingerprint: application.report_fingerprint,
+                            commitment:
+                                effects::provider_plan::BoundaryCallingPlanCommitment::from_digest(
+                                    application.commitment,
+                                ),
+                        },
+                    },
+                )
+                .collect(),
+            // A deferred foreign refusal grants no executable application;
+            // intrinsic execution uses its own source-owned settlement.
+            _ => Vec::new(),
+        };
         if let backend_plan::DirectBoundaryExecution::Foreign(Ok(binding)) = &mut execution {
             binding.trait_name = self.callable_identity.clone();
             binding.requirement_identity = self.callable_identity.clone();
@@ -312,6 +333,24 @@ pub(crate) fn prepare(
                         )]
                     })
                 });
+            let binding = binding.and_then(|mut binding| {
+                let artifact = context.calling_artifact.ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "direct calling projection has no exact Product ABI catalog",
+                    )]
+                })?;
+                binding.calling_applications = direct_calling::project(
+                    artifact.semantic_module(),
+                    &callable_identity,
+                    &binding.calling_applications,
+                )
+                .map_err(|reason| {
+                    vec![Diagnostic::error(format!(
+                        "direct calling projection for `{callable_identity}`: {reason}"
+                    ))]
+                })?;
+                Ok(binding)
+            });
             DirectBoundaryMechanism::Foreign(binding)
         };
         // Invocation-local intrinsic declarations remain private. Foreign leaves
