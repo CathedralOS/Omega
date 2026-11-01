@@ -26,6 +26,8 @@ fail/build/terminal_calling_policy_invalid_rejection rejected 8431ms expected @d
 	construction of `CallingPolicyRejection` field `reason` is not proven in domain `[u8]::Utf8` in main state `entry` at statement 1; a construction value must establish the domain's predicates and any required provenance
 fail/build/terminal_calling_policy_rejected_normal rejected 12265ms expected @09bb8258f924
 	calling policy rejected the boundary: normal Terminal rejection
+fail/build/terminal_calling_policy_unrelated_constant rejected 42791ms expected @48b63d6be857
+	constant checking: scalar predicate is false: requires contract for call bounded from main state entry statement 5
 fail/calls/completed_narrowing_result_case_bounds rejected 544ms @33b180036351
 	data `ByteRead` case `Byte` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/capabilities/recursive_synchronous_invocations rejected 2175ms expected @2fc408782574
