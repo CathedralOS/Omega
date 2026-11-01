@@ -36,7 +36,7 @@ pub(super) fn argument(
             matches!(
                 segment,
                 terminal_psi::StructuralPathSegment::Referent
-                    | terminal_psi::StructuralPathSegment::FixedByteRange { .. }
+                    | terminal_psi::StructuralPathSegment::FixedRange { .. }
             )
         })
         || formal.access != actual.access

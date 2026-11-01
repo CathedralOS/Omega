@@ -250,7 +250,7 @@ pub(crate) fn structural_crash_route_prefix_from_type(
                 selected_case = Some(case);
                 prefix.push(CanonicalStructuralPathSegment::Case(case.id));
             }
-            StructuralPathSegment::FixedByteRange { .. } => {
+            StructuralPathSegment::FixedRange { .. } => {
                 return unsupported(
                     "byte window crash predicates require exact view extent custody",
                 );

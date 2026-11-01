@@ -38,6 +38,14 @@ use terminal_semantics::{
     observed_field_declaration, record_field_carrier, scalar_array_leaf_shape,
 };
 
+/// A window's interpretation and authored path do not replace its physical home.
+struct ResolvedStructuralWindow {
+    backing: TerminalStructuralValue,
+    structural_type: semantic_vocabulary::StructuralTypeId,
+    path: Vec<StructuralPathSegment>,
+    aggregate_view: bool,
+}
+
 impl TerminalExecution<'_> {
     pub(crate) fn execute_establish_scalar_case(
         &mut self,
@@ -920,7 +928,7 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         let storage = self.structural_value(source)?;
-        let selected = self.structural_window_hole(
+        let window = self.structural_window_hole(
             operation,
             source,
             storage,
@@ -928,6 +936,12 @@ impl TerminalExecution<'_> {
             field,
             StructuralAccess::MutableBorrow,
         )?;
+        if window.aggregate_view {
+            return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                "moving an aggregate storage interpretation",
+            ));
+        }
+        let selected = window.backing;
         if selected.structural_type != result.structural_type {
             return Err(malformed());
         }
@@ -1033,7 +1047,7 @@ impl TerminalExecution<'_> {
                 &mut RuntimeRows::new(self.account.as_ref()),
             )
             .map_err(|error| failure("destination home", error))?;
-        let selected = self
+        let window = self
             .structural_window_hole(
                 operation,
                 destination,
@@ -1043,8 +1057,17 @@ impl TerminalExecution<'_> {
                 disposition.required_access(),
             )
             .map_err(|error| failure("destination storage", error))?;
-        let field_type = selected.structural_type;
-        let hole = StructuralRuntimePlace::from(&selected);
+        let field_type = window.structural_type;
+        let hole = StructuralRuntimePlace::from(&window.backing);
+        if window.aggregate_view
+            && (disposition != terminal_psi::StructuralStoreDisposition::ReplaceDiscardable
+                || !copies_storage
+                || scalar_array_leaf_shape(self.structural_types().values(), field_type).is_none())
+        {
+            return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                "non-copy replacement of an aggregate storage interpretation",
+            ));
+        }
         let (required, projected_required) = self
             .structural_window_requirements(operation, destination, path, field)
             .map_err(|error| failure("receiving memberships", error))?;
@@ -1107,6 +1130,12 @@ impl TerminalExecution<'_> {
                     .map(|(place, owner)| (self.call_stack.len(), place, owner)),
             )
         {
+            // A re-view changes physical cells, not the containing home's
+            // declaration or membership roster. Receiving obligations above
+            // remain those of the exact logical window.
+            if window.aggregate_view {
+                continue;
+            }
             if owner.opaque_identity != hole.opaque_identity {
                 continue;
             }
@@ -1148,18 +1177,21 @@ impl TerminalExecution<'_> {
         // anything. Its payload may be pinned in a suspended caller, not in the
         // opaque maps. Descriptor-bearing values keep the construction storage
         // transaction, including standalone view descriptors and their custody.
-        let mut destination_path = path.clone();
-        if field.is_some() {
-            let Some(segment @ StructuralPathSegment::Field(_)) = hole.path.last() else {
-                return Err(malformed());
-            };
-            destination_path.push(segment.clone());
-        }
+        let destination_path = window.path;
         if let Some(writes) = child
             .replacement_writes(self, value, destination, &destination_path)
             .map_err(|error| failure("scalar storage preparation", error))?
         {
             writes.commit(self)?;
+        } else if window.aggregate_view {
+            // An empty interpreted array already has its authenticated backing;
+            // it needs no payload publication. Other non-scalar replacements
+            // cannot transplant a logical subtree over the physical carrier.
+            if !scalar_array_leaf_shape(self.structural_types().values(), field_type)
+                .is_some_and(|(_, count)| count == 0)
+            {
+                return Err(malformed());
+            }
         } else {
             let mut storage = ConstructorStorage::new(self.account.as_ref());
             storage.stage(self, value, &child, &hole, !copies_storage)?;
@@ -1278,7 +1310,7 @@ impl TerminalExecution<'_> {
         path: &[StructuralPathSegment],
         field: Option<semantic_vocabulary::StructuralFieldId>,
         required_access: StructuralAccess,
-    ) -> Result<TerminalStructuralValue, TerminalInterpretError> {
+    ) -> Result<ResolvedStructuralWindow, TerminalInterpretError> {
         // A Case names a payload namespace, not a runtime value to project.
         // Complete the operation's declared field path before following live
         // storage. Use authored indexes for geometry and only then substitute
@@ -1394,7 +1426,6 @@ impl TerminalExecution<'_> {
                 view.structural_projection(&self.structural_types(), path, true)?;
             self.resolve_reference_storage_projection(&collection, &selected, required_access)?
                 .ok_or_else(malformed)?
-                .value
         } else {
             // The ordinary live projection owner crosses every reference and
             // element-view descriptor, including fields and nested views. Window
@@ -1409,12 +1440,22 @@ impl TerminalExecution<'_> {
                 None,
                 terminal_psi::StructuralFieldType::canonical_leaf_type,
             )?
-            .value
         };
-        if selected.structural_type != projection.structural_type {
+        let selected_type = match selected.view_tip {
+            Some(AggregateViewTip::Aggregate { view, .. }) => view.structural_type,
+            _ => selected.value.structural_type,
+        };
+        if selected_type != projection.structural_type {
             return Err(malformed());
         }
-        Ok(selected)
+        let aggregate_view = selected_type != selected.value.structural_type
+            && matches!(selected.view_tip, Some(AggregateViewTip::Aggregate { .. }));
+        Ok(ResolvedStructuralWindow {
+            backing: selected.value,
+            structural_type: selected_type,
+            path: complete_path,
+            aggregate_view,
+        })
     }
 
     /// Stage every runtime cell under `from` at the same subtree suffix under
@@ -1547,10 +1588,28 @@ impl TerminalExecution<'_> {
             let value = if self.scalar_array_values.contains_key(source) {
                 ConstructorValue::resolve(self, &argument)?
             } else {
-                ConstructorValue::Access(
-                    self.resolve_live_leaf_copy(*source, path, result.structural_type)?
-                        .0,
-                )
+                let declaration = self.structural_declaration(result.structural_type)?;
+                let selected = self.resolve_live_projection_with_leaf_type(
+                    *source,
+                    path,
+                    StructuralAccess::SharedBorrow,
+                    Some(result.structural_type),
+                    |field| field.leaf_copy_type(Some(declaration)),
+                )?;
+                // A retained aggregate view keeps its physical carrier. Copy
+                // the observed array through its authenticated scalar paths,
+                // rather than requiring that carrier to be the logical array.
+                if scalar_array_result
+                    && result.is_unrestricted_plain()
+                    && matches!(selected.view_tip,
+                        Some(AggregateViewTip::Aggregate { view, .. })
+                            if view.structural_type == result.structural_type)
+                {
+                    let copied = self.scalar_array_snapshot(&argument, result.structural_type)?;
+                    self.scalar_array_values.publish(result.place, copied)?;
+                    return Ok(OperationFlow::Advance);
+                }
+                ConstructorValue::Access(selected.value)
             };
             if value.structural_type() == result.structural_type {
                 if self.scalar_array_values.contains_key(&result.place) {

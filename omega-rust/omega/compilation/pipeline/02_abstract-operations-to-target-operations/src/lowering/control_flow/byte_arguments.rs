@@ -36,7 +36,7 @@ pub(super) fn shared_owner_view(
         // presentations, owned by their existing call adapters.
         || argument.path.iter().any(|segment| matches!(segment,
             terminal_psi::StructuralPathSegment::Referent
-                | terminal_psi::StructuralPathSegment::FixedByteRange { .. }
+                | terminal_psi::StructuralPathSegment::FixedRange { .. }
         ))
         || declaration.access != StructuralAccess::SharedBorrow
         || !types

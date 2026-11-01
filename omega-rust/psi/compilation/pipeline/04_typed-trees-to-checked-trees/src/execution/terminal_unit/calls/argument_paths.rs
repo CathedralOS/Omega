@@ -547,15 +547,15 @@ pub(crate) fn projected_argument_path(
             }
             PlaceSegment::OpaqueRange => return None,
             PlaceSegment::FixedRange { start, end } => {
-                // A borrowed byte view's window is itself part of the place:
-                // `self.source[0..2]` lends the fixed byte range the view
-                // names. The container must be fixed byte-array backing whose
-                // literal extent bounds the window — the same shape the
-                // `FixedIndex` walk proves — since a stored view carries no
-                // runtime bound evidence of its own.
+                // A window names source elements, independently of the target
+                // view's scalar partition. Keep the declared backing rather
+                // than manufacturing a type-table row for the selected extent.
                 let container = prefix_container(position)?;
-                fixed_byte_range_within_extent(program, container, *start, *end)?;
-                path.push(PathSegment::FixedByteRange {
+                let length = fixed_array_literal_length(program, container)?;
+                if start > end || *end > length {
+                    return None;
+                }
+                path.push(PathSegment::FixedRange {
                     start: u64::try_from(*start).ok()?,
                     end: u64::try_from(*end).ok()?,
                 });
@@ -601,8 +601,14 @@ pub(crate) fn projected_argument_path(
             }
         }
     }
-    let mut projected =
-        canonical_place_type_reference(program, state_symbol, statement_index, place)?;
+    let mut projected = if matches!(place.segments.last(), Some(PlaceSegment::FixedRange { .. })) {
+        // A region has no standalone type. Its original array supplies the
+        // storage catalog; the final path segment retains its exact extent.
+        let container = prefix_container(place.segments.len().checked_sub(1)?)?;
+        unwrapped_type_reference(program, container)?
+    } else {
+        canonical_place_type_reference(program, state_symbol, statement_index, place)?
+    };
     // A whole parameter already denotes its ingress storage, just as the
     // root of a member/index path above does. Its declared reference is not
     // an extra stored descriptor to cross. Locals and completed values keep
@@ -846,7 +852,7 @@ fn fixed_index_within_extent(
 }
 
 /// The window's bounds against a fixed byte-array container's literal
-/// extent. The `FixedByteRange` segment names a byte view's own window, so
+/// extent. The `FixedRange` segment names a byte view's own window, so
 /// unlike the index arm a runtime-length slice cannot carry it — a stored
 /// `&[u8]` has no literal bound to re-prove against.
 pub(crate) fn fixed_byte_range_within_extent(
@@ -994,7 +1000,7 @@ fn byte_array_range_path(
     {
         return None;
     }
-    path.push(PathSegment::FixedByteRange {
+    path.push(PathSegment::FixedRange {
         start: u64::try_from(start).ok()?,
         end: u64::try_from(end).ok()?,
     });

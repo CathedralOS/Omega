@@ -188,7 +188,7 @@ fn fused_binding_type_round_trip_distinguishes_empty_record_and_unknown_tag() {
 #[test]
 fn fixed_byte_range_path_round_trip_retains_exact_endpoints_and_rejects_truncation() {
     for (start, end) in [(0, 0), (1, 3), (2, 4), (u64::MAX - 1, u64::MAX)] {
-        let path = vec![StructuralPathSegment::FixedByteRange { start, end }];
+        let path = vec![StructuralPathSegment::FixedRange { start, end }];
         let mut bytes = Vec::new();
         encode_path(&mut bytes, &path);
         let mut expected = 1_u64.to_le_bytes().to_vec();
