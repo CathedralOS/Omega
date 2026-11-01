@@ -57,6 +57,10 @@ Positive and reject runtime oracles remain identical.
   checked after both calls. The field place also checks the enclosing record's
   canaries. Const originals must remain unchanged. No affine cleanup effect is
   claimed for this `[copy]` carrier.
+- Omega 00–09: existing record layout, reference/call plans, exact i32 increment,
+  frame homes, branches and native image emission carry the unchanged operation.
+  No new ABI, layout or instruction form is claimed; the resulting writes,
+  transported values and untouched neighbors are observed in both engines.
 
 The nearest rows prove different requirements:
 [completed integer carrier bounds](../completed_integer_carrier_bounds/README.md)
@@ -80,8 +84,29 @@ Preliminary R2 admits that candidate and still rejects its `<=16` twin with
 inferred [1,17] versus required [0,16]. Those source/Terminal-production results
 are historical discovery evidence, not execution of these newly authored files.
 
-**Pending:** final R3 source checking, intended reject diagnostics, and native /
-Terminal agreement for all nine places. No new row execution or cross-host
-runtime result is claimed. The historical F candidate and receipts remain frozen;
-this row uses equivalent hex canary spellings and adds an origin oracle for
-transport discrimination.
+Qualified on macOS arm64 with optimized R3 producer SHA256
+`514ed72c7571284454e67b09e516c4a85ed4e9468301044ba220d8d2ee044f0e`,
+base `225551dd8184c58a9cb777ef540b6e5e8c3b7448` plus patch SHA256
+`fad17e85a893c07746029f7ca953fcfd512167252c0eac5478861aaac7cdf654`:
+all nine positives complete normal source/Terminal publication and observe native
+exit 0 / Terminal exit 0; all nine twins refuse the intended `pump_next` receiving
+`where` obligation. Both choices, origin markers and canaries are checked by the
+authored runtime oracle in every place. The nine consumed locks were captured
+and unchanged by execution; all authored files and fixture copies remained
+byte-identical throughout the chain. Other hosted bindings are declared, not
+runtime qualification of those hosts.
+
+The historical F candidate and receipts remain frozen. This row uses equivalent
+hex canary spellings and adds an origin oracle for transport discrimination.
+The focused corpus check records nine checked positives and nine intended
+rejections; its macOS arm64 `--both` leg records nine engine agreements.
+Independent candidate review remains a separate gate. The parent's unrelated
+mixed-predicate restoration-window acceptance remains open: this repair retains
+only bounds independently enforced by every store.
+
+The row uses canonical `requires self.pumped >= 0 && self.pumped <= 16`.
+The canonical local pair and all nine canonical places were freshly qualified
+with the R3 producer above: nine native/Terminal 0/0 observations and nine intended
+rejects. Their authored hashes and fixture copies matched before and after
+setup/execution, and all nine consumed locks were captured unchanged. The earlier
+spelling's sources, locks and receipts remain frozen as historical evidence.

@@ -1,7 +1,7 @@
 // Counter's declared 0..16 bounds survive a disjoint field write and captured scalar read, so an incoming pumped < 16 guard admits pumped + 1.
 // Expected exit: 0
 public data Counter [copy]
-where pumped >= 0 && pumped <= 16,
+requires self.pumped >= 0 && self.pumped <= 16,
 {
     before: u32;
     pumped: i32;
