@@ -150,7 +150,6 @@ pub(super) fn builtin_anonymous_comparison_term(
         },
     )
     .map(|value| StructuralTerm::Constructor {
-        declaration: symbols::SymbolHandle::invalid(),
         data: "bool".to_owned(),
         case: value.to_string(),
         fields: Vec::new(),
@@ -269,9 +268,7 @@ pub(super) fn term_spelling(program: &dyn crate::CheckingInput, term: &Structura
         ),
         StructuralTerm::Integer(value) => value.to_string(),
         StructuralTerm::Float(value) => value.to_string(),
-        StructuralTerm::Constructor {
-            data, case, fields, ..
-        } => {
+        StructuralTerm::Constructor { data, case, fields } => {
             let head = if case.is_empty() || data == "bool" {
                 if data == "bool" {
                     case.clone()
@@ -509,7 +506,6 @@ pub(super) fn static_type_predicate_term(
     };
     if let Some(value) = value {
         return Some(StructuralTerm::Constructor {
-            declaration: symbols::SymbolHandle::invalid(),
             data: "bool".to_owned(),
             case: value.to_string(),
             fields: Vec::new(),
@@ -749,7 +745,6 @@ pub(super) fn structural_term(
             ))
         }
         ExpressionNode::Boolean(value) => Some(StructuralTerm::Constructor {
-            declaration: symbols::SymbolHandle::invalid(),
             data: "bool".to_owned(),
             case: value.to_string(),
             fields: Vec::new(),

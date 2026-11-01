@@ -317,7 +317,6 @@ pub(super) fn inherited_predicate(
                     == Some(typed_trees::types::PrimitiveType::Bool) =>
             {
                 StructuralTerm::Constructor {
-                    declaration: symbols::SymbolHandle::invalid(),
                     data: "bool".to_owned(),
                     case: value.to_string(),
                     fields: Vec::new(),

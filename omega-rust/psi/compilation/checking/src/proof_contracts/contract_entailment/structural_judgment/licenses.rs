@@ -965,7 +965,6 @@ pub(super) fn fold_scalar_binary(
                 .evaluate_comparison(&left, &right)
                 .expect("comparison operator");
             return Some(StructuralTerm::Constructor {
-                declaration: symbols::SymbolHandle::invalid(),
                 data: "bool".to_owned(),
                 case: verdict.to_string(),
                 fields: Vec::new(),

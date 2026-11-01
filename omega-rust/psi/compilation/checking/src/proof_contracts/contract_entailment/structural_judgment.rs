@@ -183,8 +183,6 @@ pub(crate) enum StructuralTerm {
     /// the contract grammar), and both lowering fences stand down for
     /// recursive data so the raw Binary reaches this judge.
     Constructor {
-        /// Exact nominal owner; zero is reserved for primitive Boolean atoms.
-        declaration: SymbolHandle,
         data: String,
         case: String,
         fields: Vec<(String, StructuralTerm)>,
@@ -311,16 +309,10 @@ impl StructuralTerm {
     }
 
     pub(super) fn boolean_constructor(&self) -> Option<bool> {
-        let Self::Constructor {
-            declaration,
-            data,
-            case,
-            fields,
-        } = self
-        else {
+        let Self::Constructor { data, case, fields } = self else {
             return None;
         };
-        (!declaration.is_valid() && data == "bool" && fields.is_empty())
+        (data == "bool" && fields.is_empty())
             .then(|| language_semantics::const_value::boolean_literal_spelling(case))
             .flatten()
     }
@@ -398,13 +390,7 @@ impl StructuralTerm {
                 value: Box::new(map(*value)),
                 descriptor: descriptor.map(|descriptor| Box::new(map(*descriptor))),
             },
-            StructuralTerm::Constructor {
-                declaration,
-                data,
-                case,
-                fields,
-            } => StructuralTerm::Constructor {
-                declaration,
+            StructuralTerm::Constructor { data, case, fields } => StructuralTerm::Constructor {
                 data,
                 case,
                 fields: fields
@@ -1433,7 +1419,6 @@ impl<'program> StructuralJudge<'program> {
                 return;
             }
             let value = StructuralTerm::Constructor {
-                declaration: definition.symbol,
                 data: definition.name.as_str().to_owned(),
                 case: variant.name.as_str().to_owned(),
                 fields: Vec::new(),
@@ -1598,18 +1583,16 @@ impl<'program> StructuralJudge<'program> {
         match (&left, &right) {
             (
                 StructuralTerm::Constructor {
-                    declaration: declaration_data_l,
                     data: data_l,
                     case: case_l,
                     fields: fields_l,
                 },
                 StructuralTerm::Constructor {
-                    declaration: declaration_data_r,
                     data: data_r,
                     case: case_r,
                     fields: fields_r,
                 },
-            ) if declaration_data_l == declaration_data_r && data_l == data_r => {
+            ) if data_l == data_r => {
                 if case_l != case_r {
                     self.hypotheses_contradictory = true;
                     return;
@@ -1771,14 +1754,8 @@ impl<'program> StructuralJudge<'program> {
                     };
                     term = replacement.clone();
                 }
-                StructuralTerm::Constructor {
-                    declaration,
-                    data,
-                    case,
-                    fields,
-                } => {
+                StructuralTerm::Constructor { data, case, fields } => {
                     return StructuralTerm::Constructor {
-                        declaration,
                         data,
                         case,
                         fields: fields
@@ -2198,7 +2175,6 @@ impl<'program> StructuralJudge<'program> {
             return None;
         }
         let StructuralTerm::Constructor {
-            declaration: declaration_result_data,
             data: result_data,
             case,
             fields,
@@ -2208,10 +2184,7 @@ impl<'program> StructuralJudge<'program> {
         };
         // The checked return type fixes the owner; spelling only selects within
         // that owner's normalized value, after the exact field-handle join.
-        if declaration_result_data != data.symbol
-            || result_data != data.name.as_str()
-            || !case.is_empty()
-        {
+        if result_data != data.name.as_str() || !case.is_empty() {
             return None;
         }
         fields
@@ -2497,7 +2470,6 @@ impl<'program> StructuralJudge<'program> {
                             &local_subject
                         };
                         let StructuralTerm::Constructor {
-                            declaration: declaration_got_data,
                             data: got_data,
                             case: got_case,
                             ..
@@ -2507,9 +2479,7 @@ impl<'program> StructuralJudge<'program> {
                             // arm selection is undecidable, no unfold.
                             return None;
                         };
-                        *declaration_got_data == arm_data.symbol
-                            && got_data == arm_data.name.as_str()
-                            && got_case == arm_case.name.as_str()
+                        got_data == arm_data.name.as_str() && got_case == arm_case.name.as_str()
                     } else {
                         // Preserve the case-arm fast path above: resolving its
                         // already-completed constructor arguments again repeats
@@ -3170,7 +3140,6 @@ impl<'program> StructuralJudge<'program> {
             // case-bearing value. Preserve aliases to the same saved subject.
             ExpressionNode::Borrow(borrow) => child_term!(borrow.target),
             ExpressionNode::Boolean(value) => Some(StructuralTerm::Constructor {
-                declaration: symbols::SymbolHandle::invalid(),
                 data: "bool".to_owned(),
                 case: value.to_string(),
                 fields: Vec::new(),
@@ -3595,13 +3564,11 @@ impl<'program> StructuralJudge<'program> {
         }
         let (
             StructuralTerm::Constructor {
-                declaration: declaration_data_l,
                 data: data_l,
                 case: case_l,
                 fields: fields_l,
             },
             StructuralTerm::Constructor {
-                declaration: declaration_data_r,
                 data: data_r,
                 case: case_r,
                 fields: fields_r,
@@ -3622,7 +3589,7 @@ impl<'program> StructuralJudge<'program> {
             }
             return StructuralJudgment::Unknown;
         };
-        if declaration_data_l != declaration_data_r || data_l != data_r {
+        if data_l != data_r {
             return StructuralJudgment::Unknown;
         }
         if case_l != case_r {
@@ -3683,18 +3650,12 @@ impl<'program> StructuralJudge<'program> {
             let name = field.name.as_str();
             let value = match &term {
                 StructuralTerm::Constructor {
-                    declaration: declaration_constructed,
                     data: constructed,
                     case,
                     fields,
-                } if *declaration_constructed == data.symbol
-                    && constructed == data.name.as_str()
-                    && case.is_empty() =>
-                {
-                    fields
-                        .iter()
-                        .find_map(|(field, value)| (field == name).then(|| value.clone()))
-                }
+                } if constructed == data.name.as_str() && case.is_empty() => fields
+                    .iter()
+                    .find_map(|(field, value)| (field == name).then(|| value.clone())),
                 StructuralTerm::Constructor { .. } => None,
                 _ => super::observed_projections::project_field(term.clone(), name)
                     .map(|value| self.resolve(value)),
@@ -3714,7 +3675,6 @@ impl<'program> StructuralJudge<'program> {
         }
         fields.sort_by(|left, right| left.0.cmp(&right.0));
         StructuralTerm::Constructor {
-            declaration: data.symbol,
             data: data.name.as_str().to_owned(),
             case: String::new(),
             fields,
@@ -3726,13 +3686,7 @@ impl<'program> StructuralJudge<'program> {
     /// reads? All fields must be present, matched BY NAME to `{v}.{field}`
     /// opaques -- a permutation or a partial rebuild does not match.
     fn record_eta_matches(&self, constructor: &StructuralTerm, variable: &StructuralTerm) -> bool {
-        let StructuralTerm::Constructor {
-            declaration,
-            case,
-            fields,
-            ..
-        } = constructor
-        else {
+        let StructuralTerm::Constructor { data, case, fields } = constructor else {
             return false;
         };
         if !case.is_empty() {
@@ -3741,7 +3695,7 @@ impl<'program> StructuralJudge<'program> {
         let StructuralTerm::Variable(name) = variable else {
             return false;
         };
-        let Some(definition) = self.program.data_definition_by_symbol(*declaration) else {
+        let Some(definition) = self.program.data_definition_by_name_str(data.as_str()) else {
             return false;
         };
         let declared: Vec<&str> = self

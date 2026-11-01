@@ -23,68 +23,46 @@ use super::StructuralTerm;
 /// vocabulary. Encoded names retain no declaration authority here: the static
 /// application intake must first replay the value against its resolved carrier.
 pub(in super::super) fn admitted_const_value_term(
-    program: &dyn crate::CheckingInput,
-    reference: TypeReferenceHandle,
     value: &language_semantics::const_value::CanonicalConstIdentity,
 ) -> Option<StructuralTerm> {
     fn decoded(
-        program: &dyn crate::CheckingInput,
-        reference: TypeReferenceHandle,
         value: language_semantics::const_value::DecodedCanonicalConstValue,
     ) -> Option<StructuralTerm> {
         use language_semantics::const_value::DecodedCanonicalConstValue;
-        let (case, fields) = match value {
+        let (data, case, fields) = match value {
             DecodedCanonicalConstValue::Integer { value, .. } => {
                 return Some(StructuralTerm::Integer(BigInt::from_i128(value)));
             }
             DecodedCanonicalConstValue::Boolean(value) => {
                 return Some(StructuralTerm::Constructor {
-                    declaration: symbols::SymbolHandle::invalid(),
                     data: "bool".to_owned(),
                     case: value.to_string(),
                     fields: Vec::new(),
                 });
             }
-            DecodedCanonicalConstValue::Record { fields, .. } => (String::new(), fields),
+            DecodedCanonicalConstValue::Record { type_name, fields } => {
+                (type_name, String::new(), fields)
+            }
             DecodedCanonicalConstValue::Variant {
-                case_name, fields, ..
-            } => (case_name, fields),
+                type_name,
+                case_name,
+                fields,
+            } => (type_name, case_name, fields),
             // These values have separate observation vocabularies; an encoded
             // array or float is not a record constructor or an integer atom.
             DecodedCanonicalConstValue::Array { .. } | DecodedCanonicalConstValue::Float { .. } => {
                 return None;
             }
         };
-        // The value has already been checked against this exact carrier.
-        // Serialized labels select fields only within that declaration.
-        let definition =
-            crate::value_custody::places::data_definition_for_type(program, reference)?;
-        let variant = if case.is_empty() {
-            None
-        } else {
-            Some(program.data_members(definition).iter().find_map(|member| {
-                let variant = member.as_variant()?;
-                (variant.name.as_str() == case).then_some(variant)
-            })?)
-        };
-        let declared = constructor_fields(program, definition, variant);
         let mut fields = fields
             .into_iter()
-            .map(|(name, value)| {
-                let field = declared.iter().find(|field| field.name.as_str() == name)?;
-                Some((name, decoded(program, field.type_reference, value)?))
-            })
+            .map(|(name, value)| Some((name, decoded(value)?)))
             .collect::<Option<Vec<_>>>()?;
         fields.sort_by(|(left, _), (right, _)| left.cmp(right));
-        Some(StructuralTerm::Constructor {
-            declaration: definition.symbol,
-            data: definition.name.as_str().to_owned(),
-            case,
-            fields,
-        })
+        Some(StructuralTerm::Constructor { data, case, fields })
     }
 
-    decoded(program, reference, value.decode_encoding()?)
+    decoded(value.decode_encoding()?)
 }
 
 /// Exclusion test only: a retained membership occurrence must never be read as
@@ -323,7 +301,6 @@ fn constructed_term(
 ) -> StructuralTerm {
     fields.sort_by(|(left, _), (right, _)| left.cmp(right));
     StructuralTerm::Constructor {
-        declaration: definition.symbol,
         data: definition.name.as_str().to_owned(),
         case: variant
             .map(|variant| variant.name.as_str())
@@ -389,7 +366,6 @@ fn zero_term(
     if let Some(primitive) = program.type_reference_table.primitive_type(type_reference) {
         return match primitive {
             PrimitiveType::Bool => Some(StructuralTerm::Constructor {
-                declaration: symbols::SymbolHandle::invalid(),
                 data: "bool".to_owned(),
                 case: "false".to_owned(),
                 fields: Vec::new(),

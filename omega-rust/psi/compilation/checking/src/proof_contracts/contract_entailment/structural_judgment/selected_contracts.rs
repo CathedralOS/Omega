@@ -936,7 +936,6 @@ impl StructuralJudge<'_> {
             }
         }
         Some(StructuralTerm::Constructor {
-            declaration: symbols::SymbolHandle::invalid(),
             data: "bool".to_owned(),
             case: common?.to_string(),
             fields: Vec::new(),

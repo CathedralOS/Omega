@@ -44,7 +44,6 @@ pub(crate) fn logical_not_term_in_scope(
         meaning: [meaning; 2],
         left: Box::new(operand),
         right: Box::new(StructuralTerm::Constructor {
-            declaration: symbols::SymbolHandle::invalid(),
             data: "bool".to_owned(),
             case: "false".to_owned(),
             fields: Vec::new(),
