@@ -31,20 +31,29 @@ public boundary trait Reader {
 
 machine raw<'a>(buffer: &'a Buffer) -> Pending<'a> { Pending { slot: 0 } }
 machine Pending::drop(pending: &mut Pending) {}
+data RawCell<'a> { pending: Pending<'a>; }
+machine reset_raw<'a>(cell: &mut RawCell<'a>, unused: &'a Buffer) {
+    let prior: Pending<'a> = cell.pending;
+    cell.pending = Pending { slot: 11 };
+    drop(prior);
+}
 data Main {}
 machine run_main(main: &mut Main) reaches Reader crashes Trap {
     let capacity: Capacity in Capacity::Available = Reader::acquire();
     let mut buffer: Buffer in Buffer::Owned = Buffer { value: 37 };
     let raw_pending: Pending = raw(&buffer);
+    let mut cell: RawCell = RawCell { pending: raw_pending };
+    reset_raw(&mut cell, &buffer);
     buffer.value = 37;
-    drop(raw_pending);
+    let raw_marker: u64 = cell.pending.slot;
+    drop(cell.pending);
     let pending: Pending = Reader::register(capacity, &buffer);
     let mut observed: u64 = 0;
     let returned: Capacity in Capacity::Available = Reader::complete(pending, &mut observed);
     Reader::release(returned);
     let value: u64 = buffer.value;
     drop(buffer);
-    transition observed == 37 && value == 37 { true -> done() _ -> bad() }
+    transition observed == 37 && value == 37 && raw_marker == 11 { true -> done() _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

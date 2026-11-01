@@ -126,7 +126,9 @@ The controls additionally require early disposal, capacity reuse, repeated
 completion and call-scoped retention to reject for their stated obligations. Two simultaneous registrations remain
 independent; completing one leaves the other loan live. A post-completion write
 and raw values of the same carrier (including a factory with an unused borrow)
-remain valid. Returning local backing or redeeming borrowed content as independent
+remain valid. The [raw borrowed-input control](controls/raw_same_carrier_borrow/main.omg)
+also replaces a raw token in caller storage and checks marker 11; its known empty
+loan frontier cannot acquire a loan from the helper's unused Buffer borrow. Returning local backing or redeeming borrowed content as independent
 owned custody rejects. A separate phantom control needs no
 foreign effects and executes in both engines.
 
