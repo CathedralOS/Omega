@@ -27,7 +27,13 @@ positive then refuses the independently initialized backing recast: `runtime
 indexed value has no retained subject provenance`. Diagnostic reductions with
 the unchanged retained runtime-index consumer isolate the recast; default
 construction and the reduced program without recasting check. Native execution
-was not reached in that candidate. Fresh repaired observations remain pending.
+was not reached in that candidate. Candidate `dd3a6c22f839ebb2c7d45df8b54938df8d5ef6a0` then passes
+checking and the authored native exit 0. Its policy twin, an existing const
+policy mismatch, and an existing captured-runtime-index mismatch all reject
+for their intended obligations. Terminal declines reference formation at
+operation 35; no sample-stage observations were reached. The corresponding
+checking rows retain their actual producer and default `macos_arm64` check
+target; native execution was Linux x86_64. Dual-engine acceptance remains open.
 
 The repair reads argument roles from the exact declaration's telescope for
 both graph construction and replay. Numeric spelling supplies no authority,
