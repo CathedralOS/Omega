@@ -1,12 +1,15 @@
 //! Ordered cleanup consumes exact live subjects, independent of root origin or action kind.
+use super::references::check_region_access;
 use crate::OptimizationUnitValidationError;
 use crate::current_ownership::residuals::selected_affine_residuals;
 use crate::current_ownership::structural::place_structural_type;
 use crate::current_ownership::{CurrentOwnership, parameter_establishment_order};
+use crate::unit_validation::structural_catalog::resolve_structural_path;
 use abstract_operations::AbstractFunctionResult;
 use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{BlockId, MachineId, PlaceId, StructuralCaseId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
+use terminal_psi::NominalAffineCleanup;
 use terminal_psi::{
     StructuralFieldType, StructuralMultiplicity, StructuralPathSegment, StructuralTypeDeclaration,
     StructuralTypeShape, TerminalAffineCleanupAction,
@@ -16,6 +19,7 @@ use terminal_semantics::owned_structure::{
     selected_contains_owned_boundary as selected_contains_nominal_cleanup,
     selected_owned_children as selected_children,
 };
+use terminal_semantics::structural_paths_may_overlap;
 
 /// A positive result is independently established discriminator membership.
 /// The cleanup roster and the absence of a claim never establish a tag.
@@ -147,11 +151,7 @@ fn cleanup_subjects(
                     }
                     continue;
                 }
-                let ancestor = crate::unit_validation::structural_catalog::resolve_structural_path(
-                    types,
-                    root,
-                    &path[..depth],
-                )?;
+                let ancestor = resolve_structural_path(types, root, &path[..depth])?;
                 if nominal.contains(&ancestor) {
                     return None;
                 }
@@ -359,17 +359,14 @@ pub(super) fn consume_owner_cleanup(
                     && discard.structural_type == subject.structural_type
                     && !frontier.claims.values().any(|claim| {
                         claim.input == Some(place)
-                            && terminal_semantics::structural_paths_may_overlap(
-                                &claim.path,
-                                &subject.path,
-                            )
+                            && structural_paths_may_overlap(&claim.path, &subject.path)
                     }) =>
             {
                 let ordinal = function
                     .block(block)
                     .and_then(|block| u32::try_from(block.nodes.len().saturating_sub(1)).ok())
                     .ok_or_else(mismatch)?;
-                super::references::check_region_access(
+                check_region_access(
                     function,
                     block,
                     ordinal,
@@ -409,7 +406,7 @@ pub(super) fn consume_nominal_cleanup(
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     block: BlockId,
     frontier: &mut CurrentOwnership,
-    cleanup: &terminal_psi::NominalAffineCleanup,
+    cleanup: &NominalAffineCleanup,
 ) -> Result<(), OptimizationUnitValidationError> {
     let mismatch = || OptimizationUnitValidationError::CurrentCleanupMismatch {
         machine: function.machine,
@@ -425,14 +422,10 @@ pub(super) fn consume_nominal_cleanup(
         .iter()
         .filter(|(_, claim)| {
             claim.input == Some(cleanup.place)
-                && terminal_semantics::structural_paths_may_overlap(&claim.path, &cleanup.path)
+                && structural_paths_may_overlap(&claim.path, &cleanup.path)
         })
         .collect::<Vec<_>>();
-    let selected = crate::unit_validation::structural_catalog::resolve_structural_path(
-        structural_types,
-        root,
-        &cleanup.path,
-    );
+    let selected = resolve_structural_path(structural_types, root, &cleanup.path);
     if !cleanup.requirement_obligations.is_empty()
         || selected != Some(cleanup.structural_type)
         || !valid_nominal_cleanup(function, functions, structural_types, cleanup)
@@ -440,9 +433,9 @@ pub(super) fn consume_nominal_cleanup(
             .partial_custody_paths
             .get(&cleanup.place)
             .is_some_and(|paths| {
-                paths.iter().any(|path| {
-                    terminal_semantics::structural_paths_may_overlap(path, &cleanup.path)
-                })
+                paths
+                    .iter()
+                    .any(|path| structural_paths_may_overlap(path, &cleanup.path))
             })
         || claims.iter().any(|(_, claim)| {
             claim.path != cleanup.path || claim.multiplicity != Some(StructuralMultiplicity::Linear)
@@ -466,7 +459,7 @@ pub(super) fn consume_nominal_cleanup(
         .block(block)
         .and_then(|block| u32::try_from(block.nodes.len().saturating_sub(1)).ok())
         .ok_or_else(mismatch)?;
-    super::references::check_region_access(
+    check_region_access(
         function,
         block,
         ordinal,
@@ -484,7 +477,7 @@ pub(super) fn valid_nominal_cleanup(
     caller: &PsiOptimizationFunction,
     functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-    cleanup: &terminal_psi::NominalAffineCleanup,
+    cleanup: &NominalAffineCleanup,
 ) -> bool {
     let Some(source) = structural_types.get(&cleanup.structural_type) else {
         return false;

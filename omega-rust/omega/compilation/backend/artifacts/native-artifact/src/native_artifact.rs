@@ -35,11 +35,14 @@ use crate::publication::publication_digest;
 pub(super) use boundary_applications::boundary_application_coverage_identity;
 use boundary_applications::validate_boundary_application_coverage;
 pub use dynamic_elf::{DynamicElfNativeArtifact, DynamicElfNativeArtifactIdentity};
+use effects::SelectedExternalRequirementApplication;
 pub use emission::RequestedNativeArtifact;
 use identity::{
     NativeArtifactIdentityFields, compiler_identity_evidence, derive_native_artifact_identity,
     foreign_call_custody_digest,
 };
+use terminal_psi::TerminalIdentityTable;
+use terminal_psi::TerminalModule;
 
 /// Complete source-independent Terminal-Psi native realization. Independent
 /// target images may retain the same immutable Terminal artifact without copying
@@ -650,9 +653,9 @@ pub struct NativeSelectedProviderPlan {
     report_identity: u64,
     plan_digest: NativeSelectedProviderPlanDigest,
     requirement_identities: Vec<String>,
-    external_requirement_applications: Vec<effects::SelectedExternalRequirementApplication>,
+    external_requirement_applications: Vec<SelectedExternalRequirementApplication>,
     family_realization_rows: Vec<effects::SelectedTargetFamilyRealization>,
-    family_realization_identities: terminal_psi::TerminalIdentityTable,
+    family_realization_identities: TerminalIdentityTable,
     /// Closed requirement identity paired with the template-keyed row that
     /// serves it, projected from the closure's specialization roster.
     closed_requirement_rows: Vec<(String, String)>,
@@ -761,9 +764,7 @@ impl NativeSelectedProviderPlan {
             requirement_identities,
             external_requirement_applications: Vec::new(),
             family_realization_rows: Vec::new(),
-            family_realization_identities: terminal_psi::TerminalIdentityTable::from(vec![
-                String::new(),
-            ]),
+            family_realization_identities: TerminalIdentityTable::from(vec![String::new()]),
             closed_requirement_rows: Vec::new(),
             assumed_requirement_rows: Vec::new(),
             assumed_relationships: Vec::new(),
@@ -777,7 +778,7 @@ impl NativeSelectedProviderPlan {
 
     pub(crate) fn matches_assumption(
         &self,
-        module: &terminal_psi::TerminalModule,
+        module: &TerminalModule,
         required: &str,
         evidence: &installation_evidence::InstalledAssumedBindingEvidence,
     ) -> bool {
@@ -835,9 +836,7 @@ impl NativeSelectedProviderPlan {
         &self.family_realization_rows
     }
 
-    pub fn external_requirement_applications(
-        &self,
-    ) -> &[effects::SelectedExternalRequirementApplication] {
+    pub fn external_requirement_applications(&self) -> &[SelectedExternalRequirementApplication] {
         &self.external_requirement_applications
     }
 
@@ -890,7 +889,7 @@ impl NativeSelectedProviderPlan {
 
     /// Identity table the stored family-realization row indices resolve
     /// against, cloned from the selected facts that projected them.
-    pub fn family_realization_identities(&self) -> &terminal_psi::TerminalIdentityTable {
+    pub fn family_realization_identities(&self) -> &TerminalIdentityTable {
         &self.family_realization_identities
     }
 
@@ -995,9 +994,7 @@ impl ProviderExecutionEvidence for NativeProviderExecution {
     }
 }
 
-fn validate_ieee_float_fma_occurrences(
-    module: &terminal_psi::TerminalModule,
-) -> Result<(), &'static str> {
+fn validate_ieee_float_fma_occurrences(module: &TerminalModule) -> Result<(), &'static str> {
     if module.machines.iter().any(|machine| {
         machine.operations().any(|operation| {
             matches!(

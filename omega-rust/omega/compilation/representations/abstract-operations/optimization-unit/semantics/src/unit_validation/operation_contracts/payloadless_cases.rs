@@ -4,14 +4,17 @@ use crate::unit_validation::structural_catalog::resolve_structural_path;
 use abstract_operations::AbstractOperation as O;
 use abstract_operations::AbstractStructuralCallResult;
 use optimization_unit::{PsiOptimizationFunction, operation_result_placement};
+use semantic_vocabulary::StructuralDomainId;
 use semantic_vocabulary::{StructuralPlaceKind, StructuralTypeId};
 use std::collections::BTreeMap;
+use terminal_psi::StructuralDomainDeclaration;
+use terminal_psi::StructuralTypeDeclaration;
 use terminal_semantics::structural_paths_may_overlap;
 
 pub(crate) fn plain_scalar_sum_call(
     operation: &O,
     callee: &PsiOptimizationFunction,
-    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
 ) -> bool {
     let Some(call) = plain_structural_call(operation, callee) else {
         return false;
@@ -48,11 +51,8 @@ pub(crate) fn plain_scalar_sum_call(
 pub(crate) fn case_establishment_matches(
     function: &PsiOptimizationFunction,
     operation: &O,
-    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
-    domains: &BTreeMap<
-        semantic_vocabulary::StructuralDomainId,
-        &terminal_psi::StructuralDomainDeclaration,
-    >,
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    domains: &BTreeMap<StructuralDomainId, &StructuralDomainDeclaration>,
 ) -> bool {
     let O::EstablishCase {
         psi_operation,
@@ -114,11 +114,8 @@ pub(crate) fn case_establishment_matches(
 
 pub(crate) fn exact_payloadless_case_return_exits(
     callee: &PsiOptimizationFunction,
-    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
-    domains: &BTreeMap<
-        semantic_vocabulary::StructuralDomainId,
-        &terminal_psi::StructuralDomainDeclaration,
-    >,
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    domains: &BTreeMap<StructuralDomainId, &StructuralDomainDeclaration>,
 ) -> bool {
     let Some(signature) = callee.result.structural() else {
         return false;
@@ -195,11 +192,8 @@ pub(crate) fn exact_payloadless_case_return_exits(
 pub(crate) fn exact_payloadless_structural_call(
     operation: &O,
     callee: &PsiOptimizationFunction,
-    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
-    domains: &BTreeMap<
-        semantic_vocabulary::StructuralDomainId,
-        &terminal_psi::StructuralDomainDeclaration,
-    >,
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    domains: &BTreeMap<StructuralDomainId, &StructuralDomainDeclaration>,
 ) -> bool {
     let Some(call) = plain_structural_call(operation, callee) else {
         return false;
@@ -235,11 +229,8 @@ pub(crate) fn exact_payloadless_structural_call(
 pub(crate) fn payloadless_selected_evidence_surface_matches(
     operation: &O,
     callee: &PsiOptimizationFunction,
-    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
-    domains: &BTreeMap<
-        semantic_vocabulary::StructuralDomainId,
-        &terminal_psi::StructuralDomainDeclaration,
-    >,
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    domains: &BTreeMap<StructuralDomainId, &StructuralDomainDeclaration>,
 ) -> bool {
     let O::CallStructural {
         result:
@@ -269,7 +260,7 @@ pub(crate) fn validate_structural_call_result(
     callee: &PsiOptimizationFunction,
     exact_claim_free: bool,
     claim_transfers: &[terminal_psi::ClaimTransfer],
-    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
 ) -> bool {
     let Some(signature) = callee.result.structural() else {
         return false;

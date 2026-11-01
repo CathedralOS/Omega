@@ -3,6 +3,7 @@ use std::collections::BTreeSet;
 use super::super::Elaboration;
 use super::super::test_utilities::{assert_refused, mathematical};
 use super::Law;
+use crate::mathematical_core::Term;
 use crate::proof::assumption_proof;
 use crate::{
     Budget, IntegerAffineWitness, ProofNode, ProofRule, value_context, verify_bounded_certificate,
@@ -133,10 +134,7 @@ fn check(fixture: &Fixture, laws: &[Law]) {
     // The evidence the elaboration produced is a real derivation, not a
     // constant naming the conclusion.
     let term = elaboration.denotation.arena.get(evidence);
-    assert!(!matches!(
-        term,
-        crate::mathematical_core::Term::Constant { .. }
-    ));
+    assert!(!matches!(term, Term::Constant { .. }));
 }
 
 /// `l ≤ div(−128, r)` with `r ≤ −2` proves `−128 ≤ l·r` over `i8` —

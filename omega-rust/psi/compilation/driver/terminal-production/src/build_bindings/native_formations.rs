@@ -3,6 +3,8 @@ use language_semantics::declaration_selection::{
     BuildOperation, BuildSelectionRequest, NativeBindingFormation, ProductDeclarationRequest,
 };
 use std::sync::Arc;
+use validation::collect_statement_expression_trees;
+
 pub(crate) fn capture(
     checked: &checked_trees::CheckedTrees,
     root: crate::TerminalMachineSelection<'_>,
@@ -33,11 +35,7 @@ pub(crate) fn capture(
         for state in checked.machine_states(machine) {
             for statement in checked.statement_table.statements(state.statement_nodes) {
                 let mut expressions = Vec::new();
-                validation::collect_statement_expression_trees(
-                    checked,
-                    statement,
-                    &mut expressions,
-                );
+                collect_statement_expression_trees(checked, statement, &mut expressions);
                 for expression in expressions {
                     let typed_trees::expression::ExpressionNode::Call(call) =
                         checked.expression_table.expression(expression)

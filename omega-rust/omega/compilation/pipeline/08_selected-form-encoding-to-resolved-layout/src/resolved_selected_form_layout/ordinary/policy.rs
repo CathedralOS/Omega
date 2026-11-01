@@ -1,13 +1,11 @@
 use selected_instructions::{SelectedInstructionPlan, SelectedTerminator};
 
-use super::super::{
-    OptimizedResolvedSelectedFormLayoutError, SelectedFunctionLayoutPolicy,
-    is_admitted_canonical_shape, is_single_entry,
-};
+use super::super::OptimizedResolvedSelectedFormLayoutError as Error;
+use super::super::{SelectedFunctionLayoutPolicy, is_admitted_canonical_shape, is_single_entry};
 
 pub(in super::super) fn select(
     selected: &SelectedInstructionPlan,
-) -> Result<SelectedFunctionLayoutPolicy, OptimizedResolvedSelectedFormLayoutError> {
+) -> Result<SelectedFunctionLayoutPolicy, Error> {
     let single_entry_count = selected
         .functions
         .iter()
@@ -36,10 +34,8 @@ pub(in super::super) fn select(
     } else if selected.functions.iter().all(is_admitted_canonical_shape) {
         Ok(SelectedFunctionLayoutPolicy::PerFunctionCanonicalShapeV1)
     } else {
-        Err(
-            OptimizedResolvedSelectedFormLayoutError::UnsupportedFunctionShape(
-                selected.functions[single_entry_count].machine,
-            ),
-        )
+        Err(Error::UnsupportedFunctionShape(
+            selected.functions[single_entry_count].machine,
+        ))
     }
 }

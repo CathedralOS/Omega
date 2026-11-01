@@ -158,7 +158,6 @@ pub(crate) fn normalized_foreign_constraint(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use target::NativeTarget;
 
     #[test]
@@ -173,63 +172,15 @@ mod tests {
         let catalog = crate::aarch64_machine_effect_catalog(target, &constraints).unwrap();
         crate::validate_aarch64_machine_effect_catalog(target, &constraints, catalog.clone())
             .expect("kernel entry effects");
-        for key in crate::aarch64_linux_system_call_keys() {
-            let row = catalog
-                .declarations
-                .iter()
-                .find(|row| row.constraint == key)
+        let other =
+            crate::aarch64_machine_effect_catalog(NativeTarget::macos_arm64(), &constraints)
                 .unwrap();
-            assert_eq!(row.semantic, MachineSemanticKind::NormalizedForeignCall);
-            assert_eq!(row.call, MachineCallEffect::SupervisorNormalReturnV1);
-            let encoded = &row.alternatives[0].encoded;
-            assert_eq!(
-                encoded.control,
-                MachineEncodedControlEffect::SupervisorCallV1
-            );
-            assert_eq!(encoded.memory, MachineEncodedMemoryEffect::NoneV1);
-            assert_eq!(encoded.stack, MachineEncodedStackEffect::UnchangedV1);
-            for corruption in 0..4 {
-                let mut forged = catalog.clone();
-                let row = forged
-                    .declarations
-                    .iter_mut()
-                    .find(|row| row.constraint == key)
-                    .unwrap();
-                match corruption {
-                    0 => {
-                        row.call = MachineCallEffect::ExternalNormalReturnV1 {
-                            pre_call_stack_alignment: 16,
-                        }
-                    }
-                    1 => {
-                        row.alternatives[0].encoded.control =
-                            MachineEncodedControlEffect::DirectRelativeCallV1
-                    }
-                    2 => {
-                        row.alternatives[0].encoded.stack =
-                            MachineEncodedStackEffect::CallReturnAddressLifecycleV1 {
-                                stack_pointer: physical.model().view_named("sp").unwrap().id,
-                                return_address_byte_count: 8,
-                            }
-                    }
-                    _ => row.alternatives[0].encoded.implicit_unit_clobbers.clear(),
-                }
-                // Target-neutral admission must catch these without relying
-                // on equality against the ISA producer's entire catalog.
-                assert!(
-                    selected_instructions::validate_machine_effect_catalog(&constraints, forged)
-                        .is_err()
-                );
-            }
-        }
-        let other_target = NativeTarget::macos_arm64();
-        let other = crate::aarch64_machine_effect_catalog(other_target, &constraints).unwrap();
-        assert!(
-            other
-                .selected_keys
-                .call_normalized_foreign
-                .iter()
-                .all(|key| { key.family != register_model::RegisterConstraintFamily::SystemCall })
+        isa_conformance::system_call::effects_conformance(
+            &constraints,
+            &catalog,
+            &crate::aarch64_linux_system_call_keys(),
+            physical.model().view_named("sp").unwrap().id,
+            &other,
         );
     }
 }

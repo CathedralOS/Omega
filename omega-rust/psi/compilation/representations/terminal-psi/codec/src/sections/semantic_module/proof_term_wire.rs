@@ -278,6 +278,8 @@ pub(crate) fn decode_proof_formals(
 
 #[cfg(test)]
 mod mathematical_tests {
+    use super::super::mathematical_certificate_wire::encode_mathematical_certificate;
+
     use super::*;
     use proof_admission::{Declaration, MathematicalCertificate, Term, TermArena};
 
@@ -288,18 +290,17 @@ mod mathematical_tests {
         let mut arena = TermArena::new();
         let two = arena.insert(Term::Two);
         let zero = arena.insert(Term::TwoZero);
-        let certificate =
-            super::super::mathematical_certificate_wire::encode_mathematical_certificate(
-                &arena,
-                &MathematicalCertificate {
-                    signature: vec![],
-                    level_arity: 0,
-                    context: vec![],
-                    term: zero,
-                    expected: two,
-                },
-            )
-            .unwrap();
+        let certificate = encode_mathematical_certificate(
+            &arena,
+            &MathematicalCertificate {
+                signature: vec![],
+                level_arity: 0,
+                context: vec![],
+                term: zero,
+                expected: two,
+            },
+        )
+        .unwrap();
         let term = ProofTerm::MathematicalApplication {
             type_identity: "Example".into(),
             certificate,
@@ -388,11 +389,7 @@ mod mathematical_tests {
             term: subject,
             expected: two,
         };
-        let bytes = super::super::mathematical_certificate_wire::encode_mathematical_certificate(
-            &arena,
-            &certificate,
-        )
-        .unwrap();
+        let bytes = encode_mathematical_certificate(&arena, &certificate).unwrap();
         let term = ProofTerm::Mathematical {
             type_identity: "Example<0>".into(),
             certificate: bytes,
@@ -409,15 +406,14 @@ mod mathematical_tests {
         assert!(decode_proof_terms(&mut Reader::new(&changed)).is_err());
         let empty = ProofTerm::Mathematical {
             type_identity: String::new(),
-            certificate:
-                super::super::mathematical_certificate_wire::encode_mathematical_certificate(
-                    &arena,
-                    &MathematicalCertificate {
-                        term: zero,
-                        ..certificate
-                    },
-                )
-                .unwrap(),
+            certificate: encode_mathematical_certificate(
+                &arena,
+                &MathematicalCertificate {
+                    term: zero,
+                    ..certificate
+                },
+            )
+            .unwrap(),
         };
         let mut writer = Writer::default();
         encode_proof_terms(&mut writer, &[empty]).unwrap();

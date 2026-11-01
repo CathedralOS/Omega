@@ -6,13 +6,17 @@
 
 use terminal_psi::TerminalIdentityIndex;
 use terminal_psi::{
-    StructuralCaseDeclaration, StructuralRecordStorage, StructuralTypeDeclaration,
-    StructuralTypeShape,
+    ArrayExtent, LayoutApplicationId, StructuralCaseDeclaration, StructuralRecordStorage,
+    StructuralTypeDeclaration, StructuralTypeShape,
 };
 
 use super::CodecError;
 use super::scalar_wire::{decode_scalar_type, encode_scalar_type};
-use super::structural_field_wire::{decode_structural_field, encode_structural_field};
+use super::structural_field_wire::{
+    decode_byte_sequence_carrier, decode_structural_field, decode_structural_field_type,
+    encode_byte_sequence_carrier, encode_structural_field, encode_structural_field_type,
+};
+use super::structural_signature_wire::{decode_structural_access, encode_structural_access};
 use super::wire::{Reader, Writer};
 use crate::sections::semantic_module::wire::{bounded_count, decode_counted};
 
@@ -35,7 +39,7 @@ pub(crate) fn encode_structural_type(
         StructuralTypeShape::Reference { referent, access } => {
             writer.u8(7);
             writer.id(*referent);
-            super::structural_signature_wire::encode_structural_access(writer, *access);
+            encode_structural_access(writer, *access);
         }
         StructuralTypeShape::PrimitiveScalar(scalar_type) => {
             writer.u8(if declaration.scalar_restriction.is_some() {
@@ -45,19 +49,19 @@ pub(crate) fn encode_structural_type(
             });
             encode_scalar_type(writer, *scalar_type);
             if let Some(restriction) = &declaration.scalar_restriction {
-                super::structural_field_wire::encode_structural_field_type(writer, restriction)?;
+                encode_structural_field_type(writer, restriction)?;
             }
         }
         StructuralTypeShape::ByteSequence(carrier) => {
             writer.u8(4);
-            super::structural_field_wire::encode_byte_sequence_carrier(writer, *carrier);
+            encode_byte_sequence_carrier(writer, *carrier);
         }
         StructuralTypeShape::ElementView { element, access } => {
             writer.u8(8);
             writer.id(*element);
             writer.boolean(access.is_some());
             if let Some(access) = access {
-                super::structural_signature_wire::encode_structural_access(writer, *access);
+                encode_structural_access(writer, *access);
             }
         }
         StructuralTypeShape::Record { fields, storage } => {
@@ -94,11 +98,11 @@ pub(crate) fn encode_structural_type(
             writer.u8(2);
             writer.id(*element);
             match length {
-                terminal_psi::ArrayExtent::Literal(length) => {
+                ArrayExtent::Literal(length) => {
                     writer.u8(0);
                     writer.u64(*length);
                 }
-                terminal_psi::ArrayExtent::Application(application) => {
+                ArrayExtent::Application(application) => {
                     writer.u8(1);
                     writer.id(*application);
                 }
@@ -152,14 +156,12 @@ pub(crate) fn decode_structural_type(
         11 => StructuralTypeShape::BindingCarrier,
         7 => StructuralTypeShape::Reference {
             referent: reader.id("StructuralTypeId")?,
-            access: super::structural_signature_wire::decode_structural_access(reader)?,
+            access: decode_structural_access(reader)?,
         },
         6 => StructuralTypeShape::PrimitiveScalar(decode_scalar_type(reader)?),
         12 => {
             let carrier = decode_scalar_type(reader)?;
-            scalar_restriction = Some(super::structural_field_wire::decode_structural_field_type(
-                reader,
-            )?);
+            scalar_restriction = Some(decode_structural_field_type(reader)?);
             StructuralTypeShape::PrimitiveScalar(carrier)
         }
         tag @ (14 | 15) => {
@@ -199,17 +201,13 @@ pub(crate) fn decode_structural_type(
             }
         }
         13 => StructuralTypeShape::Record {
-            storage: StructuralRecordStorage::TargetLayout(terminal_psi::LayoutApplicationId(
-                reader.u32()?,
-            )),
+            storage: StructuralRecordStorage::TargetLayout(LayoutApplicationId(reader.u32()?)),
             fields: decode_counted(reader, decode_structural_field)?,
         },
         8 => StructuralTypeShape::ElementView {
             element: reader.id("StructuralTypeId")?,
             access: if reader.boolean()? {
-                Some(super::structural_signature_wire::decode_structural_access(
-                    reader,
-                )?)
+                Some(decode_structural_access(reader)?)
             } else {
                 None
             },
@@ -217,8 +215,8 @@ pub(crate) fn decode_structural_type(
         2 => StructuralTypeShape::FixedArray {
             element: reader.id("StructuralTypeId")?,
             length: match reader.u8()? {
-                0 => terminal_psi::ArrayExtent::Literal(reader.u64()?),
-                1 => terminal_psi::ArrayExtent::Application(reader.id("ScalarApplicationId")?),
+                0 => ArrayExtent::Literal(reader.u64()?),
+                1 => ArrayExtent::Application(reader.id("ScalarApplicationId")?),
                 tag => return Err(CodecError::InvalidTag("ArrayExtent", tag)),
             },
         },
@@ -231,9 +229,7 @@ pub(crate) fn decode_structural_type(
                 })
             })?,
         },
-        4 => StructuralTypeShape::ByteSequence(
-            super::structural_field_wire::decode_byte_sequence_carrier(reader)?,
-        ),
+        4 => StructuralTypeShape::ByteSequence(decode_byte_sequence_carrier(reader)?),
         5 => StructuralTypeShape::Mixed {
             fields: decode_counted(reader, decode_structural_field)?,
             cases: decode_counted(reader, |reader| {

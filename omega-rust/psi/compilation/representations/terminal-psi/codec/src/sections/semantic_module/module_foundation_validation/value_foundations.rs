@@ -5,8 +5,18 @@ use super::super::wire::strictly_increasing;
 use crate::codec_error::{CodecError, malformed};
 use semantic_vocabulary::StructuralPlaceKind;
 use terminal_psi::{
-    Operation, OperationKind, OperationResult, StructuralFieldType, StructuralPlaceDeclaration,
-    StructuralTypeShape, TerminalMachine, TerminalModule, find_structural_case,
+    BindingRelevance, ByteSequenceCarrier, Operation, OperationKind, OperationResult,
+    RecordFieldInitializer, RecordFieldValue, StructuralAccess, StructuralArgument,
+    StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
+    StructuralOperationResult, StructuralPlaceDeclaration, StructuralTypeShape, TerminalMachine,
+    TerminalModule, find_structural_case, nonlinear_multiplicity_pair_pattern,
+};
+use terminal_semantics::{
+    canonical_static_projection, contains_access_carrier, machine_scalar_constant_origin,
+    primitive_scalar_memberships, scalar_array_leaf_declaration, scalar_array_leaf_shape,
+    scalar_array_qualifications_hold, scalar_constant_value,
+    scalar_field_requires_initialization_evidence, structural_paths_may_overlap,
+    zeroed_projected_byte_qualifications_hold, zeroed_structural_shape,
 };
 
 pub(super) fn validate_establish_scalar_array(
@@ -20,19 +30,19 @@ pub(super) fn validate_establish_scalar_array(
     let Some(result) = operation.result.structural() else {
         return malformed("scalar array establishment has no structural result");
     };
-    if result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+    if result.multiplicity != StructuralMultiplicity::Unrestricted
         || !result.projected_qualifications.is_empty()
         || !result.claims.is_empty()
         || !result.qualification_establishments.is_empty()
-        || !terminal_semantics::scalar_array_qualifications_hold(
+        || !scalar_array_qualifications_hold(
             module.structural_types.iter(),
             module.structural_domains.iter(),
             result.structural_type,
             &result.qualifications,
             elements,
             |element| {
-                terminal_semantics::scalar_constant_value(element, |value| {
-                    terminal_semantics::machine_scalar_constant_origin(machine, value)
+                scalar_constant_value(element, |value| {
+                    machine_scalar_constant_origin(machine, value)
                 })
             },
         )
@@ -42,22 +52,16 @@ pub(super) fn validate_establish_scalar_array(
                 kind: StructuralPlaceKind::OperationResult { producer, structural_type }, ..
             }) if *producer == operation.id && *structural_type == result.structural_type
         )
-        || terminal_semantics::scalar_array_leaf_shape(
-            module.structural_types.iter(),
-            result.structural_type,
-        )
-        .is_none_or(|(_, count)| u64::try_from(elements.len()).ok() != Some(count))
+        || scalar_array_leaf_shape(module.structural_types.iter(), result.structural_type)
+            .is_none_or(|(_, count)| u64::try_from(elements.len()).ok() != Some(count))
     {
         return malformed("scalar array establishment has an invalid result shape");
     }
     // This constructor carries no per-leaf receiving obligations. Empty
     // arrays instantiate no scalar; nonempty restricted arrays need a
     // constructor that retains each initialized value's predicate authority.
-    if terminal_semantics::scalar_array_leaf_declaration(
-        module.structural_types.iter(),
-        result.structural_type,
-    )
-    .is_some_and(|(leaf, count)| count != 0 && leaf.scalar_restriction.is_some())
+    if scalar_array_leaf_declaration(module.structural_types.iter(), result.structural_type)
+        .is_some_and(|(leaf, count)| count != 0 && leaf.scalar_restriction.is_some())
     {
         return malformed("scalar array initializer lacks receiving restriction obligations");
     }
@@ -82,7 +86,7 @@ pub(super) fn validate_establish_scalar_case(
     // Common operation-result admission validates whole membership identities
     // and carriers. A predicate-only qualification does not change case storage
     // or the selected field roster checked here.
-    if result.multiplicity == terminal_psi::StructuralMultiplicity::Linear
+    if result.multiplicity == StructuralMultiplicity::Linear
         || !result.projected_qualifications.is_empty()
         || !result.claims.is_empty()
     {
@@ -113,9 +117,8 @@ pub(super) fn validate_establish_scalar_case(
         if declaration.id != field.field
             || declaration.relevance.is_erased()
             || declaration.field_type.scalar_type().is_none()
-            || terminal_semantics::scalar_field_requires_initialization_evidence(
-                &declaration.field_type,
-            ) != field.range_obligation.is_some()
+            || scalar_field_requires_initialization_evidence(&declaration.field_type)
+                != field.range_obligation.is_some()
         {
             return malformed("scalar case establishment has an invalid field binding");
         }
@@ -221,7 +224,7 @@ pub(super) fn validate_establish_byte_sequence_literal(
     };
     if !matches!(
         declaration.shape,
-        StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView { .. })
+        StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { .. })
     ) {
         return malformed("byte-sequence literal must use a borrowed byte-sequence type");
     }
@@ -239,15 +242,14 @@ pub(super) fn validate_establish_zeroed_structural(
     let Some(result) = operation.result.structural() else {
         return malformed("zeroed structural establishment has no structural result");
     };
-    if !matches!(
-        result.multiplicity,
-        terminal_psi::nonlinear_multiplicity_pair_pattern!()
-    ) || !terminal_semantics::zeroed_projected_byte_qualifications_hold(
-        module.structural_types.iter(),
-        module.structural_domains.iter(),
-        result.structural_type,
-        &result.projected_qualifications,
-    ) || !result.claims.is_empty()
+    if !matches!(result.multiplicity, nonlinear_multiplicity_pair_pattern!())
+        || !zeroed_projected_byte_qualifications_hold(
+            module.structural_types.iter(),
+            module.structural_domains.iter(),
+            result.structural_type,
+            &result.projected_qualifications,
+        )
+        || !result.claims.is_empty()
         || !result.qualification_establishments.is_empty()
         || !matches!(
             machine.structural_place(result.place),
@@ -255,10 +257,7 @@ pub(super) fn validate_establish_zeroed_structural(
                 kind: StructuralPlaceKind::OperationResult { producer, structural_type }, ..
             }) if *producer == operation.id && *structural_type == result.structural_type
         )
-        || !terminal_semantics::zeroed_structural_shape(
-            module.structural_types.iter(),
-            result.structural_type,
-        )
+        || !zeroed_structural_shape(module.structural_types.iter(), result.structural_type)
     {
         return malformed("zeroed structural establishment has an invalid result shape");
     }
@@ -282,10 +281,8 @@ pub(super) fn validate_establish_structural_local(
         declaration.id == result.structural_type
             && declaration.shape.is_borrowed_view_byte_sequence()
     });
-    if !matches!(
-        result.multiplicity,
-        terminal_psi::nonlinear_multiplicity_pair_pattern!()
-    ) || (!result.qualifications.is_empty() && !byte_view_home)
+    if !matches!(result.multiplicity, nonlinear_multiplicity_pair_pattern!())
+        || (!result.qualifications.is_empty() && !byte_view_home)
         || !result.projected_qualifications.is_empty()
         || !result.claims.is_empty()
         || !result.qualification_establishments.is_empty()
@@ -321,7 +318,7 @@ pub(super) fn validate_establish_trivial_affine_local(
     else {
         return malformed("trivial affine local establishment has no local declaration");
     };
-    if terminal_semantics::contains_access_carrier(module, *structural_type) {
+    if contains_access_carrier(module, *structural_type) {
         return malformed("ordinary local construction cannot establish placed custody");
     }
     let Some(declaration) = module.structural_type(*structural_type) else {
@@ -372,9 +369,7 @@ pub(super) fn validate_establish_record(
         return malformed("record field roster differs");
     }
     for (field, declaration) in fields.iter().zip(declarations) {
-        if field.field != declaration.id
-            || declaration.relevance != terminal_psi::BindingRelevance::Relevant
-        {
+        if field.field != declaration.id || declaration.relevance != BindingRelevance::Relevant {
             return malformed("record field identity differs");
         }
         validate_constructor_field(module, machine, field, &declaration.field_type)?;
@@ -387,32 +382,32 @@ pub(super) fn validate_establish_record(
 fn validate_constructor_field(
     module: &TerminalModule,
     machine: &TerminalMachine,
-    field: &terminal_psi::RecordFieldInitializer,
+    field: &RecordFieldInitializer,
     field_type: &StructuralFieldType,
 ) -> Result<(), CodecError> {
     match (&field.value, field_type) {
         (
-            terminal_psi::RecordFieldValue::Scalar {
+            RecordFieldValue::Scalar {
                 range_obligation, ..
             },
             field_type,
         ) if field_type.scalar_type().is_some() => {
             if range_obligation.is_some()
-                != terminal_semantics::scalar_field_requires_initialization_evidence(field_type)
+                != scalar_field_requires_initialization_evidence(field_type)
             {
                 return malformed("constructor field range obligation differs");
             }
         }
-        (terminal_psi::RecordFieldValue::Structural(argument), field_type)
+        (RecordFieldValue::Structural(argument), field_type)
             if (matches!(field_type, StructuralFieldType::Structural(_))
                 || matches!(
                     field_type.byte_sequence_carrier(),
                     Some(
-                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                            | terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                        ByteSequenceCarrier::BoundedOwned { .. }
+                            | ByteSequenceCarrier::BorrowedView { .. }
                     )
                 ))
-                && argument.access == terminal_psi::StructuralAccess::Owned =>
+                && argument.access == StructuralAccess::Owned =>
         {
             validate_constructor_projection(module, machine, argument, field_type)?;
             // Predicate wrappers do not change whole descriptor custody.
@@ -429,7 +424,7 @@ fn validate_constructor_field(
 /// and operand transport rather than treating the catalogue as fresh issuance.
 fn validate_constructor_claims(
     module: &TerminalModule,
-    result: &terminal_psi::StructuralOperationResult,
+    result: &StructuralOperationResult,
 ) -> Result<(), CodecError> {
     // An intermediate constructor can publish custody at its private arrival
     // rather than on this operation. Do not infer issuance from the root's
@@ -441,7 +436,7 @@ fn validate_constructor_claims(
         super::validate_structural_path(module, result.structural_type, &claim.path)?;
         if result.claims[position + 1..]
             .iter()
-            .any(|other| terminal_semantics::structural_paths_may_overlap(&claim.path, &other.path))
+            .any(|other| structural_paths_may_overlap(&claim.path, &other.path))
         {
             return malformed("aggregate claim bindings overlap");
         }
@@ -477,7 +472,7 @@ pub(super) fn validate_establish_primitive_local(
         .ok_or(CodecError::MalformedStructuralFoundation(
             "primitive initializer lost its exact SSA declaration",
         ))?;
-    let qualifications = terminal_semantics::primitive_scalar_memberships(
+    let qualifications = primitive_scalar_memberships(
         module.structural_types.iter(),
         module.structural_domains.iter(),
         &module.scalar_qualifications,
@@ -487,7 +482,7 @@ pub(super) fn validate_establish_primitive_local(
     .ok_or(CodecError::MalformedStructuralFoundation(
         "primitive initializer lost its exact scalar membership correspondence",
     ))?;
-    if result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+    if result.multiplicity != StructuralMultiplicity::Unrestricted
         || !result.claims.is_empty()
         || !result.projected_qualifications.is_empty()
         || !result.qualification_establishments.is_empty()
@@ -541,7 +536,7 @@ pub(super) fn validate_establish_byte_sequence_concatenation(
 fn validate_constructor_projection(
     module: &TerminalModule,
     machine: &TerminalMachine,
-    argument: &terminal_psi::StructuralArgument,
+    argument: &StructuralArgument,
     field_type: &StructuralFieldType,
 ) -> Result<(), CodecError> {
     if argument.path.is_empty() {
@@ -553,11 +548,9 @@ fn validate_constructor_projection(
     let Some(root) = super::structural_place_type(machine, argument.place) else {
         return malformed("projected constructor operand has no declared root");
     };
-    let Some((_, selected)) = terminal_semantics::canonical_static_projection(
-        module.structural_types.iter(),
-        root,
-        &argument.path,
-    ) else {
+    let Some((_, selected)) =
+        canonical_static_projection(module.structural_types.iter(), root, &argument.path)
+    else {
         return malformed("projected constructor operand requires a finite owned path");
     };
     if selected.id != expected {
@@ -598,9 +591,7 @@ pub(super) fn validate_establish_structural_array(
         return malformed("array element count differs");
     }
     for argument in elements {
-        if argument.access != terminal_psi::StructuralAccess::Owned
-            || argument.place == result.place
-        {
+        if argument.access != StructuralAccess::Owned || argument.place == result.place {
             return malformed("array element is not an independent owned source");
         }
         let Some(root) = super::structural_place_type(machine, argument.place) else {
@@ -633,7 +624,7 @@ pub(super) fn validate_native_code_layout(
         return malformed("native code layout has no structural result");
     };
     if module.machine(selected).is_none()
-        || result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+        || result.multiplicity != StructuralMultiplicity::Unrestricted
         || !result.claims.is_empty()
         || !result.qualifications.is_empty()
         || !result.projected_qualifications.is_empty()
@@ -650,7 +641,7 @@ pub(super) fn validate_native_code_layout(
     let StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
         return malformed("native code layout result is not a record");
     };
-    let address = |field: &terminal_psi::StructuralFieldDeclaration| matches!(field.field_type, StructuralFieldType::Scalar(semantic_vocabulary::ScalarType::Integer(ty)) if ty.is_address());
+    let address = |field: &StructuralFieldDeclaration| matches!(field.field_type, StructuralFieldType::Scalar(semantic_vocabulary::ScalarType::Integer(ty)) if ty.is_address());
     if fields.len() != 2
         || fields.iter().any(|field| field.relevance.is_erased())
         || !address(&fields[0])
@@ -665,7 +656,7 @@ pub(super) fn validate_native_code_layout(
     else {
         return malformed("native code layout regions are not a finite element view");
     };
-    if access.is_some_and(|access| access != terminal_psi::StructuralAccess::SharedBorrow) {
+    if access.is_some_and(|access| access != StructuralAccess::SharedBorrow) {
         return malformed("native code layout regions cannot grant mutable authority");
     }
     let Some(StructuralTypeShape::Record {

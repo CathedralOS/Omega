@@ -3,7 +3,7 @@ use super::super::CodecError;
 use super::super::wire::{Reader, Writer, decode_canonical, decode_counted};
 use access_plans::{
     AccessExposure, AccessPermissions, AccessPlanSnapshot, AtomicPermissions, BoundaryReach,
-    BoundaryServiceReachId, ExternalRead, FieldAccess, ObservationModel,
+    BoundaryServiceReachId, ExternalRead, FieldAccess, ObservationModel, ValidatedAccessPlan,
 };
 use layout_plans::{
     IntegerInterpretation, LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport,
@@ -46,7 +46,7 @@ pub(super) fn encode(writer: &mut Writer, plan: &TerminalAccessViewPlan) -> Resu
 
 pub(super) fn encode_placement(
     writer: &mut Writer,
-    placement: &access_plans::ValidatedAccessPlan,
+    placement: &ValidatedAccessPlan,
 ) -> Result<(), CodecError> {
     let snapshot = placement.snapshot();
     writer.u64(snapshot.layout.schema_report_fingerprint);
@@ -156,9 +156,7 @@ pub(super) fn decode(reader: &mut Reader<'_>) -> Result<TerminalAccessViewPlan, 
     })
 }
 
-pub(super) fn decode_placement(
-    reader: &mut Reader<'_>,
-) -> Result<access_plans::ValidatedAccessPlan, CodecError> {
+pub(super) fn decode_placement(reader: &mut Reader<'_>) -> Result<ValidatedAccessPlan, CodecError> {
     let schema_report_fingerprint = reader.u64()?;
     let size = decode_optional_u64(reader)?;
     let align = reader.u64()?;

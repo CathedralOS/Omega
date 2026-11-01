@@ -153,11 +153,11 @@ retired-syntax deletions to completion.
   [single machine declaration model](wiki/spec/language/machines.md#nested-machines-and-identity)
   and [invocation contracts](wiki/spec/language/state_contracts.md), replacing
   source `state` with arbitrarily nested named machines.
-  - Resolve recursive lexical scopes and forward references, enforce enclosing-scope-only
-    visibility for nested helpers, permit value/Unit completion before trailing
-    declarations, elaborate static declaration context to flat machine identities
-    with explicit arguments, and reject runtime capture, enclosing-local use,
-    hidden context parameters, and executable code after trailing declarations.
+  - Resolve recursive lexical scopes and forward references, permit value/Unit
+    completion before trailing declarations, elaborate static declaration context
+    to flat machine identities with explicit arguments, and reject runtime
+    capture, enclosing-local use, hidden context parameters, and executable code
+    after trailing declarations.
   - Complete cyclic private arrivals and the remaining normal-return
     obligations, with the complete callee
     contract (exact actuals/snapshots, live facts and write invalidation,
@@ -176,11 +176,11 @@ retired-syntax deletions to completion.
   sibling/ancestor terminal cycles, generic enclosing declaration context and
   explicit borrowed/local data, across the applicable nine-place row
   (`other_state/` becomes the nested-machine place) and fact-sensitive reject
-  twins. Reject inaccessible descendants, accidental capture, stale parent
-  facts, mismatched results, missing exact call markers, unclosed restoration,
-  invalid loan escape, lost linear custody, unjustified recursion and retired
-  `state` syntax. Finish the full affected sample/corpus migration and both
-  compiler implementations before closure.
+  twins. Reject accidental capture, stale parent facts, mismatched results,
+  missing exact call markers, unclosed restoration, invalid loan escape, lost
+  linear custody, unjustified recursion and retired `state` syntax. Finish the
+  full affected sample/corpus migration and both compiler implementations before
+  closure.
 
 - **CANONICALIZE-SCALAR-RANGE-CONTRACTS.** Complete the settled
   [proposition-based scalar range contract](wiki/spec/language/domains.md#declaration-and-membership)
@@ -289,6 +289,17 @@ retired-syntax deletions to completion.
       all nine places).
     - Complete remaining operational envelope refinement for suspending
       dynamic requirements beyond suspension and blocking.
+    - Migrate `traits/runtime_dyn_family_nested_result` and
+      `traits/runtime_dyn_family_scalar_continuation` from the retired `where`
+      family roster to `requires`, then prove the dyn-selector call
+      `Shape::code<width>(selected, item)`: with `requires` spelled, both refuse
+      `cannot prove requires contract for call dyn Shape<1 argument>::code`
+      because the runtime `width` that instantiates `Width` is not related to the
+      caller's `requires width == 16 || width == 32`.
+    - Lower the call argument `Input { bytes: &main.packet }` that
+      `traits/runtime_dyn_stored_byte_input` builds in place: `Main::main`
+      refuses at statement 3 with `call operation: structural arguments:
+      retained temporary`, so the fixture stays `incomplete`.
   - **Omega realization and cross-host native execution:**
     - Preserve complete 8-byte tables, zero trap slots, exact private callable
       identities, and patched image targets across all supported hosts, including
@@ -323,6 +334,14 @@ retired-syntax deletions to completion.
     target-keyed Build rows. Carry `samples/cli/audio/audio_playback` and its
     sine, square, and melody consumers through unchanged playback oracles;
     shared binding-value producers and helpers remain ordinary machines.
+    Frontier: 410 `samples/cli/facts/*/target_body` places still spell the
+    prefix, and 17 facts spell it in all nine places
+    (`checked_asm_{arm_load,compare_preserves,fence_contracts,register_contract_bound}`,
+    `foreign_{indirect_float_record_result,nested_record_backing,retained_mutable_borrow,retained_shared_borrow,scalar_backing}`,
+    `generic_calling_policy`, `opaque_closed_carrier_exchange`,
+    `scalar_boundary_parameter`, `selected_provider_issuance`,
+    `target_family_contract_operand`, `target_layout_derived_constant`,
+    `target_recursive_bound`, `target_scoped_constant_realization`).
   - Transport exact requirement and implementation identities, lifetimes,
     captured operands, const/evidence telescopes, callbacks, entry backing,
     ownership, reach, and public contracts through one checked Terminal artifact
@@ -331,6 +350,11 @@ retired-syntax deletions to completion.
     supply, invalid unselected implementations, and retired-prefix rejection;
     applicability is checked on the selected closure, not by accepting untyped
     source or exposing a selected body's private guarantees to callers.
+  - Carry the requirement-guarantee dependency to generic evidence binders: a
+    binder `S satisfies R` instantiated at the implementation that defines its
+    caller still imports `R`'s guarantee, so a citation cycle through it is
+    accepted (reproduction in
+    `samples/cli/facts/independent_call_result_bound/README.md`).
   Acceptance: one portable call selects distinct ordinary implementations for
   two targets from the same Terminal artifact and Build companion, with authored
   results observed by `omega run --both` on matching hosts. Migrated target,
@@ -414,21 +438,6 @@ retired-syntax deletions to completion.
   ordered operands, and receiver/result loans pass `omega run --both` on every
   host, while missing bodies, duplicate shapes, unproved laws, and missing
   premises reject.
-
-- **LOC-OMEGA-CONSOLIDATION.** Fold Omega-side (non-Psi) semantic duplication
-  where only data differs, deleting the superseded copy in the same change.
-  Base `55f4a84e523`; target net -1,500 lines across `omega-rust/omega/`.
-  - Per-ISA (`isa-x86_64`/`isa-aarch64`) selected-form test bodies that differ
-    only in roster, bytes and target move into `isa-conformance`: hosted exit,
-    read and write byte, floating control, scalar call, memory pointer and
-    integer normalization tests.
-  - Per-ISA register-catalog builder helpers (`view`, `fixed`, `allocatable`,
-    `merged_units`, `convention`) and the matching error enums move to
-    `register-model`.
-  - Driver test adapters (`TerminalImportAdapter` + `TerminalEffectHandler`
-    stubs) share one test-support type.
-  Acceptance: each family has one path and the old copies are gone; touched
-  crates' `mbx nextest run` and `corpus_gate --filter` on touched groups pass.
 
 ## Pipeline route
 
@@ -593,6 +602,21 @@ decision (`SourceChecked`) into stage 05 and stage 00.
   rebuild and compare).
   Acceptance: the `linux_x86_64` native corpus leg on a Linux host, with
   execution, passes unchanged.
+
+- **LOC-VALUE-CUSTODY.** (new-scope) Carry each recorded value-custody
+  requirement through checking, stage 05, Terminal Psi semantics/codec, the
+  Terminal interpreter and `terminal-runtime` on one path per layer.
+  Scope: `omega-rust/psi/compilation/checking/src/value_custody`,
+  `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi`,
+  `omega-rust/psi/compilation/representations/terminal-psi/{semantics,codec}`,
+  `omega-rust/psi/interpreter/terminal-interpreter` and
+  `omega-rust/omega/application/terminal-runtime`.
+  - Stage 05 has 3,379 fail-closed shape gates (`unsupported`, `unpinned`)
+    that re-check checked custody. Retire only gates shown to be unreachable,
+    after reject twins cover the custody facts they guard.
+  Acceptance: each retired gate's custody fact has a reject twin under
+  `tests/omega/fail/facts/` that still rejects in checking, and the affected
+  `samples/cli/facts` places still pass `omega run --both`.
 
 - **WIRE-CODEC-LIBRARY.** (new-scope; also covers **SEMANTIC-REFLECTION**)
   Connect [semantic reflection](wiki/spec/language/reflection.md) in
@@ -863,9 +887,11 @@ helper that passes does not close an item.
     with the original 256-width and mismatched-policy-argument rejects.
     Stored-descriptor reads/roundtrips, other-host execution and broader
     reference composition remain outstanding; see its [evidence scope](samples/cli/facts/fixed_layout_storage/compositions/README.md).
-    [Phantom-region forwarding through implementation arguments](https://github.com/CathedralOS/Omega/blob/ee2c8a1fceffff32a4533f83bb46d38010735a47/tests/omega/pass/traits/implementation_value_mapped_region_identity/main.omg)
-    also remains unqualified: preserve its distinct environment/storage regions
-    and the same constant index through the original forwarding call.
+    [Phantom-region forwarding through implementation arguments](samples/cli/facts/implementation_region_forwarding/README.md)
+    now executes the original call with both independent environment/storage
+    binders and the same const index, preserving value 42 in Mac ARM64
+    native/Terminal execution. Its full transport row and other-host execution
+    remain outstanding; wrong regions/indices and stored evidence still reject.
   - Supply a library C-layout family and migrate complete platform ABI records;
     retain explicit named policies for sparse views. Darwin timestamp pairs and
     the complete stat extent must agree with the SDK rather than inferring

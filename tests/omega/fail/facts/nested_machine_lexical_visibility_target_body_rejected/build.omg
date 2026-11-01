@@ -1,0 +1,11 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "lexical_visibility_target_body");
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+    Build::select_provider<SelectedProbe, X86Probe>(builder, windows_x86_64);
+    Build::select_provider<SelectedProbe, X86Probe>(builder, linux_x86_64);
+    Build::select_provider<SelectedProbe, ArmProbe>(builder, linux_arm64);
+    Build::select_provider<SelectedProbe, ArmProbe>(builder, macos_arm64);
+}

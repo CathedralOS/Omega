@@ -5,7 +5,7 @@ use semantic_vocabulary::{
 
 use super::{
     CheckedPredicateDenotations, PredicateDenotationError,
-    check_predicate_denotations_with_value_equalities,
+    check_predicate_denotations_with_value_equalities, check_value_equality_denotation,
 };
 use crate::proof::{assumption_proof, semantic_axiom_proof};
 use crate::{PrimitiveJudgment, ProofNode, ProofRule, proof_node, value_context};
@@ -332,8 +332,7 @@ fn mixed_math_guard_substitutes_cited_fields_without_a_common_finite_carrier() {
                 ScalarTerm::integer(unsigned, IntegerValue::Unsigned(bound)).unwrap(),
             ),
         ];
-        let denotation =
-            super::check_value_equality_denotation(&context, &guard, &equations).unwrap();
+        let denotation = check_value_equality_denotation(&context, &guard, &equations).unwrap();
         assert_eq!(
             denotation,
             Proposition::IntegerMathLessThan(
@@ -341,8 +340,7 @@ fn mixed_math_guard_substitutes_cited_fields_without_a_common_finite_carrier() {
                 IntegerMathTerm::literal(IntegerValue::Unsigned(bound)),
             ),
         );
-        let missing =
-            super::check_value_equality_denotation(&context, &guard, &equations[..1]).unwrap();
+        let missing = check_value_equality_denotation(&context, &guard, &equations[..1]).unwrap();
         assert_ne!(missing, denotation);
     }
 }
@@ -371,11 +369,11 @@ fn concatenated_live_length_sum_uses_only_cited_integer_equations() {
         IntegerMathTerm::literal(IntegerValue::Signed(8)),
     );
     assert_eq!(
-        super::check_value_equality_denotation(&context, &goal, &equations).unwrap(),
+        check_value_equality_denotation(&context, &goal, &equations).unwrap(),
         expected
     );
     assert_ne!(
-        super::check_value_equality_denotation(&context, &goal, &equations[..1]).unwrap(),
+        check_value_equality_denotation(&context, &goal, &equations[..1]).unwrap(),
         expected
     );
     let nested = vec![
@@ -386,7 +384,7 @@ fn concatenated_live_length_sum_uses_only_cited_integer_equations() {
         Proposition::Equal(value(3), literal(2)),
         equations[1].clone(),
     ];
-    let transported = super::check_value_equality_denotation(&context, &goal, &nested).unwrap();
+    let transported = check_value_equality_denotation(&context, &goal, &nested).unwrap();
     let expected_nested = Proposition::IntegerMathLessOrEqual(
         IntegerMathTerm::Add(
             Box::new(IntegerMathTerm::Add(
@@ -408,7 +406,7 @@ fn concatenated_live_length_sum_uses_only_cited_integer_equations() {
         Proposition::Equal(value(1), sum(value(3), literal(1))),
         equations[1].clone(),
     ];
-    let transported = super::check_value_equality_denotation(&context, &goal, &wrapped).unwrap();
+    let transported = check_value_equality_denotation(&context, &goal, &wrapped).unwrap();
     let Proposition::IntegerMathLessOrEqual(IntegerMathTerm::Add(left, _), _) = transported else {
         panic!("exact mathematical sum")
     };
@@ -440,7 +438,7 @@ fn mathematical_leaf_order_expands_only_cited_exact_scalar_definitions() {
         ScalarTerm::exact_integer_add(integer_type(), value(2), value(3)).unwrap(),
     );
     assert_eq!(
-        super::check_value_equality_denotation(&context, &original, [&exact]).unwrap(),
+        check_value_equality_denotation(&context, &original, [&exact]).unwrap(),
         expected,
     );
     let transport = |equation: &Proposition| ProofNode {
@@ -474,7 +472,7 @@ fn mathematical_leaf_order_expands_only_cited_exact_scalar_definitions() {
         ),
     ] {
         assert_ne!(
-            super::check_value_equality_denotation(&context, &original, [&changed]).unwrap(),
+            check_value_equality_denotation(&context, &original, [&changed]).unwrap(),
             expected,
         );
         // Rebind the citation itself to the current equation. Rejection must

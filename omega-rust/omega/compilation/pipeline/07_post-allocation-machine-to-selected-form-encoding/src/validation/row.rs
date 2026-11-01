@@ -8,10 +8,11 @@ use selected_instructions::{
 };
 use target::{Architecture, NativeTarget};
 
-use super::super::OptimizedSelectedFormEncodingError;
+use super::super::OptimizedSelectedFormEncodingError as Error;
 use machine_code::{
-    DeferredControlEncodingReason, SelectedFormDecodedFootprint, SelectedFormEncodedRowStore,
-    SelectedFormEncodingRow, SelectedFormEncodingState, SelectedFormMachineDisposition,
+    DeferredControlEncodingReason, ImageAddressFields, SelectedFormDecodedFootprint,
+    SelectedFormEncodedRowStore, SelectedFormEncodingRow, SelectedFormEncodingState,
+    SelectedFormMachineDisposition,
 };
 
 mod normalized_foreign_call;
@@ -41,13 +42,13 @@ pub(crate) fn validate(
     physical: &ValidatedPhysicalRegisterModel,
     row: &SelectedFormEncodingRow,
     encoded: &SelectedFormEncodedRowStore,
-) -> Result<(), OptimizedSelectedFormEncodingError> {
+) -> Result<(), Error> {
     let architecture = target.architecture;
     if row.instruction != selected.id
         || row.alternative != machine.alternative.key
         || row.machine_disposition != SelectedFormMachineDisposition::RetainedV1
     {
-        return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+        return Err(Error::ArtifactMismatch);
     }
     match selected.kind {
         kind @ (SelectedInstructionKind::AccessorScalarAccess { .. }
@@ -64,13 +65,11 @@ pub(crate) fn validate(
         | SelectedInstructionKind::RestoreFloatingControl { .. }
         | SelectedInstructionKind::Store64 { .. }
         | SelectedInstructionKind::FrameAddress { .. }) => {
-            let address = row
-                .address
-                .ok_or(OptimizedSelectedFormEncodingError::ArtifactMismatch)?;
+            let address = row.address.ok_or(Error::ArtifactMismatch)?;
             // The symbolic operation must be the address family this kind
             // owns; the producer's route declaration is not trusted here.
             if !admits_address_operation(kind, address.symbolic) {
-                return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+                return Err(Error::ArtifactMismatch);
             }
             let (bytes, footprint) = encoded_row(row, encoded)?;
             let decoded = if architecture == Architecture::Aarch64 {
@@ -105,8 +104,7 @@ pub(crate) fn validate(
                         kind,
                         machine.alternative.key,
                         &operand_views(machine),
-                        u32::try_from(address.displacement)
-                            .map_err(|_| OptimizedSelectedFormEncodingError::ArtifactMismatch)?,
+                        u32::try_from(address.displacement).map_err(|_| Error::ArtifactMismatch)?,
                         address.frame_alignment_bytes,
                         bytes,
                     )
@@ -120,7 +118,7 @@ pub(crate) fn validate(
                         bytes,
                     )
                 };
-                decoded_row_footprint!(encoded, OptimizedSelectedFormEncodingError::Aarch64)
+                decoded_row_footprint!(encoded, Error::Aarch64)
             } else {
                 let encoded = if matches!(kind, SelectedInstructionKind::HostedWriteByteI32 { .. })
                 {
@@ -167,20 +165,20 @@ pub(crate) fn validate(
                         bytes,
                     )
                 };
-                decoded_row_footprint!(encoded, OptimizedSelectedFormEncodingError::X86_64)
+                decoded_row_footprint!(encoded, Error::X86_64)
             };
             admit_decoded_footprint(selected.id, machine, bytes.len(), footprint, &decoded)?;
             Ok(())
         }
         kind @ (selected_instructions::selected_call_pattern!(..)) => {
             if row.address.is_some() {
-                return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+                return Err(Error::ArtifactMismatch);
             }
             scalar_call::validate(target, selected.id, kind, machine, physical, row, encoded)
         }
         kind @ SelectedInstructionKind::NormalizedForeignCall { .. } => {
             if row.address.is_some() {
-                return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+                return Err(Error::ArtifactMismatch);
             }
             normalized_foreign_call::validate(
                 target,
@@ -203,7 +201,7 @@ pub(crate) fn validate(
                         reason: DeferredControlEncodingReason::RequiresResolvedBranchLayout,
                     })
             {
-                return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+                return Err(Error::ArtifactMismatch);
             }
             Ok(())
         }
@@ -211,10 +209,10 @@ pub(crate) fn validate(
             // The field coordinates come from the target's own declaration,
             // never from the producer's fixup.
             let fields = match architecture {
-                Architecture::X86_64 => machine_code::ImageAddressFields::X86_64Relative32 {
+                Architecture::X86_64 => ImageAddressFields::X86_64Relative32 {
                     patch_offset: u64::from(isa_x86_64::X86_64_BYTE_LITERAL_ADDRESS_FIELD_OFFSET),
                 },
-                Architecture::Aarch64 => machine_code::ImageAddressFields::Aarch64PageAddress {
+                Architecture::Aarch64 => ImageAddressFields::Aarch64PageAddress {
                     page_patch_offset: u64::from(
                         isa_aarch64::AARCH64_BYTE_LITERAL_ADDRESS_PAGE_FIELD_OFFSET,
                     ),
@@ -227,7 +225,7 @@ pub(crate) fn validate(
                 SelectedFormEncodingState::UnresolvedImageAddress { fixup }
                     if fixup.reference == reference && fixup.fields == fields);
             if !matched {
-                return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+                return Err(Error::ArtifactMismatch);
             }
             // The baseline route admits the same bytes and footprint the
             // literal row already interned; only its unresolved field differs.
@@ -318,11 +316,11 @@ fn validate_baseline(
     physical: &ValidatedPhysicalRegisterModel,
     row: &SelectedFormEncodingRow,
     encoded: &SelectedFormEncodedRowStore,
-) -> Result<(), OptimizedSelectedFormEncodingError> {
+) -> Result<(), Error> {
     // Ordinary routes declare no address operation; an attached resolved
     // address is a contradiction the frame-equation parity check cannot see.
     if row.address.is_some() {
-        return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+        return Err(Error::ArtifactMismatch);
     }
     let (bytes, footprint) = encoded_row(row, encoded)?;
     let views = operand_views(machine);
@@ -346,9 +344,7 @@ fn validate_baseline(
                     bytes,
                 )
             };
-            decoded_row_footprint!(decoded, |_| {
-                OptimizedSelectedFormEncodingError::ArtifactMismatch
-            })
+            decoded_row_footprint!(decoded, |_| { Error::ArtifactMismatch })
         }
         Architecture::Aarch64 => {
             let decoded = if kind == SelectedInstructionKind::HostedExitProcessI32 {
@@ -369,9 +365,7 @@ fn validate_baseline(
                     bytes,
                 )
             };
-            decoded_row_footprint!(decoded, |_| {
-                OptimizedSelectedFormEncodingError::ArtifactMismatch
-            })
+            decoded_row_footprint!(decoded, |_| { Error::ArtifactMismatch })
         }
     };
     admit_decoded_footprint(instruction, machine, bytes.len(), footprint, &decoded)?;
@@ -396,10 +390,10 @@ fn validate_machine_footprint(
     instruction: SelectedInstructionId,
     machine: &PostAllocationMachineInstruction,
     decoded: &SelectedFormDecodedFootprint,
-) -> Result<(), OptimizedSelectedFormEncodingError> {
+) -> Result<(), Error> {
     validate_external_operands(instruction, machine, decoded)?;
     if decoded.encoded != machine.alternative.encoded {
-        return Err(OptimizedSelectedFormEncodingError::ImplicitFootprintMismatch(instruction));
+        return Err(Error::ImplicitFootprintMismatch(instruction));
     }
     Ok(())
 }
@@ -409,13 +403,11 @@ fn validate_machine_footprint(
 fn encoded_row<'a>(
     row: &SelectedFormEncodingRow,
     encoded: &'a SelectedFormEncodedRowStore,
-) -> Result<(&'a [u8], &'a SelectedFormDecodedFootprint), OptimizedSelectedFormEncodingError> {
+) -> Result<(&'a [u8], &'a SelectedFormDecodedFootprint), Error> {
     if !matches!(row.state, SelectedFormEncodingState::Encoded) {
-        return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+        return Err(Error::ArtifactMismatch);
     }
-    encoded
-        .encoded(row)
-        .ok_or(OptimizedSelectedFormEncodingError::ArtifactMismatch)
+    encoded.encoded(row).ok_or(Error::ArtifactMismatch)
 }
 
 /// Admit one arm's re-decoded row: the machine row's declared effects and
@@ -427,11 +419,11 @@ fn admit_decoded_footprint(
     bytes: usize,
     retained: &SelectedFormDecodedFootprint,
     decoded: &SelectedFormDecodedFootprint,
-) -> Result<(), OptimizedSelectedFormEncodingError> {
+) -> Result<(), Error> {
     validate_machine_footprint(instruction, machine, decoded)?;
     validate_size(instruction, machine.alternative.size, bytes)?;
     if retained != decoded {
-        return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+        return Err(Error::ArtifactMismatch);
     }
     Ok(())
 }
@@ -441,7 +433,7 @@ fn admit_decoded_footprint(
 fn decoded_effects_footprint(
     machine: &PostAllocationMachineInstruction,
     effects: &MachineEncodedEffects,
-) -> Result<SelectedFormDecodedFootprint, OptimizedSelectedFormEncodingError> {
+) -> Result<SelectedFormDecodedFootprint, Error> {
     Ok(decoded_footprint(
         &views_for_effects(machine, effects, true)?,
         &views_for_effects(machine, effects, false)?,
@@ -453,11 +445,11 @@ fn validate_external_operands(
     instruction: SelectedInstructionId,
     machine: &PostAllocationMachineInstruction,
     decoded: &SelectedFormDecodedFootprint,
-) -> Result<(), OptimizedSelectedFormEncodingError> {
+) -> Result<(), Error> {
     if decoded.register_reads != views_for_effects(machine, &decoded.encoded, true)?
         || decoded.register_writes != views_for_effects(machine, &decoded.encoded, false)?
     {
-        return Err(OptimizedSelectedFormEncodingError::OperandFootprintMismatch(instruction));
+        return Err(Error::OperandFootprintMismatch(instruction));
     }
     Ok(())
 }
@@ -466,9 +458,8 @@ pub(crate) fn validate_size(
     instruction: SelectedInstructionId,
     knowledge: MachineSizeKnowledge,
     actual: usize,
-) -> Result<(), OptimizedSelectedFormEncodingError> {
-    let actual = u16::try_from(actual)
-        .map_err(|_| OptimizedSelectedFormEncodingError::SizeDeclarationMismatch(instruction))?;
+) -> Result<(), Error> {
+    let actual = u16::try_from(actual).map_err(|_| Error::SizeDeclarationMismatch(instruction))?;
     let matches = match knowledge {
         MachineSizeKnowledge::ExactBytes(expected) => actual == expected,
         MachineSizeKnowledge::EncoderResolved {
@@ -477,9 +468,7 @@ pub(crate) fn validate_size(
         } => actual >= minimum_bytes && maximum_bytes.is_none_or(|maximum| actual <= maximum),
     };
     if !matches {
-        return Err(OptimizedSelectedFormEncodingError::SizeDeclarationMismatch(
-            instruction,
-        ));
+        return Err(Error::SizeDeclarationMismatch(instruction));
     }
     Ok(())
 }
@@ -509,7 +498,7 @@ fn views_for_effects(
     machine: &PostAllocationMachineInstruction,
     effects: &MachineEncodedEffects,
     reads: bool,
-) -> Result<Vec<RegisterViewId>, OptimizedSelectedFormEncodingError> {
+) -> Result<Vec<RegisterViewId>, Error> {
     let resolve = |operand: u16| machine.operand_footprint(operand).map(|row| row.view);
     let operands = if reads {
         &effects.external_operand_reads
@@ -520,5 +509,5 @@ fn views_for_effects(
         .iter()
         .map(|operand| resolve(*operand))
         .collect::<Option<Vec<_>>>()
-        .ok_or(OptimizedSelectedFormEncodingError::OperandFootprintMismatch(machine.instruction))
+        .ok_or(Error::OperandFootprintMismatch(machine.instruction))
 }

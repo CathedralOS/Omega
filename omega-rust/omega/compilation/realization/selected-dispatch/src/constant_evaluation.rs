@@ -3,6 +3,8 @@
 //! its value in the typed program once; final checking consumes that program
 //! and the compile does not replay the folds against its own checked result
 //! (pipeline.md, "Verification placement").
+use crate::derive_selected_primitive_float_binary_execution;
+use build_time_evaluation::validate_selected_provider_bodies;
 use build_time_evaluation::{
     PreCheckEvaluation, SelectedBuildTimeBinaryOperator, SelectedBuildTimeOperators,
     SelectedBuildTimeProviderBody,
@@ -10,6 +12,7 @@ use build_time_evaluation::{
 use checked_trees::CheckedProviderPlanCommitment;
 use diagnostics::Diagnostic;
 use effects::SelectedProviderPlanFacts;
+use provider_planning::target_machines::selected_constant_target_bodies;
 use typed_trees::TypedTrees;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -87,10 +90,7 @@ impl SelectedConstantEvaluation {
         let mut selected = Self {
             operators: Vec::new(),
             provider_bodies: Vec::new(),
-            target_bodies: provider_planning::target_machines::selected_constant_target_bodies(
-                context,
-                target_profile,
-            )?,
+            target_bodies: selected_constant_target_bodies(context, target_profile)?,
             target_profile,
             selection: typed_trees::references::DeclarationSelection::from_program(typed),
             opaque_representation_selections: opaque_representation_selections.to_vec(),
@@ -124,13 +124,9 @@ impl SelectedConstantEvaluation {
                     )
                     .map_err(|reason| vec![Diagnostic::error(reason)])?,
                 );
-            } else if crate::derive_selected_primitive_float_binary_execution(
-                typed,
-                plan,
-                requirement,
-            )
-            .map_err(|error| vec![error])?
-            .is_some()
+            } else if derive_selected_primitive_float_binary_execution(typed, plan, requirement)
+                .map_err(|error| vec![error])?
+                .is_some()
             {
                 selected.operators.push(
                     SelectedBuildTimeBinaryOperator::prepare(
@@ -148,12 +144,7 @@ impl SelectedConstantEvaluation {
             }
         }
         build_time_evaluation::validate_selected_operators(typed, &selected.operators)
-            .and_then(|()| {
-                build_time_evaluation::validate_selected_provider_bodies(
-                    typed,
-                    &selected.provider_bodies,
-                )
-            })
+            .and_then(|()| validate_selected_provider_bodies(typed, &selected.provider_bodies))
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
         Ok(selected)
     }

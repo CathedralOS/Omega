@@ -2,7 +2,10 @@
 //! every enum is a checked tag. Unknown tags, trailing bytes and length
 //! overflows are all decode failures.
 
-use super::{CachedCompiledReview, CachedOccurrenceFacts};
+use super::{CachedCompiledReview, CachedOccurrenceFacts, DEFAULT_MAX_RECORD_BYTES};
+use crate::codec_bytes::{push_count_u64, push_encoded};
+use crate::digest_encoder::content_identity;
+use build_record_codec::{recover_observation_summary, recover_restricted_build_request};
 use effects::provider_plan::{
     BoundaryCallingPlanCommitment, ProviderIdentityTable, ProviderPlanDigest,
     ServiceCallingApplication, ServiceCallingPlan, ServiceEntryAuthorityFlow, ServiceEntryClaim,
@@ -14,7 +17,7 @@ use effects::{ServiceTerminalAuthorityPermission, TerminalAuthorityDisposition};
 use filesystem_authority::observation_codec::{ObservationCursor, push_framed};
 use language_semantics::{CarryPolicy, DomainPredicatePresence};
 use package_compilation::build_execution::build_record_codec;
-use package_compilation::native_output_codec::encode;
+use package_compilation::native_output_codec::{decode, encode};
 use package_compilation::provider_selection_codec::decode_package_provider_selections;
 use package_compilation::review_record_encoding::{
     authority_class_tag, declaration_kind_tag, encode_optional, purpose_tag,
@@ -24,7 +27,7 @@ use package_compilation::review_record_encoding::{
 use package_compilation::{
     AcceptedSemanticBinding, ConsumedSourceUnit, ConsumedSourceUnitKind,
     IndependentComponentDescription, PackageBuildHandoff, PackageDependencyBinding,
-    PackageDependencyClosure, PackageSourceConsumptionCommitment,
+    PackageDependencyClosure, PackageSourceConsumptionCommitment, accepted_service_schema_digest,
 };
 use package_evidence::record::SemanticBindingReviewCandidate;
 use semantic_vocabulary::PackageKeyIdentity;
@@ -98,7 +101,7 @@ fn encode_optional_identity(identity: Option<&PackageKeyIdentity>, out: &mut Vec
 }
 
 fn encode_disposition(disposition: &TerminalAuthorityDisposition, out: &mut Vec<u8>) {
-    crate::codec_bytes::push_count_u64(out, disposition.classes().len());
+    push_count_u64(out, disposition.classes().len());
     for class in disposition.classes() {
         out.push(authority_class_tag(*class));
     }
@@ -145,7 +148,7 @@ fn encode_binding(binding: &AcceptedSemanticBinding, out: &mut Vec<u8>) {
         out,
         |digest, out| out.extend_from_slice(digest.as_bytes()),
     );
-    crate::codec_bytes::push_count_u64(out, binding.terminal_authority_permissions().len());
+    push_count_u64(out, binding.terminal_authority_permissions().len());
     for permission in binding.terminal_authority_permissions() {
         encode_permission(
             permission,
@@ -255,14 +258,14 @@ fn encode_service_method(
     encode_string(&method.requirement_owner, out);
     encode_optional_identity(method.requirement_owner_package_identity.as_ref(), out);
     encode_string(identities.text(method.requirement_identity), out);
-    crate::codec_bytes::push_count_u64(out, method.parameter_count);
-    crate::codec_bytes::push_count_u64(out, method.parameter_type_identities.len());
+    push_count_u64(out, method.parameter_count);
+    push_count_u64(out, method.parameter_type_identities.len());
     for identity in &method.parameter_type_identities {
         encode_string(identities.text(*identity), out);
     }
-    crate::codec_bytes::push_count_u64(out, method.entry_claims.len());
+    push_count_u64(out, method.entry_claims.len());
     for claim in &method.entry_claims {
-        crate::codec_bytes::push_encoded(out, (claim.parameter_index as u64).to_le_bytes());
+        push_encoded(out, (claim.parameter_index as u64).to_le_bytes());
         encode_string(identities.text(claim.carrier_identity), out);
         encode_string(&claim.domain, out);
         encode_predicate_presence(&claim.predicate_presence, out);
@@ -284,36 +287,36 @@ fn encode_service_method(
         out,
         |identity, out| encode_string(identity, out),
     );
-    crate::codec_bytes::push_count_u64(out, method.result_claims.len());
+    push_count_u64(out, method.result_claims.len());
     for claim in &method.result_claims {
         encode_string(&claim.domain, out);
         encode_carry(&claim.effective_carry, out);
     }
-    crate::codec_bytes::push_count_u64(out, method.service_reach.len());
+    push_count_u64(out, method.service_reach.len());
     for reach in &method.service_reach {
         encode_string(reach, out);
     }
-    crate::codec_bytes::push_count_u64(out, method.synchronous_invocations.len());
+    push_count_u64(out, method.synchronous_invocations.len());
     for invocation in &method.synchronous_invocations {
         encode_string(invocation, out);
     }
     out.push(u8::from(method.may_suspend));
     out.push(u8::from(method.may_block));
     out.push(u8::from(method.terminates_guarantee));
-    crate::codec_bytes::push_count_u64(out, method.termination_premises.len());
+    push_count_u64(out, method.termination_premises.len());
     for premise in &method.termination_premises {
         encode_string(&premise.profile, out);
         match premise.subject {
             ServiceProgressSubject::Parameter(index) => {
                 out.push(1);
-                crate::codec_bytes::push_encoded(out, (index as u64).to_le_bytes());
+                push_encoded(out, (index as u64).to_le_bytes());
             }
         }
-        crate::codec_bytes::push_count_u64(out, premise.subject_projections.len());
+        push_count_u64(out, premise.subject_projections.len());
         for projection in &premise.subject_projections {
             encode_string(projection, out);
         }
-        crate::codec_bytes::push_count_u64(out, premise.establishment_routes.len());
+        push_count_u64(out, premise.establishment_routes.len());
         for route in &premise.establishment_routes {
             out.push(match route.kind {
                 ServiceProgressEstablishmentRouteKind::CheckedRequirement => 0,
@@ -325,7 +328,7 @@ fn encode_service_method(
     encode_optional(
         calling.map(|plan| plan.report_fingerprint).as_ref(),
         out,
-        |value, out| crate::codec_bytes::push_encoded(out, value.to_le_bytes()),
+        |value, out| push_encoded(out, value.to_le_bytes()),
     );
     encode_optional(
         calling.map(|plan| plan.commitment).as_ref(),
@@ -459,13 +462,13 @@ fn encode_service_schema(schema: &ServiceSchema, out: &mut Vec<u8>) {
     // The identity table rides the wire as a roster ahead of every field that
     // points into it: recovery re-mints the texts in order so a decoded schema
     // holds the same ids, not merely the same texts.
-    crate::codec_bytes::push_count_u64(out, schema.declaration.identities.texts().count());
+    push_count_u64(out, schema.declaration.identities.texts().count());
     for text in schema.declaration.identities.texts() {
         encode_string(text, out);
     }
     encode_string(schema.identity_text(schema.declaration.trait_name), out);
     encode_optional_identity(schema.declaration.trait_package_identity.as_ref(), out);
-    crate::codec_bytes::push_count_u64(out, schema.declaration.receiver_applications.len());
+    push_count_u64(out, schema.declaration.receiver_applications.len());
     for application in &schema.declaration.receiver_applications {
         encode_string(schema.identity_text(application.application), out);
         encode_string(schema.identity_text(application.trait_name), out);
@@ -475,13 +478,13 @@ fn encode_service_schema(schema: &ServiceSchema, out: &mut Vec<u8>) {
             &application.lifetime_argument_identities,
             &application.requirement_identities,
         ] {
-            crate::codec_bytes::push_count_u64(out, roster.len());
+            push_count_u64(out, roster.len());
             for identity in roster {
                 encode_string(schema.identity_text(*identity), out);
             }
         }
     }
-    crate::codec_bytes::push_count_u64(out, schema.declaration.methods.len());
+    push_count_u64(out, schema.declaration.methods.len());
     for method in &schema.declaration.methods {
         encode_service_method(
             method,
@@ -560,7 +563,7 @@ fn recover_candidate(cursor: &mut ObservationCursor<'_>) -> Option<SemanticBindi
     // whose schema does not normalize to the binding's declared digest is
     // corrupt, not a different valid record.
     if binding.normalized_schema_digest()
-        != package_compilation::accepted_service_schema_digest(binding.role(), &service_schema)
+        != accepted_service_schema_digest(binding.role(), &service_schema)
     {
         return None;
     }
@@ -590,11 +593,11 @@ fn encode_build_handoff(bundle: &PackageBuildHandoff, out: &mut Vec<u8>) {
     let closure = bundle.dependency_closure();
     encode_identity(closure.root(), out);
     out.push(declaration_kind_tag(closure.root_role()));
-    crate::codec_bytes::push_count_u64(out, closure.packages().len());
+    push_count_u64(out, closure.packages().len());
     for package in closure.packages() {
         encode_identity(*package, out);
     }
-    crate::codec_bytes::push_count_u64(out, closure.dependencies().len());
+    push_count_u64(out, closure.dependencies().len());
     for binding in closure.dependencies() {
         encode_identity(binding.requester(), out);
         encode_string(binding.alias(), out);
@@ -602,7 +605,7 @@ fn encode_build_handoff(bundle: &PackageBuildHandoff, out: &mut Vec<u8>) {
         out.push(purpose_tag(binding.purpose()));
     }
     out.extend_from_slice(&bundle.source_consumption_commitment().digest());
-    crate::codec_bytes::push_count_u64(out, bundle.sources().len());
+    push_count_u64(out, bundle.sources().len());
     for source in bundle.sources() {
         push_framed(out, source.relative_path());
         push_framed(out, source.bytes());
@@ -651,7 +654,7 @@ fn recover_build_handoff(cursor: &mut ObservationCursor<'_>) -> Option<PackageBu
     )
     .with_retained_provider_selections(selections, observation)
     .ok()?;
-    package_compilation::native_output_codec::decode(cursor.framed()?, handoff)
+    decode(cursor.framed()?, handoff)
 }
 
 fn encode_consumed_unit(unit: &ConsumedSourceUnit, out: &mut Vec<u8>) {
@@ -673,11 +676,11 @@ fn encode_consumed_unit(unit: &ConsumedSourceUnit, out: &mut Vec<u8>) {
         out,
         |namespace, out| encode_string(namespace, out),
     );
-    crate::codec_bytes::push_count_u64(out, unit.relative_path().len());
+    push_count_u64(out, unit.relative_path().len());
     for component in unit.relative_path() {
         encode_string(component, out);
     }
-    crate::codec_bytes::push_encoded(out, unit.byte_count().to_le_bytes());
+    push_encoded(out, unit.byte_count().to_le_bytes());
     out.extend_from_slice(&unit.content_digest());
 }
 
@@ -713,7 +716,7 @@ fn recover_consumed_unit(cursor: &mut ObservationCursor<'_>) -> Option<ConsumedS
 fn encode_component_description(description: &IndependentComponentDescription, out: &mut Vec<u8>) {
     encode_identity(description.package(), out);
     let subject = description.expected_subject();
-    crate::codec_bytes::push_encoded(out, subject.vocabulary_marker.get().to_le_bytes());
+    push_encoded(out, subject.vocabulary_marker.get().to_le_bytes());
     out.extend_from_slice(subject.program_fingerprint.as_bytes());
     push_framed(out, description.description());
 }
@@ -750,7 +753,7 @@ pub(super) fn encode_record(
         candidate.service_schema().validate_calling_applications()?;
     }
     out.extend_from_slice(RECORD_MAGIC);
-    crate::codec_bytes::push_encoded(out, RECORD_VERSION.to_le_bytes());
+    push_encoded(out, RECORD_VERSION.to_le_bytes());
     out.extend_from_slice(&review.package_identity.digest());
     encode_string(&review.name, out);
     out.extend_from_slice(&review.lineage);
@@ -777,23 +780,23 @@ pub(super) fn encode_record(
             push_framed(out, &framed);
         },
     );
-    crate::codec_bytes::push_count_u64(out, review.restricted_build_requests.len());
+    push_count_u64(out, review.restricted_build_requests.len());
     for request in &review.restricted_build_requests {
         let mut framed = Vec::new();
         build_record_codec::encode_restricted_build_request(request, &mut framed);
         push_framed(out, &framed);
     }
-    crate::codec_bytes::push_count_u64(out, review.semantic_bindings.len());
+    push_count_u64(out, review.semantic_bindings.len());
     for binding in &review.semantic_bindings {
         encode_binding(binding, out);
     }
-    crate::codec_bytes::push_count_u64(out, review.semantic_binding_candidates.len());
+    push_count_u64(out, review.semantic_binding_candidates.len());
     for candidate in &review.semantic_binding_candidates {
         encode_candidate(candidate, out);
     }
     encode_build_handoff(&review.build_handoff, out);
     push_framed(out, &review.policy_bytes);
-    crate::codec_bytes::push_count_u64(out, review.facts.consumed_units.len());
+    push_count_u64(out, review.facts.consumed_units.len());
     for unit in &review.facts.consumed_units {
         encode_consumed_unit(unit, out);
     }
@@ -808,19 +811,19 @@ pub(super) fn encode_record(
         out,
         encode_candidate,
     );
-    crate::codec_bytes::push_encoded(out, review.policy_canonical_bytes.to_le_bytes());
+    push_encoded(out, review.policy_canonical_bytes.to_le_bytes());
     Ok(())
 }
 
 pub(super) fn decode_record(bytes: &[u8]) -> Option<CachedCompiledReview> {
-    if bytes.len() as u64 > super::DEFAULT_MAX_RECORD_BYTES + 64 {
+    if bytes.len() as u64 > DEFAULT_MAX_RECORD_BYTES + 64 {
         return None;
     }
     if bytes.len() < 8 + 2 + 32 {
         return None;
     }
     let (payload, digest) = bytes.split_at(bytes.len() - 32);
-    let expected: [u8; 32] = crate::digest_encoder::content_identity(&payload).into();
+    let expected: [u8; 32] = content_identity(&payload).into();
     if expected != digest {
         return None;
     }
@@ -845,14 +848,10 @@ pub(super) fn decode_record(bytes: &[u8]) -> Option<CachedCompiledReview> {
         usage_cursor.exhausted().then_some(usage)
     })?;
     let build_observation_summary = recover_optional(&mut cursor, |cursor| {
-        build_record_codec::recover_observation_summary(&mut ObservationCursor::new(
-            cursor.framed()?,
-        ))
+        recover_observation_summary(&mut ObservationCursor::new(cursor.framed()?))
     })?;
     let restricted_build_requests = cursor_vec(&mut cursor, |cursor| {
-        build_record_codec::recover_restricted_build_request(&mut ObservationCursor::new(
-            cursor.framed()?,
-        ))
+        recover_restricted_build_request(&mut ObservationCursor::new(cursor.framed()?))
     })?;
     let semantic_bindings = cursor_vec(&mut cursor, recover_binding)?;
     let semantic_binding_candidates = cursor_vec(&mut cursor, recover_candidate)?;

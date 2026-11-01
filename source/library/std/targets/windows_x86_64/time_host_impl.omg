@@ -13,9 +13,12 @@
 //   `VOID GetSystemTimePreciseAsFileTime([out] LPFILETIME)`
 //     — sysinfoapi.h, "DLL: Kernel32.dll", minimum Windows 8 / Server 2012.
 //     `std/time_host.omg`'s header selects this call for this target.
-//   `VOID Sleep(DWORD dwMilliseconds)` — kernel32; already bound for `Clock`
-//     in `targets/windows_x86_64/clock_impl.omg`, whose comment records that
-//     the millisecond count IS the whole requirement signature.
+//   `VOID Sleep(DWORD dwMilliseconds)` — kernel32; `std/build.omg` binds it
+//     for `Clock` and for `WindowsTimeRead::sleep`, since the millisecond
+//     count IS the whole requirement signature.
+//
+// The four raw requirements below are backed by native rows in `std/build.omg`,
+// not by forwarding declarations in this file.
 //
 // FILETIME is a 64-bit count of 100-nanosecond intervals since 1601-01-01
 // UTC. That is the whole reason `wall_clock_units_per_second` and
@@ -29,7 +32,6 @@
 // a windows_x86_64 product. The evidence for this file is Psi checking plus
 // the native artifact's terminal-authority closure review resolving every
 // `TimeHost` requirement to a selected provider row.
-use omega::language::core::external_binding;
 use omega::language::core::numeric_conversion;
 use time_host;
 
@@ -44,57 +46,10 @@ boundary trait WindowsTimeRead {
     reaches TimeHost;
     machine system_time_as_file_time(file_time: &mut u64)
     reaches TimeHost;
+    machine sleep(milliseconds: u32)
+    reaches TimeHost
+    blocks;
 }
-
-data WindowsTimeImports { }
-
-windows_x86_64 machine time_host_counter_binding_windows_x86_64() -> ForeignBinding<12, 23, 0> {
-    ForeignBinding::DllImport {
-        import: DllImport::PeByName {
-            library: "kernel32.dll",
-            export: "QueryPerformanceCounter",
-        },
-    }
-}
-
-windows_x86_64 machine time_host_frequency_binding_windows_x86_64() -> ForeignBinding<12, 25, 0> {
-    ForeignBinding::DllImport {
-        import: DllImport::PeByName {
-            library: "kernel32.dll",
-            export: "QueryPerformanceFrequency",
-        },
-    }
-}
-
-windows_x86_64 machine time_host_file_time_binding_windows_x86_64() -> ForeignBinding<12, 30, 0> {
-    ForeignBinding::DllImport {
-        import: DllImport::PeByName {
-            library: "kernel32.dll",
-            export: "GetSystemTimePreciseAsFileTime",
-        },
-    }
-}
-
-windows_x86_64 machine time_host_sleep_binding_windows_x86_64() -> ForeignBinding<12, 5, 0> {
-    ForeignBinding::DllImport {
-        import: DllImport::PeByName {
-            library: "kernel32.dll",
-            export: "Sleep",
-        },
-    }
-}
-
-windows_x86_64 machine WindowsTimeImports::query_performance_counter(counter: &mut i64) -> i32
-    satisfies WindowsTimeRead::query_performance_counter
-    via time_host_counter_binding_windows_x86_64();
-
-windows_x86_64 machine WindowsTimeImports::query_performance_frequency(frequency: &mut i64) -> i32
-    satisfies WindowsTimeRead::query_performance_frequency
-    via time_host_frequency_binding_windows_x86_64();
-
-windows_x86_64 machine WindowsTimeImports::system_time_as_file_time(file_time: &mut u64)
-    satisfies WindowsTimeRead::system_time_as_file_time
-    via time_host_file_time_binding_windows_x86_64();
 
 // A failed read reports zero rather than a fabricated tick count: `Time::now`
 // treats zero as a degraded clock and never faults on it. A zero frequency
@@ -156,14 +111,16 @@ windows_x86_64 machine TimeHostNativeProvider::wall_clock_epoch_offset_seconds()
     11644473600
 }
 
-// `Sleep` takes the millisecond count as its single argument, so the leaf
-// signature IS the requirement signature and no adapter body is needed.
+// `Sleep` takes the millisecond count as its single argument, so the wait is
+// bound to the raw requirement as is and this leaf only enters it.
 windows_x86_64 machine TimeHostNativeProvider::sleep(milliseconds: u32)
     satisfies TimeHost::sleep
-    via time_host_sleep_binding_windows_x86_64()
-    blocks;
+reaches TimeHost
+blocks
+{
+    block WindowsTimeRead::sleep(milliseconds);
+}
 
 windows_x86_64 machine TimeHostNativeProvider::provider_defaults(defaults: &mut TimeHostNativeProvider) {
     TimeHostNativeProvider::select_provider<TimeHost, NativeTimeHost>(defaults);
-    TimeHostNativeProvider::select_provider<WindowsTimeRead, WindowsTimeImports>(defaults);
 }

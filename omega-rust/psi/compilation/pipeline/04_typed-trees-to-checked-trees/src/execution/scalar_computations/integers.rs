@@ -100,7 +100,8 @@ impl Builder<'_, '_> {
         expression: ExpressionHandle,
         expected: Option<PrimitiveType>,
     ) -> Option<IntegerOperand> {
-        if let Some((computation, reference)) = self.declaration_input(expression) {
+        // A malformed bound input cannot fall through to an ordinary parameter.
+        if let Some((computation, reference)) = self.declaration_input(expression).ok()? {
             let primitive = self.program.primitive_type_reference(reference)?;
             if !is_integer(primitive) || expected.is_some_and(|expected| expected != primitive) {
                 return None;

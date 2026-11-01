@@ -1,0 +1,8 @@
+// A terminal call names only a machine visible from the call site.
+machine outer(value: u64) -> u64 {
+    hidden(value)
+    machine hidden(value: u64) -> u64 { value }
+}
+machine main() -> u64 {
+    transition { _ -> hidden(7) }
+}

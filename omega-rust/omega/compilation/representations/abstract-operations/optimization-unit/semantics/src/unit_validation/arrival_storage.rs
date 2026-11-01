@@ -3,6 +3,7 @@
 //! The place-to-declaration half is `PsiOptimizationFunction::arrival_parameter`
 //! on the owning type; these are the graph relations over it.
 
+use optimization_unit::OptimizationEdge;
 use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{BlockId, PlaceId};
 use std::collections::{BTreeMap, BTreeSet};
@@ -54,10 +55,7 @@ pub(crate) fn storage_names(
 /// binding names only a part, so the caller must abandon the fact on that path
 /// rather than carry it. A place the edge does not bind is not a parameter of
 /// the target and already denotes one storage, so it answers itself.
-pub(crate) fn root_before_edge(
-    edge: &optimization_unit::OptimizationEdge,
-    place: PlaceId,
-) -> Option<PlaceId> {
+pub(crate) fn root_before_edge(edge: &OptimizationEdge, place: PlaceId) -> Option<PlaceId> {
     let (root, path) = projection_before_edge(edge, place);
     path.is_empty().then_some(root)
 }
@@ -65,7 +63,7 @@ pub(crate) fn root_before_edge(
 /// Retain a binding's complete projection. The binding's type, access and
 /// availability are validated separately; this query grants no permission.
 pub(crate) fn projection_before_edge(
-    edge: &optimization_unit::OptimizationEdge,
+    edge: &OptimizationEdge,
     place: PlaceId,
 ) -> (PlaceId, &[terminal_psi::StructuralPathSegment]) {
     match edge.structural_binding(place) {

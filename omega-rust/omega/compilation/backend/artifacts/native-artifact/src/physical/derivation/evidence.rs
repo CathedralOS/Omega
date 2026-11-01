@@ -10,6 +10,7 @@ use crate::NativePhysicalOccurrence;
 pub(crate) use crate::NormalizedForeignCallbackRelocations;
 use crate::PhysicalChildParent;
 use crate::PhysicalRelocationDisposition;
+use crate::digest_encoder::DomainDigestEncoder;
 use crate::native_artifact::boundary_application_coverage_identity;
 use crate::physical::derivation::foreign_calls::derive_normalized_foreign_child;
 use crate::physical::derivation::hashing::{
@@ -23,6 +24,8 @@ use crate::physical::derivation::internal_calls::{
     boundary_internal_call_exists, derive_boundary_internal_call_child,
 };
 use crate::physical::derivation::provider_settlements::derive_admitted_provider_settlement_child;
+use crate::physical::identity_bytes::append_boundary_occurrence_identity;
+use crate::physical::identity_bytes::append_operator_occurrence_identity;
 use crate::physical::native_optimization_projection;
 use crate::physical::native_physical_evidence;
 use crate::physical::native_physical_evidence_gap;
@@ -37,10 +40,12 @@ use optimization_core::{
     NativeOptimizationProjectionIdentity, OptimizedBoundaryOccurrenceIdentity,
     OptimizedOperatorOccurrenceIdentity,
 };
+use semantic_vocabulary::InvocationSite;
 use std::collections::{BTreeMap, BTreeSet};
 use target::NativeTarget;
 use target_operations::CallSiteOwner;
 use terminal_psi::OperationKind;
+use terminal_psi::Terminator;
 
 /// How one scoped physical-evidence derivation finished. `Blocked` names the
 /// first subject the derivation could not bind, so an artifact without
@@ -155,12 +160,8 @@ pub(crate) fn derive_physical_evidence(
     }
     for foreign in object.foreign_calls() {
         let invocation_site = match foreign.owner {
-            CallSiteOwner::Operation(operation) => {
-                semantic_vocabulary::InvocationSite::Operation(operation)
-            }
-            CallSiteOwner::ExternalCompletion(edge) => {
-                semantic_vocabulary::InvocationSite::ExternalCompletion(edge)
-            }
+            CallSiteOwner::Operation(operation) => InvocationSite::Operation(operation),
+            CallSiteOwner::ExternalCompletion(edge) => InvocationSite::ExternalCompletion(edge),
             CallSiteOwner::InvokeNoNormal(_) => {
                 return Err(
                     "ordinary no-normal invocation cannot carry normalized foreign custody",
@@ -607,10 +608,8 @@ fn derive_identity_projection(
                     .checked_add(1)
                     .ok_or("native optimization projection operation ordinal overflow")?;
             }
-            if let terminal_psi::Terminator::ExternalCompletion { edge, boundary, .. } =
-                &block.terminator
-            {
-                let site = semantic_vocabulary::InvocationSite::ExternalCompletion(*edge);
+            if let Terminator::ExternalCompletion { edge, boundary, .. } = &block.terminator {
+                let site = InvocationSite::ExternalCompletion(*edge);
                 let identity = boundary_occurrence_identity(
                     terminal,
                     machine.id,
@@ -662,30 +661,19 @@ pub(crate) fn operator_occurrence_identity(
     operation_ordinal: usize,
 ) -> OptimizedOperatorOccurrenceIdentity {
     let mut canonical = terminal_identity_bytes(terminal);
-    crate::physical::identity_bytes::append_operator_occurrence_identity(
-        &mut canonical,
-        machine,
-        operation,
-        operation_ordinal,
-    );
+    append_operator_occurrence_identity(&mut canonical, machine, operation, operation_ordinal);
     OptimizedOperatorOccurrenceIdentity::from_canonical_bytes(&canonical)
 }
 
 pub(crate) fn boundary_occurrence_identity(
     terminal: terminal_psi::TerminalPsiIdentity,
     machine: semantic_vocabulary::MachineId,
-    site: impl Into<semantic_vocabulary::InvocationSite>,
+    site: impl Into<InvocationSite>,
     boundary: semantic_vocabulary::BoundaryMachineId,
     operation_ordinal: usize,
 ) -> OptimizedBoundaryOccurrenceIdentity {
     let mut canonical = terminal_identity_bytes(terminal);
-    crate::physical::identity_bytes::append_boundary_occurrence_identity(
-        &mut canonical,
-        machine,
-        site,
-        boundary,
-        operation_ordinal,
-    );
+    append_boundary_occurrence_identity(&mut canonical, machine, site, boundary, operation_ordinal);
     OptimizedBoundaryOccurrenceIdentity::from_canonical_bytes(&canonical)
 }
 
@@ -702,8 +690,7 @@ pub(crate) fn physical_child_identity(
     final_image_bytes_digest: [u8; 32],
     relocation: &PhysicalRelocationDisposition,
 ) -> [u8; 32] {
-    let mut digest =
-        crate::digest_encoder::DomainDigestEncoder::new(b"omega.native-physical-child.sha256.v3\0");
+    let mut digest = DomainDigestEncoder::new(b"omega.native-physical-child.sha256.v3\0");
     digest.byte(parent.role_tag());
     digest.raw(&parent.identity());
     digest.raw(&projection.bytes());
@@ -766,15 +753,15 @@ pub(crate) fn physical_child_identity(
         digest.raw(field.boundary_plan_identity());
         digest.raw(&field.caller().get().to_le_bytes());
         match field.invocation_site() {
-            semantic_vocabulary::InvocationSite::Operation(operation) => {
+            InvocationSite::Operation(operation) => {
                 digest.byte(0);
                 digest.raw(&operation.get().to_le_bytes());
             }
-            semantic_vocabulary::InvocationSite::ExternalCompletion(edge) => {
+            InvocationSite::ExternalCompletion(edge) => {
                 digest.byte(1);
                 digest.raw(&edge.get().to_le_bytes());
             }
-            semantic_vocabulary::InvocationSite::InvokeNoNormal(edge) => {
+            InvocationSite::InvokeNoNormal(edge) => {
                 digest.byte(2);
                 digest.raw(&edge.get().to_le_bytes());
             }
@@ -795,9 +782,7 @@ fn physical_evidence_identity(
     projection: NativeOptimizationProjectionIdentity,
     children: &[NativePhysicalChild],
 ) -> [u8; 32] {
-    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
-        b"omega.native-physical-evidence.sha256.v2\0",
-    );
+    let mut digest = DomainDigestEncoder::new(b"omega.native-physical-evidence.sha256.v2\0");
     digest.raw(&projection.bytes());
     digest.raw(&canonical_usize(children.len()));
     for child in children {

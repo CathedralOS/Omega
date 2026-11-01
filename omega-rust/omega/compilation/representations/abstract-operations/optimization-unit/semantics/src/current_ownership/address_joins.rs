@@ -33,15 +33,18 @@ pub(crate) use descriptor_loans::validate_compatibility;
 pub(crate) mod range_relations;
 
 use crate::current_ownership::CurrentOwnership;
+use crate::unit_validation::function_structure::operation_place_inputs;
 use crate::unit_validation::operation_contracts::structural_source_contract;
 use crate::unit_validation::references::ReferenceOrigin;
 use crate::{OperationSite, OptimizationUnitValidationError};
 use abstract_operations::AbstractOperation as O;
+use abstract_operations::control_flow::address_joins::is_address_join;
 use borrowed_regions::{BorrowedRegions, Projection, Region};
 use descriptor_loans::DescriptorLoans;
 use optimization_unit::{OptimizationEdge, PsiOptimizationFunction};
 use semantic_vocabulary::{BlockId, MachineId, PlaceId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
+use terminal_psi::exclusive_borrow_pair_pattern;
 use terminal_psi::{StructuralAccess, StructuralTypeDeclaration};
 
 /// Borrowed regions pinned by shared arrivals and owners suspended by mutable arrivals.
@@ -85,10 +88,9 @@ impl AddressJoinPins {
                     .iter()
                     .filter(|parameter| {
                         parameter.access == StructuralAccess::SharedBorrow
-                            && abstract_operations::control_flow::address_joins::is_address_join(
-                                parameter,
-                                |identity| structural_types.get(&identity).copied(),
-                            )
+                            && is_address_join(parameter, |identity| {
+                                structural_types.get(&identity).copied()
+                            })
                     })
                     .map(move |parameter| (parameter.place, block.id))
             })
@@ -111,10 +113,9 @@ impl AddressJoinPins {
         let address_joins = function
             .block_structural_parameters()
             .filter(|parameter| {
-                abstract_operations::control_flow::address_joins::is_address_join(
-                    parameter,
-                    |identity| structural_types.get(&identity).copied(),
-                )
+                is_address_join(parameter, |identity| {
+                    structural_types.get(&identity).copied()
+                })
             })
             .map(|parameter| parameter.place)
             .collect::<BTreeSet<_>>();
@@ -185,9 +186,7 @@ impl AddressJoinPins {
         let mut readers = BTreeMap::<PlaceId, BTreeSet<BlockId>>::new();
         for block in &function.blocks {
             for node in &block.nodes {
-                for place in crate::unit_validation::function_structure::operation_place_inputs(
-                    &node.operation,
-                ) {
+                for place in operation_place_inputs(&node.operation) {
                     readers.entry(place).or_default().insert(block.id);
                 }
             }
@@ -204,10 +203,8 @@ impl AddressJoinPins {
                     .structural_parameters
                     .iter()
                     .filter(|parameter| {
-                        matches!(
-                            parameter.access,
-                            terminal_psi::exclusive_borrow_pair_pattern!()
-                        ) && address_joins.contains(&parameter.place)
+                        matches!(parameter.access, exclusive_borrow_pair_pattern!())
+                            && address_joins.contains(&parameter.place)
                     })
                     .map(|parameter| parameter.place)
             })
@@ -414,10 +411,7 @@ impl AddressJoinPins {
         // discharge the owner. Check the current frontier before edge cleanup
         // and reject aliases supplied or disposed in the same transaction.
         for (binding, parameter) in edge.structural_bindings.iter().zip(destination) {
-            if !matches!(
-                parameter.access,
-                terminal_psi::exclusive_borrow_pair_pattern!()
-            ) {
+            if !matches!(parameter.access, exclusive_borrow_pair_pattern!()) {
                 continue;
             }
             let place = binding.argument.place;
@@ -504,7 +498,7 @@ impl AddressJoinPins {
                 StructuralAccess::Owned => {
                     parameter.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
                 }
-                terminal_psi::exclusive_borrow_pair_pattern!() => true,
+                exclusive_borrow_pair_pattern!() => true,
             })
             .map(|(binding, _)| (binding.argument.place, binding.argument.path.as_slice()))
             .chain(edge.cleanup_actions.iter().map(|action| match action {
@@ -615,8 +609,7 @@ fn shared_join_live_blocks(
             live.insert(block.id);
         }
         for node in &block.nodes {
-            let inputs =
-                crate::unit_validation::function_structure::operation_place_inputs(&node.operation);
+            let inputs = operation_place_inputs(&node.operation);
             if !inputs.iter().any(|place| names.contains(place)) {
                 continue;
             }

@@ -1,0 +1,3 @@
+// The wider unsigned source does not acquire the signed destination range.
+machine make(value: u64) -> i64 { value as i64 }
+machine main() {}

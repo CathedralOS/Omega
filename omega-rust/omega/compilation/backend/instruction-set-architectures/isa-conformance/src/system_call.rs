@@ -5,9 +5,14 @@
 //! entry owes are stated once here; an instruction set answers with its rows,
 //! its bytes and the target it must refuse.
 
-use register_model::{RegisterInstructionConstraint, RegisterOperandAccess, RegisterViewId};
+use register_model::{
+    RegisterConstraintFamily, RegisterConstraintKey, RegisterInstructionConstraint,
+    RegisterOperandAccess, RegisterViewId, ValidatedRegisterConstraintCatalog,
+};
 use selected_instructions::{
-    MachineEncodedControlEffect, MachineEncodedEffects, MachineEncodedStackEffect,
+    MachineCallEffect, MachineEffectCatalog, MachineEncodedControlEffect, MachineEncodedEffects,
+    MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineSemanticKind,
+    validate_machine_effect_catalog,
 };
 
 /// What one validated supervisor-call encoding reports.
@@ -79,4 +84,68 @@ pub fn conformance<E>(
             assert!(encode(&forged_views, &accesses, 211).is_err());
         }
     }
+}
+
+/// Require every supervisor-call row to carry the kernel-entry effects, and
+/// target-neutral admission to refuse each corruption of them without relying
+/// on equality against the instruction set's own catalog. `other` is the
+/// catalog of a target that has no kernel-entry rows.
+pub fn effects_conformance(
+    constraints: &ValidatedRegisterConstraintCatalog,
+    catalog: &MachineEffectCatalog,
+    keys: &[RegisterConstraintKey],
+    stack_pointer: RegisterViewId,
+    other: &MachineEffectCatalog,
+) {
+    for &key in keys {
+        let row = catalog
+            .declarations
+            .iter()
+            .find(|row| row.constraint == key)
+            .unwrap();
+        assert_eq!(row.semantic, MachineSemanticKind::NormalizedForeignCall);
+        assert_eq!(row.call, MachineCallEffect::SupervisorNormalReturnV1);
+        let encoded = &row.alternatives[0].encoded;
+        assert_eq!(
+            encoded.control,
+            MachineEncodedControlEffect::SupervisorCallV1
+        );
+        assert_eq!(encoded.memory, MachineEncodedMemoryEffect::NoneV1);
+        assert_eq!(encoded.stack, MachineEncodedStackEffect::UnchangedV1);
+        for corruption in 0..4 {
+            let mut forged = catalog.clone();
+            let row = forged
+                .declarations
+                .iter_mut()
+                .find(|row| row.constraint == key)
+                .unwrap();
+            match corruption {
+                0 => {
+                    row.call = MachineCallEffect::ExternalNormalReturnV1 {
+                        pre_call_stack_alignment: 16,
+                    }
+                }
+                1 => {
+                    row.alternatives[0].encoded.control =
+                        MachineEncodedControlEffect::DirectRelativeCallV1
+                }
+                2 => {
+                    row.alternatives[0].encoded.stack =
+                        MachineEncodedStackEffect::CallReturnAddressLifecycleV1 {
+                            stack_pointer,
+                            return_address_byte_count: 8,
+                        }
+                }
+                _ => row.alternatives[0].encoded.implicit_unit_clobbers.clear(),
+            }
+            assert!(validate_machine_effect_catalog(constraints, forged).is_err());
+        }
+    }
+    assert!(
+        other
+            .selected_keys
+            .call_normalized_foreign
+            .iter()
+            .all(|key| key.family != RegisterConstraintFamily::SystemCall)
+    );
 }

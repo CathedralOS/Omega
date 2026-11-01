@@ -7,6 +7,7 @@
 //! Host facets and product selections are not settings and are never copied.
 
 use build_time_evaluation::BuildTimeValue;
+use optimization_core::OptimizationReportRequest;
 use package_compilation::build_execution::build_value::{
     BuildValueAdmission, EvaluatedBuildSettings,
 };
@@ -23,13 +24,7 @@ pub fn extract(
     instance: &TerminalInstance<'_, '_>,
     admission: BuildValueAdmission,
     initial: &BuildTimeValue,
-) -> Result<
-    (
-        EvaluatedBuildSettings,
-        optimization_core::OptimizationReportRequest,
-    ),
-    String,
-> {
+) -> Result<(EvaluatedBuildSettings, OptimizationReportRequest), String> {
     let BuildTimeValue::Struct {
         type_name,
         fields: initial_fields,

@@ -1,4 +1,8 @@
 //! Canonical scalar membership catalogs. Graph custody is checked by the verifier.
+use super::module_wire::declaration_wire::{
+    decode_establishment_routes, decode_required_memberships, encode_establishment_routes,
+    encode_required_memberships,
+};
 use super::wire::{require_increasing, strictly_increasing};
 use super::{
     CodecError, decode_counted,
@@ -23,10 +27,7 @@ pub(crate) fn encode(
     for domain in &catalog.domains {
         writer.id(domain.id);
         writer.id(domain.semantic_domain);
-        super::module_wire::declaration_wire::encode_required_memberships(
-            writer,
-            &domain.required_memberships,
-        )?;
+        encode_required_memberships(writer, &domain.required_memberships)?;
         writer.u32(domain.identity.0);
         encode_scalar_type(writer, domain.carrier);
         writer.boolean(domain.predicate.is_some());
@@ -34,10 +35,7 @@ pub(crate) fn encode(
             writer.id(predicate.subject);
             super::encode_proposition(writer, &predicate.proposition, 0)?;
         }
-        super::module_wire::declaration_wire::encode_establishment_routes(
-            writer,
-            &domain.establishment_routes,
-        )?;
+        encode_establishment_routes(writer, &domain.establishment_routes)?;
     }
     writer.len("scalar return qualifications", catalog.returns.len())?;
     for returned in &catalog.returns {
@@ -118,8 +116,7 @@ pub(crate) fn decode(reader: &mut Reader<'_>) -> Result<ScalarQualificationCatal
             Ok(ScalarDomainDeclaration {
                 id: reader.id("ScalarDomainId")?,
                 semantic_domain: reader.id("DomainSemanticId")?,
-                required_memberships:
-                    super::module_wire::declaration_wire::decode_required_memberships(reader)?,
+                required_memberships: decode_required_memberships(reader)?,
                 identity: TerminalIdentityIndex(reader.u32()?),
                 carrier: decode_scalar_type(reader)?,
                 predicate: if reader.boolean()? {
@@ -130,8 +127,7 @@ pub(crate) fn decode(reader: &mut Reader<'_>) -> Result<ScalarQualificationCatal
                 } else {
                     None
                 },
-                establishment_routes:
-                    super::module_wire::declaration_wire::decode_establishment_routes(reader)?,
+                establishment_routes: decode_establishment_routes(reader)?,
             })
         })?,
         returns: decode_counted(reader, |reader| {

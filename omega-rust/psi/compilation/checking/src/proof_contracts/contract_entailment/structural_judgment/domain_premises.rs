@@ -909,6 +909,45 @@ impl StructuralJudge<'_> {
         }
     }
 
+    /// A value-preserving conversion carries the completed operand's bounds,
+    /// even when later comparisons select the wider carrier. Only its source
+    /// observation is admitted here; a destination or pending result contributes
+    /// no fact. Keep these bounds out of general body resolution.
+    pub(super) fn intake_completed_scalar_bounds(
+        &mut self,
+        reference: TypeReferenceHandle,
+        value: &StructuralTerm,
+    ) {
+        let program = self.program;
+        let Some(meaning) =
+            crate::value_custody::expression_types::scalar_observation_meaning(program, reference)
+        else {
+            return;
+        };
+        if !meaning.0.is_fixed_integer()
+            || !super::super::structural_terms::scalar_operand_is_observed(
+                program, reference, value,
+            )
+        {
+            return;
+        }
+        let Some((minimum, maximum)) = meaning.0.integer_bounds() else {
+            return;
+        };
+        for (operator, bound) in [
+            (BinaryOperator::GreaterOrEqual, minimum),
+            (BinaryOperator::LessOrEqual, maximum),
+        ] {
+            self.intake_observed_integer_bound(
+                reference,
+                meaning,
+                value,
+                operator,
+                numerics::bignum::BigInt::from_i128(bound),
+            );
+        }
+    }
+
     /// The caller already authenticated this exact observed integer and
     /// its resident interval. Only fold the completed comparison;
     /// resolving its value would replay an unrelated descriptive call body.

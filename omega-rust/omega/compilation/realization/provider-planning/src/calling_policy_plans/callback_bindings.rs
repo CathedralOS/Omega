@@ -16,7 +16,6 @@ use calling_conventions::{
     ValidatedBoundaryEntryPlan, callback_requirement_id,
     validate_boundary_entry_plan_with_callback_materializations,
 };
-use checked_trees::typed_trees::TypedTrees;
 use checked_trees::typed_trees::types::TypeReferenceHandle;
 use diagnostics::Diagnostic;
 use representation_planning::OpaqueRepresentationSelection;
@@ -213,31 +212,20 @@ pub(crate) fn validate_retained_callback_binders(
 }
 
 fn exact_callback_requirement_catalog(
-    typed: &TypedTrees,
     binders: &[BoundaryCallbackBinder],
 ) -> Result<Vec<(CallbackRequirementId, String)>, String> {
     let mut catalog = Vec::with_capacity(binders.len());
     for binder in binders {
-        let trait_definition = typed
-            .trait_definition_by_symbol(binder.requirement_trait)
-            .ok_or_else(|| {
-                "evaluated callback binder lost its exact requirement trait".to_owned()
-            })?;
-        let requirement = typed
-            .trait_machine_signature_by_symbol(trait_definition, binder.requirement_machine)
-            .ok_or_else(|| {
-                "evaluated callback binder lost its exact requirement machine".to_owned()
-            })?;
-        let exact = typed.trait_requirement_callable_identity_text(trait_definition, requirement);
-        let report = callback_requirement_id(&exact);
+        let exact = &binder.requirement_identity;
+        let report = callback_requirement_id(exact);
         if report != binder.requirement {
             return Err(
                 "evaluated callback binder requirement report drifted from its exact requirement"
                     .to_owned(),
             );
         }
-        validate_callback_requirement_report_collision(&catalog, report, &exact)?;
-        catalog.push((report, exact));
+        validate_callback_requirement_report_collision(&catalog, report, exact)?;
+        catalog.push((report, exact.clone()));
     }
     Ok(catalog)
 }
@@ -311,12 +299,12 @@ pub fn close_outbound_callback_materializations(
             .into_iter()
             .map(|demand| (demand, None))
             .collect::<Vec<_>>();
-        let binder_requirement_catalog =
-            exact_callback_requirement_catalog(typed, &realization.callback_binders).map_err(
-                |reason| {
-                    vec![Diagnostic::error(reason).with_source_span(realization.relationship_span)]
-                },
-            )?;
+        let binder_requirement_catalog = exact_callback_requirement_catalog(
+            &realization.callback_binders,
+        )
+        .map_err(|reason| {
+            vec![Diagnostic::error(reason).with_source_span(realization.relationship_span)]
+        })?;
         let mut demand_requirement_catalog = Vec::new();
         for parameter in &signature.native_parameters {
             for layout in layout_plan
@@ -449,16 +437,6 @@ fn close_direct_callback_parameters(
             BoundaryNativeParameterOrigin::SemanticFormal { .. }
         )
     });
-    let byte_size = u16::try_from(target.pointer_size)
-        .map_err(|_| "target function-pointer size exceeds boundary shape range".to_owned())?;
-    let alignment = u16::try_from(target.pointer_alignment)
-        .map_err(|_| "target function-pointer alignment exceeds boundary shape range".to_owned())?;
-    if byte_size == 0 || alignment == 0 || !alignment.is_power_of_two() {
-        return Err(format!(
-            "target function-pointer geometry {}/{} is invalid for a direct callback parameter",
-            target.pointer_size, target.pointer_alignment,
-        ));
-    }
 
     let mut demands = Vec::with_capacity(signature.direct_callback_parameters.len());
     for direct in &signature.direct_callback_parameters {
@@ -470,10 +448,7 @@ fn close_direct_callback_parameters(
         signature.native_parameters.push(BoundaryNativeParameter {
             identity: direct.identity,
             native_ordinal: direct.native_ordinal,
-            shape: BoundaryNativeParameterShape::TargetFunctionPointer {
-                byte_size,
-                alignment,
-            },
+            shape: BoundaryNativeParameterShape::function_pointer(target)?,
             origin: BoundaryNativeParameterOrigin::PrivateCallback {
                 binder: direct.binder,
                 requirement: direct.requirement,
@@ -493,18 +468,6 @@ fn close_direct_callback_parameters(
             return Err(format!(
                 "native parameter telescope has position {} where contiguous position {expected} is required",
                 parameter.native_ordinal,
-            ));
-        }
-        if matches!(
-            parameter.shape,
-            BoundaryNativeParameterShape::TargetFunctionPointer { .. }
-        ) && (byte_size != 8 || alignment != 8)
-        {
-            // The current source-level closed vocabulary has only admitted
-            // 64-bit native targets. Keep unsupported future pointer geometry
-            // fail-closed until its scalar ABI carrier is present.
-            return Err(format!(
-                "direct callback parameters currently require an admitted 8/8 target function-pointer shape, got {byte_size}/{alignment}"
             ));
         }
     }
