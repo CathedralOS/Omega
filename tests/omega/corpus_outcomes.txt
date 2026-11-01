@@ -5897,16 +5897,16 @@ pass/facts/float_result_equality_through_other_machine_exit checked 6990ms check
 pass/facts/float_result_equality_through_other_state_exit checked 6733ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/float_result_equality_through_parameter_exit checked 6919ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/float_result_equality_through_target_body_exit checked 6453ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/foreign_borrowed_array_view_call_result checked 4835ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/foreign_borrowed_array_view_const_name checked 4026ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/foreign_borrowed_array_view_field checked 4815ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/foreign_borrowed_array_view_generic_borrowed_root checked 3229ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/foreign_borrowed_array_view_local checked 3922ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/foreign_borrowed_array_view_match_join checked 4817ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/foreign_borrowed_array_view_other_machine checked 6091ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/foreign_borrowed_array_view_other_state checked 5171ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/foreign_borrowed_array_view_parameter checked 5679ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/foreign_borrowed_array_view_target_body checked 4052ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/foreign_borrowed_array_view_call_result checked 3900ms check-target:macos_arm64 @e9132bd81521+wt
+pass/facts/foreign_borrowed_array_view_const_name checked 3025ms check-target:macos_arm64 @e9132bd81521+wt
+pass/facts/foreign_borrowed_array_view_field checked 3158ms check-target:macos_arm64 @e9132bd81521+wt
+pass/facts/foreign_borrowed_array_view_generic_borrowed_root checked 2620ms check-target:macos_arm64 @e9132bd81521+wt
+pass/facts/foreign_borrowed_array_view_local checked 3361ms check-target:macos_arm64 @e9132bd81521+wt
+pass/facts/foreign_borrowed_array_view_match_join checked 3131ms check-target:macos_arm64 @e9132bd81521+wt
+pass/facts/foreign_borrowed_array_view_other_machine checked 3713ms check-target:macos_arm64 @e9132bd81521+wt
+pass/facts/foreign_borrowed_array_view_other_state checked 3673ms check-target:macos_arm64 @e9132bd81521+wt
+pass/facts/foreign_borrowed_array_view_parameter checked 4007ms check-target:macos_arm64 @e9132bd81521+wt
+pass/facts/foreign_borrowed_array_view_target_body checked 3155ms check-target:macos_arm64 @e9132bd81521+wt
 pass/facts/foreign_indirect_float_record_result_through_call_result_exit checked 4814ms check-target:macos_arm64 @fc2e109d93cc
 pass/facts/foreign_indirect_float_record_result_through_const_name_exit checked 4861ms check-target:macos_arm64 @fc2e109d93cc
 pass/facts/foreign_indirect_float_record_result_through_field_exit checked 5076ms check-target:macos_arm64 @fc2e109d93cc
@@ -22421,28 +22421,28 @@ fail/facts/float_result_equality_through_parameter_rejected rejected 4428ms expe
 	cannot prove ensures contract for exit from read_kept at statement 0: result == item.kept && result == 7.0
 fail/facts/float_result_equality_through_target_body_rejected rejected 5570ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from read_kept at statement 0: result == item.kept && result == 7.0
-fail/facts/foreign_borrowed_array_view_call_result rejected 3189ms expected @ccdb99ca2214
+fail/facts/foreign_borrowed_array_view_call_result rejected 1854ms expected @e9132bd81521+wt
 	statement 6 reads `buffer.cells[1].value` while local borrow `routed` is still active (borrowed at statement 5; its last use is at statement 8)
-fail/facts/foreign_borrowed_array_view_const_name rejected 2669ms expected @ccdb99ca2214
+fail/facts/foreign_borrowed_array_view_const_name rejected 1379ms expected @e9132bd81521+wt
 	statement 5 reads `buffer.cells[1].value` while local borrow `pending` is still active (borrowed at statement 4; its last use is at statement 7)
-fail/facts/foreign_borrowed_array_view_field rejected 2481ms expected @ccdb99ca2214
+fail/facts/foreign_borrowed_array_view_field rejected 1203ms expected @e9132bd81521+wt
 	statement 7 reads `buffer.cells[1].value` while local borrow `routed` is still active (borrowed at statement 6; its last use is at statement 9)
-fail/facts/foreign_borrowed_array_view_local rejected 3224ms expected @ccdb99ca2214
+fail/facts/foreign_borrowed_array_view_local rejected 1299ms expected @e9132bd81521+wt
 	statement 5 reads `buffer.cells[1].value` while local borrow `pending` is still active (borrowed at statement 4; its last use is at statement 7)
-fail/facts/foreign_borrowed_array_view_match_join rejected 2402ms expected @ccdb99ca2214
+fail/facts/foreign_borrowed_array_view_match_join rejected 1205ms expected @e9132bd81521+wt
 	statement 7 reads `buffer.cells[1].value` while local borrow `routed` is still active (borrowed at statement 5; its last use is at statement 9)
 	statement 7 reads `buffer.cells[1].value` while local borrow `routed` is still active (borrowed at statement 5; its last use is at statement 9)
-fail/facts/foreign_borrowed_array_view_missing_leaf_predicate rejected 3309ms expected @ccdb99ca2214
+fail/facts/foreign_borrowed_array_view_missing_leaf_predicate rejected 1383ms expected @e9132bd81521+wt
 	cannot prove requires contract for call observed_gap from use_unqualified: cells[1].value in u64::ResidentValue in state `entry`
-fail/facts/foreign_borrowed_array_view_other_machine rejected 3454ms expected @ccdb99ca2214
+fail/facts/foreign_borrowed_array_view_other_machine rejected 1879ms expected @e9132bd81521+wt
 	statement 6 reads `buffer.cells[1].value` while local borrow `routed` is still active (borrowed at statement 5; its last use is at statement 8)
-fail/facts/foreign_borrowed_array_view_other_state rejected 3477ms expected @ccdb99ca2214
+fail/facts/foreign_borrowed_array_view_other_state rejected 1850ms expected @e9132bd81521+wt
 	statement 6 reads `buffer.cells[1].value` while local borrow `routed` is still active (borrowed at statement 5; its last use is at statement 8)
-fail/facts/foreign_borrowed_array_view_parameter rejected 2978ms expected @ccdb99ca2214
+fail/facts/foreign_borrowed_array_view_parameter rejected 1812ms expected @e9132bd81521+wt
 	statement 5 reads `buffer.cells[1].value` while local borrow `pending` is still active (borrowed at statement 4; its last use is at statement 7)
-fail/facts/foreign_borrowed_array_view_target_body rejected 2220ms expected @ccdb99ca2214
+fail/facts/foreign_borrowed_array_view_target_body rejected 1222ms expected @e9132bd81521+wt
 	statement 6 reads `buffer.cells[1].value` while local borrow `routed` is still active (borrowed at statement 5; its last use is at statement 8)
-fail/facts/foreign_borrowed_array_view_unissued rejected 2386ms expected @ccdb99ca2214
+fail/facts/foreign_borrowed_array_view_unissued rejected 1133ms expected @e9132bd81521+wt
 	cannot prove requires contract for call observe_cell from entry_start: bare in Cell::Issued in state `entry`
 fail/facts/foreign_indirect_float_record_result_through_call_result_rejected rejected 2563ms expected @fc2e109d93cc
 	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
