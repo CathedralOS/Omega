@@ -102,6 +102,22 @@ def select_samples(request):
     return selected
 
 
+def authored_trap_matches(row, target):
+    """The corpus owns target trap presentation and typed Terminal outcomes."""
+    corpus = ROOT / "tests/omega"
+    oracle = corpus_gate.native_exit_oracle(corpus / row["fixture"], target)
+    try:
+        if oracle.read_text(encoding="utf-8").strip() != "trap":
+            return False
+    except (OSError, UnicodeError):
+        return False
+    facts = row.get("facts", {})
+    return (row["status"] == "built" and facts.get("interpreter") == "trapped"
+            and "interpreter-exit" not in facts and "interpreter-signal" not in facts
+            and not corpus_gate.native_exit_failures([row], corpus, target)
+            and not corpus_gate.interpreter_exit_failures([row], corpus, target))
+
+
 def validate_report(report, expected, *, both, revision, target):
     if (report.get("schema") != "omega-corpus-verdict-v1"
             or report.get("revision") != revision or report.get("dirty") is not False
@@ -119,10 +135,12 @@ def validate_report(report, expected, *, both, revision, target):
                 raise ValueError(f"{row['fixture']}: missing intended rejection")
         elif both:
             facts = row.get("facts", {})
-            if (row["status"] != "built" or facts.get("interpreter") != "agrees"
-                    or not isinstance(facts.get("exit"), str)
-                    or not re.fullmatch(r"-?\d+", facts.get("exit", ""))
-                    or facts["exit"] != facts.get("interpreter-exit")):
+            exits_agree = (facts.get("interpreter") == "agrees"
+                           and isinstance(facts.get("exit"), str)
+                           and re.fullmatch(r"-?\d+", facts["exit"])
+                           and facts["exit"] == facts.get("interpreter-exit"))
+            if (row["status"] != "built"
+                    or not (exits_agree or authored_trap_matches(row, target))):
                 raise ValueError(f"{row['fixture']}: missing native/Terminal agreement")
             for stream in ("stdout", "stderr"):
                 oracle = ROOT / "tests" / "omega" / row["fixture"] / f"expected_{stream}.txt"

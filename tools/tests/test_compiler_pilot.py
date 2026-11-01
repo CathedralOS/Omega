@@ -419,6 +419,44 @@ class CompilerPilotTests(unittest.TestCase):
             with self.subTest(key=key), self.assertRaises(ValueError):
                 self.validate(report, True)
 
+    def test_authored_traps_require_matching_native_fault_and_typed_terminal_trap(self):
+        fixture = "pass/proofs/runtime_round_trip_trap"
+        targets = {
+            "linux_x86_64": {"exit": "signal", "signal": "4"},
+            "linux_arm64": {"exit": "signal", "signal": "5"},
+            "macos_arm64": {"exit": "signal", "signal": "5"},
+            "windows_x86_64": {"exit": "-1073741795"},
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.fixture_root(root, fixture)
+            oracle = root / "tests/omega" / fixture / "expected_native_exit.txt"
+            oracle.write_text("trap\n")
+            for target, native in targets.items():
+                report = self.report(True)
+                report["target"] = target
+                report["observations"] = [dict(fixture=fixture, status="built", facts={
+                    **native, "interpreter": "trapped"})]
+                with patch.object(pilot, "ROOT", root):
+                    def validate(value):
+                        pilot.validate_report(value, (fixture,), both=True,
+                                              revision="a" * 40, target=target)
+                    with self.subTest(target=target):
+                        validate(report)
+                        for facts in ({"exit": "0", "interpreter": "trapped"},
+                                      {"exit": "signal", "signal": "11", "interpreter": "trapped"},
+                                      {**native, "interpreter": "declined"},
+                                      {**native, "interpreter": "trapped", "interpreter-exit": "0"},
+                                      {**native, "interpreter": "trapped", "interpreter-signal": "5"}):
+                            missing = deepcopy(report)
+                            missing["observations"][0]["facts"] = facts
+                            with self.subTest(facts=facts), self.assertRaises(ValueError):
+                                validate(missing)
+                        oracle.write_text("0\n")
+                        with self.assertRaises(ValueError):
+                            validate(report)
+                        oracle.write_text("trap\n")
+
     def test_cleanup_report_requires_both_authored_output_observations(self):
         fixture = "pass/drops/runtime_projected_nominal_cleanup_exit"
         report = self.report(True)
