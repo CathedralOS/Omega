@@ -89,6 +89,12 @@ companions, write-only access or a borrowed result; those require their own
 carriers and remain refused. A bare borrowed entry annotation also supplies no
 host backing. See [component arguments](src/calls/component_arguments.rs).
 
+Opaque lending supplies no guest field cells. Local scalar/atomic stores and
+subtree replacement refuse before making detached payloads under those exact
+borrowed homes; actual host effects still use the original object. Owned
+materialized inputs use complete checked contents in the child's declaration
+space. Borrowed materialized storage still needs its own transfer carrier.
+
 `poll_host_computation` yields `HostComputationPending` when a synchronous host
 operation needs executor work before returning. The full invocation, prepared
 arguments and borrowed storage remain live; polling neither replays effects nor

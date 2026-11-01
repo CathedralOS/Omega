@@ -42,6 +42,7 @@ mod exact_abi_tests {
                 },
             )
             .unwrap(),
+            dispatch_only_parameter_count: 0,
             signature: BoundarySignatureGeometry {
                 shapes: vec![],
                 fields: vec![],
@@ -124,6 +125,86 @@ mod exact_abi_tests {
                 application.commitment
             );
         }
+    }
+
+    #[test]
+    fn native_recovery_preserves_dispatch_projection_and_remaining_argument() {
+        use calling_conventions::{
+            BoundaryNativeParameterGeometry, BoundaryNativeParameterOrigin,
+            BoundaryNativeParameterShape, BoundaryValueClass, BoundaryValueShape,
+            NativeParameterId, ValueShape,
+        };
+        let mut application = application("u32");
+        application.signature.shapes = vec![
+            BoundaryValueShape {
+                class: BoundaryValueClass::Reference,
+                byte_size: 8,
+                alignment: 8,
+            },
+            BoundaryValueShape {
+                class: BoundaryValueClass::Integer,
+                byte_size: 8,
+                alignment: 8,
+            },
+        ];
+        application.signature.parameters = vec![0, 1];
+        application.signature.native_parameter_rows = application
+            .signature
+            .native_parameters
+            .insert_many((0..2).map(|ordinal| BoundaryNativeParameterGeometry {
+                identity: NativeParameterId::new(u64::from(ordinal) + 1).unwrap(),
+                native_ordinal: ordinal,
+                shape: BoundaryNativeParameterShape::Semantic(ordinal as u16),
+                origin: BoundaryNativeParameterOrigin::SemanticFormal {
+                    formal_ordinal: ordinal,
+                },
+            }));
+        application.dispatch_only_parameter_count = 1;
+        application.plan = calling_conventions::evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::MicrosoftX64,
+            &CallSignature {
+                parameters: vec![ValueShape::integer(8, 8)],
+                result: None,
+            },
+        )
+        .unwrap();
+        application.commitment = application.recomputed_commitment().unwrap();
+        let round_trip = |application: &BoundaryCallingApplication| {
+            let mut output = RecordWriter::new(Default::default());
+            application.write(&mut output).unwrap();
+            let bytes = output.finish();
+            let mut input = RecordReader::new(&bytes, Default::default()).unwrap();
+            let recovered = BoundaryCallingApplication::read(&mut input);
+            if recovered.is_ok() {
+                input.finish().unwrap();
+            }
+            recovered
+        };
+        let recovered = round_trip(&application).unwrap();
+        assert_eq!(recovered, application);
+        let projection = recovered.call_projection().unwrap();
+        assert_eq!(projection.parameter_ordinal(0).unwrap(), None);
+        assert_eq!(projection.parameter_ordinal(1).unwrap(), Some(0));
+        assert_eq!(recovered.plan.plan().call.parameters.len(), 1);
+
+        let mut changed = application.clone();
+        changed.dispatch_only_parameter_count = 0;
+        // Keep an otherwise valid two-parameter plan. Only the old commitment
+        // can distinguish the substituted public-to-wire relationship.
+        changed.plan = calling_conventions::evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::MicrosoftX64,
+            &CallSignature {
+                parameters: vec![ValueShape::integer(8, 8); 2],
+                result: None,
+            },
+        )
+        .unwrap();
+        assert_ne!(
+            changed.recomputed_commitment().unwrap(),
+            application.commitment
+        );
+        let error = round_trip(&changed).unwrap_err();
+        assert!(error.reason.contains("commitment"), "{error}");
     }
 
     #[test]
@@ -252,6 +333,7 @@ impl RecordValue for calling_conventions::BoundaryCallingApplication {
             report_fingerprint,
             commitment,
             plan,
+            dispatch_only_parameter_count,
             signature,
             opaque_applications,
             callback_context,
@@ -263,6 +345,7 @@ impl RecordValue for calling_conventions::BoundaryCallingApplication {
         report_fingerprint.write(output)?;
         commitment.write(output)?;
         plan.plan().write(output)?;
+        dispatch_only_parameter_count.write(output)?;
         signature.write(output)?;
         opaque_applications.write(output)?;
         callback_context.write(output)?;
@@ -277,6 +360,7 @@ impl RecordValue for calling_conventions::BoundaryCallingApplication {
                 report_fingerprint: RecordValue::read(input)?,
                 commitment: RecordValue::read(input)?,
                 plan: RecordValue::read(input)?,
+                dispatch_only_parameter_count: RecordValue::read(input)?,
                 signature: RecordValue::read(input)?,
                 opaque_applications: RecordValue::read(input)?,
                 callback_context: RecordValue::read(input)?,

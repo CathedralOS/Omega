@@ -18,6 +18,12 @@ use terminal_interpreter::{
 };
 use terminal_psi::{BoundaryMachineResult, TargetMachineCallable};
 
+pub(super) enum InputExpectation {
+    Observations(usize),
+    StorageRefusal,
+    WriteRefusal,
+}
+
 struct Observer {
     signature: TerminalImportSignature,
     seen: Arc<Mutex<Vec<(u64, u64)>>>,
@@ -219,7 +225,7 @@ fn make_component<'artifact>(
 pub(super) fn inspect(
     artifact: &CanonicalTerminalArtifact,
     requirement: &str,
-    expected_observations: Option<usize>,
+    expectation: InputExpectation,
     nested: &[&str],
 ) -> Result<(), String> {
     let view = artifact.view();
@@ -298,22 +304,32 @@ pub(super) fn inspect(
         .map_err(|error| format!("component binding: {error:?}"))?;
     let mut meter = TerminalFuelMeter::unbounded();
     let first = instance.invoke(&mut meter);
-    let Some(expected_observations) = expected_observations else {
-        let error = first
-            .err()
-            .ok_or("guest storage impersonated an opaque host input")?;
-        if !error
-            .to_string()
-            .contains("actual unchanged opaque host storage")
-            || !seen.lock().unwrap().is_empty()
-            || *changes.lock().unwrap() != 0
-            || instance.active_component_invocation_count() != 0
-        {
-            return Err(format!(
-                "guest storage must refuse before child effects: {error:?}"
-            ));
+    let expected_observations = match expectation {
+        InputExpectation::Observations(count) => count,
+        InputExpectation::StorageRefusal | InputExpectation::WriteRefusal => {
+            let write = matches!(expectation, InputExpectation::WriteRefusal);
+            let error = first
+                .err()
+                .ok_or("guest storage impersonated an opaque host input")?;
+            let required_reason = if write {
+                "opaque component loan lacks original guest storage for mutation"
+            } else {
+                "actual unchanged opaque host storage"
+            };
+            if !error.to_string().contains(required_reason)
+                || !seen.lock().unwrap().is_empty()
+                || *changes.lock().unwrap() != 0
+                || instance.active_component_invocation_count() != usize::from(write)
+            {
+                return Err(format!(
+                    "guest storage must refuse before child effects: {error:?}"
+                ));
+            }
+            if instance.invoke(&mut meter) != Err(error) {
+                return Err("refused component invocation changed or resumed its lender".into());
+            }
+            return Ok(());
         }
-        return Ok(());
     };
     let paused = first.map_err(|error| format!("component initial invocation: {error:?}"))?;
     if !matches!(paused, TerminalExecutionStatus::HostComputationPending(_))

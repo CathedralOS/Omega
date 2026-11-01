@@ -249,6 +249,7 @@ pub(super) fn source_free_application(
         requirement_identity: signature.owner_requirement_identity().to_owned(),
         target: policy.target, report_fingerprint: 0, commitment: [0;32],
         plan: validated.clone(),
+        dispatch_only_parameter_count: 0,
         signature: policy.geometry,
         opaque_applications: signature.opaque_representation_uses().iter().map(|use_| {
             calling_conventions::BoundaryOpaqueApplication {

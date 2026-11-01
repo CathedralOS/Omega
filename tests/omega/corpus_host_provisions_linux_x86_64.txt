@@ -8,7 +8,6 @@
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
 # context: {"cpus": 5, "jobs": "2", "load1_end": 1.44, "load1_start": 1.15, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
-pass/build/component_borrowed_continuation checked 101762ms check-target:macos_arm64 terminal-runtime.mutable_lender_entry:match terminal-runtime.reborrow_lender_entry:match terminal-runtime.shared_lender_entry:match terminal-runtime.owned_entry:match terminal-runtime.guest_lender_entry:match terminal-runtime.nested_lender_entry:match terminal-runtime.borrowed_entry:match terminal-inspections:match @fe24dd822497
 pass/core/materialized_owned_entry_return checked 8546ms terminal-runtime.update:match terminal-runtime.pack:match terminal-inspections:match @a92f16431042
 pass/facts/opaque_closed_carrier_exchange_exit checked 10394ms check-target:macos_arm64 terminal-runtime.observe:match terminal-inspections:match @a92f16431042
 pass/facts/opaque_nested_carrier_exchange_exit checked 20782ms check-target:macos_arm64 terminal-runtime.observe:match terminal-runtime.observe_replacement:match terminal-runtime.relay:match terminal-inspections:match @a92f16431042

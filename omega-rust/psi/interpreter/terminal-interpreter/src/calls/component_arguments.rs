@@ -1,9 +1,11 @@
 //! Prepare exact opaque inputs for a real independent child.
 //!
 //! Ordinary argument presentation and affine partitioning stay authoritative.
-//! An owned atom transfers; a borrowed atom retains its real paused lender.
-//! Materialized backing, reference descriptors, routed claims and projected
-//! memberships need their own carriers. Whole memberships use the sealed
+//! Owned initialized data uses the ordinary complete-content child initializer;
+//! unchanged host atoms retain their tokens. A borrowed atom retains its real
+//! paused lender. Borrowed materialized backing, reference descriptors, routed
+//! claims and projected memberships need their own carriers. Whole memberships
+//! use the sealed
 //! domain-theory relation, never a provider annotation or a copied dense ID.
 //! Preparing these values executes nothing and changes no
 //! parent custody. The caller commits the staged frontier only after a real
@@ -36,6 +38,7 @@ pub(super) struct PreparedComponentArguments {
 pub(crate) struct ComponentInputCustody {
     pub(crate) source: Option<crate::effects::byte_buffers::BoundaryArguments>,
     pub(crate) values: Vec<TerminalStructuralValue>,
+    pub(crate) contents: Vec<crate::TerminalStructuralContents>,
 }
 
 impl ComponentInputCustody {
@@ -61,6 +64,7 @@ impl ComponentInputCustody {
                 terminal_psi::reading_borrow_pair_pattern!()
             ) {
                 let home = StructuralRuntimePlace::from(child.structural_value(parameter.place)?);
+                child.component_lent_host_atoms.insert(home.clone(), ())?;
                 child.structural_host_atoms.insert(
                     home,
                     crate::structural_storage::HostStructuralPayload::Opaque(value.opaque_identity),
@@ -138,6 +142,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             // existing move into the child instead of retaining a second copy.
             std::mem::take(&mut prepared.values)
         };
+        let mut contents = Vec::new();
         let mut remaining_affine = self.live_affine_frontier.clone();
         let receiver_types = self.structural_types();
         let provider_types = provider.program.structural_types();
@@ -263,31 +268,59 @@ impl<'artifact> TerminalExecution<'artifact> {
             // Ancestor cases were authenticated by ordinary projection and
             // remain with the residual parent. Only metadata belonging to this
             // exact subtree would need to accompany the moved value.
-            if self.structural_cases.keys().any(within_value)
-                || self.reference_referents.keys().any(within_value)
+            if lent
+                && (self.structural_cases.keys().any(within_value)
+                    || self.structural_byte_storage.keys().any(within_value)
+                    || self.empty_array_storage.rows.keys().any(within_value)
+                    || self.structural_primitive_storage.keys().any(within_value)
+                    || self
+                        .structural_scalar_fields
+                        .keys()
+                        .any(|field| within_value(&field.parent)))
+            {
+                return Err(reject(
+                    "component borrowed input needs its original materialized storage carrier",
+                ));
+            }
+            if self.reference_referents.keys().any(within_value)
                 || self.structural_element_view_fields.keys().any(within_value)
-                || self.structural_byte_storage.keys().any(within_value)
-                || self.empty_array_storage.rows.keys().any(within_value)
-                || self.structural_primitive_storage.keys().any(within_value)
+                || self.original_storage_roots.keys().any(within_value)
+                || self.provider_storage.descriptors.keys().any(within_value)
                 || self
-                    .structural_scalar_fields
+                    .provider_storage
+                    .completed_profiles
                     .keys()
-                    .any(|field| within_value(&field.parent))
+                    .any(within_value)
+                || self
+                    .activation_storage
+                    .claim_descriptors
+                    .keys()
+                    .any(within_value)
+                || self.structural_byte_descriptors.keys().any(within_value)
                 || self
                     .structural_byte_sequence_fields
                     .keys()
                     .any(|field| within_value(&field.parent))
             {
                 return Err(reject(
-                    "component opaque input retains unsupported subtree storage or case metadata",
+                    "component input requires a loan or resource storage transfer carrier",
                 ));
             }
             // The existing storage map authenticates the actual atom. A plain
             // opaque_identity, equal layout or synthesized input cannot answer it.
             if !self.forward_host_atom(value) {
-                return Err(reject(
-                    "component input requires actual unchanged opaque host storage",
-                ));
+                if !owned {
+                    return Err(reject(
+                        "component input requires actual unchanged opaque host storage",
+                    ));
+                }
+                contents.push(self.capture_component_contents(
+                    argument,
+                    value,
+                    argument_index,
+                    provider,
+                    supplied.structural_type,
+                )?);
             }
             // The caller binder authenticated these exact occurrence facts
             // before custody staging. Installation joined their full nominal
@@ -326,6 +359,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             custody: ComponentInputCustody {
                 source: lending.then_some(prepared),
                 values,
+                contents,
             },
             remaining_affine,
             remaining_claims,

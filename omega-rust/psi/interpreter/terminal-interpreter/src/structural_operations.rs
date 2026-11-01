@@ -299,6 +299,7 @@ impl TerminalExecution<'_> {
         retirement: crate::scalar_array::empty_storage::EmptyArrayRetirement,
     ) -> Result<(), TerminalInterpretError> {
         let from = retirement.root();
+        self.require_guest_storage_mutation(from)?;
         crate::structural_storage::prune_rows(&mut self.original_storage_roots, from);
         crate::structural_storage::prune_rows(&mut self.provider_storage.descriptors, from);
         crate::structural_storage::prune_rows(&mut self.activation_storage.claim_descriptors, from);
@@ -790,6 +791,7 @@ impl TerminalExecution<'_> {
             self.store_primitive_storage(destination, storage, scalar_type, source)?;
             return Ok(OperationFlow::Advance);
         }
+        self.require_guest_storage_mutation(&cell.parent)?;
         self.invalidate_stored_provenance(&cell.parent);
         self.structural_scalar_fields.insert(cell, source)?;
         Ok(OperationFlow::Advance)

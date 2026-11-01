@@ -7,7 +7,10 @@
 //! prevent an independently surviving path from proving its call premises,
 //! and excluding it supplies no crash permission or denotational admission.
 
+mod arrivals;
 pub(super) mod call_entries;
+use arrivals::StructuralArrival;
+pub(in crate::proof_contracts::contract_entailment) use arrivals::StructuralArrivalLog;
 
 use super::call_requirements::establish_citation;
 use super::structural_prefix::StructuralPrefixVisitor;
@@ -233,55 +236,6 @@ fn stage_citation_argument_terms(
 
 type PendingStructuralCitation = (CitationTarget, Vec<StructuralTerm>);
 
-/// Semantic-value fingerprint of one bound environment: parameter name plus
-/// each term's observation-erased Debug form. Capture and storage sequence
-/// counters are renamings the semantic value already erases, so equal
-/// bindings under a cycle hash alike.
-fn environment_fingerprint(environment: &[(String, StructuralTerm)]) -> u64 {
-    use std::hash::{Hash, Hasher};
-    let mut hash = std::collections::hash_map::DefaultHasher::new();
-    for (name, term) in environment {
-        name.hash(&mut hash);
-        format!("{:?}", term.semantic_value()).hash(&mut hash);
-    }
-    hash.finish()
-}
-
-/// One provable arrival along a walk: the entered state, which arm of it the
-/// caller owes (fresh entry versus a mid-state resume at `start_index`),
-/// whether citations are still being collected, and the semantic-value
-/// fingerprint of the environment it is entered under.
-///
-/// Accumulated judge context (carried guarantees, staged citations, storage
-/// captures) is deliberately NOT in the key: a cyclic machine pumps it
-/// forward at every level, so keying on it can never observe a repeat. The
-/// `(state, entry kind, environment)` obligation is the dedup unit -- a
-/// second visit of the same provable arrival produced by a *different*
-/// frame adds no new provable arrival, because the subtree is deterministic
-/// in the obligation the first visit is already discharging. Arrivals
-/// produced by the *same* frame are fanout siblings: they legitimately
-/// share this key yet carry different completion judges, so the arrival
-/// log records the producing frame and never merges them.
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-pub(in crate::proof_contracts::contract_entailment) struct StructuralArrivalKey {
-    state: SymbolHandle,
-    start_index: usize,
-    collect_citations: bool,
-    context: u64,
-}
-
-/// Arrival set of one walk instance, shared across its whole recursion
-/// tree and never pruned: a cyclic machine's pump regenerates the same
-/// provable arrival at exponentially many frontier positions, so keying
-/// only the live ancestry never observes a repeat. Each key records the
-/// frame id that produced the first visit -- a repeat arriving through a
-/// *different* parent frame is a re-discharge of the same obligation and
-/// skips, while repeats under the *same* parent are distinct fanout
-/// alternatives (multi-frame transitions, multi-outcome completions) that
-/// legitimately share this key yet carry different judges: they explore.
-pub(in crate::proof_contracts::contract_entailment) type StructuralArrivalLog =
-    std::collections::HashMap<StructuralArrivalKey, usize>;
-
 pub(crate) fn recognize_structural_case_arms<'a>(
     program: &'a dyn crate::CheckingInput,
     machine: &Machine,
@@ -368,6 +322,30 @@ pub(super) fn recognize_structural_state_prefix<'a>(
     diagnostics: &mut Vec<Diagnostic>,
     mut requirement: &mut dyn StructuralPrefixVisitor,
 ) -> Option<Vec<StructuralCaseArm<'a>>> {
+    recognize_structural_state_prefix_batched(
+        program,
+        machine,
+        state,
+        judge,
+        classification,
+        diagnostics,
+        std::slice::from_mut(&mut requirement),
+    )
+}
+
+/// One state-prefix walk for several visitors. The walk prunes by each
+/// visitor's site and completion, and its verdict and diagnostics are shared,
+/// so it matches every visitor's solo walk only when they all sit at one site
+/// and complete alike.
+pub(super) fn recognize_structural_state_prefix_batched<'a>(
+    program: &'a dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &typed_trees::state::State,
+    judge: &StructuralJudge<'a>,
+    classification: &typed_trees::proof_only::ProofOnlyClassification,
+    diagnostics: &mut Vec<Diagnostic>,
+    visitors: &mut [&mut (dyn StructuralPrefixVisitor + '_)],
+) -> Option<Vec<StructuralCaseArm<'a>>> {
     let parameters = program.state_parameters(state);
     let parameter_names = parameters
         .iter()
@@ -395,7 +373,7 @@ pub(super) fn recognize_structural_state_prefix<'a>(
         &mut StructuralArrivalLog::new(),
         usize::MAX,
         &mut 0,
-        std::slice::from_mut(&mut requirement),
+        visitors,
         CitationFacts::default(),
     )
 }
@@ -863,30 +841,11 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
             }
             match statement {
                 StatementNode::LocalData(local) => {
-                    let Some(mut outcomes) = (if local.initial_value.is_valid() {
-                        path.completion
-                            .take()
-                            .and_then(|completed| completed.outcomes)
-                            .and_then(|outcomes| {
-                                outcomes
-                                    .into_iter()
-                                    .map(|outcome| {
-                                        Some((
-                                            Some(outcome.observed_value()?.clone()),
-                                            outcome.judge,
-                                        ))
-                                    })
-                                    .collect::<Option<Vec<_>>>()
-                            })
-                    } else {
-                        Some(vec![(
-                            super::structural_terms::zero_value_structural_term(
-                                program,
-                                local.type_reference,
-                            ),
-                            path.judge.clone(),
-                        )])
-                    }) else {
+                    let Some(mut outcomes) = path
+                        .completion
+                        .take()
+                        .and_then(|completed| completed.binding_outcomes())
+                    else {
                         return valid;
                     };
                     if outcomes.len() > 1
@@ -1232,7 +1191,7 @@ pub(super) fn recognize_structural_state_leaves<'a>(
     pending_citations: Vec<PendingStructuralCitation>,
     collect_citations: bool,
     path: &mut Vec<SymbolHandle>,
-    arrivals: &mut StructuralArrivalLog,
+    arrivals: &mut StructuralArrivalLog<'a>,
     arrival_parent: usize,
     fresh: &mut usize,
     visitors: &mut [&mut (dyn StructuralPrefixVisitor + '_)],
@@ -1278,7 +1237,7 @@ fn recognize_structural_state_leaves_from<'a>(
     mut pending_citations: Vec<PendingStructuralCitation>,
     collect_citations: bool,
     path: &mut Vec<SymbolHandle>,
-    arrivals: &mut StructuralArrivalLog,
+    arrivals: &mut StructuralArrivalLog<'a>,
     arrival_parent: usize,
     fresh: &mut usize,
     visitors: &mut [&mut (dyn StructuralPrefixVisitor + '_)],
@@ -1296,40 +1255,29 @@ fn recognize_structural_state_leaves_from<'a>(
     if !visitors.is_empty() && visitors.iter().all(|visitor| visitor.is_complete()) {
         return Some(Vec::new());
     }
-    // Arrival deduplication is a cycle-bound mechanism. A cyclic machine's
-    // pump regenerates the same provable arrival at exponentially many
-    // frontier positions and must merge them to terminate; an acyclic
-    // state's repeat entries are convergent alternatives -- each carries a
-    // different accumulated judge and legitimately produces different
-    // leaves, so they must never merge.
+    // Ancestry above is the actual recursion boundary. Optional work reuse
+    // remains cyclic-only, and requires the complete proof/observation cut:
+    // identical forwarded values under different guards are different inputs.
     let dedup_applies = state_lies_on_prefix_cycle(program, invocation, state);
-    if dedup_applies {
-        // Only recurrent arrivals consume a fingerprint. Formatting captured
-        // values at each acyclic continuation otherwise repeats work whose
-        // result is discarded, including their retained scalar recipes.
-        let key = StructuralArrivalKey {
-            state: state.symbol,
-            start_index,
-            collect_citations,
-            context: environment_fingerprint(&environment),
-        };
-        if arrivals
-            .get(&key)
-            .is_some_and(|producer| *producer != arrival_parent)
-        {
-            // A repeat of a provable arrival produced by a different parent
-            // frame owes nothing the first visit did not already do: case-arm
-            // leaves are deterministic in the keyed inputs, and each visitor's
-            // deliveries there are the same observations applied again --
-            // visit effects are monotone accumulations (observed flags,
-            // `proven &=`, completed-set unions), so a second delivery of an
-            // identical observation cannot change a verdict the first visit
-            // left. The residual approximation is accepted: two equal-key
-            // arrivals under different parents can carry different accumulated
-            // judges, and the first visit's subtree stands for both.
-            return Some(Vec::new());
-        }
-        arrivals.entry(key).or_insert(arrival_parent);
+    let arrival = dedup_applies.then(|| StructuralArrival {
+        state: state.symbol,
+        start_index,
+        collect_citations,
+        parent: arrival_parent,
+        judge: judge.clone(),
+        parameter_names: parameter_names.to_vec(),
+        environment: environment.clone(),
+        hypotheses: case_hypotheses.clone(),
+        equations: case_equations.clone(),
+        citations: pending_citations.clone(),
+        guarantees: established_guarantees.clone(),
+        path: path.clone(),
+    });
+    if arrival
+        .as_ref()
+        .is_some_and(|arrival| arrivals.contains_completed(arrival))
+    {
+        return Some(Vec::new());
     }
     // This frame's identity for the arrivals it produces.
     let frame_id = *fresh;
@@ -1605,33 +1553,17 @@ fn recognize_structural_state_leaves_from<'a>(
                 StatementNode::LocalData(local) if !saw_transition => {
                     let mut outcomes =
                         phase_profile::scope("05.d.7.3b.1.cap.2d.local_init", || {
-                            if local.initial_value.is_valid() {
-                                judge
-                                    .normal_return_paths(
-                                        local.initial_value,
-                                        &environment,
-                                        (invocation, state, local.type_reference),
-                                    )
-                                    .map(|outcomes| {
-                                        outcomes
-                                            .into_iter()
-                                            .map(|outcome| (Some(outcome.value), outcome.judge))
-                                            .collect::<Vec<_>>()
-                                    })
-                            } else {
-                                // Zero storage has no expression to execute. Retain
-                                // the preceding path even when its contents have no
-                                // established mathematical value. Only the ordinary
-                                // zero-value owner may contribute equations; omission
-                                // must not establish a gated domain or invent a value.
-                                Some(vec![(
-                                    super::structural_terms::zero_value_structural_term(
-                                        program,
-                                        local.type_reference,
-                                    ),
-                                    judge.clone(),
-                                )])
-                            }
+                            judge
+                                .complete_prefix_statement(
+                                    statement,
+                                    statement_index,
+                                    &environment,
+                                    (invocation, state, local.type_reference),
+                                    &[],
+                                    &[],
+                                    true,
+                                )
+                                .and_then(|completed| completed.binding_outcomes())
                         })?;
 
                     if outcomes.len() > 1
@@ -2444,6 +2376,11 @@ fn recognize_structural_state_leaves_from<'a>(
     }
     if start_index == 0 {
         path.pop();
+    }
+    if result.is_some()
+        && let Some(arrival) = arrival
+    {
+        arrivals.complete(arrival);
     }
     result
 }

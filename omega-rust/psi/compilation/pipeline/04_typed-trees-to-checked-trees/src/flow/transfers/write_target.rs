@@ -44,6 +44,9 @@ pub(in crate::flow) fn statement_write(
     let mut target_is_exact = true;
     let (target_place, source_expression, source_place) = match statement {
         StatementNode::Assembly(_) | StatementNode::AssemblyFact(_) => return None,
+        // A reservation has storage identity but no completed source value.
+        // Publishing its synthetic initializer would forge an observation.
+        StatementNode::LocalData(local) if !local.role.has_ordinary_initializer() => return None,
         StatementNode::LocalData(local_data) => (
             semantic.append_symbol_place(local_data.symbol),
             local_data.initial_value,

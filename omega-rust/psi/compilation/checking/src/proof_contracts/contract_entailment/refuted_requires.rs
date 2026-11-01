@@ -305,6 +305,80 @@ pub(super) fn instantiated_selected_fact_judgment(
     type_map: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
     caller_scope: Option<(&Machine, &typed_trees::state::State)>,
 ) -> StructuralJudgment {
+    remembered_instantiated_fact_judgment(
+        program,
+        judge,
+        callee_owner,
+        callee_parameters,
+        fact,
+        map,
+        machine_map,
+        type_map,
+        caller_scope,
+        &mut OperandJudgments::default(),
+    )
+}
+
+/// Verdicts on the subexpressions of one instantiated predicate, all against
+/// one judge whose premises have not changed since. An intake that descends a
+/// nested `||` chain asks again for operands its parent already judged; the
+/// verdict stands while no premise has been taken in between.
+#[derive(Default)]
+pub(super) struct OperandJudgments(symbols::SymbolKeyMap<ExpressionHandle, StructuralJudgment>);
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn remembered_instantiated_fact_judgment(
+    program: &dyn crate::CheckingInput,
+    judge: &StructuralJudge,
+    callee_owner: SymbolHandle,
+    callee_parameters: &[typed_trees::signature::StateParameter],
+    fact: ExpressionHandle,
+    map: &[(String, StructuralTerm)],
+    machine_map: &[(
+        SymbolHandle,
+        typed_trees::types::TypeReferenceHandle,
+        typed_trees::expression::StaticMachineArgument,
+    )],
+    type_map: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
+    caller_scope: Option<(&Machine, &typed_trees::state::State)>,
+    judgments: &mut OperandJudgments,
+) -> StructuralJudgment {
+    if let Some(judgment) = judgments.0.get(&fact) {
+        return *judgment;
+    }
+    let judgment = fresh_instantiated_fact_judgment(
+        program,
+        judge,
+        callee_owner,
+        callee_parameters,
+        fact,
+        map,
+        machine_map,
+        type_map,
+        caller_scope,
+        judgments,
+    );
+    judgments.0.insert(fact, judgment);
+    judgment
+}
+
+#[allow(clippy::too_many_arguments)]
+fn fresh_instantiated_fact_judgment(
+    program: &dyn crate::CheckingInput,
+    judge: &StructuralJudge,
+    callee_owner: SymbolHandle,
+    callee_parameters: &[typed_trees::signature::StateParameter],
+    fact: ExpressionHandle,
+    map: &[(String, StructuralTerm)],
+    machine_map: &[(
+        SymbolHandle,
+        typed_trees::types::TypeReferenceHandle,
+        typed_trees::expression::StaticMachineArgument,
+    )],
+    type_map: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
+    caller_scope: Option<(&Machine, &typed_trees::state::State)>,
+    judgments: &mut OperandJudgments,
+) -> StructuralJudgment {
     if program.static_type_predicate_operands(fact).is_some() {
         return super::structural_terms::static_type_predicate_term(program, fact, type_map)
             .map_or(StructuralJudgment::Unknown, |predicate| {
@@ -340,27 +414,63 @@ pub(super) fn instantiated_selected_fact_judgment(
     // Term construction owns selected builtin meaning. Reclassifying this as
     // fixed-width bound syntax would discard mathematical Int predicates over
     // those same captured actuals.
-    if judge.has_runtime_body_values()
-        && let Some(term) = super::structural_terms::structural_term(
-            program,
-            None,
-            Some((callee_owner, callee_parameters)),
-            fact,
-            None,
-        )
+    let whole = judge
+        .has_runtime_body_values()
+        .then(|| {
+            super::structural_terms::structural_term(
+                program,
+                None,
+                Some((callee_owner, callee_parameters)),
+                fact,
+                None,
+            )
+        })
+        .flatten()
+        .map(|term| StructuralJudge::substitute_call_term(&term, map, machine_map));
+    // A predicate read through a projection off a call is a value only
+    // once that call's denotational identity is established. A symbolic
+    // machine parameter is closed by its total public signature; a
+    // concrete machine's authority is its checked termination certificate,
+    // which only the checked stage publishes, and that stage owns the
+    // denotational refusal and its wording. Before it runs, `f(…).field`
+    // folds to a field of a result the runtime may never form. Proven
+    // still discharges a genuine requirement, but Refuted is not a
+    // contradiction here: the fact stays for the channels that decide it
+    // with the certificate in hand.
+    let projection_uncertified = whole
+        .as_ref()
+        .is_some_and(|term| uncertified_call_projection(program, term));
+    // A connective that its operands already decide -- a refuted conjunct, a
+    // proven disjunct, or operands that agree -- has that verdict, and the
+    // whole-proposition channels below cannot decide it otherwise in a
+    // consistent judge. Asking them first cost one integer judgment per
+    // nested `&&`/`||` node and per observed arm. A contradictory judge, or an
+    // uncertified projection whose refutation the whole-proposition channel
+    // withholds, keeps the original order.
+    if let Some(binary) = expression_table(program).binary_node(fact)
+        && matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or)
+        && !projection_uncertified
+        && !judge.hypotheses_contradictory
     {
-        let term = StructuralJudge::substitute_call_term(&term, map, machine_map);
-        // A predicate read through a projection off a call is a value only
-        // once that call's denotational identity is established. A symbolic
-        // machine parameter is closed by its total public signature; a
-        // concrete machine's authority is its checked termination certificate,
-        // which only the checked stage publishes, and that stage owns the
-        // denotational refusal and its wording. Before it runs, `f(…).field`
-        // folds to a field of a result the runtime may never form. Proven
-        // still discharges a genuine requirement, but Refuted is not a
-        // contradiction here: the fact stays for the channels that decide it
-        // with the certificate in hand.
-        let projection_uncertified = uncertified_call_projection(program, &term);
+        let decided = connective_judgment(binary, |operand| {
+            remembered_instantiated_fact_judgment(
+                program,
+                judge,
+                callee_owner,
+                callee_parameters,
+                operand,
+                map,
+                machine_map,
+                type_map,
+                caller_scope,
+                judgments,
+            )
+        });
+        if !matches!(decided, StructuralJudgment::Unknown) {
+            return decided;
+        }
+    }
+    if let Some(term) = whole {
         match judge.judge_observed_predicate(term, 0) {
             StructuralJudgment::Proven => return StructuralJudgment::Proven,
             StructuralJudgment::Refuted if projection_uncertified => {
@@ -389,50 +499,20 @@ pub(super) fn instantiated_selected_fact_judgment(
         BinaryOperator::And | BinaryOperator::Or => {
             // Conjunction has no authored operator selection. Each leaf
             // still establishes its own scalar or nominal predicate meaning.
-            let operands = (
-                instantiated_selected_fact_judgment(
+            connective_judgment(binary, |operand| {
+                remembered_instantiated_fact_judgment(
                     program,
                     judge,
                     callee_owner,
                     callee_parameters,
-                    binary.left,
+                    operand,
                     map,
                     machine_map,
                     type_map,
                     caller_scope,
-                ),
-                instantiated_selected_fact_judgment(
-                    program,
-                    judge,
-                    callee_owner,
-                    callee_parameters,
-                    binary.right,
-                    map,
-                    machine_map,
-                    type_map,
-                    caller_scope,
-                ),
-            );
-            if binary.operator == BinaryOperator::Or {
-                return match operands {
-                    (StructuralJudgment::Proven, _) | (_, StructuralJudgment::Proven) => {
-                        StructuralJudgment::Proven
-                    }
-                    (StructuralJudgment::Refuted, StructuralJudgment::Refuted) => {
-                        StructuralJudgment::Refuted
-                    }
-                    _ => StructuralJudgment::Unknown,
-                };
-            }
-            match operands {
-                (StructuralJudgment::Refuted, _) | (_, StructuralJudgment::Refuted) => {
-                    StructuralJudgment::Refuted
-                }
-                (StructuralJudgment::Proven, StructuralJudgment::Proven) => {
-                    StructuralJudgment::Proven
-                }
-                _ => StructuralJudgment::Unknown,
-            }
+                    judgments,
+                )
+            })
         }
         BinaryOperator::Equal | BinaryOperator::NotEqual => {
             if !super::structural_terms::has_identity_equality_meaning(
@@ -518,6 +598,30 @@ pub(super) fn instantiated_selected_fact_judgment(
             }
         }
         _ => StructuralJudgment::Unknown,
+    }
+}
+
+/// The verdict a conjunction or disjunction takes from its operands' verdicts.
+/// Judgments are pure, so a left operand that decides the connective alone
+/// (a refuted conjunct, a proven disjunct) leaves the right one unasked: a
+/// payload bound behind another case's test costs an integer query per arm.
+fn connective_judgment(
+    binary: &typed_trees::expression::TableBinaryExpression,
+    mut operand_judgment: impl FnMut(ExpressionHandle) -> StructuralJudgment,
+) -> StructuralJudgment {
+    use StructuralJudgment::{Proven, Refuted, Unknown};
+    let left = operand_judgment(binary.left);
+    match (binary.operator, left) {
+        (BinaryOperator::Or, Proven) => return Proven,
+        (BinaryOperator::And, Refuted) => return Refuted,
+        _ => {}
+    }
+    match (binary.operator, left, operand_judgment(binary.right)) {
+        (BinaryOperator::Or, _, Proven) => Proven,
+        (BinaryOperator::Or, Refuted, Refuted) => Refuted,
+        (BinaryOperator::And, _, Refuted) => Refuted,
+        (BinaryOperator::And, Proven, Proven) => Proven,
+        _ => Unknown,
     }
 }
 

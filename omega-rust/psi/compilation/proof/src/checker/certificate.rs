@@ -726,15 +726,12 @@ fn collect_refuted_bounds(
     let Some(value) = integer_literal_handle(proof_plan, binary.right) else {
         return;
     };
-    let value = BigInt::from_i64(value);
-    let one = BigInt::from_i64(1);
-    match binary.operator {
-        BinaryOperator::Equal => {}
-        BinaryOperator::Less => push_bound(facts, value, true),
-        BinaryOperator::LessOrEqual => push_bound(facts, value.add(&one), true),
-        BinaryOperator::Greater => push_bound(facts, value, false),
-        BinaryOperator::GreaterOrEqual => push_bound(facts, value.sub(&one), false),
-        _ => {}
+    if let Some(interval) = validation::BigIntInterval::from_refuted_comparison(
+        binary.operator,
+        true,
+        BigInt::from_i64(value),
+    ) {
+        push_interval_bounds(interval, facts);
     }
 }
 
@@ -743,17 +740,17 @@ fn collect_refuted_bounds(
 /// equality as its antisymmetric pair; `!=` and every non-order operator
 /// contribute nothing, matching `guards::apply_right_literal_guard`.
 fn push_right_literal_bounds(operator: BinaryOperator, value: BigInt, facts: &mut Vec<GuardBound>) {
-    let one = BigInt::from_i64(1);
-    match operator {
-        BinaryOperator::Equal => {
-            push_bound(facts, value.clone(), true);
-            push_bound(facts, value, false);
-        }
-        BinaryOperator::Greater => push_bound(facts, value.add(&one), true),
-        BinaryOperator::GreaterOrEqual => push_bound(facts, value, true),
-        BinaryOperator::Less => push_bound(facts, value.sub(&one), false),
-        BinaryOperator::LessOrEqual => push_bound(facts, value, false),
-        _ => {}
+    if let Some(interval) = validation::BigIntInterval::from_comparison(operator, true, value) {
+        push_interval_bounds(interval, facts);
+    }
+}
+
+fn push_interval_bounds(interval: validation::BigIntInterval, facts: &mut Vec<GuardBound>) {
+    if let Some(low) = interval.low {
+        push_bound(facts, low, true);
+    }
+    if let Some(high) = interval.high {
+        push_bound(facts, high, false);
     }
 }
 

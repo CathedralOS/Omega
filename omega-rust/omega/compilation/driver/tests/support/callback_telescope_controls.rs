@@ -53,6 +53,7 @@ pub(super) fn inspect(
         .map_err(|error| format!("callback telescope transport: {error:?}"))?;
     let baseline = settle_native_callback_placements(
         retained.artifact().semantic_module(),
+        None,
         selected,
         calling,
     )?;
@@ -87,7 +88,7 @@ pub(super) fn inspect(
             &calling[registrar],
         )?;
         let settle = |calling: &[_]| {
-            settle_native_callback_placements(artifact.semantic_module(), selected, calling)
+            settle_native_callback_placements(artifact.semantic_module(), None, selected, calling)
         };
         if settle(calling)? != baseline {
             return Err("decoded Terminal callback placement changed".into());
@@ -146,7 +147,7 @@ pub(super) fn inspect(
             .ok_or("mixed telescope has no direct callback")?;
         callback.native_ordinal = semantic.native_ordinal;
         require_refusal(
-            settle_native_callback_placements(&declaration, selected, calling),
+            settle_native_callback_placements(&declaration, None, selected, calling),
             "native parameter telescope has position",
         )?;
         let mut changed = calling.clone();

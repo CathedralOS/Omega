@@ -37,14 +37,17 @@ machine guest_entry(value: &mut Token) -> u64 reaches Lending Observation Mutati
 }
 public NoObservation satisfies Observation { machine seen(value: &Token) {} }
 public NoMutation satisfies Mutation { machine change(value: &mut Token) {} }
-machine main() reaches Lending Observation Mutation OwnedLending SharedLending ViaLending crashes Trap suspends {
+machine main() reaches Lending Observation Mutation OwnedLending SharedLending ViaLending Writing Reading crashes Trap suspends {
+    let mut word: Word = Word { count: 0 };
+    Writing::initialize(&mut word);
     let mut value: Token = Token {};
     let exclusive: u64 = suspend borrowed_entry(&mut value);
     let reborrowed: u64 = suspend reborrow_entry(&mut value);
     let nested: u64 = suspend nested_lender_entry(Token {});
     let shared: u64 = suspend shared_entry(&value);
     let owned: u64 = owned_entry(Token {});
-    transition exclusive == 73 && reborrowed == 73 && nested == 73 && shared == 73 && owned == 73 {
+    let materialized: u64 = owned_materialized_entry(Token {});
+    transition word.count == 73 && exclusive == 73 && reborrowed == 73 && nested == 73 && shared == 73 && owned == 73 && materialized == 73 {
         true -> finish()
         _ -> wrong()
     }
@@ -106,5 +109,36 @@ public Forwarding satisfies ViaLending {
 machine nested_lender_entry(mut value: Token) -> u64 reaches ViaLending Lending Observation Mutation suspends {
     let result: u64 = suspend ViaLending::touch(&mut value);
     Observation::seen(&value);
+    result
+}
+
+// An opaque host object supplies identity, not detached guest field storage.
+public data Word { count: u64; }
+public boundary trait Writing { machine initialize(value: &mut Word) reaches; }
+public WordWriter satisfies Writing {
+    machine initialize(value: &mut Word) { value.count = 73; }
+}
+public boundary trait WordObservation { machine seen(value: &Word) reaches; }
+public NoWordObservation satisfies WordObservation { machine seen(value: &Word) {} }
+machine write_lender_entry(mut value: Word) -> u64 reaches Writing WordObservation {
+    Writing::initialize(&mut value);
+    WordObservation::seen(&value);
+    73
+}
+
+// Owned initialized data transfers its exact scalar contents into the child.
+public boundary trait Reading {
+    machine read(token: &Token, value: Word) -> u64 reaches Observation;
+}
+public WordReader satisfies Reading {
+    machine read(token: &Token, value: Word) -> u64 reaches Observation {
+        Observation::seen(token);
+        value.count
+    }
+}
+machine owned_materialized_entry(token: Token) -> u64 reaches Reading Observation {
+    let value: Word = Word { count: 73 };
+    let result: u64 = Reading::read(&token, value);
+    Observation::seen(&token);
     result
 }

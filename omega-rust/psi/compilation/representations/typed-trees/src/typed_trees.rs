@@ -704,6 +704,18 @@ pub fn canonical_const_declaration_value(
     ))
 }
 
+/// The array extent an evaluated integer const declaration supplies: its
+/// decimal value when it fits the host extent. A pending, structured or
+/// Boolean declaration supplies none.
+pub fn integer_const_declaration_extent(
+    program: &TypedTrees,
+    symbol: symbols::SymbolHandle,
+) -> Option<usize> {
+    canonical_static_const_spelling(canonical_const_declaration_value(program, symbol)?)?
+        .parse()
+        .ok()
+}
+
 /// The static const spelling one machine argument selects, mirroring the
 /// specialization pipeline's argument spelling exactly: decimal for integer
 /// literals and integer-valued const declarations, the canonical atom for

@@ -4,7 +4,7 @@ use super::LiveDefinitions;
 use crate::LoweringError;
 use crate::lowering::function_signature::PreparedFunctionSignature;
 use crate::lowering::scalar::element_views::is_element_view_parameter;
-use crate::lowering::structural_layout::{internal_parameter_shape, reference_projection_regions};
+use crate::lowering::structural_layout::reference_projection_regions;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{AbstractFunction, AbstractOperation};
 use calling_conventions::ValueShape;
@@ -163,7 +163,8 @@ pub(super) fn argument(
                 declaration.structural_type,
             )
             || home.access() != StructuralAccess::Owned
-            || crate::lowering::structural_layout::internal_parameter_shape(
+            || crate::lowering::structural_signature::StructuralCallSignature::parameter_shape(
+                crate::lowering::structural_signature::ParameterLane::Internal,
                 projected_type,
                 projected_shape,
                 declaration.access,
@@ -301,7 +302,13 @@ pub(super) fn storage_argument(
     if !allowed
         || selected != declaration.structural_type
         || destination.shape
-            != internal_parameter_shape(selected, referent, declaration.access, types)
+            != crate::lowering::structural_signature::StructuralCallSignature::parameter_shape(
+                crate::lowering::structural_signature::ParameterLane::Internal,
+                selected,
+                referent,
+                declaration.access,
+                types,
+            )
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }

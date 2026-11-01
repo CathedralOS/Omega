@@ -40,9 +40,11 @@ pub(super) fn observe_portable(
     match words {
         ["component-input", requirement, observations, nested @ ..] => {
             let observations = if *observations == "storage-refusal" {
-                None
+                component_inputs::InputExpectation::StorageRefusal
+            } else if *observations == "write-refusal" {
+                component_inputs::InputExpectation::WriteRefusal
             } else {
-                Some(
+                component_inputs::InputExpectation::Observations(
                     observations
                         .parse()
                         .map_err(|_| "component input observation count")?,

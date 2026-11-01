@@ -224,6 +224,7 @@ impl<'host, 'artifact> TerminalComponentBinding<'host, 'artifact> {
                 scalar_arguments: arguments,
                 structural_inputs: TerminalStructuralInputs {
                     arguments: &inputs.values,
+                    contents: &inputs.contents,
                     ..TerminalStructuralInputs::default()
                 },
                 installation: Some(&self.supplies),
