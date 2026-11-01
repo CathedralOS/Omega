@@ -691,7 +691,10 @@ The rules that touch every edit:
   it names unfinished work and is deleted when its acceptance passes; state
   its current frontier once, replacing the paragraph rather than appending
   history. Owner decisions go to `OWNER_QUESTIONS.md`. Nobody owns the boards;
-  reconcile concurrent edits at rebase.
+  reconcile concurrent edits at rebase. Implementation status belongs on the
+  board, not in `omega-rust/pipeline.md` or `wiki/spec`: those are contracts,
+  and `tools/check_rules.py` fails admission when a contract file's status
+  phrasing grows.
 - Windows and macOS are both supported development hosts; shared tooling
   needs a documented usable entrypoint on each — a `.ps1` alone is not
   macOS support; either document `pwsh` as an explicit prerequisite or
