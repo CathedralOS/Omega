@@ -3092,6 +3092,7 @@ pass/dependent/generic_data_where_field_bound_compile checked 2478ms @ccdb99ca22
 pass/dependent/invariant_field_store_compile checked 2612ms @ccdb99ca2214
 pass/dependent/local_alias_forwards_entry_origin checked 2582ms @ccdb99ca2214
 pass/dependent/mutable_referent_alias_corruption_restored_compile checked 3336ms @ccdb99ca2214
+pass/dependent/nested_case_equations_two_applications_exit checked 5044ms check-target:macos_arm64 @50d2b56c605a+wt
 pass/dependent/runtime_applied_default_domain_setter_exit checked 3708ms check-target:macos_arm64 @ccdb99ca2214
 pass/dependent/runtime_borrowed_coupled_last_store_exit checked 3682ms check-target:macos_arm64 @ccdb99ca2214
 pass/dependent/runtime_computed_slice_index_relation_exit checked 3178ms check-target:macos_arm64 @ccdb99ca2214
