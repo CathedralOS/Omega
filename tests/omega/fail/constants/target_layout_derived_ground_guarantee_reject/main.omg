@@ -1,0 +1,6 @@
+// Soundness control: a closed false return guarantee rejects even when its machine is unused.
+machine incorrect() -> u64 ensures result >= 5u64 {
+    let value: u64 = 4u64;
+    value
+}
+machine main() {}

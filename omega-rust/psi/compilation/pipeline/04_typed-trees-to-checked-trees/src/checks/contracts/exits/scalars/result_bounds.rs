@@ -417,6 +417,14 @@ impl ExitScalars<'_, '_> {
             )?;
             stage = "difference recipe";
             let difference = observed.binary(BinaryOperator::Subtract, &endpoint)?;
+            // A closed comparison owes an ordinary complete judgment now.
+            // Conditional publication is only for admitted observations whose
+            // exact application must still close; an uncalled ground debt is
+            // not evidence for an otherwise unproved guarantee.
+            stage = "deferred observation";
+            if !difference.is_target_dependent() {
+                return None;
+            }
             let span = carrier.maximum.sub(&carrier.minimum);
             let (minimum, maximum) = match operator {
                 BinaryOperator::LessOrEqual => (span.negate(), BigInt::from_i64(0)),
