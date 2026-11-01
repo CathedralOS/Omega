@@ -1,14 +1,17 @@
 """Seed each admission rule's violation, rather than only blessing today's tree."""
 
+import os
 from pathlib import Path
+import subprocess
 import sys
+import tempfile
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import check_rules
 from check_rules import (
     changed_golden_rows, count_source_reads, fact_row_violations, golden_rows,
-    golden_violations, lanes, nearest_rows, program_shingles, read_baseline,
+    golden_violations, lanes, measurement_violations, nearest_rows, program_shingles, read_baseline,
     source_read_counts, source_read_violations, subject_violations, write_baseline,
 )
 
@@ -95,6 +98,68 @@ class GoldenTests(unittest.TestCase):
         changes = [("M", "tests/omega/pass/facts/row_through_local_exit/README.md"),
                    ("M", "omega-rust/psi/src/lib.rs")]
         self.assertEqual(golden_violations(changes, self.rows, self.rows, set(), self.dirs), [])
+
+
+class MeasurementTests(unittest.TestCase):
+    ROOT = check_rules.MEASUREMENTS_ROOT
+
+    def violations(self, changes, lines=10):
+        return measurement_violations(changes, lambda path: lines)
+
+    def test_added_raw_data_fails(self):
+        for name in ("run/summary.json", "run/transcript.txt", "run/profile.json.gz",
+                     "run/candidate.patch", "run/probe.py", "run/.gitattributes", "data.csv"):
+            violations = self.violations([("A", self.ROOT + name)])
+            self.assertEqual(len(violations), 1, name)
+            self.assertIn("raw run data stays out of git", violations[0])
+
+    def test_a_long_summary_fails(self):
+        limit = check_rules.MEASUREMENT_LINE_LIMIT
+        self.assertEqual(self.violations([("A", self.ROOT + "run/README.md")], limit), [])
+        violations = self.violations([("A", self.ROOT + "run/README.md")], limit + 1)
+        self.assertEqual(len(violations), 1)
+        self.assertIn(f"{limit + 1} lines", violations[0])
+
+    def test_summaries_and_other_folders_pass(self):
+        changes = [("A", self.ROOT + "run/README.md"), ("A", self.ROOT + "notes.md"),
+                   ("M", self.ROOT + "old_run/README.md"), ("D", self.ROOT + "old_run/runs.json"),
+                   ("A", "tools/benchmark/evidence/run/runs.json"),
+                   ("A", "wiki/drafts/measurements_notes.json")]
+        self.assertEqual(self.violations(changes, 10), [])
+
+    def test_editing_an_existing_long_summary_passes(self):
+        self.assertEqual(self.violations([("M", self.ROOT + "run/README.md")], 1278), [])
+
+    def test_diff_check_reads_the_pull_request_from_git(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            environment = dict(os.environ, GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@t",
+                               GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@t")
+
+            def git(*arguments):
+                return subprocess.run(["git", "-C", directory, *arguments], check=True,
+                                      capture_output=True, text=True, env=environment).stdout.strip()
+
+            def write(path, lines):
+                (root / path).parent.mkdir(parents=True, exist_ok=True)
+                (root / path).write_text("line\n" * lines)
+
+            git("init", "-q")
+            write(self.ROOT + "old/README.md", 5)
+            git("add", "-A")
+            git("commit", "-q", "-m", "base")
+            base = git("rev-parse", "HEAD")
+            write(self.ROOT + "old/README.md", 6)
+            write(self.ROOT + "new/README.md", check_rules.MEASUREMENT_LINE_LIMIT)
+            write(self.ROOT + "new/long.md", check_rules.MEASUREMENT_LINE_LIMIT + 1)
+            write(self.ROOT + "new/runs.json", 3)
+            write("tools/elsewhere/runs.json", 3)
+            git("add", "-A")
+            git("commit", "-q", "-m", "change")
+            violations = check_rules.diff_checks(base, root)
+            self.assertEqual(len(violations), 2, violations)
+            self.assertTrue(any("new/long.md" in line for line in violations))
+            self.assertTrue(any("new/runs.json" in line for line in violations))
 
 
 class FactRowTests(unittest.TestCase):

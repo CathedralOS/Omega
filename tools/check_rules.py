@@ -24,6 +24,11 @@ cleanup:
 - Commit lanes. A squash merge takes the pull request title as its subject;
   178 of 1,017 subjects from 2026-10-25 to 2026-11-01 used no listed lane.
   Lanes are read from AGENTS.md's table, so the table stays the only list.
+- Raw measurement dumps. `wiki/drafts/measurements` reached 5,828 raw files
+  (1.1M lines, 125 MB) committed as evidence by performance PRs, beside 223
+  summaries. A change may add summaries there, not data: only `.md` files of
+  at most 300 lines. Raw data is linked by a pinned commit or kept in the claim
+  note.
 
 The diff checks compare `--base` (default: the merge base with origin/main)
 with HEAD and read only Git and the tree. Nothing here builds or runs the
@@ -43,6 +48,8 @@ READS_BASELINE = "tools/source_text_reads.txt"
 GOLDEN = "tests/omega/corpus_outcomes.txt"
 FIXTURE_TIERS = ("tests/omega/pass/", "tests/omega/fail/", "tests/omega/run/")
 FACTS_ROOT = "samples/cli/facts/"
+MEASUREMENTS_ROOT = "wiki/drafts/measurements/"
+MEASUREMENT_LINE_LIMIT = 300
 NEAR_DUPLICATE = 0.8
 SUBJECT_LIMIT = 85
 
@@ -260,6 +267,30 @@ def fact_row_violations(nearest: dict, readmes: dict) -> list:
     return violations
 
 
+# Raw measurement dumps ------------------------------------------------------
+
+def measurement_violations(changes: list, count_lines) -> list:
+    """`changes` holds (status, path) pairs; `count_lines(path)` returns the
+    line count of a file as it stands at HEAD. Only added files count: the
+    summaries already in the folder may be edited."""
+    violations = []
+    for status, path in changes:
+        if status != "A" or not path.startswith(MEASUREMENTS_ROOT):
+            continue
+        if not path.endswith(".md"):
+            violations.append(
+                f"{path}: raw run data stays out of git. Commit a .md summary "
+                "and link the data by a pinned commit, or keep it in the claim note")
+            continue
+        lines = count_lines(path)
+        if lines > MEASUREMENT_LINE_LIMIT:
+            violations.append(
+                f"{path}: {lines} lines; a measurement summary is at most "
+                f"{MEASUREMENT_LINE_LIMIT}. Keep the numbers that decide something and "
+                "link the raw data by a pinned commit")
+    return violations
+
+
 # Commit lanes ---------------------------------------------------------------
 
 def lanes(agents_text: str) -> set:
@@ -302,6 +333,8 @@ def diff_checks(base: str, root: Path = ROOT) -> list:
         changed_golden_rows(git("diff", "-U0", base, "HEAD", "--", GOLDEN, root=root)),
         fixture_directories(root),
     )
+    violations += measurement_violations(
+        changes, lambda path: len(show("HEAD", path, root).splitlines()))
     base_folders = {path.split("/")[3] for path in
                     git("ls-tree", "-r", "--name-only", base, FACTS_ROOT, root=root).split()
                     if path.count("/") >= 4}
