@@ -1,13 +1,13 @@
 data Pair [copy] { first: u8; last: u8; }
 trait Operation<T> { machine apply(value: T) -> T reaches terminates; }
 trait Law<Selected satisfies Operation<Pair>> {
-    machine theorem(value: Pair)
+    machine theorem(value: Pair) reaches terminates
     requires Selected::apply(value) == value
     ensures Selected::apply(value) == value;
 }
 Identity satisfies Operation<Pair> { machine apply(value: Pair) -> Pair reaches terminates { value } }
 Proof satisfies Law<Identity> {
- machine theorem(value: Pair)
+ machine theorem(value: Pair) reaches terminates
  requires Identity::apply(value) == value
  ensures Identity::apply(value) == value { }
 }

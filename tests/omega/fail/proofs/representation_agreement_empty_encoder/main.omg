@@ -4,10 +4,10 @@ data Pair [copy] { first: u8; last: u8; }
 data Frame [copy] { tag: u8; first: u8; last: u8; }
 data Failure [copy] { case Unavailable; }
 trait ValueConversion<Source, Destination, Error> = TryFrom<Source, Destination, Error> {
-    machine * terminates;
+    machine * reaches suspends false blocks false terminates;
 }
 trait Coverage<Encode satisfies ValueConversion<Pair, Frame, Failure>> {
-    machine encode_covers(value: Pair)
+    machine encode_covers(value: Pair) reaches terminates
     ensures Encode::try_from(value) in Result::Ok;
 }
 RefuseEveryValue satisfies TryFrom<Pair, Frame, Failure> {
@@ -16,7 +16,7 @@ RefuseEveryValue satisfies TryFrom<Pair, Frame, Failure> {
     }
 }
 FalseAgreement satisfies Coverage<RefuseEveryValue> {
-    machine encode_covers(value: Pair)
+    machine encode_covers(value: Pair) reaches terminates
     ensures RefuseEveryValue::try_from(value) in Result::Ok { }
 }
 machine main() { }

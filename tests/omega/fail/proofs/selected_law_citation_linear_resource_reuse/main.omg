@@ -1,0 +1,17 @@
+// A pure resultless law cannot erase the transfer of a linear Type input.
+use omega::language::core::drop;
+data Token [linear] { code: u64; }
+machine Token::drop(token: &mut Token) { }
+trait ClaimLaw {
+    machine cite(token: Token) reaches terminates
+    ensures true;
+}
+SelectedLaw satisfies ClaimLaw {
+    machine cite(token: Token) reaches terminates
+    ensures true { drop(token); }
+}
+machine main() {
+    let token: Token = Token { code: 17u64 };
+    SelectedLaw::cite(token);
+    SelectedLaw::cite(token);
+}

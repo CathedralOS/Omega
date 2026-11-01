@@ -42,19 +42,26 @@ pub(in crate::flow) fn append_call_ownership_events(
     let Some(declared_parameters) = declared_parameters else {
         return;
     };
-    let proof_call = declared_parameters.iter().any(|parameter| {
-        program.type_multiplicity(parameter.type_reference)
-            == language_semantics::Multiplicity::Affine
-    }) && program
-        .machines()
-        .iter()
-        .find(|target| {
-            program
-                .machine_states(target)
-                .iter()
-                .any(|target_state| target_state.symbol == borrow_call.target_symbol)
-        })
-        .is_some_and(|target| sink.proof_only(program).is_proof_machine(program, target));
+    let requirement_citation = match call_site {
+        CallSite::Statement(call) => {
+            validation::is_fact_only_requirement_citation(program, machine.symbol, call)
+        }
+        _ => false,
+    };
+    let proof_call = requirement_citation
+        || declared_parameters.iter().any(|parameter| {
+            program.type_multiplicity(parameter.type_reference)
+                == language_semantics::Multiplicity::Affine
+        }) && program
+            .machines()
+            .iter()
+            .find(|target| {
+                program
+                    .machine_states(target)
+                    .iter()
+                    .any(|target_state| target_state.symbol == borrow_call.target_symbol)
+            })
+            .is_some_and(|target| sink.proof_only(program).is_proof_machine(program, target));
     let parameter_transfers = |parameter: &typed_trees::signature::StateParameter| {
         type_requires_ownership(program, parameter.type_reference)
             // Mathematical applications and citations read their affine

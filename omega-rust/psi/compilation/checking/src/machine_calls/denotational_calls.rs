@@ -34,12 +34,7 @@ pub(crate) fn abstract_value_call_signature(
 ) -> Option<&typed_trees::signature::StateSignature> {
     let contract = program.retained_static_machine_contract(target)?;
     let signature = contract.signature();
-    if !matches!(
-        &signature.termination_guarantee,
-        language_semantics::TerminationGuarantee::Terminates { premises }
-            if premises.is_empty()
-    ) || !specification::signature_has_closed_value_effects(program, signature)
-    {
+    if !signature_has_closed_value_contract(program, signature) {
         return None;
     }
     let proof_only = crate::proof_only_classification(program);
@@ -59,6 +54,19 @@ pub(crate) fn abstract_value_call_signature(
         return None;
     }
     Some(signature)
+}
+
+/// Exact public promises shared by value denotation and erased law citations.
+/// Neither a Unit result nor a chosen private body's purity supplies them.
+pub(crate) fn signature_has_closed_value_contract(
+    program: &dyn crate::CheckingInput,
+    signature: &typed_trees::signature::StateSignature,
+) -> bool {
+    matches!(
+        &signature.termination_guarantee,
+        language_semantics::TerminationGuarantee::Terminates { premises }
+            if premises.is_empty()
+    ) && specification::signature_has_closed_value_effects(program, signature)
 }
 
 /// A concrete value application's operational eligibility, before its checked
