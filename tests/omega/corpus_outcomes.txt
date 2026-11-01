@@ -324,6 +324,40 @@ fail/facts/domain_predicate_call_through_target_body_rejected rejected 1643ms ex
 	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
 	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
 	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
+fail/facts/domain_selected_cleanup_computed_call_result_rejected rejected 7621ms expected @cfe8a80a4327
+	cannot prove requires contract for call deliver from exercise: Keeper in package:3222f8fa1d2169243c7654b8ee01bd42500138dc0ef00b6a17e209e9dcd673cc:product::Held<integer:u64:7> in state `entry`
+	construction value is not proven in domain `Held` in exercise state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+fail/facts/domain_selected_cleanup_computed_conflicting_recipes_rejected rejected 3215ms expected @cfe8a80a4327
+	conflicting dropped by machine applications on one owned subject
+	conflicting dropped by machine applications on one owned subject
+	implicit domain weakening in argument `keeper` for state `entry` drops `Other<7>`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
+fail/facts/domain_selected_cleanup_computed_const_name_rejected rejected 9279ms expected @cfe8a80a4327
+	cannot prove requires contract for call consume from exercise: Keeper in package:9a157a7fac3df4c691285d815a8eb98abb3fa3a655efaee31c5c0cbc6296e05e:product::Held<integer:u64:7> in state `entry`
+	construction value is not proven in domain `Held` in exercise state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+fail/facts/domain_selected_cleanup_computed_field_rejected rejected 10817ms expected @cfe8a80a4327
+	construction value is not proven in domain `Held` in exercise state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+	construction of `Envelope` field `keeper` is not proven in domain `Held` in exercise state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+fail/facts/domain_selected_cleanup_computed_local_rejected rejected 7824ms expected @cfe8a80a4327
+	cannot prove automatic cleanup requires at selected edge from exercise state entry after statement 2: keeper does not establish release_keeper$specialized$9346d865f1ff1699$0 clause `keeper.code == 7`
+	construction value is not proven in domain `Held` in exercise state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+	cannot prove initializer of `keeper` in exercise is in domain `Held`; an annotation cannot establish routed qualification
+fail/facts/domain_selected_cleanup_computed_match_join_rejected rejected 9946ms expected @cfe8a80a4327
+	cannot prove requires contract for call select from exercise: Keeper in package:b6cff15b8cac9530735df932d6ed067697cdee2c008641557c019240df98ad28:product::Held<integer:u64:7> in state `entry`
+	construction value is not proven in domain `Held` in exercise state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+fail/facts/domain_selected_cleanup_computed_other_machine_rejected rejected 8451ms expected @cfe8a80a4327
+	cannot prove requires contract for call forward from exercise: Keeper in package:6238e21967a62fae14eb27449edf0f4fce81deb822b24a9155889315d10c3b4f:product::Held<integer:u64:7> in state `entry`
+	construction value is not proven in domain `Held` in exercise state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+fail/facts/domain_selected_cleanup_computed_other_state_rejected rejected 6582ms expected @cfe8a80a4327
+	cannot prove automatic cleanup requires at selected edge from next state entry after statement 0: keeper does not establish release_keeper$specialized$9346d865f1ff1699$0 clause `keeper.code == 7`
+	cannot prove requires contract for call next from exercise: Keeper in package:692d41095dee96aef9a614b26a62c352b2c4695368866be9955384783909ce65:product::Held<integer:u64:7> in state `entry`
+	construction value is not proven in domain `Held` in exercise state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+fail/facts/domain_selected_cleanup_computed_parameter_rejected rejected 7534ms expected @cfe8a80a4327
+	cannot prove requires contract for call consume from exercise: Keeper in package:713350920774f77e3686b5c7d3d5525169d595fee8009a25a7bb7f14e9ad8ac4:product::Held<integer:u64:7> in state `entry`
+	construction value is not proven in domain `Held` in exercise state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+fail/facts/domain_selected_cleanup_computed_target_body_rejected rejected 5613ms expected @cfe8a80a4327
+	cannot prove requires contract for call consume from exercise: constructor:80:package:c16ff42d2f3ff42faf6bfa74eb81f9e38f6323007084109c83eac9c09e61e57f::Keeper6:record16:common:name:code1:618:common:name:output6:output.code == 7 (needs fact `keeper.code == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call consume from exercise: Keeper in package:c16ff42d2f3ff42faf6bfa74eb81f9e38f6323007084109c83eac9c09e61e57f:product::Held<integer:u64:7> in state `entry`
+	construction value is not proven in domain `Held` in exercise state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
 fail/facts/double_indexed_rmw_through_call_result_unproved_inner_bound rejected 2538ms expected @f9df9c1404e3
 	machine `main` state `entry` value call to `rmw` violates required fact `j <= 3`: the instantiated fact is structurally false (`4 <= 3`)
 fail/facts/double_indexed_rmw_through_const_name_unproved_inner_bound rejected 7876ms expected @f9df9c1404e3
@@ -5698,6 +5732,16 @@ pass/facts/domain_predicate_call_through_other_machine_exit checked 2855ms check
 pass/facts/domain_predicate_call_through_other_state_exit checked 2859ms check-target:macos_arm64 @8515a99cf21b+wt
 pass/facts/domain_predicate_call_through_parameter_exit checked 2936ms check-target:macos_arm64 @8515a99cf21b+wt
 pass/facts/domain_predicate_call_through_target_body_exit checked 3084ms check-target:macos_arm64 @8515a99cf21b+wt
+pass/facts/domain_selected_cleanup_computed_call_result_exit checked 11351ms check-target:macos_arm64 @cfe8a80a4327
+pass/facts/domain_selected_cleanup_computed_const_name_exit checked 10591ms check-target:macos_arm64 @cfe8a80a4327
+pass/facts/domain_selected_cleanup_computed_field_exit checked 9887ms check-target:macos_arm64 @cfe8a80a4327
+pass/facts/domain_selected_cleanup_computed_local_exit checked 12440ms check-target:macos_arm64 @cfe8a80a4327
+pass/facts/domain_selected_cleanup_computed_match_join_exit checked 11584ms check-target:macos_arm64 @cfe8a80a4327
+pass/facts/domain_selected_cleanup_computed_other_machine_exit checked 11277ms check-target:macos_arm64 @cfe8a80a4327
+pass/facts/domain_selected_cleanup_computed_other_state_exit checked 13804ms check-target:macos_arm64 @cfe8a80a4327
+pass/facts/domain_selected_cleanup_computed_parameter_exit checked 12266ms check-target:macos_arm64 @cfe8a80a4327
+pass/facts/domain_selected_cleanup_computed_shadowed_const_exit checked 10401ms check-target:macos_arm64 @cfe8a80a4327
+pass/facts/domain_selected_cleanup_computed_target_body_exit checked 10823ms check-target:macos_arm64 @cfe8a80a4327
 pass/facts/domain_selected_cleanup_erased_predicates_exit checked 4010ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/domain_selected_cleanup_indexed_inherited_computed_exit rejected 3346ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	cannot prove automatic cleanup requires at selected edge from consume state entry after statement 0: keeper does not establish release_keeper$specialized$9346d865f1ff1699$0 clause `keeper.code == 7`
