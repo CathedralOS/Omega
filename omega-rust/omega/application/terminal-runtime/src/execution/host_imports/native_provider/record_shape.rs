@@ -111,7 +111,7 @@ pub(in crate::execution::host_imports) fn matches_signed_record_array(
     bits: u16,
     alignment: u16,
 ) -> bool {
-    let Some(integer) = IntegerType::new(IntegerSign::Signed, bits) else {
+    let Ok(integer) = IntegerType::new(IntegerSign::Signed, bits) else {
         return false;
     };
     if bits % 8 != 0 || !alignment.is_power_of_two() {
