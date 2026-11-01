@@ -149,20 +149,73 @@ impl IntegerApplicationInput {
 }
 
 impl super::Engine<'_> {
+    /// A borrow argument denotes an observation of the supplied referent, while
+    /// the selected formal still owns its access contract. The referent's type
+    /// is available before an executable reference value is materialized; that
+    /// observation does not permit a borrow to satisfy an owned formal.
+    /// Executable argument planning must independently retain the actual loan.
+    pub(super) fn call_input_type(
+        &self,
+        expression: typed_trees::expression::ExpressionHandle,
+        required: TypeReferenceHandle,
+    ) -> Option<TypeReferenceHandle> {
+        use language_semantics::ReferenceAccess;
+        use typed_trees::expression::ExpressionNode;
+
+        let borrowed = match self.program.expression_table.expression(expression) {
+            ExpressionNode::Borrow(borrow) => Some(borrow.access),
+            _ => None,
+        };
+        match crate::reference_shell(self.program, required) {
+            Some(shell) => {
+                // Denotational call formation admits shared observations, not
+                // exclusive/write-only authority. A freshly lent observation
+                // also supplies no qualification on the reference descriptor
+                // itself; its complete referent type is checked separately.
+                if shell.access != ReferenceAccess::Shared
+                    || !matches!(
+                        self.program.type_reference_table.type_reference(required),
+                        typed_trees::types::TypeReferenceNode::Reference { .. }
+                    )
+                {
+                    return None;
+                }
+                let supplied = borrowed.or_else(|| {
+                    crate::reference_shell(self.program, self.source_result_type(expression)?)
+                        .map(|shell| shell.access)
+                })?;
+                (supplied == ReferenceAccess::Shared).then_some(shell.referee)
+            }
+            None => borrowed.is_none().then_some(required),
+        }
+    }
+
     /// Select a whole captured argument first, then retain only its scalar
     /// coordinates. A leaf roster without this root cannot form a record call.
-    pub(super) fn captured_owned_call_input(
+    pub(super) fn captured_record_call_input(
         &self,
         expression: typed_trees::expression::ExpressionHandle,
     ) -> Option<IntegerApplicationInput> {
-        let place = crate::canonical_place_from_expression(self.program, expression)?;
+        // An explicit shared operand observes this already-captured value.
+        // Do not ask for the borrow expression's constructed reference type:
+        // that executable value is formed later by the actual custody owner.
+        let observed = match self.program.expression_table.expression(expression) {
+            typed_trees::expression::ExpressionNode::Borrow(borrow)
+                if borrow.access == language_semantics::ReferenceAccess::Shared =>
+            {
+                borrow.target
+            }
+            typed_trees::expression::ExpressionNode::Borrow(_) => return None,
+            _ => expression,
+        };
+        let place = crate::canonical_place_from_expression(self.program, observed)?;
         let root = place.root.as_symbol()?;
         let (_, snapshot) = self
             .owned_arguments
             .iter()
             .find(|(binder, _)| *binder == crate::ScopedArithmeticBinder::Symbol(root))?;
         let snapshot = snapshot.project(self.program, &place.segments)?;
-        let actual_type = self.source_result_type(expression)?;
+        let actual_type = self.source_result_type(observed)?;
         if !super::super::ranking_range::declared_input_type_matches(
             self.program,
             snapshot.actual_type(),

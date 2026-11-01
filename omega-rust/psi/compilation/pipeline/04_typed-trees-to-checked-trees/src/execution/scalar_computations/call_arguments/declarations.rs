@@ -1,6 +1,9 @@
 //! Declaration calls consume admitted whole entry inputs. This joins their
-//! copy receipt to the ordinary owned argument planner; it manufactures no
-//! statement occurrence, loan, or aggregate from the scalar read roster.
+//! copy receipt to the ordinary storage argument planner; it manufactures no
+//! statement occurrence or aggregate from the scalar read roster. A shared
+//! call may lend this initialized, borrow-free entry home until its pure,
+//! total scalar invocation returns. That loan's authority is the complete
+//! application input, not a fictitious statement-access capture.
 
 use super::super::{Builder, ExpressionHandle};
 
@@ -101,6 +104,36 @@ impl Builder<'_, '_> {
             selectors.push((*expression, value));
         }
         selectors.extend(self.projection_selector_evaluations(argument, argument)?);
+        let mut storage_target = target.clone();
+        let access = match validation::reference_shell(self.program, target.type_reference) {
+            Some(shell) => {
+                let typed_trees::expression::ExpressionNode::Borrow(borrow) =
+                    self.program.expression_table.expression(argument)
+                else {
+                    return None;
+                };
+                if shell.access != language_semantics::ReferenceAccess::Shared
+                    || borrow.access != shell.access
+                {
+                    return None;
+                }
+                storage_target.type_reference = shell.referee;
+                checked_trees::CheckedStructuralAccess::SharedBorrow
+            }
+            None => {
+                if matches!(
+                    self.program.expression_table.expression(argument),
+                    typed_trees::expression::ExpressionNode::Borrow(_)
+                ) {
+                    return None;
+                }
+                checked_trees::CheckedStructuralAccess::Owned
+            }
+        };
+        // The retained whole input proves initialized owned backing and Copy,
+        // and contains no references or linear descendants. Its declaration
+        // calls are already admitted pure/total scalar observations, so this
+        // shared window ends before body effects or another cycle begins.
         let mut argument_plan = crate::execution::terminal_unit::calls::owned_argument(
             self.program,
             &mut self.shapes,
@@ -108,7 +141,7 @@ impl Builder<'_, '_> {
             state,
             0,
             &actual,
-            target,
+            &storage_target,
             Some(&|expression| {
                 selectors.iter().find_map(|(source, value)| {
                     (*source == expression).then_some(
@@ -117,6 +150,7 @@ impl Builder<'_, '_> {
                 })
             }),
         )?;
+        argument_plan.access = access;
         let evaluations = self
             .plans
             .operands
