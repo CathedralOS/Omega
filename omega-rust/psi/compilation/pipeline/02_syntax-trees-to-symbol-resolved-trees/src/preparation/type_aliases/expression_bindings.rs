@@ -49,6 +49,12 @@ pub(super) fn bind_const_expression(
                         .iter()
                         .any(|binding| binding.as_str() == name.as_str(templates))
                 });
+                // Other ordinary binder kinds remain their own bindings. An
+                // unsupported expression must refuse, never select a same-named
+                // global constant in place of a Value/Type/Machine parameter.
+                let bound_parameter = parameters
+                    .iter()
+                    .any(|parameter| parameter.name.as_str(templates) == name.as_str(templates));
                 let parameter = (!shadowed)
                     .then(|| {
                         parameters.iter().position(|parameter| {
@@ -59,7 +65,10 @@ pub(super) fn bind_const_expression(
                     .flatten();
                 if let Some(position) = parameter {
                     bindings.uses.push((expression, arguments[position]));
-                } else if !shadowed && declaration_constant(templates, selection, expression) {
+                } else if !shadowed
+                    && !bound_parameter
+                    && declaration_constant(templates, selection, expression)
+                {
                     // This occurrence belongs to the selected alias's authored
                     // RHS. It resolves in source declaration scope, independently
                     // from substituted operands which keep their own occurrences.
