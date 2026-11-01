@@ -283,114 +283,131 @@ pub fn resolve_named_result_overloads(
         crate::proof_contracts::contract_entailment::predicate_type_contexts(&checking)
     };
     program.retain_proven_type_contexts(predicate_contexts);
-    let expected_calls: std::collections::HashMap<ExpressionHandle, TypeReferenceHandle> =
-        collect_expected_expression_calls(program)
-            .into_iter()
-            .collect();
-    let expression_owners = expression_owners(program);
-    let machine_overloads = MachineOverloadIndex::new(program);
-    let mut diagnostics = Vec::new();
+    let (
+        expression_owners,
+        expression_updates,
+        statement_updates,
+        operator_statement_updates,
+        transition_updates,
+    ) = {
+        let checking = crate::CheckingContext::new(program);
+        let program: &dyn crate::CheckingInput = &checking;
+        let expected_calls: std::collections::HashMap<ExpressionHandle, TypeReferenceHandle> =
+            collect_expected_expression_calls(program)
+                .into_iter()
+                .collect();
+        let expression_owners = expression_owners(program);
+        let machine_overloads = MachineOverloadIndex::new(program);
+        let mut diagnostics = Vec::new();
 
-    let expression_updates = expression_table(program)
-        .expression_entries()
-        .filter_map(|(handle, expression)| {
-            let ExpressionNode::Call(call) = expression else {
-                return None;
-            };
-            let expected = expected_calls.get(&handle).copied();
-            selected_named_expression_callable_symbol(
-                program,
-                &machine_overloads,
-                call,
-                expression_owners.get(&handle.arena_index()).copied(),
-                expression_owners
-                    .get(&handle.arena_index())
-                    .map(|owner| owner.source_span())
-                    .unwrap_or_else(|| expression_table(program).source_span(handle)),
-                expected,
-                &mut diagnostics,
-            )
-            .map(|selected| (handle, selected))
-        })
-        .collect::<Vec<_>>();
-
-    let mut statement_updates = Vec::new();
-    let mut operator_statement_updates = Vec::new();
-    for machine in program.machines() {
-        for state in program.machine_states(machine) {
-            for (index, statement) in program
-                .statement_table
-                .indexed_statements(state.statement_nodes)
-            {
-                let Some(call) = statement.as_call() else {
-                    continue;
+        let expression_updates = expression_table(program)
+            .expression_entries()
+            .filter_map(|(handle, expression)| {
+                let ExpressionNode::Call(call) = expression else {
+                    return None;
                 };
-                if let Some(selected) = selected_named_statement_callable_symbol(
+                let expected = expected_calls.get(&handle).copied();
+                selected_named_expression_callable_symbol(
                     program,
                     &machine_overloads,
                     call,
-                    Some(CallOwner::State {
-                        machine: machine.symbol,
-                        state: state.symbol,
-                        source_span: call.source_span,
-                    }),
-                    program
-                        .symbols
-                        .symbol_source_span(machine.symbol)
-                        .unwrap_or(call.source_span),
-                    None,
+                    expression_owners.get(&handle.arena_index()).copied(),
+                    expression_owners
+                        .get(&handle.arena_index())
+                        .map(|owner| owner.source_span())
+                        .unwrap_or_else(|| expression_table(program).source_span(handle)),
+                    expected,
                     &mut diagnostics,
-                ) {
-                    if let Some(operator) = program.operator_definition_by_symbol(selected) {
-                        if !operator.return_type.is_valid() {
+                )
+                .map(|selected| (handle, selected))
+            })
+            .collect::<Vec<_>>();
+
+        let mut statement_updates = Vec::new();
+        let mut operator_statement_updates = Vec::new();
+        for machine in program.machines() {
+            for state in program.machine_states(machine) {
+                for (index, statement) in program
+                    .statement_table
+                    .indexed_statements(state.statement_nodes)
+                {
+                    let Some(call) = statement.as_call() else {
+                        continue;
+                    };
+                    if let Some(selected) = selected_named_statement_callable_symbol(
+                        program,
+                        &machine_overloads,
+                        call,
+                        Some(CallOwner::State {
+                            machine: machine.symbol,
+                            state: state.symbol,
+                            source_span: call.source_span,
+                        }),
+                        program
+                            .symbols
+                            .symbol_source_span(machine.symbol)
+                            .unwrap_or(call.source_span),
+                        None,
+                        &mut diagnostics,
+                    ) {
+                        if let Some(operator) = program.operator_definition_by_symbol(selected) {
+                            if !operator.return_type.is_valid() {
+                                statement_updates.push((
+                                    machine.symbol,
+                                    state.statement_nodes,
+                                    index,
+                                    selected,
+                                ));
+                                continue;
+                            }
+                            let returns_non_unit = !matches!(
+                                program
+                                    .type_reference_table
+                                    .type_reference(operator.return_type),
+                                TypeReferenceNode::Unit
+                            );
+                            if returns_non_unit && !call.discards_result {
+                                let path = program.operator_path_string(operator.name);
+                                diagnostics.push(Diagnostic::error(format!(
+                                "call to named requirement `{path}` discards its non-unit `{}` result; consume the value or discard it explicitly with `_ = {path}(...);`",
+                                program.display_type_reference_with_constraints(operator.return_type)
+                            )));
+                            } else {
+                                operator_statement_updates.push((
+                                    state.symbol,
+                                    state.statement_nodes,
+                                    index,
+                                    call.clone(),
+                                    selected,
+                                    returns_non_unit,
+                                ));
+                            }
+                        } else {
                             statement_updates.push((
                                 machine.symbol,
                                 state.statement_nodes,
                                 index,
                                 selected,
                             ));
-                            continue;
                         }
-                        let returns_non_unit = !matches!(
-                            program
-                                .type_reference_table
-                                .type_reference(operator.return_type),
-                            TypeReferenceNode::Unit
-                        );
-                        if returns_non_unit && !call.discards_result {
-                            let path = program.operator_path_string(operator.name);
-                            diagnostics.push(Diagnostic::error(format!(
-                                "call to named requirement `{path}` discards its non-unit `{}` result; consume the value or discard it explicitly with `_ = {path}(...);`",
-                                program.display_type_reference_with_constraints(operator.return_type)
-                            )));
-                        } else {
-                            operator_statement_updates.push((
-                                state.symbol,
-                                state.statement_nodes,
-                                index,
-                                call.clone(),
-                                selected,
-                                returns_non_unit,
-                            ));
-                        }
-                    } else {
-                        statement_updates.push((
-                            machine.symbol,
-                            state.statement_nodes,
-                            index,
-                            selected,
-                        ));
                     }
                 }
             }
         }
-    }
 
-    let transition_updates = selected_transition_call_symbols(program, &mut diagnostics);
+        let transition_updates = selected_transition_call_symbols(program, &mut diagnostics);
 
-    if !diagnostics.is_empty() {
-        return Err(diagnostics);
-    }
+        if !diagnostics.is_empty() {
+            return Err(diagnostics);
+        }
+        (
+            expression_owners,
+            expression_updates,
+            statement_updates,
+            operator_statement_updates,
+            transition_updates,
+        )
+    };
     let mut changed_owners = Vec::new();
     for (target, selected, owner) in transition_updates {
         let TransitionTargetNode::Named { path, .. } =
