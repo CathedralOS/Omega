@@ -564,8 +564,12 @@ impl<'program> StructuralJudge<'program> {
         if depth >= 64 || !self.runtime_body_values || self.case_facts_only {
             return None;
         }
+        // Bounds use the same completed-value namespace as integer proof.
+        // Its resolver consumes current public refinements before retaining
+        // an admitted call leaf; a descriptive body need not be reopened to
+        // retrieve that observation's already-produced bounds.
         let value = self
-            .resolve(self.completed_value_identity(value.clone()))
+            .integer_projection_value(self.completed_value_identity(value.clone()))
             .into_semantic_value();
         match value {
             StructuralTerm::Integer(value) => {

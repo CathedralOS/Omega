@@ -395,4 +395,111 @@ mod completed_registration_tests {
             "registration must preserve the completed description without reading its meaning"
         );
     }
+    #[test]
+    fn completed_range_keeps_the_completed_observations_evidence() {
+        // Registration has already admitted this completed observation. This
+        // query consumes its bounds; the description is not a second read.
+        let mut program = typed_trees::TypedTrees::default();
+        let result_type =
+            program
+                .type_reference_table
+                .insert(typed_trees::types::TypeReferenceNode::Named {
+                    symbol: symbols::SymbolHandle::invalid(),
+                    name: typed_trees::name::Identifier::generated("u64"),
+                });
+        let mut judge = StructuralJudge::from_declaration_requires(
+            &program,
+            symbols::SymbolHandle::invalid(),
+            &[],
+            &[],
+            true,
+        );
+        judge.runtime_body_values = true;
+        let range = checked_trees::IntegerRangeRecipe::bounds(
+            numerics::bignum::BigInt::from_i64(4),
+            numerics::bignum::BigInt::from_i64(7),
+        );
+        let captured = StructuralTerm::CapturedValue {
+            expression: typed_trees::expression::ExpressionHandle::from_arena_index(1),
+            statement: arena::Handle::invalid(),
+            callable: symbols::SymbolHandle::invalid(),
+            occurrence: 1,
+            result_type,
+            integer_range: Some(std::sync::Arc::new(range.clone())),
+        };
+        let description = StructuralTerm::Application {
+            result_type,
+            target: symbols::SymbolHandle::invalid(),
+            selections: Vec::new(),
+            machine: "completed".to_owned(),
+            arguments: Vec::new(),
+        };
+        judge.intake_normal_call_equations(vec![CapturedResultEquation::completed_call(
+            captured.clone(),
+            description.clone(),
+        )]);
+        assert_eq!(judge.completed_integer_range_recipe(&captured), Some(range));
+
+        // Current public facts remain ahead of the optional completed leaf.
+        let mut refined = judge.clone();
+        refined.intake_equation_fact(
+            description,
+            StructuralTerm::Integer(numerics::bignum::BigInt::from_i64(7)),
+            0,
+        );
+        assert_eq!(
+            refined.completed_integer_range_recipe(&captured),
+            Some(checked_trees::IntegerRangeRecipe::bounds(
+                numerics::bignum::BigInt::from_i64(7),
+                numerics::bignum::BigInt::from_i64(7),
+            )),
+        );
+
+        // A body-read observer and a closed computation still owe the body;
+        // this test declaration has none, so neither can export its bounds.
+        let mut closed = judge.clone();
+        closed.require_closed_computation = true;
+        assert!(closed.completed_integer_range_recipe(&captured).is_none());
+        let mut recording = judge.clone();
+        recording.returned_field_trace = Some(Arc::new(std::sync::Mutex::new(
+            super::super::super::returned_fields::ReturnedFieldTrace::default(),
+        )));
+        assert!(
+            recording
+                .completed_integer_range_recipe(&captured)
+                .is_none()
+        );
+
+        let deferred = checked_trees::IntegerRangeRecipe::observation(
+            ExpressionHandle::from_arena_index(9),
+            SymbolHandle::from_arena_index(10),
+        );
+        let mut deferred_capture = captured;
+        let StructuralTerm::CapturedValue { integer_range, .. } = &mut deferred_capture else {
+            unreachable!();
+        };
+        *integer_range = Some(Arc::new(deferred.clone()));
+        let mut deferred_judge = StructuralJudge::from_declaration_requires(
+            &program,
+            SymbolHandle::invalid(),
+            &[],
+            &[],
+            true,
+        );
+        deferred_judge.runtime_body_values = true;
+        deferred_judge.intake_normal_call_equations(vec![CapturedResultEquation::completed_call(
+            deferred_capture.clone(),
+            StructuralTerm::Application {
+                result_type,
+                target: SymbolHandle::invalid(),
+                selections: Vec::new(),
+                machine: "completed".to_owned(),
+                arguments: Vec::new(),
+            },
+        )]);
+        assert_eq!(
+            deferred_judge.completed_integer_range_recipe(&deferred_capture),
+            Some(deferred)
+        );
+    }
 }
