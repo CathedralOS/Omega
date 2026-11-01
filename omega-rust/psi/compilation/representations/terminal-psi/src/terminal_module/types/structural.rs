@@ -134,6 +134,10 @@ pub struct StructuralCaseDeclaration {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct StructuralFieldDeclaration {
+    /// The exact declared scalar or byte carrier. The full inline predicate may
+    /// be stronger and remains authoritative for reads and writable handback.
+    /// None means this inline field has no standalone value presentation.
+    pub inline_carrier: Option<StructuralTypeId>,
     pub id: StructuralFieldId,
     pub identity: TerminalIdentityIndex,
     /// Authored semantic relevance. Erased rows remain in terminal identity and
@@ -516,8 +520,10 @@ impl StructuralFieldType {
             // entries cannot choose a nominal identity on its behalf.
             return Some(Self::Structural(expected.id));
         }
-        if expected.is_some_and(|expected| expected.scalar_restriction.as_ref() == Some(self)) {
-            return self.canonical_leaf_type();
+        if let Some(expected) = expected
+            && expected.scalar_restriction.as_ref() == Some(self)
+        {
+            return Some(Self::Structural(expected.id));
         }
         let presentation = if access == crate::StructuralAccess::SharedBorrow {
             match self.byte_sequence_carrier() {
@@ -970,6 +976,7 @@ mod tests {
                 identity: crate::TerminalIdentityIndex(3),
                 shape: StructuralTypeShape::Record {
                     fields: vec![StructuralFieldDeclaration {
+                        inline_carrier: None,
                         id: StructuralFieldId::new(1).unwrap(),
                         identity: crate::TerminalIdentityIndex(4),
                         relevance: BindingRelevance::Relevant,

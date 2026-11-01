@@ -49,6 +49,7 @@ fn module() -> TerminalModule {
                 .into_iter()
                 .enumerate()
                 .map(|(position, identity)| StructuralFieldDeclaration {
+                    inline_carrier: None,
                     id: StructuralFieldId::new(position as u64 + 1).unwrap(),
                     identity: TerminalIdentityIndex(identity),
                     relevance: BindingRelevance::Relevant,

@@ -1118,18 +1118,16 @@ pub(crate) fn consume_affine_projection(
 /// bounded owned bytes, and never silently omit an unresolved descriptor.
 fn cleanup_field_type(
     structural_types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
-    field: &terminal_psi::StructuralFieldType,
+    field: &terminal_psi::StructuralFieldDeclaration,
 ) -> Result<Option<StructuralTypeId>, TerminalInterpretError> {
-    if let Some(structural) = field.as_structural() {
+    if let Some(structural) = field.field_type.as_structural() {
         return Ok(Some(structural));
     }
-    match field.byte_sequence_carrier() {
+    match field.field_type.byte_sequence_carrier() {
         Some(terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }) | None => Ok(None),
-        Some(carrier) => {
-            terminal_semantics::byte_carrier_field_declaration(structural_types.values(), carrier)
-                .map(|declaration| Some(declaration.id))
-                .ok_or(TerminalInterpretError::AffineProjectionNotRepresentable)
-        }
+        Some(_) => terminal_semantics::inline_carrier_declaration(structural_types.values(), field)
+            .map(|declaration| Some(declaration.id))
+            .ok_or(TerminalInterpretError::AffineProjectionNotRepresentable),
     }
 }
 
@@ -1151,8 +1149,7 @@ pub(crate) fn split_affine_frontier_at_projection(
         StructuralTypeShape::Record { fields, .. } => {
             let mut selected = None;
             for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
-                let Some(field_type) = cleanup_field_type(structural_types, &field.field_type)?
-                else {
+                let Some(field_type) = cleanup_field_type(structural_types, field)? else {
                     continue;
                 };
                 let segment = StructuralPathSegment::Field(field.identity.clone());
@@ -1213,8 +1210,7 @@ pub(crate) fn split_affine_frontier_at_projection(
                 )))
             {
                 for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
-                    let Some(field_type) = cleanup_field_type(structural_types, &field.field_type)?
-                    else {
+                    let Some(field_type) = cleanup_field_type(structural_types, field)? else {
                         continue;
                     };
                     let segment = StructuralPathSegment::Field(field.identity.clone());
@@ -1296,6 +1292,7 @@ pub(crate) fn resolve_structural_path_type(
         structural_types,
         root,
         path,
+        None,
         terminal_psi::StructuralFieldType::canonical_leaf_type,
     )
 }
@@ -1320,10 +1317,11 @@ pub(crate) fn resolve_structural_path_shape<'types>(
         .ok_or(TerminalInterpretError::AffineProjectionNotRepresentable)
 }
 
-fn resolve_structural_path_type_with_leaf(
+pub(crate) fn resolve_structural_path_type_with_leaf(
     structural_types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
+    expected: Option<StructuralTypeId>,
     leaf_type: impl Fn(&terminal_psi::StructuralFieldType) -> Option<terminal_psi::StructuralFieldType>
     + Copy,
 ) -> Result<StructuralTypeId, TerminalInterpretError> {
@@ -1337,28 +1335,13 @@ fn resolve_structural_path_type_with_leaf(
             terminal_psi::StructuralFieldType::Structural(_)
         )
     {
-        let declaration = if let Some(leaf) = leaf_type(&field.field_type) {
-            if let Some(identity) = leaf.as_structural() {
-                structural_types.get(&identity)
-            } else {
-                leaf.leaf_declaration(structural_types.values())
-            }
-        } else {
-            // An owned byte field names its backing independently of inline
-            // scalar admission. View descriptors do not name that backing.
-            field
-                .field_type
-                .byte_sequence_carrier()
-                .and_then(|carrier| {
-                    terminal_semantics::byte_carrier_field_declaration(
-                        structural_types.values(),
-                        carrier,
-                    )
-                })
-        };
-        return declaration
-            .map(|declaration| declaration.id)
-            .ok_or(TerminalInterpretError::AffineProjectionNotRepresentable);
+        return terminal_semantics::inline_field_presentation(
+            structural_types.values(),
+            field,
+            expected,
+            leaf_type(&field.field_type),
+        )
+        .ok_or(TerminalInterpretError::AffineProjectionNotRepresentable);
     }
     terminal_semantics::runtime_structural_path_tip(structural_types.values(), root, path)
         .map(|declaration| declaration.id)
@@ -1469,6 +1452,7 @@ pub(crate) fn project_structural_value(
         structural_types,
         root,
         path,
+        None,
         terminal_psi::StructuralFieldType::canonical_leaf_type,
     )
 }
@@ -1485,6 +1469,7 @@ pub(crate) fn project_shared_structural_observation(
         structural_types,
         root,
         path,
+        None,
         terminal_psi::StructuralFieldType::shared_observation_type,
     )
 }
@@ -1495,6 +1480,7 @@ pub(crate) fn project_structural_value_with_leaf(
     structural_types: &crate::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
     root: &TerminalStructuralValue,
     path: &[StructuralPathSegment],
+    expected: Option<StructuralTypeId>,
     leaf_type: impl Fn(&terminal_psi::StructuralFieldType) -> Option<terminal_psi::StructuralFieldType>
     + Copy,
 ) -> Result<TerminalStructuralValue, TerminalInterpretError> {
@@ -1503,6 +1489,7 @@ pub(crate) fn project_structural_value_with_leaf(
         structural_types,
         root.structural_type,
         path,
+        expected,
         leaf_type,
     )?;
     (value.qualifications, value.projected_qualifications) =

@@ -1387,6 +1387,10 @@ fail/facts/target_family_callback_guarantee/evaluation_once rejected 973ms expec
 fail/facts/target_family_callback_guarantee/repeated_application rejected 883ms expected @45fb2a705c96
 	machine argument `identity` for `apply` does not refine `Selected`: its ensures facts are not a conservative refinement
 	machine argument `identity` for `apply` does not refine `Selected`: its ensures facts are not a conservative refinement
+fail/facts/target_family_contract_operand/callback_capability rejected 517ms expected @b0315c8f656c
+	machine argument `bounded_matches` for `choose` does not refine `Callback`: its requires facts are not a conservative refinement
+fail/facts/target_family_contract_operand/stronger_provider_requirement rejected 1609ms expected @b0315c8f656c
+	machine parameter `Selected` of provider machine `ArmChoice::choose` for trait requirement `Choosing::choose` does not refine `Callback`: its requires facts are not a conservative refinement
 fail/facts/write_only_scalar_entry_observation rejected 5920ms expected @3bd254ac6193
 	machine `read` state `entry` reads write-only parameter `value`; `&write` permits replacement or exact `&write` forwarding, never observation
 fail/float/constructor_case_invalid_narrow_widen_rejected rejected 3180ms expected @f9df9c1404e3
@@ -1429,6 +1433,12 @@ fail/layouts/local_access_declaration_shadows_core_view rejected 648ms expected 
 	duplicate data `Access`
 fail/ownership/selected_constructor_missing_linear_move rejected 1028ms expected @a92f16431042
 	linear match custody requires every reachable arm to move the same live source claims; a missing move leaves an obligation live on only some edges
+fail/proofs/completed_guard_converted_snapshot_without_condition rejected 1136ms expected @2cede9e14eca
+	exact arithmetic in machine `invoke` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `echo(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
+fail/proofs/completed_guard_private_boolean_without_condition rejected 1893ms expected @2cede9e14eca
+	exact arithmetic in machine `subtract_seven` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/proofs/completed_guard_two_call_identities_without_refinement rejected 640ms expected @2cede9e14eca
+	exact arithmetic in machine `invoke` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `echo(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
 fail/proofs/exact_widening_without_source_bound rejected 991ms expected @b80d7416b671+wt
 	data `Reading` case `Byte` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 	data `Reading` case `Byte` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
@@ -7824,26 +7834,16 @@ pass/facts/nested_three_level_record_field_bound_through_other_machine_exit chec
 pass/facts/nested_three_level_record_field_bound_through_other_state_exit checked 4133ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_three_level_record_field_bound_through_parameter_exit checked 3771ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_three_level_record_field_bound_through_target_body_exit checked 3212ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/nested_zero_leaf_array_storage_through_call_result_exit rejected 3815ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	native artifact native artifact lowering failed: TargetFamily("native provider declaration roster differs from the complete selected plans")
-pass/facts/nested_zero_leaf_array_storage_through_const_name_exit rejected 3470ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	native artifact native artifact lowering failed: TargetFamily("native provider declaration roster differs from the complete selected plans")
-pass/facts/nested_zero_leaf_array_storage_through_field_exit rejected 3858ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	native artifact native artifact lowering failed: TargetFamily("native provider declaration roster differs from the complete selected plans")
-pass/facts/nested_zero_leaf_array_storage_through_local_exit rejected 3533ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	native artifact native artifact lowering failed: TargetFamily("native provider declaration roster differs from the complete selected plans")
-pass/facts/nested_zero_leaf_array_storage_through_match_join_exit rejected 3517ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	native artifact native artifact lowering failed: TargetFamily("native provider declaration roster differs from the complete selected plans")
-pass/facts/nested_zero_leaf_array_storage_through_other_machine_exit rejected 3294ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	native artifact native artifact lowering failed: TargetFamily("native provider declaration roster differs from the complete selected plans")
-pass/facts/nested_zero_leaf_array_storage_through_other_state_exit rejected 4083ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	native artifact native artifact lowering failed: TargetFamily("native provider declaration roster differs from the complete selected plans")
-pass/facts/nested_zero_leaf_array_storage_through_parameter_exit rejected 3640ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	native artifact native artifact lowering failed: TargetFamily("native provider declaration roster differs from the complete selected plans")
-pass/facts/nested_zero_leaf_array_storage_through_target_body_exit rejected 3952ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	native artifact native artifact lowering failed: TargetFamily("native provider declaration roster differs from the complete selected plans")
-pass/facts/nested_zero_leaf_array_storage_zeroed_source_exit rejected 4590ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	native artifact native artifact lowering failed: TargetFamily("native provider declaration roster differs from the complete selected plans")
+pass/facts/nested_zero_leaf_array_storage_through_call_result_exit checked 2782ms check-target:macos_arm64 @b59d0f8c2783
+pass/facts/nested_zero_leaf_array_storage_through_const_name_exit checked 2722ms check-target:macos_arm64 @b59d0f8c2783
+pass/facts/nested_zero_leaf_array_storage_through_field_exit checked 2736ms check-target:macos_arm64 @b59d0f8c2783
+pass/facts/nested_zero_leaf_array_storage_through_local_exit checked 2710ms check-target:macos_arm64 @b59d0f8c2783
+pass/facts/nested_zero_leaf_array_storage_through_match_join_exit checked 3007ms check-target:macos_arm64 @b59d0f8c2783
+pass/facts/nested_zero_leaf_array_storage_through_other_machine_exit checked 3031ms check-target:macos_arm64 @b59d0f8c2783
+pass/facts/nested_zero_leaf_array_storage_through_other_state_exit checked 2924ms check-target:macos_arm64 @b59d0f8c2783
+pass/facts/nested_zero_leaf_array_storage_through_parameter_exit checked 2745ms check-target:macos_arm64 @b59d0f8c2783
+pass/facts/nested_zero_leaf_array_storage_through_target_body_exit checked 2804ms check-target:macos_arm64 @b59d0f8c2783
+pass/facts/nested_zero_leaf_array_storage_zeroed_source_exit checked 2779ms check-target:macos_arm64 @b59d0f8c2783
 pass/facts/nine_arg_stack_calling_plan_through_call_result_exit checked 3563ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nine_arg_stack_calling_plan_through_const_name_exit checked 3956ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nine_arg_stack_calling_plan_through_field_exit checked 3852ms check-target:macos_arm64 @ccdb99ca2214
@@ -9274,16 +9274,17 @@ pass/facts/target_family_callback_guarantee/repeated_application checked 3268ms 
 pass/facts/target_family_callback_guarantee/sibling_helper checked 4062ms check-target:macos_arm64 @45fb2a705c96
 pass/facts/target_family_callback_guarantee/target_body checked 4071ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @45fb2a705c96
 pass/facts/target_family_callback_guarantee/target_values checked 4627ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @45fb2a705c96
-pass/facts/target_family_contract_operand/call_result checked 3674ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_family_contract_operand/const_name checked 4293ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_family_contract_operand/field checked 3412ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_family_contract_operand/local checked 3836ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_family_contract_operand/match_join checked 3778ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_family_contract_operand/other_machine checked 3596ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_family_contract_operand/other_state checked 4188ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_family_contract_operand/parameter checked 3656ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_family_contract_operand/shadowed_scope checked 4190ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_family_contract_operand/target_body checked 3968ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/target_family_contract_operand/call_result checked 2876ms check-target:macos_arm64 @b0315c8f656c
+pass/facts/target_family_contract_operand/callback_capability checked 2745ms check-target:macos_arm64 @b0315c8f656c
+pass/facts/target_family_contract_operand/const_name checked 2749ms check-target:macos_arm64 @b0315c8f656c
+pass/facts/target_family_contract_operand/field checked 2757ms check-target:macos_arm64 @b0315c8f656c
+pass/facts/target_family_contract_operand/local checked 2654ms check-target:macos_arm64 @b0315c8f656c
+pass/facts/target_family_contract_operand/match_join checked 2713ms check-target:macos_arm64 @b0315c8f656c
+pass/facts/target_family_contract_operand/other_machine checked 2756ms check-target:macos_arm64 @b0315c8f656c
+pass/facts/target_family_contract_operand/other_state checked 2741ms check-target:macos_arm64 @b0315c8f656c
+pass/facts/target_family_contract_operand/parameter checked 2693ms check-target:macos_arm64 @b0315c8f656c
+pass/facts/target_family_contract_operand/shadowed_scope checked 2735ms check-target:macos_arm64 @b0315c8f656c
+pass/facts/target_family_contract_operand/target_body checked 2829ms check-target:macos_arm64 @b0315c8f656c
 pass/facts/target_family_invocation_lifetime/call_result incomplete 3772ms check-target:macos_arm64 @ccdb99ca2214
 	`main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data); in state `main::entry`, statement 3
 pass/facts/target_family_invocation_lifetime/const_name incomplete 3587ms check-target:macos_arm64 @ccdb99ca2214
@@ -11542,6 +11543,9 @@ pass/proofs/case_call_premises checked 701ms @836691c69aa1
 pass/proofs/cauchy_predicates_compile checked 3205ms @ccdb99ca2214
 pass/proofs/citation_requires_discharged checked 15694ms @ccdb99ca2214
 pass/proofs/collection_predicate_deferred_disjunction_sixteen_cells checked 15779ms @ccdb99ca2214
+pass/proofs/completed_guard_converted_snapshot checked 3463ms check-target:macos_arm64 @2cede9e14eca
+pass/proofs/completed_guard_private_boolean checked 3022ms check-target:macos_arm64 @2cede9e14eca
+pass/proofs/completed_guard_two_call_identities checked 3022ms check-target:macos_arm64 @2cede9e14eca
 pass/proofs/completed_qualified_membership_exit checked 3545ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/completed_store_address_and_result_exit checked 3331ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/constant_boolean_return_join_exit checked 3250ms check-target:macos_arm64 @ccdb99ca2214
@@ -25707,25 +25711,25 @@ fail/facts/nested_three_level_record_field_bound_through_target_body_rejected re
 	exact arithmetic in machine `check_target` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `check_target` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `check_target` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/nested_zero_leaf_array_storage_through_call_result_rejected rejected 2856ms expected @ccdb99ca2214
+fail/facts/nested_zero_leaf_array_storage_through_call_result_rejected rejected 1759ms expected @b59d0f8c2783
 	cannot prove index `512` is within length 512
-fail/facts/nested_zero_leaf_array_storage_through_const_name_rejected rejected 2802ms expected @ccdb99ca2214
+fail/facts/nested_zero_leaf_array_storage_through_const_name_rejected rejected 1777ms expected @b59d0f8c2783
 	cannot prove index `512` is within length 512
-fail/facts/nested_zero_leaf_array_storage_through_field_rejected rejected 3466ms expected @ccdb99ca2214
+fail/facts/nested_zero_leaf_array_storage_through_field_rejected rejected 1692ms expected @b59d0f8c2783
 	cannot prove index `512` is within length 512
-fail/facts/nested_zero_leaf_array_storage_through_local_rejected rejected 3046ms expected @ccdb99ca2214
+fail/facts/nested_zero_leaf_array_storage_through_local_rejected rejected 1907ms expected @b59d0f8c2783
 	cannot prove index `512` is within length 512
-fail/facts/nested_zero_leaf_array_storage_through_match_join_rejected rejected 3209ms expected @ccdb99ca2214
+fail/facts/nested_zero_leaf_array_storage_through_match_join_rejected rejected 1981ms expected @b59d0f8c2783
 	cannot prove index `512` is within length 512
-fail/facts/nested_zero_leaf_array_storage_through_other_machine_rejected rejected 3277ms expected @ccdb99ca2214
+fail/facts/nested_zero_leaf_array_storage_through_other_machine_rejected rejected 1717ms expected @b59d0f8c2783
 	cannot prove index `512` is within length 512
-fail/facts/nested_zero_leaf_array_storage_through_other_state_rejected rejected 2626ms expected @ccdb99ca2214
+fail/facts/nested_zero_leaf_array_storage_through_other_state_rejected rejected 1696ms expected @b59d0f8c2783
 	cannot prove index `512` is within length 512
-fail/facts/nested_zero_leaf_array_storage_through_parameter_rejected rejected 3320ms expected @ccdb99ca2214
+fail/facts/nested_zero_leaf_array_storage_through_parameter_rejected rejected 1684ms expected @b59d0f8c2783
 	cannot prove index `512` is within length 512
-fail/facts/nested_zero_leaf_array_storage_through_target_body_rejected rejected 3534ms expected @ccdb99ca2214
+fail/facts/nested_zero_leaf_array_storage_through_target_body_rejected rejected 1723ms expected @b59d0f8c2783
 	cannot prove index `512` is within length 512
-fail/facts/nested_zero_leaf_array_storage_zeroed_source_rejected rejected 3633ms expected @ccdb99ca2214
+fail/facts/nested_zero_leaf_array_storage_zeroed_source_rejected rejected 1693ms expected @b59d0f8c2783
 	cannot prove index `512` is within length 512
 fail/facts/nine_arg_stack_calling_plan_through_call_result_rejected rejected 17971ms expected @60f7e3cd4ee2+wt
 	exact arithmetic in machine `probe` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
@@ -28650,41 +28654,26 @@ fail/facts/target_family_callback_guarantee/stronger_precondition rejected 738ms
 	machine argument `identity` for `apply` does not refine `Selected`: its requires facts are not a conservative refinement
 fail/facts/target_family_callback_guarantee/target_body rejected 709ms expected @45fb2a705c96
 	machine argument `identity` for `apply` does not refine `Selected`: its ensures facts are not a conservative refinement
-fail/facts/target_family_contract_operand/call_result rejected 1591ms expected @ccdb99ca2214
-	machine `forward` state `entry` value call to `choose` violates required fact `input <= 41`: the instantiated fact is structurally false (`42 <= 41`)
-	machine `main` state `entry` value call to `choose` violates required fact `input <= 41`: the instantiated fact is structurally false (`42 <= 41`)
-	machine `forward$specialized$997f461343a61c6e$0` state `entry` value call to `choose` violates required fact `input <= 41`: the instantiated fact is structurally false (`42 <= 41`)
-fail/facts/target_family_contract_operand/const_name rejected 1742ms expected @ccdb99ca2214
-	machine `forward` state `entry` value call to `choose` violates required fact `input <= 41`: the instantiated fact is structurally false (`42 <= 41`)
-	machine `main` state `entry` value call to `choose` violates required fact `input <= 41`: the instantiated fact is structurally false (`42 <= 41`)
-	machine `forward$specialized$e1ddb164ca91109c$0` state `entry` value call to `choose` violates required fact `input <= 41`: the instantiated fact is structurally false (`42 <= 41`)
-fail/facts/target_family_contract_operand/field rejected 1410ms expected @ccdb99ca2214
-	machine `forward` state `entry` value call to `choose` violates required fact `input <= 41`: the instantiated fact is structurally false (`42 <= 41`)
-	machine `forward$specialized$6b3089ac704802ae$0` state `entry` value call to `choose` violates required fact `input <= 41`: the instantiated fact is structurally false (`42 <= 41`)
-fail/facts/target_family_contract_operand/local rejected 1535ms expected @ccdb99ca2214
-	machine `forward` state `entry` value call to `choose` violates required fact `input <= 41`: the instantiated fact is structurally false (`42 <= 41`)
-	machine `main` state `entry` value call to `choose` violates required fact `input <= 41`: the instantiated fact is structurally false (`42 <= 41`)
-	machine `forward$specialized$73560fad5fb2dcc7$0` state `entry` value call to `choose` violates required fact `input <= 41`: the instantiated fact is structurally false (`42 <= 41`)
-fail/facts/target_family_contract_operand/match_join rejected 1425ms expected @ccdb99ca2214
-	machine `forward` state `entry` value call to `choose` violates required fact `input <= 41`: the instantiated fact is structurally false (`42 <= 41`)
-	machine `forward$specialized$b3374726ab6470e6$0` state `entry` value call to `choose` violates required fact `input <= 41`: the instantiated fact is structurally false (`42 <= 41`)
-fail/facts/target_family_contract_operand/other_machine rejected 1715ms expected @ccdb99ca2214
-	machine `forward` state `entry` value call to `choose` violates required fact `input <= 41`: the instantiated fact is structurally false (`42 <= 41`)
-	machine `direct` state `entry` value call to `choose` violates required fact `input <= 41`: the instantiated fact is structurally false (`42 <= 41`)
-	machine `forward$specialized$9ad17f30df71ed93$0` state `entry` value call to `choose` violates required fact `input <= 41`: the instantiated fact is structurally false (`42 <= 41`)
-fail/facts/target_family_contract_operand/other_state rejected 1839ms expected @ccdb99ca2214
-	machine `forward` state `entry` value call to `choose` violates required fact `input <= 41`: the instantiated fact is structurally false (`42 <= 41`)
-	machine `direct` state `entry` value call to `choose` violates required fact `input <= 41`: the instantiated fact is structurally false (`42 <= 41`)
-	machine `forward$specialized$98be59bbd6dba67d$0` state `entry` value call to `choose` violates required fact `input <= 41`: the instantiated fact is structurally false (`42 <= 41`)
-fail/facts/target_family_contract_operand/parameter rejected 1528ms expected @ccdb99ca2214
-	machine `forward` state `entry` value call to `choose` violates required fact `input <= 41`: the instantiated fact is structurally false (`42 <= 41`)
-	machine `forward$specialized$9287fa3ae65e8257$0` state `entry` value call to `choose` violates required fact `input <= 41`: the instantiated fact is structurally false (`42 <= 41`)
-fail/facts/target_family_contract_operand/shadowed_scope rejected 1410ms expected @ccdb99ca2214
+fail/facts/target_family_contract_operand/call_result rejected 1554ms expected @b0315c8f656c
+	machine `WindowsChoice::choose` realizes `Choosing::choose` but requires `input <= 41`, which the requirement does not imply; callers of the requirement prove only its own `requires`
+fail/facts/target_family_contract_operand/const_name rejected 1559ms expected @b0315c8f656c
+	machine `WindowsChoice::choose` realizes `Choosing::choose` but requires `input <= 41`, which the requirement does not imply; callers of the requirement prove only its own `requires`
+fail/facts/target_family_contract_operand/field rejected 1621ms expected @b0315c8f656c
+	machine `WindowsChoice::choose` realizes `Choosing::choose` but requires `input <= 41`, which the requirement does not imply; callers of the requirement prove only its own `requires`
+fail/facts/target_family_contract_operand/local rejected 1655ms expected @b0315c8f656c
+	machine `WindowsChoice::choose` realizes `Choosing::choose` but requires `input <= 41`, which the requirement does not imply; callers of the requirement prove only its own `requires`
+fail/facts/target_family_contract_operand/match_join rejected 1563ms expected @b0315c8f656c
+	machine `WindowsChoice::choose` realizes `Choosing::choose` but requires `input <= 41`, which the requirement does not imply; callers of the requirement prove only its own `requires`
+fail/facts/target_family_contract_operand/other_machine rejected 1593ms expected @b0315c8f656c
+	machine `WindowsChoice::choose` realizes `Choosing::choose` but requires `input <= 41`, which the requirement does not imply; callers of the requirement prove only its own `requires`
+fail/facts/target_family_contract_operand/other_state rejected 1651ms expected @b0315c8f656c
+	machine `WindowsChoice::choose` realizes `Choosing::choose` but requires `input <= 41`, which the requirement does not imply; callers of the requirement prove only its own `requires`
+fail/facts/target_family_contract_operand/parameter rejected 1599ms expected @b0315c8f656c
+	machine `WindowsChoice::choose` realizes `Choosing::choose` but requires `input <= 41`, which the requirement does not imply; callers of the requirement prove only its own `requires`
+fail/facts/target_family_contract_operand/shadowed_scope rejected 747ms expected @b0315c8f656c
 	machine `foreign_scope` state `entry` uses `number`, which is not a declared local, parameter, field, or type in this state (check the spelling)
-fail/facts/target_family_contract_operand/target_body rejected 1358ms expected @ccdb99ca2214
-	machine `forward` state `entry` value call to `choose` violates required fact `input <= 41`: the instantiated fact is structurally false (`42 <= 41`)
-	machine `direct` state `entry` value call to `choose::windows_x86_64` violates required fact `input <= 41`: the instantiated fact is structurally false (`42 <= 41`)
-	machine `forward$specialized$452045884909051c$0` state `entry` value call to `choose` violates required fact `input <= 41`: the instantiated fact is structurally false (`42 <= 41`)
+fail/facts/target_family_contract_operand/target_body rejected 1548ms expected @b0315c8f656c
+	machine `WindowsChoice::choose` realizes `Choosing::choose` but requires `input <= 41`, which the requirement does not imply; callers of the requirement prove only its own `requires`
 fail/facts/target_family_invocation_lifetime/call_result rejected 1167ms expected @ccdb99ca2214
 	machine argument `pick$specialized$258dd2c270f5182b$0` for `apply` does not refine `Selected`: callable returned view has a different input-source relation
 	machine argument `pick$specialized$258dd2c270f5182b$0` for `apply` does not refine `Selected`: callable returned view has a different input-source relation

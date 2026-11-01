@@ -451,6 +451,7 @@ mod tests {
                     byte_alignment: 1,
                 }),
                 fields: vec![StructuralFieldDeclaration {
+                    inline_carrier: None,
                     id: StructuralFieldId::new(1).expect("field identity"),
                     identity: terminal_psi::TerminalIdentityIndex(16),
                     relevance: BindingRelevance::Relevant,

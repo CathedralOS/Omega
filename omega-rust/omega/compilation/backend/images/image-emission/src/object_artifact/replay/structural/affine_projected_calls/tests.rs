@@ -46,6 +46,7 @@ fn declaration(value: u64, shape: StructuralTypeShape) -> StructuralTypeDeclarat
 
 fn structural_field(value: u64, identity: &str, child: u64) -> StructuralFieldDeclaration {
     StructuralFieldDeclaration {
+        inline_carrier: None,
         storage: None,
         id: StructuralFieldId::new(value).unwrap(),
         identity: terminal_psi::TerminalIdentityIndex(match identity {
@@ -68,6 +69,7 @@ fn token() -> StructuralTypeDeclaration {
         StructuralTypeShape::Record {
             storage: terminal_psi::StructuralRecordStorage::Packed,
             fields: vec![StructuralFieldDeclaration {
+                inline_carrier: None,
                 storage: None,
                 id: StructuralFieldId::new(1).unwrap(),
                 identity: terminal_psi::TerminalIdentityIndex(1),

@@ -20,7 +20,9 @@ use semantic_vocabulary::{
 };
 use symbols::SymbolHandle;
 
+mod abi_signatures;
 pub mod calling_applications;
+pub use abi_signatures::{CallingStaticOperand, PreparedBoundaryAbiSignature};
 
 pub struct BoundaryCallbackSource {
     pub parameter_symbol: SymbolHandle,
@@ -64,11 +66,15 @@ impl Default for BoundarySignatureDeclaration {
 pub struct PreparedBoundarySignatures {
     declarations: Arena<BoundarySignatureDeclaration>,
     calling: calling_applications::PreparedCallingApplications,
+    abi_signatures: Vec<PreparedBoundaryAbiSignature>,
+    boundary_abis: Vec<(
+        SymbolHandle,
+        Result<semantic_vocabulary::CallingSignatureId, String>,
+    )>,
 }
 
 impl PreparedBoundarySignatures {
-    pub(super) fn prepare(context: ProviderPlanningContext<'_>) -> Self {
-        let typed = context.typed;
+    pub(crate) fn prepare(typed: &TypedTrees) -> Self {
         let product = ProviderPlanningContext::new(typed, source::DependencyScope::Product);
         let mut declarations = Arena::new();
         // Authored policy evaluation walks the complete checked input. Keep
@@ -114,11 +120,15 @@ impl PreparedBoundarySignatures {
             });
         }
         let calling =
-            calling_applications::PreparedCallingApplications::prepare(context, &declarations);
-        Self {
+            calling_applications::PreparedCallingApplications::prepare(typed, &declarations);
+        let mut prepared = Self {
             declarations,
             calling,
-        }
+            abi_signatures: Vec::new(),
+            boundary_abis: Vec::new(),
+        };
+        abi_signatures::prepare(&mut prepared, typed);
+        prepared
     }
 
     pub fn declarations(&self) -> impl Iterator<Item = &BoundarySignatureDeclaration> {
@@ -127,6 +137,20 @@ impl PreparedBoundarySignatures {
 
     pub fn calling(&self) -> &calling_applications::PreparedCallingApplications {
         &self.calling
+    }
+
+    pub fn abi_signatures(&self) -> &[PreparedBoundaryAbiSignature] {
+        &self.abi_signatures
+    }
+
+    pub fn abi_for_boundary(
+        &self,
+        source: SymbolHandle,
+    ) -> Option<&Result<semantic_vocabulary::CallingSignatureId, String>> {
+        self.boundary_abis
+            .iter()
+            .find(|(owner, _)| *owner == source)
+            .map(|(_, application)| application)
     }
 
     pub fn applied_declaration(

@@ -354,11 +354,11 @@ retired-syntax deletions to completion.
     `samples/cli/audio/audio_playback` and its sine, square, and melody
     consumers through unchanged playback oracles; shared binding-value producers
     and helpers remain ordinary machines.
-    Frontier: 66 `samples/cli/facts/*/target_body` places still spell the
-    prefix, and 8 facts spell it in all nine places
-    (`generic_calling_policy`, `nested_zero_leaf_array_storage`,
+    Frontier: 64 `samples/cli/facts/*/target_body` places still spell the
+    prefix, and 6 facts spell it in all nine places
+    (`generic_calling_policy`,
     `opaque_closed_carrier_exchange`, `scalar_boundary_parameter`,
-    `selected_provider_issuance`, `target_family_contract_operand`,
+    `selected_provider_issuance`,
     `target_layout_derived_constant`,
     `target_scoped_constant_realization`).
   - Transport exact requirement and implementation identities, lifetimes,
@@ -862,11 +862,7 @@ helper that passes does not close an item.
     Complete byte roundtrips, broader reference composition, and other-host
     execution for [typed stored-reference readback](samples/cli/facts/fixed_layout_reference_readback/README.md)
     and [implementation-region forwarding](samples/cli/facts/implementation_region_forwarding/README.md).
-  - Complete Windows x86_64 execution for the
-    [C-layout row](samples/cli/facts/c_layout_scalar_record/README.md) and
-    [explicit nested representations](samples/cli/facts/c_layout_nested_representation/README.md),
-    plus macOS ARM64 execution for the nested row and remaining schema/case
-    composition support;
+  - Complete remaining schema/case composition support;
     migrate complete platform ABI records;
     retain explicit named policies for sparse views. Darwin timestamp pairs and
     the complete stat extent must agree with the SDK rather than inferring

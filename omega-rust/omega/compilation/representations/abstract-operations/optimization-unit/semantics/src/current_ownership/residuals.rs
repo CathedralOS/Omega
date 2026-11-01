@@ -195,10 +195,10 @@ fn collect_field_residuals(
             scalar if scalar.scalar_type().is_some() => None,
             bytes => match bytes.byte_sequence_carrier()? {
                 terminal_psi::ByteSequenceCarrier::BoundedOwned { .. } => None,
-                carrier => Some(
-                    terminal_semantics::byte_carrier_field_declaration(
+                _ => Some(
+                    terminal_semantics::inline_carrier_declaration(
                         structural_types.values().copied(),
-                        carrier,
+                        field,
                     )?
                     .id,
                 ),

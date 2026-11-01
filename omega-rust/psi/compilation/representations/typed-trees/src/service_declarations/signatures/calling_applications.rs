@@ -7,8 +7,10 @@
 
 use super::BoundarySignatureDeclaration;
 use crate::TypedTrees;
-use crate::boundary_values::{BoundaryTypeBinding, substitute_boundary_type_reference};
-use crate::provider_declarations::ProviderPlanningContext;
+use crate::boundary_values::BoundaryTypeBinding;
+use crate::trait_definition::{
+    AppliedTraitScope, TraitApplicationArguments, TraitApplicationEnvironment,
+};
 use crate::types::TypeReferenceHandle;
 use arena::{Arena, Handle, HandleSpan};
 use diagnostics::Diagnostic;
@@ -54,6 +56,9 @@ impl Default for PreparedCallingInstance {
 pub struct PreparedAppliedBoundarySignature {
     declaration: Handle<BoundarySignatureDeclaration>,
     bindings: HandleSpan<BoundaryTypeBinding>,
+    pub declaring_scope: Option<TraitApplicationEnvironment>,
+    pub abi_signatures: Vec<semantic_vocabulary::CallingSignatureId>,
+    pub abi_refusal: Option<String>,
 }
 
 #[derive(Default)]
@@ -67,10 +72,9 @@ pub struct PreparedCallingApplications {
 
 impl PreparedCallingApplications {
     pub(super) fn prepare(
-        context: ProviderPlanningContext<'_>,
+        typed: &TypedTrees,
         declarations: &Arena<BoundarySignatureDeclaration>,
     ) -> Self {
-        let typed = context.typed;
         let vocabularies = crate::calling_vocabulary::standard_calling_vocabularies(typed);
         let mut prepared = Self::default();
         if vocabularies.is_empty() {
@@ -147,9 +151,10 @@ impl PreparedCallingApplications {
                         typed,
                         boundary,
                         &instance.arguments,
-                        &mut Vec::new(),
+                        instance.argument_owner,
                         &mut signatures,
-                    );
+                    )
+                    .map_err(|reason| vec![Diagnostic::error(reason).with_source_span(span)])?;
                     let signatures = signatures
                         .into_iter()
                         .map(|signature| {
@@ -166,6 +171,9 @@ impl PreparedCallingApplications {
                             PreparedAppliedBoundarySignature {
                                 declaration,
                                 bindings,
+                                declaring_scope: Some(signature.scope),
+                                abi_signatures: Vec::new(),
+                                abi_refusal: None,
                             }
                         })
                         .collect::<Vec<_>>();
@@ -223,12 +231,36 @@ impl PreparedCallingApplications {
     ) -> Handle<BoundarySignatureDeclaration> {
         signature.declaration
     }
+
+    pub(super) fn applications(
+        &self,
+    ) -> impl Iterator<
+        Item = (
+            Handle<PreparedAppliedBoundarySignature>,
+            &PreparedAppliedBoundarySignature,
+        ),
+    > {
+        self.signatures.iter()
+    }
+
+    pub(super) fn set_abi_signatures(
+        &mut self,
+        application: Handle<PreparedAppliedBoundarySignature>,
+        ids: Result<Vec<semantic_vocabulary::CallingSignatureId>, String>,
+    ) {
+        let application = self.signatures.get_mut(application);
+        match ids {
+            Ok(ids) => application.abi_signatures = ids,
+            Err(reason) => application.abi_refusal = Some(reason),
+        }
+    }
 }
 
 struct BoundarySignatureInstance<'input> {
     signature: &'input crate::signature::StateSignature,
     requirement_identity: String,
     bindings: Vec<BoundaryTypeBinding>,
+    scope: TraitApplicationEnvironment,
 }
 
 struct BoundaryPolicyInstance {
@@ -440,59 +472,53 @@ fn collect_boundary_signatures<'a>(
     typed: &'a TypedTrees,
     definition: &'a crate::trait_definition::TraitDefinition,
     arguments: &[TypeReferenceHandle],
-    visited: &mut Vec<symbols::SymbolHandle>,
+    argument_owner: SymbolHandle,
     signatures: &mut Vec<BoundarySignatureInstance<'a>>,
-) {
-    if visited.contains(&definition.symbol) {
-        return;
-    }
-    visited.push(definition.symbol);
-    let bindings = trait_type_bindings(typed, definition, arguments);
-    for requirement in typed.trait_requirements(definition) {
-        if let Some(parent) = typed
-            .traits()
-            .iter()
-            .find(|candidate| candidate.symbol == requirement.symbol && candidate.is_boundary)
-        {
-            let parent_arguments = typed
-                .type_reference_table
-                .type_reference_handles(requirement.arguments)
-                .iter()
-                .map(|argument| substitute_boundary_type_reference(typed, *argument, &bindings))
-                .collect::<Vec<_>>();
-            collect_boundary_signatures(typed, parent, &parent_arguments, visited, signatures);
+) -> Result<(), String> {
+    let root = AppliedTraitScope::new(
+        typed,
+        definition,
+        TraitApplicationArguments {
+            lexical_owner: argument_owner,
+            enclosing_data_applications: &[],
+            arguments,
+            lifetimes: &[],
+        },
+    )
+    .ok_or("calling census lost its complete boundary application")?;
+    let mut seen = Vec::new();
+    let mut refusal = None;
+    root.visit_parents_first(typed, &mut |scope| {
+        if !scope.declaration.is_boundary || refusal.is_some() {
+            return;
         }
-    }
-    for signature in typed.trait_machine_signatures(definition) {
-        let requirement_identity =
-            typed.trait_requirement_callable_identity_text(definition, signature);
-        if !signatures
-            .iter()
-            .any(|candidate| candidate.requirement_identity == requirement_identity)
-        {
+        let Some(application) = scope.portable_application_identity(typed) else {
+            refusal =
+                Some("calling census cannot retain its complete declaring application".to_owned());
+            return;
+        };
+        for signature in typed.trait_machine_signatures(scope.declaration) {
+            if seen.contains(&(signature.symbol, application)) {
+                continue;
+            }
+            seen.push((signature.symbol, application));
+            let bindings = scope
+                .substitutions
+                .iter()
+                .map(|(parameter, actual)| BoundaryTypeBinding {
+                    parameter_symbol: *parameter,
+                    parameter_name: typed.symbols.name(*parameter).to_owned(),
+                    actual: *actual,
+                })
+                .collect();
             signatures.push(BoundarySignatureInstance {
                 signature,
-                requirement_identity,
-                bindings: bindings.clone(),
+                requirement_identity: typed
+                    .trait_requirement_callable_identity_text(scope.declaration, signature),
+                bindings,
+                scope: scope.environment(),
             });
         }
-    }
-    visited.pop();
-}
-
-fn trait_type_bindings(
-    typed: &TypedTrees,
-    definition: &crate::trait_definition::TraitDefinition,
-    arguments: &[TypeReferenceHandle],
-) -> Vec<BoundaryTypeBinding> {
-    typed
-        .trait_type_parameters(definition)
-        .iter()
-        .zip(arguments.iter().copied())
-        .map(|(parameter, actual)| BoundaryTypeBinding {
-            parameter_symbol: parameter.symbol,
-            parameter_name: parameter.name.as_str().to_owned(),
-            actual,
-        })
-        .collect()
+    });
+    refusal.map_or(Ok(()), Err)
 }

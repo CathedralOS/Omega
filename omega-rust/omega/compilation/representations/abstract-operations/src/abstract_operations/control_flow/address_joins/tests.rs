@@ -31,6 +31,7 @@ fn field(
     field_type: StructuralFieldType,
 ) -> StructuralFieldDeclaration {
     StructuralFieldDeclaration {
+        inline_carrier: None,
         id: StructuralFieldId::new(raw).unwrap(),
         identity,
         relevance: BindingRelevance::Relevant,

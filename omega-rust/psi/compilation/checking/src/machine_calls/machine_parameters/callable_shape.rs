@@ -530,6 +530,12 @@ fn validate_callable_formation(
         required_parameters,
         actual_parameters,
         actual.contract_owner,
+        actual.return_type,
+        &binder_bindings
+            .static_bindings
+            .iter()
+            .map(|binding| (binding.required, binding.actual))
+            .collect::<Vec<_>>(),
         &substitutions,
         super::contract_facts::CallableProofScope {
             site: actual.proof_site,

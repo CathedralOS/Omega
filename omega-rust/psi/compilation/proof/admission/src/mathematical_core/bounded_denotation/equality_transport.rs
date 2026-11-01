@@ -15,6 +15,9 @@ use super::{
 use super::{ProofNode, Proposition, Term, TermHandle};
 use crate::mathematical_core::substitution::shift;
 
+mod coercion;
+mod inhabitants;
+
 #[cfg(test)]
 mod tests;
 
@@ -436,7 +439,7 @@ impl Denotation {
     /// sorted, deduplicated or flattened arrangement — permuted or nested
     /// `Σ` conjunctions, retagged disjunction families, dropped
     /// `Truth`/`Falsehood` children — derives through
-    /// `connective_shuffle` with real projections, pairs and `caseTwo`
+    /// the coercion driver's connective fallback with projections, pairs and `caseTwo`
     /// eliminations rather than an axiom.
     /// `Ok(None)` keeps the explicit rule-instance route for any difference
     /// outside these shapes — a dependent codomain, an unmatched family, an
@@ -468,127 +471,7 @@ impl Denotation {
         &mut self,
         goal: TermHandle,
     ) -> Result<Option<TermHandle>, BoundedDenotationError> {
-        if let Some((ty, left, right)) = self.identity_parts(goal) {
-            // A non-reflexive identity is not inhabited outright; whether
-            // it is a refutable relation is the premise side's question.
-            return if self.arena.structurally_equal(left, right) {
-                Ok(Some(self.arena.insert(Term::Refl { ty, value: left })))
-            } else {
-                Ok(None)
-            };
-        }
-        match self.integer_relation(goal) {
-            Some(IntegerRelation::LessThan { left, right }) => {
-                let (Some(lower), Some(upper)) =
-                    (self.closed_math_value(left), self.closed_math_value(right))
-                else {
-                    return Ok(None);
-                };
-                if lower >= upper {
-                    return Ok(None);
-                }
-                let (Some(lower), Some(upper)) =
-                    (integer_value_of(&lower), integer_value_of(&upper))
-                else {
-                    return Ok(None);
-                };
-                return self.literal_order(lower, upper).map(Some);
-            }
-            Some(IntegerRelation::LessOrEqual { left, right }) => {
-                let (Some(lower), Some(upper)) =
-                    (self.closed_math_value(left), self.closed_math_value(right))
-                else {
-                    return Ok(None);
-                };
-                if lower > upper {
-                    return Ok(None);
-                }
-                let evidence = if lower == upper {
-                    // `eq_le a a (refl a)` — equal endpoints need no
-                    // numeral derivation, so even an opaque closed
-                    // constant outside the literal range inhabits here.
-                    let integer = self.integer_constant()?;
-                    let reflexive = self.arena.insert(Term::Refl {
-                        ty: integer,
-                        value: left,
-                    });
-                    self.integer_law_application(
-                        IntegerLaw::EqualityToLessOrEqual,
-                        &[left, right, reflexive],
-                    )?
-                } else {
-                    let (Some(lower), Some(upper)) =
-                        (integer_value_of(&lower), integer_value_of(&upper))
-                    else {
-                        return Ok(None);
-                    };
-                    let strict = self.literal_order(lower, upper)?;
-                    self.integer_law_application(
-                        IntegerLaw::LessThanToLessOrEqual,
-                        &[left, right, strict],
-                    )?
-                };
-                return Ok(Some(evidence));
-            }
-            _ => {}
-        }
-        match self.arena.get(goal) {
-            Term::Sigma { domain, codomain } => {
-                if !self.occurs_free(codomain, 0) {
-                    let Some(first) = self.closed_inhabitant(domain)? else {
-                        return Ok(None);
-                    };
-                    let Some(second) = self.closed_inhabitant(codomain)? else {
-                        return Ok(None);
-                    };
-                    return Ok(Some(self.arena.insert(Term::Pair { first, second })));
-                }
-                // The `Σ(t : Two). caseTwo(M, d₀, rest, t)` disjunction
-                // denotation — tag whichever branch carries an inhabitant.
-                if !self.arena.structurally_equal(domain, self.two) {
-                    return Ok(None);
-                }
-                let Term::CaseTwo {
-                    zero_branch,
-                    one_branch,
-                    scrutinee,
-                    ..
-                } = self.arena.get(codomain)
-                else {
-                    return Ok(None);
-                };
-                if !matches!(self.arena.get(scrutinee), Term::Variable(0)) {
-                    return Ok(None);
-                }
-                // A branch payload mentioning the tag is a genuinely
-                // dependent family, not the disjunction denotation — the
-                // pair's `second` could not name its substituted type.
-                if !self.occurs_free(zero_branch, 0)
-                    && let Some(payload) = self.closed_inhabitant(zero_branch)?
-                {
-                    return Ok(Some(self.arena.insert(Term::Pair {
-                        first: self.two_zero,
-                        second: payload,
-                    })));
-                }
-                if !self.occurs_free(one_branch, 0)
-                    && let Some(payload) = self.closed_inhabitant(one_branch)?
-                {
-                    return Ok(Some(self.arena.insert(Term::Pair {
-                        first: self.two_one,
-                        second: payload,
-                    })));
-                }
-                Ok(None)
-            }
-            Term::Pi { domain, codomain } if !self.occurs_free(codomain, 0) => {
-                let Some(body) = self.closed_inhabitant(codomain)? else {
-                    return Ok(None);
-                };
-                Ok(Some(self.arena.insert(Term::Lambda { domain, body })))
-            }
-            _ => Ok(None),
-        }
+        inhabitants::construct(self, goal)
     }
 
     /// `goal`-typed evidence out of a denoted premise whose falsity is
@@ -597,12 +480,12 @@ impl Denotation {
     /// strict `Empty` cannot be a `caseTwo` branch; a closed
     /// `Id Int`/`IntLt`/`IntLe` decided false composes the numeral-order
     /// derivation with the substitution and transitivity roster laws,
-    /// landing on fixed strict irreflexivity and `EmptyElim`; a
-    /// non-dependent `Σ` projects onto whichever component refutes.
+    /// landing on fixed strict irreflexivity and `EmptyElim`.
     /// `Ok(None)` keeps the caller's fallback for an open, true or
-    /// undecided relation and every other shape — a dependent sum's
-    /// `snd` cannot name a non-dependent component type.
-    fn closed_refutation(
+    /// undecided relation and every other shape. The coercion continuation
+    /// owns conjunction projection search and refuses dependent codomains
+    /// before invoking this atomic relation producer.
+    fn closed_relation_refutation(
         &mut self,
         premise: TermHandle,
         evidence: TermHandle,
@@ -731,28 +614,13 @@ impl Denotation {
                     scrutinee: absurd,
                 })))
             }
-            _ => match self.arena.get(premise) {
-                // A conjunction denotation is refutable when either
-                // component is — project it out. A dependent sum cannot
-                // name a non-dependent component type, so it declines.
-                Term::Sigma { domain, codomain } if !self.occurs_free(codomain, 0) => {
-                    let first = self.arena.insert(Term::Fst { pair: evidence });
-                    if let Some(refuted) = self.closed_refutation(domain, first, goal)? {
-                        return Ok(Some(refuted));
-                    }
-                    let second = self.arena.insert(Term::Snd { pair: evidence });
-                    self.closed_refutation(codomain, second, goal)
-                }
-                _ => Ok(None),
-            },
+            _ => Ok(None),
         }
     }
 
-    /// One coercion step: the closed-decidable inhabitants and the
-    /// shape-directed arms, then `connective_shuffle` for differences that
-    /// are only the `connective()` normalization's rearrangement. `remaining`
-    /// bounds the construction allowance — an exhausted budget declines to
-    /// the caller's explicit rule-instance route, never a rejection.
+    /// One oriented coercion question and its ordered alternatives. All
+    /// recursive transitions share the same continuation owner and allowance;
+    /// an exhausted allowance declines, never accepts or rejects a judgment.
     fn oriented_coercion(
         &mut self,
         premise: TermHandle,
@@ -760,370 +628,7 @@ impl Denotation {
         evidence: TermHandle,
         remaining: &mut u64,
     ) -> Result<Option<TermHandle>, BoundedDenotationError> {
-        let Some(rest) = remaining.checked_sub(1) else {
-            return Ok(None);
-        };
-        *remaining = rest;
-        if let Some(term) = self.oriented_coercion_once(premise, goal, evidence, remaining)? {
-            return Ok(Some(term));
-        }
-        self.connective_shuffle(premise, goal, evidence, remaining)
-    }
-
-    fn oriented_coercion_once(
-        &mut self,
-        premise: TermHandle,
-        goal: TermHandle,
-        evidence: TermHandle,
-        remaining: &mut u64,
-    ) -> Result<Option<TermHandle>, BoundedDenotationError> {
-        if self.arena.structurally_equal(premise, goal) {
-            return Ok(Some(evidence));
-        }
-        // The closed Truth/Falsehood carrier crossing: a closed-true goal
-        // is inhabited outright — `refl`, the numeral-order derivation or
-        // a weakening law — and a closed-false premise refutes through
-        // `J`'s discriminant or `Empty` elimination into the goal. Both
-        // keep `Ok(None)` for an undecided relation; neither assumes its
-        // conclusion.
-        if let Some(inhabited) = self.closed_inhabitant(goal)? {
-            return Ok(Some(inhabited));
-        }
-        if let Some(refuted) = self.closed_refutation(premise, evidence, goal)? {
-            return Ok(Some(refuted));
-        }
-        let from = self.arena.get(premise);
-        let to = self.arena.get(goal);
-        match (from.clone(), to.clone()) {
-            (
-                Term::Id { ty, left, right },
-                Term::Id {
-                    ty: goal_ty,
-                    left: goal_left,
-                    right: goal_right,
-                },
-            ) => {
-                if self.arena.structurally_equal(ty, goal_ty)
-                    && self.arena.structurally_equal(goal_left, right)
-                    && self.arena.structurally_equal(goal_right, left)
-                {
-                    return Ok(Some(self.symmetry(ty, left, right, evidence)));
-                }
-                // Two `Id Two` identities can also differ by open
-                // `not`/`equal` compositions over Boolean atoms — a
-                // Boolean identity the kernel itself decides by `caseTwo`
-                // case analysis on each atom rather than an instance
-                // axiom for the whole judgment.
-                self.boolean_identity_transport(premise, goal, evidence)
-            }
-            (Term::Id { ty, .. }, _) if self.arena.structurally_equal(ty, self.two) => {
-                // The open Boolean-equality expansion: an `Id Two`
-                // premise whose licensed goal is a connective
-                // denotation — the valuation disjunction the checker's
-                // Boolean normalization produces — still decides by
-                // `caseTwo` case analysis on each neutral Boolean atom
-                // rather than a conversion axiom. Identity goals keep
-                // the dedicated arm above.
-                self.boolean_goal_transport(premise, goal, evidence)
-            }
-            (
-                Term::Pi { domain, codomain },
-                Term::Pi {
-                    domain: goal_domain,
-                    codomain: goal_codomain,
-                },
-            ) => {
-                // `λ(h : ⟦goal premise⟧). ↑(evidence (h : ⟦premise⟧))`:
-                // the domain coerces contravariantly, the codomain
-                // covariantly. A codomain that names its own binder is a
-                // dependent function type — outside this producer's
-                // propositional `Pi`s.
-                if self.occurs_free(codomain, 0) || self.occurs_free(goal_codomain, 0) {
-                    return Ok(None);
-                }
-                let hypothesis = self.arena.insert(Term::Variable(0));
-                let Some(argument) =
-                    self.oriented_coercion(goal_domain, domain, hypothesis, remaining)?
-                else {
-                    return Ok(None);
-                };
-                let function = shift(&mut self.arena, evidence, 0, 1);
-                let applied = self.arena.insert(Term::Apply { function, argument });
-                let Some(body) =
-                    self.oriented_coercion(codomain, goal_codomain, applied, remaining)?
-                else {
-                    return Ok(None);
-                };
-                Ok(Some(self.arena.insert(Term::Lambda {
-                    domain: goal_domain,
-                    body,
-                })))
-            }
-            (
-                Term::Sigma { domain, codomain },
-                Term::Sigma {
-                    domain: goal_domain,
-                    codomain: goal_codomain,
-                },
-            ) => {
-                // `⟨c↑(fst e), c↑(snd e)⟩` — the pair evidence destructures
-                // directly; each projection coerces covariantly toward the
-                // goal's domain and codomain.
-                let fst = self.arena.insert(Term::Fst { pair: evidence });
-                let Some(first) = self.oriented_coercion(domain, goal_domain, fst, remaining)?
-                else {
-                    return Ok(None);
-                };
-                // The disjunction denotation is a `Two`-indexed family
-                // `Σ(t : Two). caseTwo(M, d₀, rest, t)`; coercing its second
-                // projections needs the eliminator that picks the branch
-                // coercion under the same tag. A codomain without that
-                // scrutinee is an ordinary non-dependent pair type.
-                let second = match (self.arena.get(codomain), self.arena.get(goal_codomain)) {
-                    (
-                        Term::CaseTwo {
-                            motive,
-                            zero_branch: zero,
-                            one_branch: one,
-                            scrutinee,
-                        },
-                        Term::CaseTwo {
-                            motive: goal_motive,
-                            zero_branch: goal_zero,
-                            one_branch: goal_one,
-                            scrutinee: goal_scrutinee,
-                        },
-                    ) if self.arena.structurally_equal(motive, goal_motive)
-                        && self.arena.structurally_equal(domain, goal_domain)
-                        && matches!(self.arena.get(scrutinee), Term::Variable(0))
-                        && matches!(self.arena.get(goal_scrutinee), Term::Variable(0))
-                        // Arm payloads move to a different binder's scope;
-                        // a payload naming the Σ binder itself would
-                        // rebind — only binder-closed payloads carry over.
-                        && [motive, zero, one, goal_zero, goal_one]
-                            .into_iter()
-                            .all(|payload| !self.occurs_free(payload, 0)) =>
-                    {
-                        let Some(coerced) = self.branch_selected_coercion(
-                            motive, zero, one, goal_zero, goal_one, evidence, remaining,
-                        )?
-                        else {
-                            return Ok(None);
-                        };
-                        coerced
-                    }
-                    _ => {
-                        if self.occurs_free(codomain, 0) || self.occurs_free(goal_codomain, 0) {
-                            return Ok(None);
-                        }
-                        let snd = self.arena.insert(Term::Snd { pair: evidence });
-                        let Some(coerced) =
-                            self.oriented_coercion(codomain, goal_codomain, snd, remaining)?
-                        else {
-                            return Ok(None);
-                        };
-                        coerced
-                    }
-                };
-                Ok(Some(self.arena.insert(Term::Pair { first, second })))
-            }
-            _ => Ok(None),
-        }
-    }
-
-    /// `caseTwo(λ(t : Two). Π(_ : ⟦F t⟧). ⟦G t⟧, λ(h : d₀). …, λ(h :
-    /// rest). …, fst p) (snd p)` — the coercion of a disjunction pair's
-    /// second projection, where the two `Sigma` codomains are the tagged
-    /// families `F t = caseTwo(M, d₀, rest, t)` and `G t = caseTwo(M, d₀',
-    /// rest', t)` differing only by `Id` orientation inside the branch
-    /// payloads. The branches' own annotations name the reduced family
-    /// arms — the same proposition types the eliminator's motive yields.
-    fn branch_selected_coercion(
-        &mut self,
-        motive: TermHandle,
-        zero: TermHandle,
-        one: TermHandle,
-        goal_zero: TermHandle,
-        goal_one: TermHandle,
-        evidence: TermHandle,
-        remaining: &mut u64,
-    ) -> Result<Option<TermHandle>, BoundedDenotationError> {
-        let tag = self.arena.insert(Term::Variable(0));
-        let premise_family = self.arena.insert(Term::CaseTwo {
-            motive,
-            zero_branch: zero,
-            one_branch: one,
-            scrutinee: tag,
-        });
-        // The Pi's codomain sits under one extra binder — the family
-        // mention `t` and every captured branch payload shift by one.
-        let shifted_tag = self.arena.insert(Term::Variable(1));
-        let shifted_goal_zero = shift(&mut self.arena, goal_zero, 0, 1);
-        let shifted_goal_one = shift(&mut self.arena, goal_one, 0, 1);
-        let shifted_motive = shift(&mut self.arena, motive, 0, 1);
-        let goal_family = self.arena.insert(Term::CaseTwo {
-            motive: shifted_motive,
-            zero_branch: shifted_goal_zero,
-            one_branch: shifted_goal_one,
-            scrutinee: shifted_tag,
-        });
-        let coercion_body = self.arena.insert(Term::Pi {
-            domain: premise_family,
-            codomain: goal_family,
-        });
-        let coercion_motive = self.arena.insert(Term::Lambda {
-            domain: self.two,
-            body: coercion_body,
-        });
-        let hypothesis = self.arena.insert(Term::Variable(0));
-        let Some(zero_coerced) = self.oriented_coercion(zero, goal_zero, hypothesis, remaining)?
-        else {
-            return Ok(None);
-        };
-        let zero_branch = self.arena.insert(Term::Lambda {
-            domain: zero,
-            body: zero_coerced,
-        });
-        let hypothesis = self.arena.insert(Term::Variable(0));
-        let Some(one_coerced) = self.oriented_coercion(one, goal_one, hypothesis, remaining)?
-        else {
-            return Ok(None);
-        };
-        let one_branch = self.arena.insert(Term::Lambda {
-            domain: one,
-            body: one_coerced,
-        });
-        let scrutinee = self.arena.insert(Term::Fst { pair: evidence });
-        let eliminator = self.arena.insert(Term::CaseTwo {
-            motive: coercion_motive,
-            zero_branch,
-            one_branch,
-            scrutinee,
-        });
-        let argument = self.arena.insert(Term::Snd { pair: evidence });
-        Ok(Some(self.arena.insert(Term::Apply {
-            function: eliminator,
-            argument,
-        })))
-    }
-
-    /// `e : ⟦P⟧` re-presented as `⟦Q⟧` when the two differ only by
-    /// connective arrangement — the sorted, deduplicated, flattened order
-    /// the shared `connective()` normalization produces. A non-dependent
-    /// `Σ` premise is a conjunction: project each component and coerce it
-    /// toward the goal. A `Σ(t : Two). caseTwo(M, d₀, rest, t)` premise is
-    /// a disjunction: eliminate the tag, coercing each branch payload into
-    /// the goal under a binder. A non-dependent `Σ` goal pairs evidence
-    /// coerced into each component; the same `Σ(t : Two). caseTwo(…)`
-    /// goal tags whichever branch the premise coerces into — `zero` for
-    /// the `d₀` payload, `one` for the rest denotation. A `Truth` child
-    /// the normalization dropped is inhabited by the closed arms
-    /// upstream; a `Falsehood` child is refuted the same way. Every step
-    /// is a kernel construction the verifier re-decides; `Ok(None)`
-    /// declines any difference outside these denotation shapes.
-    fn connective_shuffle(
-        &mut self,
-        premise: TermHandle,
-        goal: TermHandle,
-        evidence: TermHandle,
-        remaining: &mut u64,
-    ) -> Result<Option<TermHandle>, BoundedDenotationError> {
-        if let Term::Sigma { domain, codomain } = self.arena.get(premise)
-            && !self.occurs_free(codomain, 0)
-        {
-            let projection = self.arena.insert(Term::Fst { pair: evidence });
-            if let Some(term) = self.oriented_coercion(domain, goal, projection, remaining)? {
-                return Ok(Some(term));
-            }
-            let projection = self.arena.insert(Term::Snd { pair: evidence });
-            if let Some(term) = self.oriented_coercion(codomain, goal, projection, remaining)? {
-                return Ok(Some(term));
-            }
-        }
-        if let Some((motive, zero_branch, one_branch)) = self.tagged_sum_parts(premise) {
-            let tag = self.arena.insert(Term::Variable(0));
-            let premise_family = self.arena.insert(Term::CaseTwo {
-                motive,
-                zero_branch,
-                one_branch,
-                scrutinee: tag,
-            });
-            let shifted_goal = shift(&mut self.arena, goal, 0, 2);
-            let elimination_body = self.arena.insert(Term::Pi {
-                domain: premise_family,
-                codomain: shifted_goal,
-            });
-            let elimination_motive = self.arena.insert(Term::Lambda {
-                domain: self.two,
-                body: elimination_body,
-            });
-            let shifted_goal = shift(&mut self.arena, goal, 0, 1);
-            let hypothesis = self.arena.insert(Term::Variable(0));
-            let Some(zero_coerced) =
-                self.oriented_coercion(zero_branch, shifted_goal, hypothesis, remaining)?
-            else {
-                return Ok(None);
-            };
-            let zero_eliminated = self.arena.insert(Term::Lambda {
-                domain: zero_branch,
-                body: zero_coerced,
-            });
-            let hypothesis = self.arena.insert(Term::Variable(0));
-            let Some(one_coerced) =
-                self.oriented_coercion(one_branch, shifted_goal, hypothesis, remaining)?
-            else {
-                return Ok(None);
-            };
-            let one_eliminated = self.arena.insert(Term::Lambda {
-                domain: one_branch,
-                body: one_coerced,
-            });
-            let scrutinee = self.arena.insert(Term::Fst { pair: evidence });
-            let eliminator = self.arena.insert(Term::CaseTwo {
-                motive: elimination_motive,
-                zero_branch: zero_eliminated,
-                one_branch: one_eliminated,
-                scrutinee,
-            });
-            let payload = self.arena.insert(Term::Snd { pair: evidence });
-            return Ok(Some(self.arena.insert(Term::Apply {
-                function: eliminator,
-                argument: payload,
-            })));
-        }
-        if let Term::Sigma { domain, codomain } = self.arena.get(goal)
-            && !self.occurs_free(codomain, 0)
-        {
-            let Some(first) = self.oriented_coercion(premise, domain, evidence, remaining)? else {
-                return Ok(None);
-            };
-            let Some(second) = self.oriented_coercion(premise, codomain, evidence, remaining)?
-            else {
-                return Ok(None);
-            };
-            return Ok(Some(self.arena.insert(Term::Pair { first, second })));
-        }
-        if let Some((_, zero_branch, one_branch)) = self.tagged_sum_parts(goal) {
-            if let Some(payload) =
-                self.oriented_coercion(premise, zero_branch, evidence, remaining)?
-            {
-                let first = self.two_zero;
-                return Ok(Some(self.arena.insert(Term::Pair {
-                    first,
-                    second: payload,
-                })));
-            }
-            if let Some(payload) =
-                self.oriented_coercion(premise, one_branch, evidence, remaining)?
-            {
-                let first = self.two_one;
-                return Ok(Some(self.arena.insert(Term::Pair {
-                    first,
-                    second: payload,
-                })));
-            }
-        }
-        Ok(None)
+        coercion::construct(self, premise, goal, evidence, remaining)
     }
 
     /// The `Σ(t : Two). caseTwo(M, d₀, rest, t)` disjunction denotation's
@@ -1165,107 +670,24 @@ impl Denotation {
     /// binder, which this producer's propositional connectives never
     /// generate.
     pub(super) fn occurs_free(&self, term: TermHandle, index: u32) -> bool {
-        match self.arena.get(term) {
-            Term::Variable(position) => position == index,
-            Term::Pi { domain, codomain } | Term::Sigma { domain, codomain } => {
-                self.occurs_free(domain, index)
-                    || index
-                        .checked_add(1)
-                        .is_some_and(|nested| self.occurs_free(codomain, nested))
+        let mut pending = vec![(term, index)];
+        while let Some((term, index)) = pending.pop() {
+            let node = self.arena.node(term);
+            if let Term::Variable(position) = node {
+                if *position == index {
+                    return true;
+                }
+                continue;
             }
-            Term::Lambda { domain, body } => {
-                self.occurs_free(domain, index)
-                    || index
-                        .checked_add(1)
-                        .is_some_and(|nested| self.occurs_free(body, nested))
+            // The term layout owns binder counts for every child. Reverse
+            // push order preserves the former left-to-right short circuit;
+            // an overflowing binder index remains ineligible as before.
+            for (child, binders) in node.subterms().iter().rev() {
+                if let Some(nested) = index.checked_add(binders) {
+                    pending.push((child, nested));
+                }
             }
-            Term::Apply { function, argument }
-            | Term::Pair {
-                first: function,
-                second: argument,
-            } => self.occurs_free(function, index) || self.occurs_free(argument, index),
-            Term::Fst { pair } | Term::Snd { pair } => self.occurs_free(pair, index),
-            Term::CaseTwo {
-                motive,
-                zero_branch,
-                one_branch,
-                scrutinee,
-            } => {
-                self.occurs_free(motive, index)
-                    || self.occurs_free(zero_branch, index)
-                    || self.occurs_free(one_branch, index)
-                    || self.occurs_free(scrutinee, index)
-            }
-            Term::Id { ty, left, right } => {
-                self.occurs_free(ty, index)
-                    || self.occurs_free(left, index)
-                    || self.occurs_free(right, index)
-            }
-            Term::Refl { ty, value } => {
-                self.occurs_free(ty, index) || self.occurs_free(value, index)
-            }
-            Term::IdElim {
-                motive,
-                base,
-                endpoint,
-                proof,
-            } => {
-                self.occurs_free(motive, index)
-                    || self.occurs_free(base, index)
-                    || self.occurs_free(endpoint, index)
-                    || self.occurs_free(proof, index)
-            }
-            Term::W { carrier, children } => {
-                self.occurs_free(carrier, index) || self.occurs_free(children, index)
-            }
-            Term::Sup {
-                carrier,
-                children,
-                label,
-                function,
-            } => {
-                self.occurs_free(carrier, index)
-                    || self.occurs_free(children, index)
-                    || self.occurs_free(label, index)
-                    || self.occurs_free(function, index)
-            }
-            Term::IndW { motive, step, tree } => {
-                self.occurs_free(motive, index)
-                    || self.occurs_free(step, index)
-                    || self.occurs_free(tree, index)
-            }
-            Term::EmptyElim { ty, scrutinee } => {
-                self.occurs_free(ty, index) || self.occurs_free(scrutinee, index)
-            }
-            Term::Squash { ty } | Term::Box { ty } => self.occurs_free(ty, index),
-            Term::SquashIntro { ty, value } | Term::BoxIntro { ty, value } => {
-                self.occurs_free(ty, index) || self.occurs_free(value, index)
-            }
-            Term::SquashElim {
-                proposition,
-                function,
-                scrutinee,
-            } => {
-                self.occurs_free(proposition, index)
-                    || self.occurs_free(function, index)
-                    || self.occurs_free(scrutinee, index)
-            }
-            Term::BoxElim {
-                motive,
-                body,
-                scrutinee,
-            } => {
-                self.occurs_free(motive, index)
-                    || self.occurs_free(body, index)
-                    || self.occurs_free(scrutinee, index)
-            }
-            Term::Dummy
-            | Term::Sort(_)
-            | Term::Constant { .. }
-            | Term::Two
-            | Term::TwoZero
-            | Term::TwoOne
-            | Term::Empty => false,
         }
+        false
     }
 }

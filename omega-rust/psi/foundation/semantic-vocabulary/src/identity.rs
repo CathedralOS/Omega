@@ -238,6 +238,67 @@ semantic_id!(
     "Stable identity of one target-neutral boundary-machine declaration in terminal Psi."
 );
 semantic_id!(MachineId, "Stable identity of one terminal-Psi machine.");
+semantic_id!(
+    CallingSignatureId,
+    "Nominal coordinate of one declaration ABI application, independently of callback selection."
+);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+pub enum CallingOperandKind {
+    Type,
+    Const,
+    Value,
+    Machine,
+    Implementation,
+    Proposition,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+pub struct CallingStaticOperand {
+    pub ordinal: u32,
+    pub kind: CallingOperandKind,
+    pub identity: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+pub struct CallingGenericFormal {
+    pub ordinal: u32,
+    pub kind: CallingOperandKind,
+    pub callback: Option<crate::StaticMachineBinderId>,
+}
+
+impl CallingSignatureId {
+    /// Exact identity inputs are retained beside this compact coordinate.
+    /// Callback actuals are absent: their universal binder declarations belong
+    /// to the signature, while invocation selection has its own identity.
+    pub fn for_application(
+        requirement: &str,
+        declaring_application: &str,
+        operands: impl IntoIterator<Item = (u32, CallingOperandKind, impl AsRef<str>)>,
+    ) -> Self {
+        let mut hash = crate::Fnv1a::new();
+        hash.bytes_framed(b"omega.declaration-abi-application.v1");
+        hash.bytes_framed(requirement.as_bytes());
+        hash.bytes_framed(declaring_application.as_bytes());
+        for (ordinal, kind, identity) in operands {
+            hash.bytes_framed(&ordinal.to_le_bytes());
+            let tag = match kind {
+                CallingOperandKind::Type => 0,
+                CallingOperandKind::Const => 1,
+                CallingOperandKind::Value => 2,
+                CallingOperandKind::Machine => 3,
+                CallingOperandKind::Implementation => 4,
+                CallingOperandKind::Proposition => 5,
+            };
+            hash.bytes_framed(&[tag]);
+            hash.bytes_framed(identity.as_ref().as_bytes());
+        }
+        Self(match NonZeroU64::new(hash.finish()) {
+            Some(value) => value,
+            None => NonZeroU64::MIN,
+        })
+    }
+}
 semantic_id!(BlockId, "Stable identity of one terminal-Psi block.");
 semantic_id!(
     PlaceId,

@@ -39,6 +39,9 @@ pub struct LoweredPsi {
         symbols::SymbolHandle,
         semantic_vocabulary::BoundaryMachineId,
     )>,
+    /// Exact emitted body owners for canonical declaration capture. This is
+    /// producer-private correspondence and is discarded at publication.
+    pub source_machine_declarations: Vec<(symbols::SymbolHandle, semantic_vocabulary::MachineId)>,
     pub build_provider_requirements: Vec<LoweredBuildProviderRequirement>,
     /// Explicit application roots kept through optimization. Publication need
     /// not encode this producer demand: entry receipts name the exact retained

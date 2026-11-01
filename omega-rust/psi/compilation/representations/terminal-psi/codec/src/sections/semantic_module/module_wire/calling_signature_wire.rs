@@ -1,17 +1,47 @@
 //! Native declaration telescopes; storage and contracts stay on the boundary.
 
-use super::super::wire_fields::{Field, Flag, Id, Index, List, U32, wire_record};
+use super::super::wire_fields::{
+    Field, Flag, Id, Index, List, Optional, ResultField, Text, U32, wire_record,
+};
 use super::{CodecError, Reader, Writer};
+use semantic_vocabulary::CallingGenericFormal;
 use terminal_psi::{
-    CallingCallbackBinder, CallingDirectCallback, CallingRuntimeFormal,
-    CallingSignatureDeclaration, CallingSignatureTelescope,
+    CallingAbiDeclaration, CallingAbiParameter, CallingAbiStorage, CallingCallbackBinder,
+    CallingDirectCallback, CallingPolicyInstance, CallingPolicyRequest, CallingRuntimeFormal,
+    CallingSignatureDeclaration, CallingSignatureTelescope, CallingStaticOperand,
 };
 
 wire_record! {
+    AbiDeclaration: CallingAbiDeclaration {
+        id: Id,
+        requirement_identity: Index,
+        declaring_application: Index,
+        operands: List<StaticOperand>,
+        formals: List<GenericFormal>,
+        default_eligible: Flag,
+        storage: ResultField<AbiStorage, Text>,
+    }
+    AbiStorage: CallingAbiStorage {
+        parameters: List<AbiParameter>,
+        result: Optional<Id>,
+        telescope: Telescope,
+    }
+    StaticOperand: CallingStaticOperand { ordinal: U32, kind: OperandKind, identity: Index }
+    AbiParameter: CallingAbiParameter { structural_type: Id, access: super::super::wire_fields::Access }
+    GenericFormal: CallingGenericFormal { ordinal: U32, kind: OperandKind, callback: Optional<BinderId> }
+    PolicyRequest: CallingPolicyRequest {
+        declaration: ResultField<Index, Text>,
+        display_name: Text,
+        instances: ResultField<List<PolicyInstance>, List<Text>>,
+    }
+    PolicyInstance: CallingPolicyInstance {
+        declaring_application: Index,
+        policy: ResultField<super::target_family_wire::Callable, Text>,
+        signatures: ResultField<List<Id>, Text>,
+    }
     Declaration: CallingSignatureDeclaration {
         boundary: Id,
-        requirement_identity: Index,
-        telescope: TelescopeOrRefusal,
+        application: ResultField<Id, Text>,
     }
     Telescope: CallingSignatureTelescope {
         parameters: List<Formal>,
@@ -31,6 +61,43 @@ wire_record! {
         native_ordinal: U32,
         binder: BinderId,
         requirement: Requirement,
+    }
+}
+
+struct OperandKind;
+impl Field<semantic_vocabulary::CallingOperandKind> for OperandKind {
+    fn write(
+        writer: &mut Writer,
+        value: &semantic_vocabulary::CallingOperandKind,
+    ) -> Result<(), CodecError> {
+        use semantic_vocabulary::CallingOperandKind::*;
+        writer.u8(match value {
+            Type => 0,
+            Const => 1,
+            Value => 2,
+            Machine => 3,
+            Implementation => 4,
+            Proposition => 5,
+        });
+        Ok(())
+    }
+    fn read(
+        reader: &mut Reader<'_>,
+    ) -> Result<semantic_vocabulary::CallingOperandKind, CodecError> {
+        use semantic_vocabulary::CallingOperandKind::*;
+        Ok(match reader.u8()? {
+            0 => Type,
+            1 => Const,
+            2 => Value,
+            3 => Machine,
+            4 => Implementation,
+            5 => Proposition,
+            _ => {
+                return Err(CodecError::MalformedStructuralFoundation(
+                    "unknown calling operand kind",
+                ));
+            }
+        })
     }
 }
 
@@ -54,28 +121,4 @@ native_ids! {
     Parameter: NativeParameterId, "zero native parameter identity";
     BinderId: StaticMachineBinderId, "zero callback binder identity";
     Requirement: CallbackRequirementId, "zero callback requirement identity";
-}
-
-/// A complete telescope, or the refusal that deferred it.
-struct TelescopeOrRefusal;
-impl Field<Result<CallingSignatureTelescope, String>> for TelescopeOrRefusal {
-    fn write(
-        writer: &mut Writer,
-        value: &Result<CallingSignatureTelescope, String>,
-    ) -> Result<(), CodecError> {
-        writer.boolean(value.is_ok());
-        match value {
-            Ok(telescope) => Telescope::write(writer, telescope),
-            Err(reason) => writer.string("deferred calling signature refusal", reason),
-        }
-    }
-    fn read(
-        reader: &mut Reader<'_>,
-    ) -> Result<Result<CallingSignatureTelescope, String>, CodecError> {
-        Ok(if reader.boolean()? {
-            Ok(Telescope::read(reader)?)
-        } else {
-            Err(reader.string("deferred calling signature refusal")?)
-        })
-    }
 }

@@ -13,7 +13,7 @@ use terminal_psi::{
     StructuralAccess, StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
     StructuralTypeShape,
 };
-use terminal_semantics::byte_carrier_field_declaration;
+use terminal_semantics::inline_carrier_declaration;
 
 pub(super) fn establish(
     operation: &AbstractOperation,
@@ -136,6 +136,7 @@ pub(super) fn establish(
             destination.push(StructuralPathSegment::Field(declaration.identity.clone()));
             Ok((
                 &declaration.field_type,
+                Some(declaration),
                 destination,
                 Input::Field(&field.value),
             ))
@@ -150,13 +151,14 @@ pub(super) fn establish(
                         element_type
                             .as_ref()
                             .ok_or(LoweringError::unsupported_control_flow(function.machine))?,
+                        None,
                         vec![StructuralPathSegment::FixedIndex(index as u64)],
                         Input::Element(argument),
                     ))
                 }),
         );
     for operand in operands {
-        let (field_type, destination, value) = operand?;
+        let (field_type, field_declaration, destination, value) = operand?;
         match value {
             Input::Field(terminal_psi::RecordFieldValue::Scalar {
                 value,
@@ -228,8 +230,8 @@ pub(super) fn establish(
                         let nested = live
                             .structural_observation_type(function, argument.place)
                             .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
-                        let expected = field_type.byte_sequence_carrier().and_then(|carrier| {
-                            byte_carrier_field_declaration(types.values().copied(), carrier)
+                        let expected = field_declaration.and_then(|field| {
+                            inline_carrier_declaration(types.values().copied(), field)
                         });
                         if expected.is_none_or(|declaration| {
                             terminal_semantics::borrowed_referent_presentation(

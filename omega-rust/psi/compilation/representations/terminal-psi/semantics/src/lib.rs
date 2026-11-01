@@ -59,11 +59,16 @@ pub use access_view_plans::{
 pub mod content_transformations;
 mod domain_preservation;
 mod exactly_one;
+mod inline_carriers;
 pub use domain_preservation::{
     domain_predicate_is_closed, domain_predicate_observes_no_storage, domain_write_is_disjoint,
     reference_preserves_ancestor_qualifications, scalar_field_store_preserves_content,
     scalar_field_store_preserves_domain_content, store_preserves_content,
     store_preserves_domain_content, store_preserves_qualifications,
+};
+pub use inline_carriers::{
+    InlineCarrierError, inline_carrier_declaration, inline_field_presentation,
+    validate_inline_carriers,
 };
 mod primitive_place;
 mod proof_bearing_scalar;
@@ -162,13 +167,12 @@ pub use collection_backing::{
 pub use partial_affine::partial_affine_residuals;
 pub use primitive_place::{
     Position, StructuralStorageSelection, borrowed_primitive_projection_declaration,
-    byte_carrier_field_declaration, byte_carrier_geometry_matches, canonical_primitive_path,
-    canonical_primitive_read_path, canonical_static_projection, fixed_array_place_shape,
-    primitive_place_type, primitive_projection_declaration, primitive_projection_restriction,
-    primitive_projection_type, primitive_read_field, primitive_read_projection_type,
-    primitive_read_requirement, projection_stays_in_inline_storage,
-    projection_storage_dependencies, runtime_structural_copy_type, runtime_structural_path_tip,
-    stored_descriptor_paths,
+    byte_carrier_geometry_matches, canonical_primitive_path, canonical_primitive_read_path,
+    canonical_static_projection, fixed_array_place_shape, primitive_place_type,
+    primitive_projection_declaration, primitive_projection_restriction, primitive_projection_type,
+    primitive_read_field, primitive_read_projection_type, primitive_read_requirement,
+    projection_stays_in_inline_storage, projection_storage_dependencies,
+    runtime_structural_copy_type, runtime_structural_path_tip, stored_descriptor_paths,
 };
 pub use proof_bearing_scalar::{
     CanonicalScalarGoal, ProofBearingIntegerPolicyBinding, ProofBearingScalarLeafElision,
