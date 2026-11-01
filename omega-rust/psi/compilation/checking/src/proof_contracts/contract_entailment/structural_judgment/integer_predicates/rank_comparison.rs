@@ -5,6 +5,7 @@
 //! application still forms independently at the completed operand frontier.
 
 use super::{BigInt, IntegerObservations, Polynomial, StructuralJudge, StructuralTerm, atom_name};
+use crate::proof_contracts::arithmetic_domains::BigIntInterval;
 use crate::proof_contracts::contract_entailment::arithmetic_judgment::IntegerDenotation;
 use std::collections::BTreeMap;
 use symbols::SymbolHandle;
@@ -27,8 +28,7 @@ pub(in crate::proof_contracts::contract_entailment) struct FormedIntegerRank {
         Option<crate::IntegerApplicationFormation>,
     value: IntegerDenotation,
     atoms: Vec<(String, StructuralTerm, PrimitiveType)>,
-    minimum: BigInt,
-    maximum: BigInt,
+    interval: BigIntInterval,
 }
 
 impl StructuralJudge<'_> {
@@ -114,8 +114,10 @@ impl StructuralJudge<'_> {
             application,
             value,
             atoms,
-            minimum,
-            maximum: BigInt::from_i128(maximum),
+            interval: BigIntInterval {
+                low: Some(minimum),
+                high: Some(BigInt::from_i128(maximum)),
+            },
         })
     }
 
@@ -168,6 +170,10 @@ impl StructuralJudge<'_> {
             let value = engine
                 .instantiate_integer_denotation(&source.value, bindings)
                 .ok_or("the saved rank lost its complete observed dependency roster")?;
+            let (Some(minimum), Some(maximum)) = (&source.interval.low, &source.interval.high)
+            else {
+                return Err("the saved rank lost its independently formed finite bounds");
+            };
             // These facts belong to the earlier produced value, not the next
             // input or its pending intermediate operations. Distinct captures
             // use their own local-to-shared atom map; equal atom ordinals in
@@ -176,12 +182,12 @@ impl StructuralJudge<'_> {
                 (
                     BinaryOperator::GreaterOrEqual,
                     value.clone(),
-                    Polynomial::constant(source.minimum.clone()),
+                    Polynomial::constant(minimum.clone()),
                 ),
                 (
                     BinaryOperator::LessOrEqual,
                     value.clone(),
-                    Polynomial::constant(source.maximum.clone()),
+                    Polynomial::constant(maximum.clone()),
                 ),
             ]) {
                 return Err("the saved rank bounds could not enter the current observation scope");

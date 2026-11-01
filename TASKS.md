@@ -551,21 +551,6 @@ decision (`SourceChecked`) into stage 05 and stage 00.
   `runtime_applied_default_domain_setter_exit` with their negative controls)
   pass without regression.
 
-- **ONE-INTEGER-BOUNDS-ENGINE.** (new-scope) Consolidate all private integer
-  interval engines in stage 04
-  (`omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/{ranges,contracts/evaluator,termination/ranking,borrows/overlap/indexes.rs}`),
-  `validation`
-  (`omega-rust/psi/compilation/checking/src/proof_contracts/{arithmetic_domains,contract_entailment/arithmetic_judgment.rs}`
-  and `src/value_custody/struct_literals/construction_bounds.rs`), and
-  `omega-rust/psi/compilation/proof/src/checker/integer_ranges.rs` into clients
-  of one interval domain and premise-chaining oracle in
-  `validation::arithmetic_domains` (`BigIntInterval` / `ExpressionInterval`).
-  Acceptance: no private integer interval type remains outside
-  `arithmetic_domains`; `python tools/corpus_gate.py --filter ranges,arithmetic/,collections/,slices/,termination/,contracts`
-  is unchanged, preserving signed-minimum remainder, full-width unsigned
-  quotient, bitwise/shift, and unbounded zero-product bounds and rejection
-  controls.
-
 - **CHECKER-CARRIES-OPERATION-DECISIONS.** (new-scope; also covers
   **STAGE-05-REFUSAL-REVALIDATIONS** and **RETIRE-EXPORTED-AUDIT-FACADE**)
   Complete checking-time discharge of primitive operation conditions into

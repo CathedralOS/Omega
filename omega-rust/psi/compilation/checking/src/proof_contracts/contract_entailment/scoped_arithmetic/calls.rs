@@ -17,6 +17,7 @@ use super::{
 };
 use crate::expression_traversal::children;
 use crate::frozen_program::expression_table;
+use crate::proof_contracts::arithmetic_domains::BigIntInterval;
 use symbols::SymbolHandle;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -109,15 +110,12 @@ impl<'program> ScopedCalls<'program> {
                 left: Box::new(self.value(left)?),
                 right: Box::new(self.value(right)?),
             },
-            ScopedArithmeticValue::BoundedInteger {
-                value,
-                minimum,
-                maximum,
-            } => ScopedArithmeticValue::BoundedInteger {
-                value: Box::new(self.value(value)?),
-                minimum: minimum.clone(),
-                maximum: maximum.clone(),
-            },
+            ScopedArithmeticValue::BoundedInteger { value, interval } => {
+                ScopedArithmeticValue::BoundedInteger {
+                    value: Box::new(self.value(value)?),
+                    interval: interval.clone(),
+                }
+            }
             _ => value.clone(),
         })
     }
@@ -243,12 +241,14 @@ impl<'program> ScopedCalls<'program> {
             };
             let result = ScopedArithmeticValue::BoundedInteger {
                 value: Box::new(atom),
-                minimum: interval
-                    .and_then(|interval| interval.low())
-                    .map(numerics::bignum::BigInt::from_i64),
-                maximum: interval
-                    .and_then(|interval| interval.high())
-                    .map(numerics::bignum::BigInt::from_i64),
+                interval: BigIntInterval {
+                    low: interval
+                        .and_then(|interval| interval.low())
+                        .map(numerics::bignum::BigInt::from_i64),
+                    high: interval
+                        .and_then(|interval| interval.high())
+                        .map(numerics::bignum::BigInt::from_i64),
+                },
             };
             let parameters = owner_parameters(self.program, &owner);
             let arguments = expression_table(self.program).expression_handles(call.arguments);

@@ -1790,8 +1790,9 @@ impl<'program> Engine<'program> {
                 integer_source_identity(self.program, expression),
             ))
         });
-        self.bounds.push((polynomial.clone(), embedding.minimum));
-        if let Some(maximum) = embedding.maximum {
+        self.bounds
+            .push((polynomial.clone(), embedding.interval.low?));
+        if let Some(maximum) = embedding.interval.high {
             self.bounds.push((polynomial.neg(), maximum.negate()));
         } else {
             // Exact address model: embed(address) < Bound. The strict one-past
