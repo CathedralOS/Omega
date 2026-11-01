@@ -16,7 +16,7 @@ use super::local_origins::rebase_storage_region;
 use super::local_origins::write_source_region;
 use super::summary::WriteDestination;
 use super::summary::captured_argument_write_regions;
-use crate::collections::push_unique;
+use crate::collections::{UniqueRoster, push_unique};
 use crate::flow::{expressions, literal_expression_projections, shared_call_frames_or};
 use crate::places::place_at;
 use facts::PlaceRoot;
@@ -331,11 +331,12 @@ fn resident_owners_in_type(
             inventory.unresolved.push(path.clone());
         }
     }
-    let mut paths = vec![Vec::new()];
+    let mut paths = UniqueRoster::default();
+    paths.push(Vec::new());
     for (path, _, _) in roster.identities {
-        push_unique(&mut paths, path);
+        paths.push(path);
     }
-    for path in paths {
+    for path in paths.into_vec() {
         let projected = project_type_reference_from_segments(program, reference, &path)?;
         if let Some(owner) = resident_owner_qualifications(program, projected) {
             inventory.owners.push((path, owner));

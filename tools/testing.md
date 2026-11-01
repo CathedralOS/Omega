@@ -148,6 +148,26 @@ An unset/empty environment variable leaves the default unchanged. Pass fixtures
 run both engines with the existing numeric and stream oracles; fail fixtures
 run the existing source/rejection gate only.
 
+### Timing a check cold, and on a hosted runner
+
+A program that imports `omega_language_std` checks in 6.6 s on a warm
+compiled-review cache and in 35 to 45 s on an empty one; a hosted runner and a
+freshly rebuilt compiler always start empty. Give each timed run its own empty
+`LOCALAPPDATA` (Linux: `XDG_CACHE_HOME`), interleave the producers, and compare
+wall and CPU over three or more runs each. Phase-profile rows inside the
+parallel checking workers add across threads and include stolen-task time, so
+only serial rows are wall time.
+
+Hosted runners differ in CPU between runs (AMD EPYC 7763 and 9V74 were both
+seen), which moved one producer's check from 70 s to 47 s with no code change.
+To compare producers on a hosted runner, put both in one job: on a throwaway
+`work/probe-*` ref, add a step after the pilot that fetches the baseline's
+retained producer (`gh run download RUN -n compiler-pilot-HOST-SHA-1`, which
+needs `permissions: actions: read`) and alternates cold checks of the two,
+printing the CPU model. Dispatch one ref per run, because the concurrency group
+is per ref and host, and delete the refs afterwards. The record is
+`wiki/drafts/measurements/std_check_time_2026_11_01/README.md`.
+
 ### Optimized validation compilers
 
 All normal compiler builds use at least opt-level 1. Dev and test profiles
