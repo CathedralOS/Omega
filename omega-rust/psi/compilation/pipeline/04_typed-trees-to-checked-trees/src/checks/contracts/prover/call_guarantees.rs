@@ -481,17 +481,24 @@ fn capture_preserved(
     let Some((_, state)) = borrow.first_state_borrow(caller.symbol, supplied.caller_state) else {
         return false;
     };
-    // A named path may retain its machine head while borrow facts name the
-    // resolved entry. Normalize that exact declaration join on both sides;
-    // signature/binder identities remain distinct and are never matched by shape.
-    let entry = |target| {
-        validation::call_target_state(program, target).map_or(target, |state| state.symbol)
+    // Source paths retain machine heads or evidence children while borrow
+    // facts name resolved entries or their exact applied public signatures.
+    // Rejoin those declarations on both sides; equal carriers or contracts
+    // never equate distinct binders or requirement applications.
+    let callable_target = |target| {
+        validation::call_target_state(program, target)
+            .map(|state| state.symbol)
+            .or_else(|| {
+                validation::selected_requirement_signature(program, target)
+                    .map(|(_, signature)| signature.symbol)
+            })
+            .unwrap_or(target)
     };
-    let target = entry(supplied.site.target_symbol(program));
+    let target = callable_target(supplied.site.target_symbol(program));
     let Some(call) = borrow.calls.span_or_empty(state.calls).iter().find(|call| {
         call.statement_index == supplied.statement
             && call.call_ordinal == supplied.ordinal
-            && entry(call.target_symbol) == target
+            && callable_target(call.target_symbol) == target
     }) else {
         return false;
     };
