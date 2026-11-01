@@ -1,1 +1,1 @@
-first table parameter does not borrow the exact attached table type
+no runtime field `call` in the dispatch table

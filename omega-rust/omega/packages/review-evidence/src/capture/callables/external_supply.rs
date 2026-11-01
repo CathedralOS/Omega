@@ -108,13 +108,10 @@ pub(super) fn project_external_binding(
         }
         ExternalBindingIdentity::VtableField { .. }
         | ExternalBindingIdentity::TableFunction { .. }
-            if !machine.attached_data_symbol.is_valid()
-                || machine.attached_data.is_none()
-                || !compilation
-                    .data_definition_by_symbol(machine.attached_data_symbol)
-                    .is_some() =>
+            if provider_planning::dispatch_tables::dispatch_table(&compilation.typed, machine)
+                .is_err() =>
         {
-            rejected("has table-field supply without one exact attached provider data declaration")
+            rejected("has table-field supply without a first parameter borrowing its dispatch table")
         }
         ExternalBindingIdentity::Syscall { number } => {
             Ok(PackageReviewExternalBinding::Syscall { number: *number })
@@ -165,10 +162,10 @@ pub(super) fn external_binding_matches_provider_binding(
     let expected_machine_identity = compilation
         .machine_callable_identity_text(machine)
         .unwrap_or_default();
-    let expected_table = compilation
-        .typed
-        .attached_data_path(machine)
-        .unwrap_or_default();
+    let expected_table =
+        provider_planning::dispatch_tables::dispatch_table(&compilation.typed, machine)
+            .map(|table| table.path(&compilation.typed))
+            .unwrap_or_default();
     match (binding, selected) {
         (
             PackageReviewExternalBinding::NormalizedImport(reviewed),

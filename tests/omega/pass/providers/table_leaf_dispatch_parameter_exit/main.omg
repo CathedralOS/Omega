@@ -1,0 +1,39 @@
+// Expected exit: 0
+// A table leaf reads its function address from the record its first
+// parameter borrows. Neither leaf is qualified by a data declaration; the
+// binding plan records the borrowed record as the dispatch table.
+use omega::language::core::external_binding;
+boundary trait Symbols {
+    machine lookup(handle: addr, name: &[u8; 7]) -> addr reaches;
+}
+data Measured { text: [u8; 8]; measure: addr; }
+data Process { canary: u64; current: addr; }
+boundary trait Measure { machine length(table: &Measured) -> u64 reaches; }
+boundary trait Identity { machine current(table: &Process) -> i32 reaches; }
+machine lookup_binding() -> ForeignBinding<9, 5, 10> {
+    ForeignBinding::DllImport { import: DllImport::ElfVersioned {
+        object: "libc.so.6", symbol: "dlsym", version: "GLIBC_2.34"
+    } }
+}
+linux_x86_64 machine native_lookup(handle: addr, name: &[u8; 7]) -> addr
+satisfies Symbols::lookup via lookup_binding();
+linux_x86_64 machine measured_length(table: &Measured) -> u64
+satisfies Measure::length via ForeignBinding::VtableField(measure);
+linux_x86_64 machine process_identity(table: &Process) -> i32
+satisfies Identity::current via ForeignBinding::TableFunction(current);
+machine main() reaches Symbols + Measure + Identity crashes Trap {
+    let length_name: [u8; 7] = "strlen\0";
+    let identity_name: [u8; 7] = "getpid\0";
+    let length_function: addr = Symbols::lookup(0 as addr, &length_name);
+    let identity_function: addr = Symbols::lookup(0 as addr, &identity_name);
+    let measured: Measured = Measured { text: "hello\0\0\0", measure: length_function };
+    let process: Process = Process { canary: 77, current: identity_function };
+    let length: u64 = Measure::length(&measured);
+    let identity: i32 = Identity::current(&process);
+    transition length == 5 && identity > 0 && process.canary == 77 {
+        true -> accepted()
+        _ -> rejected()
+    }
+    machine accepted() {}
+    machine rejected() { crash Trap; }
+}

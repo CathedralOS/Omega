@@ -1,8 +1,9 @@
-// Naming a provider independently does not relax exact table-borrow identity.
+// Naming a provider independently does not let another record supply the
+// table field: it resolves only in the record the leaf borrows.
 data ActualTable { call: addr; }
-data SameShapeTable { call: addr; }
-boundary trait Probe { machine read(table: &SameShapeTable) -> u64 reaches; }
-machine ActualTable::read(table: &SameShapeTable) -> u64
+data BorrowedTable { other: addr; }
+boundary trait Probe { machine read(table: &BorrowedTable) -> u64 reaches; }
+machine borrowed_read(table: &BorrowedTable) -> u64
     satisfies Probe::read via ForeignBinding::TableFunction(call);
-ProbeProvider satisfies Probe { machine read(table: &SameShapeTable) -> u64 { ActualTable::read(table) } }
+ProbeProvider satisfies Probe { machine read(table: &BorrowedTable) -> u64 { borrowed_read(table) } }
 machine main() {}

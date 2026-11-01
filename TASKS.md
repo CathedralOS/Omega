@@ -232,10 +232,8 @@ retired-syntax deletions to completion.
   - Qualify matching-host execution for
     `samples/cli/facts/{positional_implementation_binder,open_const_implementation,open_record_const_implementation,named_conformance_dispatch,generic_calling_policy}`
     across remaining hosted targets.
-  - **STATELESS-PROVIDERS:** take `ForeignBinding::VtableField` vtable addresses
-    from its foreign binding plan rather than provider data, and ensure no
-    installation or interpretation route supplies an unauthored provider value
-    or receiver.
+  - **STATELESS-PROVIDERS:** ensure no installation or interpretation route
+    supplies an unauthored provider value or receiver.
   - Move remaining Build facet receiver calls (such as test groups) to
     namespace-qualified calls with explicit arguments (`Build::bind`,
     `Build::select_provider`, `Build::exclude_service`,

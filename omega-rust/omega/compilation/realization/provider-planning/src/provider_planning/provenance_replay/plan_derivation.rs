@@ -568,9 +568,20 @@ fn external_realization_row_binding(
         clause.name.as_str(),
         clause.requirement.as_ref().map_or("", |name| name.as_str()),
     )?;
+    // A table binding names the record its leaf borrows first; an unreadable
+    // table leaves the name empty, which plan validation rejects.
+    let dispatch_table = match binding {
+        language_semantics::ExternalBindingIdentity::VtableField { .. }
+        | language_semantics::ExternalBindingIdentity::TableFunction { .. } => {
+            crate::dispatch_tables::dispatch_table(typed, machine)
+                .map(|table| table.path(typed))
+                .unwrap_or_default()
+        }
+        _ => String::new(),
+    };
     Some(DraftRowBinding::Bound(external_provider_binding(
         binding,
-        &typed.attached_data_path(machine).unwrap_or_default(),
+        &dispatch_table,
         &realization_machine_identity(typed, machine),
     )))
 }

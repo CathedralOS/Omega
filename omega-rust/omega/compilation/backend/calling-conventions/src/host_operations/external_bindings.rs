@@ -13,9 +13,10 @@ pub struct ExternalBindingRow {
     /// Exact canonical overload identity. The human method name remains only
     /// readable drift data, including for singleton requirements.
     pub requirement_identity: String,
-    /// The attached provider data type that owns the table layout. Empty for
-    /// free leaves and required for table-field bindings.
-    pub table_type: String,
+    /// The selected provider's nominal identity, rejoining this row to its
+    /// selected plan. Empty for free leaves. It never names a dispatch table:
+    /// a table binding reads its table from the leaf's first parameter.
+    pub provider_type: String,
     /// Complete admitted geometry and plan for this concrete service method,
     /// whether its policy is authored or the target's ordinary native default.
     pub calling_applications: Vec<crate::BoundaryCallingApplication>,
@@ -64,8 +65,8 @@ pub enum ExternalBindingKind {
     VtableSlot {
         index: i64,
     },
-    /// Dispatch by a fn-ptr field of the row's `table_type`; the layout plan
-    /// supplies its byte offset.
+    /// Dispatch by a fn-ptr field of the record the leaf's first parameter
+    /// borrows; the layout plan supplies its byte offset.
     VtableField {
         field: String,
         byte_offset: u32,

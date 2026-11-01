@@ -129,14 +129,15 @@ impl ExternalBindingContext<'_> {
                 ExternalBindingKind::Syscall { number: *number },
                 self.layout_target(plan)?,
             ),
-            ProviderBinding::VtableField { field, .. }
-            | ProviderBinding::TableFunction { field, .. } => {
+            ProviderBinding::VtableField { table, field }
+            | ProviderBinding::TableFunction { table, field } => {
                 let layout_target = self.layout_target(plan)?;
                 let byte_offset = table_dispatch::field_offset(
                     typed,
                     layout_target,
                     provenance,
                     row_index,
+                    table,
                     field,
                     opaque_representation_selections,
                 )
@@ -207,7 +208,7 @@ impl ExternalBindingContext<'_> {
             trait_name: trait_name_text(&plan.schema).to_owned(),
             method: row.method.clone(),
             requirement_identity: plan.identities.text(row.requirement_identity).to_owned(),
-            table_type: plan.provider_type.clone(),
+            provider_type: plan.provider_type.clone(),
             calling_applications,
             binding,
         }))

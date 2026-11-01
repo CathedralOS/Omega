@@ -969,24 +969,16 @@ impl ProviderPlan {
                 }
                 ProviderBinding::VtableField { table, field }
                 | ProviderBinding::TableFunction { table, field } => {
+                    // The table is the record the leaf's first parameter
+                    // borrows. A provider holds no state, so neither its name
+                    // nor a data declaration qualifying the leaf supplies it.
                     if table.is_empty() {
                         errors.push(format!(
-                            "external leaf for `{}::{}` uses a table field without a table data owner; declare it as `machine TableType::leaf(...) satisfies {}::{} via ForeignBinding::...`",
+                            "external leaf for `{}::{}` uses a table field, but its first parameter does not borrow the dispatch table",
                             self.schema.identity_text(self.schema.declaration.trait_name),
                             row.method,
-                            self.schema.identity_text(self.schema.declaration.trait_name),
-                            row.method,
-                        ));
-                    } else if self.provider_type.is_empty() {
-                        errors.push(format!(
-                            "plan `{}` row `{}` table binding has no nominal provider type",
-                            self.name, row.method,
                         ));
                     }
-                    // A named implementation maps requirements to machines;
-                    // it is not the table data type. Layout comes from each
-                    // selected leaf's exact declaration provenance, not equality
-                    // between the implementation's name and the table's name.
                     if field.is_empty() {
                         errors.push(format!(
                             "plan `{}` row `{}` table binding has no exact field identity",

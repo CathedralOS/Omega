@@ -153,7 +153,7 @@ record_fields!(calling_conventions::ExternalBindingRow {
     trait_name,
     method,
     requirement_identity,
-    table_type,
+    provider_type,
     calling_applications,
     binding
 });

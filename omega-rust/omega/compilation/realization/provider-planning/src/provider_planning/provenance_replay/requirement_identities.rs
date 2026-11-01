@@ -279,10 +279,11 @@ fn exact_catalog_i32_to_unit_signature(
 /// Map one retained typed external-binding identity to its provider-plan
 /// binding. Every closed identity has exactly one, so this mapping is total:
 /// the string-backed import spelling that used to be rejected here no longer
-/// exists to construct.
+/// exists to construct. Table bindings record `dispatch_table`, the record
+/// the leaf's first parameter borrows.
 pub(crate) fn external_provider_binding(
     binding: &language_semantics::ExternalBindingIdentity,
-    provider_type: &str,
+    dispatch_table: &str,
     intrinsic_machine_identity: &str,
 ) -> ProviderBinding {
     use language_semantics::ExternalBindingIdentity;
@@ -296,11 +297,11 @@ pub(crate) fn external_provider_binding(
             ProviderBinding::VtableSlot { index: *index }
         }
         ExternalBindingIdentity::VtableField { field } => ProviderBinding::VtableField {
-            table: provider_type.to_owned(),
+            table: dispatch_table.to_owned(),
             field: field.clone(),
         },
         ExternalBindingIdentity::TableFunction { field } => ProviderBinding::TableFunction {
-            table: provider_type.to_owned(),
+            table: dispatch_table.to_owned(),
             field: field.clone(),
         },
     }

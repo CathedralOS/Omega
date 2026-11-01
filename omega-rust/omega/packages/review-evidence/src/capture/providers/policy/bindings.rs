@@ -155,14 +155,16 @@ fn table_declaration(
     let Some(machine) = compilation.exact_machine(realization) else {
         return Err(rejected("table binding has no exact realization machine"));
     };
+    let dispatch = provider_planning::dispatch_tables::dispatch_table(&compilation.typed, machine)
+        .map_err(|reason| rejected(&format!("table binding {reason}")))?;
     let tables = compilation
         .data_definitions()
         .iter()
-        .filter(|definition| definition.symbol == machine.attached_data_symbol)
+        .filter(|definition| definition.symbol == dispatch.declaration)
         .collect::<Vec<_>>();
     let [table] = tables.as_slice() else {
         return Err(rejected(
-            "table binding has no exact attached data declaration",
+            "table binding has no exact dispatch table declaration",
         ));
     };
     nominal_identity(compilation, table.symbol)

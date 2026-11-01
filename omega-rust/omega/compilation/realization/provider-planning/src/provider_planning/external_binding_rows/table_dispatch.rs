@@ -1,21 +1,16 @@
 //! Project the selected source leaf's table field through the layout owner.
-//! The attached declaration alone does not establish the dispatch parameter:
-//! require its exact referent, then resolve the field within that declaration.
-//! Neither a same-spelled foreign record nor a numeric slot can supply it.
+//! The leaf's first parameter borrows the dispatch table; the binding plan row
+//! names that same declaration, and the field resolves within it. Neither a
+//! same-spelled foreign record nor a numeric slot can supply it.
 
-use crate::provider_planning::entry_state;
-use crate::provider_planning::type_reference_node;
-use checked_trees::typed_trees::{
-    TypedTrees,
-    data::DataMember,
-    types::{PrimitiveType, TypeReferenceNode},
-};
+use checked_trees::typed_trees::{TypedTrees, data::DataMember, types::PrimitiveType};
 
 pub(super) fn field_offset(
     typed: &TypedTrees,
     target: layout::LayoutTarget,
     provenance: &crate::ProviderPlanProvenance,
     row: usize,
+    table_name: &str,
     field_name: &str,
     selections: &[representation_planning::OpaqueRepresentationSelection],
 ) -> Result<u32, String> {
@@ -27,39 +22,15 @@ pub(super) fn field_offset(
     let machine = typed
         .machine_by_symbol(machine_symbol)
         .ok_or("table row has no selected source machine")?;
-    let table = machine.attached_data_symbol;
-    let definition = typed
-        .data_definition_by_symbol(table)
-        .ok_or("table leaf must be attached to its data declaration")?;
-    let entry = entry_state(typed, machine).ok_or("table leaf has no entry signature")?;
-    let first = typed
-        .state_parameters(entry)
-        .first()
-        .ok_or("table leaf requires a dispatch table as its first parameter")?;
-    let mut parameter_type = first.type_reference;
-    while let TypeReferenceNode::Constrained { base_type, .. } =
-        type_reference_node(typed, parameter_type)
-    {
-        parameter_type = *base_type;
+    let dispatch = crate::dispatch_tables::dispatch_table(typed, machine)?;
+    if dispatch.path(typed) != table_name {
+        return Err(format!(
+            "table field `{field_name}` names table `{table_name}`, but the leaf dispatches through `{}`",
+            dispatch.path(typed)
+        ));
     }
-    let TypeReferenceNode::Reference {
-        referee, access, ..
-    } = type_reference_node(typed, parameter_type)
-    else {
-        return Err("first table parameter must borrow the attached table".into());
-    };
-    if *access == language_semantics::ReferenceAccess::WriteOnly {
-        return Err("table dispatch requires a readable table borrow".into());
-    }
-    let mut table_type = *referee;
-    while let TypeReferenceNode::Constrained { base_type, .. } =
-        type_reference_node(typed, table_type)
-    {
-        table_type = *base_type;
-    }
-    if type_reference_node(typed, table_type).as_named_symbol() != Some(table) {
-        return Err("first table parameter does not borrow the exact attached table type".into());
-    }
+    let table_type = dispatch.table_type;
+    let definition = dispatch.definition(typed);
     let fields = typed
         .data_members(definition)
         .iter()
@@ -71,7 +42,7 @@ pub(super) fn field_offset(
     let ordinal = fields
         .iter()
         .position(|field| field.name.as_str() == field_name)
-        .ok_or_else(|| format!("no runtime field `{field_name}` in the attached table"))?;
+        .ok_or_else(|| format!("no runtime field `{field_name}` in the dispatch table"))?;
     if typed.primitive_type_reference(fields[ordinal].type_reference) != Some(PrimitiveType::Addr) {
         return Err("table dispatch field must have type addr".into());
     }
