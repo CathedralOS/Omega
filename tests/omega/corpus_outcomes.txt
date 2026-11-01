@@ -1476,6 +1476,8 @@ fail/layouts/local_access_declaration_shadows_core_view rejected 648ms expected 
 	generic data `Access` expected 0 arguments but got 2
 	data `AccessPlan` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 	duplicate data `Access`
+fail/machines/private_where_store_through_cycle_control rejected 1737ms expected @ba463c24b333+wt
+	machine `next` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
 fail/ownership/selected_constructor_missing_linear_move rejected 1028ms expected @a92f16431042
 	linear match custody requires every reachable arm to move the same live source claims; a missing move leaves an obligation live on only some edges
 fail/proofs/completed_guard_converted_snapshot_without_condition rejected 1136ms expected @2cede9e14eca
@@ -10628,7 +10630,7 @@ pass/generics/named_reference_equation_telescope_order_exit checked 3546ms check
 pass/generics/nominal_machine_parameter_satisfaction_compile checked 2272ms @ccdb99ca2214
 pass/generics/omitted_data_binder_range_equation checked 13551ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/omitted_fixed_domain_array_equation checked 2743ms @ccdb99ca2214
-pass/generics/open_computed_quantity_result rejected 10147ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
+pass/generics/open_computed_quantity_result rejected 20943ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @e5ac5a94234e
 	cannot form specification operator `==` in machine `establish_three` requires contract: no exact selected meaning
 	cannot form specification operator `==` in machine `establish_three` ensures contract: no exact selected meaning
 	cannot form specification operator `+` in machine `establish_three$specialized$f2ee5d8dd2d9e06f$0` requires contract: no exact selected meaning
@@ -11185,6 +11187,7 @@ pass/machines/private_frontier_guarded_trapping_payload_exit checked 3464ms chec
 pass/machines/private_trapping_closed_division_exit checked 3440ms check-target:macos_arm64 @ccdb99ca2214
 pass/machines/private_trapping_proven_safe_exit checked 4156ms check-target:macos_arm64 @ccdb99ca2214
 pass/machines/private_trapping_signed_pair_excluded_exit checked 3920ms check-target:macos_arm64 @ccdb99ca2214
+pass/machines/private_where_store_through_cycle_exit checked 6663ms check-target:macos_arm64 @ba463c24b333+wt
 pass/machines/runtime_explicit_data_parameter_exit checked 3701ms check-target:macos_arm64 @ccdb99ca2214
 pass/machines/static_namespace_constant_exit checked 3171ms check-target:macos_arm64 @ccdb99ca2214
 pass/machines/write_state_forward checked 3066ms @ccdb99ca2214
@@ -34121,8 +34124,8 @@ fail/traits/applied_conformance_input_region_partition rejected 2639ms expected 
 	machine `read` state `entry` does not satisfy trait `Reading` machine `read`: conformance borrow contract: callable input does not preserve its captured region identity
 fail/traits/applied_conformance_nonphysical_input_elision rejected 2167ms expected @ccdb99ca2214
 	machine `read` state `entry` does not satisfy trait `Reading` machine `read`: conformance borrow contract: callable input does not preserve its region identity
-fail/traits/applied_conformance_phantom_result_region rejected 2811ms expected @ccdb99ca2214
-	machine `read` state `entry` does not satisfy trait `Reading` machine `read`: conformance borrow contract: callable type does not preserve its region identity
+fail/traits/applied_conformance_phantom_result_region rejected 2639ms expected @e5ac5a94234e
+	machine `Wrong::read` state `read` does not satisfy trait `Reading` machine `read`: conformance borrow contract: callable type does not preserve its region identity [result-validation; actual reference Handle { arena_index: 1382, generation: 1 }; required reference Handle { arena_index: 2163, generation: 1 }; last rejected comparison Some(RejectedRegionComparison { reference: Handle { arena_index: 1381, generation: 1 }, actual_declaration: Handle { arena_index: 1384, generation: 1 }, required_declaration: Handle { arena_index: 1486, generation: 1 }, actual: Some(Captured(Handle { arena_index: 1372, generation: 1 }, 1)), required: Some(Captured(Handle { arena_index: 1372, generation: 1 }, 2)) }); required: owner read Handle { arena_index: 1486, generation: 1 }, supplier Wrong Handle { arena_index: 1372, generation: 1 }, fresh 0, names [], own slots [], bindings [], applications [[]], substitutions [(Handle { arena_index: 1484, generation: 1 }, Handle { arena_index: 2299, generation: 1 }), (Handle { arena_index: 1485, generation: 1 }, Handle { arena_index: 2301, generation: 1 })], scope starts [0]; actual: owner Wrong::read Handle { arena_index: 1384, generation: 1 }, supplier Wrong::read Handle { arena_index: 1384, generation: 1 }, fresh 2, names [("outer", Captured(Handle { arena_index: 1372, generation: 1 }, 0)), ("left", Captured(Handle { arena_index: 1372, generation: 1 }, 1)), ("right", Captured(Handle { arena_index: 1372, generation: 1 }, 2)), ("source", Captured(Handle { arena_index: 1384, generation: 1 }, 0)), ("phantom", Captured(Handle { arena_index: 1384, generation: 1 }, 1)), ("source", Captured(Handle { arena_index: 1372, generation: 1 }, 0)), ("phantom", Captured(Handle { arena_index: 1372, generation: 1 }, 1))], own slots [(LifetimeParameterIdentity { declaration: Handle { arena_index: 1384, generation: 1 }, ordinal: 0 }, Fresh(0)), (LifetimeParameterIdentity { declaration: Handle { arena_index: 1384, generation: 1 }, ordinal: 1 }, Fresh(1))], bindings [], applications [], substitutions [], scope starts []]
 fail/traits/applied_conformance_unrelated_result_region rejected 2349ms expected @ccdb99ca2214
 	machine `read` state `entry` does not satisfy trait `Reading` machine `read`: conformance borrow contract: unimplemented: callable returned-source relation is ambiguous or incomplete
 fail/traits/applied_nominal_callback_proposition_tag_rejected rejected 1515ms expected @ccdb99ca2214
@@ -34335,7 +34338,7 @@ fail/traits/implementation_method_argument_not_map_capture rejected 220ms expect
 	generic conformance `Selected` requires 1 explicit non-lifetime argument(s), got 0; expected subject and trait shape never fill its own telescope
 fail/traits/inherited_default_ambiguous rejected 631ms expected @ccdb99ca2214
 	implementation `CounterResettable` has 2 rows named `reset` (`LeftReset::reset`, `RightReset::reset`); a call through the implementation must select exactly one
-fail/traits/inherited_region_application_descendant_ambiguity rejected 1739ms expected @ccdb99ca2214
+fail/traits/inherited_region_application_descendant_ambiguity rejected 1687ms expected @e5ac5a94234e
 	closed conformance `Ambiguous satisfies Diamond` cannot instantiate inherited row `Reading::read`
 fail/traits/inherited_region_application_phantom_ambiguity rejected 1821ms expected @ccdb99ca2214
 	closed conformance `Ambiguous satisfies Diamond` cannot instantiate inherited row `Reading::read`
