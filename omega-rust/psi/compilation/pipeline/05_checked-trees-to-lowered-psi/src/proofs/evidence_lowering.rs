@@ -493,7 +493,7 @@ pub(crate) fn checked_evidence_machine_identity(
         .facts
         .declaration_descriptions
         .for_machine(machine)
-        .map_err(LoweringError::InvalidDeclarationIdentity)?;
+        .map_err(|reason| LoweringError::InvalidDeclarationIdentity(reason.to_owned()))?;
     let callable = checked.callable_identity_text(declaration.callable);
     Ok(
         terminal_psi::CheckedMachineDeclaration::callable_evidence_identity(
