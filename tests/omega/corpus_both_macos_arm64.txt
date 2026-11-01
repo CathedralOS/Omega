@@ -45,6 +45,10 @@ pass/calls/static_machine_required_input_crash_refinement_exit built 1270ms exit
 pass/cases/runtime_constructor_subject_range_exit built 9414ms exit:0 interpreter-exit:0 interpreter:agrees @95750e8d2f8d
 pass/collections/runtime_owned_array_projection_snapshot_exit built 5859ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @27c558b731f4
 pass/collections/runtime_whole_array_value_copy_exit built 5604ms exit:70 interpreter-exit:70 interpreter:agrees @27c558b731f4
+pass/contracts/assignment_destination_before_rhs_call_guarantee_exit built 2015ms exit:0 interpreter-exit:0 interpreter:agrees @d2f3e99f1e08
+pass/contracts/assignment_destination_before_rhs_match_guard_exit built 2107ms exit:0 interpreter-exit:0 interpreter:agrees @d2f3e99f1e08
+pass/contracts/completed_unit_call_post_case built 1937ms exit:0 interpreter-exit:0 interpreter:agrees @d2f3e99f1e08
+pass/contracts/transition_argument_effects_before_later_observation_exit built 2057ms exit:0 interpreter-exit:0 interpreter:agrees @d2f3e99f1e08
 pass/control_flow/arm_pattern_rest_optout_exit built 6884ms exit:70 interpreter-exit:70 interpreter:agrees @daa14c70b1c0+wt
 pass/control_flow/case_pattern_rename_waive_exit built 6884ms exit:70 interpreter-exit:70 interpreter:agrees @daa14c70b1c0+wt
 pass/core/content_retained_custody_round_trip built 6738ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @8ce11b402e09+wt
