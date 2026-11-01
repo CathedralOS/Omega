@@ -8,6 +8,26 @@
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
 # context: {"cpus": 5, "jobs": "1", "load1_end": 1.64, "load1_start": 0.54, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+pass/facts/dynamic_float_input_alternatives_equal_exit built 19259ms exit:0 interpreter-exit:0 interpreter:agrees @95f6bd2b4430
+pass/facts/dynamic_float_input_alternatives_f32_rounded_exit built 19839ms exit:0 interpreter-exit:0 interpreter:agrees @95f6bd2b4430
+pass/facts/dynamic_float_input_alternatives_through_call_result_exit built 20139ms exit:0 interpreter-exit:0 interpreter:agrees @95f6bd2b4430
+pass/facts/dynamic_float_input_alternatives_through_const_name_exit built 19349ms exit:0 interpreter-exit:0 interpreter:agrees @95f6bd2b4430
+pass/facts/dynamic_float_input_alternatives_through_field_exit built 21587ms exit:0 interpreter-exit:0 interpreter:agrees @95f6bd2b4430
+pass/facts/dynamic_float_input_alternatives_through_local_exit built 17817ms exit:0 interpreter-exit:0 interpreter:agrees @95f6bd2b4430
+pass/facts/dynamic_float_input_alternatives_through_match_join_exit built 19889ms exit:0 interpreter-exit:0 interpreter:agrees @95f6bd2b4430
+pass/facts/dynamic_float_input_alternatives_through_other_machine_exit built 20687ms exit:0 interpreter-exit:0 interpreter:agrees @95f6bd2b4430
+pass/facts/dynamic_float_input_alternatives_through_other_state_exit built 12609ms exit:0 interpreter-exit:0 interpreter:agrees @95f6bd2b4430
+pass/facts/dynamic_float_input_alternatives_through_parameter_exit built 13262ms exit:0 interpreter-exit:0 interpreter:agrees @95f6bd2b4430
+pass/facts/dynamic_float_input_alternatives_through_target_body_exit built 14579ms exit:0 interpreter-exit:0 interpreter:agrees @95f6bd2b4430
+pass/facts/dynamic_trait_input_arithmetic_through_call_result_exit built 12432ms exit:0 interpreter-exit:0 interpreter:agrees @297562733b94
+pass/facts/dynamic_trait_input_arithmetic_through_const_name_exit built 10179ms exit:0 interpreter-exit:0 interpreter:agrees @297562733b94
+pass/facts/dynamic_trait_input_arithmetic_through_field_exit built 11296ms exit:0 interpreter-exit:0 interpreter:agrees @297562733b94
+pass/facts/dynamic_trait_input_arithmetic_through_local_exit built 10663ms exit:0 interpreter-exit:0 interpreter:agrees @297562733b94
+pass/facts/dynamic_trait_input_arithmetic_through_match_join_exit built 10534ms exit:0 interpreter-exit:0 interpreter:agrees @297562733b94
+pass/facts/dynamic_trait_input_arithmetic_through_other_machine_exit built 13524ms exit:0 interpreter-exit:0 interpreter:agrees @297562733b94
+pass/facts/dynamic_trait_input_arithmetic_through_other_state_exit built 10469ms exit:0 interpreter-exit:0 interpreter:agrees @297562733b94
+pass/facts/dynamic_trait_input_arithmetic_through_parameter_exit built 13157ms exit:0 interpreter-exit:0 interpreter:agrees @297562733b94
+pass/facts/dynamic_trait_input_arithmetic_through_target_body_exit built 7367ms exit:0 interpreter-exit:0 interpreter:agrees @297562733b94
 pass/facts/finite_family_input_index/call_result built 13372ms exit:0 interpreter-exit:0 interpreter:agrees @7b6988120e7e
 pass/facts/finite_family_input_index/const_name built 14937ms exit:0 interpreter-exit:0 interpreter:agrees @7b6988120e7e
 pass/facts/finite_family_input_index/field built 12869ms exit:0 interpreter-exit:0 interpreter:agrees @7b6988120e7e
@@ -2958,17 +2978,17 @@ pass/facts/dynamic_float_input_alias_through_local_exit built 8500ms exit:0 inte
 pass/facts/dynamic_float_input_alias_through_match_join_exit built 8214ms exit:0 interpreter-exit:0 interpreter:agrees @db8631058368
 pass/facts/dynamic_float_input_alias_through_other_machine_exit built 8173ms exit:0 interpreter-exit:0 interpreter:agrees @db8631058368
 pass/facts/dynamic_float_input_alias_through_other_state_exit built 8604ms exit:0 interpreter-exit:0 interpreter:agrees @db8631058368
-pass/facts/dynamic_float_input_alias_through_parameter_exit built 8582ms exit:0 interpreter-exit:0 interpreter:agrees @db8631058368
+pass/facts/dynamic_float_input_alias_through_parameter_exit built 23051ms exit:0 interpreter-exit:0 interpreter:agrees @95f6bd2b4430
 pass/facts/dynamic_float_input_alias_through_target_body_exit built 8755ms exit:0 interpreter-exit:0 interpreter:agrees @db8631058368
-pass/facts/dynamic_float_refinement_through_call_result_exit built 10649ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/facts/dynamic_float_refinement_through_const_name_exit built 10466ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/facts/dynamic_float_refinement_through_field_exit built 10737ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/facts/dynamic_float_refinement_through_local_exit built 10716ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/facts/dynamic_float_refinement_through_match_join_exit built 10871ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/facts/dynamic_float_refinement_through_other_machine_exit built 10736ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/facts/dynamic_float_refinement_through_other_state_exit built 10829ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/facts/dynamic_float_refinement_through_parameter_exit built 10852ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/facts/dynamic_float_refinement_through_target_body_exit built 5090ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/facts/dynamic_float_refinement_through_call_result_exit built 23021ms exit:0 interpreter-exit:0 interpreter:agrees @95f6bd2b4430
+pass/facts/dynamic_float_refinement_through_const_name_exit built 16251ms exit:0 interpreter-exit:0 interpreter:agrees @95f6bd2b4430
+pass/facts/dynamic_float_refinement_through_field_exit built 21325ms exit:0 interpreter-exit:0 interpreter:agrees @95f6bd2b4430
+pass/facts/dynamic_float_refinement_through_local_exit built 14680ms exit:0 interpreter-exit:0 interpreter:agrees @95f6bd2b4430
+pass/facts/dynamic_float_refinement_through_match_join_exit built 14818ms exit:0 interpreter-exit:0 interpreter:agrees @95f6bd2b4430
+pass/facts/dynamic_float_refinement_through_other_machine_exit built 22643ms exit:0 interpreter-exit:0 interpreter:agrees @95f6bd2b4430
+pass/facts/dynamic_float_refinement_through_other_state_exit built 21144ms exit:0 interpreter-exit:0 interpreter:agrees @95f6bd2b4430
+pass/facts/dynamic_float_refinement_through_parameter_exit built 17499ms exit:0 interpreter-exit:0 interpreter:agrees @95f6bd2b4430
+pass/facts/dynamic_float_refinement_through_target_body_exit built 15277ms exit:0 interpreter-exit:0 interpreter:agrees @95f6bd2b4430
 pass/facts/dynamic_trait_dispatch_through_call_result_exit built 2375ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/dynamic_trait_dispatch_through_const_name_exit built 2458ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/dynamic_trait_dispatch_through_field_exit built 2547ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
