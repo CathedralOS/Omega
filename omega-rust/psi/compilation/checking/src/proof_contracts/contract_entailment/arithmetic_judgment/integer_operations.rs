@@ -250,9 +250,7 @@ impl Engine<'_> {
         primitive: PrimitiveType,
         value: &Polynomial,
     ) -> bool {
-        // Both carrier endpoints read this one immutable premise snapshot.
-        // Drop its prepared lookups before any later operation mutates facts.
-        let queries = super::LowerBoundQueries::prepared(self);
+        let queries = super::LowerBoundQueries::direct(self);
         self.integer_value_lands_with_queries(&queries, primitive, value)
     }
 
@@ -554,53 +552,6 @@ mod admission_tests {
 
     fn constant(value: i64) -> Polynomial {
         Polynomial::constant(BigInt::from_i64(value))
-    }
-
-    #[test]
-    fn carrier_landing_preparation_preserves_queries_and_refreshes_after_mutation() {
-        let program = typed_trees::TypedTrees::default();
-        let mut engine = Engine::for_explicit_bindings(&program);
-        let x = Polynomial::atom("x".to_owned());
-        let y = Polynomial::atom("y".to_owned());
-        assert!(engine.install_hypotheses(vec![
-            (BinaryOperator::GreaterOrEqual, x.clone(), constant(0)),
-            (BinaryOperator::GreaterOrEqual, x.clone(), constant(4)),
-            (BinaryOperator::GreaterOrEqual, x.clone(), constant(4)),
-            (BinaryOperator::LessOrEqual, x.clone(), constant(7)),
-            (BinaryOperator::GreaterOrEqual, y.clone(), constant(0)),
-            (BinaryOperator::LessOrEqual, y.clone(), constant(3)),
-        ]));
-        let parity = |engine: &Engine<'_>, primitive, value: &Polynomial, expected| {
-            let before = engine.integer_projection_registrations();
-            let direct = engine.integer_value_lands_with_queries(
-                &super::super::LowerBoundQueries::direct(engine),
-                primitive,
-                value,
-            );
-            assert_eq!(direct, expected);
-            assert_eq!(engine.integer_value_lands(primitive, value), direct);
-            assert_eq!(engine.integer_projection_registrations(), before);
-        };
-        for (primitive, value, expected) in [
-            (PrimitiveType::U8, x.add(&y), true),
-            (PrimitiveType::U8, x.sub(&constant(4)), true),
-            (PrimitiveType::U8, x.sub(&constant(5)), false),
-            (PrimitiveType::U8, x.add(&constant(249)), false),
-            (PrimitiveType::I8, x.add(&constant(120)), true),
-            (PrimitiveType::I8, x.add(&constant(121)), false),
-            (
-                PrimitiveType::U8,
-                Polynomial::atom("unknown".to_owned()),
-                false,
-            ),
-        ] {
-            parity(&engine, primitive, &value, expected);
-        }
-        // A later invocation sees the newly installed equality, not a prior
-        // prepared index. Its lower and upper endpoints still share one cut.
-        assert!(engine.install_hypotheses(vec![(BinaryOperator::Equal, x.clone(), constant(6),)]));
-        parity(&engine, PrimitiveType::U8, &x.add(&constant(249)), true);
-        parity(&engine, PrimitiveType::U8, &x.sub(&constant(7)), false);
     }
 
     #[test]

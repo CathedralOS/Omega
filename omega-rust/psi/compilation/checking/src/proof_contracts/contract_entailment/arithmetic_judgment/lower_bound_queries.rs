@@ -2,9 +2,8 @@
 //!
 //! Final comparison batches prepare canonical exact-bound and atom-interval
 //! lookups once. The immutable borrow prevents premise, substitution, matrix or
-//! opaque-interval changes until those queries finish. A carrier landing shares
-//! one prepared snapshot across both endpoints; other admission queries may use
-//! direct reads through the same proof bodies.
+//! opaque-interval changes until those queries finish. Admission-time callers
+//! use direct reads through the same proof bodies, without allocating indexes.
 //! Preparation adds no facts. It reuses each strongest canonical bound for
 //! residual and scaled queries, whose judgments are pure and threshold-monotone.
 use super::{BigInt, Engine, Interval, Polynomial, ZERO_ATOM};
