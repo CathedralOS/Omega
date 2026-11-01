@@ -12348,7 +12348,7 @@ pass/host/runtime_descriptor_record_array_input_exit checked 16834ms check-targe
 pass/host/runtime_descriptor_record_loan_input_exit checked 3182ms check-target:macos_arm64 @ccdb99ca2214
 pass/host/runtime_descriptor_reference_record_prefix_exit checked 3554ms check-target:macos_arm64 @ccdb99ca2214
 pass/host/runtime_descriptor_scalar_input_exit checked 3705ms check-target:macos_arm64 @ccdb99ca2214
-pass/host/runtime_encoded_record_view_observation_exit checked 3754ms check-target:macos_arm64 @ccdb99ca2214
+pass/host/runtime_encoded_record_view_observation_exit checked 5542ms check-target:macos_arm64 @44138b464cd4+wt
 pass/host/runtime_fixed_arithmetic_across_console_exit checked 11523ms check-target:macos_arm64 @ccdb99ca2214
 pass/host/runtime_foreign_scalar_loan_writeback_exit rejected 17200ms check-target:windows_x86_64 regressed-from:checked+check-target:windows_x86_64 @ccdb99ca2214
 	ordinary external `via` evaluation failed: `ForeignBinding` has no case `DllImport`
@@ -12500,8 +12500,7 @@ pass/layouts/resident_initialization_ready checked 18804ms @0bb5ace2b46d+wt
 pass/layouts/resident_initialization_rejection checked 17898ms @0bb5ace2b46d+wt
 pass/layouts/resident_lifecycle_plan_discovery checked 25530ms @0bb5ace2b46d+wt
 pass/layouts/resident_qualified_schema_result checked 16846ms @0bb5ace2b46d+wt
-pass/layouts/resident_returned_field_access rejected 9753ms regressed-from:checked @0bb5ace2b46d+wt
-	exclusive call completion of `overwrite::entry` in `extract` state `entry` at statement 2 call 0 has no representable caller storage authority
+pass/layouts/resident_returned_field_access checked 4872ms @1a28de832b4c+wt
 pass/layouts/resident_signed_field_access checked 21609ms @0bb5ace2b46d+wt
 pass/layouts/resident_unused_lifecycle_scope checked 9577ms @0bb5ace2b46d+wt
 pass/layouts/resident_view_without_local_initialization checked 9399ms @0bb5ace2b46d+wt
@@ -12557,7 +12556,7 @@ pass/layouts/runtime_sparse_fragmented_bits_exit rejected 9274ms check-target:ma
 	plan-laid value type `SparseBits<PackedFlags>`: error: policy `SparseBits::plan` produced an invalid plan: field `mode` source fragments end at bit 3, expected 8
 pass/layouts/runtime_stored_returned_encoded_reference_exit checked 3747ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/runtime_target_layout_byte_offset_exit checked 3302ms check-target:macos_arm64 @ccdb99ca2214
-pass/layouts/runtime_target_layout_forwarded_integer_exit checked 3265ms check-target:macos_arm64 @ccdb99ca2214
+pass/layouts/runtime_target_layout_forwarded_integer_exit checked 5237ms check-target:macos_arm64 @44138b464cd4+wt
 pass/layouts/runtime_target_layout_queries_exit rejected 3897ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	terminal-artifact production failed: Lowering(Unsupported("pending layout query has no checked structural subject"))
 pass/layouts/runtime_transition_scalar_reference_codec_exit checked 3084ms check-target:macos_arm64 @ccdb99ca2214
@@ -13532,7 +13531,7 @@ pass/recast/runtime_bool_representation_recast_exit rejected 2ms regressed-from:
 pass/recast/runtime_boolean_view_decision_exit checked 3989ms check-target:macos_arm64 @ccdb99ca2214
 pass/recast/runtime_byte_region_state_transfer_exit checked 3561ms check-target:macos_arm64 @ccdb99ca2214
 pass/recast/runtime_captured_guard_conjunction_exit checked 4074ms check-target:macos_arm64 @ccdb99ca2214
-pass/recast/runtime_encoded_record_view_loan_exit checked 3480ms check-target:macos_arm64 @ccdb99ca2214
+pass/recast/runtime_encoded_record_view_loan_exit checked 5810ms check-target:macos_arm64 @44138b464cd4+wt
 pass/recast/runtime_field_precondition_capture_exit checked 11820ms check-target:macos_arm64 @ccdb99ca2214
 pass/recast/runtime_float_range_representation_recast_exit checked 15363ms check-target:macos_arm64 @ccdb99ca2214
 pass/recast/runtime_guarded_offset_recast_exit rejected 7660ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
@@ -25542,7 +25541,7 @@ fail/facts/installed_entry_storage_through_match_join_unproved rejected 4388ms e
 	cannot prove requires contract for call finish from write_selected: selected.code == 9 (needs fact `code == 9` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/installed_entry_storage_through_other_machine_unproved rejected 3314ms expected @ccdb99ca2214
 	cannot prove requires contract for call finish from start: code == 9 (needs fact `code == 9` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/installed_entry_storage_through_other_state_unproved rejected 2698ms unexpected @ccdb99ca2214
+fail/facts/installed_entry_storage_through_other_state_unproved rejected 1883ms expected @44138b464cd4+wt
 	machine `start` state `entry` value call to `transmit` violates required fact `code == 9`: the instantiated fact is structurally false (`8 == 9`)
 fail/facts/installed_entry_storage_through_parameter_unproved rejected 5267ms expected @ccdb99ca2214
 	cannot prove requires contract for call relay from start: 8 == 9 (needs fact `code == 9` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`

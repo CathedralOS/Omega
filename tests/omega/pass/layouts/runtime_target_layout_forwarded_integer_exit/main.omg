@@ -28,8 +28,8 @@ Policy satisfies FixedLayout<Payload> {
     }
 }
 
-machine write(out: &mut u32, value: u32) { out = value; }
-machine forward(out: &mut u32, value: u32) { write(out, value); }
+machine store(out: &mut u32, value: u32) { out = value; }
+machine forward(out: &mut u32, value: u32) { store(out, value); }
 machine program() crashes Trap {
     let mut view: View;
     forward(&mut view.payload.value, 37);
