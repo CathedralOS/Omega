@@ -119,10 +119,7 @@ fn close_private_callback_demands(
 ) -> Result<Vec<crate::TargetClosedPrivateCallbackDemand>, diagnostics::Diagnostic> {
     let geometry = plan.invariant_geometry().expect("invariant fixture");
     let fingerprint = layout_plans::normalized_native_layout_plan_report_fingerprint(
-        &layout_plans::NativeLayoutPlanReport {
-            layout: geometry.validated_layout.clone(),
-            private_callback_demands: geometry.private_callback_demands.clone(),
-        },
+        &geometry.native_layout_report(),
     );
     let layout = calling_conventions::callback_layout_plan_id(
         fingerprint,

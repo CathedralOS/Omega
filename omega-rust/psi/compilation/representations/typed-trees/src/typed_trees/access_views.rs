@@ -437,6 +437,30 @@ pub struct PlanLaidGeometry {
 }
 
 impl PlanLaidGeometry {
+    /// Portable validated geometry and exact selected slots. Source reach keeps
+    /// the original applications beside this projection, never inside a native
+    /// report. Both invariant and target-member geometry use this operation.
+    pub fn native_layout_report(
+        &self,
+    ) -> layout_plans::NativeLayoutPlanReport<
+        language_semantics::callback_declarations::PrivateCallbackSlotSelection,
+    > {
+        layout_plans::NativeLayoutPlanReport {
+            layout: self.validated_layout.clone(),
+            private_callback_demands: self
+                .private_callback_demands
+                .iter()
+                .map(|demand| layout_plans::PrivateCallbackLayoutDemandReport {
+                    slot_application: demand.slot_application.selection.clone(),
+                    slot_identity: demand.slot_identity.clone(),
+                    layout_subject_identity: demand.layout_subject_identity.clone(),
+                    callback_requirement_identity: demand.callback_requirement_identity.clone(),
+                    offset: demand.offset,
+                })
+                .collect(),
+        }
+    }
+
     /// Project one validated field placement into the source-free storage
     /// vocabulary. The caller supplies the exact declaration-order position
     /// and semantic scalar classification; this operation never chooses a target.
