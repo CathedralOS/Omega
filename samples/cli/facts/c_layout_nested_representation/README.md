@@ -93,8 +93,7 @@ its default-child twin and its noncopy-child control in
 Preparation took 683.172s and the three projects took 24.497s. Earlier passing
 observations remain bound to their actual b78 producer: the private property-walk
 repair changes nested representation descent, while direct child checks, scalar
-arrays, policy geometry, ABI replay and their inputs are unchanged. The full parent retains
-macOS ARM64 execution, complete SDK ABI records, conversions and Product parity.
+arrays, policy geometry, ABI replay and their inputs are unchanged. The full parent retains complete SDK ABI records, conversions and Product parity.
 
 ## Transport evidence
 
@@ -137,8 +136,8 @@ source evidence are retained.
 
 The complete nine-place row and its default-child twins now have focused
 observations. Historical observations above keep their original producer
-identities. macOS ARM64 execution, broader schema/case composition, complete SDK
-ABI records, conversions and Product acceptance remain parent work.
+identities. Broader schema/case composition, complete SDK ABI records, conversions
+and Product acceptance remain parent work.
 
 ## Linux ARM64 execution
 
@@ -160,6 +159,28 @@ exportable source bundle preserve that producer identity independently of later
 documentation or queue commits. This is matching-host execution, not a cross
 compile or another host's checking record.
 
-macOS ARM64 execution, broader schema/case composition,
-complete platform ABI records, conversions and Product acceptance remain parent
-work. Earlier Linux x86_64 observations retain their original producer identities.
+Broader schema/case composition, complete platform ABI records, conversions and
+Product acceptance remain parent work. Earlier Linux x86_64 observations retain their original producer identities.
+
+## macOS ARM64 execution
+
+All nine positive places pass native and Terminal execution with exit 0, and all
+nine sole-child-type twins reject their authored C-policy obligation in
+[pilot 41317918268](https://github.com/CathedralOS/Omega/actions/runs/41317918268).
+The programs, values, initialized backing, geometry and rejection oracles are
+unchanged. Together with the earlier matching-host observations, this completes
+the row's execution coverage on all four hosted targets.
+
+[Source `f4b94550fd6780551752ee239e0ea298bf4092d6`](https://github.com/CathedralOS/Omega/tree/f4b94550fd6780551752ee239e0ea298bf4092d6)
+produced authenticated opt-level 1 CLI
+`ff09edf8fce65f363c55cd3be70db7efe2973b77cceb2ca8f9e026b5f16fc0cd`.
+The actual Rust host is `aarch64-apple-darwin`, runtime target `macos_arm64`,
+and GitHub runner `macos-15`. Preparation took 1391.740s, authentication 4.646s
+and the 18 sample projects 113.156s. This sample-only producer has no corpus
+runner or runner profile. Raw summary/sample JSON and an exportable source
+bundle retain the actual producer independently of later integration and
+documentation commits. The macOS 14 attempt was cancelled before any steps
+during its runner retirement brownout and supplies no compiler outcome.
+
+Broader schema/case composition, complete platform ABI records, conversions and
+Product acceptance remain parent work.
