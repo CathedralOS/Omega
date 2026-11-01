@@ -25,7 +25,15 @@ impl Captures<'_> {
     ) -> Option<Vec<CheckedReturnedReferencePlan>> {
         let target = crate::call_target_state(self.program, call.target_symbol)?;
         let frames = crate::CallFrameResolver::new(self.program)?;
-        let transports = frames.reference_result_transports(target.symbol)?;
+        let transports = frames.reference_result_transports(target.symbol);
+        if transports.is_none() && std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            eprintln!(
+                "STRUCT unavailable-return-transports caller={} target={}",
+                self.program.symbols.display_path(state.symbol, "::"),
+                self.program.symbols.display_path(target.symbol, "::"),
+            );
+        }
+        let transports = transports?;
         let mut relative = Vec::new();
         for transport in transports {
             match transport {

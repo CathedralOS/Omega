@@ -118,11 +118,16 @@ impl Captures<'_> {
         target: SymbolHandle,
         active: &mut Vec<SymbolHandle>,
     ) -> Option<Vec<CheckedReturnedReferencePlan>> {
-        if let Some(slot) = self.program.dynamic_slot_by_symbol(target) {
+        if !crate::call_target_has_checked_body_contract(self.program, target) {
+            // An abstract invocation owns its public lifetime relation. Its
+            // result descriptor is present even though there is no private
+            // return graph to inspect. The same declared frontier serves
+            // direct requirements, static callbacks and dynamic slots; it
+            // neither chooses a provider nor invents a concrete backing.
             return super::declared_returns::returned_sources(
                 self.program,
-                &slot.parameters,
-                slot.return_type,
+                crate::call_target_parameters(self.program, target)?,
+                crate::call_target_return_type(self.program, target)?,
             )
             .ok();
         }
@@ -140,6 +145,13 @@ impl Captures<'_> {
         active.push(state.symbol);
         let result = self.normal_returns(state, active, None);
         active.pop();
+        if result.is_none() && std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            eprintln!(
+                "STRUCT unavailable-return-capture state={} symbol={:?}",
+                self.program.symbols.display_path(state.symbol, "::"),
+                state.symbol,
+            );
+        }
         result
     }
 
@@ -167,6 +179,12 @@ impl Captures<'_> {
             .returned_loans
             .span(borrowed.returned_loans)?;
         let leaves = self.reference_leaves(state)?;
+        if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            eprintln!(
+                "STRUCT normal-return-capture state={} loans={loans:?} leaves={leaves:?}",
+                self.program.symbols.display_path(state.symbol, "::"),
+            );
+        }
         let statements = typed_trees::statement::reachable_state_statements(
             self.program
                 .statement_table
