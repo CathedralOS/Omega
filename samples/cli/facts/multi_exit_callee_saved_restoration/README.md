@@ -66,3 +66,15 @@ Full 8-layer specification and lowering evidence:
 ## What remains open
 
 Dynamic stack realignment for over-aligned frame objects across multi-exit unwinding boundaries and exception-edge restoration profiles.
+
+## Build-owned target-body migration
+
+The `target_body` place and its twin carry no source target prefix.
+`BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named
+implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected
+by explicit target-keyed Build rows. The operation, inputs, contracts and exit
+oracle are unchanged. The entry wrapper and each implementation check a tag
+(17 for x86-64, 29 for AArch64), so a wrong Build row traps. Observed evidence is
+Linux x86-64 native and Terminal Psi agreement for the positive and source
+rejection for the twin; the other hosted targets keep their authored rows,
+unexecuted here.

@@ -79,3 +79,15 @@ OMEGA_LIBRARY_ROOT=<worktree>/source/library omega run --both samples/cli/facts/
 - `python3 tools/corpus_gate.py --filter facts/linear_claim_retirement`: 0 structural moves, 18 fixtures `{'checked': 9, 'rejected': 9}`.
 
 The row is pinned by `tests/omega/{pass,fail}/facts/linear_claim_retirement_through_*` fixtures. Each of the positives carries `expected_native_exit.txt` reading `0`.
+
+## Build-owned target-body migration
+
+The `target_body` place and its twin carry no source target prefix.
+`BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named
+implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected
+by explicit target-keyed Build rows. The operation, inputs, contracts and exit
+oracle are unchanged. The entry wrapper and each implementation check a tag
+(17 for x86-64, 29 for AArch64), so a wrong Build row traps. Observed evidence is
+Linux x86-64 native and Terminal Psi agreement for the positive and source
+rejection for the twin; the other hosted targets keep their authored rows,
+unexecuted here.

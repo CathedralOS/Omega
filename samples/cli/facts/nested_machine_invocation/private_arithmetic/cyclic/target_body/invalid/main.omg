@@ -1,75 +1,92 @@
 // Every cyclic private arrival carries depth >= 1, so consume can form depth - 1.
 // Expected exit: 0
 data Counter { depth: u64; marker: u64; canary: u64; }
-windows_x86_64 machine probe(output: &mut Counter, depth: u64, select: bool) {
-    output.depth = depth;
-    transition { _ -> visit(output, select) }
-    machine visit(output: &mut Counter, select: bool) {
-        transition output.depth >= 0 { true -> consume(output, select) false -> finished(output) }
-    }
-    machine consume(output: &mut Counter, select: bool) {
-        output.depth = output.depth - 1;
-        output.marker = 5;
-        transition { _ -> visit(output, select) }
-    }
-    machine finished(output: &mut Counter) {}
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_x86_64 machine probe(output: &mut Counter, depth: u64, select: bool) {
-    output.depth = depth;
-    transition { _ -> visit(output, select) }
-    machine visit(output: &mut Counter, select: bool) {
-        transition output.depth >= 0 { true -> consume(output, select) false -> finished(output) }
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
     }
-    machine consume(output: &mut Counter, select: bool) {
-        output.depth = output.depth - 1;
-        output.marker = 5;
-        transition { _ -> visit(output, select) }
-    }
-    machine finished(output: &mut Counter) {}
 }
 
-linux_arm64 machine probe(output: &mut Counter, depth: u64, select: bool) {
-    output.depth = depth;
-    transition { _ -> visit(output, select) }
-    machine visit(output: &mut Counter, select: bool) {
-        transition output.depth >= 0 { true -> consume(output, select) false -> finished(output) }
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
     }
-    machine consume(output: &mut Counter, select: bool) {
-        output.depth = output.depth - 1;
-        output.marker = 5;
-        transition { _ -> visit(output, select) }
-    }
-    machine finished(output: &mut Counter) {}
 }
 
-macos_arm64 machine probe(output: &mut Counter, depth: u64, select: bool) {
-    output.depth = depth;
-    transition { _ -> visit(output, select) }
-    machine visit(output: &mut Counter, select: bool) {
-        transition output.depth >= 0 { true -> consume(output, select) false -> finished(output) }
-    }
-    machine consume(output: &mut Counter, select: bool) {
-        output.depth = output.depth - 1;
-        output.marker = 5;
-        transition { _ -> visit(output, select) }
-    }
-    machine finished(output: &mut Counter) {}
+boundary trait SelectedProbe {
+    machine probe(output: &mut Counter, depth: u64, select: bool)
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
 }
+
+X86Probe satisfies SelectedProbe {
+    machine probe(output: &mut Counter, depth: u64, select: bool)
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        output.depth = depth;
+        transition { _ -> visit(output, select) }
+        machine visit(output: &mut Counter, select: bool) {
+            transition output.depth >= 0 { true -> consume(output, select) false -> finished(output) }
+        }
+        machine consume(output: &mut Counter, select: bool) {
+            output.depth = output.depth - 1;
+            output.marker = 5;
+            transition { _ -> visit(output, select) }
+        }
+        machine finished(output: &mut Counter) {}
+    }
+}
+
+ArmProbe satisfies SelectedProbe {
+    machine probe(output: &mut Counter, depth: u64, select: bool)
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        output.depth = depth;
+        transition { _ -> visit(output, select) }
+        machine visit(output: &mut Counter, select: bool) {
+            transition output.depth >= 0 { true -> consume(output, select) false -> finished(output) }
+        }
+        machine consume(output: &mut Counter, select: bool) {
+            output.depth = output.depth - 1;
+            output.marker = 5;
+            transition { _ -> visit(output, select) }
+        }
+        machine finished(output: &mut Counter) {}
+    }
+}
+
+
 machine main() crashes Trap {
     let mut output: Counter = Counter { depth: 77, marker: 0, canary: 33 };
-    probe(&mut output, 7, true);
+    SelectedProbe::probe(&mut output, 7, true);
     let first_depth: u64 = output.depth;
     let first_marker: u64 = output.marker;
     output.marker = 0;
-    probe(&mut output, 9, false);
+    SelectedProbe::probe(&mut output, 9, false);
     let second_depth: u64 = output.depth;
     let second_marker: u64 = output.marker;
     output.marker = 0;
-    probe(&mut output, 0, true);
+    SelectedProbe::probe(&mut output, 0, true);
     transition first_depth == 0 && first_marker == 5 && second_depth == 0 && second_marker == 5 && output.depth == 0 && output.marker == 0 && output.canary == 33 {
         true -> done() false -> bad()
     }
     machine done() {}
     machine bad() crashes Trap { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

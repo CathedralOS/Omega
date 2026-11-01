@@ -10,36 +10,53 @@ machine verify_wide(wide: i64) -> i32
     (diff - 10) as i32
 }
 
-linux_x86_64 machine compute_target_body(narrow: i8) -> i32
-    requires narrow >= 30 && narrow <= 101
-{
-    let wide: i64 = narrow as i64;
-    verify_wide(wide)
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_arm64 machine compute_target_body(narrow: i8) -> i32
-    requires narrow >= 30 && narrow <= 101
-{
-    let wide: i64 = narrow as i64;
-    verify_wide(wide)
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-macos_arm64 machine compute_target_body(narrow: i8) -> i32
-    requires narrow >= 30 && narrow <= 101
-{
-    let wide: i64 = narrow as i64;
-    verify_wide(wide)
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-windows_x86_64 machine compute_target_body(narrow: i8) -> i32
-    requires narrow >= 30 && narrow <= 101
-{
-    let wide: i64 = narrow as i64;
-    verify_wide(wide)
+boundary trait SelectedComputeTargetBody {
+    machine compute_target_body(narrow: i8) -> i32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires narrow >= 30 && narrow <= 101;
+}
+
+X86ComputeTargetBody satisfies SelectedComputeTargetBody {
+    machine compute_target_body(narrow: i8) -> i32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires narrow >= 30 && narrow <= 101
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let wide: i64 = narrow as i64;
+        verify_wide(wide)
+    }
+}
+
+ArmComputeTargetBody satisfies SelectedComputeTargetBody {
+    machine compute_target_body(narrow: i8) -> i32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires narrow >= 30 && narrow <= 101
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let wide: i64 = narrow as i64;
+        verify_wide(wide)
+    }
 }
 
 machine evaluate() -> i32 {
-    compute_target_body(60)
+    SelectedComputeTargetBody::compute_target_body(60)
 }
 
 machine main() crashes Trap {
@@ -50,4 +67,12 @@ machine main() crashes Trap {
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

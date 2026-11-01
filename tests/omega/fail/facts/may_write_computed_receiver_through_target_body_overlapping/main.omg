@@ -49,59 +49,62 @@ machine choose<'storage>(
     }
 }
 
-linux_x86_64 machine probe(chosen: &mut Cell, other: &mut Cell, items: &[u8; 4]) -> u8
-requires chosen.held < 4 && other.held < 4
-{
-    let chosen_view: &mut Access<CellPlacement, Cell> = Access::view_mut<CellPlacement, Cell>(chosen);
-    let other_view: &mut Access<CellPlacement, Cell> = Access::view_mut<CellPlacement, Cell>(other);
-    let selected: &mut Access<CellPlacement, Cell> = choose(chosen_view, other_view, false);
-    selected.held.write(&mut selected.held, 9);
-    let index: u64 = other.held;
-    transition items[index] == 7 {
-        true -> (items[index])
-        _ -> 0
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
+}
+
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
     }
 }
 
-linux_arm64 machine probe(chosen: &mut Cell, other: &mut Cell, items: &[u8; 4]) -> u8
-requires chosen.held < 4 && other.held < 4
-{
-    let chosen_view: &mut Access<CellPlacement, Cell> = Access::view_mut<CellPlacement, Cell>(chosen);
-    let other_view: &mut Access<CellPlacement, Cell> = Access::view_mut<CellPlacement, Cell>(other);
-    let selected: &mut Access<CellPlacement, Cell> = choose(chosen_view, other_view, false);
-    selected.held.write(&mut selected.held, 9);
-    let index: u64 = other.held;
-    transition items[index] == 7 {
-        true -> (items[index])
-        _ -> 0
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
     }
 }
 
-macos_arm64 machine probe(chosen: &mut Cell, other: &mut Cell, items: &[u8; 4]) -> u8
-requires chosen.held < 4 && other.held < 4
-{
-    let chosen_view: &mut Access<CellPlacement, Cell> = Access::view_mut<CellPlacement, Cell>(chosen);
-    let other_view: &mut Access<CellPlacement, Cell> = Access::view_mut<CellPlacement, Cell>(other);
-    let selected: &mut Access<CellPlacement, Cell> = choose(chosen_view, other_view, false);
-    selected.held.write(&mut selected.held, 9);
-    let index: u64 = other.held;
-    transition items[index] == 7 {
-        true -> (items[index])
-        _ -> 0
+boundary trait SelectedProbe {
+    machine probe(chosen: &mut Cell, other: &mut Cell, items: &[u8; 4]) -> u8
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires chosen.held < 4 && other.held < 4;
+}
+
+X86Probe satisfies SelectedProbe {
+    machine probe(chosen: &mut Cell, other: &mut Cell, items: &[u8; 4]) -> u8
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires chosen.held < 4 && other.held < 4
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let chosen_view: &mut Access<CellPlacement, Cell> = Access::view_mut<CellPlacement, Cell>(chosen);
+        let other_view: &mut Access<CellPlacement, Cell> = Access::view_mut<CellPlacement, Cell>(other);
+        let selected: &mut Access<CellPlacement, Cell> = choose(chosen_view, other_view, false);
+        selected.held.write(&mut selected.held, 9);
+        let index: u64 = other.held;
+        transition items[index] == 7 {
+            true -> (items[index])
+            _ -> 0
+        }
     }
 }
 
-windows_x86_64 machine probe(chosen: &mut Cell, other: &mut Cell, items: &[u8; 4]) -> u8
-requires chosen.held < 4 && other.held < 4
-{
-    let chosen_view: &mut Access<CellPlacement, Cell> = Access::view_mut<CellPlacement, Cell>(chosen);
-    let other_view: &mut Access<CellPlacement, Cell> = Access::view_mut<CellPlacement, Cell>(other);
-    let selected: &mut Access<CellPlacement, Cell> = choose(chosen_view, other_view, false);
-    selected.held.write(&mut selected.held, 9);
-    let index: u64 = other.held;
-    transition items[index] == 7 {
-        true -> (items[index])
-        _ -> 0
+ArmProbe satisfies SelectedProbe {
+    machine probe(chosen: &mut Cell, other: &mut Cell, items: &[u8; 4]) -> u8
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires chosen.held < 4 && other.held < 4
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let chosen_view: &mut Access<CellPlacement, Cell> = Access::view_mut<CellPlacement, Cell>(chosen);
+        let other_view: &mut Access<CellPlacement, Cell> = Access::view_mut<CellPlacement, Cell>(other);
+        let selected: &mut Access<CellPlacement, Cell> = choose(chosen_view, other_view, false);
+        selected.held.write(&mut selected.held, 9);
+        let index: u64 = other.held;
+        transition items[index] == 7 {
+            true -> (items[index])
+            _ -> 0
+        }
     }
 }
 
@@ -109,11 +112,19 @@ machine main() crashes Trap {
     let mut chosen: Cell = Cell { held: 0 };
     let mut other: Cell = Cell { held: 1 };
     let items: [u8; 4] = [4, 7, 8, 9];
-    let found: u8 = probe(&mut chosen, &mut other, &items);
+    let found: u8 = SelectedProbe::probe(&mut chosen, &mut other, &items);
     transition found == 7 && chosen.held == 9 {
         true -> done()
         _ -> bad()
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

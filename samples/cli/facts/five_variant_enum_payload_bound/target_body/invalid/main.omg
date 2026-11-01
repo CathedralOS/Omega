@@ -32,28 +32,53 @@ requires res >= 40 && res <= 80
     headroom + margin
 }
 
-linux_x86_64 machine payload_target(p: Packet) -> u64 {
-    let res: u64 = extract_payload(p);
-    verify_payload(res)
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_arm64 machine payload_target(p: Packet) -> u64 {
-    let res: u64 = extract_payload(p);
-    verify_payload(res)
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-macos_arm64 machine payload_target(p: Packet) -> u64 {
-    let res: u64 = extract_payload(p);
-    verify_payload(res)
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-windows_x86_64 machine payload_target(p: Packet) -> u64 {
-    let res: u64 = extract_payload(p);
-    verify_payload(res)
+boundary trait SelectedPayloadTarget {
+    machine payload_target(p: Packet) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
+}
+
+X86PayloadTarget satisfies SelectedPayloadTarget {
+    machine payload_target(p: Packet) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let res: u64 = extract_payload(p);
+        verify_payload(res)
+    }
+}
+
+ArmPayloadTarget satisfies SelectedPayloadTarget {
+    machine payload_target(p: Packet) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let res: u64 = extract_payload(p);
+        verify_payload(res)
+    }
 }
 
 machine probe() -> u64 {
-    payload_target(Packet::Epsilon { v: 81u64 })
+    SelectedPayloadTarget::payload_target(Packet::Epsilon { v: 81u64 })
 }
 
 machine main() crashes Trap {
@@ -64,4 +89,11 @@ machine main() crashes Trap {
     machine done() {}
     machine bad() { crash Trap; }
 }
-
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
+}

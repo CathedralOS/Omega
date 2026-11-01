@@ -7,13 +7,61 @@ data Token<const Setting: Configuration> [copy] { marker: u8; }
 machine read<Item [copy], const Setting: Configuration>(items: Item) -> u64
 where Item == Token<Setting>
 { Setting.minimum }
-linux_x86_64 machine consume(items: Token<SEVEN>) -> u64 { read<Token<SEVEN>, EIGHT>(items) }
-windows_x86_64 machine consume(items: Token<SEVEN>) -> u64 { read<Token<SEVEN>, EIGHT>(items) }
-macos_arm64 machine consume(items: Token<SEVEN>) -> u64 { read<Token<SEVEN>, EIGHT>(items) }
-linux_arm64 machine consume(items: Token<SEVEN>) -> u64 { read<Token<SEVEN>, EIGHT>(items) }
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
+}
+
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+boundary trait SelectedConsume {
+    machine consume(items: Token<SEVEN>) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
+}
+
+X86Consume satisfies SelectedConsume {
+    machine consume(items: Token<SEVEN>) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+     read<Token<SEVEN>, EIGHT>(items) 
+    }
+}
+
+ArmConsume satisfies SelectedConsume {
+    machine consume(items: Token<SEVEN>) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+     read<Token<SEVEN>, EIGHT>(items) 
+    }
+}
+
+
 machine main() crashes Trap {
     let items: Token<SEVEN> = Token { marker: 1 };
-    let observed: u64 = consume(items);
+    let observed: u64 = SelectedConsume::consume(items);
     transition observed == 7 { true -> done() _ -> bad() }
     machine done() {} machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

@@ -4,13 +4,61 @@ machine identity<T>(value: T) -> T {
     keep(value)
     machine keep(item: T) -> T { item }
 }
-windows_x86_64 machine compute() -> u64 { identity<u64>(42) }
-linux_x86_64 machine compute() -> u64 { identity<u64>(42) }
-linux_arm64 machine compute() -> u64 { identity<u64>(42) }
-macos_arm64 machine compute() -> u64 { identity<u64>(42) }
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
+}
+
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+boundary trait SelectedCompute {
+    machine compute() -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
+}
+
+X86Compute satisfies SelectedCompute {
+    machine compute() -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+     identity<u64>(42) 
+    }
+}
+
+ArmCompute satisfies SelectedCompute {
+    machine compute() -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+     identity<u64>(42) 
+    }
+}
+
+
 machine main() crashes Trap {
-    let result: u64 = compute();
+    let result: u64 = SelectedCompute::compute();
     transition result == 42 { true -> done() _ -> failed() }
     machine done() {}
     machine failed() crashes Trap { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

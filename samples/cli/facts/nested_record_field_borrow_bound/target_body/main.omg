@@ -11,56 +11,77 @@ data Outer {
     header: u64;
 }
 
-linux_x86_64 machine evaluate() -> u64 {
-    let outer: Outer = Outer {
-        inner: Inner { quota: 30, tag: 7 },
-        header: 10,
-    };
-    let view: &Outer = &outer;
-    let quota: u64 = view.inner.quota;
-    let diff: u64 = 72u64 - quota;
-    diff
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_arm64 machine evaluate() -> u64 {
-    let outer: Outer = Outer {
-        inner: Inner { quota: 30, tag: 7 },
-        header: 10,
-    };
-    let view: &Outer = &outer;
-    let quota: u64 = view.inner.quota;
-    let diff: u64 = 72u64 - quota;
-    diff
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-macos_arm64 machine evaluate() -> u64 {
-    let outer: Outer = Outer {
-        inner: Inner { quota: 30, tag: 7 },
-        header: 10,
-    };
-    let view: &Outer = &outer;
-    let quota: u64 = view.inner.quota;
-    let diff: u64 = 72u64 - quota;
-    diff
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-windows_x86_64 machine evaluate() -> u64 {
-    let outer: Outer = Outer {
-        inner: Inner { quota: 30, tag: 7 },
-        header: 10,
-    };
-    let view: &Outer = &outer;
-    let quota: u64 = view.inner.quota;
-    let diff: u64 = 72u64 - quota;
-    diff
+boundary trait SelectedEvaluate {
+    machine evaluate() -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
+}
+
+X86Evaluate satisfies SelectedEvaluate {
+    machine evaluate() -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let outer: Outer = Outer {
+            inner: Inner { quota: 30, tag: 7 },
+            header: 10,
+        };
+        let view: &Outer = &outer;
+        let quota: u64 = view.inner.quota;
+        let diff: u64 = 72u64 - quota;
+        diff
+    }
+}
+
+ArmEvaluate satisfies SelectedEvaluate {
+    machine evaluate() -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let outer: Outer = Outer {
+            inner: Inner { quota: 30, tag: 7 },
+            header: 10,
+        };
+        let view: &Outer = &outer;
+        let quota: u64 = view.inner.quota;
+        let diff: u64 = 72u64 - quota;
+        diff
+    }
 }
 
 machine main() crashes Trap {
-    let diff: u64 = evaluate();
+    let diff: u64 = SelectedEvaluate::evaluate();
     transition diff == 42 {
         true -> done()
         _ -> bad()
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }
