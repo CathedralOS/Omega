@@ -77,6 +77,7 @@ pub fn evaluate_terminal_calling_policy(
     let scalars = complete_policy_scalar_inputs(
         artifact,
         target,
+        entry,
         &requirements.scalar_applications,
         &providers,
         &mut meter,
