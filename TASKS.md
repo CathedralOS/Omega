@@ -851,7 +851,7 @@ helper that passes does not close an item.
     and [implementation-region forwarding](samples/cli/facts/implementation_region_forwarding/README.md).
   - Complete remaining schema/case composition support and platform ABI
     migrations; retain explicit named policies for sparse views. Complete the
-    remaining six transport places for
+    remaining nested-machine, other-machine and selected-target places for
     [the shared Darwin stat ABI](samples/cli/facts/darwin_stat_abi/README.md),
     preserving complete SDK fields, timestamp pairs and signed carriers.
   - Complete the [fallible conversion transport row](samples/cli/facts/representation_conversion/README.md),
