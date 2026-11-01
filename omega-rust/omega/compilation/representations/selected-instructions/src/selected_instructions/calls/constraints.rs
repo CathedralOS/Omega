@@ -20,6 +20,7 @@ use target_operations::NormalizedForeignCallMechanism;
 use crate::{
     SelectedFunction, SelectedInstruction, SelectedInstructionKind, SelectedNormalizedForeignCall,
 };
+use calling_conventions::validate_boundary_entry_plan_with_callback_materializations;
 
 /// Find the unique foreign-call roster record named by this instruction.
 ///
@@ -115,13 +116,11 @@ pub fn instantiate_foreign_call_constraint(
     let plan = &call.binding.boundary_entry_plan;
     let signature = CallSignature::of_placements(&plan.call.parameters, plan.call.result.as_ref());
     let validated = match call.callbacks.first() {
-        Some(callback) => {
-            calling_conventions::validate_boundary_entry_plan_with_callback_materializations(
-                plan.clone(),
-                &signature,
-                &callback.registrar_context,
-            )
-        }
+        Some(callback) => validate_boundary_entry_plan_with_callback_materializations(
+            plan.clone(),
+            &signature,
+            &callback.registrar_context,
+        ),
         None => calling_conventions::validate_boundary_entry_plan(plan.clone(), &signature),
     }
     .ok()?;

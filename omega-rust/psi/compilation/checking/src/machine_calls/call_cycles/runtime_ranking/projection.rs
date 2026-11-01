@@ -1,8 +1,5 @@
 use crate::frozen_program::expression_table;
-use crate::{
-    MeasureBodyShape, RankingRangeMeasure, ScalarViewComputation, declared_scalar_view,
-    find_declared_measure, measure_body_shape,
-};
+use crate::{RankingRangeMeasure, ScalarViewComputation, declared_scalar_view};
 use language_semantics::RankingViewId;
 use symbols::SymbolHandle;
 use typed_trees::data::DataMember;
@@ -42,18 +39,9 @@ pub(super) enum RankOrder {
     /// measure and carrier, never an inferred global monotonicity property.
     DeclaredComputation {
         measure: SymbolHandle,
-        input_primitive: PrimitiveType,
+        input_type: TypeReferenceHandle,
         result_primitive: PrimitiveType,
         computation: ScalarViewComputation,
-    },
-    /// A declared measure whose body projects a `u64` field of its record
-    /// parameter (`measure_body_shape`'s `FieldProjection`). The produced rank
-    /// is that exact coordinate of the subject's record, reached through at
-    /// most one reference boundary. Members share this order only through the
-    /// same measure; each call edge re-resolves the chain against the exact
-    /// formals' declarations and walks the actual's forward or literal.
-    CustomStructView {
-        measure: SymbolHandle,
     },
     Lexicographic {
         measure_index: usize,
@@ -64,10 +52,6 @@ pub(super) enum RankOrder {
 
 pub(super) struct RankProjection {
     pub(super) order: RankOrder,
-    /// The entry formal the produced rank reads: the subject formal for a
-    /// bare subject, or the carrier formal a member-chain subject's
-    /// coordinate is rooted at.
-    pub(super) parameter: SymbolHandle,
     pub(super) argument_position: usize,
     pub(super) subject: ExpressionHandle,
     /// The upper subject of a two-subject view (`Nat::BoundedDistance` ranks
@@ -106,11 +90,10 @@ impl RankProjection {
             let (argument_position, parameter) = entry_parameter(program, entry, *lower)?;
             // The cursor has an exact storage carrier. Its bound is an
             // expression, not necessarily another formal: the call judgment
-            // independently proves its meaning, formation and conservation.
+            // independently proves its meaning and formation after exact substitution.
             let primitive = integer_subject_carrier(program, machine, entry, *lower, parameter)?;
             return Some(Self {
                 order: RankOrder::BoundedDistance(primitive),
-                parameter: parameter.symbol,
                 argument_position,
                 subject: *lower,
                 paired_subject: *upper,
@@ -139,7 +122,6 @@ impl RankProjection {
                 return None;
             }
             return Some(Self::for_subject(
-                parameter,
                 *subject,
                 argument_position,
                 RankOrder::SliceLength,
@@ -167,7 +149,6 @@ impl RankProjection {
             }
             let primitive = integer_subject_carrier(program, machine, entry, *subject, parameter)?;
             return Some(Self::for_subject(
-                parameter,
                 *subject,
                 argument_position,
                 if increasing {
@@ -198,15 +179,16 @@ impl RankProjection {
         // the same admission covers both readers; an optional authored range
         // then transports through the scalar range judgment.
         if let Some(view) = declared_scalar_view(program, entry, *subject, &witness.view_path) {
-            let primitive = integer_subject_carrier(program, machine, entry, *subject, parameter)?;
             let order = match view.computation {
                 None => RankOrder::DeclaredIdentity {
                     measure: view.measure,
-                    primitive,
+                    primitive: integer_subject_carrier(
+                        program, machine, entry, *subject, parameter,
+                    )?,
                 },
                 Some(computation) => RankOrder::DeclaredComputation {
                     measure: view.measure,
-                    input_primitive: primitive,
+                    input_type: view.input_type,
                     result_primitive: PrimitiveType::from_builtin_atom(view.result_carrier)?,
                     computation,
                 },
@@ -221,65 +203,12 @@ impl RankProjection {
                 },
             };
             return Some(Self::for_subject(
-                parameter,
                 *subject,
                 argument_position,
                 order,
                 measure,
                 custody.rank_range.unwrap_or_default(),
             ));
-        }
-        // A declared field view produces the exact `u64` projection its
-        // measure body declares. The subject must be the entry formal whose
-        // (possibly referenced) record the chain starts at; the call judgment
-        // re-resolves that chain against each formal's own declaration, so
-        // this selection never supplies the coordinate itself. A member-chain
-        // subject already names projected storage; it cannot also be the
-        // record a field view reads.
-        if member_subject(program, *subject) {
-            return None;
-        }
-        let declared_path = witness
-            .view_path
-            .split("::")
-            .filter(|member| !member.is_empty())
-            .collect::<Vec<_>>();
-        if let Some(measure) = find_declared_measure(program, &declared_path)
-            && !measure.lexicographic
-            && let Some(MeasureBodyShape::FieldProjection { path, owner, .. }) =
-                measure_body_shape(program, measure)
-        {
-            let root = path.first().map_or(owner, |step| step.owner);
-            let mut reference = program
-                .type_reference_table
-                .unconstrained_type_reference(parameter.type_reference);
-            if let TypeReferenceNode::Reference { referee, .. } =
-                program.type_reference_table.type_reference(reference)
-            {
-                reference = program
-                    .type_reference_table
-                    .unconstrained_type_reference(*referee);
-            }
-            if !matches!(
-                program.type_reference_table.type_reference(reference),
-                TypeReferenceNode::Named { symbol, .. } if *symbol == root
-            ) {
-                return None;
-            }
-            return Some(Self {
-                order: RankOrder::CustomStructView {
-                    measure: measure.symbol,
-                },
-                parameter: parameter.symbol,
-                argument_position,
-                subject: *subject,
-                paired_subject: ExpressionHandle::invalid(),
-                range: custody.rank_range.unwrap_or_default(),
-                measure: Some(RankingRangeMeasure::Field {
-                    subject: *subject,
-                    measure: measure.symbol,
-                }),
-            });
         }
         if custody.rank_range.is_some() || member_subject(program, *subject) {
             return None;
@@ -360,7 +289,6 @@ impl RankProjection {
                 data: *data,
                 fields,
             },
-            parameter: parameter.symbol,
             argument_position,
             subject: *subject,
             paired_subject: ExpressionHandle::invalid(),
@@ -373,7 +301,6 @@ impl RankProjection {
     /// fills: `order`/`measure` vary per view; the subject's carrier formal
     /// also names the record when the subject is a member chain.
     fn for_subject(
-        parameter: &StateParameter,
         subject: ExpressionHandle,
         argument_position: usize,
         order: RankOrder,
@@ -382,7 +309,6 @@ impl RankProjection {
     ) -> Self {
         Self {
             order,
-            parameter: parameter.symbol,
             argument_position,
             subject,
             paired_subject: ExpressionHandle::invalid(),
@@ -415,7 +341,7 @@ impl RankProjection {
                     Some(CapturedRankComponent {
                         subject: self.subject,
                         projection: vec![facts::PlaceSegment::Field { symbol: *symbol }],
-                        primitive,
+                        primitive: Some(primitive),
                         minimum: numerics::bignum::BigInt::from_i128(primitive.integer_bounds()?.0),
                         measure: SymbolHandle::invalid(),
                     })
@@ -423,14 +349,20 @@ impl RankProjection {
                 .collect();
         }
         let (primitive, result_primitive, measure) = match self.order {
-            RankOrder::Natural(primitive) => (primitive, primitive, SymbolHandle::invalid()),
-            RankOrder::DeclaredIdentity { measure, primitive } => (primitive, primitive, measure),
+            RankOrder::Natural(primitive) => (Some(primitive), primitive, SymbolHandle::invalid()),
+            RankOrder::DeclaredIdentity { measure, primitive } => {
+                (Some(primitive), primitive, measure)
+            }
             RankOrder::DeclaredComputation {
                 measure,
-                input_primitive,
+                input_type,
                 result_primitive,
                 ..
-            } => (input_primitive, result_primitive, measure),
+            } => (
+                program.primitive_type_reference(input_type),
+                result_primitive,
+                measure,
+            ),
             _ => return None,
         };
         Some(vec![CapturedRankComponent {
@@ -574,7 +506,7 @@ pub(super) fn natural_component(
                             parameter: place.root.as_symbol()?,
                             path: place.segments,
                         },
-                        component.primitive,
+                        component.primitive?,
                     ))
                 })
                 .collect::<Option<Vec<_>>>()?,
@@ -605,13 +537,15 @@ pub(super) fn natural_component(
                     }
                     Some(super::ValidatedRuntimeIntegerRank {
                         application: None,
+                        application_bindings: Vec::new(),
+                        input_type: reference,
                         measure: SymbolHandle::invalid(),
                         parameter: parameter.symbol,
                         coordinate,
                         entry_indexes: Vec::new(),
                         parameter_position: u32::try_from(position).ok()?,
                         primitive_type: *primitive_type,
-                        observation: crate::RankPremiseObservation::Value,
+                        observation: crate::RankPremiseObservation::Value.into(),
                         function: checked_trees::CheckedNaturalRankFunction::Identity,
                     })
                 })

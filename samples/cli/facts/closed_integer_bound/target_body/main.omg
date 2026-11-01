@@ -6,13 +6,61 @@ machine establish() -> u64 in Small {
     value = 3;
     value
 }
-linux_x86_64 machine consume(value: u64 in Small) -> u64 { 5u64 - value }
-linux_arm64 machine consume(value: u64 in Small) -> u64 { 5u64 - value }
-macos_arm64 machine consume(value: u64 in Small) -> u64 { 5u64 - value }
-windows_x86_64 machine consume(value: u64 in Small) -> u64 { 5u64 - value }
-machine probe() -> u64 { consume(establish()) }
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
+}
+
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+boundary trait SelectedConsume {
+    machine consume(value: u64 in Small) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
+}
+
+X86Consume satisfies SelectedConsume {
+    machine consume(value: u64 in Small) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+     5u64 - value 
+    }
+}
+
+ArmConsume satisfies SelectedConsume {
+    machine consume(value: u64 in Small) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+     5u64 - value 
+    }
+}
+
+
+machine probe() -> u64 { SelectedConsume::consume(establish()) }
 machine main() crashes Trap {
     transition probe() == 2 { true -> done() _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

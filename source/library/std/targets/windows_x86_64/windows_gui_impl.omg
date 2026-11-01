@@ -99,6 +99,24 @@ windows_x86_64 machine WindowsGuiImports::dispatch_message(message: &WindowsMess
 satisfies WindowsGuiIo::dispatch_message
 via windows_gui_dispatch_message_binding();
 
+boundary requirement WindowsGuiIo::key_state(virtual_key: u32) -> i32
+reaches GlobalInputObservation;
+windows_x86_64 machine windows_gui_key_state_binding() -> ForeignBinding<10, 16, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName { library: "user32.dll", export: "GetAsyncKeyState" } }
+}
+windows_x86_64 machine WindowsGuiImports::key_state(virtual_key: u32) -> i32
+satisfies WindowsGuiIo::key_state
+via windows_gui_key_state_binding();
+
+windows_x86_64 machine WindowsGuiNativeProvider::key_state(virtual_key: u32) -> u64
+satisfies WindowsGuiHost::key_state
+reaches GlobalInputObservation {
+    // SHORT's high bit marks the key down; the low-bit pressed-latch is noise
+    // for a live-state query and is dropped by the mask.
+    let raw: i32 = WindowsGuiIo::key_state(virtual_key);
+    transition (raw & 32768) != 0 { true -> (1) _ -> (0) }
+}
+
 windows_x86_64 machine WindowsGuiNativeProvider::window_create(class_name: &[u8], title: &[u8], style: u32, x: i32, y: i32, width: i32, height: i32) -> u64
 satisfies WindowsGuiHost::window_create
 reaches
@@ -169,6 +187,7 @@ windows_x86_64 machine WindowsGuiNativeProvider::provider_defaults(defaults: &mu
     WindowsGuiNativeProvider::select_provider<WindowsGuiIo::peek_message, WindowsGuiImports>(defaults);
     WindowsGuiNativeProvider::select_provider<WindowsGuiIo::translate_message, WindowsGuiImports>(defaults);
     WindowsGuiNativeProvider::select_provider<WindowsGuiIo::dispatch_message, WindowsGuiImports>(defaults);
+    WindowsGuiNativeProvider::select_provider<WindowsGuiIo::key_state, WindowsGuiImports>(defaults);
     WindowsGuiNativeProvider::select_provider<WindowsGuiIo::adjust_rectangle, WindowsGuiImports>(defaults);
 }
 
@@ -246,4 +265,5 @@ NativeWindowsGui satisfies WindowsGuiHost {
     WindowsGuiHost::client_rectangle = WindowsGuiNativeProvider::client_rectangle;
     WindowsGuiHost::stretch_dibits = WindowsGuiNativeProvider::stretch_dibits;
     WindowsGuiHost::window_create_client = WindowsGuiNativeProvider::window_create_client;
+    WindowsGuiHost::key_state = WindowsGuiNativeProvider::key_state;
 }

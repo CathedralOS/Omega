@@ -88,7 +88,9 @@ pub(crate) fn check_product_source(
             }
             .check();
             if !result.as_ref().is_ok_and(|outcome| outcome.reused) {
-                artifacts::compile_timings::counters::record_settled_check(started.elapsed());
+                artifacts::compile_timings::counters::record_product_source_check(
+                    started.elapsed(),
+                );
             }
             result
         })
@@ -124,22 +126,27 @@ pub(crate) fn check_product_source(
         );
     }
     let sources = Arc::new(build_sources.seal(&program, package_inputs)?);
-    let accepted_template_classifications =
-        trust_model::AcceptedTemplateClassifications::capture(&program);
     let provider_inventory = Arc::new(psi_compiler::PreparedProviderInventory::new(Arc::clone(
         &program,
     )));
+    let terminal_publication = Arc::new(compilation_products::ProductTerminalPublication::new(
+        rollback
+            .settle(&computed_build_config.config.settings.optimizations)
+            .effective()
+            .clone(),
+    ));
     Ok(CheckedProductSource {
         source_completion_accounting,
         program,
         provider_inventory,
+        terminal_publication,
+        calling_policy_code: Arc::default(),
         external_declarations: Arc::default(),
         provider_defaults: provider_defaults.into(),
         computed_build_config,
         admission,
         sources,
         timings,
-        accepted_template_classifications,
         retained_checks: compilation_products::RetainedCompilationChecks {
             build: retained_build_check,
             product: retained,

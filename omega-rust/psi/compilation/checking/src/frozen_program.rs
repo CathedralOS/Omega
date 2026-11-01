@@ -21,6 +21,9 @@ use std::sync::{Arc, Mutex, OnceLock};
 use typed_trees::TypedTrees;
 use typed_trees::proof_only::ProofOnlyClassification;
 
+mod queries;
+pub(crate) use queries::CheckingQuery;
+
 mod sealed {
     pub trait Sealed {}
     impl Sealed for typed_trees::TypedTrees {}
@@ -29,6 +32,7 @@ mod sealed {
     impl Sealed for super::CheckingProjection<'_> {}
     impl Sealed for crate::layout_checking::LayoutCheckingContext<'_> {}
     impl Sealed for typed_trees::FrozenTypedTrees {}
+    impl Sealed for super::queries::CheckingQuery<'_> {}
 }
 
 /// Read-only source checking input. A prepared invocation owns reusable memos;
@@ -39,6 +43,29 @@ mod sealed {
 /// permission to retain this scratch in a compilation product.
 pub trait CheckingInput: sealed::Sealed + fmt::Debug + Send + Sync {
     fn typed_program(&self) -> &TypedTrees;
+
+    /// An unfinished numeric observation belongs to the borrowed query chain,
+    /// not a memo answer. Re-entering that exact state supplies no evidence.
+    #[doc(hidden)]
+    fn has_active_numeric_observation(
+        &self,
+        _machine: symbols::SymbolHandle,
+        _state: symbols::SymbolHandle,
+    ) -> bool {
+        false
+    }
+
+    /// An unfinished machine population cannot supply provisional operand fits.
+    #[doc(hidden)]
+    fn has_active_operand_fit_population(&self, _machine: symbols::SymbolHandle) -> bool {
+        false
+    }
+
+    /// Completed-case population cannot borrow a provisional case from itself.
+    #[doc(hidden)]
+    fn has_active_completed_case_population(&self, _machine: symbols::SymbolHandle) -> bool {
+        false
+    }
 
     /// Preliminary source work cannot settle a pending representation's
     /// physical judgments. Strict checks and bare trees never defer them.
@@ -445,6 +472,25 @@ impl Deref for CheckingProjection<'_> {
 }
 
 impl CheckingInput for CheckingProjection<'_> {
+    fn has_active_completed_case_population(&self, machine: symbols::SymbolHandle) -> bool {
+        self.memo_source()
+            .is_some_and(|input| input.has_active_completed_case_population(machine))
+    }
+
+    fn has_active_operand_fit_population(&self, machine: symbols::SymbolHandle) -> bool {
+        self.memo_source()
+            .is_some_and(|input| input.has_active_operand_fit_population(machine))
+    }
+
+    fn has_active_numeric_observation(
+        &self,
+        machine: symbols::SymbolHandle,
+        state: symbols::SymbolHandle,
+    ) -> bool {
+        self.memo_source()
+            .is_some_and(|input| input.has_active_numeric_observation(machine, state))
+    }
+
     fn defers_pending_layout_geometry(&self) -> bool {
         self.original.defers_pending_layout_geometry()
     }
@@ -547,6 +593,44 @@ pub struct CheckingMemos {
             crate::CapturedNumericObservations,
         >,
     >,
+    /// One exact-operation operand-fit verdict per (machine, expression),
+    /// published by a single per-machine population instead of a fresh
+    /// prefix walk per occurrence. `None` retains "processed, no
+    /// observation" so a later query does not walk again.
+    pub(crate) operand_fit_outcomes: Mutex<
+        symbols::SymbolKeyMap<
+            (
+                symbols::SymbolHandle,
+                typed_trees::expression::ExpressionHandle,
+            ),
+            Option<crate::proof_contracts::contract_entailment::OperandFitOutcome>,
+        >,
+    >,
+    /// Machines whose operand-fit expressions were already enumerated;
+    /// even a machine with no qualifying expression populates only once.
+    pub(crate) operand_fit_populated:
+        Mutex<symbols::SymbolKeyMap<symbols::SymbolHandle, ()>>,
+    /// One completed-case verdict per (machine, state, statement ordinal,
+    /// demanded value expression, observed reference), published by a
+    /// single per-machine population instead of a fresh prefix walk per
+    /// occurrence. `None` retains "processed, no proven case" so a later
+    /// query does not walk again.
+    pub(crate) completed_case_outcomes: Mutex<
+        symbols::SymbolKeyMap<
+            (
+                symbols::SymbolHandle,
+                symbols::SymbolHandle,
+                usize,
+                typed_trees::expression::ExpressionHandle,
+                typed_trees::types::TypeReferenceHandle,
+            ),
+            Option<symbols::SymbolHandle>,
+        >,
+    >,
+    /// Machines whose completed-case occurrences were already enumerated;
+    /// even a machine with no qualifying statement populates only once.
+    pub(crate) completed_case_populated:
+        Mutex<symbols::SymbolKeyMap<symbols::SymbolHandle, ()>>,
     proof_only: OnceLock<Arc<ProofOnlyClassification>>,
     pub(crate) license_candidates: OnceLock<Arc<LicenseCandidates>>,
     pub(crate) entry_machines: OnceLock<Arc<EntryMachines>>,
@@ -566,7 +650,7 @@ pub struct CheckingMemos {
                 symbols::SymbolHandle,
                 symbols::SymbolHandle,
                 u8,
-                Vec<(symbols::SymbolHandle, Option<i64>, Option<i64>)>,
+                Vec<(symbols::SymbolHandle, crate::proof_contracts::arithmetic_domains::Interval)>,
             ),
             Option<(
                 crate::proof_contracts::arithmetic_domains::Interval,
@@ -737,6 +821,8 @@ pub struct CheckingMemos {
     >,
     pub(crate) state_prefix_reachability_edges:
         Mutex<symbols::SymbolKeyMap<symbols::SymbolHandle, Option<Vec<symbols::SymbolHandle>>>>,
+    pub(crate) state_prefix_cycle_membership:
+        Mutex<symbols::SymbolKeyMap<symbols::SymbolHandle, bool>>,
     pub(crate) normal_completion_possible:
         Mutex<symbols::SymbolKeyMap<symbols::SymbolHandle, Option<bool>>>,
 }
@@ -783,6 +869,7 @@ impl CheckingMemos {
             private_arrival_index: self.private_arrival_index,
             private_closed_arrivals: self.private_closed_arrivals,
             state_prefix_reachability_edges: self.state_prefix_reachability_edges,
+            state_prefix_cycle_membership: self.state_prefix_cycle_membership,
             normal_completion_possible: self.normal_completion_possible,
             admitted_dependency_bodies: self.admitted_dependency_bodies,
             ..Self::default()
@@ -830,6 +917,12 @@ impl CheckingMemos {
             ),
             state_prefix_reachability_edges: Mutex::new(
                 self.state_prefix_reachability_edges
+                    .lock()
+                    .map(|guard| guard.clone())
+                    .unwrap_or_default(),
+            ),
+            state_prefix_cycle_membership: Mutex::new(
+                self.state_prefix_cycle_membership
                     .lock()
                     .map(|guard| guard.clone())
                     .unwrap_or_default(),

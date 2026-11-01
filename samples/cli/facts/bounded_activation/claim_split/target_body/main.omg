@@ -29,243 +29,170 @@ machine read_mark(bytes: &mut [u8]) -> u8 {
     }
 }
 
-windows_x86_64 machine target_exercise() -> bool crashes Trap {
-    transition Activation::try_claim<16>(8) {
-        ActivationClaimAttempt::Established { claim } -> established(claim)
-        ActivationClaimAttempt::Rejected -> (false)
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
+}
+
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
     }
-    machine established(claim: ActivationClaim) -> bool {
-        let mut live: ActivationClaim = claim;
-        let bytes: &mut [u8] = ActivationClaim::bytes(&mut live);
-        let observed: u8 = mark(bytes);
-        transition observed == 11u8 {
-            true -> split_claim(live, observed)
-            false -> release_bad(live)
+}
+
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+boundary trait SelectedTargetExercise {
+    machine target_exercise() -> bool
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
+}
+
+X86TargetExercise satisfies SelectedTargetExercise {
+    machine target_exercise() -> bool
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        transition Activation::try_claim<16>(8) {
+            ActivationClaimAttempt::Established { claim } -> established(claim)
+            ActivationClaimAttempt::Rejected -> (false)
         }
-    }
-    machine release_bad(claim: ActivationClaim) -> bool {
-        ActivationClaim::release(claim);
-        false
-    }
-    machine split_claim(claim: ActivationClaim, observed: u8) -> bool {
-        transition observed == 11u8 {
-            true -> divide(claim)
-            false -> release_bad(claim)
+        machine established(claim: ActivationClaim) -> bool {
+            let mut live: ActivationClaim = claim;
+            let bytes: &mut [u8] = ActivationClaim::bytes(&mut live);
+            let observed: u8 = mark(bytes);
+            transition observed == 11u8 {
+                true -> split_claim(live, observed)
+                false -> release_bad(live)
+            }
         }
-    }
-    machine divide(claim: ActivationClaim) -> bool {
-        transition ActivationClaim::split<8>(claim, 4) {
-            ActivationClaimSplit::Covered { lower, upper } -> merge_children(lower, upper)
-            ActivationClaimSplit::Rejected { claim } -> return_rejected(claim)
+        machine release_bad(claim: ActivationClaim) -> bool {
+            ActivationClaim::release(claim);
+            false
         }
-    }
-    machine return_rejected(claim: ActivationClaim) -> bool {
-        ActivationClaim::release(claim);
-        false
-    }
-    machine merge_children(lower: ActivationClaim, upper: ActivationClaim) -> bool {
-        transition ActivationClaim::merge(lower, upper) {
-            ActivationClaimMerge::Covered { claim } -> restored(claim)
-            ActivationClaimMerge::Rejected { lower, upper } -> merge_rejected(lower, upper)
+        machine split_claim(claim: ActivationClaim, observed: u8) -> bool {
+            transition observed == 11u8 {
+                true -> divide(claim)
+                false -> release_bad(claim)
+            }
         }
-    }
-    machine merge_rejected(lower: ActivationClaim, upper: ActivationClaim) -> bool {
-        ActivationClaim::release(upper);
-        ActivationClaim::release(lower);
-        false
-    }
-    machine restored(claim: ActivationClaim) -> bool {
-        let mut live: ActivationClaim = claim;
-        let bytes: &mut [u8] = ActivationClaim::bytes(&mut live);
-        let length: u64 = bytes.len;
-        let observed: u8 = read_mark(bytes);
-        ActivationClaim::release(live);
-        transition length == 8 && observed == 11u8 {
-            true -> (true)
-            false -> (false)
+        machine divide(claim: ActivationClaim) -> bool {
+            transition ActivationClaim::split<8>(claim, 4) {
+                ActivationClaimSplit::Covered { lower, upper } -> merge_children(lower, upper)
+                ActivationClaimSplit::Rejected { claim } -> return_rejected(claim)
+            }
+        }
+        machine return_rejected(claim: ActivationClaim) -> bool {
+            ActivationClaim::release(claim);
+            false
+        }
+        machine merge_children(lower: ActivationClaim, upper: ActivationClaim) -> bool {
+            transition ActivationClaim::merge(lower, upper) {
+                ActivationClaimMerge::Covered { claim } -> restored(claim)
+                ActivationClaimMerge::Rejected { lower, upper } -> merge_rejected(lower, upper)
+            }
+        }
+        machine merge_rejected(lower: ActivationClaim, upper: ActivationClaim) -> bool {
+            ActivationClaim::release(upper);
+            ActivationClaim::release(lower);
+            false
+        }
+        machine restored(claim: ActivationClaim) -> bool {
+            let mut live: ActivationClaim = claim;
+            let bytes: &mut [u8] = ActivationClaim::bytes(&mut live);
+            let length: u64 = bytes.len;
+            let observed: u8 = read_mark(bytes);
+            ActivationClaim::release(live);
+            transition length == 8 && observed == 11u8 {
+                true -> (true)
+                false -> (false)
+            }
         }
     }
 }
 
-linux_x86_64 machine target_exercise() -> bool crashes Trap {
-    transition Activation::try_claim<16>(8) {
-        ActivationClaimAttempt::Established { claim } -> established(claim)
-        ActivationClaimAttempt::Rejected -> (false)
-    }
-    machine established(claim: ActivationClaim) -> bool {
-        let mut live: ActivationClaim = claim;
-        let bytes: &mut [u8] = ActivationClaim::bytes(&mut live);
-        let observed: u8 = mark(bytes);
-        transition observed == 11u8 {
-            true -> split_claim(live, observed)
-            false -> release_bad(live)
+ArmTargetExercise satisfies SelectedTargetExercise {
+    machine target_exercise() -> bool
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        transition Activation::try_claim<16>(8) {
+            ActivationClaimAttempt::Established { claim } -> established(claim)
+            ActivationClaimAttempt::Rejected -> (false)
         }
-    }
-    machine release_bad(claim: ActivationClaim) -> bool {
-        ActivationClaim::release(claim);
-        false
-    }
-    machine split_claim(claim: ActivationClaim, observed: u8) -> bool {
-        transition observed == 11u8 {
-            true -> divide(claim)
-            false -> release_bad(claim)
+        machine established(claim: ActivationClaim) -> bool {
+            let mut live: ActivationClaim = claim;
+            let bytes: &mut [u8] = ActivationClaim::bytes(&mut live);
+            let observed: u8 = mark(bytes);
+            transition observed == 11u8 {
+                true -> split_claim(live, observed)
+                false -> release_bad(live)
+            }
         }
-    }
-    machine divide(claim: ActivationClaim) -> bool {
-        transition ActivationClaim::split<8>(claim, 4) {
-            ActivationClaimSplit::Covered { lower, upper } -> merge_children(lower, upper)
-            ActivationClaimSplit::Rejected { claim } -> return_rejected(claim)
+        machine release_bad(claim: ActivationClaim) -> bool {
+            ActivationClaim::release(claim);
+            false
         }
-    }
-    machine return_rejected(claim: ActivationClaim) -> bool {
-        ActivationClaim::release(claim);
-        false
-    }
-    machine merge_children(lower: ActivationClaim, upper: ActivationClaim) -> bool {
-        transition ActivationClaim::merge(lower, upper) {
-            ActivationClaimMerge::Covered { claim } -> restored(claim)
-            ActivationClaimMerge::Rejected { lower, upper } -> merge_rejected(lower, upper)
+        machine split_claim(claim: ActivationClaim, observed: u8) -> bool {
+            transition observed == 11u8 {
+                true -> divide(claim)
+                false -> release_bad(claim)
+            }
         }
-    }
-    machine merge_rejected(lower: ActivationClaim, upper: ActivationClaim) -> bool {
-        ActivationClaim::release(upper);
-        ActivationClaim::release(lower);
-        false
-    }
-    machine restored(claim: ActivationClaim) -> bool {
-        let mut live: ActivationClaim = claim;
-        let bytes: &mut [u8] = ActivationClaim::bytes(&mut live);
-        let length: u64 = bytes.len;
-        let observed: u8 = read_mark(bytes);
-        ActivationClaim::release(live);
-        transition length == 8 && observed == 11u8 {
-            true -> (true)
-            false -> (false)
+        machine divide(claim: ActivationClaim) -> bool {
+            transition ActivationClaim::split<8>(claim, 4) {
+                ActivationClaimSplit::Covered { lower, upper } -> merge_children(lower, upper)
+                ActivationClaimSplit::Rejected { claim } -> return_rejected(claim)
+            }
         }
-    }
-}
-
-macos_arm64 machine target_exercise() -> bool crashes Trap {
-    transition Activation::try_claim<16>(8) {
-        ActivationClaimAttempt::Established { claim } -> established(claim)
-        ActivationClaimAttempt::Rejected -> (false)
-    }
-    machine established(claim: ActivationClaim) -> bool {
-        let mut live: ActivationClaim = claim;
-        let bytes: &mut [u8] = ActivationClaim::bytes(&mut live);
-        let observed: u8 = mark(bytes);
-        transition observed == 11u8 {
-            true -> split_claim(live, observed)
-            false -> release_bad(live)
+        machine return_rejected(claim: ActivationClaim) -> bool {
+            ActivationClaim::release(claim);
+            false
         }
-    }
-    machine release_bad(claim: ActivationClaim) -> bool {
-        ActivationClaim::release(claim);
-        false
-    }
-    machine split_claim(claim: ActivationClaim, observed: u8) -> bool {
-        transition observed == 11u8 {
-            true -> divide(claim)
-            false -> release_bad(claim)
+        machine merge_children(lower: ActivationClaim, upper: ActivationClaim) -> bool {
+            transition ActivationClaim::merge(lower, upper) {
+                ActivationClaimMerge::Covered { claim } -> restored(claim)
+                ActivationClaimMerge::Rejected { lower, upper } -> merge_rejected(lower, upper)
+            }
         }
-    }
-    machine divide(claim: ActivationClaim) -> bool {
-        transition ActivationClaim::split<8>(claim, 4) {
-            ActivationClaimSplit::Covered { lower, upper } -> merge_children(lower, upper)
-            ActivationClaimSplit::Rejected { claim } -> return_rejected(claim)
+        machine merge_rejected(lower: ActivationClaim, upper: ActivationClaim) -> bool {
+            ActivationClaim::release(upper);
+            ActivationClaim::release(lower);
+            false
         }
-    }
-    machine return_rejected(claim: ActivationClaim) -> bool {
-        ActivationClaim::release(claim);
-        false
-    }
-    machine merge_children(lower: ActivationClaim, upper: ActivationClaim) -> bool {
-        transition ActivationClaim::merge(lower, upper) {
-            ActivationClaimMerge::Covered { claim } -> restored(claim)
-            ActivationClaimMerge::Rejected { lower, upper } -> merge_rejected(lower, upper)
-        }
-    }
-    machine merge_rejected(lower: ActivationClaim, upper: ActivationClaim) -> bool {
-        ActivationClaim::release(upper);
-        ActivationClaim::release(lower);
-        false
-    }
-    machine restored(claim: ActivationClaim) -> bool {
-        let mut live: ActivationClaim = claim;
-        let bytes: &mut [u8] = ActivationClaim::bytes(&mut live);
-        let length: u64 = bytes.len;
-        let observed: u8 = read_mark(bytes);
-        ActivationClaim::release(live);
-        transition length == 8 && observed == 11u8 {
-            true -> (true)
-            false -> (false)
-        }
-    }
-}
-
-linux_arm64 machine target_exercise() -> bool crashes Trap {
-    transition Activation::try_claim<16>(8) {
-        ActivationClaimAttempt::Established { claim } -> established(claim)
-        ActivationClaimAttempt::Rejected -> (false)
-    }
-    machine established(claim: ActivationClaim) -> bool {
-        let mut live: ActivationClaim = claim;
-        let bytes: &mut [u8] = ActivationClaim::bytes(&mut live);
-        let observed: u8 = mark(bytes);
-        transition observed == 11u8 {
-            true -> split_claim(live, observed)
-            false -> release_bad(live)
-        }
-    }
-    machine release_bad(claim: ActivationClaim) -> bool {
-        ActivationClaim::release(claim);
-        false
-    }
-    machine split_claim(claim: ActivationClaim, observed: u8) -> bool {
-        transition observed == 11u8 {
-            true -> divide(claim)
-            false -> release_bad(claim)
-        }
-    }
-    machine divide(claim: ActivationClaim) -> bool {
-        transition ActivationClaim::split<8>(claim, 4) {
-            ActivationClaimSplit::Covered { lower, upper } -> merge_children(lower, upper)
-            ActivationClaimSplit::Rejected { claim } -> return_rejected(claim)
-        }
-    }
-    machine return_rejected(claim: ActivationClaim) -> bool {
-        ActivationClaim::release(claim);
-        false
-    }
-    machine merge_children(lower: ActivationClaim, upper: ActivationClaim) -> bool {
-        transition ActivationClaim::merge(lower, upper) {
-            ActivationClaimMerge::Covered { claim } -> restored(claim)
-            ActivationClaimMerge::Rejected { lower, upper } -> merge_rejected(lower, upper)
-        }
-    }
-    machine merge_rejected(lower: ActivationClaim, upper: ActivationClaim) -> bool {
-        ActivationClaim::release(upper);
-        ActivationClaim::release(lower);
-        false
-    }
-    machine restored(claim: ActivationClaim) -> bool {
-        let mut live: ActivationClaim = claim;
-        let bytes: &mut [u8] = ActivationClaim::bytes(&mut live);
-        let length: u64 = bytes.len;
-        let observed: u8 = read_mark(bytes);
-        ActivationClaim::release(live);
-        transition length == 8 && observed == 11u8 {
-            true -> (true)
-            false -> (false)
+        machine restored(claim: ActivationClaim) -> bool {
+            let mut live: ActivationClaim = claim;
+            let bytes: &mut [u8] = ActivationClaim::bytes(&mut live);
+            let length: u64 = bytes.len;
+            let observed: u8 = read_mark(bytes);
+            ActivationClaim::release(live);
+            transition length == 8 && observed == 11u8 {
+                true -> (true)
+                false -> (false)
+            }
         }
     }
 }
 
 machine main() crashes Trap {
-    transition target_exercise() {
+    transition SelectedTargetExercise::target_exercise() {
         true -> done()
         false -> bad()
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

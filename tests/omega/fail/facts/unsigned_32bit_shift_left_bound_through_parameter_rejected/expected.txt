@@ -1,1 +1,0 @@
-cannot prove requires contract for call subtract_and_return from probe: shifted >= 80 && shifted <= 80

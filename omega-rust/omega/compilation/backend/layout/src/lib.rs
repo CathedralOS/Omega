@@ -25,7 +25,7 @@ mod target_context;
 pub use target_context::LayoutTarget;
 
 pub use boundary_values::{
-    BOUNDARY_VALUE_FIELD_CAPACITY, BOUNDARY_VALUE_SHAPE_CAPACITY, BoundaryOpaqueRepresentationUse,
+    BOUNDARY_VALUE_FIELD_CAPACITY, BOUNDARY_VALUE_SHAPE_CAPACITY, BoundaryOpaqueOccurrence,
     BoundaryValueLayout, TerminalBoundaryRecipes, append_boundary_value_shape,
 };
 pub use builder::{

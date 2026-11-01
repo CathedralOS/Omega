@@ -59,10 +59,10 @@ machine Main::main(main: &mut Main) reaches Echo, Console, RecordSource {
 }
 
 EchoProviderEchoImplementation satisfies Echo {
-    Echo::echo = EchoProvider::echo;
+    machine echo(value: i32) -> i32 { EchoProvider::echo(value) }
 }
 
-RecordProviderRecordSourceImplementation satisfies RecordSource { RecordSource::receive = RecordProvider::receive; }
+RecordProviderRecordSourceImplementation satisfies RecordSource { machine receive(seed: u64) -> Triple { RecordProvider::receive(seed) } }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches Echo, Console, RecordSource {

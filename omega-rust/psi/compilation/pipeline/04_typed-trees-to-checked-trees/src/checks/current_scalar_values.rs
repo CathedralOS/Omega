@@ -43,6 +43,7 @@ use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetHandle};
 use typed_trees::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 use typed_trees::{machine::Machine, state::State};
+use validation::BigIntInterval;
 use validation::{
     ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticExpression,
     ScopedArithmeticHypothesis, ScopedArithmeticValue, StrictArithmeticImplicationJudgment,
@@ -472,6 +473,8 @@ impl<'program> CurrentScalarValues<'program> {
                     }
                     let alternatives =
                         values.capture_alternatives(program, machine, state, assignment.value);
+                    let preserved_fields =
+                        values.disjoint_scalar_fields_for_store(statement, frames);
                     if stored_value.is_some() {
                         values.invalidate_operand_writes(
                             frames.map(|frames| frames.assignment_write_frame(machine, statement)),
@@ -552,6 +555,7 @@ impl<'program> CurrentScalarValues<'program> {
                             frames.map(|frames| frames.assignment_write_frame(machine, statement)),
                         );
                     }
+                    values.restore_disjoint_scalar_fields(preserved_fields);
                     // The store uses the address captured before operand effects.
                     // A rebound selector can no longer name that home; publishing
                     // through its old spelling would manufacture a current rank.
@@ -880,8 +884,10 @@ impl<'program> CurrentScalarValues<'program> {
                     identity: format!("state:{:?}:call-result:{expression:?}", state.symbol),
                     unsigned: unsigned(primitive),
                 }),
-                minimum: low.map(numerics::bignum::BigInt::from_i64),
-                maximum: high.map(numerics::bignum::BigInt::from_i64),
+                interval: BigIntInterval {
+                    low: low.map(numerics::bignum::BigInt::from_i64),
+                    high: high.map(numerics::bignum::BigInt::from_i64),
+                },
             });
         }
         if matches!(
@@ -1083,13 +1089,18 @@ impl<'program> CurrentScalarValues<'program> {
         &self,
         machine: &Machine,
         expression: &ScopedArithmeticExpression,
+        input_type: typed_trees::types::TypeReferenceHandle,
         result: PrimitiveType,
-    ) -> Option<validation::IntegerApplicationFormation> {
+    ) -> Option<(
+        validation::IntegerApplicationFormation,
+        ScopedArithmeticValue,
+    )> {
         validation::scoped_declared_integer_application_formation(
             self.program,
             machine,
             &self.hypotheses,
             expression,
+            input_type,
             result,
         )
     }
@@ -1197,13 +1208,11 @@ fn substitute_symbol_in_value(
         }
         ScopedArithmeticValue::BoundedInteger {
             value: inner,
-            minimum,
-            maximum,
+            interval,
         } => substitute_symbol_in_value(inner, symbol, expected, replacement).map(|next| {
             ScopedArithmeticValue::BoundedInteger {
                 value: Box::new(next),
-                minimum: minimum.clone(),
-                maximum: maximum.clone(),
+                interval: interval.clone(),
             }
         }),
         ScopedArithmeticValue::IntegerOperation {
@@ -1512,8 +1521,10 @@ fn field_occurrence(
         match validation::immutable_integer_expression_bounds(program, machine, state, expression) {
             Some((minimum, maximum)) => ScopedArithmeticValue::BoundedInteger {
                 value: Box::new(value),
-                minimum: Some(numerics::bignum::BigInt::from_i64(minimum)),
-                maximum: Some(numerics::bignum::BigInt::from_i64(maximum)),
+                interval: BigIntInterval {
+                    low: Some(numerics::bignum::BigInt::from_i64(minimum)),
+                    high: Some(numerics::bignum::BigInt::from_i64(maximum)),
+                },
             },
             None => value,
         },
@@ -1868,6 +1879,8 @@ fn charge(value: &ScopedArithmeticValue, budget: &mut usize, depth: usize) -> Op
             charge(right, budget, depth + 1)?;
         }
         ScopedArithmeticValue::TypeReference(_)
+        | ScopedArithmeticValue::OwnedSnapshot(_)
+        | ScopedArithmeticValue::CapturedInteger(_)
         | ScopedArithmeticValue::Atom { .. }
         | ScopedArithmeticValue::Integer(_) => {}
     }

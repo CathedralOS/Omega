@@ -1,4 +1,10 @@
 //! Canonical structural-domain, claim, and contract encoding.
+use super::carrier_encoding::{
+    encode_access, encode_ids, encode_integer_type, encode_integer_value, encode_multiplicity,
+    encode_optional, encode_optional_access, encode_scalar_type, encode_structural_parameter,
+    encode_structural_path_segment,
+};
+use super::proposition_encoding::{encode_content_term, encode_float_format, encode_proposition};
 use super::{
     BindingRelevance, BoundaryContentGuarantee, BoundaryMachineDeclaration, ByteSequenceCarrier,
     CanonicalBytes, ClaimContentProjection, CompletionClaimSource, ContentAlgebra,
@@ -11,14 +17,6 @@ use super::{
     StructuralMultiplicity, StructuralOperationResult, StructuralPlaceDeclaration,
     StructuralPlaceKind, StructuralTypeDeclaration, StructuralTypeShape,
     TerminalAffineCleanupAction,
-};
-use crate::optimization_unit::identity::carrier_encoding::{
-    encode_access, encode_ids, encode_integer_type, encode_integer_value, encode_multiplicity,
-    encode_optional, encode_optional_access, encode_scalar_type, encode_structural_parameter,
-    encode_structural_path_segment,
-};
-use crate::optimization_unit::identity::proposition_encoding::{
-    encode_content_term, encode_float_format, encode_proposition,
 };
 use terminal_psi::BoundaryMachineResult;
 

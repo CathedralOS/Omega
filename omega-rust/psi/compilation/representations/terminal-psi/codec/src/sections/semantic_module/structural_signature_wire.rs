@@ -5,179 +5,299 @@
 //! provider refinement semantics remain outside this module.
 
 use semantic_vocabulary::{
-    ContentAlgebra, ContentAlgebraKind, ContentPlaceSegment, ContentPlaceVersion,
-    ContentProjectionExpression, ContentProjectionIdentity, ContentProjectionScalar,
-    DomainSemanticId, ServiceId,
+    ContentPlaceSegment, ContentPlaceVersion, ContentProjectionExpression, ContentProjectionScalar,
+    QualifiedScalarType, ServiceId,
 };
 use terminal_psi::{
-    BoundaryContentGuarantee, BoundaryMachineDeclaration, BoundaryMachineResult,
-    BoundaryStructuralResultDeclaration, ProgramLocalRootIntroductionSchema,
-    RetainedBorrowContentProjection, RetainedBorrowCustody, RetainedBorrowPlace,
-    RetainedBorrowPlaceRoot, StructuralAccess, StructuralContentProjection,
+    BoundaryCompletion, BoundaryContentGuarantee, BoundaryDeclarationRole,
+    BoundaryMachineDeclaration, BoundaryMachineResult, BoundaryParameterKind,
+    BoundaryReferenceOutput, BoundaryRequirementKind, BoundaryStructuralResultDeclaration,
+    CheckedBoundaryCallable, CheckedBoundaryExecution, ExternalCompletionKind,
+    ProgramLocalRootIntroductionSchema, RetainedBorrowContentProjection, RetainedBorrowCustody,
+    RetainedBorrowPlace, RetainedBorrowPlaceRoot, ScalarDomainRequirement, StructuralAccess,
     StructuralDomainRequirement, StructuralParameterDeclaration, StructuralPathQualification,
 };
 
 use super::CodecError;
-use super::content_wire::{
-    decode_content_conservation_guarantee, encode_content_conservation_guarantee,
-};
-use super::contract_wire::{decode_crash_routes, encode_crash_routes};
-use super::proposition_wire::{decode_proposition, encode_proposition};
-use super::scalar_wire::{decode_scalar_type, encode_scalar_type};
-use super::structural_place_wire::{decode_qualification_path, encode_qualification_path};
-use super::structural_result_wire::{decode_multiplicity, encode_multiplicity};
 use super::wire::{Reader, Writer};
-use crate::sections::semantic_module::wire::{
-    decode_counted, decode_ids, decode_optional_id, encode_optional_id,
+use super::wire_fields::{
+    Access, ContentAlgebra, ContentExpression, ContentProjection, CrashRoutes, Field, Flag, Id,
+    Ids, Index, List, MachineDeclaration, Multiplicity, Nominal, OptionalId, PathQualification,
+    ProjectionIdentity, Proposition, QualificationPath, QualificationSet, ReachArgument, Scalar,
+    Text, U32, U64, wire_enum, wire_record,
 };
-use terminal_psi::TerminalIdentityIndex;
+use crate::sections::semantic_module::wire::decode_counted;
 
 mod reference_outputs;
 
-pub(crate) fn encode_boundary_machine(
+wire_record! {
+    BoundaryMachine: BoundaryMachineDeclaration {
+        id: Id,
+        declaration: OptionalCallable,
+        numeric_intrinsic: NumericIntrinsic,
+        identity: Index,
+        owner: Nominal,
+        role: Role,
+        kind: RequirementKind,
+        completion: Completion,
+        unconditional_termination: Flag,
+        attachment: OptionalId,
+        parameter_order: List<ParameterKind>,
+        scalar_parameters: List<Scalar>,
+        crash_routes: CrashRoutes,
+        structural_parameters: List<StructuralParameter>,
+        result: CallResult,
+        requires: List<DomainRequirement>,
+        normal_qualifications: List<DomainRequirement>,
+        scalar_domain_requirements: List<ScalarDomain>,
+        scalar_requires: List<Proposition>,
+        scalar_ensures: List<Proposition>,
+        reference_outputs: ReferenceOutputs,
+        program_local_root_introductions: List<RootIntroduction>,
+        content_guarantees: List<ContentGuarantee>,
+        fixed_service_reach: Ids,
+        owning_service: OptionalId,
+        published_service_ceiling: Ids,
+    }
+    Callable: CheckedBoundaryCallable {
+        source: MachineDeclaration,
+        method_arguments: List<ReachArgument>,
+        execution: Execution,
+    }
+    DomainRequirement: StructuralDomainRequirement {
+        argument_index: U32,
+        path: QualificationPath,
+        domain: Id,
+    }
+    ScalarDomain: ScalarDomainRequirement { argument_index: U32, domain: Id }
+    RootIntroduction: ProgramLocalRootIntroductionSchema {
+        argument_index: U32,
+        source_parameter_position: U32,
+        qualification: Id,
+        carrier: Id,
+        projection: ProjectionIdentity,
+        algebra: ContentAlgebra,
+        capacity: ContentExpression,
+        compatibility_report_identity: U64,
+    }
+    StructuralParameter: StructuralParameterDeclaration {
+        place: Id,
+        position: U32,
+        structural_type: Id,
+        multiplicity: Multiplicity,
+        access: Access,
+        qualifications: Ids,
+        projected_qualifications: List<PathQualification>,
+    }
+    BorrowPlace: RetainedBorrowPlace {
+        version: PlaceVersion,
+        root: PlaceRoot,
+        segments: List<PlaceSegment>,
+    }
+    BorrowProjection: RetainedBorrowContentProjection {
+        semantic_domain: Id,
+        carrier_identity: Index,
+        projection: ContentProjection,
+    }
+    BorrowCustody: RetainedBorrowCustody {
+        callable_identity: Index,
+        source: BorrowPlace,
+        result: BorrowPlace,
+        access: Access,
+        callable_lifetime_parameter_count: U32,
+        callable_lifetime_parameter_ordinal: U32,
+        result_nominal_identity: Index,
+        result_multiplicity: Multiplicity,
+        result_lifetime_argument_count: U32,
+        result_lifetime_argument_ordinal: U32,
+        result_lifetime_slot_is_erased: Flag,
+        retained_semantic_domain: Id,
+        source_projection: BorrowProjection,
+        result_projection: BorrowProjection,
+    }
+    StructuralResult: BoundaryStructuralResultDeclaration {
+        structural_type: Id,
+        multiplicity: Multiplicity,
+        qualifications: Ids,
+        projected_qualifications: List<PathQualification>,
+    }
+    QualifiedScalar: QualifiedScalarType { scalar_type: Scalar, qualifications: QualificationSet }
+}
+
+wire_enum! {
+    Execution: CheckedBoundaryExecution, "checked boundary execution" {
+        0 => Provider,
+        1 => AccessInitialize,
+        2 => AccessMoveOut,
+        3 => AccessView,
+    }
+    Role: BoundaryDeclarationRole, "BoundaryDeclarationRole" { 0 => Callable, 1 => ContractEvidence }
+    RequirementKind: BoundaryRequirementKind, "BoundaryRequirementKind" {
+        0 => Machine,
+        1 => Trait,
+        2 => Operator,
+    }
+    ParameterKind: BoundaryParameterKind, "BoundaryParameterKind" { 0 => Scalar, 1 => Structural }
+    ContentGuarantee: BoundaryContentGuarantee, "BoundaryContentGuarantee" {
+        1 => Conservation(guarantee: super::content_wire::Guarantee),
+        2 => RetainedBorrow(custody: BorrowCustody),
+    }
+    PlaceVersion: ContentPlaceVersion, "ContentPlaceVersion" { 1 => Entry, 2 => Current }
+    PlaceRoot: RetainedBorrowPlaceRoot, "RetainedBorrowPlaceRoot" {
+        1 => Parameter { position: U32, identity: Index },
+        2 => Result,
+    }
+    PlaceSegment: ContentPlaceSegment, "ContentPlaceSegment" {
+        1 => Case(identity: Text),
+        2 => Field(identity: Text),
+        3 => FixedIndex(index: U64),
+    }
+    CallResult: BoundaryMachineResult, "BoundaryMachineResult" {
+        0 => Unit,
+        1 => Scalar(result: QualifiedScalar),
+        2 => Structural(result: StructuralResult),
+    }
+}
+
+/// The checked callable, present behind a flag.
+struct OptionalCallable;
+impl Field<Option<CheckedBoundaryCallable>> for OptionalCallable {
+    fn write(
+        writer: &mut Writer,
+        value: &Option<CheckedBoundaryCallable>,
+    ) -> Result<(), CodecError> {
+        writer.boolean(value.is_some());
+        if let Some(callable) = value {
+            Callable::write(writer, callable)?;
+        }
+        Ok(())
+    }
+    fn read(reader: &mut Reader<'_>) -> Result<Option<CheckedBoundaryCallable>, CodecError> {
+        Ok(if reader.boolean()? {
+            Some(Callable::read(reader)?)
+        } else {
+            None
+        })
+    }
+}
+
+/// A numeric intrinsic meaning in its four-byte canonical encoding.
+struct NumericIntrinsic;
+impl Field<Option<language_semantics::numeric_intrinsics::NumericIntrinsic>> for NumericIntrinsic {
+    fn write(
+        writer: &mut Writer,
+        value: &Option<language_semantics::numeric_intrinsics::NumericIntrinsic>,
+    ) -> Result<(), CodecError> {
+        writer.boolean(value.is_some());
+        if let Some(meaning) = value {
+            let Some(bytes) = meaning.canonical_encoding() else {
+                return crate::codec_error::malformed("unsupported numeric intrinsic meaning");
+            };
+            writer.bytes(&bytes);
+        }
+        Ok(())
+    }
+    fn read(
+        reader: &mut Reader<'_>,
+    ) -> Result<Option<language_semantics::numeric_intrinsics::NumericIntrinsic>, CodecError> {
+        if !reader.boolean()? {
+            return Ok(None);
+        }
+        let bytes = [reader.u8()?, reader.u8()?, reader.u8()?, reader.u8()?];
+        language_semantics::numeric_intrinsics::NumericIntrinsic::from_canonical_encoding(bytes)
+            .map(Some)
+            .ok_or_else(|| {
+                CodecError::MalformedStructuralFoundation(
+                    "invalid numeric intrinsic meaning".into(),
+                )
+            })
+    }
+}
+
+/// Normal return, or the one external completion the wire admits.
+struct Completion;
+impl Field<BoundaryCompletion> for Completion {
+    fn write(writer: &mut Writer, value: &BoundaryCompletion) -> Result<(), CodecError> {
+        writer.u8(match value {
+            BoundaryCompletion::NormalReturn => 0,
+            BoundaryCompletion::External(ExternalCompletionKind::ProcessExit) => 1,
+        });
+        Ok(())
+    }
+    fn read(reader: &mut Reader<'_>) -> Result<BoundaryCompletion, CodecError> {
+        match reader.u8()? {
+            0 => Ok(BoundaryCompletion::NormalReturn),
+            1 => Ok(BoundaryCompletion::External(
+                ExternalCompletionKind::ProcessExit,
+            )),
+            tag => Err(CodecError::InvalidTag("BoundaryCompletion", tag)),
+        }
+    }
+}
+
+struct ReferenceOutputs;
+impl Field<Vec<BoundaryReferenceOutput>> for ReferenceOutputs {
+    fn write(writer: &mut Writer, value: &Vec<BoundaryReferenceOutput>) -> Result<(), CodecError> {
+        reference_outputs::encode(writer, value)
+    }
+    fn read(reader: &mut Reader<'_>) -> Result<Vec<BoundaryReferenceOutput>, CodecError> {
+        reference_outputs::decode(reader)
+    }
+}
+
+pub(crate) fn encode_structural_parameters(
     writer: &mut Writer,
-    declaration: &BoundaryMachineDeclaration,
+    parameters: &[StructuralParameterDeclaration],
 ) -> Result<(), CodecError> {
-    writer.id(declaration.id);
-    writer.boolean(declaration.declaration.is_some());
-    if let Some(checked) = &declaration.declaration {
-        super::machine_declaration_wire::encode(writer, &checked.source)?;
-        writer.len("boundary method arguments", checked.method_arguments.len())?;
-        for argument in &checked.method_arguments {
-            super::reach_application_wire::encode_argument(writer, argument);
-        }
-        writer.u8(match checked.execution {
-            terminal_psi::CheckedBoundaryExecution::Provider => 0,
-            terminal_psi::CheckedBoundaryExecution::AccessInitialize => 1,
-            terminal_psi::CheckedBoundaryExecution::AccessMoveOut => 2,
-            terminal_psi::CheckedBoundaryExecution::AccessView => 3,
-        });
-    }
-    writer.boolean(declaration.numeric_intrinsic.is_some());
-    if let Some(meaning) = declaration.numeric_intrinsic {
-        let Some(bytes) = meaning.canonical_encoding() else {
-            return crate::codec_error::malformed("unsupported numeric intrinsic meaning");
-        };
-        writer.bytes(&bytes);
-    }
-    writer.u32(declaration.identity.0);
-    writer.u32(declaration.owner.identity().0);
-    writer.u8(match declaration.role {
-        terminal_psi::BoundaryDeclarationRole::Callable => 0,
-        terminal_psi::BoundaryDeclarationRole::ContractEvidence => 1,
-    });
-    writer.u8(match declaration.kind {
-        terminal_psi::BoundaryRequirementKind::Machine => 0,
-        terminal_psi::BoundaryRequirementKind::Trait => 1,
-        terminal_psi::BoundaryRequirementKind::Operator => 2,
-    });
-    writer.u8(match declaration.completion {
-        terminal_psi::BoundaryCompletion::NormalReturn => 0,
-        terminal_psi::BoundaryCompletion::External(
-            terminal_psi::ExternalCompletionKind::ProcessExit,
-        ) => 1,
-    });
-    writer.boolean(declaration.unconditional_termination);
-    encode_optional_id(writer, declaration.attachment);
-    writer.len(
-        "boundary parameter order",
-        declaration.parameter_order.len(),
-    )?;
-    for kind in &declaration.parameter_order {
-        writer.u8(match kind {
-            terminal_psi::BoundaryParameterKind::Scalar => 0,
-            terminal_psi::BoundaryParameterKind::Structural => 1,
-        });
-    }
-    writer.len(
-        "boundary scalar parameters",
-        declaration.scalar_parameters.len(),
-    )?;
-    for parameter in &declaration.scalar_parameters {
-        encode_scalar_type(writer, *parameter);
-    }
-    encode_crash_routes(writer, &declaration.crash_routes)?;
-    encode_structural_parameters(writer, &declaration.structural_parameters)?;
-    encode_call_result(writer, &declaration.result)?;
-    writer.len(
-        "boundary structural requirements",
-        declaration.requires.len(),
-    )?;
-    for requirement in &declaration.requires {
-        writer.u32(requirement.argument_index);
-        encode_qualification_path(writer, &requirement.path)?;
-        writer.id(requirement.domain);
-    }
-    writer.len(
-        "boundary normal parameter qualifications",
-        declaration.normal_qualifications.len(),
-    )?;
-    for guarantee in &declaration.normal_qualifications {
-        writer.u32(guarantee.argument_index);
-        encode_qualification_path(writer, &guarantee.path)?;
-        writer.id(guarantee.domain);
-    }
-    writer.len(
-        "boundary scalar domain requirements",
-        declaration.scalar_domain_requirements.len(),
-    )?;
-    for requirement in &declaration.scalar_domain_requirements {
-        writer.u32(requirement.argument_index);
-        writer.id(requirement.domain);
-    }
-    writer.len(
-        "boundary scalar requires",
-        declaration.scalar_requires.len(),
-    )?;
-    for proposition in &declaration.scalar_requires {
-        encode_proposition(writer, proposition, 0)?;
-    }
-    writer.len("boundary scalar ensures", declaration.scalar_ensures.len())?;
-    for proposition in &declaration.scalar_ensures {
-        encode_proposition(writer, proposition, 0)?;
-    }
-    reference_outputs::encode(writer, &declaration.reference_outputs)?;
-    writer.len(
-        "program-local root introduction schemas",
-        declaration.program_local_root_introductions.len(),
-    )?;
-    for schema in &declaration.program_local_root_introductions {
-        writer.u32(schema.argument_index);
-        writer.u32(schema.source_parameter_position);
-        writer.id(schema.qualification);
-        writer.id(schema.carrier);
-        writer.id(schema.projection.domain);
-        writer.u64(schema.projection.projection_report_fingerprint);
-        writer.u8(match schema.algebra.kind {
-            ContentAlgebraKind::IntervalSet => 1,
-            ContentAlgebraKind::CountedQuantity => 2,
-        });
-        writer.string(
-            "program-local content algebra parameter",
-            &schema.algebra.parameter,
-        )?;
-        encode_content_projection_expression(writer, &schema.capacity)?;
-        writer.u64(schema.compatibility_report_identity);
-    }
-    writer.len(
-        "boundary content guarantees",
-        declaration.content_guarantees.len(),
-    )?;
-    for guarantee in &declaration.content_guarantees {
-        match guarantee {
-            BoundaryContentGuarantee::Conservation(guarantee) => {
-                writer.u8(1);
-                encode_content_conservation_guarantee(writer, guarantee)?;
-            }
-            BoundaryContentGuarantee::RetainedBorrow(custody) => {
-                writer.u8(2);
-                encode_retained_borrow_custody(writer, custody)?;
-            }
-        }
-    }
-    encode_service_ceiling(writer, &declaration.fixed_service_reach)?;
-    encode_optional_id(writer, declaration.owning_service);
-    encode_service_ceiling(writer, &declaration.published_service_ceiling)
+    writer.counted(
+        "structural parameters",
+        parameters,
+        StructuralParameter::write,
+    )
+}
+
+pub(crate) fn decode_structural_parameters(
+    reader: &mut Reader<'_>,
+) -> Result<Vec<StructuralParameterDeclaration>, CodecError> {
+    List::<StructuralParameter>::read(reader)
+}
+
+pub(crate) fn encode_service_ceiling(
+    writer: &mut Writer,
+    services: &[ServiceId],
+) -> Result<(), CodecError> {
+    writer.ids("published service ceiling", services)
+}
+
+pub(crate) fn encode_projected_qualifications(
+    writer: &mut Writer,
+    qualifications: &[StructuralPathQualification],
+) -> Result<(), CodecError> {
+    writer.counted(
+        "projected structural parameter qualifications",
+        qualifications,
+        PathQualification::write,
+    )
+}
+
+pub(crate) fn decode_projected_qualifications(
+    reader: &mut Reader<'_>,
+) -> Result<Vec<StructuralPathQualification>, CodecError> {
+    List::<PathQualification>::read(reader)
+}
+
+/// Shared place-free result signature for boundary declarations and dynamic slots.
+pub(super) fn encode_call_result(
+    writer: &mut Writer,
+    result: &BoundaryMachineResult,
+) -> Result<(), CodecError> {
+    CallResult::write(writer, result)
+}
+
+pub(super) fn decode_call_result(
+    reader: &mut Reader<'_>,
+) -> Result<BoundaryMachineResult, CodecError> {
+    CallResult::read(reader)
 }
 
 pub(crate) fn encode_content_projection_expression(
@@ -239,333 +359,6 @@ fn encode_capacity_scalar(
         }
     }
     Ok(())
-}
-
-pub(crate) fn encode_structural_parameters(
-    writer: &mut Writer,
-    parameters: &[StructuralParameterDeclaration],
-) -> Result<(), CodecError> {
-    writer.len("structural parameters", parameters.len())?;
-    for parameter in parameters {
-        writer.id(parameter.place);
-        writer.u32(parameter.position);
-        writer.id(parameter.structural_type);
-        encode_multiplicity(writer, parameter.multiplicity);
-        encode_structural_access(writer, parameter.access);
-        writer.len(
-            "structural parameter qualifications",
-            parameter.qualifications.len(),
-        )?;
-        for qualification in &parameter.qualifications {
-            writer.id(*qualification);
-        }
-        encode_projected_qualifications(writer, &parameter.projected_qualifications)?;
-    }
-    Ok(())
-}
-
-pub(crate) fn encode_service_ceiling(
-    writer: &mut Writer,
-    services: &[ServiceId],
-) -> Result<(), CodecError> {
-    writer.ids("published service ceiling", services)?;
-    Ok(())
-}
-
-pub(crate) fn decode_boundary_machine(
-    reader: &mut Reader<'_>,
-) -> Result<BoundaryMachineDeclaration, CodecError> {
-    Ok(BoundaryMachineDeclaration {
-        id: reader.id("BoundaryMachineId")?,
-        declaration: if reader.boolean()? {
-            Some(terminal_psi::CheckedBoundaryCallable {
-                source: super::machine_declaration_wire::decode(reader)?,
-                method_arguments: decode_counted(
-                    reader,
-                    super::reach_application_wire::decode_argument,
-                )?,
-                execution: match reader.u8()? {
-                    0 => terminal_psi::CheckedBoundaryExecution::Provider,
-                    1 => terminal_psi::CheckedBoundaryExecution::AccessInitialize,
-                    2 => terminal_psi::CheckedBoundaryExecution::AccessMoveOut,
-                    3 => terminal_psi::CheckedBoundaryExecution::AccessView,
-                    tag => return Err(CodecError::InvalidTag("checked boundary execution", tag)),
-                },
-            })
-        } else {
-            None
-        },
-        numeric_intrinsic: if reader.boolean()? {
-            let bytes = [reader.u8()?, reader.u8()?, reader.u8()?, reader.u8()?];
-            Some(
-                language_semantics::numeric_intrinsics::NumericIntrinsic::from_canonical_encoding(
-                    bytes,
-                )
-                .ok_or_else(|| {
-                    CodecError::MalformedStructuralFoundation(
-                        "invalid numeric intrinsic meaning".into(),
-                    )
-                })?,
-            )
-        } else {
-            None
-        },
-        identity: TerminalIdentityIndex(reader.u32()?),
-        owner: terminal_psi::NominalDeclarationIdentity::new(TerminalIdentityIndex(reader.u32()?)),
-        role: match reader.u8()? {
-            0 => terminal_psi::BoundaryDeclarationRole::Callable,
-            1 => terminal_psi::BoundaryDeclarationRole::ContractEvidence,
-            tag => return Err(CodecError::InvalidTag("BoundaryDeclarationRole", tag)),
-        },
-        kind: match reader.u8()? {
-            0 => terminal_psi::BoundaryRequirementKind::Machine,
-            1 => terminal_psi::BoundaryRequirementKind::Trait,
-            2 => terminal_psi::BoundaryRequirementKind::Operator,
-            tag => return Err(CodecError::InvalidTag("BoundaryRequirementKind", tag)),
-        },
-        completion: match reader.u8()? {
-            0 => terminal_psi::BoundaryCompletion::NormalReturn,
-            1 => terminal_psi::BoundaryCompletion::External(
-                terminal_psi::ExternalCompletionKind::ProcessExit,
-            ),
-            tag => return Err(CodecError::InvalidTag("BoundaryCompletion", tag)),
-        },
-        unconditional_termination: reader.boolean()?,
-        attachment: decode_optional_id(reader, "StructuralTypeId")?,
-        parameter_order: decode_counted(reader, |reader| match reader.u8()? {
-            0 => Ok(terminal_psi::BoundaryParameterKind::Scalar),
-            1 => Ok(terminal_psi::BoundaryParameterKind::Structural),
-            tag => Err(CodecError::InvalidTag("BoundaryParameterKind", tag)),
-        })?,
-        scalar_parameters: decode_counted(reader, decode_scalar_type)?,
-        crash_routes: decode_crash_routes(reader)?,
-        structural_parameters: decode_structural_parameters(reader)?,
-        result: decode_call_result(reader)?,
-        requires: decode_counted(reader, |reader| {
-            Ok(StructuralDomainRequirement {
-                argument_index: reader.u32()?,
-                path: decode_qualification_path(reader)?,
-                domain: reader.id("StructuralDomainId")?,
-            })
-        })?,
-        normal_qualifications: decode_counted(reader, |reader| {
-            Ok(StructuralDomainRequirement {
-                argument_index: reader.u32()?,
-                path: decode_qualification_path(reader)?,
-                domain: reader.id("StructuralDomainId")?,
-            })
-        })?,
-        scalar_domain_requirements: decode_counted(reader, |reader| {
-            Ok(terminal_psi::ScalarDomainRequirement {
-                argument_index: reader.u32()?,
-                domain: reader.id("ScalarDomainId")?,
-            })
-        })?,
-        scalar_requires: decode_counted(reader, |reader| decode_proposition(reader, 0))?,
-        scalar_ensures: decode_counted(reader, |reader| decode_proposition(reader, 0))?,
-        reference_outputs: reference_outputs::decode(reader)?,
-        program_local_root_introductions: decode_counted(reader, |reader| {
-            let argument_index = reader.u32()?;
-            let source_parameter_position = reader.u32()?;
-            let qualification = reader.id("StructuralDomainId")?;
-            let carrier = reader.id("StructuralTypeId")?;
-            let projection_domain = reader.id("ContentDomainId")?;
-            let projection_report_fingerprint = reader.u64()?;
-            let algebra_kind = match reader.u8()? {
-                1 => ContentAlgebraKind::IntervalSet,
-                2 => ContentAlgebraKind::CountedQuantity,
-                tag => return Err(CodecError::InvalidTag("ContentAlgebraKind", tag)),
-            };
-            let algebra_parameter = reader.string("content algebra parameter")?;
-            let capacity = decode_content_projection_expression(reader, 0)?;
-            let compatibility_report_identity = reader.u64()?;
-            Ok(ProgramLocalRootIntroductionSchema {
-                argument_index,
-                source_parameter_position,
-                qualification,
-                carrier,
-                projection: ContentProjectionIdentity {
-                    domain: projection_domain,
-                    projection_report_fingerprint,
-                },
-                algebra: ContentAlgebra {
-                    kind: algebra_kind,
-                    parameter: algebra_parameter,
-                },
-                capacity,
-                compatibility_report_identity,
-            })
-        })?,
-        content_guarantees: decode_counted(reader, |reader| match reader.u8()? {
-            1 => Ok(BoundaryContentGuarantee::Conservation(
-                decode_content_conservation_guarantee(reader)?,
-            )),
-            2 => Ok(BoundaryContentGuarantee::RetainedBorrow(
-                decode_retained_borrow_custody(reader)?,
-            )),
-            tag => Err(CodecError::InvalidTag("BoundaryContentGuarantee", tag)),
-        })?,
-        fixed_service_reach: decode_ids(reader, "ServiceId")?,
-        owning_service: decode_optional_id(reader, "ServiceId")?,
-        published_service_ceiling: decode_ids(reader, "ServiceId")?,
-    })
-}
-
-fn encode_retained_borrow_place(
-    writer: &mut Writer,
-    place: &RetainedBorrowPlace,
-) -> Result<(), CodecError> {
-    writer.u8(match place.version {
-        ContentPlaceVersion::Entry => 1,
-        ContentPlaceVersion::Current => 2,
-    });
-    match &place.root {
-        RetainedBorrowPlaceRoot::Parameter { position, identity } => {
-            writer.u8(1);
-            writer.u32(*position);
-            writer.u32(identity.0);
-        }
-        RetainedBorrowPlaceRoot::Result => writer.u8(2),
-    }
-    writer.len("retained-borrow place segments", place.segments.len())?;
-    for segment in &place.segments {
-        match segment {
-            ContentPlaceSegment::Case(identity) => {
-                writer.u8(1);
-                writer.string("retained-borrow case identity", identity)?;
-            }
-            ContentPlaceSegment::Field(identity) => {
-                writer.u8(2);
-                writer.string("retained-borrow field identity", identity)?;
-            }
-            ContentPlaceSegment::FixedIndex(index) => {
-                writer.u8(3);
-                writer.u64(*index);
-            }
-        }
-    }
-    Ok(())
-}
-
-fn decode_retained_borrow_place(
-    reader: &mut Reader<'_>,
-) -> Result<RetainedBorrowPlace, CodecError> {
-    let version = match reader.u8()? {
-        1 => ContentPlaceVersion::Entry,
-        2 => ContentPlaceVersion::Current,
-        tag => return Err(CodecError::InvalidTag("ContentPlaceVersion", tag)),
-    };
-    let root = match reader.u8()? {
-        1 => RetainedBorrowPlaceRoot::Parameter {
-            position: reader.u32()?,
-            identity: TerminalIdentityIndex(reader.u32()?),
-        },
-        2 => RetainedBorrowPlaceRoot::Result,
-        tag => return Err(CodecError::InvalidTag("RetainedBorrowPlaceRoot", tag)),
-    };
-    let segments = decode_counted(reader, |reader| match reader.u8()? {
-        1 => Ok(ContentPlaceSegment::Case(
-            reader.string("retained-borrow field identity")?,
-        )),
-        2 => Ok(ContentPlaceSegment::Field(
-            reader.string("retained-borrow field identity")?,
-        )),
-        3 => Ok(ContentPlaceSegment::FixedIndex(reader.u64()?)),
-        tag => Err(CodecError::InvalidTag("ContentPlaceSegment", tag)),
-    })?;
-    Ok(RetainedBorrowPlace {
-        version,
-        root,
-        segments,
-    })
-}
-
-fn encode_retained_borrow_projection(
-    writer: &mut Writer,
-    projection: &RetainedBorrowContentProjection,
-) -> Result<(), CodecError> {
-    writer.id(projection.semantic_domain);
-    writer.u32(projection.carrier_identity.0);
-    writer.id(projection.projection.identity.domain);
-    writer.u64(projection.projection.identity.projection_report_fingerprint);
-    writer.u8(match projection.projection.algebra.kind {
-        ContentAlgebraKind::IntervalSet => 1,
-        ContentAlgebraKind::CountedQuantity => 2,
-    });
-    writer.string(
-        "retained-borrow content algebra parameter",
-        &projection.projection.algebra.parameter,
-    )?;
-    encode_content_projection_expression(writer, &projection.projection.expression)
-}
-
-fn decode_retained_borrow_projection(
-    reader: &mut Reader<'_>,
-) -> Result<RetainedBorrowContentProjection, CodecError> {
-    let semantic_domain = reader.id::<DomainSemanticId>("DomainSemanticId")?;
-    let carrier_identity = TerminalIdentityIndex(reader.u32()?);
-    let domain = reader.id("ContentDomainId")?;
-    let projection_report_fingerprint = reader.u64()?;
-    let kind = match reader.u8()? {
-        1 => ContentAlgebraKind::IntervalSet,
-        2 => ContentAlgebraKind::CountedQuantity,
-        tag => return Err(CodecError::InvalidTag("ContentAlgebraKind", tag)),
-    };
-    let parameter = reader.string("content algebra parameter")?;
-    let expression = decode_content_projection_expression(reader, 0)?;
-    Ok(RetainedBorrowContentProjection {
-        semantic_domain,
-        carrier_identity,
-        projection: StructuralContentProjection {
-            identity: ContentProjectionIdentity {
-                domain,
-                projection_report_fingerprint,
-            },
-            algebra: ContentAlgebra { kind, parameter },
-            expression,
-        },
-    })
-}
-
-fn encode_retained_borrow_custody(
-    writer: &mut Writer,
-    custody: &RetainedBorrowCustody,
-) -> Result<(), CodecError> {
-    writer.u32(custody.callable_identity.0);
-    encode_retained_borrow_place(writer, &custody.source)?;
-    encode_retained_borrow_place(writer, &custody.result)?;
-    encode_structural_access(writer, custody.access);
-    writer.u32(custody.callable_lifetime_parameter_count);
-    writer.u32(custody.callable_lifetime_parameter_ordinal);
-    writer.u32(custody.result_nominal_identity.0);
-    encode_multiplicity(writer, custody.result_multiplicity);
-    writer.u32(custody.result_lifetime_argument_count);
-    writer.u32(custody.result_lifetime_argument_ordinal);
-    writer.boolean(custody.result_lifetime_slot_is_erased);
-    writer.id(custody.retained_semantic_domain);
-    encode_retained_borrow_projection(writer, &custody.source_projection)?;
-    encode_retained_borrow_projection(writer, &custody.result_projection)
-}
-
-fn decode_retained_borrow_custody(
-    reader: &mut Reader<'_>,
-) -> Result<RetainedBorrowCustody, CodecError> {
-    Ok(RetainedBorrowCustody {
-        callable_identity: TerminalIdentityIndex(reader.u32()?),
-        source: decode_retained_borrow_place(reader)?,
-        result: decode_retained_borrow_place(reader)?,
-        access: decode_structural_access(reader)?,
-        callable_lifetime_parameter_count: reader.u32()?,
-        callable_lifetime_parameter_ordinal: reader.u32()?,
-        result_nominal_identity: TerminalIdentityIndex(reader.u32()?),
-        result_multiplicity: decode_multiplicity(reader)?,
-        result_lifetime_argument_count: reader.u32()?,
-        result_lifetime_argument_ordinal: reader.u32()?,
-        result_lifetime_slot_is_erased: reader.boolean()?,
-        retained_semantic_domain: reader.id("DomainSemanticId")?,
-        source_projection: decode_retained_borrow_projection(reader)?,
-        result_projection: decode_retained_borrow_projection(reader)?,
-    })
 }
 
 pub(crate) fn decode_content_projection_expression(
@@ -631,53 +424,6 @@ fn decode_capacity_scalar(
     }
 }
 
-pub(crate) fn decode_structural_parameters(
-    reader: &mut Reader<'_>,
-) -> Result<Vec<StructuralParameterDeclaration>, CodecError> {
-    decode_counted(reader, |reader| {
-        let place = reader.id("PlaceId")?;
-        let position = reader.u32()?;
-        let structural_type = reader.id("StructuralTypeId")?;
-        let multiplicity = decode_multiplicity(reader)?;
-        let access = decode_structural_access(reader)?;
-        Ok(StructuralParameterDeclaration {
-            place,
-            position,
-            structural_type,
-            multiplicity,
-            access,
-            qualifications: decode_ids(reader, "StructuralDomainId")?,
-            projected_qualifications: decode_projected_qualifications(reader)?,
-        })
-    })
-}
-
-pub(crate) fn encode_projected_qualifications(
-    writer: &mut Writer,
-    qualifications: &[StructuralPathQualification],
-) -> Result<(), CodecError> {
-    writer.len(
-        "projected structural parameter qualifications",
-        qualifications.len(),
-    )?;
-    for qualification in qualifications {
-        super::structural_place_wire::encode_qualification_path(writer, &qualification.path)?;
-        writer.id(qualification.domain);
-    }
-    Ok(())
-}
-
-pub(crate) fn decode_projected_qualifications(
-    reader: &mut Reader<'_>,
-) -> Result<Vec<StructuralPathQualification>, CodecError> {
-    decode_counted(reader, |reader| {
-        Ok(StructuralPathQualification {
-            path: super::structural_place_wire::decode_qualification_path(reader)?,
-            domain: reader.id("StructuralDomainId")?,
-        })
-    })
-}
-
 pub(crate) fn encode_structural_access(writer: &mut Writer, access: StructuralAccess) {
     writer.u8(match access {
         StructuralAccess::Owned => 1,
@@ -713,46 +459,4 @@ pub(crate) fn decode_optional_structural_access(
         0 => Ok(None),
         tag => Ok(Some(decode_structural_access_tag(tag)?)),
     }
-}
-
-/// Shared place-free result signature for boundary declarations and dynamic slots.
-pub(super) fn encode_call_result(
-    writer: &mut Writer,
-    result: &BoundaryMachineResult,
-) -> Result<(), CodecError> {
-    match result {
-        BoundaryMachineResult::Unit => writer.u8(0),
-        BoundaryMachineResult::Scalar(result) => {
-            writer.u8(1);
-            encode_scalar_type(writer, result.scalar_type);
-            writer.u64(result.qualifications.get());
-        }
-        BoundaryMachineResult::Structural(result) => {
-            writer.u8(2);
-            writer.id(result.structural_type);
-            encode_multiplicity(writer, result.multiplicity);
-            writer.ids("boundary result qualifications", &result.qualifications)?;
-            encode_projected_qualifications(writer, &result.projected_qualifications)?;
-        }
-    }
-    Ok(())
-}
-
-pub(super) fn decode_call_result(
-    reader: &mut Reader<'_>,
-) -> Result<BoundaryMachineResult, CodecError> {
-    Ok(match reader.u8()? {
-        0 => BoundaryMachineResult::Unit,
-        1 => BoundaryMachineResult::Scalar(semantic_vocabulary::QualifiedScalarType {
-            scalar_type: decode_scalar_type(reader)?,
-            qualifications: semantic_vocabulary::ScalarQualificationSetId::new(reader.u64()?),
-        }),
-        2 => BoundaryMachineResult::Structural(BoundaryStructuralResultDeclaration {
-            structural_type: reader.id("StructuralTypeId")?,
-            multiplicity: decode_multiplicity(reader)?,
-            qualifications: decode_ids(reader, "boundary result qualifications")?,
-            projected_qualifications: decode_projected_qualifications(reader)?,
-        }),
-        tag => return Err(CodecError::InvalidTag("BoundaryMachineResult", tag)),
-    })
 }

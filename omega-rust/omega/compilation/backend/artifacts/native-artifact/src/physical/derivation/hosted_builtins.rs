@@ -17,14 +17,20 @@ use crate::physical::derivation::evidence::text_relocation_overlaps;
 use crate::physical::derivation::settlement_identity::hosted_builtin_settlement_identity;
 use crate::physical::native_byte_span;
 use machine_code::BoundaryExecutionRecord;
+use machine_code::InternalUnitScalarArgumentSourceRecord;
 use optimization_core::NativeOptimizationProjectionIdentity;
 use semantic_vocabulary::IntegerSign;
 use semantic_vocabulary::IntegerType;
+use semantic_vocabulary::IntegerValue;
 use semantic_vocabulary::ScalarType;
 use target::Architecture;
 use target::NativeTarget;
 use target_operations::BoundaryRealization;
 use target_operations::CompilerBuiltinExecution;
+use target_operations::HostedExitProcessI32Realization;
+use target_operations::HostedReadByteRealization;
+use target_operations::HostedWriteByteI32Realization;
+use target_operations::MachineRegister;
 
 /// One declared scalar-argument form a hosted builtin settlement may retain.
 /// The forms are mutually exclusive on the settlement record's two scalar
@@ -37,12 +43,12 @@ enum HostedScalarArgumentForm {
     /// per-architecture ABI destination.
     Immediate {
         scalar: fn() -> ScalarType,
-        destination: fn(Architecture) -> target_operations::MachineRegister,
+        destination: fn(Architecture) -> MachineRegister,
     },
     /// One runtime scalar argument retained by its emitted source record;
     /// `source` restricts the record's source kind when `Some`.
     RuntimeScalar {
-        source: Option<fn(&machine_code::InternalUnitScalarArgumentSourceRecord) -> bool>,
+        source: Option<fn(&InternalUnitScalarArgumentSourceRecord) -> bool>,
     },
 }
 
@@ -90,10 +96,8 @@ pub(crate) struct HostedBuiltinSettlement {
 const HOSTED_BUILTIN_SETTLEMENTS: &[HostedBuiltinSettlement] = &[
     HostedBuiltinSettlement {
         execution: CompilerBuiltinExecution::HostedExitProcessI32,
-        realization: BoundaryRealization::HostedExitProcessI32(
-            target_operations::HostedExitProcessI32Realization,
-        ),
-        supports_target: target_operations::HostedExitProcessI32Realization::supports_target,
+        realization: BoundaryRealization::HostedExitProcessI32(HostedExitProcessI32Realization),
+        supports_target: HostedExitProcessI32Realization::supports_target,
         scalar_forms: &[
             HostedScalarArgumentForm::Immediate {
                 scalar: i32_scalar,
@@ -108,20 +112,16 @@ const HOSTED_BUILTIN_SETTLEMENTS: &[HostedBuiltinSettlement] = &[
     },
     HostedBuiltinSettlement {
         execution: CompilerBuiltinExecution::HostedWriteByteI32,
-        realization: BoundaryRealization::HostedWriteByteI32(
-            target_operations::HostedWriteByteI32Realization,
-        ),
-        supports_target: target_operations::HostedWriteByteI32Realization::supports_target,
+        realization: BoundaryRealization::HostedWriteByteI32(HostedWriteByteI32Realization),
+        supports_target: HostedWriteByteI32Realization::supports_target,
         scalar_forms: &[HostedScalarArgumentForm::RuntimeScalar { source: None }],
         result: HostedResultForm::Unit,
         identity_tags: [2, 2],
     },
     HostedBuiltinSettlement {
         execution: CompilerBuiltinExecution::HostedReadByte,
-        realization: BoundaryRealization::HostedReadByte(
-            target_operations::HostedReadByteRealization,
-        ),
-        supports_target: target_operations::HostedReadByteRealization::supports_target,
+        realization: BoundaryRealization::HostedReadByte(HostedReadByteRealization),
+        supports_target: HostedReadByteRealization::supports_target,
         scalar_forms: &[HostedScalarArgumentForm::Absent],
         result: HostedResultForm::Structural {
             bind: read_byte_result_bytes,
@@ -150,21 +150,17 @@ fn i32_scalar() -> ScalarType {
     ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).expect("i32 is valid"))
 }
 
-fn process_exit_argument_destination(
-    architecture: Architecture,
-) -> target_operations::MachineRegister {
+fn process_exit_argument_destination(architecture: Architecture) -> MachineRegister {
     match architecture {
-        Architecture::X86_64 => target_operations::MachineRegister::X86Rdi,
-        Architecture::Aarch64 => target_operations::MachineRegister::Aarch64X(0),
+        Architecture::X86_64 => MachineRegister::X86Rdi,
+        Architecture::Aarch64 => MachineRegister::Aarch64X(0),
     }
 }
 
-fn selected_process_exit_i32_source(
-    source: &machine_code::InternalUnitScalarArgumentSourceRecord,
-) -> bool {
+fn selected_process_exit_i32_source(source: &InternalUnitScalarArgumentSourceRecord) -> bool {
     matches!(
         source,
-        machine_code::InternalUnitScalarArgumentSourceRecord::SelectedProcessExit {
+        InternalUnitScalarArgumentSourceRecord::SelectedProcessExit {
             scalar_type,
             ..
         } if *scalar_type == i32_scalar()
@@ -223,12 +219,8 @@ fn read_byte_result_bytes(
 
 /// The retained scalar argument must be a signed immediate that fits its
 /// declared integer type.
-fn signed_immediate_fits_declared(
-    immediate: semantic_vocabulary::IntegerValue,
-    scalar_type: ScalarType,
-) -> bool {
-    let (ScalarType::Integer(integer), semantic_vocabulary::IntegerValue::Signed(value)) =
-        (scalar_type, immediate)
+fn signed_immediate_fits_declared(immediate: IntegerValue, scalar_type: ScalarType) -> bool {
+    let (ScalarType::Integer(integer), IntegerValue::Signed(value)) = (scalar_type, immediate)
     else {
         return false;
     };

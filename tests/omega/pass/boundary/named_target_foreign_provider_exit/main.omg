@@ -20,7 +20,7 @@ machine macos_process_binding() -> ForeignBinding<26, 7, 0> {
 macos_arm64 machine NativeProcess::identity() -> u32
     satisfies ProcessProbe::identity via macos_process_binding();
 ProcessProvider satisfies ProcessProbe {
-    ProcessProbe::identity = NativeProcess::identity;
+    machine identity() -> u32 { NativeProcess::identity() }
 }
 
 // Table locators use the same exact member join even when not invoked here.
@@ -44,8 +44,8 @@ macos_arm64 machine FunctionTable::direct(table: &FunctionTable) -> u64
 macos_arm64 machine OtherTable::virtual_call(table: &OtherTable) -> u64
     satisfies TableProbe::virtual_call via ForeignBinding::VtableField(virtual_call);
 TableProvider satisfies TableProbe {
-    TableProbe::direct = FunctionTable::direct;
-    TableProbe::virtual_call = OtherTable::virtual_call;
+    machine direct(table: &FunctionTable) -> u64 { FunctionTable::direct(table) }
+    machine virtual_call(table: &OtherTable) -> u64 { OtherTable::virtual_call(table) }
 }
 
 machine main() reaches ProcessProbe crashes Trap {

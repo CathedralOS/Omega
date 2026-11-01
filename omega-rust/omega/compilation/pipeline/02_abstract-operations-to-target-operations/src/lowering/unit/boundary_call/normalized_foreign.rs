@@ -19,6 +19,7 @@ use super::{
     ValueShape,
 };
 use calling_conventions::ValueClass;
+use calling_conventions::{byte_size_at_offset_zero, validate_boundary_entry_plan};
 use target_operations::{TargetStructuralArgument, TargetUnitScalarArgumentSource};
 use terminal_psi::{StructuralAccess, StructuralPathSegment};
 
@@ -403,9 +404,7 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
                         }
                     } else {
                         let Some(access_pointer_word) =
-                            calling_conventions::byte_size_at_offset_zero(
-                                destination.locations.as_slice(),
-                            )
+                            byte_size_at_offset_zero(destination.locations.as_slice())
                         else {
                             return Err(LoweringError::BoundaryRealizationMismatch(boundary));
                         };
@@ -551,10 +550,7 @@ pub(super) fn lower_normalized_foreign_scalar_arguments_with_result(
                 &callback.registrar_context,
             )
         }
-        None => calling_conventions::validate_boundary_entry_plan(
-            boundary_entry_plan.clone(),
-            &signature,
-        ),
+        None => validate_boundary_entry_plan(boundary_entry_plan.clone(), &signature),
     }
     .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?;
     if arguments.len() != declaration.scalar_parameters.len()

@@ -6,40 +6,59 @@ data Pair {
     lo: u64;
 }
 
-linux_x86_64 machine compute_geometry() -> u64 crashes Trap {
-    let size: u64 = size_of<Pair>();
-    let align: u64 = align_of<Pair>();
-    let diff: u64 = size - (align * 2u64);
-    verify_geometry(size, align, diff);
-    diff
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_arm64 machine compute_geometry() -> u64 crashes Trap {
-    let size: u64 = size_of<Pair>();
-    let align: u64 = align_of<Pair>();
-    let diff: u64 = size - (align * 2u64);
-    verify_geometry(size, align, diff);
-    diff
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-macos_arm64 machine compute_geometry() -> u64 crashes Trap {
-    let size: u64 = size_of<Pair>();
-    let align: u64 = align_of<Pair>();
-    let diff: u64 = size - (align * 2u64);
-    verify_geometry(size, align, diff);
-    diff
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-windows_x86_64 machine compute_geometry() -> u64 crashes Trap {
-    let size: u64 = size_of<Pair>();
-    let align: u64 = align_of<Pair>();
-    let diff: u64 = size - (align * 2u64);
-    verify_geometry(size, align, diff);
-    diff
+boundary trait SelectedComputeGeometry {
+    machine compute_geometry() -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
+}
+
+X86ComputeGeometry satisfies SelectedComputeGeometry {
+    machine compute_geometry() -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let size: u64 = size_of<Pair>();
+        let align: u64 = align_of<Pair>();
+        let diff: u64 = size - (align * 2u64);
+        verify_geometry(size, align, diff);
+        diff
+    }
+}
+
+ArmComputeGeometry satisfies SelectedComputeGeometry {
+    machine compute_geometry() -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let size: u64 = size_of<Pair>();
+        let align: u64 = align_of<Pair>();
+        let diff: u64 = size - (align * 2u64);
+        verify_geometry(size, align, diff);
+        diff
+    }
 }
 
 machine probe() -> u64 crashes Trap {
-    compute_geometry()
+    SelectedComputeGeometry::compute_geometry()
 }
 
 machine main() crashes Trap {
@@ -60,4 +79,12 @@ machine verify_geometry(size: u64, align: u64, diff: u64) crashes Trap {
         _ -> bad()
     }
     machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

@@ -2,6 +2,10 @@
 
 A saved observation of an unwritten array element stays equal to 7 across a write to a disjoint element.
 
+The [indexed handback production](indexed_handback/README.md) uses two bounded,
+distinct runtime indices and carries the writer's public postcondition through
+the same nine places. Its controls exercise RHS effects and current selectors.
+
 Parent outcome: `STATE-LOCAL-VALUE-FRONTIER` in [TASKS.md](../../../../TASKS.md).
 The nine places now read `items[0]` through an opaque generic reference result:
 `capture<View>(source: View, marker: &mut u64, event: u64) -> View`, with
@@ -136,3 +140,15 @@ unknown overlapping write after the join. These controls test proof boundaries;
 they do not count as additional completed fact rows. The eight requirement
 layers above apply unchanged, with the post-return contract supplying
 establishment and the complete storage-history cut supplying join composition.
+
+## Build-owned target-body migration
+
+The `target_body` place and its twin carry no source target prefix.
+`BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named
+implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected
+by explicit target-keyed Build rows. The operation, inputs, contracts and exit
+oracle are unchanged. The entry wrapper and each implementation check a tag
+(17 for x86-64, 29 for AArch64), so a wrong Build row traps. Observed evidence is
+Linux x86-64 native and Terminal Psi agreement for the positive and source
+rejection for the twin; the other hosted targets keep their authored rows,
+unexecuted here.

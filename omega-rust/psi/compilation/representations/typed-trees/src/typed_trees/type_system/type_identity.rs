@@ -532,6 +532,21 @@ pub struct ExactOwnerTypeIdentityRequest<'a> {
 }
 
 impl TypedTrees {
+    /// Read the exact prepared field telescope, including symbolic applications.
+    /// Field availability establishes neither closed storage nor geometry,
+    /// policy admission, access or value facts. The caller keeps the complete
+    /// qualified type for those judgments. References are not crossed.
+    pub fn data_field_definition(
+        &self,
+        reference: TypeReferenceHandle,
+    ) -> Option<&crate::data::DataDefinition> {
+        let reference = self
+            .type_reference_table
+            .unconstrained_type_reference(reference);
+        self.closed_data_definition(reference)
+            .or_else(|| self.data_application_definition(reference))
+    }
+
     /// Read the retained field declaration of a qualified value carrier.
     /// The caller retains the complete qualified type for identity, validity,
     /// access and custody judgments; this query supplies no establishment.
@@ -640,6 +655,11 @@ impl TypedTrees {
         if !self.type_reference_table.contains_type_reference(reference) {
             return None;
         }
+        // A qualification contributes theory, not another nominal carrier.
+        // Constructor correspondence never establishes that theory itself.
+        let reference = self
+            .type_reference_table
+            .unconstrained_type_reference(reference);
         // A representation's field view keeps T's constructor authority and
         // complete generic application. Its physical application and policy
         // remain the value's type; they are not the origin of T's constructor.

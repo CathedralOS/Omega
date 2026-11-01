@@ -12,6 +12,7 @@ use crate::codec_error::{CodecError, malformed};
 use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm, StructuralPlaceKind};
 use terminal_psi::TerminalModule;
 use terminal_psi::{BoundaryMachineDeclaration, ProviderCandidateConformance, TerminalMachine};
+use terminal_semantics::{domain_predicate_is_closed, qualification_path_carrier};
 
 mod calling_signatures;
 pub(super) use calling_signatures::validate as validate_calling_signatures;
@@ -51,11 +52,7 @@ pub(super) fn validate_domains(module: &TerminalModule) -> Result<(), CodecError
             }
         }
         if domain.predicate.as_ref().is_some_and(|predicate| {
-            !terminal_semantics::domain_predicate_is_closed(
-                module.structural_types.iter(),
-                domain.carrier,
-                predicate,
-            )
+            !domain_predicate_is_closed(module.structural_types.iter(), domain.carrier, predicate)
         }) {
             return malformed(
                 "structural domain predicate escapes its declared subject or carrier",
@@ -147,7 +144,7 @@ pub(super) fn validate_boundary_machine(
         let Some(domain) = module.structural_domain(requirement.domain) else {
             return malformed("boundary requirement references an unknown domain");
         };
-        if terminal_semantics::qualification_path_carrier(
+        if qualification_path_carrier(
             module.structural_types.iter(),
             parameter.structural_type,
             &requirement.path,
@@ -167,7 +164,7 @@ pub(super) fn validate_boundary_machine(
             return malformed("boundary normal guarantee has unknown domain");
         };
         if parameter.access != terminal_psi::StructuralAccess::MutableBorrow
-            || terminal_semantics::qualification_path_carrier(
+            || qualification_path_carrier(
                 module.structural_types.iter(),
                 parameter.structural_type,
                 &guarantee.path,

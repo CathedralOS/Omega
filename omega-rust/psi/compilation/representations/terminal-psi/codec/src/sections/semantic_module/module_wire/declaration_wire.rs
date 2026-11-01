@@ -2,38 +2,76 @@
 //! dependencies on the wire.
 
 use super::super::CodecError;
-use super::super::content_wire::{decode_content_algebra, encode_content_algebra};
-use super::super::structural_signature_wire::{
-    decode_content_projection_expression, encode_content_projection_expression,
-};
 use super::super::wire::{Reader, Writer};
-use crate::sections::semantic_module::wire::{decode_counted, decode_ids};
-use semantic_vocabulary::{ContentProjectionIdentity, DomainSemanticId};
-use terminal_psi::{
-    InstallationReachDependency, NominalDeclarationIdentity, ServiceDeclaration,
-    StructuralContentProjection, StructuralDomainDeclaration, StructuralEstablishmentRoute,
-    TerminalIdentityIndex,
+use super::super::wire_fields::{
+    ContentProjection, Field, Flag, Id, Ids, Index, List, Nominal, Optional, Proposition,
+    wire_enum, wire_record,
 };
+use semantic_vocabulary::DomainSemanticId;
+use terminal_psi::{
+    ByteSequencePredicate, InstallationReachDependency, ServiceDeclaration,
+    StructuralDomainDeclaration, StructuralDomainPredicate, StructuralEstablishmentRoute,
+};
+
+wire_record! {
+    Domain: StructuralDomainDeclaration {
+        id: Id,
+        semantic_domain: Id,
+        required_memberships: Optional<Ids>,
+        complete_predicate_theory: Flag,
+        identity: Index,
+        carrier: Id,
+        predicate: Optional<DomainPredicate>,
+        byte_predicate: OptionalBytePredicate,
+        content_projection: Optional<ContentProjection>,
+        establishment_routes: List<Route>,
+    }
+    DomainPredicate: StructuralDomainPredicate { subject: Id, proposition: Proposition }
+    Service: ServiceDeclaration { id: Id, identity: Index, parents: Ids }
+    ReachDependency: InstallationReachDependency { requirement_identity: Index, upper_bound: Ids }
+}
+
+// Structural tags 1–3 and scalar tags 0–2 lacked issuer ownership and cannot
+// answer a current cross-artifact route join. They stay retired rather than
+// infer an owner from a callable's parameter or result types.
+wire_enum! {
+    Route: StructuralEstablishmentRoute, "StructuralEstablishmentRoute" {
+        4 => CheckedRequirement { declaration: Nominal, requirement_identity: Index },
+        5 => ExactMachine { declaration: Nominal, machine_identity: Index },
+        6 => BoundaryRequirement { declaration: Nominal, requirement_identity: Index },
+    }
+}
+
+/// A byte predicate's mask bit, or zero when the domain has none.
+struct OptionalBytePredicate;
+impl Field<Option<ByteSequencePredicate>> for OptionalBytePredicate {
+    fn write(writer: &mut Writer, value: &Option<ByteSequencePredicate>) -> Result<(), CodecError> {
+        writer.u8(value.map_or(0, |predicate| predicate.mask_bit()));
+        Ok(())
+    }
+    fn read(reader: &mut Reader<'_>) -> Result<Option<ByteSequencePredicate>, CodecError> {
+        Ok(match reader.u8()? {
+            0 => None,
+            1 => Some(ByteSequencePredicate::ValidUtf8),
+            2 => Some(ByteSequencePredicate::NoNul),
+            4 => Some(ByteSequencePredicate::AsciiOnly),
+            8 => Some(ByteSequencePredicate::NonEmpty),
+            tag => return Err(CodecError::InvalidTag("ByteSequencePredicate", tag)),
+        })
+    }
+}
 
 pub(crate) fn encode_required_memberships(
     writer: &mut Writer,
     required: &Option<Vec<DomainSemanticId>>,
 ) -> Result<(), CodecError> {
-    writer.boolean(required.is_some());
-    if let Some(required) = required {
-        writer.ids("required domain memberships", required)?;
-    }
-    Ok(())
+    Optional::<Ids>::write(writer, required)
 }
 
 pub(crate) fn decode_required_memberships(
     reader: &mut Reader<'_>,
 ) -> Result<Option<Vec<DomainSemanticId>>, CodecError> {
-    if reader.boolean()? {
-        Ok(Some(decode_ids(reader, "required DomainSemanticId")?))
-    } else {
-        Ok(None)
-    }
+    Optional::<Ids>::read(reader)
 }
 
 pub(crate) fn encode_establishment_routes(
@@ -42,32 +80,7 @@ pub(crate) fn encode_establishment_routes(
 ) -> Result<(), CodecError> {
     writer.len("domain establishment routes", routes.len())?;
     for route in routes {
-        match route {
-            StructuralEstablishmentRoute::CheckedRequirement {
-                declaration,
-                requirement_identity,
-            } => {
-                writer.u8(4);
-                writer.u32(declaration.identity().0);
-                writer.u32(requirement_identity.0);
-            }
-            StructuralEstablishmentRoute::ExactMachine {
-                declaration,
-                machine_identity,
-            } => {
-                writer.u8(5);
-                writer.u32(declaration.identity().0);
-                writer.u32(machine_identity.0);
-            }
-            StructuralEstablishmentRoute::BoundaryRequirement {
-                declaration,
-                requirement_identity,
-            } => {
-                writer.u8(6);
-                writer.u32(declaration.identity().0);
-                writer.u32(requirement_identity.0);
-            }
-        }
+        Route::write(writer, route)?;
     }
     Ok(())
 }
@@ -75,131 +88,5 @@ pub(crate) fn encode_establishment_routes(
 pub(crate) fn decode_establishment_routes(
     reader: &mut Reader<'_>,
 ) -> Result<Vec<StructuralEstablishmentRoute>, CodecError> {
-    decode_counted(reader, |reader| {
-        Ok(match reader.u8()? {
-            // Structural tags 1–3 and scalar tags 0–2 lacked issuer ownership and cannot answer a current
-            // cross-artifact route join. Retire them rather than infer an owner
-            // from a callable's parameter or result types.
-            4 => StructuralEstablishmentRoute::CheckedRequirement {
-                declaration: NominalDeclarationIdentity::new(TerminalIdentityIndex(reader.u32()?)),
-                requirement_identity: TerminalIdentityIndex(reader.u32()?),
-            },
-            5 => StructuralEstablishmentRoute::ExactMachine {
-                declaration: NominalDeclarationIdentity::new(TerminalIdentityIndex(reader.u32()?)),
-                machine_identity: TerminalIdentityIndex(reader.u32()?),
-            },
-            6 => StructuralEstablishmentRoute::BoundaryRequirement {
-                declaration: NominalDeclarationIdentity::new(TerminalIdentityIndex(reader.u32()?)),
-                requirement_identity: TerminalIdentityIndex(reader.u32()?),
-            },
-            tag => return Err(CodecError::InvalidTag("StructuralEstablishmentRoute", tag)),
-        })
-    })
-}
-
-pub(super) fn encode_structural_domain(
-    writer: &mut Writer,
-    declaration: &StructuralDomainDeclaration,
-) -> Result<(), CodecError> {
-    writer.id(declaration.id);
-    writer.id(declaration.semantic_domain);
-    encode_required_memberships(writer, &declaration.required_memberships)?;
-    writer.boolean(declaration.complete_predicate_theory);
-    writer.u32(declaration.identity.0);
-    writer.id(declaration.carrier);
-    writer.boolean(declaration.predicate.is_some());
-    if let Some(predicate) = &declaration.predicate {
-        writer.id(predicate.subject);
-        super::super::proposition_wire::encode_proposition(writer, &predicate.proposition, 0)?;
-    }
-    writer.u8(declaration
-        .byte_predicate
-        .map_or(0, |predicate| predicate.mask_bit()));
-    writer.boolean(declaration.content_projection.is_some());
-    if let Some(projection) = &declaration.content_projection {
-        writer.id(projection.identity.domain);
-        writer.u64(projection.identity.projection_report_fingerprint);
-        encode_content_algebra(writer, &projection.algebra)?;
-        encode_content_projection_expression(writer, &projection.expression)?;
-    }
-    encode_establishment_routes(writer, &declaration.establishment_routes)?;
-    Ok(())
-}
-
-pub(super) fn encode_service(
-    writer: &mut Writer,
-    declaration: &ServiceDeclaration,
-) -> Result<(), CodecError> {
-    writer.id(declaration.id);
-    writer.u32(declaration.identity.0);
-    writer.ids("service parents", &declaration.parents)?;
-    Ok(())
-}
-
-pub(super) fn encode_installation_reach_dependency(
-    writer: &mut Writer,
-    dependency: &InstallationReachDependency,
-) -> Result<(), CodecError> {
-    writer.u32(dependency.requirement_identity.0);
-    writer.ids("installation reach upper bound", &dependency.upper_bound)?;
-    Ok(())
-}
-
-pub(super) fn decode_structural_domain(
-    reader: &mut Reader<'_>,
-) -> Result<StructuralDomainDeclaration, CodecError> {
-    Ok(StructuralDomainDeclaration {
-        id: reader.id("StructuralDomainId")?,
-        semantic_domain: reader.id("DomainSemanticId")?,
-        required_memberships: decode_required_memberships(reader)?,
-        complete_predicate_theory: reader.boolean()?,
-        identity: TerminalIdentityIndex(reader.u32()?),
-        carrier: reader.id("StructuralTypeId")?,
-        predicate: if reader.boolean()? {
-            Some(terminal_psi::StructuralDomainPredicate {
-                subject: reader.id("domain predicate subject")?,
-                proposition: super::super::proposition_wire::decode_proposition(reader, 0)?,
-            })
-        } else {
-            None
-        },
-        byte_predicate: match reader.u8()? {
-            0 => None,
-            1 => Some(terminal_psi::ByteSequencePredicate::ValidUtf8),
-            2 => Some(terminal_psi::ByteSequencePredicate::NoNul),
-            4 => Some(terminal_psi::ByteSequencePredicate::AsciiOnly),
-            8 => Some(terminal_psi::ByteSequencePredicate::NonEmpty),
-            tag => return Err(CodecError::InvalidTag("ByteSequencePredicate", tag)),
-        },
-        content_projection: if reader.boolean()? {
-            Some(StructuralContentProjection {
-                identity: ContentProjectionIdentity {
-                    domain: reader.id("ContentDomainId")?,
-                    projection_report_fingerprint: reader.u64()?,
-                },
-                algebra: decode_content_algebra(reader)?,
-                expression: decode_content_projection_expression(reader, 0)?,
-            })
-        } else {
-            None
-        },
-        establishment_routes: decode_establishment_routes(reader)?,
-    })
-}
-
-pub(super) fn decode_service(reader: &mut Reader<'_>) -> Result<ServiceDeclaration, CodecError> {
-    Ok(ServiceDeclaration {
-        id: reader.id("ServiceId")?,
-        identity: TerminalIdentityIndex(reader.u32()?),
-        parents: decode_ids(reader, "ServiceId")?,
-    })
-}
-
-pub(super) fn decode_installation_reach_dependency(
-    reader: &mut Reader<'_>,
-) -> Result<InstallationReachDependency, CodecError> {
-    Ok(InstallationReachDependency {
-        requirement_identity: TerminalIdentityIndex(reader.u32()?),
-        upper_bound: decode_ids(reader, "ServiceId")?,
-    })
+    List::<Route>::read(reader)
 }

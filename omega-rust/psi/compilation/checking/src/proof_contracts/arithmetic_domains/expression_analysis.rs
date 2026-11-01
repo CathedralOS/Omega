@@ -244,7 +244,7 @@ pub(super) fn analyze_arrival(
     target_primitive: Option<PrimitiveType>,
     target_domain: ArithmeticDomain,
     owner: &str,
-    return_ranges: Option<&super::ReturnInference>,
+    return_ranges: Option<&super::ReturnInference<'_>>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> CheckedAnalysis {
     let mut decisions = ArithmeticDecisions::default();
@@ -328,7 +328,7 @@ struct ExpressionWalk<'a> {
     /// An outer request owns recursion and complete return joins. Meaning-only
     /// queries carry no body-inference authority; every ordinary/terminal
     /// descendant of a value query shares the same invocation context.
-    return_ranges: Option<&'a super::ReturnInference>,
+    return_ranges: Option<&'a super::ReturnInference<'a>>,
     /// Whether a Trapping operation must prove its trap fits the machine's
     /// published Trap ceiling. A coverage re-analysis under the route
     /// complement only asks whether one node forms; its nested operations

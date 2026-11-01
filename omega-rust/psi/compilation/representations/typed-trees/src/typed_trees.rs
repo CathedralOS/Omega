@@ -121,10 +121,12 @@ mod frozen;
 pub use frozen::FrozenTypedTrees;
 pub mod control_flow;
 mod data_definitions;
+mod machine_declarations;
 pub mod declaration_index;
 mod declaration_tables;
 mod spelled_declarations;
 pub use data_definitions::DataDefinitionTable;
+pub use machine_declarations::MachineDeclarationTable;
 pub use spelled_declarations::SpelledDeclarationTable;
 mod access_views;
 pub mod declarations;
@@ -424,6 +426,7 @@ pub struct TypedTreeTables {
         language_semantics::declaration_selection::AuthoredDeclarationSelections,
     pub const_declarations: Arena<crate::constant::ConstDeclaration>,
     pub data_definitions: DataDefinitionTable,
+    pub type_aliases: Arena<crate::type_aliases::TypeAliasDefinition>,
     /// Applied field views, indexed by the exact type-reference row. A symbolic
     /// view retains its caller's binders without granting closed storage.
     /// Their definitions live in the declaration arena but not the authored
@@ -447,7 +450,7 @@ pub struct TypedTreeTables {
     pub mathematical_types: Arena<mathematical::MathematicalType>,
     pub domain_path_members: Arena<crate::name::Identifier>,
     pub operator_path_members: Arena<crate::name::Identifier>,
-    pub machines: Arena<machine::Machine>,
+    pub machines: MachineDeclarationTable,
     pub measures: Arena<measure::MeasureDefinition>,
     pub measure_path_members: Arena<crate::name::Identifier>,
     pub operators: SpelledDeclarationTable<crate::operator::OperatorDefinition>,
@@ -481,6 +484,7 @@ pub struct TypedTreeRoots {
     pub retained_product_applications: HandleSpan<Handle<ProductOperandApplication>>,
     pub const_declarations: HandleSpan<crate::constant::ConstDeclaration>,
     pub data_definitions: HandleSpan<data::DataDefinition>,
+    pub type_aliases: HandleSpan<crate::type_aliases::TypeAliasDefinition>,
     pub domain_definitions: HandleSpan<domain::DomainDefinition>,
     pub machines: HandleSpan<machine::Machine>,
     pub measures: HandleSpan<measure::MeasureDefinition>,
@@ -514,6 +518,7 @@ impl TypedTreeRoots {
             retained_product_applications: HandleSpan::default(),
             const_declarations: HandleSpan::default(),
             data_definitions,
+            type_aliases: HandleSpan::empty(),
             domain_definitions,
             machines,
             measures: HandleSpan::default(),

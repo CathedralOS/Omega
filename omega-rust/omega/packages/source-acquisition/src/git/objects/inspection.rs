@@ -9,12 +9,12 @@ use crate::git::executable::executor::GitExecutor;
 use crate::limits::LocalSourceLimits;
 
 use super::GitTreeEntry;
-use super::authentication::authenticate_git_tree_graph;
+use super::authentication::{authenticate_git_tree_graph, authenticate_git_tree_payloads};
 use super::batch::read_git_blobs_batch;
 use super::graph::AuthenticatedGitTreeGraph;
 use super::identity::is_object_id;
 use super::projection::AuthenticatedGitTreeProjection;
-use super::projection::{GitTreeProjectionPlan, GitTreeProjectionRequest};
+use super::projection::{GitTreeProjectionPlan, GitTreeProjectionRequest, select_regular_files};
 use super::tree::{parse_git_tree_entries, parse_git_tree_graph_entries};
 
 /// One authenticated repository tree graph held across staged declaration
@@ -47,10 +47,7 @@ impl AuthenticatedGitTreeInspection {
             .cloned()
             .collect::<Vec<_>>();
         read_git_blobs_batch(executor, repository, &mut entries, limits)?;
-        super::authentication::authenticate_git_tree_payloads(
-            self.graph.root_tree_oid(),
-            &entries,
-        )?;
+        authenticate_git_tree_payloads(self.graph.root_tree_oid(), &entries)?;
         Ok(entries)
     }
 
@@ -65,16 +62,10 @@ impl AuthenticatedGitTreeInspection {
         exact_paths: impl IntoIterator<Item = Vec<u8>>,
         limits: LocalSourceLimits,
     ) -> Result<Vec<GitTreeEntry>, SourceResolveError> {
-        let mut entries = super::projection::select_regular_files(
-            &self.graph,
-            exact_paths.into_iter().collect(),
-            limits,
-        )?;
+        let mut entries =
+            select_regular_files(&self.graph, exact_paths.into_iter().collect(), limits)?;
         read_git_blobs_batch(executor, repository, &mut entries, limits)?;
-        super::authentication::authenticate_git_tree_payloads(
-            self.graph.root_tree_oid(),
-            &entries,
-        )?;
+        authenticate_git_tree_payloads(self.graph.root_tree_oid(), &entries)?;
         Ok(entries)
     }
 

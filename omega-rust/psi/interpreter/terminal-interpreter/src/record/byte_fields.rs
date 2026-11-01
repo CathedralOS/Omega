@@ -11,6 +11,7 @@ use terminal_psi::{
     ByteSequenceCarrier, StructuralAccess, StructuralAffineDiscard, StructuralArgument,
     StructuralFieldDeclaration, StructuralTypeShape,
 };
+use terminal_semantics::byte_carrier_field_declaration;
 
 impl TerminalExecution<'_> {
     pub(crate) fn prepare_constructor_byte_field(
@@ -75,11 +76,8 @@ impl TerminalExecution<'_> {
             let actual = declaration_type
                 .get(&child.structural_type)
                 .ok_or_else(malformed)?;
-            if terminal_semantics::byte_carrier_field_declaration(
-                declaration_type.values(),
-                carrier,
-            )
-            .is_none_or(|expected| expected.id != actual.id)
+            if byte_carrier_field_declaration(declaration_type.values(), carrier)
+                .is_none_or(|expected| expected.id != actual.id)
                 || matches!(
                     binding,
                     ByteSequenceBinding::Immutable(_) | ByteSequenceBinding::Representation(_)

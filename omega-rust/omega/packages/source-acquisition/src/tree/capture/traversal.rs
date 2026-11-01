@@ -27,6 +27,7 @@ use cap_std::fs::Dir as CapabilityDirectory;
 
 use super::traversal_observations::{SourceEntry, SourceEntryKind, SourceTreePolicy};
 use crate::SourceResolveError;
+use crate::error::{local_source_changed, too_many_bytes, too_many_files};
 use crate::limits::{DEFAULT_BUILD_OUTPUT_DIRECTORY, LocalSourceLimits};
 use crate::tree::filesystem::{
     CapturedEntryObservation, IoResultAt, io_error, open_captured_directory, raw_os_bytes,
@@ -90,9 +91,7 @@ pub(super) fn visit_directory(
     let mut entry_names = Vec::new();
     for entry in directory.entries().at(display_dir)? {
         if entry_names.len() >= directory_listing_limit {
-            return Err(SourceResolveError::TooManyFiles {
-                limit: limits.max_entries,
-            });
+            return Err(too_many_files(limits.max_entries));
         }
         entry_names.push(entry.at(display_dir)?.file_name());
     }
@@ -105,9 +104,7 @@ pub(super) fn visit_directory(
             continue;
         }
         if entries.len() >= limits.max_entries {
-            return Err(SourceResolveError::TooManyFiles {
-                limit: limits.max_entries,
-            });
+            return Err(too_many_files(limits.max_entries));
         }
         let display_path = display_dir.join(name);
         let logical_path = logical_dir.join(name);
@@ -160,11 +157,10 @@ pub(super) fn visit_directory(
                 observations,
             )?;
         } else if metadata.is_file() {
-            let remaining = limits.max_bytes.checked_sub(*captured_file_bytes).ok_or(
-                SourceResolveError::TooManyBytes {
-                    limit: limits.max_bytes,
-                },
-            )?;
+            let remaining = limits
+                .max_bytes
+                .checked_sub(*captured_file_bytes)
+                .ok_or(too_many_bytes(limits.max_bytes))?;
             let (bytes, executable) = read_capability_file_bounded(
                 directory,
                 name,
@@ -172,11 +168,9 @@ pub(super) fn visit_directory(
                 remaining,
                 limits.max_bytes,
             )?;
-            *captured_file_bytes = captured_file_bytes.checked_add(bytes.len() as u64).ok_or(
-                SourceResolveError::TooManyBytes {
-                    limit: limits.max_bytes,
-                },
-            )?;
+            *captured_file_bytes = captured_file_bytes
+                .checked_add(bytes.len() as u64)
+                .ok_or(too_many_bytes(limits.max_bytes))?;
             push_entry(
                 entries,
                 logical_path,
@@ -226,9 +220,7 @@ fn close_captured_directory(
     }
     closed_names.sort();
     if closed_names != listed_names {
-        return Err(SourceResolveError::LocalSourceChanged {
-            path: display_dir.to_path_buf(),
-        });
+        return Err(local_source_changed(display_dir));
     }
 
     for observation in observed_entries {
@@ -236,7 +228,7 @@ fn close_captured_directory(
         let metadata = match directory.symlink_metadata(&observation.name) {
             Ok(metadata) => metadata,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                return Err(SourceResolveError::LocalSourceChanged { path: display_path });
+                return Err(local_source_changed(&display_path));
             }
             Err(error) => return Err(io_error(&display_path, error)),
         };
@@ -266,7 +258,7 @@ pub(super) fn verify_captured_tree(
         let metadata = match root_directory.symlink_metadata(&member.relative_path) {
             Ok(metadata) => metadata,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                return Err(SourceResolveError::LocalSourceChanged { path: display_path });
+                return Err(local_source_changed(&display_path));
             }
             Err(error) => return Err(io_error(&display_path, error)),
         };
@@ -291,7 +283,7 @@ pub(super) fn verify_captured_tree(
         }
         closed_names.sort();
         if closed_names != record.listed_names {
-            return Err(SourceResolveError::LocalSourceChanged { path: display_path });
+            return Err(local_source_changed(&display_path));
         }
     }
     Ok(())
@@ -316,9 +308,7 @@ fn open_observed_directory(
                     std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory
                 ) =>
             {
-                return Err(SourceResolveError::LocalSourceChanged {
-                    path: display_path.to_path_buf(),
-                });
+                return Err(local_source_changed(display_path));
             }
             Err(error) => return Err(io_error(display_path, error)),
         };
@@ -406,9 +396,7 @@ fn push_entry(
     limits: LocalSourceLimits,
 ) -> Result<(), SourceResolveError> {
     if entries.len() >= limits.max_entries {
-        return Err(SourceResolveError::TooManyFiles {
-            limit: limits.max_entries,
-        });
+        return Err(too_many_files(limits.max_entries));
     }
     entries.push(SourceEntry {
         relative_bytes: canonical_relative_path_bytes(&relative),

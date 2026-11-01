@@ -8,6 +8,7 @@ mod validation;
 
 pub use error::OptimizedResolvedSelectedFormLayoutError;
 use register_model::ValidatedPhysicalRegisterModel;
+use selected_instructions::{MachineSizeKnowledge, SelectedFunction, SelectedTerminator};
 use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
 use machine_code::ResolvedMachineLayout;
@@ -117,15 +118,10 @@ impl StagedOptimizedResolvedSelectedFormLayout {
     }
 }
 
-fn declared_size_matches(
-    knowledge: selected_instructions::MachineSizeKnowledge,
-    actual: u64,
-) -> bool {
+fn declared_size_matches(knowledge: MachineSizeKnowledge, actual: u64) -> bool {
     match knowledge {
-        selected_instructions::MachineSizeKnowledge::ExactBytes(expected) => {
-            u64::from(expected) == actual
-        }
-        selected_instructions::MachineSizeKnowledge::EncoderResolved {
+        MachineSizeKnowledge::ExactBytes(expected) => u64::from(expected) == actual,
+        MachineSizeKnowledge::EncoderResolved {
             minimum_bytes,
             maximum_bytes,
         } => {
@@ -135,11 +131,11 @@ fn declared_size_matches(
     }
 }
 
-fn is_admitted_canonical_shape(function: &selected_instructions::SelectedFunction) -> bool {
+fn is_admitted_canonical_shape(function: &SelectedFunction) -> bool {
     !function.blocks.is_empty() && function.block(function.entry_block).is_some()
 }
 
-fn is_single_entry(function: &selected_instructions::SelectedFunction) -> bool {
+fn is_single_entry(function: &SelectedFunction) -> bool {
     let Some(block) = function
         .blocks
         .first()
@@ -148,8 +144,5 @@ fn is_single_entry(function: &selected_instructions::SelectedFunction) -> bool {
         return false;
     };
     function.entry_block == block.id
-        && matches!(
-            block.terminator,
-            selected_instructions::SelectedTerminator::Return { .. }
-        )
+        && matches!(block.terminator, SelectedTerminator::Return { .. })
 }

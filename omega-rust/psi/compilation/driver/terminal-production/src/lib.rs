@@ -15,7 +15,7 @@ mod build_provider;
 mod build_queries;
 mod build_requests;
 mod calling_signatures;
-mod composition_admission;
+mod composition_roots;
 mod custody;
 mod observation;
 pub use checked_trees::PreparedProviderInventory;
@@ -36,16 +36,19 @@ pub use build_requests::{
 };
 pub use checked_trees_to_lowered_psi::lower_task_activation_demands;
 pub use checked_trees_to_lowered_psi::{
-    ExternalProviderDeclarations, PreparedExternalProviderDeclarations, PreparedTerminalRoots,
+    ExternalProviderDeclarations, PreparedExternalProviderDeclarations,
     project_external_provider_declarations,
 };
 pub use checked_trees_to_lowered_psi::{TerminalMachineSelection, TerminalProgramRoots};
-pub use composition_admission::{TerminalAdmissionRoot, TerminalCompositionAdmission};
+pub use composition_roots::{
+    TerminalAdmissionRoot, TerminalApplicationCustody, TerminalCompositionRoots,
+};
 pub use custody::{
-    PortableTerminalProgram, ProducedTerminalProgram, TerminalApplicationCustody,
+    PortableTerminalProgram, ProducedTerminalApplication, ProducedTerminalProgram,
     TerminalProductionCustody,
 };
 pub use observation::{PsiCompilationObserver, PsiCompilationStage, UnmeasuredProduction};
 pub use terminal_production::{
     ProgramEntryTerminalReceiptError, TerminalArtifactProductionError, TerminalProductionRequest,
 };
+pub use terminal_psi::PreparedTerminalRoots;

@@ -5,14 +5,15 @@
 //! literal extent may copy it into an ordinary array value, and that copy is
 //! exact-width: neither truncation nor zero padding is language semantics.
 
-use crate::tables::expression_table;
-use crate::tables::expression_table_mut;
+use crate::tables::{expression_table, expression_table_mut};
 use diagnostics::Diagnostic;
-use symbols::SymbolHandle;
+use symbols::{SymbolHandle, SymbolKeyMap};
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TransitionTargetNode};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use validation::selected_construction_field_type;
 
 /// Land exact-width quoted-byte literals into the owned fixed byte array
 /// destinations this run produced: those of machines appended after
@@ -30,8 +31,7 @@ pub(crate) fn land_exact_fixed_byte_array_literals(
 
     // Call-argument destinations resolve their callee state by symbol; one
     // index over the frozen machine/state table replaces a per-call scan.
-    let mut state_targets =
-        symbols::SymbolKeyMap::<SymbolHandle, &typed_trees::state::State>::default();
+    let mut state_targets = SymbolKeyMap::<SymbolHandle, &State>::default();
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             state_targets.entry(state.symbol).or_insert(state);
@@ -47,7 +47,7 @@ pub(crate) fn land_exact_fixed_byte_array_literals(
         match expression {
             ExpressionNode::StructLiteral(literal) => {
                 for field in program.expression_table.struct_fields(literal.fields) {
-                    if let Some(field_type) = validation::selected_construction_field_type(
+                    if let Some(field_type) = selected_construction_field_type(
                         program,
                         handle,
                         literal,
@@ -150,7 +150,7 @@ pub(crate) fn land_exact_fixed_byte_array_literals(
 
 fn collect_call_destinations(
     program: &TypedTrees,
-    state_targets: &symbols::SymbolKeyMap<SymbolHandle, &typed_trees::state::State>,
+    state_targets: &SymbolKeyMap<SymbolHandle, &State>,
     target_symbol: SymbolHandle,
     arguments: &[ExpressionHandle],
     destinations: &mut Vec<(ExpressionHandle, TypeReferenceHandle)>,
@@ -207,12 +207,9 @@ fn land_one(
             .struct_fields(literal.fields)
             .to_vec();
         for field in fields {
-            if let Some(field_type) = validation::selected_construction_field_type(
-                program,
-                value,
-                &literal,
-                field.field_symbol,
-            ) {
+            if let Some(field_type) =
+                selected_construction_field_type(program, value, &literal, field.field_symbol)
+            {
                 land_one(program, field.value, field_type)?;
             }
         }

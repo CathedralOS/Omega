@@ -4,18 +4,23 @@ use crate::current_ownership::structural::projected_root_is_fully_consumed;
 use crate::current_ownership::{
     CurrentOwnership, LiveClaim, consume_edge_sources, establish_edge_parameters,
 };
+use crate::unit_validation::function_structure::membership_on_every_path;
+use crate::unit_validation::operation_contracts::structural_source_contract;
 use crate::{OperationSite, OptimizationUnitValidationError};
 use abstract_operations::AbstractOperation as O;
+use abstract_operations::establish_record_or_case_pattern;
 use optimization_unit::{
     OptimizationBlock, OwnershipFrontierFact, OwnershipFrontierSite, OwnershipFrontierSnapshot,
     PsiOptimizationFunction,
 };
 use semantic_vocabulary::{BlockId, MachineId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
+use terminal_psi::StructuralArgument;
 use terminal_psi::{
     BoundaryMachineDeclaration, StructuralAccess, StructuralMultiplicity, StructuralPathSegment,
     StructuralTypeDeclaration,
 };
+use terminal_semantics::structural_paths_may_overlap;
 
 /// A member moved under an owned contract out of an exclusively borrowed
 /// root: the leaf's disposal transfers to the callee, while the referent's
@@ -23,14 +28,11 @@ use terminal_psi::{
 /// ledger has no custody row for the borrowed root.
 fn is_borrowed_member_move(
     function: &PsiOptimizationFunction,
-    argument: &terminal_psi::StructuralArgument,
+    argument: &StructuralArgument,
 ) -> bool {
     !argument.path.is_empty()
-        && crate::unit_validation::operation_contracts::structural_source_contract(
-            function,
-            argument.place,
-        )
-        .is_some_and(|source| source.access == StructuralAccess::MutableBorrow)
+        && structural_source_contract(function, argument.place)
+            .is_some_and(|source| source.access == StructuralAccess::MutableBorrow)
 }
 
 /// Byte observations borrow storage without consuming it. Dominating producer
@@ -49,10 +51,7 @@ fn validate_byte_observations(
                 source,
             )
         };
-        let signature = crate::unit_validation::operation_contracts::structural_source_contract(
-            function, source,
-        )
-        .ok_or_else(invalid)?;
+        let signature = structural_source_contract(function, source).ok_or_else(invalid)?;
         if signature.access == StructuralAccess::Owned
             && ((signature.multiplicity != StructuralMultiplicity::Unrestricted
                 && frontier.owned_places.get(&source) != Some(&signature.multiplicity))
@@ -145,7 +144,7 @@ fn validate_atomic_access(
 /// this way.
 fn claims_sit_at_owned_arguments<'path>(
     frontier: &CurrentOwnership,
-    arguments: &[terminal_psi::StructuralArgument],
+    arguments: &[StructuralArgument],
     pairs: impl IntoIterator<
         Item = (
             semantic_vocabulary::ClaimId,
@@ -178,7 +177,7 @@ fn claim_path_is_inactive(
     predecessors: &BTreeMap<BlockId, BTreeSet<BlockId>>,
     block: BlockId,
     node: usize,
-    argument: &terminal_psi::StructuralArgument,
+    argument: &StructuralArgument,
     path: &[StructuralPathSegment],
 ) -> bool {
     let Some(block_position) = function
@@ -191,7 +190,7 @@ fn claim_path_is_inactive(
     let mut projection = argument.path.clone();
     for segment in path {
         if let StructuralPathSegment::Case(case) = segment
-            && crate::unit_validation::function_structure::membership_on_every_path(
+            && membership_on_every_path(
                 function,
                 structural_types,
                 predecessors,
@@ -222,7 +221,7 @@ pub(super) fn validate_current_ownership_cfg(
         &BoundaryMachineDeclaration,
     >,
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-    call_accesses: &super::CallAccesses,
+    call_accesses: &mut super::CallAccesses,
     entry: CurrentOwnership,
     psi: terminal_psi::TerminalPsiIdentity,
     facts: &mut Vec<OwnershipFrontierFact>,
@@ -259,7 +258,7 @@ pub(super) fn validate_current_ownership_cfg(
             .position(|candidate| candidate.id == block_id)
             .expect("reachable block belongs to the function");
         let membership_at = |node, source, path: &[StructuralPathSegment], case, expected| {
-            crate::unit_validation::function_structure::membership_on_every_path(
+            membership_on_every_path(
                 function,
                 structural_types,
                 predecessors,
@@ -313,9 +312,9 @@ pub(super) fn validate_current_ownership_cfg(
                     },
                 )
                 .is_some_and(|selected| {
-                    consumed.iter().all(|absent| {
-                        !terminal_semantics::structural_paths_may_overlap(absent, &selected)
-                    })
+                    consumed
+                        .iter()
+                        .all(|absent| !structural_paths_may_overlap(absent, &selected))
                 });
                 if !available {
                     return Err(OptimizationUnitValidationError::CurrentOwnedPlaceNotLive(
@@ -397,16 +396,12 @@ pub(super) fn validate_current_ownership_cfg(
             | O::StructuralCaseMembership { source, .. }
             | O::StructuralScalarFieldRead { source, .. } = &node.operation
             {
-                let signature =
-                    crate::unit_validation::operation_contracts::structural_source_contract(
-                        function, *source,
-                    )
-                    .ok_or(
-                        OptimizationUnitValidationError::InvalidStructuralCaseDispatch {
-                            machine: function.machine,
-                            source: *source,
-                        },
-                    )?;
+                let signature = structural_source_contract(function, *source).ok_or(
+                    OptimizationUnitValidationError::InvalidStructuralCaseDispatch {
+                        machine: function.machine,
+                        source: *source,
+                    },
+                )?;
                 let partially_unavailable =
                     frontier
                         .partial_custody_paths
@@ -419,18 +414,14 @@ pub(super) fn validate_current_ownership_cfg(
                                     path,
                                     *field,
                                 );
-                                consumed.iter().any(|path| {
-                                    terminal_semantics::structural_paths_may_overlap(
-                                        path, &observed,
-                                    )
-                                })
+                                consumed
+                                    .iter()
+                                    .any(|path| structural_paths_may_overlap(path, &observed))
                             }
                             O::StructuralCase { path: observed, .. }
-                            | O::StructuralCaseMembership { path: observed, .. } => {
-                                consumed.iter().any(|path| {
-                                    terminal_semantics::structural_paths_may_overlap(path, observed)
-                                })
-                            }
+                            | O::StructuralCaseMembership { path: observed, .. } => consumed
+                                .iter()
+                                .any(|path| structural_paths_may_overlap(path, observed)),
                             _ => true,
                         });
                 if signature.access == StructuralAccess::Owned
@@ -494,7 +485,7 @@ pub(super) fn validate_current_ownership_cfg(
                 record_arguments.extend(std::iter::once(source).chain(parents).cloned());
             }
             let structural_arguments = match &node.operation {
-                abstract_operations::establish_record_or_case_pattern!(..)
+                establish_record_or_case_pattern!(..)
                 | O::TransformContent { .. }
                 | O::EstablishStructuralArray { .. } => record_arguments.as_slice(),
                 abstract_operations::call_structural_or_boundary_call_pattern!(
@@ -508,16 +499,13 @@ pub(super) fn validate_current_ownership_cfg(
                 _ => &[],
             };
             let parameter_multiplicities = match &node.operation {
-                abstract_operations::establish_record_or_case_pattern!(..)
+                establish_record_or_case_pattern!(..)
                 | O::TransformContent { .. }
                 | O::EstablishStructuralArray { .. } => record_arguments
                     .iter()
                     .map(|argument| {
-                        crate::unit_validation::operation_contracts::structural_source_contract(
-                            function,
-                            argument.place,
-                        )
-                        .map(|source| source.multiplicity)
+                        structural_source_contract(function, argument.place)
+                            .map(|source| source.multiplicity)
                     })
                     .collect::<Option<Vec<_>>>()
                     .ok_or(
@@ -531,16 +519,13 @@ pub(super) fn validate_current_ownership_cfg(
                 | O::ReleaseActivationClaim { source: value, .. }
                 | O::MoveStructuralValue { source: value, .. } => {
                     vec![
-                        crate::unit_validation::operation_contracts::structural_source_contract(
-                            function,
-                            value.place,
-                        )
-                        .map(|source| source.multiplicity)
-                        .ok_or(
-                            OptimizationUnitValidationError::StructuralCallContractMismatch(
-                                OperationSite::new(function.machine, block_id, node_index),
-                            ),
-                        )?,
+                        structural_source_contract(function, value.place)
+                            .map(|source| source.multiplicity)
+                            .ok_or(
+                                OptimizationUnitValidationError::StructuralCallContractMismatch(
+                                    OperationSite::new(function.machine, block_id, node_index),
+                                ),
+                            )?,
                     ]
                 }
                 O::CallStructural {
@@ -602,10 +587,7 @@ pub(super) fn validate_current_ownership_cfg(
             // the live reference, and there is nothing left to consume.
             if let O::ReleaseReference { source, path, .. } = &node.operation
                 && path.is_empty()
-                && crate::unit_validation::operation_contracts::structural_source_contract(
-                    function, *source,
-                )
-                .is_some_and(|signature| {
+                && structural_source_contract(function, *source).is_some_and(|signature| {
                     signature.multiplicity != StructuralMultiplicity::Unrestricted
                 })
             {
@@ -833,11 +815,7 @@ pub(super) fn validate_current_ownership_cfg(
                 };
                 let mut expected = BTreeSet::new();
                 for input in derivations.iter().flat_map(|derived| &derived.inputs) {
-                    let root =
-                        crate::unit_validation::operation_contracts::structural_source_contract(
-                            function,
-                            input.subject.root,
-                        )
+                    let root = structural_source_contract(function, input.subject.root)
                         .ok_or_else(invalid)?;
                     let path = terminal_semantics::content_transformations::structural_path(
                         structural_types.values().copied(),
@@ -871,11 +849,7 @@ pub(super) fn validate_current_ownership_cfg(
                     .collect::<BTreeSet<_>>();
                 for parent in parents {
                     let root =
-                        crate::unit_validation::operation_contracts::structural_source_contract(
-                            function,
-                            parent.place,
-                        )
-                        .ok_or_else(invalid)?;
+                        structural_source_contract(function, parent.place).ok_or_else(invalid)?;
                     let selected = terminal_semantics::runtime_structural_path_tip(
                         structural_types.values().copied(),
                         root.structural_type,
@@ -981,7 +955,7 @@ pub(super) fn validate_current_ownership_cfg(
                         // A loan does not consume its owner, but entry parameters
                         // and produced values both require current whole/path custody.
                         || (argument.access != StructuralAccess::Owned
-                            && crate::unit_validation::operation_contracts::structural_source_contract(
+                            && structural_source_contract(
                                 function, argument.place,
 ).is_some_and(|source| source.access == StructuralAccess::Owned
                                 && source.multiplicity == StructuralMultiplicity::Affine))
@@ -990,12 +964,10 @@ pub(super) fn validate_current_ownership_cfg(
                 if !frontier.owned_places.contains_key(&argument.place)
                     && !is_borrowed_member_move(function, argument)
                 {
-                    return Err(
-                        OptimizationUnitValidationError::CurrentOwnedPlaceNotLive(
-                            OperationSite::new(function.machine, block_id, node_index),
-                            argument.place,
-                        ),
-                    );
+                    return Err(OptimizationUnitValidationError::CurrentOwnedPlaceNotLive(
+                        OperationSite::new(function.machine, block_id, node_index),
+                        argument.place,
+                    ));
                 }
                 if argument.path.is_empty()
                     && frontier.partial_custody_paths.contains_key(&argument.place)

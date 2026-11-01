@@ -11,7 +11,6 @@ use language_semantics::BoundaryBodySelection;
 use language_semantics::MachineSupplyMode;
 use typed_trees::operator::boundary_operator_requirement_identity;
 use typed_trees::operator::resolve_satisfied_boundary_operator_for_conformance;
-use validation::checked_operator_application_matches_realization;
 
 pub(crate) fn retain_boundary_body_candidates(
     checked: &mut CheckedTrees,
@@ -140,7 +139,9 @@ fn candidates_for_application(
         let selection = if let Some(specialization) = specialization {
             if !specialization.operator_realizations.iter().any(|row| {
                 row.requirement_symbol == demand.requirement_symbol
-                    && checked_operator_application_matches_realization(typed, demand, row)
+                    && checked_trees::operators::checked_operator_application_matches_realization(
+                        typed, demand, row,
+                    )
             }) {
                 continue;
             }

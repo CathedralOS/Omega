@@ -209,7 +209,7 @@ impl RankingViewId {
     /// `Nat::Descending` — an unsigned/bounded scalar counting down.
     pub const NAT_DESCENDING: Self = Self(1);
     /// `Nat::BoundedDistance` — a `(lower, upper)` pair ranked by the
-    /// distance from `lower` up to the fixed `upper`; the only builtin
+    /// distance `upper - lower` at each formed invocation; the only builtin
     /// two-subject view (and therefore the two-subject short-form default).
     pub const NAT_BOUNDED_DISTANCE: Self = Self(2);
     /// `Slice::Length` — a slice decreasing by its length.

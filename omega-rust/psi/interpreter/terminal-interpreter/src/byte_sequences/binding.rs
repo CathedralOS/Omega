@@ -9,11 +9,12 @@ use crate::structural_inputs::byte_arrays::storage::ArrayStorage;
 use crate::values::StructuralByteSequenceRuntimeField;
 use crate::values::TerminalStructuralValue;
 use semantic_vocabulary::StructuralTypeId;
-use terminal_psi::StructuralAccess;
-use terminal_psi::StructuralArgument;
-use terminal_psi::StructuralMultiplicity;
-use terminal_psi::StructuralPathSegment;
-use terminal_psi::StructuralTypeShape;
+use terminal_psi::{
+    ByteSequenceCarrier, StructuralAccess, StructuralArgument, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralTypeShape,
+    live_field_by_identity,
+};
+use terminal_semantics::{borrowed_storage_parameter, borrowed_storage_reference_ceiling};
 #[derive(Clone)]
 pub(crate) enum ByteSequenceBinding {
     Immutable(ByteSequenceView),
@@ -295,7 +296,7 @@ impl ByteSequenceBinding {
                     .is_some_and(|declaration| {
                         declaration.shape
                             == StructuralTypeShape::ByteSequence(
-                                terminal_psi::ByteSequenceCarrier::BoundedOwned {
+                                ByteSequenceCarrier::BoundedOwned {
                                     capacity: *capacity,
                                 },
                             )
@@ -342,7 +343,7 @@ impl ByteSequenceBinding {
                 && declaration.identity == *identity
                 && !declaration.relevance.is_erased()
                 && declaration.field_type.byte_sequence_carrier()
-                    == Some(terminal_psi::ByteSequenceCarrier::BoundedOwned {
+                    == Some(ByteSequenceCarrier::BoundedOwned {
                         capacity: *capacity,
                     })
         }) {
@@ -582,8 +583,7 @@ impl TerminalExecution<'_> {
                 &crate::values::StructuralRuntimePlace::from(&parent),
                 case,
             )?;
-            let field =
-                terminal_psi::live_field_by_identity(fields, *identity).ok_or_else(malformed)?;
+            let field = live_field_by_identity(fields, *identity).ok_or_else(malformed)?;
             if field.field_type.byte_sequence_carrier().is_some() {
                 let (cell, _) = self.readable_byte_field(argument.place, prefix, field.id)?;
                 let bytes = self.structural_byte_sequence_fields.require(&cell)?;
@@ -717,7 +717,7 @@ impl TerminalExecution<'_> {
     /// A mutable descriptor is affine; only a shared descriptor is copyable.
     pub(crate) fn prepare_owned_byte_descriptor_argument(
         &self,
-        parameter: &terminal_psi::StructuralParameterDeclaration,
+        parameter: &StructuralParameterDeclaration,
         argument: &StructuralArgument,
         resolved: &TerminalStructuralValue,
     ) -> Result<Option<(TerminalStructuralValue, ByteSequenceBinding)>, TerminalInterpretError>
@@ -733,10 +733,8 @@ impl TerminalExecution<'_> {
             return Ok(None);
         }
         let (access, capacity) = match *carrier {
-            terminal_psi::ByteSequenceCarrier::BorrowedView { access } => (access, None),
-            terminal_psi::ByteSequenceCarrier::BoundedView { access, capacity } => {
-                (access, Some(capacity))
-            }
+            ByteSequenceCarrier::BorrowedView { access } => (access, None),
+            ByteSequenceCarrier::BoundedView { access, capacity } => (access, Some(capacity)),
             _ => return Ok(None),
         };
         let selected =
@@ -819,18 +817,13 @@ impl TerminalExecution<'_> {
 
     pub(crate) fn prepare_byte_descriptor_argument(
         &self,
-        parameter: &terminal_psi::StructuralParameterDeclaration,
+        parameter: &StructuralParameterDeclaration,
         argument: &StructuralArgument,
     ) -> Result<Option<(TerminalStructuralValue, ByteSequenceBinding)>, TerminalInterpretError>
     {
-        if terminal_semantics::borrowed_storage_parameter(
-            parameter,
-            self.structural_types().values(),
-        ) && terminal_semantics::borrowed_storage_reference_ceiling(
-            parameter,
-            self.structural_types().values(),
-        )
-        .is_none()
+        if borrowed_storage_parameter(parameter, self.structural_types().values())
+            && borrowed_storage_reference_ceiling(parameter, self.structural_types().values())
+                .is_none()
         {
             // Forwarding descriptor storage is allowed without granting any
             // readable view of a write-only contained reference.
@@ -866,10 +859,8 @@ impl TerminalExecution<'_> {
         // establishment instead loses canonical-to-stored view presentation on
         // a return-state edge. The shared arrival contract admits both carrier
         // lifetimes without granting ownership or widening the source loan.
-        let storage_ceiling = terminal_semantics::borrowed_storage_reference_ceiling(
-            parameter,
-            self.structural_types().values(),
-        );
+        let storage_ceiling =
+            borrowed_storage_reference_ceiling(parameter, self.structural_types().values());
         if !(terminal_semantics::view_descriptor_parameter(
             parameter,
             self.structural_types().values(),

@@ -1,9 +1,9 @@
 use super::register_home_identity;
-use crate::CalleeSavedModificationWitness;
 use crate::{
     AllocationLegalityIdentity, FunctionRegisterHomes, RegisterHomeDecodeError, RegisterHomePlan,
     VirtualRegisterHome,
 };
+use crate::{AllocatorAvailabilityIdentity, CalleeSavedModificationWitness};
 use register_model::{
     RegisterClassId, RegisterViewId, RegisterWriteSemantics, TargetRegisterEnvironmentIdentity,
 };
@@ -20,7 +20,7 @@ fn plan() -> RegisterHomePlan {
         legality: AllocationLegalityIdentity::from_bytes([1; 32]),
         ranges: LiveRangeIdentity::from_bytes([2; 32]),
         register_environment: TargetRegisterEnvironmentIdentity::from_bytes([3; 32]),
-        allocator_availability: crate::AllocatorAvailabilityIdentity::from_bytes([4; 32]),
+        allocator_availability: AllocatorAvailabilityIdentity::from_bytes([4; 32]),
         functions: vec![
             FunctionRegisterHomes {
                 machine: MachineId::new(1).unwrap(),
@@ -75,9 +75,7 @@ fn identity_binds_every_home_domain() {
         |plan| plan.legality = AllocationLegalityIdentity::from_bytes([4; 32]),
         |plan| plan.ranges = LiveRangeIdentity::from_bytes([5; 32]),
         |plan| plan.register_environment = TargetRegisterEnvironmentIdentity::from_bytes([6; 32]),
-        |plan| {
-            plan.allocator_availability = crate::AllocatorAvailabilityIdentity::from_bytes([7; 32])
-        },
+        |plan| plan.allocator_availability = AllocatorAvailabilityIdentity::from_bytes([7; 32]),
         |plan| plan.functions[0].machine = MachineId::new(2).unwrap(),
         |plan| plan.functions[0].assignments[0].virtual_register = VirtualRegisterId(1),
         |plan| plan.functions[0].assignments[0].class = RegisterClassId(2),

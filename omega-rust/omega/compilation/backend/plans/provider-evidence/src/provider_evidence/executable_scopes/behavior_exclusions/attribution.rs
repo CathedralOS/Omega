@@ -86,6 +86,9 @@ impl EvidenceGapKind {
             EvidenceGapKind::UnknownEntry => {
                 "the selected entry is not retained in the module".to_owned()
             }
+            EvidenceGapKind::MissingUnoptimizedBehavior(machine) => {
+                format!("machine {machine} has no retained unoptimized semantic operations")
+            }
             EvidenceGapKind::TargetFamilySelection {
                 head,
                 target,

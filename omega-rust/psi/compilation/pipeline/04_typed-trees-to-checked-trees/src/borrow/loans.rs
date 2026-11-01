@@ -413,7 +413,15 @@ fn binding_borrow_loans(
     {
         let mut loans = Vec::new();
         for arm in program.expression_table.match_arms(dispatch.arms) {
+            // Pattern effects have their own occurrence owner. No delivered
+            // value means no loan formation; a live value uses its independently
+            // proved arm-local carrier, including an ordinary type equation.
+            if program.static_type_context_is_unreachable(arm.value) {
+                continue;
+            }
             let mut selected = local_data.clone();
+            selected.type_reference =
+                program.statically_refined_type_reference(arm.value, selected.type_reference);
             selected.initial_value = arm.value;
             loans.extend(binding_borrow_loans(
                 program,
@@ -442,7 +450,7 @@ fn binding_borrow_loans(
             &[],
             &[],
         ) {
-            let current = stored_calls::roster_at_expression(
+            let current = match stored_calls::roster_at_expression(
                 program,
                 machine,
                 state,
@@ -450,8 +458,15 @@ fn binding_borrow_loans(
                 initializer.expression,
                 frames,
                 loan_trackers,
-            )
-            .ok_or("operand has no complete completed call-slot relation")?;
+            ) {
+                Ok(current) => current,
+                // A template body defers unknown type-parameter structure to
+                // its selected closed instances, which re-check this binding.
+                Err(validation::StoredReferenceRelationRefusal::TemplateDependent) => continue,
+                Err(validation::StoredReferenceRelationRefusal::Unavailable) => {
+                    return Err("operand has no complete completed call-slot relation");
+                }
+            };
             loans.extend(borrowed_initializer_loans(
                 program,
                 state.symbol,
@@ -473,7 +488,7 @@ fn binding_borrow_loans(
     let machine = program
         .machine(machine_symbol)
         .ok_or("value formation has no owning machine")?;
-    let current = stored_calls::roster_at_expression(
+    let current = match stored_calls::roster_at_expression(
         program,
         machine,
         state,
@@ -481,8 +496,15 @@ fn binding_borrow_loans(
         local_data.initial_value,
         frames,
         loan_trackers,
-    )
-    .ok_or("operand has no complete completed call-slot relation")?;
+    ) {
+        Ok(current) => current,
+        Err(validation::StoredReferenceRelationRefusal::TemplateDependent) => {
+            return Ok(Vec::new());
+        }
+        Err(validation::StoredReferenceRelationRefusal::Unavailable) => {
+            return Err("operand has no complete completed call-slot relation");
+        }
+    };
     Ok(reference_local_borrow_loans(
         program,
         state,

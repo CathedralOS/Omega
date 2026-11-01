@@ -4,12 +4,13 @@
 //! A direct name remains ambiguous between a type and a value until resolution;
 //! every other value tree is retained without parser-side evaluation.
 
-use crate::expressions::parse_expression::{
-    parse_const_integer_expression_handle, parse_expression_handle_without_struct_literals,
-};
+use crate::contracts::conformance::parse_conformance::parse_conformance_trait_application;
+use crate::expressions::parse_expression::parse_expression_handle_without_struct_literals;
+use crate::expressions::static_argument_values::parse_static_argument_expression;
 use crate::input::token_cursor::{Input, ParseResult};
 use crate::tables::type_refs;
 use arena::HandleSpan;
+use numerics::arithmetic::ArithmeticDomain;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::ExpressionNode;
 use syntax_trees::identifier::Identifier;
@@ -167,10 +168,7 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
     if input.at_contextual("dyn") {
         let input = input.take_contextual("dyn")?;
         let ((trait_name, lifetime_arguments, trait_arguments), input) =
-            crate::contracts::conformance::parse_conformance::parse_conformance_trait_application(
-                syntax_trees,
-                input,
-            )?;
+            parse_conformance_trait_application(syntax_trees, input)?;
         if !lifetime_arguments.is_empty() {
             return Err(input
                 .error_here("a dynamic selector takes no lifetime arguments; it borrows nothing"));
@@ -312,7 +310,8 @@ fn parse_static_argument_reference<'tokens, 'source>(
         || input.at_contextual("true")
         || input.at_contextual("false")
     {
-        let (expression, rest) = parse_const_integer_expression_handle(syntax_trees, input)?;
+        let (expression, rest) = parse_static_argument_expression(syntax_trees, input)?
+            .ok_or_else(|| input.error_here("expected static argument expression"))?;
         if let ExpressionNode::Name(_) = syntax_trees.expressions.expression(expression) {
             // Parentheses do not turn a direct binder or named constant into
             // a computed index. Retain the same leaf as its unparenthesized
@@ -339,7 +338,8 @@ fn parse_static_argument_reference<'tokens, 'source>(
         // Retain a delimiter-safe expression recipe until the receiving
         // binder determines its Value/Const role. A lone name remains
         // ambiguous with a type and keeps the ordinary resolved leaf.
-        let const_expression = parse_const_integer_expression_handle(syntax_trees, input).ok();
+        let checkpoint = syntax_trees.append_checkpoint();
+        let const_expression = parse_static_argument_expression(syntax_trees, input)?;
         if let Some((expression, expression_rest)) = const_expression
             && !matches!(
                 syntax_trees.expressions.expression(expression),
@@ -353,6 +353,7 @@ fn parse_static_argument_reference<'tokens, 'source>(
                 expression_rest,
             ))
         } else {
+            syntax_trees.rewind_appended(checkpoint);
             parse_type_reference_handle(syntax_trees, input)
         }
     } else {
@@ -400,9 +401,7 @@ fn apply_in_domain_suffix<'tokens, 'source>(
             }));
         } else {
             constraints.push(
-                match numerics::arithmetic::ArithmeticDomain::from_name(
-                    domain_name.as_str(syntax_trees),
-                ) {
+                match ArithmeticDomain::from_name(domain_name.as_str(syntax_trees)) {
                     Some(domain) if arguments.is_empty() => {
                         TypeConstraintNode::ArithmeticDomain(domain)
                     }

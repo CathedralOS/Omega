@@ -58,10 +58,14 @@ pub use requirements::{
 mod captured_calls;
 pub(crate) use captured_calls::{CapturedRankComponent, prove_captured_rank_call};
 mod captured_entry;
+mod declaration_inputs;
 mod identity_views;
+pub use declaration_inputs::{
+    DeclaredInputRead, DeclaredInputShape, declared_input_shape, declared_input_type_matches,
+};
 mod rank_value;
 pub use captured_entry::{
-    CapturedRankEntry, prove_captured_ranking_range_entry,
+    CapturedRankApplicationInput, CapturedRankEntry, prove_captured_ranking_range_entry,
     prove_captured_ranking_range_entry_with_formation,
 };
 pub use identity_views::{
@@ -1563,13 +1567,13 @@ fn prove_edge(
     let next_floor = inductive_judgment::apply_argument_map(&floor, &substitutions)?;
     let next_ceiling = inductive_judgment::apply_argument_map(&ceiling, &substitutions)?;
     let pinned_view_bound = match measure {
-        RankingRangeMeasure::IncreasingTo { limit, .. }
-        | RankingRangeMeasure::Distance { upper: limit, .. } => {
+        RankingRangeMeasure::IncreasingTo { limit, .. } => {
             let bound = engine.normalize(limit)?;
             let next = inductive_judgment::apply_argument_map(&bound, &substitutions)?;
             Some((bound, next))
         }
-        RankingRangeMeasure::Single(_)
+        RankingRangeMeasure::Distance { .. }
+        | RankingRangeMeasure::Single(_)
         | RankingRangeMeasure::Computed { .. }
         | RankingRangeMeasure::SliceLength(_)
         | RankingRangeMeasure::Field { .. } => None,

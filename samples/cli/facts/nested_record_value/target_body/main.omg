@@ -12,39 +12,54 @@ data Envelope [copy] {
     payload: u64;
 }
 
-linux_x86_64 machine sum_envelope(envelope: Envelope) -> u64
-requires envelope.header.limit <= 50 && envelope.payload <= 50
-ensures result <= 100
-{
-    envelope.header.limit + envelope.payload
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_arm64 machine sum_envelope(envelope: Envelope) -> u64
-requires envelope.header.limit <= 50 && envelope.payload <= 50
-ensures result <= 100
-{
-    envelope.header.limit + envelope.payload
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-macos_arm64 machine sum_envelope(envelope: Envelope) -> u64
-requires envelope.header.limit <= 50 && envelope.payload <= 50
-ensures result <= 100
-{
-    envelope.header.limit + envelope.payload
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-windows_x86_64 machine sum_envelope(envelope: Envelope) -> u64
-requires envelope.header.limit <= 50 && envelope.payload <= 50
-ensures result <= 100
-{
-    envelope.header.limit + envelope.payload
+boundary trait SelectedSumEnvelope {
+    machine sum_envelope(envelope: Envelope) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires envelope.header.limit <= 50 && envelope.payload <= 50 ensures result <= 100;
+}
+
+X86SumEnvelope satisfies SelectedSumEnvelope {
+    machine sum_envelope(envelope: Envelope) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires envelope.header.limit <= 50 && envelope.payload <= 50 ensures result <= 100
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        envelope.header.limit + envelope.payload
+    }
+}
+
+ArmSumEnvelope satisfies SelectedSumEnvelope {
+    machine sum_envelope(envelope: Envelope) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires envelope.header.limit <= 50 && envelope.payload <= 50 ensures result <= 100
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        envelope.header.limit + envelope.payload
+    }
 }
 
 machine probe(envelope: Envelope) -> u64
 requires envelope.header.limit <= 50 && envelope.payload <= 50
 ensures result <= 100
 {
-    sum_envelope(envelope)
+    SelectedSumEnvelope::sum_envelope(envelope)
 }
 
 machine main() crashes Trap {
@@ -59,4 +74,12 @@ machine main() crashes Trap {
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

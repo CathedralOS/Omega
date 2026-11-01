@@ -156,6 +156,43 @@ pub enum CheckedRankObservation {
     Length,
 }
 
+/// Inputs retained before executable scalar roots are materialized. Every
+/// coordinate keeps its own path/index receipts under this arrival owner.
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+pub enum CheckedRankOperand {
+    Coordinate {
+        coordinate: CheckedRankCoordinateHandle,
+        primitive_type: typed_trees::types::PrimitiveType,
+        observation: CheckedRankObservation,
+    },
+    Expression {
+        state: SymbolHandle,
+        expression: typed_trees::expression::ExpressionHandle,
+        primitive_type: typed_trees::types::PrimitiveType,
+    },
+    Literal(u64),
+}
+
+impl Default for CheckedRankOperand {
+    fn default() -> Self {
+        Self::Coordinate {
+            coordinate: CheckedRankCoordinateHandle::invalid(),
+            primitive_type: typed_trees::types::PrimitiveType::Bool,
+            observation: CheckedRankObservation::Value,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+pub enum CheckedRuntimeRankInput {
+    Value(CheckedRankObservation),
+    Distance {
+        lower_observation: CheckedRankObservation,
+        lower_primitive: typed_trees::types::PrimitiveType,
+        upper: Handle<CheckedRankOperand>,
+    },
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedRuntimeNaturalState {
     pub state: SymbolHandle,
@@ -166,12 +203,14 @@ pub struct CheckedRuntimeNaturalState {
 pub struct CheckedRuntimeIntegerRank {
     /// Application decisions remain attached to this exact state/input row.
     pub application: super::CheckedRankApplicationFacts,
+    pub application_bindings: HandleSpan<CheckedRankCoordinateBinding>,
+    pub input_type: TypeReferenceHandle,
     /// Selected declaration applied to this exact input coordinate; ZII is primitive.
     pub measure: SymbolHandle,
     pub coordinate: CheckedRankCoordinateHandle,
     pub parameter_position: u32,
     pub primitive_type: typed_trees::types::PrimitiveType,
-    pub observation: CheckedRankObservation,
+    pub observation: CheckedRuntimeRankInput,
     pub function: crate::CheckedNaturalRankFunction,
 }
 
@@ -181,11 +220,13 @@ impl Default for CheckedRuntimeIntegerRank {
     fn default() -> Self {
         Self {
             application: Default::default(),
+            application_bindings: Default::default(),
+            input_type: TypeReferenceHandle::invalid(),
             measure: SymbolHandle::invalid(),
             coordinate: CheckedRankCoordinateHandle::invalid(),
             parameter_position: 0,
             primitive_type: typed_trees::types::PrimitiveType::Bool,
-            observation: CheckedRankObservation::Value,
+            observation: CheckedRuntimeRankInput::Value(CheckedRankObservation::Value),
             function: crate::CheckedNaturalRankFunction::Identity,
         }
     }
@@ -256,6 +297,7 @@ pub struct CheckedRankArrivalPlan {
     pub states: Arena<CheckedStateRankCorrespondence>,
     pub bindings: Arena<CheckedRankCoordinateBinding>,
     pub coordinates: Arena<CheckedRankCoordinate>,
+    pub rank_operands: Arena<CheckedRankOperand>,
     pub entry_indexes: Arena<crate::CheckedEntryIndexBound>,
     pub path_segments: Arena<PlaceSegment>,
     pub transports: Arena<CheckedRankCoordinateTransport>,

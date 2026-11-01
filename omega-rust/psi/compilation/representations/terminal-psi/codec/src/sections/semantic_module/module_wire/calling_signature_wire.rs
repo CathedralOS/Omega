@@ -1,112 +1,81 @@
 //! Native declaration telescopes; storage and contracts stay on the boundary.
 
+use super::super::wire_fields::{Field, Flag, Id, Index, List, U32, wire_record};
+use super::{CodecError, Reader, Writer};
 use terminal_psi::{
     CallingCallbackBinder, CallingDirectCallback, CallingRuntimeFormal,
-    CallingSignatureDeclaration, CallingSignatureTelescope, TerminalIdentityIndex,
+    CallingSignatureDeclaration, CallingSignatureTelescope,
 };
 
-use super::{CodecError, Reader, Writer, decode_counted};
-
-pub(super) fn encode(
-    writer: &mut Writer,
-    signature: &CallingSignatureDeclaration,
-) -> Result<(), CodecError> {
-    writer.id(signature.boundary);
-    writer.u32(signature.requirement_identity.0);
-    match &signature.telescope {
-        Err(reason) => {
-            writer.boolean(false);
-            writer.string("deferred calling signature refusal", reason)?;
-        }
-        Ok(telescope) => {
-            writer.boolean(true);
-            writer.counted(
-                "calling runtime formals",
-                &telescope.parameters,
-                |writer, formal| {
-                    writer.u64(formal.identity.get());
-                    writer.u32(formal.native_ordinal);
-                    Ok(())
-                },
-            )?;
-            writer.counted(
-                "calling callback binders",
-                &telescope.binders,
-                |writer, binder| {
-                    writer.u64(binder.binder.get());
-                    writer.u64(binder.requirement.get());
-                    writer.u32(binder.requirement_identity.0);
-                    writer.u32(binder.static_machine_ordinal);
-                    writer.boolean(binder.invokes_synchronously);
-                    Ok(())
-                },
-            )?;
-            writer.counted(
-                "calling direct callbacks",
-                &telescope.direct_callbacks,
-                |writer, callback| {
-                    writer.u64(callback.identity.get());
-                    writer.u32(callback.native_ordinal);
-                    writer.u64(callback.binder.get());
-                    writer.u64(callback.requirement.get());
-                    Ok(())
-                },
-            )?;
-        }
+wire_record! {
+    Declaration: CallingSignatureDeclaration {
+        boundary: Id,
+        requirement_identity: Index,
+        telescope: TelescopeOrRefusal,
     }
-    Ok(())
+    Telescope: CallingSignatureTelescope {
+        parameters: List<Formal>,
+        binders: List<Binder>,
+        direct_callbacks: List<DirectCallback>,
+    }
+    Formal: CallingRuntimeFormal { identity: Parameter, native_ordinal: U32 }
+    Binder: CallingCallbackBinder {
+        binder: BinderId,
+        requirement: Requirement,
+        requirement_identity: Index,
+        static_machine_ordinal: U32,
+        invokes_synchronously: Flag,
+    }
+    DirectCallback: CallingDirectCallback {
+        identity: Parameter,
+        native_ordinal: U32,
+        binder: BinderId,
+        requirement: Requirement,
+    }
 }
 
-pub(super) fn decode(reader: &mut Reader<'_>) -> Result<CallingSignatureDeclaration, CodecError> {
-    Ok(CallingSignatureDeclaration {
-        boundary: reader.id("BoundaryMachineId")?,
-        requirement_identity: TerminalIdentityIndex(reader.u32()?),
-        telescope: if reader.boolean()? {
-            Ok(CallingSignatureTelescope {
-                parameters: decode_counted(reader, |reader| {
-                    Ok(CallingRuntimeFormal {
-                        identity: semantic_vocabulary::NativeParameterId::new(reader.u64()?)
-                            .ok_or(CodecError::MalformedStructuralFoundation(
-                                "zero native parameter identity",
-                            ))?,
-                        native_ordinal: reader.u32()?,
-                    })
-                })?,
-                binders: decode_counted(reader, |reader| {
-                    Ok(CallingCallbackBinder {
-                        binder: semantic_vocabulary::StaticMachineBinderId::new(reader.u64()?)
-                            .ok_or(CodecError::MalformedStructuralFoundation(
-                                "zero callback binder identity",
-                            ))?,
-                        requirement: semantic_vocabulary::CallbackRequirementId::new(reader.u64()?)
-                            .ok_or(CodecError::MalformedStructuralFoundation(
-                                "zero callback requirement identity",
-                            ))?,
-                        requirement_identity: TerminalIdentityIndex(reader.u32()?),
-                        static_machine_ordinal: reader.u32()?,
-                        invokes_synchronously: reader.boolean()?,
-                    })
-                })?,
-                direct_callbacks: decode_counted(reader, |reader| {
-                    Ok(CallingDirectCallback {
-                        identity: semantic_vocabulary::NativeParameterId::new(reader.u64()?)
-                            .ok_or(CodecError::MalformedStructuralFoundation(
-                                "zero native parameter identity",
-                            ))?,
-                        native_ordinal: reader.u32()?,
-                        binder: semantic_vocabulary::StaticMachineBinderId::new(reader.u64()?)
-                            .ok_or(CodecError::MalformedStructuralFoundation(
-                                "zero callback binder identity",
-                            ))?,
-                        requirement: semantic_vocabulary::CallbackRequirementId::new(reader.u64()?)
-                            .ok_or(CodecError::MalformedStructuralFoundation(
-                                "zero callback requirement identity",
-                            ))?,
-                    })
-                })?,
-            })
+/// Native-declaration identities: nonzero `u64`s outside the Psi id family.
+macro_rules! native_ids {
+    ($($marker:ident: $ty:ident, $zero:literal;)*) => {$(
+        struct $marker;
+        impl Field<semantic_vocabulary::$ty> for $marker {
+            fn write(writer: &mut Writer, value: &semantic_vocabulary::$ty) -> Result<(), CodecError> {
+                writer.u64(value.get());
+                Ok(())
+            }
+            fn read(reader: &mut Reader<'_>) -> Result<semantic_vocabulary::$ty, CodecError> {
+                semantic_vocabulary::$ty::new(reader.u64()?)
+                    .ok_or(CodecError::MalformedStructuralFoundation($zero))
+            }
+        }
+    )*};
+}
+native_ids! {
+    Parameter: NativeParameterId, "zero native parameter identity";
+    BinderId: StaticMachineBinderId, "zero callback binder identity";
+    Requirement: CallbackRequirementId, "zero callback requirement identity";
+}
+
+/// A complete telescope, or the refusal that deferred it.
+struct TelescopeOrRefusal;
+impl Field<Result<CallingSignatureTelescope, String>> for TelescopeOrRefusal {
+    fn write(
+        writer: &mut Writer,
+        value: &Result<CallingSignatureTelescope, String>,
+    ) -> Result<(), CodecError> {
+        writer.boolean(value.is_ok());
+        match value {
+            Ok(telescope) => Telescope::write(writer, telescope),
+            Err(reason) => writer.string("deferred calling signature refusal", reason),
+        }
+    }
+    fn read(
+        reader: &mut Reader<'_>,
+    ) -> Result<Result<CallingSignatureTelescope, String>, CodecError> {
+        Ok(if reader.boolean()? {
+            Ok(Telescope::read(reader)?)
         } else {
             Err(reader.string("deferred calling signature refusal")?)
-        },
-    })
+        })
+    }
 }

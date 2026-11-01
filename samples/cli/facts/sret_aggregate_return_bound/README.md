@@ -105,3 +105,15 @@ Nine positive places are pinned under `tests/omega/pass/facts/sret_aggregate_ret
 (with `expected.txt` `may overflow `u64``). Each twin differs from its positive only in the
 construct's own returned member value and declared bound (`40u64` versus `91u64`), never in a
 caller guard.
+
+## Build-owned target-body migration
+
+The `target_body` place and its twin carry no source target prefix.
+`BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named
+implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected
+by explicit target-keyed Build rows. The operation, inputs, contracts and exit
+oracle are unchanged. The entry wrapper and each implementation check a tag
+(17 for x86-64, 29 for AArch64), so a wrong Build row traps. Observed evidence is
+Linux x86-64 native and Terminal Psi agreement for the positive and source
+rejection for the twin; the other hosted targets keep their authored rows,
+unexecuted here.

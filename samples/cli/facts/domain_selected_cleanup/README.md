@@ -108,3 +108,15 @@ parent migration's broader acceptance:
 | Omega 00–02 | Package review retains independent callable binders; ordinary provider, layout and calling-plan production consumes the result. |
 | Omega 03–06 | Native execution observes the cleanup store and invocation count through ordinary instruction, register and frame realization; this is not a stack-boundary stress test. |
 | Omega 07–09 and emission | Emitted PE and ELF programs execute and agree with Terminal Psi on their matching x86-64 hosts; other hosted execution remains open. |
+
+## Build-owned target-body migration
+
+The `target_body` place and its twin carry no source target prefix.
+`BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named
+implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected
+by explicit target-keyed Build rows. The operation, inputs, contracts and exit
+oracle are unchanged. The entry wrapper and each implementation check a tag
+(17 for x86-64, 29 for AArch64), so a wrong Build row traps. Observed evidence is
+Linux x86-64 native and Terminal Psi agreement for the positive and source
+rejection for the twin; the other hosted targets keep their authored rows,
+unexecuted here.

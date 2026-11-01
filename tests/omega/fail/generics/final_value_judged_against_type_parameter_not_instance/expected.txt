@@ -1,0 +1,1 @@
+machine `bad` state `entry` terminal expression expects `T`, got `bool`

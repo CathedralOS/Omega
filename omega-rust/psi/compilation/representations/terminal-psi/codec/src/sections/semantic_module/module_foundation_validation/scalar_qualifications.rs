@@ -3,7 +3,10 @@
 //! This owner checks that transport has not detached that decision from its
 //! domain, exact callable, result value or normal return edge.
 
-use super::{CodecError, TerminalModule, Terminator, malformed};
+use super::{
+    CodecError, TerminalModule, Terminator, malformed, qualification_domains, scalar_domain, values,
+};
+use semantic_vocabulary::{Proposition, PropositionContext};
 use terminal_psi::{ScalarDomainEstablishmentRoute, ScalarReturnOrigin, ScalarReturnSite};
 
 pub(super) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
@@ -23,12 +26,9 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
             return malformed("routed scalar domain lost its predicate component");
         }
         if let Some(predicate) = &domain.predicate {
-            semantic_vocabulary::PropositionContext::from_value_types([(
-                predicate.subject,
-                domain.carrier,
-            )])
-            .and_then(|context| context.validate(&predicate.proposition))
-            .map_err(CodecError::MalformedProposition)?;
+            PropositionContext::from_value_types([(predicate.subject, domain.carrier)])
+                .and_then(|context| context.validate(&predicate.proposition))
+                .map_err(CodecError::MalformedProposition)?;
             let mut exact = predicate.subject.get() == 1;
             exact &= predicate.proposition.visit_value_ids(|value| {
                 exact &= value == predicate.subject;
@@ -67,25 +67,24 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
             .ok_or(CodecError::MalformedStructuralFoundation(
                 "scalar coercion lost its machine",
             ))?;
-        let source = super::values(machine)
+        let source = values(machine)
             .find(|value| value.id == coercion.source)
             .ok_or(CodecError::MalformedStructuralFoundation(
                 "scalar coercion lost its source",
             ))?;
-        let destination = super::values(machine)
+        let destination = values(machine)
             .find(|value| value.id == coercion.destination)
             .ok_or(CodecError::MalformedStructuralFoundation(
                 "scalar coercion lost its destination",
             ))?;
-        let source_domains = super::qualification_domains(module, source.qualifications).ok_or(
+        let source_domains = qualification_domains(module, source.qualifications).ok_or(
             CodecError::MalformedStructuralFoundation("scalar coercion lost its source set"),
         )?;
-        let destination_domains = super::qualification_domains(module, destination.qualifications)
-            .ok_or(CodecError::MalformedStructuralFoundation(
-                "scalar coercion lost its destination set",
-            ))?;
+        let destination_domains = qualification_domains(module, destination.qualifications).ok_or(
+            CodecError::MalformedStructuralFoundation("scalar coercion lost its destination set"),
+        )?;
         for id in destination_domains {
-            let domain = super::scalar_domain(module, *id).ok_or(
+            let domain = scalar_domain(module, *id).ok_or(
                 CodecError::MalformedStructuralFoundation("scalar coercion domain is absent"),
             )?;
             if domain
@@ -116,12 +115,12 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
             .result
             .scalar_ref()
             .into_iter()
-            .chain(super::values(machine))
+            .chain(values(machine))
             .find(|result| result.id == returned.result)
             .ok_or(CodecError::MalformedStructuralFoundation(
                 "scalar return lost its result",
             ))?;
-        let domain = super::scalar_domain(module, returned.domain).ok_or(
+        let domain = scalar_domain(module, returned.domain).ok_or(
             CodecError::MalformedStructuralFoundation("scalar return lost its domain"),
         )?;
         let bound = match returned.site {
@@ -151,16 +150,14 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
             let mut expected = predicate.proposition.clone();
             expected.remap_value_ids(|_| result.id);
             let complete = match &expected {
-                semantic_vocabulary::Proposition::Conjunction(predicates) => {
-                    predicates.iter().all(|predicate| {
-                        machine
-                            .contract
-                            .ensures
-                            .iter()
-                            .any(|clause| retains_conjunct(&clause.proposition, predicate))
-                    })
-                }
-                semantic_vocabulary::Proposition::Truth => true,
+                Proposition::Conjunction(predicates) => predicates.iter().all(|predicate| {
+                    machine
+                        .contract
+                        .ensures
+                        .iter()
+                        .any(|clause| retains_conjunct(&clause.proposition, predicate))
+                }),
+                Proposition::Truth => true,
                 _ => machine
                     .contract
                     .ensures
@@ -171,7 +168,7 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
                 return malformed("scalar result contract lost its domain predicate");
             }
         }
-        let source = super::values(machine)
+        let source = values(machine)
             .find(|source| source.id == returned.source && source.scalar_type == result.scalar_type)
             .ok_or(CodecError::MalformedStructuralFoundation(
                 "scalar return lost its same-carrier source",
@@ -206,7 +203,10 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
                     )?;
                     match domain.establishment_routes.get(*route as usize) {
                         Some(ScalarDomainEstablishmentRoute::ExactMachine { declaration: issuer, machine_identity }) => {
-                            (*machine_identity == declaration.callable && issuer.identity() == declaration.semantic_declaration)
+                            (module.identities.text(*machine_identity).zip(module.identities.text(declaration.callable))
+                                .is_some_and(|(issued, callable)| issued == terminal_psi::CheckedMachineDeclaration::callable_evidence_identity(
+                                    callable, declaration.specialization.as_ref().map(|application| &application.commitment),
+                                )) && issuer.identity() == declaration.semantic_declaration)
                                 || declaration.specialization.as_ref().is_some_and(|specialization| {
                                     *machine_identity == specialization.template_callable
                                         && issuer.identity() == specialization.template_semantic_declaration
@@ -232,7 +232,7 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
                 }
             };
             let prerequisites = if matches!(origin, ScalarReturnOrigin::Established { .. }) {
-                let supplied = super::qualification_domains(module, source.qualifications).ok_or(
+                let supplied = qualification_domains(module, source.qualifications).ok_or(
                     CodecError::MalformedStructuralFoundation(
                         "scalar issuer lost its source qualification set",
                     ),
@@ -257,19 +257,40 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
                     .map(str::to_owned)
                     .unwrap_or_else(|| format!("machine:{}", machine.id.get()));
                 let source_memberships: Option<Vec<String>> =
-                    super::qualification_domains(module, source.qualifications).map(
-                        |memberships| {
-                            memberships
-                                .iter()
-                                .map(|membership| {
-                                    super::scalar_domain(module, *membership)
-                                        .and_then(|domain| module.identities.text(domain.identity))
-                                        .map(str::to_owned)
-                                        .unwrap_or_else(|| format!("domain:{}", membership.get()))
-                                })
-                                .collect()
-                        },
-                    );
+                    qualification_domains(module, source.qualifications).map(|memberships| {
+                        memberships
+                            .iter()
+                            .map(|membership| {
+                                scalar_domain(module, *membership)
+                                    .and_then(|domain| module.identities.text(domain.identity))
+                                    .map(str::to_owned)
+                                    .unwrap_or_else(|| format!("domain:{}", membership.get()))
+                            })
+                            .collect()
+                    });
+                let issuer = match origin {
+                    ScalarReturnOrigin::Established { route } => domain
+                        .establishment_routes
+                        .get(*route as usize)
+                        .map(|route| {
+                            let callable = match route {
+                                ScalarDomainEstablishmentRoute::ExactMachine {
+                                    machine_identity,
+                                    ..
+                                } => module.identities.text(*machine_identity),
+                                _ => None,
+                            };
+                            (
+                                callable,
+                                module.identities.text(route.declaration().identity()),
+                            )
+                        }),
+                    _ => None,
+                };
+                let returned_declaration = machine
+                    .declaration
+                    .as_ref()
+                    .map(|declaration| module.identities.text(declaration.semantic_declaration));
                 return Err(CodecError::MalformedScalarReturnFoundation {
                     machine: machine_identity,
                     domain: module
@@ -281,7 +302,7 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
                     source: returned.source,
                     result: returned.result,
                     reason: format!(
-                        "scalar return origin does not match its source or authorized issuer: site={:?}, origin={origin:?}, source memberships={source_memberships:?}, origin authorized={authorized}, prerequisites satisfied={prerequisites}",
+                        "scalar return origin does not match its source or authorized issuer: site={:?}, origin={origin:?}, source memberships={source_memberships:?}, origin authorized={authorized}, prerequisites satisfied={prerequisites}, issuer={issuer:?}, returned declaration={returned_declaration:?}",
                         returned.site,
                     ),
                 });
@@ -326,11 +347,11 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
                 for (ordinal, (argument, destination)) in
                     arguments.iter().zip(&target.parameters).enumerate()
                 {
-                    let source = super::values(machine)
-                        .find(|value| value.id == *argument)
-                        .ok_or(CodecError::MalformedStructuralFoundation(
+                    let source = values(machine).find(|value| value.id == *argument).ok_or(
+                        CodecError::MalformedStructuralFoundation(
                             "scalar successor source is absent",
-                        ))?;
+                        ),
+                    )?;
                     for domain in &catalog.domains {
                         let contains = |qualification| {
                             catalog.sets.iter().any(|set| {
@@ -389,11 +410,8 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
 }
 
 /// Representation containment, not implication search or predicate proof.
-fn retains_conjunct(
-    actual: &semantic_vocabulary::Proposition,
-    expected: &semantic_vocabulary::Proposition,
-) -> bool {
+fn retains_conjunct(actual: &Proposition, expected: &Proposition) -> bool {
     actual == expected
-        || matches!(actual, semantic_vocabulary::Proposition::Conjunction(children)
+        || matches!(actual, Proposition::Conjunction(children)
         if children.iter().any(|child| retains_conjunct(child, expected)))
 }

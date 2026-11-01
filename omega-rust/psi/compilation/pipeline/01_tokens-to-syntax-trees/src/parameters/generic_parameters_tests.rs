@@ -6,7 +6,7 @@ use crate::input::token_cursor::Input;
 use source::SourceId;
 use source_files_to_tokens::Lexer;
 use syntax_trees::SyntaxTrees;
-use syntax_trees::item::TypeParameterKind;
+use syntax_trees::item::{Item, MachineParameterContract, TypeParameterKind};
 
 const SYNTAX_CHOICES: [GenericParameterSyntax; 6] = [
     GenericParameterSyntax::TypeAndConst,
@@ -52,11 +52,22 @@ fn conformance_and_value_binders_keep_distinct_admission() {
                 syntax,
                 GenericParameterSyntax::TraitRequirements
                     | GenericParameterSyntax::MachineDeclaration
+                    | GenericParameterSyntax::DataDeclaration
             )
         );
-        if let Ok((_, parameters)) = conformance {
+        if let Ok((trees, parameters)) = conformance {
             assert_eq!(parameters.conformance_bounds.len(), 1);
-            assert!(parameters.type_parameters.is_empty());
+            if matches!(
+                syntax,
+                GenericParameterSyntax::TraitRequirements | GenericParameterSyntax::DataDeclaration
+            ) {
+                assert!(matches!(
+                    trees.items.type_parameters(parameters.type_parameters)[0].kind,
+                    TypeParameterKind::Implementation
+                ));
+            } else {
+                assert!(parameters.type_parameters.is_empty());
+            }
         }
         // The retired subject spelling rejects everywhere: a conformance names
         // code, so no binder carries a data subject.
@@ -76,6 +87,71 @@ fn conformance_and_value_binders_keep_distinct_admission() {
                 trees.items.type_parameters(parameters.type_parameters)[0].kind,
                 TypeParameterKind::Value { .. }
             ));
+        }
+    }
+}
+
+#[test]
+fn callable_data_and_alias_binders_do_not_start_as_trait_identities() {
+    for syntax in [
+        GenericParameterSyntax::DataDeclaration,
+        GenericParameterSyntax::TraitRequirements,
+    ] {
+        let (trees, parameters) = parse_parameters("<machine Selected>", syntax).unwrap();
+        let TypeParameterKind::Machine { contract } =
+            &trees.items.type_parameters(parameters.type_parameters)[0].kind
+        else {
+            panic!("machine binder");
+        };
+        assert_eq!(
+            matches!(
+                contract,
+                Some(MachineParameterContract::RequirementIdentity)
+            ),
+            matches!(syntax, GenericParameterSyntax::TraitRequirements)
+        );
+        if matches!(syntax, GenericParameterSyntax::DataDeclaration) {
+            assert!(contract.is_none());
+        }
+    }
+    for ending in ["{ value: u64; }", "= u64;"] {
+        for (clause, nominal) in [
+            ("requires machine Selected(value: u64) -> u64;", false),
+            ("requires machine Selected satisfies Hook::step;", true),
+        ] {
+            let source = format!("data Carrier<machine Selected> {clause} {ending}");
+            let tokens = Lexer::new(&source).tokenize().unwrap();
+            let trees = crate::parse_syntax_trees(&tokens).expect("authored callable contract");
+            let parameters = match trees.root_items().next().unwrap() {
+                Item::Data(data) => data.type_parameters,
+                Item::TypeAlias(alias) => alias.type_parameters,
+                _ => panic!("data or transparent alias"),
+            };
+            let TypeParameterKind::Machine {
+                contract: Some(contract),
+            } = &trees.items.type_parameters(parameters)[0].kind
+            else {
+                panic!("retained contract");
+            };
+            assert_eq!(
+                matches!(contract, MachineParameterContract::Nominal { .. }),
+                nominal
+            );
+            assert_eq!(
+                matches!(contract, MachineParameterContract::Structural(_)),
+                !nominal
+            );
+        }
+        for clauses in [
+            "",
+            "requires machine Selected(value: u64) -> u64; requires machine Selected(value: u64) -> u64;",
+        ] {
+            let source = format!("data Carrier<machine Selected> {clauses} {ending}");
+            let tokens = Lexer::new(&source).tokenize().unwrap();
+            assert!(
+                crate::parse_syntax_trees(&tokens).is_err(),
+                "missing or duplicated contracts must refuse"
+            );
         }
     }
 }

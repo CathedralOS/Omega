@@ -1,0 +1,11 @@
+machine build(builder: &mut Build) {
+    Build::select_provider<SelectedInspect, LinuxX8664Inspect>(builder, linux_x86_64);
+    Build::select_provider<SelectedInspect, LinuxArm64Inspect>(builder, linux_arm64);
+    Build::select_provider<SelectedInspect, MacosArm64Inspect>(builder, macos_arm64);
+    Build::select_provider<SelectedInspect, WindowsX8664Inspect>(builder, windows_x86_64);
+    Build::application(builder, "implementation_region_forwarding_target_body");
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+}

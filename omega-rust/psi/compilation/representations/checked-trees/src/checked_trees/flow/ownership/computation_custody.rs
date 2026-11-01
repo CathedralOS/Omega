@@ -7,6 +7,8 @@
 //! pretending either call runs unconditionally. This is a query on the producer's
 //! executable plan, not a second ownership checker or a source-expression replay.
 
+use crate::CheckedUnitLocalBindingPlan::ByteSequence;
+use crate::CheckedUnitLocalBindingPlan::StructuralValue;
 use crate::{
     CheckedByteSequenceValue, CheckedByteSequenceValuePlan, CheckedCallScalarArgument,
     CheckedConditionalReturnArm, CheckedElementViewRegion, CheckedGuardedExitPlans,
@@ -339,9 +341,9 @@ impl<'facts, 'calls> CallTransfers<'facts, 'calls> {
     ) -> Option<Self> {
         let result = producer.structural_result_binding()?;
         let expression = match producer {
-            CheckedUnitEffectOperationPlan::EstablishLocal(
-                crate::CheckedUnitLocalBindingPlan::StructuralValue { value, .. },
-            ) => values.structural_values.nodes.get(*value).expression,
+            CheckedUnitEffectOperationPlan::EstablishLocal(StructuralValue { value, .. }) => {
+                values.structural_values.nodes.get(*value).expression
+            }
             CheckedUnitEffectOperationPlan::Call(call) => match call.source_site() {
                 Some(crate::NominalMachineUseSite::Expression(expression)) => expression,
                 _ => arena::Handle::invalid(),
@@ -705,31 +707,29 @@ impl<'facts, 'calls> CallTransfers<'facts, 'calls> {
                 .iter()
                 .map(|argument| self.structural(*argument, calls))
                 .sum(),
-            CheckedStructuralValueKind::Call { .. } => calls
-                .iter()
-                .find(|call| call.value == root)
-                .map_or(0, |call| {
-                    call.operands()
-                        .iter()
-                        .map(|operation| match operation {
-                            // Operand preparation owns the anonymous value's
-                            // construction as well as calls inside its fields.
-                            // The enclosing state's constructor inventory does
-                            // not enter this selected invocation schedule.
-                            CheckedUnitEffectOperationPlan::EstablishLocal(
-                                crate::CheckedUnitLocalBindingPlan::StructuralValue {
-                                    value,
-                                    calls,
-                                    ..
-                                },
-                            ) => self.constructed(*value, calls, true),
-                            _ => self.operation(operation),
-                        })
-                        .sum::<usize>()
-                        + call
-                            .operation()
-                            .map_or(0, |operation| self.operation(operation))
-                }),
+            CheckedStructuralValueKind::Call { .. } => {
+                calls
+                    .iter()
+                    .find(|call| call.value == root)
+                    .map_or(0, |call| {
+                        call.operands()
+                            .iter()
+                            .map(|operation| match operation {
+                                // Operand preparation owns the anonymous value's
+                                // construction as well as calls inside its fields.
+                                // The enclosing state's constructor inventory does
+                                // not enter this selected invocation schedule.
+                                CheckedUnitEffectOperationPlan::EstablishLocal(
+                                    StructuralValue { value, calls, .. },
+                                ) => self.constructed(*value, calls, true),
+                                _ => self.operation(operation),
+                            })
+                            .sum::<usize>()
+                            + call
+                                .operation()
+                                .map_or(0, |operation| self.operation(operation))
+                    })
+            }
             CheckedStructuralValueKind::Case(case) => self.case(case),
             crate::record_or_structural_case_pattern!(fields, ..) => plans
                 .record_fields
@@ -845,12 +845,8 @@ impl<'facts, 'calls> CallTransfers<'facts, 'calls> {
                 crate::CheckedUnitLocalBindingPlan::ScalarArray { elements, .. } => {
                     elements.iter().map(|value| self.scalar(value)).sum()
                 }
-                crate::CheckedUnitLocalBindingPlan::StructuralValue { value, calls, .. } => {
-                    self.structural(*value, calls)
-                }
-                crate::CheckedUnitLocalBindingPlan::ByteSequence { value, .. } => {
-                    self.bytes(value, value.root)
-                }
+                StructuralValue { value, calls, .. } => self.structural(*value, calls),
+                ByteSequence { value, .. } => self.bytes(value, value.root),
                 crate::CheckedUnitLocalBindingPlan::TrivialAffine { .. }
                 | crate::CheckedUnitLocalBindingPlan::Structural { .. } => 0,
             },

@@ -12,6 +12,56 @@ impl CallableApplication {
         program: &mut TypedTrees,
         original: types::TypeReferenceHandle,
     ) -> Result<types::TypeReferenceHandle, &'static str> {
+        let obligations = program
+            .type_reference_table
+            .type_alias_applications(original)
+            .cloned()
+            .collect::<Vec<_>>();
+        let applied = self.type_reference_with_owner(program, original)?;
+        if obligations.is_empty() {
+            return Ok(applied);
+        }
+        let applied = program.type_reference_table.fresh_occurrence(applied);
+        for obligation in obligations {
+            let application = self.type_reference(program, obligation.application)?;
+            let (declaration, arguments, lifetime_arguments) =
+                match program.type_reference_node(application) {
+                    types::TypeReferenceNode::Generic {
+                        base_symbol,
+                        arguments,
+                        lifetime_arguments,
+                        ..
+                    } => (*base_symbol, *arguments, lifetime_arguments.clone()),
+                    types::TypeReferenceNode::Named { symbol, .. } => {
+                        (*symbol, HandleSpan::empty(), Vec::new())
+                    }
+                    _ => return Err("applied alias obligation lost its declaration head"),
+                };
+            if declaration != obligation.declaration {
+                return Err("applied alias obligation changed its declaration");
+            }
+            let supplied_operand_owner = program
+                .type_reference_table
+                .operand_lifetime_owner(application);
+            program.type_reference_table.retain_type_alias_application(
+                crate::type_aliases::TypeAliasApplication {
+                    instance: applied,
+                    application,
+                    arguments,
+                    lifetime_arguments,
+                    supplied_operand_owner,
+                    ..obligation
+                },
+            );
+        }
+        Ok(applied)
+    }
+
+    fn type_reference_with_owner(
+        &mut self,
+        program: &mut TypedTrees,
+        original: types::TypeReferenceHandle,
+    ) -> Result<types::TypeReferenceHandle, &'static str> {
         if !original.is_valid() {
             return Ok(original);
         }

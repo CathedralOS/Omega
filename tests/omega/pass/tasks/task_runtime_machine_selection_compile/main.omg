@@ -22,8 +22,8 @@ satisfies TaskRuntime::try_start
 via ForeignBinding::CompilerIntrinsic;
 
 CanaryTaskRuntimeProvider satisfies TaskRuntime {
-    TaskRuntime::start = CanaryTaskRuntime::start;
-    TaskRuntime::try_start = CanaryTaskRuntime::try_start;
+    machine start<T, Arguments, machine Target>(arguments: Arguments) -> Task<T> requires machine Target(arguments: Arguments) -> T suspends blocks; ensures true reaches { CanaryTaskRuntime::start<T, Arguments, Target>(arguments) }
+    machine try_start<T, Arguments, machine Target>(arguments: Arguments) -> StartOutcome<T, Arguments> requires machine Target(arguments: Arguments) -> T suspends blocks; ensures true reaches { CanaryTaskRuntime::try_start<T, Arguments, Target>(arguments) }
 }
 
 data TargetProviders {}
@@ -67,8 +67,8 @@ machine Worker::run(token: Token in Carry::AcrossSuspend) -> Token suspends {
 // Runtime-instance dispatch is deliberately outside this selected-provider
 // plan canary. This consumer closes each linear bootstrap claim locally after
 // elaboration.
-machine Task::settle<T>(task: Task<T>) -> TaskOutcome<T> {
-    suspend block Task::finish(task)
+machine settle<T>(task: Task<T>) -> TaskOutcome<T> {
+    suspend block TaskLifecycle::finish<T>(task)
 }
 
 data Main {
@@ -82,7 +82,7 @@ machine Main::probe(main: &mut Main) reaches TokenIssuer + TaskRuntime {
     let outcome: StartOutcome<Token, Token in Carry::AcrossSuspend> =
         TaskRuntime::try_start<Token, Token in Carry::AcrossSuspend, Worker::run>(retry);
 
-    _ = suspend block Task::settle(first);
+    _ = suspend block settle(first);
     // `try_start` may decline. Only the selected `Started` case carries a
     // task claim; a rejection returns the unconsumed arguments instead.
     transition outcome {
@@ -91,7 +91,7 @@ machine Main::probe(main: &mut Main) reaches TokenIssuer + TaskRuntime {
     }
 
     machine settle_retry(retry_task: Task<Token>) {
-        _ = suspend block Task::settle(retry_task);
+        _ = suspend block settle(retry_task);
     }
 
     machine rejected(arguments: Token, reason: StartRejection) { }

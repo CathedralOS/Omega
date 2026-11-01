@@ -3,11 +3,14 @@
 //! supply neither identity nor authority. Runtime loans are checked separately.
 
 use diagnostics::Diagnostic;
+use symbol_resolved_trees::data::TypeParameterKind;
 use symbol_resolved_trees::{SymbolResolvedTrees, types::TypeReference};
+use symbol_resolved_trees_to_typed_trees::access_borrow_factory;
 use symbols::{SymbolHandle, SymbolKind};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;
 use syntax_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use syntax_trees_to_symbol_resolved_trees::pre_resolution::resolve_call_result_selection;
 
 /// Rejoin selected declarations after the private resolver ends. Use spans
 /// separately retain invocation admission and visibility context.
@@ -28,20 +31,14 @@ pub(super) fn retain_applied_results(
     }
     // Preparation selects exact call results in their lexical owners, including
     // target and conformance routing, without publishing executable bodies.
-    let resolved =
-        syntax_trees_to_symbol_resolved_trees::pre_resolution::resolve_call_result_selection(
-            context.resolution_request(syntax.clone()),
-        )?;
+    let resolved = resolve_call_result_selection(context.resolution_request(syntax.clone()))?;
     let mut selections = Vec::new();
     for (_, node) in resolved.tables.bodies.expressions.iter_expressions() {
         let symbol_resolved_trees::expression::ExpressionNode::Call(call) = node else {
             continue;
         };
-        let factory = symbol_resolved_trees_to_typed_trees::access_borrow_factory(
-            &resolved,
-            call.target_symbol,
-        )
-        .map_err(|diagnostic| vec![diagnostic.with_source_span(call.target.source_span())])?;
+        let factory = access_borrow_factory(&resolved, call.target_symbol)
+            .map_err(|diagnostic| vec![diagnostic.with_source_span(call.target.source_span())])?;
         let Some(machine) = resolved.machines.iter().find(|machine| {
             machine.symbol == call.target_symbol
                 || resolved
@@ -65,14 +62,15 @@ pub(super) fn retain_applied_results(
         }
         let mut substitutions = Vec::new();
         for (parameter, argument) in parameters.iter().zip(&call.machine_arguments) {
-            if !matches!(
-                parameter.kind,
-                symbol_resolved_trees::data::TypeParameterKind::Type
-            ) {
+            if !matches!(parameter.kind, TypeParameterKind::Type) {
                 continue;
             }
             let symbol = if argument.type_reference.is_valid() {
-                match resolved.child_type_reference(argument.type_reference) {
+                let mut reference = resolved.child_type_reference(argument.type_reference);
+                while let TypeReference::AliasUse { expansion, .. } = reference {
+                    reference = expansion;
+                }
+                match reference {
                     TypeReference::Named { symbol, .. } => *symbol,
                     _ => continue,
                 }
@@ -116,6 +114,10 @@ fn selected_nominal(
     substitutions: &[(SymbolHandle, SymbolHandle, source::SourceSpan)],
     invocation: source::SourceSpan,
 ) -> Option<(SymbolHandle, source::SourceSpan)> {
+    let mut reference = reference;
+    while let TypeReference::AliasUse { expansion, .. } = reference {
+        reference = expansion;
+    }
     let TypeReference::Named { symbol, .. } = reference else {
         return None;
     };
@@ -149,6 +151,7 @@ fn retain_result(
         };
     }
     match result {
+        TypeReference::AliasUse { expansion, .. } => retain_child!(expansion)?,
         TypeReference::Reference(reference) => {
             retain_child!(resolved.child_type_reference(reference.referee))?
         }

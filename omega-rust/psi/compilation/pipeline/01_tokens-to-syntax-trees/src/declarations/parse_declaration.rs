@@ -11,6 +11,7 @@ use super::trait_definition::parse_trait_definition;
 use super::use_item::parse_use_item;
 use crate::declarations::data::{parse_boundary_data_definition, parse_data_definition};
 use crate::declarations::machines::parse_machine;
+use crate::expressions::parse_expression::parse_proof_fact_expression_handle;
 use crate::input::token_cursor::{Input, ParseResult};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;
@@ -68,11 +69,7 @@ pub(crate) fn starts_following_item(syntax_trees: &mut SyntaxTrees, input: Input
         // rewind drops their payloads while keeping capacity for the real parse.
         // Input already carries this forest's source owner; retain no new page.
         let checkpoint = syntax_trees.append_checkpoint();
-        let complete_fact =
-            crate::expressions::parse_expression::parse_proof_fact_expression_handle(
-                syntax_trees,
-                input,
-            )
+        let complete_fact = parse_proof_fact_expression_handle(syntax_trees, input)
             .is_ok_and(|(_, rest)| rest.at_punctuation(PunctuationKind::Semicolon));
         let following_item = !complete_fact && parse_declared_item(syntax_trees, input).is_ok();
         syntax_trees.rewind_appended(checkpoint);
@@ -193,6 +190,7 @@ pub(crate) fn parse_item<'tokens, 'source>(
                 Item::Conformance(conformance) => conformance.is_public = true,
                 Item::Const(constant) => constant.is_public = true,
                 Item::Data(data) => data.is_public = true,
+                Item::TypeAlias(alias) => alias.is_public = true,
                 Item::Domain(domain) => domain.is_public = true,
                 Item::Machine(machine) => machine.is_public = true,
                 Item::Operator(operator) => operator.is_public = true,
@@ -321,8 +319,7 @@ fn parse_declared_item<'tokens, 'source>(
 
     if input.at_keyword(KeywordKind::Data) {
         let input = input.take_keyword(KeywordKind::Data, "data")?;
-        let (item, rest) = parse_data_definition(syntax_trees, input)?;
-        return Ok((Item::Data(item), rest));
+        return parse_data_definition(syntax_trees, input);
     }
 
     if input.at_contextual("domain") {

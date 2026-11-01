@@ -93,9 +93,9 @@ pub use write_frames::{
     LocalWriteOrigin, LocalWriteSource, RecastSource, ReferenceResultLeafOrigin,
     ReferenceResultTransport, ReferenceSlotContract, ReferenceViewFormation,
     ScalarStorageCoordinate, StoredReferenceCallContext, StoredReferenceEffect,
-    assignment_stored_value_type, frame_coordinate_path, frame_length_coordinate_path,
-    frame_paths_overlap, operand_call_plans, state_reference_parameter_binding_is_stable,
-    storage_origin_types_match,
+    StoredReferenceRelationRefusal, assignment_stored_value_type, frame_coordinate_path,
+    frame_length_coordinate_path, frame_paths_overlap, operand_call_plans,
+    state_reference_parameter_binding_is_stable, storage_origin_types_match,
 };
 pub(crate) use write_frames::{CallFrameCaches, InvocationEntrySubject};
 pub(crate) use write_frames::{

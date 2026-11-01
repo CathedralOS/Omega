@@ -4,8 +4,8 @@
 use reviewed_service::operations;
 use omega_language_std::console;
 Reader satisfies Operations {
-    Operations::read = read_value_provider;
-    Operations::identity = identity_provider;
+    machine read(value: i32) -> i32 reaches ReadCapability { read_value_provider(value) }
+    machine identity(value: i32) -> i32 { identity_provider(value) }
 }
 machine read_value_provider(value: i32) -> i32 { value }
 machine identity_provider(value: i32) -> i32 { value }

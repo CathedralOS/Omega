@@ -3,12 +3,7 @@
 //! or discard a non-Unit result; calls retain their separate explicit-use gate.
 
 use super::{StatementOutputs, StatementScope};
-use crate::value_custody::expression_types::ExpressionTypeOwner;
-use crate::value_custody::expression_types::validate_expression_type_handle;
-use crate::{
-    machine_calls::calls, proof_contracts::arithmetic_domains, proof_contracts::domain_weakening,
-    value_custody::expression_types, value_custody::struct_literals,
-};
+use crate::{machine_calls::calls, proof_contracts::arithmetic_domains};
 use diagnostics::Diagnostic;
 use typed_trees::statement::StatementNode;
 use typed_trees::types::TypeReferenceNode;
@@ -107,85 +102,20 @@ pub(super) fn validate(
         return;
     }
 
-    let shape_before = diagnostics.len();
-    crate::value_custody::reference_access::report_reference_access_conflict(
-        program,
-        machine,
-        Some(state),
-        &program.statement_table.statements(state.statement_nodes)[..scope.statement_index],
-        *expression,
-        state.return_type,
-        &format!(
-            "machine `{}` state `{state_name}` return value",
-            machine.name
-        ),
-        diagnostics,
-    );
-    struct_literals::validate_array_literal_elements(
-        program,
-        machine,
+    // The terminal expression answers the declared result exactly as an
+    // authored `_ -> (value)` arm does: both are completion values.
+    super::validate_completion_value(
+        scope,
         state,
         *expression,
-        state.return_type,
-        diagnostics,
         &mut arithmetic_decisions.integer_range_obligations,
-    );
-    validate_expression_type_handle(
-        program,
-        machine.symbol,
-        *expression,
-        state.return_type,
         diagnostics,
-        ExpressionTypeOwner::StateTerminalExpression {
-            machine: machine.name.as_str(),
-            state: state_name,
-        },
     );
     let owner = format!(
         "machine `{}` state `{state_name}` terminal expression",
         machine.name
     );
     let return_primitive = program.primitive_type_reference(state.return_type);
-    // The shape gate above rejects a cross-class LITERAL terminal return
-    // (`-> i32 { true }`) but blanket-accepts place/name values, so a bool
-    // FIELD returned from an `-> i32` machine slips. Add the class check for
-    // those -- only when the shape gate did not already error, so a literal
-    // is not double-reported.
-    if diagnostics.len() == shape_before {
-        let slot_context = format!("machine `{}` state `{state_name}`", machine.name);
-        if let Some(target_primitive) = return_primitive {
-            expression_types::report_cross_class_store(
-                program,
-                Some(machine),
-                Some(state),
-                *expression,
-                target_primitive,
-                &slot_context,
-                "return value",
-                diagnostics,
-            );
-        }
-        // Nominal guard (`-> Foo { self.bar }`), the array/scalar shape guard
-        // (`-> i32 { self.xs }`) and the scalar/data one, in that order.
-        expression_types::report_place_value_mismatches(
-            program,
-            machine,
-            Some(state),
-            *expression,
-            state.return_type,
-            &slot_context,
-            "return value",
-            diagnostics,
-        );
-        domain_weakening::validate_return_domain_weakening(
-            program,
-            machine,
-            state,
-            *expression,
-            &slot_context,
-            diagnostics,
-        );
-    }
     let return_domain = program.arithmetic_domain_for_type_reference(state.return_type);
     let (return_interval, source_primitive, source_domain) =
         arithmetic_domains::validate_anonymous_integer_range(

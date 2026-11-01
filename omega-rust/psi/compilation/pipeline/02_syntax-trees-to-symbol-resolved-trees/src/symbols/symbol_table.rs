@@ -15,7 +15,7 @@ use crate::symbols::symbol_table::children::{
     insert_data_symbol_children, insert_domain_symbol_children, insert_machine_symbol_children,
     insert_mathematical_symbol_children, insert_measure_symbol_children,
     insert_operator_symbol_children, insert_proposition_symbol_children,
-    insert_trait_symbol_children,
+    insert_trait_symbol_children, insert_type_alias_symbol_children,
 };
 use crate::symbols::symbol_table::names::{
     machine_symbol_seed, measure_symbol_name, measure_symbol_seed, operator_symbol_name,
@@ -51,6 +51,7 @@ pub(super) fn extend_symbol_table(
     }
     extend_root_family!(domain_definitions, Domain, insert_domain_symbol_children);
     extend_root_family!(data_definitions, Data, insert_data_symbol_children);
+    extend_root_family!(type_aliases, TypeAlias, insert_type_alias_symbol_children);
     for index in roots.conformances..program.conformances.len() {
         let conformance = program.conformances[index].clone();
         let Some(alias) = &conformance.alias else {
@@ -178,6 +179,12 @@ pub(super) fn build_symbol_table(
                     .iter()
                     .map(|data| symbol_seed(SymbolKind::Data, &data.name, has_sources)),
             )
+            .chain(
+                program
+                    .type_aliases
+                    .iter()
+                    .map(|alias| symbol_seed(SymbolKind::TypeAlias, &alias.name, has_sources)),
+            )
             .chain(program.conformances.iter().filter_map(|conformance| {
                 conformance
                     .alias
@@ -268,6 +275,7 @@ pub(super) fn build_symbol_table(
     }
     install_root_family!(domain_definitions, insert_domain_symbol_children);
     install_root_family!(data_definitions, insert_data_symbol_children);
+    install_root_family!(type_aliases, insert_type_alias_symbol_children);
     for ordinal in 0..program.conformances.len() {
         let conformance = &program.conformances[ordinal];
         if conformance.alias.is_some()

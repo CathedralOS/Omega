@@ -167,6 +167,9 @@ pub(crate) fn assign_nominal_machine_requirement_arguments(
     for owner in program.data_definitions.iter() {
         collect_root(program.data_type_parameters(owner.type_parameters));
     }
+    for owner in program.type_aliases.iter() {
+        collect_root(program.data_type_parameters(owner.type_parameters));
+    }
     for owner in program.domain_definitions.iter() {
         collect_root(program.data_type_parameters(owner.type_parameters));
     }
@@ -758,6 +761,24 @@ fn assign_type_reference_symbol_with_context(
     local_type_parameters: &[TypeParameter],
     type_reference: &mut TypeReference,
 ) {
+    assign_type_reference_with_definitions(
+        symbols,
+        child_type_references,
+        type_constraints,
+        local_type_parameters,
+        type_reference,
+        &[],
+    );
+}
+
+fn assign_type_reference_with_definitions(
+    symbols: &SymbolTable,
+    child_type_references: &mut Arena<symbol_resolved_trees::types::TypeReference>,
+    type_constraints: &Arena<symbol_resolved_trees::types::TypeConstraint>,
+    local_type_parameters: &[symbol_resolved_trees::data::TypeParameter],
+    type_reference: &mut symbol_resolved_trees::types::TypeReference,
+    definition_references: &[source::SourceSpan],
+) {
     match type_reference {
         TypeReference::Reference(reference) => {
             assign_type_reference_handle_symbol_with_context(
@@ -766,6 +787,7 @@ fn assign_type_reference_symbol_with_context(
                 type_constraints,
                 local_type_parameters,
                 reference.referee,
+                definition_references,
             );
         }
         TypeReference::Constrained(constrained) => {
@@ -775,17 +797,19 @@ fn assign_type_reference_symbol_with_context(
                 type_constraints,
                 local_type_parameters,
                 constrained.base_type,
+                definition_references,
             );
             for constraint in type_constraints.span_or_empty(constrained.constraints) {
                 let TypeConstraint::Domain(domain) = constraint else {
                     continue;
                 };
-                assign_type_reference_argument_symbols_with_constraints(
+                assign_type_arguments_with_definitions(
                     symbols,
                     child_type_references,
                     type_constraints,
                     local_type_parameters,
                     domain.arguments,
+                    definition_references,
                 );
             }
         }
@@ -796,6 +820,7 @@ fn assign_type_reference_symbol_with_context(
                 type_constraints,
                 local_type_parameters,
                 fixed_array.element_type,
+                definition_references,
             );
             if let FixedArrayLength::Expression(value) = fixed_array.length {
                 assign_type_reference_handle_symbol_with_context(
@@ -804,11 +829,17 @@ fn assign_type_reference_symbol_with_context(
                     type_constraints,
                     local_type_parameters,
                     value,
+                    definition_references,
                 );
             }
+            let from_definition = matches!(&fixed_array.length, symbol_resolved_trees::types::FixedArrayLength::ConstParameter { name, .. } if definition_references.contains(&name.source_span()));
             assign_fixed_array_length_symbol(
                 symbols,
-                local_type_parameters,
+                if from_definition {
+                    &[]
+                } else {
+                    local_type_parameters
+                },
                 &mut fixed_array.length,
             );
         }
@@ -819,18 +850,24 @@ fn assign_type_reference_symbol_with_context(
                 type_constraints,
                 local_type_parameters,
                 slice.element_type,
+                definition_references,
             );
         }
         TypeReference::Generic(generic) => {
             generic.base_symbol =
-                resolve_type_symbol(symbols, local_type_parameters, &generic.base_name);
+                if definition_references.contains(&generic.base_name.source_span()) {
+                    top_level_type_symbol_for_source(symbols, &generic.base_name)
+                } else {
+                    resolve_type_symbol(symbols, local_type_parameters, &generic.base_name)
+                };
 
-            assign_type_reference_argument_symbols_with_constraints(
+            assign_type_arguments_with_definitions(
                 symbols,
                 child_type_references,
                 type_constraints,
                 local_type_parameters,
                 generic.arguments,
+                definition_references,
             );
         }
         // PDI3 index expressions retain their lexical binder spellings here;
@@ -848,16 +885,46 @@ fn assign_type_reference_symbol_with_context(
                 SymbolKind::Trait,
                 name,
             );
-            assign_type_reference_argument_symbols_with_constraints(
+            assign_type_arguments_with_definitions(
                 symbols,
                 child_type_references,
                 type_constraints,
                 local_type_parameters,
                 *arguments,
+                definition_references,
             );
         }
-        TypeReference::Named { symbol, name, .. } => {
-            *symbol = resolve_type_symbol(symbols, local_type_parameters, name);
+        symbol_resolved_trees::types::TypeReference::Named { symbol, name, .. } => {
+            *symbol = if definition_references.contains(&name.source_span()) {
+                top_level_type_symbol_for_source(symbols, name)
+            } else {
+                resolve_type_symbol(symbols, local_type_parameters, name)
+            };
+        }
+        symbol_resolved_trees::types::TypeReference::AliasUse {
+            expansion,
+            application,
+            definition_references: own_references,
+            ..
+        } => {
+            assign_type_reference_with_definitions(
+                symbols,
+                child_type_references,
+                type_constraints,
+                local_type_parameters,
+                application,
+                definition_references,
+            );
+            let mut references = definition_references.to_vec();
+            references.extend_from_slice(own_references);
+            assign_type_reference_with_definitions(
+                symbols,
+                child_type_references,
+                type_constraints,
+                local_type_parameters,
+                expansion,
+                &references,
+            );
         }
         TypeReference::Unit => {}
     }
@@ -919,20 +986,42 @@ fn assign_type_parameter_constraint_symbols(
 
 fn assign_type_reference_handle_symbol_with_context(
     symbols: &SymbolTable,
-    child_type_references: &mut Arena<TypeReference>,
-    type_constraints: &Arena<TypeConstraint>,
-    local_type_parameters: &[TypeParameter],
-    handle: Handle<TypeReference>,
+    child_type_references: &mut Arena<symbol_resolved_trees::types::TypeReference>,
+    type_constraints: &Arena<symbol_resolved_trees::types::TypeConstraint>,
+    local_type_parameters: &[symbol_resolved_trees::data::TypeParameter],
+    handle: Handle<symbol_resolved_trees::types::TypeReference>,
+    definition_references: &[source::SourceSpan],
 ) {
-    let mut type_reference = take(child_type_references.get_mut(handle));
-    assign_type_reference_symbol_with_context(
+    let mut type_reference = std::mem::take(child_type_references.get_mut(handle));
+    assign_type_reference_with_definitions(
         symbols,
         child_type_references,
         type_constraints,
         local_type_parameters,
         &mut type_reference,
+        definition_references,
     );
     *child_type_references.get_mut(handle) = type_reference;
+}
+
+fn assign_type_arguments_with_definitions(
+    symbols: &SymbolTable,
+    child_type_references: &mut Arena<symbol_resolved_trees::types::TypeReference>,
+    type_constraints: &Arena<symbol_resolved_trees::types::TypeConstraint>,
+    local_type_parameters: &[symbol_resolved_trees::data::TypeParameter],
+    arguments: HandleSpan<symbol_resolved_trees::types::TypeReference>,
+    definition_references: &[source::SourceSpan],
+) {
+    for handle in arguments.handles() {
+        assign_type_reference_handle_symbol_with_context(
+            symbols,
+            child_type_references,
+            type_constraints,
+            local_type_parameters,
+            handle,
+            definition_references,
+        );
+    }
 }
 
 pub(in crate::symbols) fn assign_type_reference_argument_symbols_with_constraints(

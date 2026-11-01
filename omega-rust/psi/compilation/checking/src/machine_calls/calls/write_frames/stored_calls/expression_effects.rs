@@ -632,6 +632,9 @@ impl Evaluation<'_, '_> {
                     for pattern in
                         expression_table(self.program).match_pattern_operands(arm.pattern)
                     {
+                        if self.program.static_type_context_is_unreachable(pattern) {
+                            continue;
+                        }
                         self.expression(
                             pattern,
                             &mut prefix_context,
@@ -641,6 +644,12 @@ impl Evaluation<'_, '_> {
                             capture,
                             None,
                         )?;
+                    }
+                    // A reached guard can still write before rejecting this
+                    // arm. Keep that prefix, but publish no selected-body
+                    // descriptor generation when the body has no arrival.
+                    if self.program.static_type_context_is_unreachable(arm.value) {
+                        continue;
                     }
                     let prefix_calls = capture.current_call_context;
                     let mut branch_context = prefix_context.clone();
@@ -714,6 +723,20 @@ impl Evaluation<'_, '_> {
                         capture,
                         None,
                     )?;
+                }
+                // The completed pure left operand owns whether the right
+                // operand executes. Use the same decision as flow and loan
+                // occurrence collection; an impossible guard has no invocation
+                // or descriptor generation to publish.
+                if matches!(
+                    (
+                        binary.operator,
+                        self.program.static_boolean_value(binary.left)
+                    ),
+                    (BinaryOperator::And, Some(false)) | (BinaryOperator::Or, Some(true))
+                ) {
+                    capture_completed(expression, prefix, effects, capture);
+                    return Some(());
                 }
                 let branch_prefix = capture_prefix(prefix, effects, capture);
                 let skipped_calls = capture.current_call_context;

@@ -47,22 +47,22 @@ linux_arm64 boundary machine ByteImports::write(descriptor: i32, value: &u8, cou
 
 data Main { encoded: LayoutStorage<NarrowByte, SignedByte>; }
 
-machine read(value: &u8) -> u8 { value }
+machine read_byte(value: &u8) -> u8 { value }
 machine identity(value: &u8) -> &u8 { value }
-machine write(value: &mut u8) { value = 255u8; }
+machine write_byte(value: &mut u8) { value = 255u8; }
 
 machine Main::main(main: &mut Main) reaches ByteOutput crashes Trap {
     main.encoded.value = -9i64;
     let view: &mut ByteView = &mut main.encoded as &mut ByteView;
-    let before: u8 = read(&view.value);
-    write(&mut view.value);
+    let before: u8 = read_byte(&view.value);
+    write_byte(&mut view.value);
     let returned: &u8 = identity(&view.value);
-    let after: u8 = read(returned);
+    let after: u8 = read_byte(returned);
     view.value = 65u8;
     let written: i64 = ByteOutput::write(1, &view.value, 1);
     view.value = 10u8;
     let newline: i64 = ByteOutput::write(1, &view.value, 1);
-    write(&mut view.value);
+    write_byte(&mut view.value);
     let empty: i64 = ByteOutput::write(1, &view.value, 0);
     transition written == 1 && newline == 1 && empty == 0 && before == 247u8 && after == 255u8 && main.encoded.value == -1i64 {
         true -> done()

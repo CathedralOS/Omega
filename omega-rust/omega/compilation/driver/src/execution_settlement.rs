@@ -29,6 +29,7 @@ fn one_refusal<T>(refused: Result<T, Diagnostic>) -> Result<T, Vec<Diagnostic>> 
 /// installation phase reopens source or fills in this result. Source-only
 /// consumers request their checked-instance projection at their own boundary.
 pub(crate) struct SelectedProviderCustody {
+    pub(crate) terminal_publication: Arc<compilation_products::ProductTerminalPublication>,
     pub(crate) source_completion_accounting: build_time_evaluation::SourceCompletionAccounting,
     pub(crate) execution: SelectedExecution,
     pub(crate) settlement: provider_planning::ProviderSettlement,
@@ -332,6 +333,7 @@ fn select_checked_providers(
     source: &CheckedProductSource,
     selected_target_profile: Option<target::TargetProfile>,
     package_inputs: Option<&PackageCompilationInputs>,
+    timings: &mut CompileTimings,
 ) -> Result<(SelectedExecution, provider_planning::ProviderSettlement), Vec<Diagnostic>> {
     let typed = &source.program.typed;
     let build_config = &source.computed_build_config.config;
@@ -352,7 +354,12 @@ fn select_checked_providers(
         settlement: providers,
         selected_provider_plan_facts,
         selected_provider_provenance,
-    } = prepare_target_provider_selection(source, selected_target_profile, package_inputs)?;
+    } = prepare_target_provider_selection(
+        source,
+        selected_target_profile,
+        package_inputs,
+        timings,
+    )?;
     let mut selected_program_entry = entry?
         .map(|entry| {
             entry.settle_calling_plans(
@@ -377,7 +384,6 @@ fn select_checked_providers(
         providers.prepare_row_declarations(typed, source.sources.exact_toolchain_sources())?;
     let execution = prepare_selected_execution(
         Arc::clone(&source.program),
-        source.accepted_template_classifications.clone(),
         ProviderBindingRequest {
             provider_inventory: &source.provider_inventory,
             external_declarations: source.external_declarations.as_ref(),
@@ -405,17 +411,22 @@ fn prepare_target_provider_selection(
     source: &CheckedProductSource,
     selected_target_profile: Option<target::TargetProfile>,
     package_inputs: Option<&PackageCompilationInputs>,
+    timings: &mut CompileTimings,
 ) -> Result<provider_planning::CheckedProviderSelection, Vec<Diagnostic>> {
-    let typed = &source.program.typed;
     let build_config = &source.computed_build_config.config;
-    let mut boundary_calling_plan_realizations =
-        provider_planning::calling_policy_plans::compute_boundary_calling_plans(
-            &source.program,
-            one_refusal(source.provider_inventory.services_for(&source.program))?,
-            selected_target_profile.unwrap_or_else(target::TargetProfile::host),
-            &build_config.opaque_representation_selections,
-            package_inputs,
-        )?;
+    let calling = provider_planning::calling_policy_plans::prepare_boundary_calling_plans(
+        &source.program,
+        one_refusal(source.provider_inventory.services_for(&source.program))?,
+        selected_target_profile.unwrap_or_else(target::TargetProfile::host),
+        &build_config.opaque_representation_selections,
+        package_inputs,
+    )?;
+    let code = if calling.is_empty() {
+        None
+    } else {
+        crate::terminal::retain_calling_policy_code(source, timings)?
+    };
+    let mut boundary_calling_plan_realizations = calling.evaluate(code.as_deref())?;
     // Provider schemas and provenance commit to the complete calling
     // application. Close target callback geometry before either captures it;
     // otherwise nominal placements retain no private materialization and a
@@ -423,11 +434,11 @@ fn prepare_target_provider_selection(
     // This consumes the shared source judgment, never another Psi check.
     if let Some(profile) = selected_target_profile {
         provider_planning::calling_policy_plans::close_outbound_callback_materializations(
-            typed,
+            &source.program,
             &mut boundary_calling_plan_realizations,
             profile,
             &build_config.opaque_representation_selections,
-            package_inputs,
+            code.as_deref(),
         )?;
     }
     let settled_target_machines = provider_planning::target_machines::settle_provider_defaults(
@@ -461,8 +472,8 @@ pub(crate) fn select_product_providers(
     package_inputs: Option<&PackageCompilationInputs>,
 ) -> Result<SelectedProviderCustody, Vec<Diagnostic>> {
     let mut timings = source.timings.clone();
-    let selection = timed(&mut timings, EXECUTION_SETTLEMENT, |_| {
-        select_checked_providers(source, selected_target_profile, package_inputs)
+    let selection = timed(&mut timings, EXECUTION_SETTLEMENT, |timings| {
+        select_checked_providers(source, selected_target_profile, package_inputs, timings)
     });
     let selection = selection.map_err(|mut diagnostics| {
         if let Some(sources) = source.program.typed.symbols.source_map().as_deref() {
@@ -472,6 +483,7 @@ pub(crate) fn select_product_providers(
     })?;
     let (execution, settlement) = selection;
     Ok(SelectedProviderCustody {
+        terminal_publication: Arc::clone(&source.terminal_publication),
         source_completion_accounting: source.source_completion_accounting.clone(),
         execution,
         settlement,
@@ -492,6 +504,7 @@ fn checked_compilation(
     independent_components: Result<Vec<compilation_products::SelectedIndependentComponent>, String>,
 ) -> CheckedCompilation {
     let SelectedProviderCustody {
+        terminal_publication,
         source_completion_accounting,
         execution,
         settlement,
@@ -514,6 +527,7 @@ fn checked_compilation(
         },
         sources,
         timings,
+        terminal_publication,
     )
     .with_source_completion_accounting(source_completion_accounting)
     .with_settled_checks(retained_checks)

@@ -325,14 +325,14 @@ fn expression_evaluates_effects(
         if !program.expression_table.expression_is_valid(expression) {
             return true;
         }
-        match program.expression_table.expression(expression) {
-            ExpressionNode::Call(_) | ExpressionNode::Atomic(_) => return true,
-            ExpressionNode::Match(dispatch) => {
-                crate::facts::push_match_children(program, dispatch, &mut pending)
-            }
-            ExpressionNode::Borrow(borrow) => pending.push(borrow.target),
-            _ => crate::facts::push_expression_children(program, expression, &mut pending),
+        let node = program.expression_table.expression(expression);
+        if matches!(node, ExpressionNode::Call(_) | ExpressionNode::Atomic(_)) {
+            return true;
         }
+        program.subtree_children(node, typed_trees::SubtreeEdges::VALUES, |child| {
+            pending.push(child);
+            false
+        });
     }
     false
 }

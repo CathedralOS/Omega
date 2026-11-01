@@ -35,10 +35,9 @@
 
 mod exploration;
 mod implication;
-pub(crate) mod integer_sets;
 
+pub(crate) use super::arithmetic_domains::IntegerSet;
 use exploration::{Binding, ValueShape, integer_carrier, value_shape};
-pub(crate) use integer_sets::IntegerSet;
 use typed_trees::data::{DataDefinition, DataField, DataMember};
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -348,11 +347,20 @@ pub fn predicate_ordering_consequences(
     let Some(application) = predicate_call(program, call_expression) else {
         return Vec::new();
     };
-    let mut consequences = implication::ordering_consequences(program, &application);
+    application_ordering_consequences(program, &application)
+}
+
+/// Consequences of one independently available positive predicate occurrence.
+/// The consumer binds these inert recipes to that occurrence's captured actuals.
+pub(crate) fn application_ordering_consequences(
+    program: &dyn crate::CheckingInput,
+    application: &PredicateApplication<'_>,
+) -> Vec<PredicateOrderingConsequence> {
+    let mut consequences = implication::ordering_consequences(program, application);
     // Scalar hulls are necessary consequences, never equivalent replacements
     // of the predicate. The exact public-envelope judgment below additionally
     // checks its converse over the complete Cartesian product.
-    if let Some(intervals) = interval_consequences(program, &application) {
+    if let Some(intervals) = interval_consequences(program, application) {
         for interval in intervals.into_iter().filter(|row| !row.extent) {
             for (bound, operator) in [
                 (interval.low, BinaryOperator::GreaterOrEqual),
@@ -372,16 +380,71 @@ pub fn predicate_ordering_consequences(
     consequences
 }
 
-/// One interval observation of an exact actual argument. Consumers separately
-/// establish whether it is a consequence or a complete public envelope.
-/// Descriptor extents describe metadata only, never collection contents.
-#[derive(Debug, Clone)]
-pub struct PredicateInterval {
-    pub argument: ExpressionHandle,
-    pub extent: bool,
-    pub low: i128,
-    pub high: i128,
+/// Fixed-array element hulls on every successful predicate return. These
+/// are necessary consequences only; neither exact replacement nor arbitrary
+/// descriptor contents follow from them. The existing explorer supplies each
+/// element's bounds under the complete declared carriers.
+pub(crate) fn argument_element_consequences(
+    program: &dyn crate::CheckingInput,
+    application: &PredicateApplication<'_>,
+) -> Vec<PredicateOrderingConsequence> {
+    let Some(entry) = program
+        .machine_states(&program.machines()[application.machine])
+        .first()
+    else {
+        return Vec::new();
+    };
+    let Some(knowledge) = program
+        .state_parameters(entry)
+        .iter()
+        .map(|parameter| unknown_knowledge(program, parameter.type_reference))
+        .collect::<Option<Vec<_>>>()
+    else {
+        return Vec::new();
+    };
+    if knowledge.len() != application.arguments.len()
+        || !knowledge
+            .iter()
+            .any(|value| matches!(value, ArgumentKnowledge::Array(_)))
+    {
+        return Vec::new();
+    }
+    let Some(unfolding) = unfold(program, application.machine, &knowledge) else {
+        return Vec::new();
+    };
+    let mut consequences = Vec::new();
+    for (position, (argument, knowledge)) in
+        application.arguments.iter().zip(&knowledge).enumerate()
+    {
+        let ArgumentKnowledge::Array(_) = knowledge else {
+            continue;
+        };
+        let Some(elements) = unfolding.when_true(position) else {
+            continue;
+        };
+        for (index, element) in elements.iter().enumerate() {
+            let Some((low, high)) = element.bounds() else {
+                continue;
+            };
+            for (bound, operator) in [
+                (low, BinaryOperator::GreaterOrEqual),
+                (high, BinaryOperator::LessOrEqual),
+            ] {
+                consequences.push(PredicateOrderingConsequence {
+                    left: PredicateIntegerOperand::Argument(PredicateIntegerSubject {
+                        expression: *argument,
+                        projection: vec![facts::PlaceSegment::FixedIndex { index }],
+                    }),
+                    right: PredicateIntegerOperand::Integer(bound),
+                    operator,
+                });
+            }
+        }
+    }
+    consequences
 }
+
+pub use super::arithmetic_domains::PredicateInterval;
 
 /// Describe an admitted application using the existing explorer, in both
 /// directions. True outcomes imply these hulls; re-exploration of their full
@@ -756,8 +819,8 @@ pub(crate) fn standing_field_elements(
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum ConsequenceShape {
     /// One inclusive interval per element of a fixed integer array.
-    Array(Vec<(i128, i128)>),
-    Integer((i128, i128)),
+    Array(Vec<IntegerSet>),
+    Integer(IntegerSet),
 }
 
 /// The consequence one data fact grants one of its argument fields.
@@ -817,29 +880,22 @@ pub(crate) fn data_fact_element_consequences(
     for (field, elements, is_array) in &consequences {
         let intervals = elements
             .iter()
-            .map(IntegerSet::bounds)
+            .map(IntegerSet::interval_hull)
             .collect::<Option<Vec<_>>>()?;
         rows.push(FieldConsequence {
             field: *field,
             elements: if *is_array {
                 ConsequenceShape::Array(intervals)
             } else {
-                ConsequenceShape::Integer(*intervals.first()?)
+                ConsequenceShape::Integer(intervals.first()?.clone())
             },
         });
     }
     let exact = data_fact_decided(program, definition, fact, &mut |field| {
         let row = rows.iter().find(|row| row.field == field.symbol)?;
         Some(match &row.elements {
-            ConsequenceShape::Array(intervals) => ArgumentKnowledge::Array(
-                intervals
-                    .iter()
-                    .map(|(low, high)| IntegerSet::range(*low, *high))
-                    .collect(),
-            ),
-            ConsequenceShape::Integer((low, high)) => {
-                ArgumentKnowledge::Integer(IntegerSet::range(*low, *high))
-            }
+            ConsequenceShape::Array(intervals) => ArgumentKnowledge::Array(intervals.clone()),
+            ConsequenceShape::Integer(interval) => ArgumentKnowledge::Integer(interval.clone()),
         })
     }) == Some(true);
     Some(FactConsequence {

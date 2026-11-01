@@ -236,7 +236,9 @@ fn construction_predicate_subject(
     Ok(Some(StateParameter {
         symbol,
         name: "self".into(),
-        type_reference: application.predicate_subject_type,
+        type_reference: crate::value_custody::struct_literals::construction_application(
+            program, expression,
+        ),
         ..Default::default()
     }))
 }
@@ -301,6 +303,7 @@ impl ConstructionPredicates<'_> {
             program,
             self.expression,
         );
+        let type_bindings = judge.data_application_type_bindings(reference);
         for (parameter, value) in judge.data_application_static_bindings(reference) {
             bindings.push((parameter.name.to_string(), value));
             parameters.push(parameter);
@@ -374,7 +377,7 @@ impl ConstructionPredicates<'_> {
         self.predicates
             .iter()
             .map(|&predicate| {
-                instantiated_selected_fact_judgment(
+                let judgment = instantiated_selected_fact_judgment(
                     program,
                     judge,
                     self.literal.type_symbol,
@@ -382,9 +385,18 @@ impl ConstructionPredicates<'_> {
                     predicate,
                     &bindings,
                     &[],
-                    &[],
+                    &type_bindings,
                     Some((machine, state)),
-                )
+                );
+                if super::struct_trace() {
+                    eprintln!(
+                        "STRUCT construction-predicate machine={} expression={:?} predicate={} bindings={bindings:?} judgment={judgment:?}",
+                        machine.name,
+                        self.expression,
+                        expression_table(program).display_name(predicate),
+                    );
+                }
+                judgment
             })
             .collect()
     }

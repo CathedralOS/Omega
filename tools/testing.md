@@ -41,8 +41,8 @@ An unverified base alone does not force a routine task to establish a full basel
 
 Attribute unexpected failures with a focused baseline comparison or dependency
 and source-reader evidence. For corpus movement the comparison is
-`python3 tools/corpus_gate.py --compare <parent> --filter <groups the change can
-move>`; a diff against the checked-in golden mixes this change with other
+`python3 tools/corpus_gate.py --compare <parent> --filter <the fixtures that
+moved>`; a diff against the checked-in golden mixes this change with other
 lanes' drift and cannot attribute either. Confirmed unrelated failures do not block landing a
 scoped change: retain the command, revision, and evidence, and report them without
 repairing them in the same task. New or unexplained failures in affected behavior
@@ -409,14 +409,17 @@ means observable behavior moved; `--record` re-pins the golden when the
 movement is intended.
 
 ```bash
-python3 tools/corpus_gate.py --filter termination   # one domain in the loop
-python3 tools/corpus_gate.py --filter wire/,fail/proofs
+python3 tools/corpus_gate.py --filter facts/saved_observation_snapshot   # one fact: 105 fixtures
+python3 tools/corpus_gate.py --filter fail/contracts/scalar_copy_guard  # one behavior
 python3 tools/corpus_gate.py --record             # re-pin the golden
 ```
 
 An unfiltered run covers every fixture and takes a long time. It is a manual
-trigger: only the user starts it, never an agent. Agents always pass
-`--filter` with the domains their change can move.
+trigger: only the user starts it, never an agent. Agents filter to the
+fixtures their change can move, named by fact or behavior, and count the
+selection before running it. A whole domain is a sweep: `facts/` selects
+nearly 14,000 fixtures and `fail/` about 11,000. See
+[validate with witnesses](../AGENTS.md#commands).
 
 `--runner PATH` may reuse an immutable compiler built in another checkout.
 The gate supplies `OMEGA_CORPUS_ROOT` so fixture sources, oracles and discovery
@@ -681,6 +684,17 @@ restamps `millis` on every row it touches, so after a filtered re-record,
 restore the previous timing on any row whose status, expected-fragment
 verdict, facts and diagnostics are unchanged; otherwise a four-row movement
 lands as a forty-row diff in a file every lane edits.
+
+The same user cache retains checked source graphs, and environment-gated
+traces and knockout switches are not part of the compiler identity that keys
+them. On a warm cache, the same binary replays its earlier judgment, so a
+trace prints nothing and a knockout reports the verdict recorded without it.
+Give each run that relies on such a switch an empty `HOME` (`LOCALAPPDATA` on
+Windows, `XDG_CACHE_HOME` on Linux). Different builds never share records:
+`omega-rust/omega/compilation/driver/build.rs` digests every `.rs`, `.toml`
+and `.omg` file under `omega-rust/` and `source/library/`, the workspace Cargo
+files, `rustc -vV` and the profile and flags. The selected library's content
+joins that digest, which names each record and is checked again in its header.
 
 **A full run can exceed the harness background cap, and the way through is
 slices, not detaching.** At six concurrent sessions on a 10-cpu host a full

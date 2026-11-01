@@ -1,25 +1,52 @@
 // Fact: querying size_of and align_of on a four-element u64 fixed-size array ([u64; 4]) establishes its exact layout geometry (size == 32u64 and align == 8u64), discharging exact subtraction size - (align * 4u64) across all nine places.
-// Invalid: querying narrower array [u64; 3] (size == 24u64, align == 8u64), so target-scoped compute_geometry() underflows u64.
+// Invalid: querying narrower array [u64; 3] (size == 24u64, align == 8u64), so target-scoped SelectedComputeGeometry::compute_geometry() underflows u64.
 // Expected exit: 0
 
-linux_x86_64 machine compute_geometry() -> u64 {
-    size_of<[u64; 3]>() - (align_of<[u64; 3]>() * 4u64)
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_arm64 machine compute_geometry() -> u64 {
-    size_of<[u64; 3]>() - (align_of<[u64; 3]>() * 4u64)
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-macos_arm64 machine compute_geometry() -> u64 {
-    size_of<[u64; 3]>() - (align_of<[u64; 3]>() * 4u64)
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-windows_x86_64 machine compute_geometry() -> u64 {
-    size_of<[u64; 3]>() - (align_of<[u64; 3]>() * 4u64)
+boundary trait SelectedComputeGeometry {
+    machine compute_geometry() -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
+}
+
+X86ComputeGeometry satisfies SelectedComputeGeometry {
+    machine compute_geometry() -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        size_of<[u64; 3]>() - (align_of<[u64; 3]>() * 4u64)
+    }
+}
+
+ArmComputeGeometry satisfies SelectedComputeGeometry {
+    machine compute_geometry() -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        size_of<[u64; 3]>() - (align_of<[u64; 3]>() * 4u64)
+    }
 }
 
 machine probe() -> u64 {
-    compute_geometry()
+    SelectedComputeGeometry::compute_geometry()
 }
 
 machine main() crashes Trap {
@@ -30,4 +57,12 @@ machine main() crashes Trap {
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

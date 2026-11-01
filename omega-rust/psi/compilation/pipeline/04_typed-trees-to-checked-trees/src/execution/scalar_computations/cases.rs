@@ -129,7 +129,12 @@ impl Builder<'_, '_> {
                 // Keep storage identity until the receiver resolves its roster.
                 source,
                 path,
-                type_identity: self.program.normalized_type_identity(projected).to_owned(),
+                type_identity: validation::stored_structural_type_identity(
+                    self.program,
+                    projected,
+                    &[],
+                    &[],
+                ),
                 access: checked_trees::CheckedStructuralAccess::SharedBorrow,
             },
         ))

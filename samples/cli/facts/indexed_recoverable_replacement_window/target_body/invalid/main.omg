@@ -24,46 +24,76 @@ machine recover(outcome: Outcome) -> Token {
     }
 }
 machine observe(sibling: &mut u64) -> u64 { sibling = 19; sibling }
-linux_x86_64 machine repair(holder: &mut Holder, succeed: bool) {
-    let alias: &mut Token = &mut holder.tokens[first_slot()];
-    let first: Outcome = attempt(alias, succeed, observe(&mut holder.sibling));
-    alias = recover(first);
-    let detached: Token = alias;
-    let second: Outcome = attempt(detached, succeed, observe(&mut holder.sibling));
-    holder.tokens[1] = recover(second);
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
-linux_arm64 machine repair(holder: &mut Holder, succeed: bool) {
-    let alias: &mut Token = &mut holder.tokens[first_slot()];
-    let first: Outcome = attempt(alias, succeed, observe(&mut holder.sibling));
-    alias = recover(first);
-    let detached: Token = alias;
-    let second: Outcome = attempt(detached, succeed, observe(&mut holder.sibling));
-    holder.tokens[1] = recover(second);
+
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
-macos_arm64 machine repair(holder: &mut Holder, succeed: bool) {
-    let alias: &mut Token = &mut holder.tokens[first_slot()];
-    let first: Outcome = attempt(alias, succeed, observe(&mut holder.sibling));
-    alias = recover(first);
-    let detached: Token = alias;
-    let second: Outcome = attempt(detached, succeed, observe(&mut holder.sibling));
-    holder.tokens[1] = recover(second);
+
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
-windows_x86_64 machine repair(holder: &mut Holder, succeed: bool) {
-    let alias: &mut Token = &mut holder.tokens[first_slot()];
-    let first: Outcome = attempt(alias, succeed, observe(&mut holder.sibling));
-    alias = recover(first);
-    let detached: Token = alias;
-    let second: Outcome = attempt(detached, succeed, observe(&mut holder.sibling));
-    holder.tokens[1] = recover(second);
+
+boundary trait SelectedRepair {
+    machine repair(holder: &mut Holder, succeed: bool)
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
 }
+
+X86Repair satisfies SelectedRepair {
+    machine repair(holder: &mut Holder, succeed: bool)
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let alias: &mut Token = &mut holder.tokens[first_slot()];
+        let first: Outcome = attempt(alias, succeed, observe(&mut holder.sibling));
+        alias = recover(first);
+        let detached: Token = alias;
+        let second: Outcome = attempt(detached, succeed, observe(&mut holder.sibling));
+        holder.tokens[1] = recover(second);
+    }
+}
+
+ArmRepair satisfies SelectedRepair {
+    machine repair(holder: &mut Holder, succeed: bool)
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let alias: &mut Token = &mut holder.tokens[first_slot()];
+        let first: Outcome = attempt(alias, succeed, observe(&mut holder.sibling));
+        alias = recover(first);
+        let detached: Token = alias;
+        let second: Outcome = attempt(detached, succeed, observe(&mut holder.sibling));
+        holder.tokens[1] = recover(second);
+    }
+}
+
+
 machine main() crashes Trap {
     let mut holder: Holder = Holder { tokens: [Token { value: 42 }, Token { value: 7 }], sibling: 7 };
-    repair(&mut holder, false);
-    repair(&mut holder, true);
+    SelectedRepair::repair(&mut holder, false);
+    SelectedRepair::repair(&mut holder, true);
     let correct: bool = holder.tokens[first_slot()].value == 44 && holder.sibling == 19 && holder.tokens[1].value == 7;
     drop(holder.tokens[first_slot()]);
     drop(holder.tokens[1]);
     transition correct { true -> done() _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

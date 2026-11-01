@@ -182,10 +182,22 @@ publication entrance. Terminal cohorts retain each admitted application beside
 its exact entry, callback roots and exclusion policy. Source-sharing comparisons
 use those requests directly; only caller order is restored after cohort work,
 without parallel entry tables or empty outcome slots.
-Composition admission runs once per application, before optimization. Psi lends
-an ordered, lazily projected stream of canonical entry, callback and physical
-adapter roots; Omega prepares the exclusion/provider context once and judges
-each root separately. Root-specific attribution and first-refusal precedence
+The [multi-target observation fixture](omega/compilation/driver/tests/README.md#shared-multi-target-pipeline-observations)
+records actual native coordinator invocations by exact target profile. Each
+application retains entry counts for Omega 00–09 and fragment/image emission
+attempts, including the entered prefix of a failed invocation. Independently
+admitted callable bodies remain separate observed units. Collection uses the
+existing optional phase profiler and supplies no semantic or admission input.
+The fixture also checks shared Terminal allocation, single-target byte equality,
+and native/reloaded-Terminal execution. Its source/Build/publication counters
+remain coarse observations; full numbered source/Psi invocation acceptance is
+still open.
+Composition admission runs once per application, after canonical publication.
+Psi projects ordered entry, callback and physical-adapter roots with deferred
+source diagnostics, and retains their pre-optimization semantic operations in
+Terminal. Omega prepares the exclusion/provider context once and judges each
+root's selected semantic closure, without calling product policy from Psi or
+depending on optional optimization. Root-specific attribution and first-refusal precedence
 survive, including missing-body checks when no authored service exclusion
 resolves. This does not remove source-side callback selection or replace its
 complete dormant-declaration checks with emitted-call reachability.
@@ -336,8 +348,14 @@ authored policy evaluation retains the complete checked-input census, including
 Build copies. Omega consumes those records instead of rewalking signatures.
 Projection refusals remain deferred until an ABI request, and runtime type
 recipes still materialize one parameter at a time. These telescopes and their
-separate source correspondence are invocation-owned; publishing the complete
-signature/contract set canonically in Terminal is still required.
+separate source correspondence originate in the invocation-owned catalog.
+Canonical Terminal now retains the emitted boundaries' calling telescopes;
+native callback placement reads those exact declaration rows, including
+native-only function-pointer arguments, instead of taking their identity and
+order from the source-prepared ABI application. The proposed application must
+agree with that retained telescope. Runtime value recipes, opaque selection,
+and private inline-slot layout closure still need migration before the complete
+signature/contract set can be prepared after source release.
 
 Psi's same immutable catalog also retains the complete explicit calling-policy
 application census: the owning vocabulary, concrete boundary arguments, exact
@@ -345,7 +363,13 @@ named-map capture, inherited signature order and simultaneous type bindings.
 Requests and their refusal results remain in source order. Omega follows these
 arena-backed associations rather than traversing trait requirements or rebuilding
 application scopes for every target. It still selects each deployment's policy
-body and evaluates the policy. Publishing these applications and their closed
+body and admits its compiler-run closure. The compiler publishes one immutable
+policy-code dependency through ordinary Psi production per checked source;
+target children share it. Initial policy activation and callback-geometry
+reevaluation both execute that catalog in Terminal, with finite Terminal fuel
+and metered storage/results, not the checked-source interpreter. This dependency
+is distinct from the final Product artifact: it does not yet make Product
+provider settlement Terminal-only. Publishing these applications and their closed
 storage/contract inputs in Terminal, rather than retaining source coordinates,
 remains the next connected migration.
 
@@ -1114,7 +1138,10 @@ equality rejoins the projection's clone; report hashes or source pointers cannot
 replace it. Missing preparation refuses a nonempty use roster, while a completed
 empty selection remains valid. Registration failures
 suppress only that occurrence's plan diagnostics. Selected roots borrow the same
-identity table in occurrence order. The application carries exact declarations,
+identity table in occurrence order. Terminal Psi owns the prepared root records
+and their exact retained-body join; its constructor refuses invocation-local
+declaration owners before those records cross into Omega. Psi projects the
+requests and diagnostic associations. The application carries exact declarations,
 not callback source symbols. Composition rejoins each complete
 owner/signature/contract/specialization to exactly one unoptimized body, lazily
 after the semantic entry and before the physical adapter. Unavailable declarations
@@ -1136,7 +1163,7 @@ demand and selected rows independently. Reference preparation never copies or
 mutates checked Psi; Build's required comparison preparation remains separate.
 Matching source-owner/entry/Psi-optimization requests share one Terminal
 production and backing allocation, including in retained native images. Each
-target independently admits the unoptimized composition and retains its own
+target independently admits the retained pre-optimization composition and retains its own
 entry receipt and native proposal. Distinct roots and callbacks are retained
 in that same whole-program Terminal roster.
 These remain checked-tree realization seams with package-input custody;
@@ -1184,10 +1211,15 @@ backend entry plans and image emission consume the completed signature. The
 initial source-aware selection and planning remain migration work.
 
 [`omega/compilation/realization/trust-model/`](omega/compilation/realization/trust-model/README.md)
-owns trust obligation reconstruction and admission, consuming source
-judgments and selected-provider evidence. The CLI supplies policy admissions;
-the compiler sequences admission. Its checked-tree input remains a transitional
-boundary. Host file writing and timing have no dependency on these semantics.
+owns trust obligation reconstruction and admission over source-free Psi
+declarations and selected-provider evidence. Psi's immutable provider inventory
+publishes every eligible accepted-machine declaration with exact template and
+contract commitments; absent or duplicate evidence remains deferred until the
+corresponding grant needs it. Package admission and final reconstruction borrow
+that same roster. The workspace dependency guard rejects typed/checked source
+reachability from this owner. The roster remains invocation-owned; complete
+canonical publication and source-discard replay are still required. Host file
+writing and timing have no dependency on these semantics.
 
 `omega/packages/package-manager/` owns package operations. Independent
 `source-acquisition`, `resolver-execution`, and `review-evidence` crates are
@@ -1468,9 +1500,10 @@ names (Psi's `semantic-vocabulary` and `flow-effects`, for example).
   Representation data and candidate production remain independent of checking.
 - Psi `compilation/driver/terminal-production/` — sequences stages 05–07 through
   publication. Omega consumers supply product policy and reporting directly;
-  they do not assemble the stages or wrap this production entrance. Exclusion admission
-  borrows the unoptimized Terminal composition inside that sequence, without
-  exporting or cloning its checked-source lowering.
+  they do not assemble the stages or wrap this production entrance. Psi returns
+  ordered composition roots and diagnostic payloads as data. Omega checks
+  exclusions after publication against retained pre-optimization semantic
+  operations, without exporting or cloning checked-source lowering.
 - Psi `compilation/compile-time/` — evaluation admission and result elaboration.
 - Psi `interpreter/` — checked and Terminal execution engines.
 - `compiler/` — compilation coordination.

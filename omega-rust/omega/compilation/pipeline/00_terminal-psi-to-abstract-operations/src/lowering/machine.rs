@@ -7,26 +7,22 @@ use abstract_operations::{
     AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractParameter,
 };
 use operation::lower_operation;
-use semantic_vocabulary::StructuralPlaceKind;
+use semantic_vocabulary::{StructuralPlaceKind, StructuralTypeId};
 use std::collections::BTreeMap;
-use terminal_psi::TerminalMachine;
+use terminal_psi::{StructuralPlaceDeclaration, StructuralTypeDeclaration, TerminalMachine};
 use terminator::lower_terminator;
 
-type StructuralLiteral<'a> = (
-    &'a terminal_psi::StructuralPlaceDeclaration,
-    u32,
-    semantic_vocabulary::StructuralTypeId,
-);
+type StructuralLiteral<'a> = (&'a StructuralPlaceDeclaration, u32, StructuralTypeId);
 type LoweredAffineLocal = (
     OperationId,
-    terminal_psi::StructuralPlaceDeclaration,
-    terminal_psi::StructuralTypeDeclaration,
+    StructuralPlaceDeclaration,
+    StructuralTypeDeclaration,
 );
 
 pub(super) fn lower_machine(
     module: &terminal_psi::TerminalModule,
     machine: &TerminalMachine,
-    structural_types: &[terminal_psi::StructuralTypeDeclaration],
+    structural_types: &[StructuralTypeDeclaration],
     scalar_applications: Option<&terminal_installation::AdmittedScalarApplications>,
 ) -> Result<AbstractFunction, LoweringError> {
     let result = machine.result.scalar();

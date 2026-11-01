@@ -1,5 +1,6 @@
 use diagnostics::Diagnostic;
 use image_emission::ExecutableImageEmissionRequest;
+use optimization_core::OptimizationWorkBudget;
 use terminal_psi_to_abstract_operations::provider_admission::{
     SourceEvaluatedImportSettlement, TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy,
 };
@@ -8,6 +9,7 @@ use terminal_psi_to_abstract_operations::provider_admission::{
 /// Stage 00 owns admission vocabulary and checks; this request supplies policy
 /// and retains the exact image custody if realization fails.
 pub(crate) struct NativeRealizationRequest<'request> {
+    pub observation: &'request crate::observations::NativePipelineObservation,
     pub proposal: &'request terminal_psi_to_abstract_operations::TerminalNativeRealizationProposal,
     pub execution: &'request terminal_psi_to_abstract_operations::PreparedNativeExecution,
     pub scalar_applications:
@@ -58,10 +60,8 @@ pub(crate) fn native_optimization_budget() -> optimization_core::OptimizationWor
     // transports) needed 1,062,206 against the earlier 1,000,000. Give
     // both traversal counters room without changing candidate/commit
     // limits or bypassing independent replay.
-    optimization_core::OptimizationWorkBudget::new(
-        1_000_000, 100_000, 4_000_000, 100_000, 1_000_000,
-    )
-    .expect("compiler baseline optimizer ceilings are nonzero")
+    OptimizationWorkBudget::new(1_000_000, 100_000, 4_000_000, 100_000, 1_000_000)
+        .expect("compiler baseline optimizer ceilings are nonzero")
 }
 
 /// Explicit policy, image custody and admitted imports for retained re-entry.

@@ -1,0 +1,7 @@
+// Exporting an enclosing machine does not export its private helper.
+use routines;
+machine main() crashes Trap {
+    let seen: u64 = routines::hidden(7);
+    transition seen == 7 { true -> done() false -> bad() }
+    machine done() {} machine bad() crashes Trap { crash Trap; }
+}

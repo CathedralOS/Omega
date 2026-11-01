@@ -56,6 +56,7 @@ use crate::checked_trees::flow::terminal::{
 };
 use crate::checked_trees::values::CheckedProofTerm;
 use crate::{MachineContractCommitment, NominalMachineUseSite};
+use language_core::activation_storage::ActivationStorageOperation;
 use typed_trees::type_identity::TypeIdentityId;
 
 /// The exact machine state a call enters and the service reach of the edge.
@@ -74,7 +75,7 @@ pub enum CheckedUnitCallRoute {
     /// Its source invocation shares operand evaluation and result custody with
     /// calls, but enters no callee frame and demands no provider completion.
     ActivationStorage {
-        operation: language_core::activation_storage::ActivationStorageOperation,
+        operation: ActivationStorageOperation,
         /// Present exactly on establishment; this is a closed byte demand,
         /// never the runtime committed extent or a diagnostic identity.
         bound: Option<u64>,
@@ -226,8 +227,7 @@ impl CheckedUnitCallPlan {
                 ) => contract_commitment.is_some(),
                 (
                     CheckedUnitCallRoute::ActivationStorage {
-                        operation:
-                            language_core::activation_storage::ActivationStorageOperation::Establish,
+                        operation: ActivationStorageOperation::Establish,
                         bound: Some(_),
                     },
                     Result::Structural { .. },
@@ -235,8 +235,7 @@ impl CheckedUnitCallPlan {
                 ) => true,
                 (
                     CheckedUnitCallRoute::ActivationStorage {
-                        operation:
-                            language_core::activation_storage::ActivationStorageOperation::BorrowBytes,
+                        operation: ActivationStorageOperation::BorrowBytes,
                         bound: None,
                     },
                     Result::Structural { .. },
@@ -244,8 +243,7 @@ impl CheckedUnitCallPlan {
                 ) => true,
                 (
                     CheckedUnitCallRoute::ActivationStorage {
-                        operation:
-                            language_core::activation_storage::ActivationStorageOperation::Release,
+                        operation: ActivationStorageOperation::Release,
                         bound: None,
                     },
                     Result::Unit,
@@ -253,8 +251,7 @@ impl CheckedUnitCallPlan {
                 ) => true,
                 (
                     CheckedUnitCallRoute::ActivationStorage {
-                        operation:
-                            language_core::activation_storage::ActivationStorageOperation::Split,
+                        operation: ActivationStorageOperation::Split,
                         bound: Some(_),
                     },
                     Result::Structural { .. },
@@ -262,8 +259,7 @@ impl CheckedUnitCallPlan {
                 ) => true,
                 (
                     CheckedUnitCallRoute::ActivationStorage {
-                        operation:
-                            language_core::activation_storage::ActivationStorageOperation::Merge,
+                        operation: ActivationStorageOperation::Merge,
                         bound: None,
                     },
                     Result::Structural { .. },

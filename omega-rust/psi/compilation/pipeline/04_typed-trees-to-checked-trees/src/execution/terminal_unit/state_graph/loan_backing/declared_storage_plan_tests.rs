@@ -60,14 +60,15 @@ fn declaration_storage_plans_retain_exact_paths_refusals_and_request_scope() {
             symbol: symbols::SymbolHandle::invalid(),
             name: Identifier::from("unprepared"),
         });
-    let plan = DeclaredStoragePlans::new(&program);
-    assert!(plan.owner_paths.borrow().is_empty());
+    let carriers = [array, reference, elements, empty, unknown];
+    let mut plan = DeclaredStoragePlans::new(&program, carriers);
+    assert_eq!(plan.owner_paths.len(), carriers.len());
     // An index match with another generation must never supply this carrier's
     // declaration. Injecting that unrelated association exercises the key
     // without asking the program to read an invalid type handle.
     let other_generation =
         TypeReferenceHandle::from_parts(array.arena_index(), array.generation().wrapping_add(1));
-    plan.owner_paths.borrow_mut().insert(other_generation, None);
+    plan.owner_paths.insert(other_generation, None);
     for carrier in [array, reference, elements, empty, unknown] {
         let original = original_paths(&program, carrier);
         let first = plan.for_carrier(carrier);
@@ -97,17 +98,14 @@ fn declaration_storage_plans_retain_exact_paths_refusals_and_request_scope() {
         ]
     );
     assert!(plan.for_carrier(empty).unwrap().is_empty());
+    assert!(matches!(plan.owner_paths.get(&unknown), Some(None)));
     assert!(matches!(
-        plan.owner_paths.borrow().get(&unknown),
-        Some(None)
-    ));
-    assert!(matches!(
-        plan.owner_paths.borrow().get(&other_generation),
+        plan.owner_paths.get(&other_generation),
         Some(None)
     ));
     // A fresh request owns a fresh association even over the same trees.
-    let next = DeclaredStoragePlans::new(&program);
-    assert!(next.owner_paths.borrow().is_empty());
+    let next = DeclaredStoragePlans::new(&program, carriers);
+    assert!(!next.owner_paths.contains_key(&other_generation));
     let next_paths = next.for_carrier(array).unwrap();
     assert_eq!(actual, next_paths);
     assert!(!Arc::ptr_eq(&actual, &next_paths));

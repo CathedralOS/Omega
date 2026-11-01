@@ -26,8 +26,9 @@ pub(super) fn instantiate(
 }
 
 /// Normalize supplied operands by their original declaration and ordinal before
-/// they enter the receiving trait's telescope. Scratch cannot authenticate the
-/// owner: it deliberately lacks the original conformance and machine tables.
+/// they enter the receiving trait's telescope. Authenticate the owner against
+/// the original input; reduced scratch declarations provide type vocabulary,
+/// not the source's execution custody.
 pub(super) fn instantiate_application(
     compilation: &mut TypedTrees,
     source: &TypedTrees,

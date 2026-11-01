@@ -41,23 +41,7 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
     };
     let subject = *subjects.first()?;
     let input = coordinate(subject)?;
-    let mut entry = input.clone();
-    if let RankingOrder::CustomStructView {
-        path, field_symbol, ..
-    } = &order
-    {
-        entry
-            .path
-            .extend(path.iter().map(|step| facts::PlaceSegment::Field {
-                symbol: step.field_symbol,
-            }));
-        entry.path.push(facts::PlaceSegment::Field {
-            symbol: *field_symbol,
-        });
-        // The resolved measure owns the declaration path; the ordinary typed
-        // coordinate query authenticates its composition with this subject.
-        validation::ranking_coordinate_type(program, root, &entry)?;
-    }
+    let entry = input.clone();
     let mut observations = Vec::new();
     for state in states
         .iter()
@@ -89,27 +73,44 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
         let measure = match (&order, subjects.as_slice()) {
             (
                 RankingOrder::CustomNatDescending { measure }
-                | RankingOrder::CustomScalarView { measure, .. }
-                | RankingOrder::CustomStructView { measure, .. },
+                | RankingOrder::CustomScalarView { measure, .. },
                 [_],
             ) => {
                 let declaration = program
                     .measures()
                     .iter()
                     .find(|definition| definition.symbol == *measure)?;
-                let formal = declaration.parameter.as_ref()?;
-                let inputs = selected.declaration_bindings(formal.symbol, &input);
-                if inputs.is_empty() {
-                    return None;
-                }
+                let shape = validation::declared_input_shape(program, declaration)?;
+                let inputs = shape
+                    .reads
+                    .iter()
+                    .map(|read| {
+                        let entry = validation::RankSubjectCoordinate {
+                            parameter: input.parameter,
+                            path: input
+                                .path
+                                .iter()
+                                .chain(&read.coordinate.path)
+                                .cloned()
+                                .collect(),
+                        };
+                        Some(validation::RankCoordinateBinding {
+                            entry: read.coordinate.clone(),
+                            destination: selected.destination(&entry)?,
+                        })
+                    })
+                    .collect::<Option<Vec<_>>>()?;
                 // Named/aggregate prefixes need no selector receipt. Only an
                 // indexed destination asks the entry projection owner for its
                 // exact state-local bounds, before executable observation.
-                let values = if inputs.iter().any(|input| has_index(&input.destination)) {
-                    let paths = inputs
+                let values = if has_index(&destination)
+                    || inputs.iter().any(|input| has_index(&input.destination))
+                {
+                    let mut paths = inputs
                         .iter()
                         .map(|input| input.destination.path.clone())
                         .collect::<Vec<_>>();
+                    paths.push(destination.path.clone());
                     Some(super::super::rank_inputs::at_entry(
                         program, machine, state, frames, &paths,
                     )?)
@@ -144,6 +145,17 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
                     {
                         return None;
                     }
+                    let whole_input =
+                        retain_observed_coordinate(admitted, destination.clone(), values.as_ref())?;
+                    let owned_copy = declaration.parameter.as_ref().and_then(|formal| {
+                        super::super::application_inputs::owned_copy(
+                            program,
+                            admitted,
+                            state,
+                            formal.symbol,
+                            whole_input,
+                        )
+                    });
                     admitted.application_formations.insert(
                         checked_trees::CheckedRankApplicationFormation {
                             machine: machine.symbol,
@@ -151,6 +163,7 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
                             state: state.symbol,
                             application: application_facts,
                             bindings,
+                            owned_copy,
                         },
                     )
                 } else {
@@ -198,8 +211,12 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
                     primitive_type,
                 }
             }
-            (RankingOrder::BoundedDistance, [_, upper]) => distance_measure(primitive()?, *upper)?,
-            (RankingOrder::IncreasingTo(upper), [_]) => distance_measure(primitive()?, *upper)?,
+            (RankingOrder::BoundedDistance, [lower, upper]) => {
+                exact_distance_measure(program, admitted, root.symbol, *lower, *upper)?
+            }
+            (RankingOrder::IncreasingTo(upper), [_]) => {
+                increasing_to_measure(primitive()?, *upper)?
+            }
             _ => return None,
         };
         let components = admitted.observation_components.insert_many([
@@ -219,14 +236,55 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
     Some(observations)
 }
 
-fn distance_measure(primitive_type: PrimitiveType, upper: ExpressionHandle) -> Option<RankMeasure> {
+fn exact_distance_measure(
+    program: &dyn validation::CheckingInput,
+    admitted: &mut checked_trees::CheckedRankArrivalPlan,
+    state: symbols::SymbolHandle,
+    lower: ExpressionHandle,
+    upper: ExpressionHandle,
+) -> Option<RankMeasure> {
+    let primitive = |expression| {
+        program.primitive_type_reference(
+            validation::mathematical_applications::operand_type_reference(program, expression)?,
+        )
+    };
+    let lower_type = primitive(lower)?;
+    let upper_type = primitive(upper)?;
+    if !matches!(
+        lower_type,
+        typed_trees::unsigned_integer_primitive_pattern!()
+    ) || !upper_type.is_fixed_integer()
+    {
+        return None;
+    }
+    let lower = admitted
+        .rank_operands
+        .insert(checked_trees::CheckedRankOperand::Expression {
+            state,
+            expression: lower,
+            primitive_type: lower_type,
+        });
+    let upper = admitted
+        .rank_operands
+        .insert(checked_trees::CheckedRankOperand::Expression {
+            state,
+            expression: upper,
+            primitive_type: upper_type,
+        });
+    Some(RankMeasure::Distance { lower, upper })
+}
+
+fn increasing_to_measure(
+    primitive_type: PrimitiveType,
+    upper: ExpressionHandle,
+) -> Option<RankMeasure> {
     if !matches!(
         primitive_type,
         typed_trees::unsigned_integer_primitive_pattern!()
     ) {
         return None;
     }
-    Some(RankMeasure::BoundedDistance {
+    Some(RankMeasure::IncreasingTo {
         primitive_type,
         upper,
     })
@@ -248,23 +306,12 @@ fn retain_observed_coordinate(
         return Some(retain_coordinate(admitted, coordinate, Vec::new()));
     }
     let prepared = inputs?;
-    // Copied selector expressions need not share AST handles. Retain the
-    // captured path with its own bounds; never retarget an index receipt.
-    let captured = prepared.coordinates.iter().find(|captured| {
-        captured.parameter == coordinate.parameter
-            && captured.observation == validation::RankPremiseObservation::Value
-            && prepared
-                .values
-                .same_scalar_projection(&captured.path, &coordinate.path)
-    })?;
-    Some(retain_coordinate(
-        admitted,
-        validation::RankSubjectCoordinate {
-            parameter: captured.parameter,
-            path: captured.path.clone(),
-        },
-        captured.entry_indexes.clone(),
-    ))
+    // Whole roots and scalar leaves use the same entry formation owner.
+    // No demanded descendant is needed to establish this selected root.
+    let indexes = prepared
+        .values
+        .entry_projection_indexes(coordinate.parameter, &coordinate.path)?;
+    Some(retain_coordinate(admitted, coordinate, indexes))
 }
 
 fn retain_coordinate(

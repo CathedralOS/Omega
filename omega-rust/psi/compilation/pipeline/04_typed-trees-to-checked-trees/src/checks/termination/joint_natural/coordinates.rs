@@ -17,11 +17,12 @@ pub(super) enum Bound {
 
 #[derive(Clone)]
 pub(super) struct Rank {
-    pub(super) coordinate: Coordinate,
+    pub(super) subject: super::subjects::Subject,
     pub(super) bound: Option<Bound>,
     pub(super) application: Option<super::applications::Application>,
     pub(super) entry_value: ScopedArithmeticValue,
     pub(super) formation: Option<validation::IntegerApplicationFormation>,
+    pub(super) minimum: i128,
 }
 
 impl Bound {
@@ -61,5 +62,50 @@ impl Bound {
             ),
             Self::Closed(value) => Some(value.clone()),
         }
+    }
+}
+
+impl Bound {
+    pub(super) fn observation(
+        &self,
+        program: &dyn validation::CheckingInput,
+        state: symbols::SymbolHandle,
+    ) -> Option<validation::RuntimeRankOperand> {
+        use validation::RuntimeRankOperand as Operand;
+        Some(match self {
+            Self::Coordinate(coordinate) => Operand::Coordinate {
+                parameter: coordinate.parameter,
+                coordinate: validation::RankSubjectCoordinate {
+                    parameter: coordinate.parameter,
+                    path: coordinate.path.clone(),
+                },
+                entry_indexes: coordinate.entry_indexes.clone(),
+                primitive_type: coordinate.primitive,
+                observation: coordinate.observation,
+            },
+            Self::Closed(ScopedArithmeticValue::Integer(value)) => {
+                Operand::Literal(value.to_u64()?)
+            }
+            Self::Closed(_) => return None,
+            Self::Authored {
+                expression,
+                entry_value,
+            } => {
+                if let ScopedArithmeticValue::Integer(value) = entry_value {
+                    Operand::Literal(value.to_u64()?)
+                } else {
+                    let reference = validation::mathematical_applications::operand_type_reference(
+                        program,
+                        *expression,
+                    )?;
+                    let primitive_type = program.primitive_type_reference(reference)?;
+                    Operand::Expression {
+                        state,
+                        expression: *expression,
+                        primitive_type,
+                    }
+                }
+            }
+        })
     }
 }

@@ -518,6 +518,7 @@ impl<'program> ShapeCollector<'program> {
             substitutions,
             referent_identity,
             access.into(),
+            typed_trees::boundary_values::foreign_reference_uses_descriptor(self.program, referee),
         )
     }
 
@@ -531,6 +532,7 @@ impl<'program> ShapeCollector<'program> {
         substitutions: &[(SymbolHandle, TypeReferenceHandle)],
         referent_identity: TypeIdentityId,
         access: CheckedStructuralAccess,
+        foreign_descriptor: bool,
     ) -> Option<TypeIdentityId> {
         let identity = self.program.type_identity(TypeIdentityRequest {
             binders,
@@ -547,6 +549,7 @@ impl<'program> ShapeCollector<'program> {
             shape: CheckedUnitStructuralTypeShape::Reference {
                 referent_identity,
                 access,
+                foreign_descriptor,
             },
         };
         self.register_type(identity, plan)?;

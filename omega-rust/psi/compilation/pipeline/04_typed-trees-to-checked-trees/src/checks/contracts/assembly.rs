@@ -9,7 +9,6 @@ use super::prover::{
     live_contexts_prove_boolean_expression, semantic_contexts_prove_boolean_expression,
 };
 use crate::flow::canonical_place_segments_may_overlap;
-use crate::flow::expressions;
 use crate::labels::machine_name;
 use crate::places::place_at;
 
@@ -213,72 +212,36 @@ pub(super) fn expression_reads_overlapping_place(
     expression: ExpressionHandle,
     written_place: &CanonicalPlace,
 ) -> bool {
-    if !expression.is_valid() {
-        return false;
-    }
-
-    let recurse = |expression| {
-        expression_reads_overlapping_place(
-            program,
-            state_symbol,
-            statement_index,
-            expression,
-            written_place,
-        )
+    use typed_trees::SubtreeVisit;
+    let edges = typed_trees::SubtreeEdges {
+        pattern_dependencies: true,
+        ..typed_trees::SubtreeEdges::VALUES
     };
-    match program.expression_table.expression(expression) {
-        ExpressionNode::SavedSubject(saved) => {
-            program.saved_value_source(saved).is_none_or(recurse)
-        }
-        ExpressionNode::Atomic(atomic) => recurse(atomic.value),
-        ExpressionNode::Match(dispatch) => {
-            expressions(program).match_deep_any(dispatch, |handle| recurse(handle))
-        }
-        ExpressionNode::Name(_) | ExpressionNode::Member(_) => expression_place_may_overlap(
-            program,
-            state_symbol,
-            statement_index,
-            expression,
-            written_place,
-        ),
-        ExpressionNode::Indexed(indexed) => {
+    program.subtree_any(expression, edges, |handle, node| {
+        let overlaps = || {
             expression_place_may_overlap(
                 program,
                 state_symbol,
                 statement_index,
-                expression,
+                handle,
                 written_place,
-            ) || recurse(indexed.index)
+            )
+        };
+        match node {
+            // An unauthenticated saved subject may read anything.
+            ExpressionNode::SavedSubject(saved) => program
+                .saved_value_source(saved)
+                .map_or(SubtreeVisit::Found, SubtreeVisit::Instead),
+            ExpressionNode::Name(_) | ExpressionNode::Member(_) if overlaps() => {
+                SubtreeVisit::Found
+            }
+            ExpressionNode::Name(_) | ExpressionNode::Member(_) => SubtreeVisit::Prune,
+            ExpressionNode::Indexed(_) if overlaps() => SubtreeVisit::Found,
+            // The collection read is the indexed place itself.
+            ExpressionNode::Indexed(indexed) => SubtreeVisit::Instead(indexed.index),
+            _ => SubtreeVisit::Descend,
         }
-        ExpressionNode::Borrow(inner) => recurse(inner.target),
-        ExpressionNode::Binary(binary) => recurse(binary.left) || recurse(binary.right),
-        ExpressionNode::Unary(unary) => recurse(unary.operand),
-        ExpressionNode::Cast(cast) => recurse(cast.value),
-        ExpressionNode::Range(range) => {
-            (range.start.is_valid() && recurse(range.start))
-                || (range.end.is_valid() && recurse(range.end))
-        }
-        ExpressionNode::Call(call) => {
-            (call.receiver.is_valid() && recurse(call.receiver))
-                || expressions(program)
-                    .expression_handles(call.arguments)
-                    .iter()
-                    .copied()
-                    .any(recurse)
-        }
-        ExpressionNode::ArrayLiteral(values) => expressions(program)
-            .expression_handles(*values)
-            .iter()
-            .copied()
-            .any(recurse),
-        ExpressionNode::StructLiteral(struct_literal) => expressions(program)
-            .struct_fields(struct_literal.fields)
-            .iter()
-            .any(|field| recurse(field.value)),
-        ExpressionNode::TypeExpression(_) | typed_trees::spelled_literal_expression_pattern!() => {
-            false
-        }
-    }
+    })
 }
 
 fn expression_place_may_overlap(

@@ -59,7 +59,7 @@ machine Main::main(main: &mut Main) reaches Issuer crashes Trap {
 }
 
 IssuerProviderIssuerImplementation satisfies Issuer {
-    Issuer::issue = IssuerProvider::issue;
+    machine issue(amount: i32) -> Ticket ensures result in Ticket::Issued { IssuerProvider::issue(amount) }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

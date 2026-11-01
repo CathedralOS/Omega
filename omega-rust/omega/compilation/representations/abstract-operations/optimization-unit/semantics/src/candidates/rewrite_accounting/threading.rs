@@ -1,6 +1,7 @@
 use crate::candidates::{
     canonicalize_provenance, provenance_realized_at, realize_node_provenance, realized_at_own_site,
 };
+use abstract_operations::ValueBinding;
 use optimization_unit::{
     NodeLocation, OwnershipFrontierSite, PsiOptimizationFunction, PsiOptimizationUnit,
     PsiRealizationSite, ValueDefinition,
@@ -10,9 +11,9 @@ use std::collections::{BTreeMap, BTreeSet};
 
 pub fn reconstruct_linear_thread_bindings(
     parameters: &[ValueDefinition],
-    incoming: &[abstract_operations::ValueBinding],
-    outgoing: &[abstract_operations::ValueBinding],
-) -> Option<Vec<abstract_operations::ValueBinding>> {
+    incoming: &[ValueBinding],
+    outgoing: &[ValueBinding],
+) -> Option<Vec<ValueBinding>> {
     if parameters.len() != incoming.len() {
         return None;
     }
@@ -30,12 +31,10 @@ pub fn reconstruct_linear_thread_bindings(
             .map(|binding| {
                 replacements
                     .get(&binding.argument)
-                    .map_or(*binding, |(argument, scalar_type)| {
-                        abstract_operations::ValueBinding {
-                            parameter: binding.parameter,
-                            argument: *argument,
-                            scalar_type: *scalar_type,
-                        }
+                    .map_or(*binding, |(argument, scalar_type)| ValueBinding {
+                        parameter: binding.parameter,
+                        argument: *argument,
+                        scalar_type: *scalar_type,
                     })
             })
             .collect(),

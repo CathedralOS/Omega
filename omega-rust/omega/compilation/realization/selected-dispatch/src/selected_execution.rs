@@ -3,6 +3,7 @@
 //! Provider binding produces this immutable result. Terminal production borrows
 //! it; native admission still joins actual demand and receiving permissions.
 
+use crate::program_entry_service_requirements;
 use diagnostics::Diagnostic;
 use package_compilation::AcceptedSemanticBindingRole;
 use std::sync::Arc;
@@ -33,8 +34,7 @@ pub struct SelectedExecution {
     pub selected_provider_grants: Vec<trust_model::ResolvedAuthoredSelectedProviderGrant>,
     /// Selected canonical declarations for behavior admission, including dormant uses.
     /// Executable callback placement is produced from Terminal, not stored here.
-    pub callback_roots: psi_terminal_production::PreparedTerminalRoots,
-    pub accepted_template_classifications: trust_model::AcceptedTemplateClassifications,
+    pub callback_roots: terminal_psi::PreparedTerminalRoots,
     pub selected_provider_provenance: Vec<provider_planning::SelectedProviderReviewProvenance>,
     pub resolved_semantic_bindings: Vec<crate::ResolvedAcceptedSemanticBinding>,
 }
@@ -57,10 +57,7 @@ impl SelectedExecution {
         let Some(entry) = self.selected_program_entry.as_ref() else {
             return Vec::new();
         };
-        crate::program_entry_service_requirements(
-            self.provider_source.program(),
-            entry.machine_symbol(),
-        )
+        program_entry_service_requirements(self.provider_source.program(), entry.machine_symbol())
     }
 
     pub fn resolved_semantic_binding(

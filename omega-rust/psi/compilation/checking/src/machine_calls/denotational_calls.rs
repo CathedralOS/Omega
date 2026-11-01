@@ -357,67 +357,41 @@ fn expression_is_fact_observation_free(
     expression: ExpressionHandle,
     internal_borrow: &impl Fn(ExpressionHandle) -> bool,
 ) -> bool {
-    let node = expression_table(program).expression(expression);
-    let allowed = match node {
-        ExpressionNode::Match(dispatch) => {
-            crate::expression_traversal::match_children(program, *dispatch)
-                .all(|child| expression_is_fact_observation_free(program, child, internal_borrow))
-        }
-        ExpressionNode::SavedSubject(_) | ExpressionNode::Atomic(_) => false,
-        ExpressionNode::Borrow(borrow) => {
-            borrow.access == language_semantics::ReferenceAccess::Shared
-                && internal_borrow(expression)
-                && expression_is_fact_observation_free(program, borrow.target, internal_borrow)
-        }
-        ExpressionNode::Binary(binary) => {
-            expression_is_fact_observation_free(program, binary.left, internal_borrow)
-                && expression_is_fact_observation_free(program, binary.right, internal_borrow)
-        }
-        ExpressionNode::Cast(cast) => {
-            expression_is_fact_observation_free(program, cast.value, internal_borrow)
-        }
-        ExpressionNode::Call(call) => {
-            // A retained declaration qualifier is not a storage observation.
-            // Rejoin it to the exact selected target through the shared call
-            // owner; declaration spelling or namespace kind alone is no proof.
-            (!call.receiver.is_valid() || program.call_has_no_runtime_receiver_for_target(call))
-                && expression_table(program)
-                    .expression_handles(call.arguments)
-                    .iter()
-                    .all(|argument| {
-                        expression_is_fact_observation_free(program, *argument, internal_borrow)
-                    })
-        }
-        ExpressionNode::Indexed(indexed) => {
-            expression_is_fact_observation_free(program, indexed.collection, internal_borrow)
-                && expression_is_fact_observation_free(program, indexed.index, internal_borrow)
-        }
-        ExpressionNode::Member(member) => {
-            expression_is_fact_observation_free(program, member.receiver, internal_borrow)
-        }
-        ExpressionNode::Range(range) => {
-            expression_is_fact_observation_free(program, range.start, internal_borrow)
-                && expression_is_fact_observation_free(program, range.end, internal_borrow)
-        }
-        ExpressionNode::StructLiteral(literal) => expression_table(program)
-            .struct_fields(literal.fields)
-            .iter()
-            .all(|field| {
-                expression_is_fact_observation_free(program, field.value, internal_borrow)
-            }),
-        ExpressionNode::Unary(unary) => {
-            expression_is_fact_observation_free(program, unary.operand, internal_borrow)
-        }
-        ExpressionNode::ArrayLiteral(values) => expression_table(program)
-            .expression_handles(*values)
-            .iter()
-            .all(|value| expression_is_fact_observation_free(program, *value, internal_borrow)),
-        ExpressionNode::TypeExpression(_) | typed_trees::literal_expression_pattern!() => true,
-    };
-    if !allowed && std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
-        eprintln!("DENOTATION observation expression={expression:?} node={node:?}",);
-    }
-    allowed
+    use typed_trees::SubtreeVisit;
+    !program.subtree_any(
+        expression,
+        typed_trees::SubtreeEdges::VALUES,
+        |handle, node| {
+            let visit = match node {
+                ExpressionNode::SavedSubject(_) | ExpressionNode::Atomic(_) => SubtreeVisit::Found,
+                ExpressionNode::Borrow(borrow)
+                    if borrow.access != language_semantics::ReferenceAccess::Shared
+                        || !internal_borrow(handle) =>
+                {
+                    SubtreeVisit::Found
+                }
+                // A retained declaration qualifier is not a storage observation.
+                // Rejoin it to the exact selected target through the shared call
+                // owner; declaration spelling or namespace kind alone is no proof.
+                ExpressionNode::Call(call)
+                    if call.receiver.is_valid()
+                        && !program.call_has_no_runtime_receiver_for_target(call) =>
+                {
+                    SubtreeVisit::Found
+                }
+                ExpressionNode::Call(call) => SubtreeVisit::InsteadEach(
+                    expression_table(program)
+                        .expression_handles(call.arguments)
+                        .to_vec(),
+                ),
+                _ => SubtreeVisit::Descend,
+            };
+            if visit == SubtreeVisit::Found && std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                eprintln!("DENOTATION observation expression={handle:?} node={node:?}",);
+            }
+            visit
+        },
+    )
 }
 
 pub(crate) fn unconditionally_terminates(

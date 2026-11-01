@@ -4,6 +4,7 @@ use semantic_vocabulary::{
     BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId,
     ScalarApplicationId, ScalarType, ValueId,
 };
+use terminal_codec::CanonicalTerminalArtifact;
 use terminal_psi::{
     Block, MachineContract, Operation, OperationKind, OperationResult, TerminalMachine,
     TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
@@ -108,10 +109,8 @@ fn prepare_at(
     profile: target::TargetProfile,
 ) -> Result<VerifiedNativeArtifactInput, ArtifactLoweringError> {
     let record = terminal_codec::build_identity_optimization_execution_record(&module).unwrap();
-    let artifact =
-        terminal_codec::CanonicalTerminalArtifact::from_parts(module, record, None).unwrap();
-    let reloaded =
-        terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes()).unwrap();
+    let artifact = CanonicalTerminalArtifact::from_parts(module, record, None).unwrap();
+    let reloaded = CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes()).unwrap();
     VerifiedNativeArtifactInput::prepare(
         &reloaded,
         profile,

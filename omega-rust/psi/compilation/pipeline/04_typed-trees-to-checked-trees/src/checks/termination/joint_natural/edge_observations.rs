@@ -5,7 +5,7 @@ use crate::checks::current_scalar_values::CurrentScalarValues;
 use crate::flow::indexed_statements;
 use numerics::bignum::BigInt;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
-use validation::ScopedArithmeticValue;
+use validation::{BigIntInterval, ScopedArithmeticValue};
 
 pub(super) struct Edge<'program> {
     pub(super) source: usize,
@@ -89,91 +89,122 @@ pub(super) fn compare(
     destination: &Rank,
     order: Order,
 ) -> Option<bool> {
-    let actual = *edge.arguments.get(destination.coordinate.position)?;
+    let actual = *edge.arguments.get(destination.subject.position())?;
     let initial = &source.entry_value;
-    let next = destination.coordinate.current(
-        &edge.values,
-        actual,
-        machines[edge.destination],
-        edge.arguments,
-    )?;
     let next = if let Some(application) = destination.application {
+        let (input_type, bindings) = destination.subject.bindings(
+            program,
+            application,
+            || {
+                validation::captured_call_owned_snapshot(
+                    program,
+                    machines[edge.source],
+                    edge.values.state(),
+                    edge.statement,
+                    edge.site,
+                    destination.subject.position(),
+                    &destination.subject.root().path,
+                )
+            },
+            |coordinate| {
+                coordinate.current(
+                    &edge.values,
+                    actual,
+                    machines[edge.destination],
+                    edge.arguments,
+                )
+            },
+        )?;
         application
-            .observe(&edge.values, machines[edge.source], next)?
+            .observe(&edge.values, machines[edge.source], input_type, bindings)?
             .value
     } else {
-        next
+        let coordinate = destination.subject.scalar()?;
+        coordinate.bounded_value(coordinate.current(
+            &edge.values,
+            actual,
+            machines[edge.destination],
+            edge.arguments,
+        )?)?
     };
-    let zero = ScopedArithmeticValue::Integer(BigInt::zero());
     let proves = |operator, left: &ScopedArithmeticValue, right: &ScopedArithmeticValue| {
         edge.values
             .proves_values_relation(program, machines[edge.source], operator, left, right)
     };
-    let strict_allowed = if order == Order::Descending {
-        true
-    } else {
-        let bound = source.bound.as_ref()?.entry();
-        let arriving =
-            destination
-                .bound
-                .as_ref()?
-                .arriving(program, machines[edge.destination], edge)?;
-        // MAX - cursor agrees with Distance ordering under a conserved upper.
-        // For IncreasingTo it conservatively refines weak clamped edges; only
-        // a source below the limit can contribute strict descent. A private member
-        // must supply that coordinate from its own invocation, not the root's
-        // ambient scope. Distance formation is independently owed at both ends.
-        if !proves(BinaryOperator::Equal, bound, &arriving) {
-            return None;
-        }
-        if order == Order::BoundedDistance
-            && !(proves(BinaryOperator::LessOrEqual, initial, bound)
-                && proves(BinaryOperator::LessOrEqual, &next, &arriving))
-        {
-            return None;
-        }
-        order != Order::IncreasingTo || proves(BinaryOperator::Less, initial, bound)
-    };
-    let normalize = |value: &ScopedArithmeticValue| {
-        if order == Order::Descending {
-            Some(value.clone())
-        } else {
-            let (minimum, maximum) = source.coordinate.primitive.integer_bounds()?;
-            // Both exact coordinates have this fixed-width carrier, and call
-            // admission separately checks the arriving actual. Captured atoms
-            // retain identity and signedness, but do not carry their physical
-            // ceiling. Supply that declared carrier evidence before forming
-            // the total complement; an authored rank interval supplies none.
-            let value = ScopedArithmeticValue::BoundedInteger {
-                value: Box::new(value.clone()),
-                minimum: Some(BigInt::from_i128(minimum)),
-                maximum: Some(BigInt::from_i128(maximum)),
+    let (initial, next, strict_allowed) = match order {
+        Order::Descending => (initial.clone(), next, true),
+        Order::BoundedDistance => {
+            let upper = source.bound.as_ref()?.entry();
+            let next_upper =
+                destination
+                    .bound
+                    .as_ref()?
+                    .arriving(program, machines[edge.destination], edge)?;
+            // Each exact distance forms in its own invocation. Neither a
+            // pending comparison nor the other endpoint supplies this order.
+            if !proves(BinaryOperator::LessOrEqual, initial, upper)
+                || !proves(BinaryOperator::LessOrEqual, &next, &next_upper)
+            {
+                return None;
+            }
+            let difference = |upper: &ScopedArithmeticValue, lower: &ScopedArithmeticValue| {
+                ScopedArithmeticValue::IntegerOperation {
+                    operator: BinaryOperator::Subtract,
+                    left: Box::new(upper.clone()),
+                    right: Box::new(lower.clone()),
+                }
             };
-            Some(ScopedArithmeticValue::IntegerOperation {
-                operator: BinaryOperator::Subtract,
-                left: Box::new(ScopedArithmeticValue::Integer(BigInt::from_u64(
-                    order
-                        .function()
-                        .complement_ceiling(source.coordinate.primitive)?,
-                ))),
-                right: Box::new(value),
-            })
+            (
+                difference(upper, initial),
+                difference(&next_upper, &next),
+                true,
+            )
+        }
+        Order::IncreasingTo => {
+            let bound = source.bound.as_ref()?.entry();
+            let arriving =
+                destination
+                    .bound
+                    .as_ref()?
+                    .arriving(program, machines[edge.destination], edge)?;
+            // The named limit belongs to this view. Its existing total
+            // complement conservatively refines clamped edges; only an entry
+            // below that conserved limit can contribute strict descent.
+            if !proves(BinaryOperator::Equal, bound, &arriving) {
+                return None;
+            }
+            let normalize = |value: &ScopedArithmeticValue| {
+                let (minimum, maximum) = source.subject.scalar()?.primitive.integer_bounds()?;
+                let value = ScopedArithmeticValue::BoundedInteger {
+                    value: Box::new(value.clone()),
+                    interval: BigIntInterval {
+                        low: Some(BigInt::from_i128(minimum)),
+                        high: Some(BigInt::from_i128(maximum)),
+                    },
+                };
+                Some(ScopedArithmeticValue::IntegerOperation {
+                    operator: BinaryOperator::Subtract,
+                    left: Box::new(ScopedArithmeticValue::Integer(BigInt::from_u64(
+                        order
+                            .function()
+                            .complement_ceiling(source.subject.scalar()?.primitive)?,
+                    ))),
+                    right: Box::new(value),
+                })
+            };
+            (
+                normalize(initial)?,
+                normalize(&next)?,
+                proves(BinaryOperator::Less, initial, bound),
+            )
         }
     };
-    let initial = normalize(initial)?;
-    let next = normalize(&next)?;
     // An explicit declaration's result is a finite integer, including its
     // negative half. Builtin distance normalizations keep their zero floor.
     let minimum = |rank: &Rank| -> Option<ScopedArithmeticValue> {
-        let minimum = if order == Order::Descending {
-            match rank.application {
-                Some(application) => application.result_primitive.integer_bounds()?.0,
-                None => 0,
-            }
-        } else {
-            0
-        };
-        Some(ScopedArithmeticValue::Integer(BigInt::from_i128(minimum)))
+        Some(ScopedArithmeticValue::Integer(BigInt::from_i128(
+            rank.minimum,
+        )))
     };
     let source_minimum = minimum(source)?;
     let destination_minimum = minimum(destination)?;

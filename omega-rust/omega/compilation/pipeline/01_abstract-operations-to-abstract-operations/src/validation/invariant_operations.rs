@@ -16,16 +16,14 @@ use abstract_operations::AbstractOperation as O;
 use optimization_unit::{
     OptimizationNode, OptimizerCycleComponent, PsiOptimizationFunction, PsiProvenance,
 };
-use semantic_vocabulary::{PlaceId, ValueId};
+use semantic_vocabulary::{OperationId, PlaceId, ValueId};
 use std::collections::{BTreeMap, BTreeSet};
+use terminal_psi::RecordFieldValue;
 
 /// The source-owned node shape every invariant operation variant spells: the
 /// node's own operation is its first provenance row and it carries no
 /// successors or ownership events.
-fn operation_shape_spine(
-    node: &OptimizationNode,
-    psi_operation: semantic_vocabulary::OperationId,
-) -> bool {
+fn operation_shape_spine(node: &OptimizationNode, psi_operation: OperationId) -> bool {
     node.provenance.first() == Some(&PsiProvenance::Operation(psi_operation))
         && node.successors.is_empty()
         && node.ownership.is_empty()
@@ -38,7 +36,7 @@ fn operation_shape_spine(
 /// rosters.
 fn declaration_spine(
     node: &OptimizationNode,
-    psi_operation: semantic_vocabulary::OperationId,
+    psi_operation: OperationId,
     result: Option<&terminal_psi::StructuralOperationResult>,
 ) -> bool {
     operation_shape_spine(node, psi_operation)
@@ -410,29 +408,27 @@ pub(crate) fn admissible_invariant_record(
         && node.uses.len()
             == fields
                 .iter()
-                .filter(|field| {
-                    matches!(field.value, terminal_psi::RecordFieldValue::Scalar { .. })
-                })
+                .filter(|field| matches!(field.value, RecordFieldValue::Scalar { .. }))
                 .count()
         && node
             .uses
             .iter()
             .zip(fields.iter().filter_map(|field| match &field.value {
-                terminal_psi::RecordFieldValue::Scalar { value, .. } => Some(value),
-                terminal_psi::RecordFieldValue::Structural(_) => None,
+                RecordFieldValue::Scalar { value, .. } => Some(value),
+                RecordFieldValue::Structural(_) => None,
             }))
             .all(|(value_use, value)| value_use.value == *value)
         && fields.iter().all(|field| match &field.value {
-            terminal_psi::RecordFieldValue::Scalar { .. } => true,
-            terminal_psi::RecordFieldValue::Structural(argument) => {
+            RecordFieldValue::Scalar { .. } => true,
+            RecordFieldValue::Structural(argument) => {
                 argument.access == terminal_psi::StructuralAccess::Owned && argument.path.is_empty()
             }
         })
         && (result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
             || (result.multiplicity == terminal_psi::StructuralMultiplicity::Affine
-                && fields.iter().all(|field| {
-                    matches!(field.value, terminal_psi::RecordFieldValue::Scalar { .. })
-                }))))
+                && fields
+                    .iter()
+                    .all(|field| matches!(field.value, RecordFieldValue::Scalar { .. })))))
     .then(|| result.clone())
 }
 
@@ -503,7 +499,7 @@ pub(crate) fn invariant_record_admission(
     let representatives = invariant_member_place_parameters(function, component, relocating_roots);
     let mut rewrites = Vec::new();
     for field in fields {
-        let terminal_psi::RecordFieldValue::Structural(argument) = &field.value else {
+        let RecordFieldValue::Structural(argument) = &field.value else {
             continue;
         };
         // The copied root must land somewhere the relocated run can see it
@@ -634,7 +630,7 @@ pub(crate) fn admissible_invariant_scalar_case(
             .uses
             .iter()
             .zip(fields.iter())
-            .all(|(value_use, field)| matches!(field.value, terminal_psi::RecordFieldValue::Scalar { value, .. } if value_use.value == value))
+            .all(|(value_use, field)| matches!(field.value, RecordFieldValue::Scalar { value, .. } if value_use.value == value))
         && matches!(
             result.multiplicity,
             terminal_psi::StructuralMultiplicity::Unrestricted

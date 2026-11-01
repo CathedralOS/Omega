@@ -316,6 +316,20 @@ impl TypedTrees {
         &mut self,
         removed: &std::collections::HashSet<symbols::SymbolHandle>,
     ) {
+        // A retained captured body still owes its exact supplying evidence,
+        // even when the supplying declaration is descriptive custody only.
+        // This association retains no executable owner and authenticates no
+        // source occurrence; ordinary replay must establish both independently.
+        let mut captured_supplies =
+            std::collections::HashMap::<_, Vec<_>, symbols::BuildSymbolHasher>::default();
+        for (_, capture) in self.captured_machine_applications.iter() {
+            if self.machine_by_symbol(capture.instance).is_some() {
+                captured_supplies
+                    .entry(capture.supplying_application)
+                    .or_default()
+                    .push(&capture.conformance_application);
+            }
+        }
         let owner_removed = |mut owner: symbols::SymbolHandle| {
             while owner.is_valid() {
                 if removed.contains(&owner) {
@@ -328,7 +342,16 @@ impl TypedTrees {
         let selected = self
             .data_implementation_applications
             .iter()
-            .filter(|(_, selected)| !owner_removed(selected.lexical_owner))
+            .filter(|(_, selected)| {
+                !owner_removed(selected.lexical_owner)
+                    || captured_supplies
+                        .get(&selected.supplying_application)
+                        .is_some_and(|applications| {
+                            applications
+                                .iter()
+                                .any(|application| **application == selected.application)
+                        })
+            })
             .map(|(_, selected)| selected.clone())
             .collect::<Vec<_>>();
         let mut applications = arena::Arena::new();
@@ -769,6 +792,7 @@ impl TypedTrees {
     super::typed_tree_table! {
         const_declarations => const_declarations(crate::constant::ConstDeclaration) [push_const_declaration];
         data_definitions => data_definitions(data::DataDefinition) [push_data_definition], inline;
+        type_aliases => type_aliases(crate::type_aliases::TypeAliasDefinition) [push_type_alias_definition], inline;
         domain_definitions => domain_definitions(domain::DomainDefinition) [push_domain_definition];
         propositions => propositions(proposition::PropositionDefinition) [push_proposition];
         mathematical_definitions => mathematical_definitions(MathematicalDefinition);
@@ -1472,5 +1496,109 @@ impl TypedTrees {
             .designated_static_type_arguments
             .iter()
             .map(|(_, row)| row)
+    }
+}
+
+#[cfg(test)]
+mod captured_evidence_retention_tests {
+    use super::*;
+
+    #[test]
+    fn captured_supply_keeps_only_its_exact_application_without_executing_the_owner() {
+        let mut symbols = symbols::SymbolTableBuilder::default();
+        let owner = symbols.insert_root(
+            symbols::SymbolKind::Machine,
+            symbols::SymbolNameRef::Static("source"),
+        );
+        let instance = symbols.insert_root(
+            symbols::SymbolKind::Machine,
+            symbols::SymbolNameRef::Static("captured"),
+        );
+        let constructor = symbols.insert_root(
+            symbols::SymbolKind::Data,
+            symbols::SymbolNameRef::Static("StorageConstructor"),
+        );
+        let mut program = TypedTrees {
+            symbols: symbols.finish(),
+            ..Default::default()
+        };
+        program.push_machine(crate::machine::Machine {
+            symbol: instance,
+            ..Default::default()
+        });
+        let source_application =
+            program
+                .type_reference_table
+                .insert(crate::types::TypeReferenceNode::Named {
+                    symbol: constructor,
+                    name: crate::name::Identifier::generated("StorageConstructor"),
+                });
+        let supplying = program.expression_table.retain_static_machine_application(
+            constructor,
+            Default::default(),
+            &[],
+        );
+        program
+            .expression_table
+            .static_machine_application_mut(supplying)
+            .lexical_owner = owner;
+        let application = super::super::ClosedConformanceApplication {
+            trait_arguments: vec!["exact".to_owned()],
+            ..Default::default()
+        };
+        let selected = super::super::DataImplementationApplication {
+            source_application,
+            lexical_owner: owner,
+            supplying_application: supplying,
+            application: application.clone(),
+            ..Default::default()
+        };
+        program
+            .data_implementation_applications
+            .insert(selected.clone());
+        let mut wrong_supplier = selected.clone();
+        wrong_supplier.supplying_application =
+            crate::static_applications::StaticMachineApplicationHandle::from_parts(3, 2);
+        program
+            .data_implementation_applications
+            .insert(wrong_supplier);
+        let mut wrong_application = selected.clone();
+        wrong_application.application.trait_arguments = vec!["other".to_owned()];
+        program
+            .data_implementation_applications
+            .insert(wrong_application);
+        program
+            .captured_machine_applications
+            .insert(super::super::CapturedMachineApplication {
+                instance,
+                supplying_application: supplying,
+                conformance_application: application,
+                ..Default::default()
+            });
+        let removed = std::collections::HashSet::from([owner]);
+        program.retain_live_trait_implementation_applications(&removed);
+        assert!(program.machine_by_symbol(owner).is_none());
+        assert_eq!(program.data_implementation_applications.len(), 1);
+        assert_eq!(
+            program
+                .data_implementation_applications
+                .iter()
+                .next()
+                .unwrap()
+                .1,
+            &selected
+        );
+
+        // The omitted owner's exact type remains a checking dependency of the
+        // capture. Its declaration custody must not retain the runtime body.
+        let references = crate::references::collect_program_references(&program);
+        assert!(references.symbols.contains(&constructor));
+        assert!(references.descriptor_symbols.contains(&owner));
+        assert!(!references.symbols.contains(&owner));
+
+        // A stale capture row is not a live body dependency.
+        program.roots.machines = Default::default();
+        program.retain_live_trait_implementation_applications(&removed);
+        assert!(program.data_implementation_applications.is_empty());
     }
 }

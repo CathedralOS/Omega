@@ -86,10 +86,13 @@ fn resolve_occurrences(
             )
             .unwrap_or_default(),
         };
-        super::push_every_expression_child(
-            program,
+        program.subtree_children(
             program.expression_table.expression(expression),
-            pending,
+            typed_trees::SubtreeEdges::STRUCTURAL,
+            |child| {
+                pending.push(child);
+                false
+            },
         );
     }
 }

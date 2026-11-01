@@ -16,7 +16,7 @@
 //! Pre-resolution synthesis gives the implementation an ordinary `equals`
 //! member row whose body is `left == right`; a call through that row
 //! (`PointEquality::equals(&a, &b)`) expands in the caller's storage scope
-//! exactly like `==`. An authored `equals` member or reference row replaces
+//! exactly like `==`. An authored `equals` member replaces
 //! the synthesized row, and `==` then calls it.
 //!
 //! The operator route selects at most one implementation per operand type:
@@ -31,9 +31,7 @@
 //! by one Equatable implementation; recursive types are rejected (inline
 //! expansion would not terminate).
 
-use crate::tables::resolved_statements;
-use crate::tables::type_constraints;
-use crate::tables::type_references;
+use crate::tables::{resolved_statements, type_constraints, type_references};
 use diagnostics::Diagnostic;
 use resolved::SymbolResolvedTrees;
 use resolved::data::{DataDefinition, DataField, DataMember, DataShapeKind};

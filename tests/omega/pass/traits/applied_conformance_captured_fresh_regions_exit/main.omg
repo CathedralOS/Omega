@@ -3,8 +3,8 @@
 trait Reading<View> {
     machine read<'scope>(context: View, item: &'scope i32) -> i32;
 }
-Reader<'scope> satisfies Reading<&'scope i32> { Reading::read = read; }
-machine read<'context, 'item>(context: &'context i32, item: &'item i32) -> i32 {
+Reader<'scope> satisfies Reading<&'scope i32> { machine read<'scope>(context: &'scope i32, item: &'scope i32) -> i32 { read_realization(context, item) } }
+machine read_realization<'context, 'item>(context: &'context i32, item: &'item i32) -> i32 {
     item as i32
 }
 machine invoke<'captured, 'invocation,
@@ -18,9 +18,9 @@ machine observed<'environment, 'call>(
 // A valid uncalled borrowed-result map must retain the same input region.
 trait Borrowing<Input, Output> { machine borrow(value: Input) -> Output; }
 Same<'mapping> satisfies Borrowing<&'mapping i32, &'mapping i32> {
-    Borrowing::borrow = borrow;
+    machine borrow(value: &'mapping i32) -> &'mapping i32 { borrow_realization(value) }
 }
-machine borrow<'source>(value: &'source i32) -> &'source i32 { value }
+machine borrow_realization<'source>(value: &'source i32) -> &'source i32 { value }
 
 // Exact requirement edges use the same result-source judgment as named maps.
 machine exact_borrow<'source>(value: &'source i32) -> &'source i32

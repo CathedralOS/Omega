@@ -5,6 +5,7 @@ use crate::checked_interpreter_dispatch::boundary_dispatch::adapter_rows::{
 };
 use crate::checked_interpreter_dispatch::boundary_dispatch::signature_families::call_argument_const_identity;
 use diagnostics::Diagnostic;
+use provider_planning::service_schema::is_product_declaration;
 use typed_trees::TypedTrees;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -41,10 +42,7 @@ pub(crate) fn exact_boundary_trait<'typed>(
         .iter()
         .filter(|definition| {
             definition.is_boundary
-                && provider_planning::service_schema::is_product_declaration(
-                    typed,
-                    definition.symbol,
-                )
+                && is_product_declaration(typed, definition.symbol)
                 && typed.trait_declaration_path(definition) == name
                 && typed.symbols.symbol_package_identity(definition.symbol) == package_identity
         })

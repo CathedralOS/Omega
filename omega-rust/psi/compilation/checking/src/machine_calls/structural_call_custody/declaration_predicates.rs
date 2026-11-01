@@ -492,8 +492,9 @@ impl RowEmitter<'_, '_> {
         &self,
         path: Vec<CheckedStructuralPredicatePathSegment>,
         primitive: PrimitiveType,
-        (minimum, maximum): (i128, i128),
+        interval: collection_predicates::IntegerSet,
     ) -> Option<CheckedBooleanExpression> {
+        let (minimum, maximum) = interval.bounds()?;
         let (carrier_minimum, carrier_maximum) = carrier_bounds(primitive)?;
         let leaf = || CheckedScalarExpression::StructuralParameterField {
             observation: Default::default(),

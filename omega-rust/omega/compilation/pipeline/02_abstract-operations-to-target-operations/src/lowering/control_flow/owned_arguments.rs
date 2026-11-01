@@ -6,6 +6,7 @@
 //! role, not a different ABI or an exemption from the home custody checks.
 use super::LiveDefinitions;
 use crate::LoweringError;
+use crate::lowering::structural_layout::runtime_projection;
 use semantic_vocabulary::StructuralTypeId;
 use std::collections::{BTreeMap, BTreeSet};
 use target_operations::{TargetStructuralArgument, TargetStructuralParameter};
@@ -71,14 +72,13 @@ pub(super) fn argument(
                 }
                 (0, Vec::new())
             } else {
-                let (selected, shape, offset, indices) =
-                    crate::lowering::structural_layout::runtime_projection(
-                        home.structural_type(),
-                        &argument.path,
-                        types,
-                        &mut BTreeMap::new(),
-                        &mut BTreeSet::new(),
-                    )?;
+                let (selected, shape, offset, indices) = runtime_projection(
+                    home.structural_type(),
+                    &argument.path,
+                    types,
+                    &mut BTreeMap::new(),
+                    &mut BTreeSet::new(),
+                )?;
                 if selected != declaration.structural_type || shape != expected_shape {
                     return Err(invalid(
                         "source home projection type or layout differs from its formal",
@@ -131,14 +131,13 @@ pub(super) fn argument(
                 }
                 (0, Vec::new())
             } else {
-                let (selected, shape, offset, indices) =
-                    crate::lowering::structural_layout::runtime_projection(
-                        parameter.structural_type,
-                        &argument.path,
-                        types,
-                        &mut BTreeMap::new(),
-                        &mut BTreeSet::new(),
-                    )?;
+                let (selected, shape, offset, indices) = runtime_projection(
+                    parameter.structural_type,
+                    &argument.path,
+                    types,
+                    &mut BTreeMap::new(),
+                    &mut BTreeSet::new(),
+                )?;
                 if selected != declaration.structural_type || shape != expected_shape {
                     return Err(invalid(
                         "source parameter projection type or layout differs from its formal",

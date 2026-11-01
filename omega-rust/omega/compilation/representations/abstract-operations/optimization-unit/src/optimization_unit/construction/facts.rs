@@ -1,4 +1,5 @@
 use super::super::{AbstractOperation, ObligationId, OperationId, OptimizationFact};
+use abstract_operations::element_view_read_write_pair_pattern;
 
 pub(super) fn collect_fact(operation: &AbstractOperation, facts: &mut Vec<OptimizationFact>) {
     if let Some((obligation, support)) = operation_obligation(operation) {
@@ -125,11 +126,7 @@ fn operation_obligation(operation: &AbstractOperation) -> Option<(ObligationId, 
                 | terminal_psi::ElementViewRegion::WholeRepresentation { obligation, .. },
             ..
         }
-        | abstract_operations::element_view_read_write_pair_pattern!(
-            psi_operation,
-            obligation,
-            ..
-        )
+        | element_view_read_write_pair_pattern!(psi_operation, obligation, ..)
         | O::IntegerExactCast {
             psi_operation,
             obligation,

@@ -36,6 +36,7 @@ mod dispatch;
 mod provider;
 mod replay;
 mod summary_interface;
+use crate::runtime_structural_path_tip;
 pub use analysis::{DescriptorAnalysis, DescriptorSourceObservation, DescriptorSourceObservations};
 use replay::Replay;
 use terminal_psi::find_structural_type;
@@ -308,6 +309,25 @@ pub enum DescriptorSlotKind {
     AccessOrigins,
 }
 impl DescriptorSlotKind {
+    /// Returned tag constraints and exported descriptor slots are independent
+    /// observations. Keep case-bearing values even in a view-only catalog;
+    /// reference payload absence alone never supplies their active tag.
+    pub fn tracks_returned_value(
+        self,
+        types: &[StructuralTypeDeclaration],
+        place: PlaceId,
+        structural_type: StructuralTypeId,
+    ) -> bool {
+        self.owned_slots(types, place, structural_type)
+            .is_some_and(|slots| !slots.is_empty())
+            || case_flow::contains_case(
+                types,
+                structural_type,
+                &mut BTreeMap::new(),
+                &mut BTreeSet::new(),
+            )
+    }
+
     pub fn tracks_views(self) -> bool {
         matches!(self, Self::Views | Self::BorrowedStorage)
     }
@@ -425,8 +445,7 @@ impl DescriptorSlotKind {
         if argument.access == StructuralAccess::SharedBorrow {
             return false;
         }
-        let Some(selected) =
-            crate::runtime_structural_path_tip(types.iter(), root_type, &argument.path)
+        let Some(selected) = runtime_structural_path_tip(types.iter(), root_type, &argument.path)
         else {
             return true;
         };
@@ -437,12 +456,10 @@ impl DescriptorSlotKind {
             matches!(
                 segment,
                 StructuralPathSegment::RuntimeIndex { .. } | StructuralPathSegment::FixedIndex(_)
-            ) && crate::runtime_structural_path_tip(
-                types.iter(),
-                root_type,
-                &argument.path[..position],
-            )
-            .is_none_or(|prefix| matches!(prefix.shape, StructuralTypeShape::ElementView { .. }))
+            ) && runtime_structural_path_tip(types.iter(), root_type, &argument.path[..position])
+                .is_none_or(|prefix| {
+                    matches!(prefix.shape, StructuralTypeShape::ElementView { .. })
+                })
         });
         indirect_contents_contain_slot(self, types, selected.id, behind_view, &mut BTreeSet::new())
     }
@@ -470,7 +487,7 @@ impl DescriptorSlotKind {
                 crate::projected_field_declaration(types.iter(), structural_type, path, field)?;
             destination.push(StructuralPathSegment::Field(declaration.identity));
         } else {
-            crate::runtime_structural_path_tip(types.iter(), structural_type, path)?;
+            runtime_structural_path_tip(types.iter(), structural_type, path)?;
         }
         let mut overwritten = Vec::new();
         for slot in self.slots(types, root, structural_type)? {

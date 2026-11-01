@@ -1,0 +1,8 @@
+{
+  "role": "intended-invalid",
+  "entry": "main.omg",
+  "rejection_contains": [
+    "field `value` uses implementation `Implementation` as a stored/runtime type",
+    "implementations select code, not data"
+  ]
+}

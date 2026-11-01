@@ -27,7 +27,6 @@ use validation::expression_result_type_reference;
 use validation::field_domains::domain_requires_provenance;
 use validation::peel_declared_constraints;
 use validation::place_has_builtin_coordinates;
-use validation::structural_match_cases_are_covered;
 use validation::structural_match_pattern_case;
 use validation::structural_match_pattern_is_total;
 use validation::structural_match_subject_type;
@@ -109,8 +108,12 @@ impl Execution<'_, '_, '_> {
                 && structural_match_pattern_is_total(self.program, arm.pattern)
             {
                 crate::collections::push_unique(&mut case_coverage, case);
-                covered |=
-                    structural_match_cases_are_covered(self.program, reference, &case_coverage);
+                covered |= validation::structural_match_cases_are_covered(
+                    self.program,
+                    reference,
+                    expression,
+                    &case_coverage,
+                );
             }
             if let MatchPattern::Value(pattern) = arm.pattern {
                 let pattern_operand = self

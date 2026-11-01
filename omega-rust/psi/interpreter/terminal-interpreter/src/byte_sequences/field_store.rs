@@ -3,16 +3,16 @@
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, PlaceId, StructuralFieldId};
 use terminal_psi::{
     ByteSequenceCarrier, Operation, OperationKind, OperationResult, StructuralAccess,
-    StructuralPathSegment, StructuralTypeShape,
+    StructuralPathSegment, StructuralTypeShape, live_field_by_id,
 };
 
 use crate::byte_sequences::binding::ByteSequenceBinding;
 use crate::custody::{literal_fixed_array, project_structural_value};
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{TerminalExecution, operation_kind};
-use crate::values::StructuralByteSequenceRuntimeField;
-use crate::values::StructuralRuntimePlace;
-use crate::values::TerminalScalarValue;
+use crate::values::{
+    StructuralByteSequenceRuntimeField, StructuralRuntimePlace, TerminalScalarValue,
+};
 
 impl TerminalExecution<'_> {
     /// Length observes the current descriptor metadata, never its bytes. A
@@ -111,29 +111,17 @@ impl TerminalExecution<'_> {
         root: semantic_vocabulary::PlaceId,
         path: &[terminal_psi::StructuralPathSegment],
         field: semantic_vocabulary::StructuralFieldId,
-    ) -> Result<
-        (
-            crate::values::StructuralByteSequenceRuntimeField,
-            Option<u64>,
-        ),
-        TerminalInterpretError,
-    > {
+    ) -> Result<(StructuralByteSequenceRuntimeField, Option<u64>), TerminalInterpretError> {
         let (cell, carrier) =
             self.resolve_structural_byte_field_carrier(root, path, field, false)?;
         match carrier {
-            terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity } => {
-                Ok((cell, Some(capacity)))
-            }
-            terminal_psi::ByteSequenceCarrier::BorrowedView {
+            ByteSequenceCarrier::BoundedOwned { capacity } => Ok((cell, Some(capacity))),
+            ByteSequenceCarrier::BorrowedView {
                 access:
-                    None
-                    | Some(
-                        terminal_psi::StructuralAccess::SharedBorrow
-                        | terminal_psi::StructuralAccess::MutableBorrow,
-                    ),
+                    None | Some(StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow),
             } => Ok((cell, None)),
-            terminal_psi::ByteSequenceCarrier::BoundedView { access, capacity }
-                if access != Some(terminal_psi::StructuralAccess::WriteOnlyBorrow) =>
+            ByteSequenceCarrier::BoundedView { access, capacity }
+                if access != Some(StructuralAccess::WriteOnlyBorrow) =>
             {
                 Ok((cell, Some(capacity)))
             }
@@ -316,8 +304,7 @@ impl TerminalExecution<'_> {
             &StructuralRuntimePlace::from(&parent),
             selected_case,
         )?;
-        let field_declaration =
-            terminal_psi::live_field_by_id(fields, field).ok_or_else(malformed)?;
+        let field_declaration = live_field_by_id(fields, field).ok_or_else(malformed)?;
         let carrier = field_declaration
             .field_type
             .byte_sequence_carrier()

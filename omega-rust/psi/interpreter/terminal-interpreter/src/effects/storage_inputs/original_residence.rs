@@ -3,6 +3,8 @@
 //! The ordinary staged restoration path remains with its existing owner.
 
 use super::{BoundaryStorageInputs, TerminalBoundaryStorageBuffer};
+use crate::structural_inputs::byte_arrays::byte_array_length;
+use crate::structural_inputs::byte_arrays::storage::scalar_byte;
 use crate::{
     effects::{TerminalEffectHandler, original_storage::*},
     errors::{TerminalInterpretError, malformed},
@@ -12,8 +14,8 @@ use crate::{
     scalar_storage::ScalarCell,
     values::{StructuralFieldNamespace, StructuralRuntimePlace, TerminalStructuralValue},
 };
-use semantic_vocabulary::{BoundaryMachineId, CanonicalStructuralPathSegment as Path};
-use terminal_psi::StructuralAccess;
+use semantic_vocabulary::{BoundaryMachineId, CanonicalStructuralPathSegment as Path, IntegerType};
+use terminal_psi::{StructuralAccess, StructuralPathSegment};
 
 struct CapturedOriginal {
     owner: Option<StructuralRuntimePlace>,
@@ -33,12 +35,7 @@ fn capture_byte_view(
         // The selected array has u8 geometry, but its allocation can be a
         // containing record. Each scalar below retains its exact original-root
         // path; only the native layout owner derives physical byte offsets.
-        if crate::structural_inputs::byte_arrays::byte_array_length(
-            &execution.structural_types(),
-            window.array_type,
-        )
-        .is_none()
-        {
+        if byte_array_length(&execution.structural_types(), window.array_type).is_none() {
             return Err(TerminalInterpretError::UnsupportedSemanticVariant(
                 "original byte-view window requires its actual whole-u8 array geometry",
             ));
@@ -84,9 +81,7 @@ fn capture_byte_view(
                 .map_err(|error| {
                     error.in_argument_preparation("capture original byte-array cell")
                 })?;
-            if crate::structural_inputs::byte_arrays::storage::scalar_byte(&value.value)?
-                != binding.entry_bytes()[index - window.offset]
-            {
+            if scalar_byte(&value.value)? != binding.entry_bytes()[index - window.offset] {
                 return Err(malformed());
             }
             values.push(value);
@@ -121,9 +116,8 @@ fn capture_byte_view(
         {
             return Err(malformed());
         }
-        let scalar_type =
-            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 8)
-                .map_err(|_| malformed())?;
+        let scalar_type = IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 8)
+            .map_err(|_| malformed())?;
         let values = bytes
             .bytes()
             .iter()
@@ -736,9 +730,7 @@ impl TerminalExecution<'_> {
             .ok_or_else(malformed)?
             .into_iter()
             .map(|step| match step {
-                terminal_psi::StructuralPathSegment::FixedIndex(index) => {
-                    Ok(Path::FixedIndex(index))
-                }
+                StructuralPathSegment::FixedIndex(index) => Ok(Path::FixedIndex(index)),
                 _ => Err(malformed()),
             })
             .collect::<Result<Vec<_>, _>>()?;
@@ -785,7 +777,7 @@ impl TerminalExecution<'_> {
 fn capture_graph(
     execution: &mut TerminalExecution<'_>,
     source: semantic_vocabulary::PlaceId,
-    source_path: &[terminal_psi::StructuralPathSegment],
+    source_path: &[StructuralPathSegment],
     referent: &TerminalStructuralValue,
     aggregate: Option<&crate::reference::AggregateBacking>,
     captured_scalars: Option<&[crate::structural_storage::contents::PinnedScalar]>,

@@ -3,6 +3,7 @@ use terminal_psi::{StructuralPathSegment, TerminalAffineCleanupAction};
 
 use super::values::encode_ids;
 use crate::codec_bytes::encode_len;
+use terminal_psi::ReferenceOriginProjection::Exact;
 
 pub fn encode_ownership(bytes: &mut Vec<u8>, ownership: &[OwnershipEvent]) {
     encode_len(bytes, ownership.len());
@@ -99,9 +100,7 @@ pub fn encode_reference_origin_path(
     encode_len(bytes, path.len());
     for projection in path {
         match projection {
-            terminal_psi::ReferenceOriginProjection::Exact(segment) => {
-                encode_projection(bytes, segment)
-            }
+            Exact(segment) => encode_projection(bytes, segment),
             terminal_psi::ReferenceOriginProjection::Element => bytes.push(9),
         }
     }

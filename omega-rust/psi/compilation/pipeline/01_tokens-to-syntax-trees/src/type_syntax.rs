@@ -8,3 +8,6 @@ pub(crate) mod properties;
 mod qualified_names;
 #[cfg(test)]
 mod remainder_tests;
+
+#[cfg(test)]
+mod static_argument_delimiters_tests;

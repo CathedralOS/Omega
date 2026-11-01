@@ -48,6 +48,16 @@ SDK callers use the same `build(BuildRequest)` entrance, including the
 `package_batch` counter probe and CLI `qualify_inputs` replay example. There is
 no separate prepared-project check/native/inspection API or static graph resolver.
 
+`package_batch --native-evidence --compare-single-targets --run` observes the
+ordinary package route before source preparation starts. With
+`OMEGA_PHASE_PROFILE=1`, it retains per-target Omega stage and emission counts,
+compares native bytes against independent single-target requests, and executes
+the host image and reloaded Terminal artifact. Its positional expected counts
+remain explicit assertions; independent comparison requests start after that
+measurement. These counters cover source completion, Product Terminal
+publication, Build execution and settled checking, not each numbered Psi stage
+or separate calling-policy publications.
+
 [source_resolution.rs](src/build_execution/source_resolution.rs) owns executed
 discovery for those consumers and package commands. Its
 [readiness scheduler](src/build_execution/source_resolution/readiness.rs) keeps

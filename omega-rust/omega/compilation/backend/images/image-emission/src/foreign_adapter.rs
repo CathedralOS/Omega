@@ -6,6 +6,7 @@
 //! neither a container nor its export symbol supplies that authority. The
 //! retained bridge and locator let artifact readers inspect physical custody.
 
+use crate::component_shared_image::emit_shared_function_container;
 use diagnostics::Diagnostic;
 use image::{
     FinalImage, FinalImageImport, FinalImageImportPlan, FinalImageMemory, FinalImageRelocation,
@@ -128,14 +129,9 @@ pub fn emit_native_foreign_adapter(
                     target::Architecture::X86_64 => RelocationKind::X86_64Relative32,
                 },
             });
-        crate::component_shared_image::emit_shared_function_container(
-            image,
-            entry,
-            commitment,
-            symbol.into_bytes(),
-        )
-        .map(|container| (container, export))
-        .map_err(|(_, diagnostic)| diagnostic)
+        emit_shared_function_container(image, entry, commitment, symbol.into_bytes())
+            .map(|container| (container, export))
+            .map_err(|(_, diagnostic)| diagnostic)
     })();
     match emitted {
         Ok((container, export)) => Ok(NativeForeignAdapterImage {

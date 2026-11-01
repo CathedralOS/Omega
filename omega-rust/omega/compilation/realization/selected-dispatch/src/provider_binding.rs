@@ -9,6 +9,8 @@ use crate::SelectedExecution;
 use checked_trees::CheckedTrees as CheckedProgram;
 use diagnostics::Diagnostic;
 use package_compilation::AcceptedSemanticBindingRole;
+use provider_planning::ProviderPlanningContext;
+use provider_planning::service_declarations::ServiceDeclarations;
 use std::sync::Arc;
 
 /// Realization choices joined to a completed source judgment.
@@ -39,7 +41,6 @@ pub struct ProviderBindingRequest<'a> {
 /// validation. Native-only source refusals remain deferred until that handoff.
 pub fn prepare_selected_execution(
     program: Arc<CheckedProgram>,
-    accepted_template_classifications: trust_model::AcceptedTemplateClassifications,
     mut settlement: ProviderBindingRequest<'_>,
 ) -> Result<SelectedExecution, Vec<Diagnostic>> {
     if !Arc::ptr_eq(settlement.provider_inventory.program(), &program) {
@@ -59,9 +60,9 @@ pub fn prepare_selected_execution(
         .iter()
         .map(provider_planning::ProviderPlanCandidate::plan)
         .collect::<Vec<_>>();
-    if settlement.package_inputs.is_some() {
+    if settlement.package_inputs.is_some() && !settlement.root_grants.is_empty() {
         trust_model::reject_package_non_provider_grants(
-            &program.typed,
+            settlement.provider_inventory.trust_declarations(),
             settlement.root_grants,
             &provider_plans,
             &settlement.selected_provider_plan_facts,
@@ -135,21 +136,16 @@ pub fn prepare_selected_execution(
         )?;
         external_providers.selected_callback_roots(selected)
     };
-    let service_declarations = Arc::new(
-        provider_planning::service_declarations::ServiceDeclarations::prepare(
-            settlement
-                .provider_inventory
-                .services_for(&program)
-                .map_err(|error| vec![error])?,
-            settlement.boundary_calling_plan_realizations,
-            settlement.exact_toolchain_sources,
-        ),
-    );
+    let service_declarations = Arc::new(ServiceDeclarations::prepare(
+        settlement
+            .provider_inventory
+            .services_for(&program)
+            .map_err(|error| vec![error])?,
+        settlement.boundary_calling_plan_realizations,
+        settlement.exact_toolchain_sources,
+    ));
     let native_provider_sources = provider_planning::prepare_native_provider_sources(
-        provider_planning::ProviderPlanningContext::new(
-            &program.typed,
-            source::DependencyScope::Product,
-        ),
+        ProviderPlanningContext::new(&program.typed, source::DependencyScope::Product),
         settlement.exact_toolchain_sources,
         &settlement.selected_provider_provenance,
     )
@@ -210,7 +206,6 @@ pub fn prepare_selected_execution(
         x86_scalar_fma_provider: settlement.x86_scalar_fma_provider,
         selected_provider_grants,
         callback_roots,
-        accepted_template_classifications,
         selected_provider_provenance: settlement.selected_provider_provenance,
         resolved_semantic_bindings,
     })

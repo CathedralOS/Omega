@@ -25,6 +25,7 @@ pub use element_extent::{
 
 use super::OperationSemanticError;
 use crate::semantic_rows::OperationSemanticTag;
+use semantic_vocabulary::CanonicalStructuralPathSegment;
 
 /// The resolved canonical path of a `ByteSequenceOperand::Field`: project
 /// the source path, confirm the parent record exposes the named field live
@@ -35,10 +36,7 @@ pub(crate) fn byte_sequence_field_path(
     operand: &terminal_psi::control_flow::ByteSequenceOperand,
     root_type: semantic_vocabulary::StructuralTypeId,
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
-) -> Option<(
-    PlaceId,
-    Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
-)> {
+) -> Option<(PlaceId, Vec<CanonicalStructuralPathSegment>)> {
     let terminal_psi::control_flow::ByteSequenceOperand::Field { source, field, .. } = operand
     else {
         return None;
@@ -51,9 +49,7 @@ pub(crate) fn byte_sequence_field_path(
     };
     let selected = live_field_by_id(fields, *field)?;
     selected.field_type.byte_sequence_carrier()?;
-    path.push(semantic_vocabulary::CanonicalStructuralPathSegment::Field(
-        *field,
-    ));
+    path.push(CanonicalStructuralPathSegment::Field(*field));
     Some((source.place, path))
 }
 

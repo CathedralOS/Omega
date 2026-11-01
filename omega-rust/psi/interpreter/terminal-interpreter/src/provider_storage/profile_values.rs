@@ -7,6 +7,7 @@
 //! supplies data only. Resource normalization and exact extent admission remain
 //! the consumer's next step, so an unused malformed profile stays ordinary data.
 
+use crate::custody::project_structural_value;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::values::{
@@ -237,11 +238,8 @@ impl<'execution, 'program> ProfileValue<'execution, 'program> {
             path.push(StructuralPathSegment::Case(case));
         }
         path.push(StructuralPathSegment::Field(field.identity));
-        let value = crate::custody::project_structural_value(
-            &self.execution.structural_types(),
-            &self.value,
-            &path,
-        )?;
+        let value =
+            project_structural_value(&self.execution.structural_types(), &self.value, &path)?;
         Ok(Self {
             execution: self.execution,
             value,
@@ -299,7 +297,7 @@ impl<'execution, 'program> ProfileValue<'execution, 'program> {
         }
         (0..count)
             .map(|index| {
-                let value = crate::custody::project_structural_value(
+                let value = project_structural_value(
                     &types,
                     &array.value,
                     &[StructuralPathSegment::FixedIndex(index)],

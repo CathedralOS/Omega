@@ -9,7 +9,8 @@ use crate::custody::{ProducedTerminalProgram, TerminalProductionCustody};
 use crate::observation::{PsiCompilationObserver, PsiCompilationStage};
 
 pub use lowered_psi_to_terminal_psi::ProgramEntryTerminalReceiptError;
-use lowered_psi_to_terminal_psi::{prepare_program_entry_receipt, rejoin_program_entry_receipt};
+
+use crate::build_bindings::capture_native_formations;
 
 /// Exact borrowed source inputs and target-neutral selection for Terminal production.
 pub struct TerminalProductionRequest<'a> {
@@ -52,11 +53,12 @@ impl<'a> TerminalProductionRequest<'a> {
     /// Produce Terminal code beside the custody the caller asked to retain.
     ///
     /// Every product shares one instrumented body: checked-input lowering,
-    /// selected optimization, the `ProgramEntry` receipt legs when an entry
-    /// identity is supplied, and final retention or portable publication,
+    /// selected optimization and final retention or portable publication,
     /// including boundary demands and checked body candidates. The source-signature
     /// digest remains opaque; later Omega settlement must compare it with the
-    /// retained source signature.
+    /// retained source signature. Source-free application descriptions and
+    /// requested `ProgramEntry` receipts attach only after publication, never
+    /// while lowering or optimizing shared code.
     pub fn produce(
         self,
         custody: TerminalProductionCustody<'_>,
@@ -65,12 +67,9 @@ impl<'a> TerminalProductionRequest<'a> {
         let TerminalProductionCustody { applications } = custody;
         let checked = self.checked;
         let declaration_requests = crate::build_bindings::capture_declarations(checked);
-        let native_formations = crate::build_bindings::capture_native_formations(
-            checked,
-            self.machine,
-            &declaration_requests,
-        )
-        .map_err(TerminalArtifactProductionError::BuildContext)?;
+        let native_formations =
+            capture_native_formations(checked, self.machine, &declaration_requests)
+                .map_err(TerminalArtifactProductionError::BuildContext)?;
         let mut lowered = observer
             .record_result(PsiCompilationStage::Lowering, || {
                 lower_machine(
@@ -92,49 +91,20 @@ impl<'a> TerminalProductionRequest<'a> {
             )
             .map_err(TerminalArtifactProductionError::BuildContext)?;
         }
-        // Every consumer observes the same unoptimized composition. A target's
-        // refusal cannot erase behavior or reject an independently admitted one.
-        let admissions: Vec<_> = applications
+        lowered.semantic_module.unoptimized_behavior = lowered
+            .semantic_module
+            .machines
             .iter()
-            .map(|application| {
-                application.admit(
-                    checked,
-                    &lowered,
-                    self.machine,
-                    self.exact_toolchain_sources,
-                    observer,
-                )
-            })
+            .map(terminal_psi::UnoptimizedMachineBehavior::capture)
             .collect();
+        // Attribution is captured once while lowering owns source joins.
+        // Requested roots attach to the sealed artifact after publication.
+        let provenance = checked_trees_to_lowered_psi::lowered_module_provenance(checked, &lowered);
         let optimized = observer
             .record_result(PsiCompilationStage::Optimization, || {
                 run_psi_optimization(lowered, self.optimization_selections)
             })
             .map_err(TerminalArtifactProductionError::Optimization)?;
-        let receipts: Vec<_> = applications
-            .iter()
-            .zip(admissions)
-            .map(|(application, admission)| {
-                let entry_selection = admission?;
-                match (application.entry_identity, entry_selection) {
-                    (Some(source_signature_identity), Some(selection)) => observer
-                        .record_result(PsiCompilationStage::EntryReceipt, || {
-                            prepare_program_entry_receipt(
-                                checked,
-                                selection,
-                                source_signature_identity,
-                                self.exact_toolchain_sources,
-                                optimized.lowered(),
-                            )
-                        })
-                        .map(Some)
-                        .map_err(|error| {
-                            TerminalArtifactProductionError::EntryReceipt(error).diagnostics()
-                        }),
-                    _ => Ok(None),
-                }
-            })
-            .collect();
         let binding_calls = crate::build_bindings::capture(checked, optimized.lowered())
             .map_err(TerminalArtifactProductionError::BuildContext)?;
         let request_calls = crate::build_requests::capture(checked, optimized.lowered())
@@ -148,19 +118,10 @@ impl<'a> TerminalProductionRequest<'a> {
                 lowered_psi_to_terminal_psi::finalize_terminal_program(optimized, self.publication)
             })
             .map_err(TerminalArtifactProductionError::Artifact)?;
-        let applications = receipts
-            .into_iter()
-            .map(|receipt| {
-                let receipt = receipt?;
-                if let Some(receipt) = &receipt {
-                    let artifact = program.portable().map_err(|error| {
-                        TerminalArtifactProductionError::Artifact(error).diagnostics()
-                    })?;
-                    rejoin_program_entry_receipt(receipt, artifact).map_err(|error| {
-                        TerminalArtifactProductionError::EntryReceipt(error).diagnostics()
-                    })?;
-                }
-                Ok(receipt)
+        let applications = applications
+            .iter()
+            .map(|application| {
+                application.attach(program.view(), program.portable(), &provenance, observer)
             })
             .collect();
         let build_bindings = crate::TerminalBuildBindings::new(
@@ -179,6 +140,7 @@ impl<'a> TerminalProductionRequest<'a> {
             build_requests,
             build_filesystem,
             applications,
+            provenance,
         })
     }
 }

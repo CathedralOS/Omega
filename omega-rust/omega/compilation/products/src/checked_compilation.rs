@@ -95,11 +95,13 @@ pub struct CheckedCompilation {
     /// The settled language judgments and their exact inputs, kept only when the
     /// request asked to retain it for a later compile of the same occurrence.
     settled_checks: RetainedCompilationChecks,
+    /// Invocation-local derived code, not another source judgment or admission.
+    terminal_publication: Arc<crate::ProductTerminalPublication>,
 }
 
-// Measurements and a retained judgment are observations, not checked semantic
-// identity. Each retained semantic owner derives equality so newly retained
-// fields participate too.
+// Measurements, a retained judgment and invocation-local derived code are not
+// another checked semantic identity. The semantic inputs retain their own
+// equality; a lazy publication becoming populated cannot change that judgment.
 impl PartialEq for CheckedCompilation {
     fn eq(&self, other: &Self) -> bool {
         self.execution == other.execution && self.sources == other.sources
@@ -116,6 +118,7 @@ impl CheckedCompilation {
         execution: CheckedCompilationInputs,
         sources: Arc<CheckedSourceCustody>,
         timings: CompileTimings,
+        terminal_publication: Arc<crate::ProductTerminalPublication>,
     ) -> Self {
         Self {
             source_completion_accounting: Default::default(),
@@ -123,7 +126,12 @@ impl CheckedCompilation {
             sources,
             timings,
             settled_checks: RetainedCompilationChecks::default(),
+            terminal_publication,
         }
+    }
+
+    pub fn terminal_publication(&self) -> &crate::ProductTerminalPublication {
+        &self.terminal_publication
     }
 
     /// Retain authored source completion's actual invocation charges separately
@@ -211,10 +219,18 @@ impl CheckedCompilation {
     /// Resolve every root grant to its exact claim or provider plan; a grant
     /// that names nothing the program selects rejects.
     pub fn admit_trust(&self) -> Result<(), Vec<Diagnostic>> {
+        let grants = self.build().config.root_grant_selectors();
+        // No trust subjects are selected in this case. Do not prepare the
+        // dormant declaration census merely to reconstruct an empty set.
+        if grants.is_empty() {
+            return Ok(());
+        }
         trust_model::reconstruct_trust_obligations(
-            &self.typed,
-            self,
-            &self.build().config.root_grant_selectors(),
+            self.execution()
+                .provider_source
+                .inventory()
+                .trust_declarations(),
+            &grants,
             &self
                 .providers()
                 .provider_candidates
@@ -222,7 +238,6 @@ impl CheckedCompilation {
                 .map(provider_planning::ProviderPlanCandidate::plan)
                 .collect::<Vec<_>>(),
             self.execution().provider_source.plans(),
-            &self.execution().accepted_template_classifications,
             self.sources.package_subject().is_some(),
         )
         .map(drop)

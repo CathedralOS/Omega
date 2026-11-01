@@ -1,0 +1,20 @@
+data Selected<'captured> { reference: &'captured i32; }
+trait Known<Value> {}
+Evidence<Value> satisfies Known<Value> {}
+
+// An unused evidence parameter still owes its exact regional application.
+// This statement call has no result from which to recover its invocation.
+machine touch<'required, Operations satisfies Known<Selected<'required>>>(source: &'required i32) {}
+machine observed<'first, 'second>(left: &'first i32, right: &'second i32) -> i32 {
+    touch<Evidence<Selected<'first>>>(left);
+    touch<Evidence<Selected<'second>>>(right);
+    left
+}
+machine main() crashes Trap {
+    let left: i32 = 11;
+    let right: i32 = 23;
+    let value: i32 = observed(&left, &right);
+    transition value == 11 && right == 23 { true -> passed() false -> failed() }
+    machine passed() {}
+    machine failed() { crash Trap; }
+}

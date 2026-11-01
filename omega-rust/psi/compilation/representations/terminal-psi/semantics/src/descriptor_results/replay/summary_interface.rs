@@ -77,6 +77,7 @@ impl Replay<'_> {
         }
         Some(Summary {
             result: None,
+            result_cases: Default::default(),
             effects: Vec::new(),
             invalidates_contents,
         })

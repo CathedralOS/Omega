@@ -26,8 +26,8 @@ data Counter {
 }
 
 CounterResettable satisfies Resettable<Counter> {
-    LeftReset::set = Counter::set;
-    RightReset::set = Counter::set;
+    machine set(subject: &mut Counter, value: i32) satisfies LeftReset<Counter>::set { Counter::set(subject, value) }
+    machine set(subject: &mut Counter, value: i32) satisfies RightReset<Counter>::set { Counter::set(subject, value) }
 }
 
 machine Counter::set(counter: &mut Counter, value: i32) {

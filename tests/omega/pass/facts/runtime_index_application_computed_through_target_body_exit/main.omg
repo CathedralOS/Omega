@@ -16,34 +16,67 @@ machine observe<Observed:u32>(value:u32)->u32
 requires value < Observed
 { create<Observed>(value).value }
 
-windows_x86_64 machine probe(limit:u32)->Observation requires limit>=9 && limit<=10 {
- let mut origin:u32=limit-1u32;
- let mut indexed:Index<(origin+1u32)> = Index{value:payload(&mut origin)};
- preserve(limit,&mut indexed);
- Observation{payload:observe<limit>(indexed.value),limit:indexed.Limit,after:origin}
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
-linux_x86_64 machine probe(limit:u32)->Observation requires limit>=9 && limit<=10 {
- let mut origin:u32=limit-1u32;
- let mut indexed:Index<(origin+1u32)> = Index{value:payload(&mut origin)};
- preserve(limit,&mut indexed);
- Observation{payload:observe<limit>(indexed.value),limit:indexed.Limit,after:origin}
+
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
-macos_arm64 machine probe(limit:u32)->Observation requires limit>=9 && limit<=10 {
- let mut origin:u32=limit-1u32;
- let mut indexed:Index<(origin+1u32)> = Index{value:payload(&mut origin)};
- preserve(limit,&mut indexed);
- Observation{payload:observe<limit>(indexed.value),limit:indexed.Limit,after:origin}
+
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
-linux_arm64 machine probe(limit:u32)->Observation requires limit>=9 && limit<=10 {
- let mut origin:u32=limit-1u32;
- let mut indexed:Index<(origin+1u32)> = Index{value:payload(&mut origin)};
- preserve(limit,&mut indexed);
- Observation{payload:observe<limit>(indexed.value),limit:indexed.Limit,after:origin}
+
+boundary trait SelectedProbe {
+    machine probe(limit:u32) ->Observation
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires limit>=9 && limit<=10;
 }
+
+X86Probe satisfies SelectedProbe {
+    machine probe(limit:u32) ->Observation
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires limit>=9 && limit<=10
+    {
+        SelectedBodyCheck::require_tag(17u64);
+     let mut origin:u32=limit-1u32;
+     let mut indexed:Index<(origin+1u32)> = Index{value:payload(&mut origin)};
+     preserve(limit,&mut indexed);
+     Observation{payload:observe<limit>(indexed.value),limit:indexed.Limit,after:origin}
+    }
+}
+
+ArmProbe satisfies SelectedProbe {
+    machine probe(limit:u32) ->Observation
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires limit>=9 && limit<=10
+    {
+        SelectedBodyCheck::require_tag(29u64);
+     let mut origin:u32=limit-1u32;
+     let mut indexed:Index<(origin+1u32)> = Index{value:payload(&mut origin)};
+     preserve(limit,&mut indexed);
+     Observation{payload:observe<limit>(indexed.value),limit:indexed.Limit,after:origin}
+    }
+}
+
 machine main() crashes Trap {
- let first:Observation=probe(9);
- let second:Observation=probe(10);
+ let first:Observation=SelectedProbe::probe(9);
+ let second:Observation=SelectedProbe::probe(10);
  transition first.payload==8 && first.limit==9 && second.payload==8 && second.limit==10 && first.after==4294967295 && second.after==4294967295 { true->done() _->bad() }
  machine done(){}
  machine bad(){crash Trap;}
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

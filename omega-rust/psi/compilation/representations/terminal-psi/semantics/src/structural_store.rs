@@ -7,6 +7,7 @@
 //! absence of overlapping debt and active loan authority remain separate.
 use crate::exactly_one::exactly_one;
 use semantic_vocabulary::{PlaceId, StructuralTypeId};
+use terminal_psi::StructuralRecordStorage;
 use terminal_psi::{
     ByteSequenceCarrier, StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
     StructuralStoreDisposition, StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine,
@@ -95,9 +96,7 @@ fn disposable_storage<'types>(
             descriptor_cleanup || matches!(carrier, ByteSequenceCarrier::BoundedOwned { .. })
         }
         StructuralTypeShape::Record {
-            storage:
-                terminal_psi::StructuralRecordStorage::AccessView(_)
-                | terminal_psi::StructuralRecordStorage::Accessor(_),
+            storage: StructuralRecordStorage::AccessView(_) | StructuralRecordStorage::Accessor(_),
             ..
         } => false,
         StructuralTypeShape::Record { fields, .. } => {

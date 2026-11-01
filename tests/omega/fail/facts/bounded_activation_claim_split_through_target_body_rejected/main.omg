@@ -2,140 +2,119 @@
 // The split is in a target body. The cut bound equals the parent bound, so the upper child is empty.
 use omega::language::core::activation;
 
-windows_x86_64 machine target_exercise() -> bool crashes Trap {
-    transition Activation::try_claim<16>(8) {
-        ActivationClaimAttempt::Established { claim } -> divide(claim)
-        ActivationClaimAttempt::Rejected -> (false)
-    }
-    machine divide(claim: ActivationClaim) -> bool {
-        transition ActivationClaim::split<16>(claim, 4) {
-            ActivationClaimSplit::Covered { lower, upper } -> merge_children(lower, upper)
-            ActivationClaimSplit::Rejected { claim } -> return_rejected(claim)
-        }
-    }
-    machine return_rejected(claim: ActivationClaim) -> bool {
-        ActivationClaim::release(claim);
-        false
-    }
-    machine merge_children(lower: ActivationClaim, upper: ActivationClaim) -> bool {
-        transition ActivationClaim::merge(lower, upper) {
-            ActivationClaimMerge::Covered { claim } -> restored(claim)
-            ActivationClaimMerge::Rejected { lower, upper } -> merge_rejected(lower, upper)
-        }
-    }
-    machine merge_rejected(lower: ActivationClaim, upper: ActivationClaim) -> bool {
-        ActivationClaim::release(upper);
-        ActivationClaim::release(lower);
-        false
-    }
-    machine restored(claim: ActivationClaim) -> bool {
-        ActivationClaim::release(claim);
-        true
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
+}
+
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
     }
 }
 
-linux_x86_64 machine target_exercise() -> bool crashes Trap {
-    transition Activation::try_claim<16>(8) {
-        ActivationClaimAttempt::Established { claim } -> divide(claim)
-        ActivationClaimAttempt::Rejected -> (false)
-    }
-    machine divide(claim: ActivationClaim) -> bool {
-        transition ActivationClaim::split<16>(claim, 4) {
-            ActivationClaimSplit::Covered { lower, upper } -> merge_children(lower, upper)
-            ActivationClaimSplit::Rejected { claim } -> return_rejected(claim)
-        }
-    }
-    machine return_rejected(claim: ActivationClaim) -> bool {
-        ActivationClaim::release(claim);
-        false
-    }
-    machine merge_children(lower: ActivationClaim, upper: ActivationClaim) -> bool {
-        transition ActivationClaim::merge(lower, upper) {
-            ActivationClaimMerge::Covered { claim } -> restored(claim)
-            ActivationClaimMerge::Rejected { lower, upper } -> merge_rejected(lower, upper)
-        }
-    }
-    machine merge_rejected(lower: ActivationClaim, upper: ActivationClaim) -> bool {
-        ActivationClaim::release(upper);
-        ActivationClaim::release(lower);
-        false
-    }
-    machine restored(claim: ActivationClaim) -> bool {
-        ActivationClaim::release(claim);
-        true
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
     }
 }
 
-macos_arm64 machine target_exercise() -> bool crashes Trap {
-    transition Activation::try_claim<16>(8) {
-        ActivationClaimAttempt::Established { claim } -> divide(claim)
-        ActivationClaimAttempt::Rejected -> (false)
-    }
-    machine divide(claim: ActivationClaim) -> bool {
-        transition ActivationClaim::split<16>(claim, 4) {
-            ActivationClaimSplit::Covered { lower, upper } -> merge_children(lower, upper)
-            ActivationClaimSplit::Rejected { claim } -> return_rejected(claim)
+boundary trait SelectedTargetExercise {
+    machine target_exercise() -> bool
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
+}
+
+X86TargetExercise satisfies SelectedTargetExercise {
+    machine target_exercise() -> bool
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        transition Activation::try_claim<16>(8) {
+            ActivationClaimAttempt::Established { claim } -> divide(claim)
+            ActivationClaimAttempt::Rejected -> (false)
         }
-    }
-    machine return_rejected(claim: ActivationClaim) -> bool {
-        ActivationClaim::release(claim);
-        false
-    }
-    machine merge_children(lower: ActivationClaim, upper: ActivationClaim) -> bool {
-        transition ActivationClaim::merge(lower, upper) {
-            ActivationClaimMerge::Covered { claim } -> restored(claim)
-            ActivationClaimMerge::Rejected { lower, upper } -> merge_rejected(lower, upper)
+        machine divide(claim: ActivationClaim) -> bool {
+            transition ActivationClaim::split<16>(claim, 4) {
+                ActivationClaimSplit::Covered { lower, upper } -> merge_children(lower, upper)
+                ActivationClaimSplit::Rejected { claim } -> return_rejected(claim)
+            }
         }
-    }
-    machine merge_rejected(lower: ActivationClaim, upper: ActivationClaim) -> bool {
-        ActivationClaim::release(upper);
-        ActivationClaim::release(lower);
-        false
-    }
-    machine restored(claim: ActivationClaim) -> bool {
-        ActivationClaim::release(claim);
-        true
+        machine return_rejected(claim: ActivationClaim) -> bool {
+            ActivationClaim::release(claim);
+            false
+        }
+        machine merge_children(lower: ActivationClaim, upper: ActivationClaim) -> bool {
+            transition ActivationClaim::merge(lower, upper) {
+                ActivationClaimMerge::Covered { claim } -> restored(claim)
+                ActivationClaimMerge::Rejected { lower, upper } -> merge_rejected(lower, upper)
+            }
+        }
+        machine merge_rejected(lower: ActivationClaim, upper: ActivationClaim) -> bool {
+            ActivationClaim::release(upper);
+            ActivationClaim::release(lower);
+            false
+        }
+        machine restored(claim: ActivationClaim) -> bool {
+            ActivationClaim::release(claim);
+            true
+        }
     }
 }
 
-linux_arm64 machine target_exercise() -> bool crashes Trap {
-    transition Activation::try_claim<16>(8) {
-        ActivationClaimAttempt::Established { claim } -> divide(claim)
-        ActivationClaimAttempt::Rejected -> (false)
-    }
-    machine divide(claim: ActivationClaim) -> bool {
-        transition ActivationClaim::split<16>(claim, 4) {
-            ActivationClaimSplit::Covered { lower, upper } -> merge_children(lower, upper)
-            ActivationClaimSplit::Rejected { claim } -> return_rejected(claim)
+ArmTargetExercise satisfies SelectedTargetExercise {
+    machine target_exercise() -> bool
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        transition Activation::try_claim<16>(8) {
+            ActivationClaimAttempt::Established { claim } -> divide(claim)
+            ActivationClaimAttempt::Rejected -> (false)
         }
-    }
-    machine return_rejected(claim: ActivationClaim) -> bool {
-        ActivationClaim::release(claim);
-        false
-    }
-    machine merge_children(lower: ActivationClaim, upper: ActivationClaim) -> bool {
-        transition ActivationClaim::merge(lower, upper) {
-            ActivationClaimMerge::Covered { claim } -> restored(claim)
-            ActivationClaimMerge::Rejected { lower, upper } -> merge_rejected(lower, upper)
+        machine divide(claim: ActivationClaim) -> bool {
+            transition ActivationClaim::split<16>(claim, 4) {
+                ActivationClaimSplit::Covered { lower, upper } -> merge_children(lower, upper)
+                ActivationClaimSplit::Rejected { claim } -> return_rejected(claim)
+            }
         }
-    }
-    machine merge_rejected(lower: ActivationClaim, upper: ActivationClaim) -> bool {
-        ActivationClaim::release(upper);
-        ActivationClaim::release(lower);
-        false
-    }
-    machine restored(claim: ActivationClaim) -> bool {
-        ActivationClaim::release(claim);
-        true
+        machine return_rejected(claim: ActivationClaim) -> bool {
+            ActivationClaim::release(claim);
+            false
+        }
+        machine merge_children(lower: ActivationClaim, upper: ActivationClaim) -> bool {
+            transition ActivationClaim::merge(lower, upper) {
+                ActivationClaimMerge::Covered { claim } -> restored(claim)
+                ActivationClaimMerge::Rejected { lower, upper } -> merge_rejected(lower, upper)
+            }
+        }
+        machine merge_rejected(lower: ActivationClaim, upper: ActivationClaim) -> bool {
+            ActivationClaim::release(upper);
+            ActivationClaim::release(lower);
+            false
+        }
+        machine restored(claim: ActivationClaim) -> bool {
+            ActivationClaim::release(claim);
+            true
+        }
     }
 }
 
 machine main() crashes Trap {
-    let ok: bool = target_exercise();
+    let ok: bool = SelectedTargetExercise::target_exercise();
     transition ok {
         true -> done()
         false -> bad()
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

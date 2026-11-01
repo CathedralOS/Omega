@@ -4,7 +4,9 @@
 //! entrance owns request recovery and the inputs needed for native admission.
 
 use crate::PreparedNativeCompilation;
+use crate::observations::{NativePipelineObservation, NativePipelineStage, NativePipelineUnit};
 use diagnostics::Diagnostic;
+use image_emission::ExecutableImageEmissionRequest;
 use terminal_psi_to_abstract_operations::RetainedNativeProviderInputs;
 
 /// Consume retained Terminal through the ordinary source-free native pipeline.
@@ -13,13 +15,7 @@ use terminal_psi_to_abstract_operations::RetainedNativeProviderInputs;
 /// returns the original complete image request, including its interpreter.
 pub fn compile(
     prepared: PreparedNativeCompilation<'_>,
-) -> Result<
-    crate::RealizedNativeProduct,
-    (
-        image_emission::ExecutableImageEmissionRequest,
-        Vec<Diagnostic>,
-    ),
-> {
+) -> Result<crate::RealizedNativeProduct, (ExecutableImageEmissionRequest, Vec<Diagnostic>)> {
     let PreparedNativeCompilation {
         retained,
         request,
@@ -41,6 +37,10 @@ pub fn compile(
                 "prepared native work lost its original proposal",
             )]
         })?;
+        let observation = NativePipelineObservation::new(
+            proposal.target_profile(),
+            NativePipelineUnit::Application,
+        );
         let emitted_components = crate::components::emit_components(
             prepared_components,
             &request.terminal_authority_policy,
@@ -51,6 +51,7 @@ pub fn compile(
             .map(crate::components::EmittedComponent::admit_call)
             .collect::<Result<Vec<_>, _>>()?;
         let (input, execution) = phase_profile::scope("06.1.c1_prepare_native_execution", || {
+            observation.enter(NativePipelineStage::TerminalToAbstract);
             work.lower(scalar_input)
         })?;
         let prepared = phase_profile::scope("06.1.c2_prepare_native_providers", || {
@@ -76,6 +77,7 @@ pub fn compile(
             std::sync::Arc::clone(artifact),
             input,
             crate::request::NativeRealizationRequest {
+                observation: &observation,
                 proposal,
                 execution: &execution,
                 scalar_applications: scalars.native_input()?,
@@ -105,6 +107,7 @@ pub fn compile(
                     .map_err(|reason| vec![Diagnostic::error(reason)])?,
             );
         }
+        observation.complete();
         Ok(produced)
     })();
     result.map_err(|diagnostics| (recoverable_image_request, diagnostics))

@@ -12,12 +12,17 @@ mod local_data_statements;
 pub(super) use local_data_statements::validate_type_reference as validate_local_type_reference;
 mod transition_statements;
 
+use crate::value_custody::expression_types::{
+    self, ExpressionTypeOwner, validate_expression_type_handle,
+};
 use crate::value_custody::locals::WritableRoots;
 use crate::{
     TopLevelSymbols, ValidatedBoundaryOperatorApplication, declarations::transitions,
-    proof_contracts::arithmetic_domains, value_custody::access_views,
+    proof_contracts::arithmetic_domains, proof_contracts::domain_weakening,
+    value_custody::access_views, value_custody::reference_access, value_custody::struct_literals,
 };
 use diagnostics::Diagnostic;
+use typed_trees::expression::ExpressionHandle;
 use typed_trees::statement::StatementNode;
 
 #[allow(clippy::too_many_arguments)]
@@ -73,6 +78,112 @@ impl<'a> StatementScope<'a> {
             self.writable_roots,
         )
     }
+}
+
+/// What every value that completes a state owes the state's declared result.
+/// A trailing value is parsed as an unconditional value arm, so the terminal
+/// expression and an authored `_ -> (value)` arm are one construct judged by
+/// one roster.
+///
+/// The delivered-type check names the type that arrived. The syntactic shape
+/// gate speaks only when that check is silent, and the class, nominal and
+/// domain-weakening checks speak only when the gate is silent too: one defect
+/// is one diagnostic. The gate is what compares a literal, call or cast with a
+/// rigid type parameter, so a generic body is judged against its declared
+/// binders whether or not any specialization of it exists.
+pub(super) fn validate_completion_value(
+    scope: &StatementScope<'_>,
+    state: &typed_trees::state::State,
+    value: ExpressionHandle,
+    formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let (program, machine, state_name, _, _, _) = scope.reads();
+    let return_owner = format!(
+        "machine `{}` state `{state_name}` return value",
+        machine.name
+    );
+    let slot_context = format!("machine `{}` state `{state_name}`", machine.name);
+    reference_access::report_reference_access_conflict(
+        program,
+        machine,
+        Some(state),
+        &program.statement_table.statements(state.statement_nodes)[..scope.statement_index],
+        value,
+        state.return_type,
+        &return_owner,
+        diagnostics,
+    );
+    struct_literals::validate_array_literal_elements(
+        program,
+        machine,
+        state,
+        value,
+        state.return_type,
+        diagnostics,
+        formation_obligations,
+    );
+    let delivered_mark = diagnostics.len();
+    expression_types::report_delivered_type_mismatch(
+        program,
+        machine.symbol,
+        value,
+        state.return_type,
+        &return_owner,
+        diagnostics,
+    );
+    let shape_mark = diagnostics.len();
+    if shape_mark == delivered_mark {
+        validate_expression_type_handle(
+            program,
+            machine.symbol,
+            value,
+            state.return_type,
+            diagnostics,
+            ExpressionTypeOwner::StateTerminalExpression {
+                machine: machine.name.as_str(),
+                state: state_name,
+            },
+        );
+    }
+    if diagnostics.len() != shape_mark {
+        return;
+    }
+    // The gate rejects a cross-class LITERAL result (`-> i32 { true }`) but
+    // blanket-accepts place and name values, so a Boolean field returned from
+    // an `-> i32` machine reaches the class check instead.
+    if let Some(target) = program.primitive_type_reference(state.return_type) {
+        expression_types::report_cross_class_store(
+            program,
+            Some(machine),
+            Some(state),
+            value,
+            target,
+            &slot_context,
+            "return value",
+            diagnostics,
+        );
+    }
+    // Nominal guard (`-> Foo { self.bar }`), the array/scalar shape guard
+    // (`-> i32 { self.xs }`) and the scalar/data one, in that order.
+    expression_types::report_place_value_mismatches(
+        program,
+        machine,
+        Some(state),
+        value,
+        state.return_type,
+        &slot_context,
+        "return value",
+        diagnostics,
+    );
+    domain_weakening::validate_return_domain_weakening(
+        program,
+        machine,
+        state,
+        value,
+        &slot_context,
+        diagnostics,
+    );
 }
 
 pub(super) fn validate_state_statement_node<'p>(

@@ -170,3 +170,15 @@ exact arithmetic in machine ... return value may overflow `u64`: the operands ar
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`)**: Backend code generation emits target ISA instructions (`sub`, conditional branches, and discriminant checks), allocating register homes and activation stack slots without live-variable spilling corrupting variant discriminants.
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission)**: Direct PE/ELF/Mach-O image generation resolves entry symbols, basic block branches, and image relocations, producing native binaries that agree with Terminal Psi on exit 0 across all hosted targets.
 - **Remaining Open**: None for this fact row; all 9 places and 9 reject twins are pinned under `tests/omega/{pass,fail}/facts/`, run green on both native and interpreter gates with authored exit 0, and the 9 twins reject with their authored decision-17 fragment. The `corpus_native_macos_arm64.txt` golden carries nine real `built ... exit:0` rows and `corpus_outcomes.txt` carries the nine `checked` and nine `rejected` rows.
+
+## Build-owned target-body migration
+
+The `target_body` place and its twin carry no source target prefix.
+`BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named
+implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected
+by explicit target-keyed Build rows. The operation, inputs, contracts and exit
+oracle are unchanged. The entry wrapper and each implementation check a tag
+(17 for x86-64, 29 for AArch64), so a wrong Build row traps. Observed evidence is
+Linux x86-64 native and Terminal Psi agreement for the positive and source
+rejection for the twin; the other hosted targets keep their authored rows,
+unexecuted here.

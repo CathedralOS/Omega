@@ -4,8 +4,12 @@
 //! Resident frames and prepared outputs are roots; descriptor cells are edges,
 //! so unrelated dead descriptors cannot keep one another alive.
 
+use crate::byte_sequences::binding::ByteSequenceBinding;
 use crate::execution::{CleanupContinuation, SuspendedCallResult, TerminalExecution};
+use crate::primitive_storage::PrimitiveStorageEndpoint;
 use crate::results::TerminalExecutionResult;
+use crate::structural_inputs::byte_arrays::storage::{ArrayStorage, ArrayStorageHome};
+use crate::terminators::block_bindings::BlockBindings;
 use crate::values::{StructuralRuntimePlace, TerminalStructuralValue};
 use std::ops::Range;
 use terminal_psi::{ReferenceOriginProjection, StructuralPathSegment};
@@ -121,24 +125,13 @@ impl RetainedStorage {
         self.frame_array(depth, place);
     }
 
-    pub(crate) fn array_storage(
-        &mut self,
-        array: &crate::structural_inputs::byte_arrays::storage::ArrayStorage,
-    ) {
-        if let crate::structural_inputs::byte_arrays::storage::ArrayStorageHome::Frame {
-            depth,
-            place,
-            ..
-        } = array.home
-        {
+    pub(crate) fn array_storage(&mut self, array: &ArrayStorage) {
+        if let ArrayStorageHome::Frame { depth, place, .. } = array.home {
             self.frame_array(depth, place);
         }
     }
 
-    pub(crate) fn primitive_endpoint(
-        &mut self,
-        endpoint: &crate::primitive_storage::PrimitiveStorageEndpoint,
-    ) {
+    pub(crate) fn primitive_endpoint(&mut self, endpoint: &PrimitiveStorageEndpoint) {
         use crate::primitive_storage::PrimitiveStorageEndpoint;
         match endpoint {
             PrimitiveStorageEndpoint::RepresentationByte(byte) => byte.view.retain_storage(self),
@@ -153,10 +146,7 @@ impl RetainedStorage {
         }
     }
 
-    pub(crate) fn byte_binding(
-        &mut self,
-        binding: &crate::byte_sequences::binding::ByteSequenceBinding,
-    ) {
+    pub(crate) fn byte_binding(&mut self, binding: &ByteSequenceBinding) {
         use crate::byte_sequences::binding::ByteSequenceBinding;
         match binding {
             ByteSequenceBinding::MutableArray { array, .. } => self.array_storage(array),
@@ -314,17 +304,14 @@ impl TerminalExecution<'_> {
         self.collect_retired_storage(continuation, None);
     }
 
-    pub(crate) fn collect_retired_successor_storage(
-        &mut self,
-        bindings: &crate::terminators::block_bindings::BlockBindings,
-    ) {
+    pub(crate) fn collect_retired_successor_storage(&mut self, bindings: &BlockBindings) {
         self.collect_retired_storage(None, Some(bindings));
     }
 
     fn collect_retired_storage(
         &mut self,
         continuation: Option<&CleanupContinuation>,
-        bindings: Option<&crate::terminators::block_bindings::BlockBindings>,
+        bindings: Option<&BlockBindings>,
     ) {
         let has_retired_arrays = self.scalar_array_values.has_retired()
             || self

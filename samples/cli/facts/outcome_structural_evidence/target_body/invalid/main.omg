@@ -17,32 +17,66 @@ machine failure_arm() -> bool {
   _ -> (true)
  }
 }
-windows_x86_64 machine probe(gate: Gate) -> bool {
- transition pick(gate) {
-  Outcome::Success { ; selected: proof } -> (gate.threshold == 5)
-  _ -> (false)
- }
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
-linux_x86_64 machine probe(gate: Gate) -> bool {
- transition pick(gate) {
-  Outcome::Success { ; selected: proof } -> (gate.threshold == 5)
-  _ -> (false)
- }
+
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
-macos_arm64 machine probe(gate: Gate) -> bool {
- transition pick(gate) {
-  Outcome::Success { ; selected: proof } -> (gate.threshold == 5)
-  _ -> (false)
- }
+
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
-linux_arm64 machine probe(gate: Gate) -> bool {
- transition pick(gate) {
-  Outcome::Success { ; selected: proof } -> (gate.threshold == 5)
-  _ -> (false)
- }
+
+boundary trait SelectedProbe {
+    machine probe(gate: Gate) -> bool
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
 }
+
+X86Probe satisfies SelectedProbe {
+    machine probe(gate: Gate) -> bool
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+     transition pick(gate) {
+      Outcome::Success { ; selected: proof } -> (gate.threshold == 5)
+      _ -> (false)
+     }
+    }
+}
+
+ArmProbe satisfies SelectedProbe {
+    machine probe(gate: Gate) -> bool
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+     transition pick(gate) {
+      Outcome::Success { ; selected: proof } -> (gate.threshold == 5)
+      _ -> (false)
+     }
+    }
+}
+
+
 machine main() crashes Trap {
- transition (probe(Gate { threshold: 5 })) && failure_arm() { true -> done() _ -> bad() }
+ transition (SelectedProbe::probe(Gate { threshold: 5 })) && failure_arm() { true -> done() _ -> bad() }
  machine done() {}
  machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

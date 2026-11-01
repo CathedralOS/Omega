@@ -2,7 +2,7 @@
 
 mod operations;
 mod placement;
-pub(crate) use placement::place_callbacks;
+pub use placement::settle_native_callback_placements;
 mod registrar_imports;
 pub(crate) use operations::CallbackTerminalOperations;
 

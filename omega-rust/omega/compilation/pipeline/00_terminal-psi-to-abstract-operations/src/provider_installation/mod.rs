@@ -14,6 +14,7 @@ pub use error::ProviderInstallationError;
 
 use abstract_operations::CompletionClaimSource;
 pub(crate) use admission::admit_provider_installation_with_projection;
+use installation_evidence::InstalledProviderCallEvidence;
 use semantic_vocabulary::{InvocationSite, MachineId};
 use terminal_psi::{CompletionReceipt, ProviderCandidateConformance, StructuralArgument};
 
@@ -123,43 +124,39 @@ impl installation_evidence::ProviderInstallationEvidence for AdmittedProviderIns
         self.psi
     }
 
-    fn installed_provider_calls(
-        &self,
-    ) -> Vec<installation_evidence::InstalledProviderCallEvidence> {
+    fn installed_provider_calls(&self) -> Vec<InstalledProviderCallEvidence> {
         self.installed_calls
             .iter()
-            .map(
-                |call| installation_evidence::InstalledProviderCallEvidence {
-                    caller: call.caller,
-                    invocation_site: call.invocation_site,
-                    boundary: call.boundary,
-                    provider: call.provider.clone(),
-                    assumption: call.assumption.as_ref().map(|row| {
-                        installation_evidence::InstalledAssumedBindingEvidence {
-                            required: row.required,
-                            supplied_requirement: row.supplied_requirement,
-                            implementation: row.implementation,
-                            selected_requirement: row.selected_requirement,
-                            supply_path: row.supply_path.clone(),
-                        }
-                    }),
-                    result: call.result.clone(),
-                    scalar_arguments: call.scalar_arguments.clone(),
-                    structural_arguments: call.structural_arguments.clone(),
-                    completion_claim_sources: call
-                        .completion_claim_sources
-                        .iter()
-                        .map(|source| {
-                            installation_evidence::InstalledProviderCompletionClaimSource {
-                                claim: source.claim,
-                                entry: source.entry.clone(),
-                                content: source.content.clone(),
-                            }
-                        })
-                        .collect(),
-                    completion_receipts: call.completion_receipts.clone(),
-                },
-            )
+            .map(|call| InstalledProviderCallEvidence {
+                caller: call.caller,
+                invocation_site: call.invocation_site,
+                boundary: call.boundary,
+                provider: call.provider.clone(),
+                assumption: call.assumption.as_ref().map(|row| {
+                    installation_evidence::InstalledAssumedBindingEvidence {
+                        required: row.required,
+                        supplied_requirement: row.supplied_requirement,
+                        implementation: row.implementation,
+                        selected_requirement: row.selected_requirement,
+                        supply_path: row.supply_path.clone(),
+                    }
+                }),
+                result: call.result.clone(),
+                scalar_arguments: call.scalar_arguments.clone(),
+                structural_arguments: call.structural_arguments.clone(),
+                completion_claim_sources: call
+                    .completion_claim_sources
+                    .iter()
+                    .map(
+                        |source| installation_evidence::InstalledProviderCompletionClaimSource {
+                            claim: source.claim,
+                            entry: source.entry.clone(),
+                            content: source.content.clone(),
+                        },
+                    )
+                    .collect(),
+                completion_receipts: call.completion_receipts.clone(),
+            })
             .collect()
     }
 }

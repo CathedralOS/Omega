@@ -7,7 +7,6 @@
 use super::super::exits::exact_scalar_membership;
 use super::super::prover::prove_domain_at_place;
 use super::member_domains::value_satisfies_domain_instance_predicates_in_contexts;
-use super::member_domains::value_satisfies_domain_predicates_in_contexts;
 use crate::flow::active_context_handles;
 use crate::flow::call_flows;
 use crate::flow::expressions;
@@ -284,13 +283,14 @@ pub(super) fn value_proves_qualification_with_domain_stack(
     // Only a missing qualification needs predicate reconstruction. Consume
     // existing occurrence evidence first, without replaying the same prefix.
     // The provenance fence above still precedes this truth judgment.
-    value_satisfies_domain_predicates_in_contexts(
+    value_satisfies_domain_instance_predicates_in_contexts(
         program,
         facts,
         state,
         statement_index,
         value,
         domain,
+        identity,
         contexts,
         active,
         None,

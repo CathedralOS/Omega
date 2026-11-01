@@ -261,6 +261,7 @@ impl SyntaxTrees {
             | Item::Conformance(_)
             | Item::Const(_)
             | Item::Data(_)
+            | Item::TypeAlias(_)
             | Item::Domain(_)
             | Item::Measure(_)
             | Item::Module(_)

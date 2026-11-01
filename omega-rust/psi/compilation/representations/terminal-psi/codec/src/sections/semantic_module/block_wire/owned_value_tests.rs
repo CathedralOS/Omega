@@ -29,26 +29,16 @@ fn placed_reference_wire_preserves_owner_roles_and_backing_kind() {
             ..resident
         }),
     ] {
+        let kind = OperationKind::EstablishAccessReference {
+            source: source.clone(),
+            resident: roles,
+        };
         let mut writer = Writer::default();
-        super::storage_operations::encode_establish_access_reference(
-            &mut writer,
-            source.clone(),
-            roles,
-        )
-        .unwrap();
+        super::encode_operation_kind(&mut writer, kind.clone()).unwrap();
         let bytes = writer.finish();
+        assert_eq!(bytes[0], super::operation_tags::ESTABLISH_ACCESS_REFERENCE);
         let mut reader = Reader::new(&bytes);
-        assert_eq!(
-            reader.u8().unwrap(),
-            super::operation_tags::ESTABLISH_ACCESS_REFERENCE
-        );
-        assert_eq!(
-            super::storage_operations::decode_establish_access_reference(&mut reader).unwrap(),
-            OperationKind::EstablishAccessReference {
-                source: source.clone(),
-                resident: roles
-            }
-        );
+        assert_eq!(super::decode_operation_kind(&mut reader).unwrap(), kind);
         assert_eq!(reader.remaining(), 0);
         encodings.push(bytes);
     }

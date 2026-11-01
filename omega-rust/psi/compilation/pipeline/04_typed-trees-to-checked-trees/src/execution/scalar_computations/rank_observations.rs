@@ -4,6 +4,8 @@
 //! captured formals; it does not infer descent from the executable expression.
 //! A mutable formal here denotes its arrival value, never a later StorageRead.
 
+mod operands;
+
 use super::{Builder, CheckedScalarComputationHandle, CheckedScalarComputationKind};
 use crate::places::place_at;
 use checked_trees::{
@@ -98,7 +100,12 @@ pub(super) fn record(
                 .collect::<Vec<_>>();
             let subject = typed_trees::ranking::resolve_machine_witness_subjects(program, owner)
                 .and_then(|subjects| subjects.first().copied());
-            if let RankMeasure::DeclaredMeasure { bindings, .. } = rank.measure {
+            if let RankMeasure::DeclaredMeasure {
+                bindings,
+                formation,
+                ..
+            } = rank.measure
+            {
                 let Some(inputs) = admitted.bindings.span(bindings).and_then(|inputs| {
                     inputs
                         .iter()
@@ -124,6 +131,24 @@ pub(super) fn record(
                     continue;
                 };
                 declaration_bindings.extend(inputs);
+                if admitted.application_formations.is_valid(formation)
+                    && let Some(input) = admitted.application_formations.get(formation).owned_copy
+                {
+                    let coordinate = admitted.coordinates.get(input.actual);
+                    let Some(path) = admitted.path_segments.span(coordinate.path) else {
+                        continue;
+                    };
+                    declaration_bindings.push((
+                        validation::CanonicalPlace {
+                            root: facts::PlaceRoot::Symbol(input.formal),
+                            segments: Vec::new(),
+                        },
+                        validation::CanonicalPlace {
+                            root: facts::PlaceRoot::Symbol(coordinate.parameter),
+                            segments: path.to_vec(),
+                        },
+                    ));
+                }
             }
             let parameters = inputs
                 .iter()
@@ -136,6 +161,11 @@ pub(super) fn record(
                 .iter()
                 .map(|parameter| program.primitive_type_reference(parameter.type_reference))
                 .collect::<Option<Vec<_>>>()
+            else {
+                continue;
+            };
+            let Some(declaration_parameters) =
+                operands::declaration_parameters(program, admitted, &rank.measure, &inputs)
             else {
                 continue;
             };
@@ -155,7 +185,7 @@ pub(super) fn record(
                 statement_index: 0,
                 parameters: &parameters,
                 authored_parameters: &inputs,
-                declaration_parameters: &inputs,
+                declaration_parameters: &declaration_parameters,
                 declaration_scope: None,
                 declaration_values: Vec::new(),
                 declaration_bindings: &declaration_bindings,
@@ -257,19 +287,21 @@ fn observation<'program>(
             else {
                 return None;
             };
-            if let Some(subject_type) = builder
-                .program
-                .primitive_type_reference(formal.type_reference)
-            {
-                let [input] = admitted.bindings.span(application_inputs)? else {
-                    return None;
-                };
-                let formal_coordinate = admitted.coordinates.get(input.entry);
-                if formal_coordinate.parameter != formal.symbol
-                    || !formal_coordinate.path.is_empty()
-                {
+            for input in admitted.bindings.span(application_inputs)? {
+                let source = admitted.coordinates.get(input.entry);
+                if source.parameter != formal.symbol {
                     return None;
                 }
+                let formal_place = validation::CanonicalPlace {
+                    root: facts::PlaceRoot::Symbol(source.parameter),
+                    segments: admitted.path_segments.span(source.path)?.to_vec(),
+                };
+                let geometry = validation::structural_scalar_coordinate_in_type(
+                    builder.program,
+                    formal_place.root,
+                    formal.type_reference,
+                    &formal_place.segments,
+                )?;
                 let input = admitted.coordinates.get(input.destination);
                 let coordinate = validation::CanonicalPlace {
                     root: facts::PlaceRoot::Symbol(input.parameter),
@@ -278,10 +310,10 @@ fn observation<'program>(
                 let operand = builder.scalar_coordinate(
                     subject.unwrap_or_default(),
                     &coordinate,
-                    subject_type,
+                    geometry.primitive_type,
                     admitted.entry_indexes.span(input.entry_indexes)?,
                 )?;
-                builder.declaration_values.push((formal.symbol, operand));
+                builder.declaration_values.push((formal_place, operand));
             }
             // Bind every operation in the declaration body to this exact
             // application, including partial casts and ordinary calls.
@@ -349,7 +381,10 @@ fn observation<'program>(
                 CheckedScalarComputationKind::Value(expression),
             ))
         }
-        RankMeasure::BoundedDistance { primitive_type, .. } => {
+        RankMeasure::Distance { lower, upper } => {
+            operands::difference(builder, admitted, lower, upper)
+        }
+        RankMeasure::IncreasingTo { primitive_type, .. } => {
             let lower = input_coordinate(builder, rank, subject, bindings, primitive_type)?;
             distance(builder, lower, primitive_type)
         }
@@ -361,7 +396,8 @@ fn observation<'program>(
                 RankMeasure::SequenceLength { .. } => PrimitiveType::U64,
                 RankMeasure::DeclaredMeasure { primitive_type, .. }
                 | RankMeasure::IntegerValue { primitive_type, .. }
-                | RankMeasure::BoundedDistance { primitive_type, .. } => primitive_type,
+                | RankMeasure::IncreasingTo { primitive_type, .. } => primitive_type,
+                RankMeasure::Distance { .. } => return None,
             };
             distance(builder, observed, primitive)
         }

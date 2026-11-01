@@ -2,12 +2,15 @@
 //! `ByteSequenceOperand` names either a whole view or one structural field's
 //! view, and every consumer reads the same live extent bound.
 
+use super::storage::ByteSequenceStorage;
 use crate::byte_sequences::ByteSequenceView;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
+use crate::structural_inputs::byte_arrays::storage::scalar_byte;
 use crate::values::TerminalScalarValue;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use terminal_psi::control_flow::ByteSequenceOperand;
+use terminal_psi::{StructuralAccess, StructuralTypeShape};
 
 impl TerminalExecution<'_> {
     /// Fixed-array observations use the same primitive backing as indexed
@@ -21,24 +24,17 @@ impl TerminalExecution<'_> {
         let selected =
             terminal_semantics::runtime_structural_path_tip(types.values(), root, &source.path)
                 .ok_or_else(malformed)?;
-        if !matches!(
-            selected.shape,
-            terminal_psi::StructuralTypeShape::FixedArray { .. }
-        ) || terminal_semantics::fixed_byte_extent(types.values(), selected.id).is_none()
+        if !matches!(selected.shape, StructuralTypeShape::FixedArray { .. })
+            || terminal_semantics::fixed_byte_extent(types.values(), selected.id).is_none()
         {
             return Ok(None);
         }
-        self.validate_descriptor_borrow(source, terminal_psi::StructuralAccess::SharedBorrow)?;
+        self.validate_descriptor_borrow(source, StructuralAccess::SharedBorrow)?;
         let snapshot = self.scalar_array_snapshot(source, selected.id)?;
         let observed = snapshot.elements();
-        let values = observed
-            .iter()
-            .map(crate::structural_inputs::byte_arrays::storage::scalar_byte);
-        let bytes = super::storage::ByteSequenceStorage::from_values(
-            snapshot.len(),
-            values,
-            self.account.as_ref(),
-        )?;
+        let values = observed.iter().map(scalar_byte);
+        let bytes =
+            ByteSequenceStorage::from_values(snapshot.len(), values, self.account.as_ref())?;
         Ok(Some(ByteSequenceView::new(bytes)))
     }
 
@@ -48,7 +44,7 @@ impl TerminalExecution<'_> {
     ) -> Result<ByteSequenceView, TerminalInterpretError> {
         let bytes = match operand {
             ByteSequenceOperand::Whole { source, length } => {
-                if source.access != terminal_psi::StructuralAccess::SharedBorrow {
+                if source.access != StructuralAccess::SharedBorrow {
                     return Err(malformed());
                 }
                 if let Some(bytes) = self.fixed_byte_array_observation(source)? {
@@ -61,14 +57,11 @@ impl TerminalExecution<'_> {
                     }
                     return Ok(bytes);
                 }
-                self.validate_descriptor_borrow(
-                    source,
-                    terminal_psi::StructuralAccess::SharedBorrow,
-                )?;
+                self.validate_descriptor_borrow(source, StructuralAccess::SharedBorrow)?;
                 let selected = self.resolve_live_projection(
                     source.place,
                     &source.path,
-                    terminal_psi::StructuralAccess::SharedBorrow,
+                    StructuralAccess::SharedBorrow,
                 )?;
                 let binding = self.byte_descriptor_binding(source, &selected)?;
                 // The resolved binding and extent belong to this descriptor,
@@ -77,7 +70,7 @@ impl TerminalExecution<'_> {
                 self.reborrow_byte_sequence_binding(
                     &binding,
                     &selected,
-                    terminal_psi::StructuralAccess::SharedBorrow,
+                    StructuralAccess::SharedBorrow,
                 )?
                 .snapshot(self)?
             }

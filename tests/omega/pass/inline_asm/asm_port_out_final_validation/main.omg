@@ -7,7 +7,7 @@ public boundary trait PortOutput {
     machine emit() reaches PortIo;
 }
 PortOutputNative satisfies PortOutput {
-    PortOutput::emit = emit_port;
+    machine emit() reaches PortIo { emit_port() }
 }
 machine emit_port() reaches PortIo {
     asm where clobbers r10, r11, r15, rax, rdx {

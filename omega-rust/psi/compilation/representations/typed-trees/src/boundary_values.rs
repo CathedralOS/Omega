@@ -131,13 +131,7 @@ impl<'input> BoundaryValuePreparation<'input> {
                 {
                     referee = substitute_boundary_type_reference(typed, *base_type, self.bindings);
                 }
-                let descriptor = match typed.type_reference_table.type_reference(referee) {
-                    TypeReferenceNode::Slice { .. } | TypeReferenceNode::DynamicTrait { .. } => {
-                        true
-                    }
-                    TypeReferenceNode::Named { name, .. } => name.as_str() == "string",
-                    _ => false,
-                };
+                let descriptor = foreign_reference_uses_descriptor(typed, referee);
                 BoundaryValueRecipe::Reference { descriptor }
             }
             TypeReferenceNode::Slice { .. } | TypeReferenceNode::DynamicTrait { .. } => {
@@ -348,6 +342,23 @@ impl<'input> BoundaryValuePreparation<'input> {
                 byte_alignment: geometry.align as u64,
             }),
         }
+    }
+}
+
+/// Source-owned pointer-versus-descriptor distinction for a closed referent.
+/// This records foreign transport only, not backing storage or access authority.
+pub fn foreign_reference_uses_descriptor(
+    typed: &TypedTrees,
+    mut referent: TypeReferenceHandle,
+) -> bool {
+    while let TypeReferenceNode::Constrained { base_type, .. } =
+        typed.type_reference_table.type_reference(referent)
+    {
+        referent = *base_type;
+    }
+    match typed.type_reference_table.type_reference(referent) {
+        TypeReferenceNode::Slice { .. } | TypeReferenceNode::DynamicTrait { .. } => true,
+        _ => false,
     }
 }
 

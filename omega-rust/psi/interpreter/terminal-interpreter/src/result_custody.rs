@@ -7,18 +7,20 @@
 use crate::byte_sequences::{ByteSequenceView, binding::ByteSequenceBinding};
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{CompletedReturn, TerminalExecution};
+use crate::primitive_storage::PrimitiveStorageEndpoint;
 use crate::provider_storage::{ProviderStorageBinding, ProviderStorageSlot, ResidentStorageSlot};
 use crate::results::TerminalExecutionResult;
 use crate::structural_storage::{StorageKey, cells};
 use crate::values::StructuralRuntimePlace;
+use arena::Handle;
 use evaluation_accounting::{EvaluationAccountingError, EvaluationResource};
 
 pub(crate) struct ResultCustody<'storage> {
     cells: u64,
     payload_bytes: u64,
     byte_backings: Vec<&'storage ByteSequenceView>,
-    allocations: Vec<arena::Handle<ProviderStorageSlot>>,
-    residents: Vec<arena::Handle<ResidentStorageSlot>>,
+    allocations: Vec<Handle<ProviderStorageSlot>>,
+    residents: Vec<Handle<ResidentStorageSlot>>,
 }
 
 fn count_overflow() -> TerminalInterpretError {
@@ -117,18 +119,12 @@ impl<'storage> ResultCustody<'storage> {
 
     fn endpoint(
         &mut self,
-        endpoint: &'storage crate::primitive_storage::PrimitiveStorageEndpoint,
+        endpoint: &'storage PrimitiveStorageEndpoint,
     ) -> Result<(), TerminalInterpretError> {
         match endpoint {
-            crate::primitive_storage::PrimitiveStorageEndpoint::RepresentationByte(byte) => {
-                self.element_view(&byte.view)?
-            }
-            crate::primitive_storage::PrimitiveStorageEndpoint::ViewByte { bytes, .. } => {
-                self.bytes(bytes)?
-            }
-            crate::primitive_storage::PrimitiveStorageEndpoint::Projection {
-                fragments, ..
-            } => {
+            PrimitiveStorageEndpoint::RepresentationByte(byte) => self.element_view(&byte.view)?,
+            PrimitiveStorageEndpoint::ViewByte { bytes, .. } => self.bytes(bytes)?,
+            PrimitiveStorageEndpoint::Projection { fragments, .. } => {
                 for fragment in fragments {
                     self.endpoint(&fragment.storage.endpoint)?;
                 }
@@ -156,9 +152,7 @@ impl<'storage> ResultCustody<'storage> {
             self.allocations.push(binding.allocation);
             self.add_cells(1)?;
         }
-        if binding.resident != arena::Handle::default()
-            && !self.residents.contains(&binding.resident)
-        {
+        if binding.resident != Handle::default() && !self.residents.contains(&binding.resident) {
             let ResidentStorageSlot::Live { custody, .. } =
                 execution.provider_storage.residents.get(binding.resident)
             else {

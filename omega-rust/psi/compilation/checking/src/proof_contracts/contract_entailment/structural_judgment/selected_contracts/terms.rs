@@ -205,6 +205,24 @@ impl StructuralJudge<'_> {
                 )?,
             ),
             ExpressionNode::Call(call) => {
+                if crate::mathematical_applications::selected_definition(program, call).is_some() {
+                    return structural_terms::mathematical_application_term(
+                        program,
+                        expression,
+                        |capture| {
+                            self.bound_contract_term(
+                                capture,
+                                scope,
+                                parameters,
+                                callable,
+                                bindings,
+                                type_bindings,
+                                result,
+                                depth + 1,
+                            )
+                        },
+                    );
+                }
                 if let Some((_, argument)) = crate::integer_embedding_argument(program, expression)
                 {
                     let reference = crate::parameter_expression_result_type_reference(
@@ -281,6 +299,20 @@ impl StructuralJudge<'_> {
                     )
                 },
             ),
+            // A contract borrow names the already authenticated bound place.
+            // Preserve its captured value through nested predicate arguments,
+            // just as the ordinary contract reader does. This adds no origin,
+            // access or live-pointee observation to an unobserved descriptor.
+            ExpressionNode::Borrow(borrow) => self.bound_contract_term(
+                borrow.target,
+                scope,
+                parameters,
+                callable,
+                bindings,
+                type_bindings,
+                result,
+                depth + 1,
+            ),
             ExpressionNode::Unary(unary) => structural_terms::logical_not_term_in_scope(
                 program,
                 None,
@@ -304,20 +336,20 @@ impl StructuralJudge<'_> {
                 let source = crate::parameter_expression_result_type_reference(
                     program, scope, parameters, cast.value,
                 )?;
-                structural_terms::denotation_preserving_conversion(program, cast, source)
-                    .then(|| {
-                        self.bound_contract_term(
-                            cast.value,
-                            scope,
-                            parameters,
-                            callable,
-                            bindings,
-                            type_bindings,
-                            result,
-                            depth + 1,
-                        )
-                    })
-                    .flatten()
+                if !structural_terms::denotation_preserving_conversion(program, cast, source) {
+                    return None;
+                }
+                let value = self.bound_contract_term(
+                    cast.value,
+                    scope,
+                    parameters,
+                    callable,
+                    bindings,
+                    type_bindings,
+                    result,
+                    depth + 1,
+                )?;
+                structural_terms::conversion_term(program, cast, source, value)
             }
             ExpressionNode::Integer(_) | ExpressionNode::Float(_) | ExpressionNode::Boolean(_) => {
                 structural_terms::structural_term(program, None, None, expression, None)

@@ -1,0 +1,39 @@
+// A saved observation of an unwritten array element stays equal to 7 across a write to a disjoint element.
+// Expected exit: 0
+
+public data Holder { before: u64; items: [u64; 2]; after: u64; }
+data Note { before: u64; observed: u64; after: u64; }
+machine kept(values: &[u64; 2]) -> bool { values[0] == 7 }
+public machine preserve(holder: &mut Holder, kept_index: u64, changed: u64, value: u64)
+requires kept_index < 2 && changed < 2 && kept_index != changed && holder.items[kept_index] == 7
+ensures holder.items[kept_index] == 7 && holder.items[changed] == value
+{ holder.items[changed] = value; }
+machine agree(observed: u64, current: u64) -> u64
+requires observed == current && observed == 7
+ensures result == observed
+{ observed }
+machine verify_reversed() crashes Trap {
+    let mut holder: Holder = Holder { before: 11, items: [1, 7], after: 13 };
+    let saved: u64 = holder.items[1];
+    preserve(&mut holder, 1, 0, 4);
+    let observed: u64 = agree(saved, holder.items[1]);
+    transition observed == 7 && holder.items[0] == 4 && holder.items[1] == 7 && holder.before == 11 && holder.after == 13 {
+        true -> good()
+        false -> bad()
+    }
+    machine good() {}
+    machine bad() { crash Trap; }
+}
+machine main() crashes Trap {
+    verify_reversed();
+    let mut holder: Holder = Holder { before: 11, items: [7, 1], after: 13 };
+    let saved: u64 = holder.items[0];
+    preserve(&mut holder, 0, 1, 4);
+    let note: Note = Note { before: 11, observed: saved, after: 13 };
+    transition agree(note.observed, holder.items[0]) == 7 && holder.items[0] == 7 && holder.items[1] == 4 && holder.before == 11 && holder.after == 13 && note.before == 11 && note.after == 13 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

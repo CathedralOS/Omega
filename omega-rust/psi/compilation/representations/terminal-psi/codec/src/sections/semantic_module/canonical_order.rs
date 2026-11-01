@@ -8,8 +8,11 @@ use std::collections::BTreeSet;
 
 use semantic_vocabulary::{ContentTerm, IntegerMathTerm, Proposition, PropositionId, ScalarTerm};
 use terminal_psi::{
-    CrashRouteBucket, CrashRouteGuard, OperationKind, ProofPropositionId, ProofValueId,
-    StructuralParameterDeclaration, StructuralTypeShape, TerminalModule, Terminator,
+    BoundaryApplication, BoundaryApplicationArgument, BoundaryMachineResult,
+    ContentIdentityReshuffle, CrashRouteBucket, CrashRouteGuard, FloatMeaningSource, OperationKind,
+    ProofPropositionId, ProofValueId, StructuralFieldType, StructuralParameterDeclaration,
+    StructuralTypeShape, TerminalAffineCleanupAction, TerminalModule, Terminator,
+    call_structural_pair_pattern,
 };
 
 use super::proposition_wire::encode_proposition;
@@ -148,8 +151,8 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
         )
     {
         match application {
-            terminal_psi::BoundaryApplication::Empty => {}
-            terminal_psi::BoundaryApplication::Exact(arguments) => {
+            BoundaryApplication::Empty => {}
+            BoundaryApplication::Exact(arguments) => {
                 if arguments.is_empty() {
                     return Err(CodecError::MalformedStructuralFoundation(
                         "nonempty boundary application has no arguments",
@@ -159,7 +162,7 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
                     if usize::try_from(argument.binder_ordinal()).ok() != Some(ordinal) {
                         return Err(noncanonical!("boundary application binders"));
                     }
-                    if let terminal_psi::BoundaryApplicationArgument::Const {
+                    if let BoundaryApplicationArgument::Const {
                         value_type,
                         value_encoding,
                         ..
@@ -302,7 +305,7 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
         }
     }
     for declaration in &module.structural_types {
-        if let Some(terminal_psi::StructuralFieldType::RefinedScalar(refinement)) =
+        if let Some(StructuralFieldType::RefinedScalar(refinement)) =
             &declaration.scalar_restriction
         {
             validate_canonical_proposition(refinement.predicate(), 0)?;
@@ -317,8 +320,7 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
             .iter()
             .chain(cases.iter().flat_map(|case| &case.fields))
         {
-            if let terminal_psi::StructuralFieldType::RefinedScalar(refinement) = &field.field_type
-            {
+            if let StructuralFieldType::RefinedScalar(refinement) = &field.field_type {
                 validate_canonical_proposition(refinement.predicate(), 0)?;
             }
         }
@@ -429,7 +431,7 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
         "boundary machines by BoundaryMachineId",
     )?;
     for declaration in &module.boundary_machines {
-        if let terminal_psi::BoundaryMachineResult::Structural(result) = &declaration.result {
+        if let BoundaryMachineResult::Structural(result) = &declaration.result {
             require_increasing(
                 result.qualifications.iter().copied(),
                 "boundary result qualifications by StructuralDomainId",
@@ -508,7 +510,7 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
                 "float-meaning projections by dense proof value and first-use source IDs"
             ));
         }
-        if let terminal_psi::FloatMeaningSource::TransitionalInput(source) = &projection.source
+        if let FloatMeaningSource::TransitionalInput(source) = &projection.source
             && !float_projection_sources.contains(&source.id)
         {
             let Ok(expected) = u32::try_from(float_projection_sources.len()) else {
@@ -678,7 +680,7 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
                         "call claim transfers by claim and argument index"
                     ));
                 }
-                terminal_psi::call_structural_pair_pattern!(selected_evidence, ..)
+                call_structural_pair_pattern!(selected_evidence, ..)
                     if !strictly_increasing(selected_evidence.iter().map(|binding| {
                         (
                             binding.guard,
@@ -726,9 +728,7 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
                 if cleanup_actions
                     .iter()
                     .filter_map(|action| match action {
-                        terminal_psi::TerminalAffineCleanupAction::DiscardResidual(discard) => {
-                            Some(discard)
-                        }
+                        TerminalAffineCleanupAction::DiscardResidual(discard) => Some(discard),
                         _ => None,
                     })
                     .any(|discard| {
@@ -1087,9 +1087,7 @@ fn validate_content_term_depth(term: &ContentTerm) -> Result<(), CodecError> {
 }
 
 /// Receiving canonicality keeps one input claim across exclusive destinations.
-fn validate_identity_reshuffles(
-    rows: &[terminal_psi::ContentIdentityReshuffle],
-) -> Result<(), CodecError> {
+fn validate_identity_reshuffles(rows: &[ContentIdentityReshuffle]) -> Result<(), CodecError> {
     if !strictly_increasing(
         rows.iter()
             .map(|reshuffle| (reshuffle.claim, &reshuffle.output)),

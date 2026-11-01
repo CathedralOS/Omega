@@ -117,6 +117,18 @@ pub(crate) fn validate_machine_data_argument(
                 .trait_definition_by_symbol(base_symbol)
                 .map(|definition| program.trait_type_parameters(definition))
         })
+        .or_else(|| {
+            program
+                .type_aliases()
+                .iter()
+                .find(|alias| alias.symbol == base_symbol)
+                .map(|alias| {
+                    program
+                        .tables
+                        .data_type_parameters
+                        .span_or_empty(alias.type_parameters)
+                })
+        })
         .unwrap_or(&[])
         .iter()
         .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
@@ -1481,7 +1493,7 @@ fn validate_typed_const_index_type(
             ) {
                 return Ok(());
             }
-            if matches!(name.as_str(), "f32" | "f64" | "string") {
+            if matches!(name.as_str(), "f32" | "f64") {
                 return Err(format!(
                     "`{name}` does not have canonical structural index identity"
                 ));

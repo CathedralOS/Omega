@@ -5,6 +5,7 @@
 //! of the overwritten field changes it. This function describes the goal; the
 //! verifier still authenticates the declaration, operand carrier and proof.
 
+use proof_admission::check_predicate_denotations_with_value_equalities;
 use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm, ScalarType, ValueId};
 use terminal_psi::StructuralFieldType;
 
@@ -107,13 +108,8 @@ pub fn scalar_field_accepts_literal(
     else {
         return true;
     };
-    proof_admission::check_predicate_denotations_with_value_equalities(
-        &context,
-        &requirement,
-        &[],
-        &[equation],
-    )
-    .is_ok_and(|checked| *checked.goal() == Proposition::Truth)
+    check_predicate_denotations_with_value_equalities(&context, &requirement, &[], &[equation])
+        .is_ok_and(|checked| *checked.goal() == Proposition::Truth)
 }
 
 /// Zero provisioning is value admission, not a property of the scalar layout.
@@ -163,12 +159,9 @@ pub fn scalar_field_entails(
     let premises = scalar_field_requirement(established, ValueId::FIRST)
         .into_iter()
         .collect::<Vec<_>>();
-    let Ok(checked) = proof_admission::check_predicate_denotations_with_value_equalities(
-        &context,
-        &goal,
-        &premises,
-        &[],
-    ) else {
+    let Ok(checked) =
+        check_predicate_denotations_with_value_equalities(&context, &goal, &premises, &[])
+    else {
         return false;
     };
     crate::descriptor_results::prove_payload_predicate(

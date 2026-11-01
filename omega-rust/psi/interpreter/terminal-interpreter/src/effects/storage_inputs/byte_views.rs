@@ -9,9 +9,11 @@ use crate::effects::original_storage::TerminalOriginalStorageLoan;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::primitive_storage::{PrimitiveStorage, PrimitiveStorageEndpoint};
+use crate::structural_inputs::byte_arrays::storage::scalar_byte;
 use crate::values::TerminalStructuralValue;
 use std::sync::Arc;
 use terminal_psi::{StructuralAccess, StructuralParameterDeclaration};
+use terminal_semantics::descriptor_parameter_access;
 
 /// A Core-authenticated original byte window, with no staged native stores.
 #[derive(Debug)]
@@ -72,11 +74,8 @@ impl BoundaryStorageInputs {
         source: &ByteSequenceBinding,
         argument_index: usize,
     ) -> Result<(), TerminalInterpretError> {
-        let access = terminal_semantics::descriptor_parameter_access(
-            parameter,
-            execution.structural_types().values(),
-        )
-        .ok_or_else(malformed)?;
+        let access = descriptor_parameter_access(parameter, execution.structural_types().values())
+            .ok_or_else(malformed)?;
         if parameter.structural_type != referent.structural_type
             || !matches!(
                 access,
@@ -207,9 +206,7 @@ impl BoundaryStorageInputs {
                     let current = resident
                         .read()
                         .map_err(TerminalInterpretError::ResidentStorage)?;
-                    if crate::structural_inputs::byte_arrays::storage::scalar_byte(&current)?
-                        != *expected
-                    {
+                    if scalar_byte(&current)? != *expected {
                         return Err(malformed());
                     }
                 }

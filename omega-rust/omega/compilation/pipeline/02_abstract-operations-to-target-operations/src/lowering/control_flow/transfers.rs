@@ -2,10 +2,12 @@
 use super::{KnownUnitInteger, LiveDefinitions, references};
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
+use abstract_operations::control_flow::address_joins::is_static_projection;
 use abstract_operations::{AbstractBlockEntry, AbstractFunction, AbstractOperation, ValueBinding};
 use semantic_vocabulary::{BlockId, ScalarType, ValueId};
 use std::collections::BTreeSet;
 use target_operations::TargetScalarBlockValue;
+use terminal_semantics::descriptor_results::result_access;
 
 pub(super) fn validate_parameters(
     function: &AbstractFunction,
@@ -281,10 +283,7 @@ fn address_join_argument(
                     .iter()
                     .find(|operation| operation.psi_operation() == Some(*producer))?
                     .structural_result()?;
-                let access = terminal_semantics::descriptor_results::result_access(
-                    structural_types.values().copied(),
-                    result,
-                )?;
+                let access = result_access(structural_types.values().copied(), result)?;
                 (result.structural_type == *structural_type
                     && accessible(*structural_type, result.multiplicity, access))
                 .then_some(*structural_type)
@@ -518,9 +517,7 @@ pub(super) fn validate_successors(
                     || binding.argument.access != parameter.access
                     || crosses_loan_leaf
                     || (!binding.argument.path.is_empty()
-                        && (!abstract_operations::control_flow::address_joins::is_static_projection(
-                            &binding.argument.path,
-                        )
+                        && (!is_static_projection(&binding.argument.path)
                             || (parameter.access != terminal_psi::StructuralAccess::Owned
                                 && !structural_types
                                     .get(&parameter.structural_type)

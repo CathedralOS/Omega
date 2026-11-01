@@ -3,6 +3,8 @@
 //! their storage. Encoding uses the ordinary Terminal storage codec. Writes stage
 //! every original endpoint before committing and preserve untouched cell bytes.
 use super::*;
+use crate::reference::backing_scalar_path;
+use terminal_semantics::reference_storage_byte_width;
 
 fn mask(bits: u8) -> Result<u128, TerminalInterpretError> {
     if bits == 0 || bits > 128 {
@@ -35,8 +37,7 @@ impl TerminalExecution<'_> {
         home: Option<&crate::element_views::ElementViewHome>,
         writing: bool,
     ) -> Result<(PrimitiveStorage, ScalarType, bool), TerminalInterpretError> {
-        let width = terminal_semantics::reference_storage_byte_width(observed.stored_scalar)
-            .ok_or_else(malformed)?;
+        let width = reference_storage_byte_width(observed.stored_scalar).ok_or_else(malformed)?;
         if u64::from(width) != byte_length {
             return Err(malformed());
         }
@@ -59,12 +60,8 @@ impl TerminalExecution<'_> {
         let mut fragments = Vec::with_capacity(geometry.len());
         let mut shared = false;
         for fragment in geometry {
-            let canonical = crate::reference::backing_scalar_path(
-                &types,
-                referent.structural_type,
-                &fragment.path,
-            )
-            .ok_or_else(malformed)?;
+            let canonical = backing_scalar_path(&types, referent.structural_type, &fragment.path)
+                .ok_or_else(malformed)?;
             let (storage, actual, shared_view) = self.original_view_primitive_access(
                 referent,
                 home,
@@ -88,7 +85,7 @@ impl TerminalExecution<'_> {
                 .ok_or_else(malformed)?;
             let selected_length = fragment_end - start;
             let stored_bits = u64::from(
-                terminal_semantics::reference_storage_byte_width(fragment.scalar.stored_scalar)
+                reference_storage_byte_width(fragment.scalar.stored_scalar)
                     .ok_or_else(malformed)?,
             )
             .checked_mul(8)
@@ -190,8 +187,7 @@ impl PrimitiveStorageWrites {
     ) -> Result<(), TerminalInterpretError> {
         let bits = encoding::encode(stored, value)?;
         for fragment in fragments {
-            let width = terminal_semantics::reference_storage_byte_width(fragment.stored)
-                .ok_or_else(malformed)?;
+            let width = reference_storage_byte_width(fragment.stored).ok_or_else(malformed)?;
             let source_shift = usize::from(fragment.source_bit_offset);
             let selected_mask = mask(fragment.bit_length)? << source_shift;
             let old_bits = if fragment.source_bit_offset == 0

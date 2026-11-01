@@ -2,7 +2,7 @@
 //! captured-value queries. Every child and qualification forms before the
 //! complete produced value and its proven carrier facts may escape.
 
-use super::{Engine, Polynomial};
+use super::{Engine, IntegerApplicationInput, Polynomial};
 
 mod calls;
 mod dispatch;
@@ -93,7 +93,7 @@ impl Engine<'_> {
     pub(in crate::proof_contracts::contract_entailment) fn form_declared_integer_application(
         &mut self,
         measure: symbols::SymbolHandle,
-        input: &Polynomial,
+        input: impl Into<IntegerApplicationInput>,
     ) -> Option<FormedIntegerApplication> {
         let program = self.program;
         let declaration = program
@@ -109,32 +109,95 @@ impl Engine<'_> {
         };
         let primitive = program.primitive_type_reference(declaration.return_type)?;
         let (minimum, maximum) = primitive.integer_bounds()?;
-        let mut admitted = self.clone();
-        let mut decisions = ApplicationDecisions::default();
-        let value = admitted.with_formal_arguments(
-            measure,
-            &[(formal.symbol, input.clone())],
-            |engine| {
-                if !formed_type(engine, program, formal.type_reference, input) {
+        let input = input.into();
+        if super::super::struct_trace() {
+            eprintln!("STRUCT declaration-application measure={measure:?} input={input:?}");
+        }
+        let shape = super::super::ranking_range::declared_input_shape(program, declaration)?;
+        let (arguments, reads) = match &input {
+            IntegerApplicationInput::Scalar(value) => {
+                program
+                    .primitive_type_reference(formal.type_reference)?
+                    .integer_bounds()?;
+                (vec![(formal.symbol, value.clone())], Vec::new())
+            }
+            IntegerApplicationInput::Record {
+                type_reference,
+                reads,
+                ..
+            } => {
+                if program
+                    .primitive_type_reference(formal.type_reference)
+                    .is_some()
+                    || !super::super::ranking_range::declared_input_type_matches(
+                        program,
+                        *type_reference,
+                        formal.type_reference,
+                    )
+                {
                     return None;
                 }
-                // A representable mathematical value does not change the
-                // executable carrier of an already-typed result. Anonymous
-                // integer expressions land in the declared carrier; every
-                // other result keeps its resolved type, including joins.
-                if !crate::value_custody::literals::has_anonymous_numeric_results(program, *body) {
-                    let actual_type = engine.source_result_type(*body)?;
-                    if program.primitive_type_reference(actual_type) != Some(primitive)
-                        || program.arithmetic_domain_for_type_reference(actual_type)
-                            != program.arithmetic_domain_for_type_reference(declaration.return_type)
-                    {
+                if reads.len() != shape.reads.len()
+                    || shape.reads.iter().any(|read| {
+                        reads
+                            .iter()
+                            .filter(|(bound, _)| *bound == read.coordinate)
+                            .count()
+                            != 1
+                    })
+                {
+                    return None;
+                }
+                (Vec::new(), reads.clone())
+            }
+        };
+        let mut admitted = self.clone();
+        let mut decisions = ApplicationDecisions::default();
+        let value = admitted.with_formal_arguments(measure, &arguments, |engine| {
+            // A fresh formal namespace prevents caller occurrence bindings
+            // from authenticating a different declaration's source reads.
+            engine.formal_read_arguments = reads;
+            if let IntegerApplicationInput::Record {
+                snapshot: Some(snapshot),
+                ..
+            } = &input
+            {
+                engine.owned_arguments.push((
+                    crate::ScopedArithmeticBinder::Symbol(formal.symbol),
+                    snapshot.clone(),
+                ));
+            }
+            match &input {
+                IntegerApplicationInput::Scalar(value) => {
+                    if !formed_type(engine, program, formal.type_reference, value) {
                         return None;
                     }
                 }
-                let value = formed_value(engine, program, *body, 0, &mut decisions)?;
-                formed_type(engine, program, declaration.return_type, &value).then_some(value)
-            },
-        )?;
+                IntegerApplicationInput::Record { .. } => {
+                    for read in &shape.reads {
+                        let value = engine.coordinate_value(&read.coordinate)?;
+                        if !formed_type(engine, program, read.type_reference, &value) {
+                            return None;
+                        }
+                    }
+                }
+            }
+            // A representable mathematical value does not change the
+            // executable carrier of an already-typed result. Anonymous
+            // integer expressions land in the declared carrier; every
+            // other result keeps its resolved type, including joins.
+            if !crate::value_custody::literals::has_anonymous_numeric_results(program, *body) {
+                let actual_type = engine.source_result_type(*body)?;
+                if program.primitive_type_reference(actual_type) != Some(primitive)
+                    || program.arithmetic_domain_for_type_reference(actual_type)
+                        != program.arithmetic_domain_for_type_reference(declaration.return_type)
+                {
+                    return None;
+                }
+            }
+            let value = formed_value(engine, program, *body, 0, &mut decisions)?;
+            formed_type(engine, program, declaration.return_type, &value).then_some(value)
+        })?;
         // These are consequences of the completed application, never premises
         // for a child operation or the application's own result formation.
         for bound in [
@@ -171,6 +234,12 @@ fn formed_value(
 ) -> Option<Polynomial> {
     if depth >= 128 {
         return None;
+    }
+    // Only the complete typed input owner installs these leaves. Treating any
+    // normalized parent as formed could erase a partial child (x / 0, a bad
+    // index, or a selected user operation) after polynomial cancellation.
+    if let Some(value) = engine.formal_coordinate_value(expression) {
+        return Some(value);
     }
     // Wholly anonymous integers have unbounded intermediates until landing.
     if super::super::proof_integer::anonymous_integer_value(program, expression).is_some() {

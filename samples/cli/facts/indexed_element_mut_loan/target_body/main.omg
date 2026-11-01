@@ -5,31 +5,55 @@ data Room { exit_count: u32 in Wrapping; }
 machine bump(room: &mut Room) {
     room.exit_count = room.exit_count + 1;
 }
-linux_x86_64 machine apply(rooms: &mut [Room; 2], selected: u64)
-requires selected < 2
-{
-    bump(&mut rooms[selected]);
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
-linux_arm64 machine apply(rooms: &mut [Room; 2], selected: u64)
-requires selected < 2
-{
-    bump(&mut rooms[selected]);
+
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
-macos_arm64 machine apply(rooms: &mut [Room; 2], selected: u64)
-requires selected < 2
-{
-    bump(&mut rooms[selected]);
+
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
-windows_x86_64 machine apply(rooms: &mut [Room; 2], selected: u64)
-requires selected < 2
-{
-    bump(&mut rooms[selected]);
+
+boundary trait SelectedApply {
+    machine apply(rooms: &mut [Room; 2], selected: u64)
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires selected < 2;
 }
+
+X86Apply satisfies SelectedApply {
+    machine apply(rooms: &mut [Room; 2], selected: u64)
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires selected < 2
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        bump(&mut rooms[selected]);
+    }
+}
+
+ArmApply satisfies SelectedApply {
+    machine apply(rooms: &mut [Room; 2], selected: u64)
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires selected < 2
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        bump(&mut rooms[selected]);
+    }
+}
+
+
 machine exercise(from_index: u64) -> bool
 requires from_index < 2
 {
     let rooms: [Room; 2] = [Room { exit_count: 0 }, Room { exit_count: 10 }];
-    apply(&mut rooms, from_index);
+    SelectedApply::apply(&mut rooms, from_index);
     (from_index == 0 && rooms[0].exit_count == 1 && rooms[1].exit_count == 10)
         || (from_index == 1 && rooms[0].exit_count == 0 && rooms[1].exit_count == 11)
 }
@@ -37,4 +61,12 @@ machine main() crashes Trap {
     transition exercise(0) && exercise(1) { true -> done() false -> wrong() }
     machine done() {}
     machine wrong() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

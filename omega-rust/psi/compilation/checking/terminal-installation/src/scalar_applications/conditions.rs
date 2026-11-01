@@ -2,6 +2,7 @@
 //! checking. Available provider candidates are not selected provider edges.
 //! This is a work selection, never evidence that any condition is true.
 
+use super::ScalarApplicationPurpose;
 use numerics::integer_bounds::IntegerBoundStep;
 use numerics::scalar_predicates::PredicateNode;
 use semantic_vocabulary::{BoundaryMachineId, MachineId, ScalarApplicationId};
@@ -15,6 +16,7 @@ pub struct ScalarConditionSelection<'artifact> {
     conditions: &'artifact ScalarConditions,
     target: String,
     primary: bool,
+    purpose: ScalarApplicationPurpose,
     providers: Vec<(BoundaryMachineId, MachineId)>,
     ranges: Vec<usize>,
     predicates: Vec<usize>,
@@ -24,6 +26,7 @@ pub struct ScalarConditionSelection<'artifact> {
 }
 
 impl<'artifact> ScalarConditionSelection<'artifact> {
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn select(
         scope: &ProofApplicationScope,
         conditions: &'artifact ScalarConditions,
@@ -32,6 +35,7 @@ impl<'artifact> ScalarConditionSelection<'artifact> {
         providers: impl IntoIterator<Item = (BoundaryMachineId, MachineId)>,
         demanded: &[ScalarApplicationId],
         roots: Option<&[terminal_psi::ProofDeclarationId]>,
+        purpose: ScalarApplicationPurpose,
     ) -> Result<Self, String> {
         let providers: Vec<_> = providers.into_iter().collect();
         let mut selected = Vec::new();
@@ -45,7 +49,19 @@ impl<'artifact> ScalarConditionSelection<'artifact> {
             selected.push((requirement, realization));
         }
         let applications = scope.applications();
-        let (machines, declarations) = applications.membership(target, primary, &selected, roots);
+        let (machines, declarations) = match purpose {
+            ScalarApplicationPurpose::Product => {
+                applications.membership(target, primary, &selected, roots)
+            }
+            ScalarApplicationPurpose::Invocation => {
+                let roots = roots.ok_or("scalar invocation has no exact entry roots")?;
+                let machines = applications
+                    .invocation_reachability(target, &selected, roots)
+                    .machines;
+                let declarations = scope.plan.declaration_closure(&machines);
+                (machines, declarations)
+            }
+        };
         let all_declarations = applications.declarations();
         let applies = |subject, address_model| match subject {
             ScalarConditionSubject::Module => true,
@@ -53,7 +69,9 @@ impl<'artifact> ScalarConditionSelection<'artifact> {
                 machines.contains(&owner)
                     || (address_model
                         && (declarations.contains(&owner)
-                            || (primary && all_declarations.contains(&owner))))
+                            || (primary
+                                && purpose == ScalarApplicationPurpose::Product
+                                && all_declarations.contains(&owner))))
             }
             // Keeping an entry in the catalog is not a demand to execute it.
             ScalarConditionSubject::Application(application) => demanded.contains(&application),
@@ -98,6 +116,7 @@ impl<'artifact> ScalarConditionSelection<'artifact> {
             conditions,
             target: target.to_owned(),
             primary,
+            purpose,
             providers,
             ranges,
             predicates,
@@ -138,6 +157,7 @@ impl<'artifact> ScalarConditionSelection<'artifact> {
                 .conditions,
         ) && self.target == observations.targets().target()
             && self.primary == (self.target == primary)
+            && self.purpose == observations.purpose
             && self.application_roots == observations.application_roots
             && self
                 .providers

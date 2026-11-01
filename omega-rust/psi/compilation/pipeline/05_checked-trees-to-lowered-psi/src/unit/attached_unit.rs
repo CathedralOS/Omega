@@ -707,6 +707,7 @@ pub(crate) fn lower_unit_closure(
             reborrow_restored_call_uses: Vec::new(),
             boundary_machines,
             calling_signatures: Vec::new(),
+            unoptimized_behavior: Vec::new(),
             external_providers: Vec::new(),
             provider_candidates,
             dynamic_dispatch: Default::default(),

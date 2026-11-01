@@ -15,6 +15,215 @@ fn prepare(relative: &str) -> fixture_package_inputs::ReviewedFixtureCompilation
 }
 
 #[test]
+fn calling_policies_share_product_code_across_targets_and_single_target_outputs() {
+    use artifacts::compile_timings::counters;
+    let mut prepared = prepare("tests/omega/pass/build/terminal_calling_policy_execution/main.omg");
+    let profiles = ["macos_arm64", "linux_arm64"]
+        .map(|name| target::TargetProfile::from_omega_target_name(Some(name)).unwrap());
+    // One source input set admits both targets. Review Linux's exact entry as
+    // well: a macOS-only acceptance must not authorize a different target.
+    let linux = fixture_package_inputs::reviewed_repository_fixture_package_inputs(
+        &fixture_package_inputs::repo_root()
+            .join("tests/omega/pass/build/terminal_calling_policy_execution/main.omg"),
+        Some("linux_arm64"),
+    )
+    .expect("review Linux entry");
+    let inputs = prepared
+        .package_inputs
+        .take()
+        .expect("packaged policy fixture");
+    let mut bindings = inputs
+        .accepted_semantic_bindings()
+        .cloned()
+        .collect::<Vec<_>>();
+    for binding in linux
+        .package_inputs
+        .as_ref()
+        .expect("Linux package inputs")
+        .accepted_semantic_bindings()
+    {
+        if !bindings.contains(binding) {
+            bindings.push(binding.clone());
+        }
+    }
+    prepared.package_inputs = Some(
+        inputs
+            .with_accepted_semantic_bindings(bindings)
+            .expect("both reviewed target bindings belong to these exact source packages"),
+    );
+    let output = fixture_package_inputs::repo_root().join("build/shared-policy-publication");
+    let compile = |targets: &[target::TargetProfile]| {
+        let mut request = CompileRequest::for_targets(
+            prepared.root_path.clone(),
+            output.clone(),
+            targets.iter().copied().map(Some).collect(),
+        )
+        .with_requested_product(compiler::RequestedCompileProduct::NativeArtifact);
+        if let Some(inputs) = &prepared.package_inputs {
+            request = request.with_package_inputs(inputs.clone());
+        }
+        omega_build::compile_sources(&mut CompilationSession::default(), request)
+            .expect("Product request")
+            .into_outcomes()
+            .into_iter()
+            .map(|outcome| {
+                let profile = outcome.target_profile().unwrap();
+                (
+                    profile,
+                    outcome
+                        .into_result()
+                        .expect("calling policy admits the target"),
+                )
+            })
+            .collect::<Vec<_>>()
+    };
+    let source_checks = counters::product_source_check_count();
+    let publications = counters::terminal_production_count();
+    let reports = compile(&profiles);
+    assert_eq!(
+        counters::product_source_check_count() - source_checks,
+        1,
+        "targets share one Product judgment"
+    );
+    assert_eq!(
+        counters::terminal_production_count() - publications,
+        1,
+        "policy activation must not compile a second code catalog"
+    );
+    assert_eq!(reports.len(), 2);
+    let first = reports[0]
+        .1
+        .retained_native_artifact()
+        .unwrap()
+        .psi_artifact();
+    let second = reports[1]
+        .1
+        .retained_native_artifact()
+        .unwrap()
+        .psi_artifact();
+    assert!(
+        std::ptr::eq(first, second),
+        "targets borrow the same published artifact, not equal copies"
+    );
+    for (profile, report) in reports {
+        let mut single = compile(&[profile]);
+        assert_eq!(single.len(), 1);
+        let (_, single) = single.pop().unwrap();
+        let actual = report.retained_native_artifact().unwrap();
+        let expected = single.retained_native_artifact().unwrap();
+        assert_eq!(
+            actual.psi_artifact(),
+            expected.psi_artifact(),
+            "shared and single-target code must be identical for {profile:?}"
+        );
+        assert_eq!(
+            actual.image().output().bytes,
+            expected.image().output().bytes,
+            "native bytes must not depend on a sibling target: {profile:?}"
+        );
+        if Some(profile) == target::TargetProfile::host_if_supported() {
+            joined_product_execution::execute_report(report, &output);
+        }
+    }
+}
+
+#[test]
+fn late_application_attachment_outlives_source_and_preserves_recovered_attribution() {
+    // Descriptions escape this scope without borrowing the checked program.
+    let (program, recovered, valid, invalid, source_owner) = {
+        let prepared = prepare("tests/omega/pass/build/retained_behavior_admission/main.omg");
+        let mut request = CheckedCompileRequest::new(&prepared.root_path, Some("macos_arm64"));
+        request.package_inputs = prepared.package_inputs;
+        let checked = omega_build::check_source(&mut CompilationSession::default(), request)
+            .result
+            .expect("source checks");
+        let source = checked.execution().provider_source.program();
+        let source_owner = std::sync::Arc::downgrade(source);
+        let sources = checked.sources().exact_toolchain_sources();
+        let describe = |name| {
+            psi_compiler::TerminalApplicationCustody::prepare(
+                source,
+                psi_compiler::TerminalMachineSelection::Name(name),
+                None,
+                Some(psi_compiler::TerminalCompositionRoots::default()),
+                sources,
+                &mut psi_compiler::UnmeasuredProduction,
+            )
+        };
+        let valid = describe("main");
+        let invalid = describe("missing_entry");
+        let produced = psi_compiler::TerminalProductionRequest::new(
+            source,
+            psi_compiler::TerminalMachineSelection::Name("main"),
+            sources,
+        )
+        .produce(Default::default(), &mut psi_compiler::UnmeasuredProduction)
+        .expect("publish without applications");
+        let encoded = compiler_storage::encode(&produced, Default::default())
+            .expect("encode source companion");
+        let recovered: psi_compiler::ProducedTerminalProgram =
+            compiler_storage::decode(&encoded, Default::default())
+                .expect("recover source companion");
+        (
+            produced.into_shared_portable().unwrap(),
+            recovered.into_shared_portable().unwrap(),
+            valid,
+            invalid,
+            source_owner,
+        )
+    };
+    assert!(
+        source_owner.upgrade().is_none(),
+        "published code must not retain checked source"
+    );
+    let mut original_labels = None;
+    for published in [&program, &recovered] {
+        let identity = published.artifact().view().identity();
+        assert!(
+            published
+                .attach_application(&invalid, &mut psi_compiler::UnmeasuredProduction)
+                .is_err()
+        );
+        let application = published
+            .attach_application(&valid, &mut psi_compiler::UnmeasuredProduction)
+            .expect("late valid application");
+        let [root] = <[_; 1]>::try_from(application.roots).expect("one exact root");
+        let root = root.expect("root retained");
+        assert!(root.provenance.label(root.machine).contains("main"));
+        let helper_labels = published
+            .artifact()
+            .semantic_module()
+            .machines
+            .iter()
+            .filter(|machine| machine.id != root.machine)
+            .map(|machine| root.provenance.label(machine.id))
+            .collect::<Vec<_>>();
+        assert!(
+            helper_labels
+                .iter()
+                .any(|label| label.starts_with("machine `") && label.contains("check")),
+            "a non-entry source label must survive without borrowing or reconstructing it from the entry: {helper_labels:?}"
+        );
+        match &original_labels {
+            None => original_labels = Some(helper_labels),
+            Some(original) => assert_eq!(
+                &helper_labels, original,
+                "recovery must preserve the shared diagnostic companion"
+            ),
+        }
+        assert_eq!(
+            published.artifact().view().identity(),
+            identity,
+            "attachment cannot replace code"
+        );
+    }
+    assert_eq!(
+        program.artifact().semantic_module(),
+        recovered.artifact().semantic_module()
+    );
+}
+
+#[test]
 fn executed_values_keep_helper_identity_and_omit_untaken_exclusions() {
     let prepared = prepare("tests/omega/pass/build/executed_exclusion_values_exit/main.omg");
     let mut request = CheckedCompileRequest::new(&prepared.root_path, Some("macos_arm64"));

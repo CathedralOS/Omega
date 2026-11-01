@@ -1,4 +1,8 @@
+use super::dispatch::join;
 use super::*;
+use crate::descriptor_lifetimes;
+use crate::descriptor_lifetimes::DescriptorFlowSource;
+use crate::descriptor_lifetimes::descriptor_location_type;
 use crate::exactly_one::exactly_one;
 use std::sync::Arc;
 
@@ -36,6 +40,7 @@ enum StorageResolution {
 #[derive(Clone)]
 pub(super) struct Summary {
     pub(super) result: Option<Vec<DescriptorResultSlot>>,
+    pub(super) result_cases: super::case_flow::ResultCases,
     pub(super) effects: Vec<DescriptorStoredEffect>,
     pub(super) invalidates_contents: bool,
 }
@@ -54,6 +59,7 @@ fn direct_target_summary(target: &DescriptorInvocationTarget) -> Option<Summary>
             invalidates_contents,
         } => Some(Summary {
             result: Some(results.clone()),
+            result_cases: Default::default(),
             effects: effects.clone(),
             invalidates_contents: *invalidates_contents,
         }),
@@ -63,6 +69,7 @@ fn direct_target_summary(target: &DescriptorInvocationTarget) -> Option<Summary>
             ..
         } => Some(Summary {
             result: Some(results.clone()),
+            result_cases: Default::default(),
             effects: Vec::new(),
             invalidates_contents: *invalidates_contents,
         }),
@@ -254,7 +261,7 @@ impl<'a> Replay<'a> {
                 {
                     continue;
                 }
-                let reference = crate::descriptor_lifetimes::descriptor_location_type(
+                let reference = descriptor_location_type(
                     self.types,
                     *machine.place_types.get(&prefix.root)?,
                     &prefix.path,
@@ -378,11 +385,7 @@ impl<'a> Replay<'a> {
             return Some(None);
         };
         let root_type = *machine.place_types.get(&location.root)?;
-        let endpoint = crate::descriptor_lifetimes::descriptor_location_type(
-            self.types,
-            root_type,
-            &location.path,
-        )?;
+        let endpoint = descriptor_location_type(self.types, root_type, &location.path)?;
         Some(
             (!self.slot_kind.is_slot(self.types, endpoint)
                 && !is_descriptor(self.types.iter(), endpoint))
@@ -771,7 +774,7 @@ impl<'a> Replay<'a> {
         &self,
         machine: &DescriptorMachine,
         before: &State,
-        edge: &crate::descriptor_lifetimes::DescriptorFlowEdge,
+        edge: &descriptor_lifetimes::DescriptorFlowEdge,
         case_storage: &super::case_flow::Storage,
     ) -> Option<State> {
         let mut after = self.transfer(
@@ -783,9 +786,7 @@ impl<'a> Replay<'a> {
             case_storage,
         )?;
         for binding in &edge.bindings {
-            if let crate::descriptor_lifetimes::DescriptorFlowSource::Contents(query) =
-                &binding.source
-            {
+            if let DescriptorFlowSource::Contents(query) = &binding.source {
                 let structural_type = *machine.place_types.get(&binding.parameter.root)?;
                 let mut captured = Slots::from([(
                     binding.parameter.clone(),
@@ -995,17 +996,19 @@ impl<'a> Replay<'a> {
                     }
                 }
                 Self::install_contents(&mut after, replacements);
+                if let Some(result) = &call.result {
+                    summary
+                        .result_cases
+                        .install(self, machine, &mut after, result)?;
+                }
             }
             // Membership-only edge reads observe the completed operation,
             // including descriptor/call effects. Keep only requested edge
             // snapshots; ordinary custody queries remain pre-operation.
             if step.successors.iter().any(|edge| {
-                edge.bindings.iter().any(|binding| {
-                    matches!(
-                        binding.source,
-                        crate::descriptor_lifetimes::DescriptorFlowSource::Contents(_)
-                    )
-                })
+                edge.bindings
+                    .iter()
+                    .any(|binding| matches!(binding.source, DescriptorFlowSource::Contents(_)))
             }) {
                 arrivals.insert(position, after.clone());
             }
@@ -1077,10 +1080,7 @@ impl<'a> Replay<'a> {
                     .iter()
                     .map(|machine| self.summary(*machine, depth))
                     .collect::<Option<Vec<_>>>()?;
-                Some(super::dispatch::join(
-                    direct_target_summary(&call.target)?,
-                    &summaries,
-                ))
+                Some(join(direct_target_summary(&call.target)?, &summaries))
             }
             target => direct_target_summary(target),
         }
@@ -1104,10 +1104,7 @@ impl<'a> Replay<'a> {
                     .iter()
                     .map(|machine| self.summaries.get(machine)?.clone())
                     .collect::<Option<Vec<_>>>()?;
-                Some(super::dispatch::join(
-                    direct_target_summary(&call.target)?,
-                    &summaries,
-                ))
+                Some(join(direct_target_summary(&call.target)?, &summaries))
             }
             target => direct_target_summary(target),
         }
@@ -1323,6 +1320,7 @@ impl<'a> Replay<'a> {
         // A result's carrier stays local storage. Only its exact descriptor
         // slots export backing, under the same case/field paths as construction
         // and copying. Missing live-slot contents are unknown, never empty.
+        let mut result_cases: Option<super::case_flow::ResultCases> = None;
         let result = if let Some(returns) = &machine.returns {
             let mut slots: Option<Vec<DescriptorResultSlot>> = None;
             let mut result_type = None;
@@ -1336,6 +1334,12 @@ impl<'a> Replay<'a> {
                     continue;
                 };
                 let structural_type = *machine.place_types.get(&location.root)?;
+                let cases = super::case_flow::ResultCases::capture(self, machine, state, location);
+                if let Some(accumulated) = &mut result_cases {
+                    accumulated.join(&cases);
+                } else {
+                    result_cases = Some(cases);
+                }
                 if result_type.is_some_and(|previous| previous != structural_type) {
                     return None;
                 }
@@ -1462,6 +1466,7 @@ impl<'a> Replay<'a> {
         });
         let summary = Summary {
             result,
+            result_cases: result_cases.unwrap_or_default(),
             effects,
             invalidates_contents,
         };

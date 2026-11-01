@@ -25,13 +25,20 @@ pub use language_core::inline_assembly::{
 };
 pub use language_semantics::byte_predicates::{ByteSequencePredicate, ByteSequencePredicateSet};
 
+mod prepared_roots;
+pub use prepared_roots::{
+    PreparedTerminalRoots, RetainedTerminalRoot, TerminalRootDeclaration, TerminalRootRequest,
+};
+
 mod callback_application;
 mod calling_policies;
+mod unoptimized_behavior;
 pub use callback_application::TerminalCallbackApplication;
 pub use calling_policies::{
     CallingCallbackBinder, CallingDirectCallback, CallingRuntimeFormal,
     CallingSignatureDeclaration, CallingSignatureTelescope,
 };
+pub use unoptimized_behavior::{UnoptimizedBehaviorOperation, UnoptimizedMachineBehavior};
 mod callback_declarations;
 pub use callback_declarations::{
     CallbackContractEnvelope, CallbackContractRefinement, CallbackDeclarationRoster,

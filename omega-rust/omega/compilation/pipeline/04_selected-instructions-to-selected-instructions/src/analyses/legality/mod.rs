@@ -9,10 +9,9 @@ mod policies;
 
 use crate::ValidatedAllocatorAvailability;
 
-use crate::StagedOptimizedLiveRanges;
 use crate::{
-    AllocationLegalityError, AllocatorAvailabilityError, ValidatedAllocationLegality,
-    ValidatedLiveRanges, ValidatedLiveness,
+    AllocationLegalityError, AllocatorAvailabilityError, StagedOptimizedLiveRanges,
+    ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedLiveness,
 };
 use optimization_core::{
     OptimizationIdentityBundleIdentity, OptimizationSelections, OptimizationUnitIdentity,

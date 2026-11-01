@@ -10,7 +10,7 @@ use typed_trees::type_identity::TypeIdentityId;
 mod application_formation;
 pub use application_formation::{
     CheckedDeclarationCall, CheckedRankApplicationFacts, CheckedRankApplicationFormation,
-    CheckedRankApplicationFormationHandle,
+    CheckedRankApplicationFormationHandle, CheckedRankApplicationOwnedCopy,
 };
 
 mod arrival_correspondence;
@@ -18,11 +18,11 @@ pub use arrival_correspondence::{
     CheckedMachineRankCorrespondence, CheckedRankArrivalEdge, CheckedRankArrivalPlan,
     CheckedRankBodyJudgment, CheckedRankCoordinate, CheckedRankCoordinateBinding,
     CheckedRankCoordinateHandle, CheckedRankCoordinateTransport, CheckedRankLocalCapture,
-    CheckedRankObservation, CheckedRankPremiseRegime, CheckedRankReceivingCoordinate,
-    CheckedRankValueDerivation, CheckedRuntimeIntegerRank, CheckedRuntimeNaturalState,
-    CheckedRuntimeRankComponent, CheckedRuntimeRankEdge, CheckedRuntimeRankMember,
-    CheckedSourceNaturalRankComponent, CheckedSourceNaturalRankEdge,
-    CheckedSourceNaturalRankMember, CheckedStateRankCorrespondence,
+    CheckedRankObservation, CheckedRankOperand, CheckedRankPremiseRegime,
+    CheckedRankReceivingCoordinate, CheckedRankValueDerivation, CheckedRuntimeIntegerRank,
+    CheckedRuntimeNaturalState, CheckedRuntimeRankComponent, CheckedRuntimeRankEdge,
+    CheckedRuntimeRankInput, CheckedRuntimeRankMember, CheckedSourceNaturalRankComponent,
+    CheckedSourceNaturalRankEdge, CheckedSourceNaturalRankMember, CheckedStateRankCorrespondence,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]

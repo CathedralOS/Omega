@@ -64,6 +64,12 @@ For a proposed change, identify the avoided work and the contract that must surv
 
 For implementation, carry the smallest justified change through formatting and [scoped validation](../../../tools/testing.md#validation-scope). Test the changed ownership/order/boundary behavior; measure performance when making a performance claim. Report what changed, what was verified, and any remaining copy or bottleneck that limits the result.
 
+Select affected-path tests and relevant positive/rejection controls. Retain and
+reuse valid completed evidence under the applicability rules below. Huge corpus
+or workspace gates are not defaults: name the change-specific obligation that
+needs a broader run and follow [AGENTS.md's sweep rules](../../../AGENTS.md#commands).
+Required GitHub `compiler-check` still applies.
+
 For compiler work and review, apply [requirements and evidence](../../../AGENTS.md#requirements-and-evidence),
 [main-change validation](../../../tools/testing.md#main-change-validation), and
 the [independent semantic review boundary](../../../tools/testing.md#independent-semantic-review)

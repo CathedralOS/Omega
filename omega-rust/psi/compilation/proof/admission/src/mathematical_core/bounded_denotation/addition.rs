@@ -42,6 +42,7 @@ use super::{
     affine_carrier_endpoint_equality, affine_root_premise, affine_witness_root_expression,
     unbounded_integer,
 };
+use crate::term_matchers::is_math_add;
 use crate::{ClosedIntegerEvaluator, kernel::KernelError, proof::ProofError};
 
 #[cfg(test)]
@@ -221,9 +222,7 @@ impl Denotation {
         if scalar_type.carrier() != IntegerCarrier::Fixed {
             return Ok(None);
         }
-        let Some((lower, bound, sum)) =
-            math_less_or_equal_sides(conclusion, crate::term_matchers::is_math_add)
-        else {
+        let Some((lower, bound, sum)) = math_less_or_equal_sides(conclusion, is_math_add) else {
             return Ok(None);
         };
 
@@ -655,7 +654,7 @@ impl Addition {
     fn bound_operation() -> BinaryBoundOperation {
         BinaryBoundOperation {
             target: crate::term_matchers::exact_integer_add,
-            is_target_operation: crate::term_matchers::is_math_add,
+            is_target_operation: is_math_add,
             right_antitone: false,
             terms: Denotation::add_terms,
             monotone: |denotation, arguments| {

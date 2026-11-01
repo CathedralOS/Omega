@@ -134,7 +134,7 @@ boundary requirement Submission::release(submission: Submission);
 
 // Cancellation request authority: borrows the claim and retains it — the
 // request asks for a transition, it is not proof the worker stopped and it
-// discharges nothing (Task::request_cancel's shape). The linear claim must
+// discharges nothing (TaskLifecycle::request_cancel's shape). The linear claim must
 // still be settled exactly once after this call.
 machine Ticket::request_cancel() { }
 
@@ -263,5 +263,5 @@ machine Main::main() reaches WorkerProvider suspends blocks crashes Trap {
 }
 
 CanaryWorkerImplementation satisfies WorkerProvider {
-    WorkerProvider::execute = CanaryWorkerProvider::execute;
+    machine execute<T, Arguments [carry(suspension: allowed, cpu: same, thread: same, address: stable)], machine Target>(arguments: Arguments) -> T requires machine Target(arguments: Arguments) -> T suspends blocks; ensures true reaches suspends blocks { CanaryWorkerProvider::execute<T, Arguments, Target>(arguments) }
 }

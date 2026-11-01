@@ -20,6 +20,7 @@ use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::scalar_operations::terminal_scalar_belongs_to_type;
 use crate::values::TerminalScalarValue;
+use terminal_semantics::static_field_projection;
 
 impl TerminalExecution<'_> {
     pub(crate) fn execute_atomic_access(
@@ -70,13 +71,9 @@ impl TerminalExecution<'_> {
             .map(StructuralPathSegment::Case)
             .collect::<Vec<_>>();
         let types = self.structural_types();
-        let (canonical, declaration) = terminal_semantics::static_field_projection(
-            types.values(),
-            declared_parent,
-            &namespace,
-            field,
-        )
-        .ok_or_else(malformed)?;
+        let (canonical, declaration) =
+            static_field_projection(types.values(), declared_parent, &namespace, field)
+                .ok_or_else(malformed)?;
         let scalar_type = declaration
             .field_type
             .atomic_scalar_type()

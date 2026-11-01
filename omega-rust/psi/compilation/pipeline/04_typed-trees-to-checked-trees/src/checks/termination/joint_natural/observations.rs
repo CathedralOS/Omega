@@ -42,28 +42,14 @@ fn retain_component(
             entry_indexes,
         });
     let measure = if input.measure.is_valid() {
-        let formal = program
-            .measures()
+        let rows = input
+            .application_bindings
             .iter()
-            .find(|definition| definition.symbol == input.measure)
-            .and_then(|definition| definition.parameter.as_ref())
-            .ok_or("an admitted rank application has no supplying declaration formal")?;
-        let entry = admitted
-            .coordinates
-            .insert(checked_trees::CheckedRankCoordinate {
-                parameter: formal.symbol,
-                ..Default::default()
-            });
-        let bindings =
-            admitted
-                .bindings
-                .insert_many([checked_trees::CheckedRankCoordinateBinding {
-                    entry,
-                    destination: coordinate,
-                    ..Default::default()
-                }]);
+            .map(|binding| binding.retain(admitted))
+            .collect::<Vec<_>>();
+        let bindings = admitted.bindings.insert_many(rows);
         let formation = if let Some(application) = &input.application {
-            let (owner, _) = validation::find_state(program, state)
+            let (owner, own_state) = validation::find_state(program, state)
                 .ok_or("a formed rank application lost its exact state owner")?;
             let declaration = program
                 .measures()
@@ -81,6 +67,15 @@ fn retain_component(
             let casts = admitted
                 .application_casts
                 .insert_many(application.casts().iter().cloned());
+            let owned_copy = declaration.parameter.as_ref().and_then(|formal| {
+                super::super::application_inputs::owned_copy(
+                    program,
+                    admitted,
+                    own_state,
+                    formal.symbol,
+                    coordinate,
+                )
+            });
             admitted
                 .application_formations
                 .insert(checked_trees::CheckedRankApplicationFormation {
@@ -96,6 +91,7 @@ fn retain_component(
                             .insert_many(application.calls().iter().copied()),
                     },
                     bindings,
+                    owned_copy,
                 })
         } else {
             Default::default()
@@ -107,15 +103,34 @@ fn retain_component(
             primitive_type: input.primitive_type,
         }
     } else {
-        match input.observation {
-            validation::RankPremiseObservation::Value => {
+        match &input.observation {
+            validation::RuntimeRankInput::Value(validation::RankPremiseObservation::Value) => {
                 checked_trees::CheckedNaturalRankMeasure::IntegerValue {
                     coordinate,
                     primitive_type: input.primitive_type,
                 }
             }
-            validation::RankPremiseObservation::Length => {
+            validation::RuntimeRankInput::Value(validation::RankPremiseObservation::Length) => {
                 checked_trees::CheckedNaturalRankMeasure::SequenceLength { coordinate }
+            }
+            validation::RuntimeRankInput::Distance {
+                lower_observation,
+                lower_primitive,
+                upper,
+            } => {
+                if input.function != checked_trees::CheckedNaturalRankFunction::Identity {
+                    return Err("an exact distance cannot retain a complement normalization");
+                }
+                let lower =
+                    admitted
+                        .rank_operands
+                        .insert(checked_trees::CheckedRankOperand::Coordinate {
+                            coordinate,
+                            primitive_type: *lower_primitive,
+                            observation: *lower_observation,
+                        });
+                let upper = upper.retain(admitted);
+                checked_trees::CheckedNaturalRankMeasure::Distance { lower, upper }
             }
         }
     };

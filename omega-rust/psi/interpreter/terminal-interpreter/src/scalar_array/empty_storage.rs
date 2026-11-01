@@ -7,6 +7,7 @@ use crate::custody::fixed_index_step;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::program::ProgramDeclarations;
 use crate::runtime_rows::RuntimeRows;
+use crate::structural_inputs::byte_arrays::byte_array_length;
 use crate::structural_inputs::byte_arrays::storage::StructuralByteArrayStorage;
 use crate::values::StructuralRuntimePlace;
 use evaluation_accounting::EvaluationInvocationAccount;
@@ -123,8 +124,7 @@ impl EmptyArrayStorage {
                     continue;
                 }
             }
-            if crate::structural_inputs::byte_arrays::byte_array_length(types, structural_type)
-                == Some(0)
+            if byte_array_length(types, structural_type) == Some(0)
                 && bytes.get(&home).is_some_and(|view| view.len() == 0)
             {
                 continue;
@@ -194,9 +194,7 @@ impl EmptyArrayStorage {
     ) -> Result<bool, TerminalInterpretError> {
         Ok(self
             .initialized_type(types, bytes, home)?
-            .is_some_and(|selected| {
-                crate::structural_inputs::byte_arrays::byte_array_length(types, selected) == Some(0)
-            }))
+            .is_some_and(|selected| byte_array_length(types, selected) == Some(0)))
     }
 
     pub(crate) fn stage_subtree(

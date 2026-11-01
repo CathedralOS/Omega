@@ -22,6 +22,10 @@ pub(super) fn emit_callable_object(
     budget: optimization_core::OptimizationWorkBudget,
     artifact: &terminal_codec::CanonicalTerminalArtifact,
 ) -> Result<CallableObjectProduct, Vec<Diagnostic>> {
+    let observation = crate::observations::NativePipelineObservation::new(
+        admission.providers.profile,
+        crate::observations::NativePipelineUnit::Callable,
+    );
     let callable_entry = admitted.input.plan().entry;
     let authority = admitted.providers.callable_authority().clone();
     let host = native_artifact::TerminalRuntimeHostProvisions::capture_native_admission(
@@ -62,6 +66,7 @@ pub(super) fn emit_callable_object(
         },
         selections,
         budget,
+        &observation,
     )
     .map_err(|error| match error {
         TargetLoweringError::AbstractOptimization(error) => {
@@ -71,12 +76,14 @@ pub(super) fn emit_callable_object(
     })?;
     let runtime =
         runtime.with_borrowed_storage_layouts(optimized_target.borrowed_storage_layouts().to_vec());
-    let projection = pipeline::emit_target(optimized_target).map_err(|error| match error {
-        BodyEmissionError::Physical(error) => {
-            realization_error("callable physical pipeline", error)
-        }
-        BodyEmissionError::Object(diagnostics) => diagnostics,
-    })?;
+    let projection =
+        pipeline::emit_target(optimized_target, &observation).map_err(|error| match error {
+            BodyEmissionError::Physical(error) => {
+                realization_error("callable physical pipeline", error)
+            }
+            BodyEmissionError::Object(diagnostics) => diagnostics,
+        })?;
+    observation.complete();
     Ok(CallableObjectProduct {
         projection,
         runtime,

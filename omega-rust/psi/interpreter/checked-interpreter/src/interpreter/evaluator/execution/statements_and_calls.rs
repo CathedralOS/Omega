@@ -3,6 +3,11 @@ use crate::interpreter::evaluator::{
     Machine, Reference, State, StatementNode, SymbolHandle, TableCall, TableTransition,
     TransitionDecision, TransitionGuardNode, TransitionTargetNode, Value, statement_table,
 };
+use checked_trees::FlowClaimJoinExitKind::{TransitionContinuation, TransitionTarget};
+use language_core::inline_assembly::{
+    AsmCacheOperationKind, AsmFenceKind, AsmInstructionSerializationKind, AsmInterruptControlKind,
+    AsmSchedulingHintKind,
+};
 use typed_trees::statement::TransitionExit;
 
 impl<'program> Evaluator<'program> {
@@ -124,15 +129,9 @@ impl<'program> Evaluator<'program> {
             }
         };
         let (target_handle, kind) = if holds {
-            (
-                transition.target,
-                checked_trees::FlowClaimJoinExitKind::TransitionTarget,
-            )
+            (transition.target, TransitionTarget)
         } else if transition.continuation.is_valid() {
-            (
-                transition.continuation,
-                checked_trees::FlowClaimJoinExitKind::TransitionContinuation,
-            )
+            (transition.continuation, TransitionContinuation)
         } else {
             return Ok(None);
         };
@@ -301,24 +300,11 @@ impl<'program> Evaluator<'program> {
             environment.restore_arithmetic_bits(image as u64);
             return Ok(Value::Unit);
         }
-        if language_core::inline_assembly::AsmFenceKind::from_intrinsic_name(call.target.as_str())
-            .is_some()
-            || language_core::inline_assembly::AsmInterruptControlKind::from_intrinsic_name(
-                call.target.as_str(),
-            )
-            .is_some()
-            || language_core::inline_assembly::AsmInstructionSerializationKind::from_intrinsic_name(
-                call.target.as_str(),
-            )
-            .is_some()
-            || language_core::inline_assembly::AsmSchedulingHintKind::from_intrinsic_name(
-                call.target.as_str(),
-            )
-            .is_some()
-            || language_core::inline_assembly::AsmCacheOperationKind::from_intrinsic_name(
-                call.target.as_str(),
-            )
-            .is_some()
+        if AsmFenceKind::from_intrinsic_name(call.target.as_str()).is_some()
+            || AsmInterruptControlKind::from_intrinsic_name(call.target.as_str()).is_some()
+            || AsmInstructionSerializationKind::from_intrinsic_name(call.target.as_str()).is_some()
+            || AsmSchedulingHintKind::from_intrinsic_name(call.target.as_str()).is_some()
+            || AsmCacheOperationKind::from_intrinsic_name(call.target.as_str()).is_some()
         {
             return Ok(Value::Unit);
         }

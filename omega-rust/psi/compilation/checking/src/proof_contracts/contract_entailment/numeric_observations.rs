@@ -29,6 +29,8 @@ use typed_trees::statement::StatementNode;
 use typed_trees::types::TypeReferenceHandle;
 use typed_trees::{machine::Machine, state::State};
 
+use crate::frozen_program::CheckingQuery;
+
 /// One actual completed integer read, not a current-place or initializer lookup.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CapturedScalarObservation {
@@ -96,50 +98,6 @@ type NumericSite = (
     bool,
     NumericObservationDemand,
 );
-// The normal-prefix owner can ask arithmetic return inference about a call;
-// arithmetic can in turn ask for this prefix's completed numeric reads. Track
-// that dynamic query edge, including one-shot inputs without memo storage.
-// This stack carries no semantic answers and is local to the executing thread.
-// Completed memo rows are read first; an unfinished state contributes unknown
-// evidence, never a provisional narrowing. Batch queries cover the whole state,
-// so a different requested statement or output must not evade the cycle fence.
-std::thread_local! {
-    static ACTIVE_NUMERIC_STATES: std::cell::RefCell<Vec<(usize, SymbolHandle, SymbolHandle)>> =
-        const { std::cell::RefCell::new(Vec::new()) };
-}
-
-struct NumericStateQuery;
-
-impl NumericStateQuery {
-    fn enter(
-        program: &dyn crate::CheckingInput,
-        machine: SymbolHandle,
-        state: SymbolHandle,
-    ) -> Option<Self> {
-        let identity = (
-            program.typed_program() as *const typed_trees::TypedTrees as usize,
-            machine,
-            state,
-        );
-        ACTIVE_NUMERIC_STATES.with(|active| {
-            let mut active = active.borrow_mut();
-            if active.contains(&identity) {
-                return None;
-            }
-            active.push(identity);
-            Some(Self)
-        })
-    }
-}
-
-impl Drop for NumericStateQuery {
-    fn drop(&mut self) {
-        ACTIVE_NUMERIC_STATES.with(|active| {
-            active.borrow_mut().pop();
-        });
-    }
-}
-
 /// Capture the finite integer-read roster once at this executed prefix. The
 /// normal-value owner supplies source ordering, branch joins and call effects;
 /// this adapter neither evaluates a second operand language nor unfolds callees.
@@ -172,9 +130,11 @@ pub fn captured_numeric_observations(
     {
         return observations.clone();
     }
-    let Some(_query) = NumericStateQuery::enter(program, machine.symbol, state.symbol) else {
+    let Some(query) = CheckingQuery::numeric_observation(program, machine.symbol, state.symbol)
+    else {
         return CapturedNumericObservations::default();
     };
+    let program: &dyn crate::CheckingInput = &query;
     let statement_count = program
         .statement_table
         .statements(state.statement_nodes)

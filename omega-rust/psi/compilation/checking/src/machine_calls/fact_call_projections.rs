@@ -494,44 +494,20 @@ pub(crate) fn expression_contains_call_projection(
     program: &dyn CheckingInput,
     expression: ExpressionHandle,
 ) -> bool {
-    match expression_table(program).expression(expression) {
-        ExpressionNode::Member(member) => expression_contains_call(program, member.receiver),
-        ExpressionNode::Atomic(atomic) => {
-            expression_contains_call_projection(program, atomic.value)
-                || expression_contains_call_projection(program, atomic.result)
-        }
-        ExpressionNode::Binary(binary) => {
-            expression_contains_call_projection(program, binary.left)
-                || expression_contains_call_projection(program, binary.right)
-        }
-        ExpressionNode::Borrow(inner) => expression_contains_call_projection(program, inner.target),
-        ExpressionNode::Cast(cast) => expression_contains_call_projection(program, cast.value),
-        ExpressionNode::Call(call) => {
-            expression_contains_call_projection(program, call.receiver)
-                || expression_table(program)
-                    .expression_handles(call.arguments)
-                    .iter()
-                    .any(|argument| expression_contains_call_projection(program, *argument))
-        }
-        ExpressionNode::Indexed(indexed) => {
-            expression_contains_call_projection(program, indexed.collection)
-                || expression_contains_call_projection(program, indexed.index)
-        }
-        ExpressionNode::Range(range) => {
-            expression_contains_call_projection(program, range.start)
-                || expression_contains_call_projection(program, range.end)
-        }
-        ExpressionNode::StructLiteral(literal) => expression_table(program)
-            .struct_fields(literal.fields)
-            .iter()
-            .any(|field| expression_contains_call_projection(program, field.value)),
-        ExpressionNode::Unary(unary) => expression_contains_call_projection(program, unary.operand),
-        ExpressionNode::ArrayLiteral(values) => expression_table(program)
-            .expression_handles(*values)
-            .iter()
-            .any(|value| expression_contains_call_projection(program, *value)),
-        _ => false,
-    }
+    use typed_trees::SubtreeVisit;
+    program.subtree_any(
+        expression,
+        typed_trees::SubtreeEdges::STRUCTURAL,
+        |_, node| match node {
+            ExpressionNode::Member(member)
+                if expression_contains_call(program, member.receiver) =>
+            {
+                SubtreeVisit::Found
+            }
+            ExpressionNode::Member(_) | ExpressionNode::Match(_) => SubtreeVisit::Prune,
+            _ => SubtreeVisit::Descend,
+        },
+    )
 }
 
 fn expression_contains_call(program: &dyn CheckingInput, expression: ExpressionHandle) -> bool {

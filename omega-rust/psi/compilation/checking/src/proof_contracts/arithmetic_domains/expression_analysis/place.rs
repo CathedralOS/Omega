@@ -4,11 +4,13 @@
 //! full range.
 
 use super::{Analysis, ExpressionWalk, NEUTRAL};
-use crate::proof_contracts::arithmetic_domains::integer_ranges::{is_atomic_type, primitive_range};
+use crate::proof_contracts::arithmetic_domains::integer_ranges::{
+    is_atomic_type, literal_interval, primitive_range,
+};
 use crate::proof_contracts::arithmetic_domains::{
     ArithmeticDomain, ExpressionHandle, Interval, place_path, range_constraint_interval,
 };
-use crate::value_custody::places;
+use crate::value_custody::{constants, literals, places};
 
 /// An INDEXED read (`self.cells[rp]`) resolves through its collection's ELEMENT
 /// type, so a range-refined element (`[i32 [0..=7]; N]`) feeds the overflow
@@ -55,6 +57,18 @@ pub(super) fn analyze(walk: &ExpressionWalk, expression: ExpressionHandle) -> An
         .or_else(|| range_constraint_interval(program, handle))
         .map(|proven| proven.intersect(type_range))
         .unwrap_or(type_range);
+    // Completed immutable declarations supply a leaf fact, not permission to
+    // skip any enclosing operation. Keep the actual place's carrier/domain
+    // and intersect all existing source/path constraints.
+    let interval = constants::completed_integer_constant(program, expression)
+        .filter(|value| value.primitive == primitive)
+        .and_then(|value| {
+            Some(literal_interval(&literals::land_integer_value(
+                &value.value,
+                primitive?,
+            )?))
+        })
+        .map_or(interval, |closed| interval.intersect(closed));
     let interval = walk
         .state
         .and_then(|state| {

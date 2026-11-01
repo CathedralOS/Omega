@@ -215,6 +215,8 @@ pub(super) fn validate(
 
 #[cfg(test)]
 mod tests {
+    use semantic_vocabulary::MachineId;
+
     use super::*;
     use arena::HandleSpan;
     use semantic_vocabulary::proof_applications::{
@@ -332,11 +334,8 @@ mod tests {
     #[test]
     fn proof_scope_rejects_ambiguous_callable_associations() {
         let (scope, identities) = scope();
-        let body = |number| {
-            terminal_psi::TargetMachineCallable::Machine(
-                semantic_vocabulary::MachineId::new(number).unwrap(),
-            )
-        };
+        let body =
+            |number| terminal_psi::TargetMachineCallable::Machine(MachineId::new(number).unwrap());
         for (second_owner, second_callable) in [(1, body(2)), (2, body(1))] {
             let mut duplicate = scope.clone();
             for (owner, callable) in [(1, body(1)), (second_owner, second_callable)] {

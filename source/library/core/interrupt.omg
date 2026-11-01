@@ -49,10 +49,12 @@ public boundary trait InterruptEntry {
     reaches <= MachineControl + PortIo;
 }
 
-public boundary requirement InterruptMaskGuard::restore(guard: InterruptMaskGuard)
-reaches MachineControl
-requires
-    guard in InterruptMaskGuard::Active;
+public boundary trait InterruptMaskRestore {
+    machine restore(guard: InterruptMaskGuard)
+    reaches MachineControl
+    requires
+        guard in InterruptMaskGuard::Active;
+}
 
 public boundary trait InterruptAcknowledgementCompletion {
     machine complete(acknowledgement: InterruptAcknowledgement)

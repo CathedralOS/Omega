@@ -5,6 +5,8 @@
 
 use super::{CalleeState, Diagnostic, SymbolHandle, TypedTrees, failed};
 use crate::tables::{expressions_of, expressions_of_mut};
+use validation::contract_identities::accepted_template_commitment;
+use validation::contract_identities::normalized_machine_identity;
 
 pub(super) fn materialize(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>, Vec<Diagnostic>> {
     let requests = program
@@ -121,15 +123,9 @@ pub(super) fn materialize(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>,
                 .iter()
                 .filter(|instance| instance.template == machine.symbol)
                 .count();
-            let identity =
-                validation::contract_identities::normalized_machine_identity(program, &machine)
-                    .ok_or_else(|| {
-                        failed("cleanup template has no normalized callable identity")
-                    })?;
-            let commitment = validation::contract_identities::accepted_template_commitment(
-                program,
-                machine_index,
-            );
+            let identity = normalized_machine_identity(program, &machine)
+                .ok_or_else(|| failed("cleanup template has no normalized callable identity"))?;
+            let commitment = accepted_template_commitment(program, machine_index);
             let states = super::body_cloning::clone_specialized_machine(
                 None, program, &candidate, ordinal, identity, commitment,
             )?;

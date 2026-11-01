@@ -1,4 +1,6 @@
+use crate::diagnostics::parse_error::ParseError;
 use crate::input::token_cursor::{Input, ParseResult};
+use crate::parameters::binding_properties::parse_binding_relevance_brackets;
 use crate::tables::{items, type_refs_of};
 use crate::type_syntax::parse_type::parse_type_reference_handle_allowing_borrow;
 use arena::{Handle, HandleSpan};
@@ -81,11 +83,7 @@ pub(crate) fn parse_parameter<'tokens, 'source>(
     // `[erased]` marks the binding occurrence, so it attaches to the
     // parameter name exactly as on a data field.
     // Same binding-occurrence contract for the optional `&name` prefix.
-    let (relevance, input) =
-        crate::parameters::binding_properties::parse_binding_relevance_brackets(
-            input,
-            "parameter",
-        )?;
+    let (relevance, input) = parse_binding_relevance_brackets(input, "parameter")?;
     let input = input.take_punctuation(PunctuationKind::Colon, ":")?;
     let (type_reference, borrowed_mutable, input) =
         parse_parameter_type_reference(syntax_trees, input)?;
@@ -106,10 +104,7 @@ pub(crate) fn parse_parameter<'tokens, 'source>(
 fn parse_parameter_type_reference<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
-) -> Result<
-    (TypeReferenceHandle, bool, Input<'tokens, 'source>),
-    crate::diagnostics::parse_error::ParseError,
-> {
+) -> Result<(TypeReferenceHandle, bool, Input<'tokens, 'source>), ParseError> {
     if !input.at_punctuation(PunctuationKind::Ampersand) {
         let (type_reference, input) =
             parse_type_reference_handle_allowing_borrow(syntax_trees, input)?;

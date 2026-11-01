@@ -35,7 +35,7 @@ machine Main::main(main: &mut Main) reaches Scheduler crashes Trap {
 }
 
 InlineSchedulerImplementation satisfies Scheduler {
-    Scheduler::read = InlineScheduler::read;
+    machine read(references: &[&i32; 2]) -> i64 { InlineScheduler::read(references) }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

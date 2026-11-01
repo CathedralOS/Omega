@@ -12,7 +12,7 @@ use crate::checks::contracts::call_bounds::context::direct_parameter;
 use crate::checks::contracts::call_bounds::context::fixed_parameter_type;
 use crate::checks::contracts::prover::has_builtin_operators;
 use crate::facts::contract_occurrences::append_expression_occurrences;
-use crate::flow::{expressions, frame_storage_writes};
+use crate::flow::frame_storage_writes;
 use crate::values::scalar_expression_type;
 use numerics::arithmetic::ArithmeticDomain;
 
@@ -87,38 +87,31 @@ fn operand_effects_are_known(
     parameters: &[StateParameter],
     expression: ExpressionHandle,
 ) -> bool {
-    if !program.expression_table.expression_is_valid(expression) {
-        return false;
-    }
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Name(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::Boolean(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::ZeroValue(_) => true,
-        ExpressionNode::Borrow(borrow) => {
-            operand_effects_are_known(program, facts, owner, parameters, borrow.target)
-        }
-        ExpressionNode::Call(call) => {
-            (!call.receiver.is_valid()
-                || operand_effects_are_known(program, facts, owner, parameters, call.receiver))
-                && expressions(program)
-                    .expression_handles(call.arguments)
-                    .iter()
-                    .all(|argument| {
-                        operand_effects_are_known(program, facts, owner, parameters, *argument)
-                    })
-        }
-        ExpressionNode::Cast(_) => {
-            primitive_type(program, facts, owner, parameters, expression).is_some()
-        }
-        ExpressionNode::Binary(_) => {
-            primitive_type(program, facts, owner, parameters, expression).is_some()
-                || comparison_is_admitted(program, facts, owner, parameters, expression)
-        }
-        _ => false,
-    }
+    use typed_trees::SubtreeVisit;
+    let known = |expression| primitive_type(program, facts, owner, parameters, expression);
+    program.expression_table.expression_is_valid(expression)
+        && !program.subtree_any(
+            expression,
+            typed_trees::SubtreeEdges::VALUES,
+            |handle, node| match node {
+                ExpressionNode::Name(_)
+                | ExpressionNode::Integer(_)
+                | ExpressionNode::Boolean(_)
+                | ExpressionNode::String(_)
+                | ExpressionNode::Float(_)
+                | ExpressionNode::ZeroValue(_)
+                | ExpressionNode::Borrow(_)
+                | ExpressionNode::Call(_) => SubtreeVisit::Descend,
+                ExpressionNode::Cast(_) if known(handle).is_some() => SubtreeVisit::Prune,
+                ExpressionNode::Binary(_)
+                    if known(handle).is_some()
+                        || comparison_is_admitted(program, facts, owner, parameters, handle) =>
+                {
+                    SubtreeVisit::Prune
+                }
+                _ => SubtreeVisit::Found,
+            },
+        )
 }
 
 struct Meaning {

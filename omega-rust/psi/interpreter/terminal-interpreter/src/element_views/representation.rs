@@ -4,6 +4,7 @@
 
 use super::{ElementView, ElementViewBacking};
 use crate::byte_sequences::{ByteSequenceView, binding::ByteSequenceBinding};
+use crate::custody::resolve_single_structural_argument;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::runtime_rows::RuntimeRows;
@@ -152,11 +153,8 @@ impl TerminalExecution<'_> {
                 &mut RuntimeRows::new(self.account.as_ref()),
             )?;
             let values = RuntimeRows::from_rows(self.account.as_ref(), [(source.place, root)])?;
-            let referent = crate::custody::resolve_single_structural_argument(
-                &self.structural_types(),
-                &values,
-                &source,
-            )?;
+            let referent =
+                resolve_single_structural_argument(&self.structural_types(), &values, &source)?;
             if referent.structural_type != collection || !referent.qualifications.is_empty() {
                 return Err(malformed());
             }

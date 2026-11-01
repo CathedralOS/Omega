@@ -282,7 +282,7 @@ fn named_implementation_requirement(
 /// own implementation's rows. A default body that names a row outside its
 /// trait's surface is rejected here, where that implementation is known: the
 /// trait author cannot see what a particular implementation adds.
-/// Existing-machine reference rows remain ordinary machines: they have no
+/// A member sealed onto the existing machine it forwards to remains that ordinary machine: it has no
 /// enclosing conformance context and may be shared by several blocks.
 pub(crate) fn route_conformance_requirement_calls(
     program: &mut SymbolResolvedTrees,
@@ -723,6 +723,9 @@ fn collect_result_dispatch(
     alias_stack: &mut Vec<SymbolHandle>,
 ) {
     match type_reference {
+        TypeReference::AliasUse { expansion, .. } => {
+            collect_result_dispatch(program, expansion, terms, alias_stack);
+        }
         TypeReference::Reference(reference) => collect_result_dispatch(
             program,
             program.child_type_reference(reference.referee),

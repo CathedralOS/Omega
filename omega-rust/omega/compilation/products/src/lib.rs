@@ -39,6 +39,8 @@ mod prepared_build;
 mod prepared_source;
 pub mod publication;
 mod retained_native_program;
+mod terminal_publication;
+pub use terminal_publication::ProductTerminalPublication;
 
 pub use checked_compilation::{
     CheckedCompilation, CheckedCompilationInputs, CheckedProductReport, CompileReportSettlement,

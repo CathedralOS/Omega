@@ -1,11 +1,9 @@
 //! Optimizer module role: executable entrance. Exact active-resident rematerialization and replay entrance.
-use crate::ValidatedAllocationLegality;
-use crate::ValidatedAllocatorAvailability;
-use crate::ValidatedLiveRanges;
-use crate::ValidatedRecoveryClassifications;
-use crate::ValidatedSelectedAnalysis;
-use crate::ValidatedSpillChoices;
 use crate::cursor::{Cursor, TakeError, Truncated};
+use crate::{
+    ValidatedAllocationLegality, ValidatedAllocatorAvailability, ValidatedLiveRanges,
+    ValidatedRecoveryClassifications, ValidatedSelectedAnalysis, ValidatedSpillChoices,
+};
 use register_model::{
     TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
     ValidatedRegisterConstraintCatalog,

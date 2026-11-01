@@ -1,5 +1,10 @@
+use crate::contracts::conformance::parse_conformance::parse_conformance_trait_application;
+use crate::contracts::facts::parse_logical_proof_facts_until;
+use crate::contracts::facts::parse_required_logical_proof_facts_until;
 use crate::input::token_cursor::{Input, ParseResult, parse_path_handle_span};
 use crate::parameters::binding_properties::parse_binding_relevance_brackets;
+use crate::parameters::contracts::parse_machine_parameter_contracts;
+use crate::parameters::contracts::validate_machine_parameter_contracts;
 use crate::parameters::parse_generic_parameters::GenericParameterSyntax;
 use crate::parameters::parse_generic_parameters::parse_generic_parameters;
 use crate::tables::{items, items_of};
@@ -8,19 +13,19 @@ use crate::type_syntax::parse_type::{
 };
 use crate::type_syntax::properties::parse_property_brackets;
 use arena::HandleSpan;
+use language_core::Multiplicity;
 use std::collections::HashSet;
 use syntax_trees::SyntaxTrees;
-use syntax_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use syntax_trees::item::{
-    DataDefinition, DataField, DataMember, DataVariant, ProofFact, QuotientDefinition,
-    QuotientEquivalenceSelection,
+    DataDefinition, DataField, DataMember, DataVariant, Item, QuotientDefinition,
+    QuotientEquivalenceSelection, TypeAliasDefinition,
 };
 use tokens::PunctuationKind;
 
 pub(super) fn parse_data_definition<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, DataDefinition> {
+) -> ParseResult<'tokens, 'source, Item> {
     let (name, mut input) = input.take_identifier()?;
     // `Slice` is reserved as a data-type name so the parser's `Slice<T>` -> slice
     // fold (type_reference.rs) never collides with a user generic; `Slice<T>` is
@@ -40,16 +45,8 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
     let lifetime_parameters = generic_parameters.lifetime_parameters;
     let (properties, next) = parse_property_brackets(input)?;
     input = next;
-    let ((), next) = crate::parameters::contracts::parse_machine_parameter_contracts(
-        syntax_trees,
-        type_parameters,
-        input,
-    )?;
-    crate::parameters::contracts::validate_machine_parameter_contracts(
-        syntax_trees,
-        type_parameters,
-        next,
-    )?;
+    let ((), next) = parse_machine_parameter_contracts(syntax_trees, type_parameters, input)?;
+    validate_machine_parameter_contracts(syntax_trees, type_parameters, next)?;
     input = next;
     let (cleanup_selection, next) = super::domain::parse_cleanup_selection(syntax_trees, input)?;
     input = next;
@@ -58,15 +55,37 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
     // normal type reference (including a bare generic family); `%` is the
     // quotient former here rather than the expression-level modulo operator.
     if input.at_punctuation(PunctuationKind::Equal) {
+        input = input.take_punctuation(PunctuationKind::Equal, "=")?;
+        let (carrier, next) = parse_type_reference_handle(syntax_trees, input)?;
+        if next.at_punctuation(PunctuationKind::Semicolon) {
+            if properties.multiplicity != language_core::Multiplicity::Affine
+                || properties.carry.is_some()
+                || cleanup_selection.is_some()
+            {
+                return Err(next.error_here(
+                    "a transparent type alias inherits its expansion's properties and cleanup; it cannot declare storage properties",
+                ));
+            }
+            return Ok((
+                Item::TypeAlias(TypeAliasDefinition {
+                    name,
+                    is_public: false,
+                    lifetime_parameters,
+                    type_parameters,
+                    conformance_bounds: generic_parameters.conformance_bounds,
+                    authored_expansion: carrier,
+                    expansion: carrier,
+                }),
+                next.take_punctuation(PunctuationKind::Semicolon, ";")?,
+            ));
+        }
         if properties.multiplicity == language_core::Multiplicity::Linear
             || properties.carry.is_some()
         {
-            return Err(input.error_here(
+            return Err(next.error_here(
                 "a quotient data declaration cannot declare linear or carry properties; the initial quotient surface excludes custody",
             ));
         }
-        input = input.take_punctuation(PunctuationKind::Equal, "=")?;
-        let (carrier, next) = parse_type_reference_handle(syntax_trees, input)?;
         input = next.take_punctuation(PunctuationKind::Percent, "%")?;
         let (relation, next) = parse_path_handle_span(input, |member| {
             items(syntax_trees).append_identifier_path_member(member)
@@ -79,10 +98,7 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
             })?;
             input = next.take_contextual("satisfies")?;
             let ((trait_name, trait_lifetime_arguments, trait_arguments), next) =
-                crate::contracts::conformance::parse_conformance::parse_conformance_trait_application(
-                    syntax_trees,
-                    input,
-                )?;
+                parse_conformance_trait_application(syntax_trees, input)?;
             if !trait_lifetime_arguments.is_empty() {
                 return Err(next.error_here(
                     "quotient equivalence selection does not yet retain lifetime arguments; the application must remain lifetime-free",
@@ -102,7 +118,7 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
         };
         input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
         return Ok((
-            DataDefinition {
+            Item::Data(DataDefinition {
                 name,
                 is_public: false,
                 supply_mode: language_core::DataSupplyMode::CheckedShape,
@@ -119,7 +135,7 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
                 }),
                 where_facts: HandleSpan::empty(),
                 members: HandleSpan::empty(),
-            },
+            }),
             input,
         ));
     }
@@ -130,26 +146,20 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
     if input.at_contextual("where") {
         input = input.take_contextual("where")?;
         let ((facts, _token_count), rest) =
-            crate::contracts::facts::parse_logical_proof_facts_until(
-                syntax_trees,
-                input,
-                |input| input.at_punctuation(PunctuationKind::LeftBrace) || input.tokens.is_empty(),
-            )?;
+            parse_logical_proof_facts_until(syntax_trees, input, |input| {
+                input.at_punctuation(PunctuationKind::LeftBrace) || input.tokens.is_empty()
+            })?;
         default_domain_facts.push_span(facts);
         input = rest;
     }
     while input.at_contextual("requires") {
         input = input.take_contextual("requires")?;
         let ((facts, _token_count), rest) =
-            crate::contracts::facts::parse_required_logical_proof_facts_until(
-                syntax_trees,
-                input,
-                |input| {
-                    input.at_contextual("requires")
-                        || input.at_punctuation(PunctuationKind::LeftBrace)
-                        || input.tokens.is_empty()
-                },
-            )?;
+            parse_required_logical_proof_facts_until(syntax_trees, input, |input| {
+                input.at_contextual("requires")
+                    || input.at_punctuation(PunctuationKind::LeftBrace)
+                    || input.tokens.is_empty()
+            })?;
         default_domain_facts.push_span(facts);
         input = rest;
     }
@@ -164,10 +174,9 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
 
     let (members, input) = parse_data_members(syntax_trees, input)?;
     let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
-    project_case_predicate_facts(syntax_trees, &name, where_facts, members);
 
     Ok((
-        DataDefinition {
+        Item::Data(DataDefinition {
             name,
             is_public: false,
             supply_mode: language_core::DataSupplyMode::CheckedShape,
@@ -180,7 +189,7 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
             quotient: None,
             where_facts,
             members,
-        },
+        }),
         input,
     ))
 }
@@ -204,16 +213,8 @@ pub(super) fn parse_boundary_data_definition<'tokens, 'source>(
     let type_parameters = generic_parameters.type_parameters;
     let lifetime_parameters = generic_parameters.lifetime_parameters;
     let (properties, input) = parse_property_brackets(input)?;
-    let ((), input) = crate::parameters::contracts::parse_machine_parameter_contracts(
-        syntax_trees,
-        type_parameters,
-        input,
-    )?;
-    crate::parameters::contracts::validate_machine_parameter_contracts(
-        syntax_trees,
-        type_parameters,
-        input,
-    )?;
+    let ((), input) = parse_machine_parameter_contracts(syntax_trees, type_parameters, input)?;
+    validate_machine_parameter_contracts(syntax_trees, type_parameters, input)?;
     if input.at_contextual("where") {
         return Err(input.error_here(
             "opaque `boundary data` has no visible fields for a default-domain `where` clause",
@@ -487,9 +488,8 @@ fn parse_case_member<'tokens, 'source>(
         (HandleSpan::empty(), Vec::new())
     };
 
-    // Case-local predicates are retired. The same proposition is a conjunct of
-    // the data declaration's default-domain `requires`, and
-    // `project_case_predicate_facts` derives this span from that disjunction.
+    // The complete data predicate is the only authored validity condition.
+    // Cases carry no separately attributed source predicate.
     if input.at_contextual("where") || input.at_contextual("requires") {
         return Err(input.error_here(
             "case-local predicate clauses are retired; write the predicate in the data declaration's default-domain `requires`",
@@ -578,355 +578,4 @@ fn parse_case_payload_fields<'tokens, 'source>(
         input,
     )?;
     Ok(((payload, retired_identities), input))
-}
-
-/// CASE-CONSTRAINTS (case-constraints-through-default-domain): the data
-/// `requires` disjunction's `(self in Data::Case) && <guard>` branches carry
-/// the same proposition a retired case-local `where` spelled. Project each
-/// recognized branch's remaining conjuncts onto its named variant so the
-/// resolved `where_facts` view stays populated for construction, matching and
-/// coverage consumers once the authored clause retires.
-fn project_case_predicate_facts(
-    syntax_trees: &mut SyntaxTrees,
-    data_name: &syntax_trees::identifier::Identifier,
-    where_facts: arena::HandleSpan<ProofFact>,
-    members: arena::HandleSpan<DataMember>,
-) {
-    if where_facts.is_empty() {
-        return;
-    }
-    let data_name = data_name.as_str(syntax_trees).to_owned();
-    let roots: Vec<ExpressionHandle> = syntax_trees
-        .items
-        .proof_facts(where_facts)
-        .iter()
-        .filter_map(|fact| match fact {
-            ProofFact::Expression(root) => Some(*root),
-            _ => None,
-        })
-        .collect();
-    let mut extracted: Vec<(String, Vec<ExpressionHandle>)> = Vec::new();
-    for root in roots {
-        let mut disjuncts = Vec::new();
-        flatten_or(syntax_trees, root, &mut disjuncts);
-        for disjunct in disjuncts {
-            project_disjunct_onto_case(syntax_trees, &data_name, disjunct, &mut extracted);
-        }
-    }
-    if extracted.is_empty() {
-        return;
-    }
-    let member_count = items_of(syntax_trees).data_members(members).len();
-    for (case_name, fact_handles) in extracted {
-        let member_index = (0..member_count).find(|index| {
-            matches!(
-                items_of(syntax_trees).data_members(members)[*index],
-                DataMember::Variant(ref variant)
-                    if variant.name.as_str(syntax_trees) == case_name
-            )
-        });
-        let Some(member_index) = member_index else {
-            continue;
-        };
-        let mut facts = crate::handle_spans::HandleSpanBuilder::new();
-        for handle in fact_handles {
-            facts.push(items(syntax_trees).append_proof_fact(ProofFact::Expression(handle)));
-        }
-        let facts = facts.finish();
-        if facts.is_empty() {
-            continue;
-        }
-        if let DataMember::Variant(variant) =
-            &mut items(syntax_trees).data_members_mut(members)[member_index]
-        {
-            variant.where_facts = facts;
-        }
-    }
-}
-
-/// One `||`-level disjunct of a `requires` fact: flatten its `&&` conjuncts,
-/// recognize the case-membership atom `self in Data::Case` (or the unqualified
-/// `self in Case`), and record the remaining conjuncts on that case. A
-/// disjunct carrying zero or more than one recognized case marker is left to
-/// the `requires` judgment alone.
-fn project_disjunct_onto_case(
-    syntax_trees: &mut SyntaxTrees,
-    data_name: &str,
-    disjunct: ExpressionHandle,
-    extracted: &mut Vec<(String, Vec<ExpressionHandle>)>,
-) {
-    let mut atoms = Vec::new();
-    flatten_and(syntax_trees, disjunct, &mut atoms);
-    let mut case_atom: Option<String> = None;
-    let mut kept = Vec::new();
-    for atom in atoms {
-        if let Some(case_name) = case_membership_name(syntax_trees, data_name, atom) {
-            match &case_atom {
-                None => {
-                    case_atom = Some(case_name);
-                    continue;
-                }
-                // A repeated marker for the same case is redundant; a marker
-                // for another case makes attribution ambiguous, so the whole
-                // disjunct stays with the requires judgment alone.
-                Some(existing) if *existing == case_name => continue,
-                Some(_) => return,
-            }
-        }
-        kept.push(atom);
-    }
-    let Some(case_name) = case_atom else {
-        return;
-    };
-    // A conjunct still bound on `self` (`self.method()`, a bare `self`
-    // leaf, or a self member under a node the rewriter does not rebuild)
-    // has no spelling in the variant's payload scope; it remains a
-    // premise of the `requires` judgment alone.
-    let mut kept: Vec<ExpressionHandle> = kept
-        .into_iter()
-        .map(|atom| rewrite_self_member_accesses(syntax_trees, atom))
-        .collect();
-    kept.retain(|atom| !mentions_self(syntax_trees, *atom));
-    match extracted.iter_mut().find(|(name, _)| *name == case_name) {
-        Some((_, handles)) => handles.extend(kept),
-        None => extracted.push((case_name, kept)),
-    }
-}
-
-/// Rewrite `self.<field>` member accesses inside an extracted case conjunct to
-/// the bare payload-field spelling the retired case `where` clause produced:
-/// `where lo <= hi` parsed `lo` as a one-member `Name` path while the
-/// `requires` disjunct spells the same leaf `self.lo` as a `Member` access.
-/// Rebuilding that leaf as `Name(lo)` presents every downstream `where_facts`
-/// consumer the identical internal form. Subtrees without a `self` member
-/// share their handles; only rewritten paths allocate.
-fn rewrite_self_member_accesses(
-    syntax: &mut SyntaxTrees,
-    handle: ExpressionHandle,
-) -> ExpressionHandle {
-    let node = syntax.expressions.expression(handle).clone();
-    let rewritten = match node {
-        ExpressionNode::Member(member)
-            if member.case_variant.is_none() && is_self_subject(syntax, member.receiver) =>
-        {
-            let first = syntax
-                .expressions
-                .append_identifier_path_member(member.member);
-            ExpressionNode::Name(HandleSpan::from_parts(first, 1))
-        }
-        ExpressionNode::Member(member) => {
-            let receiver = rewrite_self_member_accesses(syntax, member.receiver);
-            if receiver == member.receiver {
-                return handle;
-            }
-            ExpressionNode::Member(syntax_trees::expression::TableMemberExpression {
-                receiver,
-                ..member
-            })
-        }
-        ExpressionNode::Binary(binary) => {
-            let left = rewrite_self_member_accesses(syntax, binary.left);
-            let right = rewrite_self_member_accesses(syntax, binary.right);
-            if left == binary.left && right == binary.right {
-                return handle;
-            }
-            ExpressionNode::Binary(syntax_trees::expression::TableBinaryExpression {
-                left,
-                right,
-                ..binary
-            })
-        }
-        ExpressionNode::Unary(unary) => {
-            let operand = rewrite_self_member_accesses(syntax, unary.operand);
-            if operand == unary.operand {
-                return handle;
-            }
-            ExpressionNode::Unary(syntax_trees::expression::TableUnaryExpression {
-                operand,
-                ..unary
-            })
-        }
-        ExpressionNode::Cast(cast) => {
-            let value = rewrite_self_member_accesses(syntax, cast.value);
-            if value == cast.value {
-                return handle;
-            }
-            ExpressionNode::Cast(syntax_trees::expression::TableCastExpression { value, ..cast })
-        }
-        ExpressionNode::Indexed(indexed) => {
-            let collection = rewrite_self_member_accesses(syntax, indexed.collection);
-            let index = rewrite_self_member_accesses(syntax, indexed.index);
-            if collection == indexed.collection && index == indexed.index {
-                return handle;
-            }
-            ExpressionNode::Indexed(syntax_trees::expression::TableIndexedExpression {
-                collection,
-                index,
-            })
-        }
-        ExpressionNode::Membership(membership) => {
-            let value = rewrite_self_member_accesses(syntax, membership.value);
-            if value == membership.value {
-                return handle;
-            }
-            ExpressionNode::Membership(syntax_trees::expression::TableMembershipExpression {
-                value,
-                ..membership
-            })
-        }
-        ExpressionNode::Borrow(borrow) => {
-            let target = rewrite_self_member_accesses(syntax, borrow.target);
-            if target == borrow.target {
-                return handle;
-            }
-            ExpressionNode::Borrow(syntax_trees::expression::TableBorrowExpression {
-                target,
-                ..borrow
-            })
-        }
-        ExpressionNode::Range(range) => {
-            let start = rewrite_self_member_accesses(syntax, range.start);
-            let end = rewrite_self_member_accesses(syntax, range.end);
-            if start == range.start && end == range.end {
-                return handle;
-            }
-            ExpressionNode::Range(syntax_trees::expression::TableRangeExpression {
-                start,
-                end,
-                ..range
-            })
-        }
-        ExpressionNode::Call(call) => {
-            let receiver = rewrite_self_member_accesses(syntax, call.receiver);
-            let arguments = syntax
-                .expressions
-                .expression_handles(call.arguments)
-                .to_vec();
-            let mut changed = receiver != call.receiver;
-            let rewritten: Vec<ExpressionHandle> = arguments
-                .into_iter()
-                .map(|argument| {
-                    let rewritten = rewrite_self_member_accesses(syntax, argument);
-                    changed |= rewritten != argument;
-                    rewritten
-                })
-                .collect();
-            if !changed {
-                return handle;
-            }
-            ExpressionNode::Call(syntax_trees::expression::TableCallExpression {
-                receiver,
-                arguments: syntax.expressions.insert_expression_handles(rewritten),
-                ..call
-            })
-        }
-        _ => return handle,
-    };
-    let source_span = syntax.expressions.source_span(handle);
-    let rewritten_handle = syntax.expressions.insert(rewritten);
-    syntax
-        .expressions
-        .set_source_span(rewritten_handle, source_span);
-    rewritten_handle
-}
-
-/// The declared-case name a membership atom binds: `self in Data::Case` or
-/// `self in Case` where the last domain segment is a variant of this data.
-/// Domain memberships (`self in Data::Admitted`) never name a declared case,
-/// so they are left as ordinary conjuncts.
-fn case_membership_name(
-    syntax_trees: &SyntaxTrees,
-    data_name: &str,
-    atom: ExpressionHandle,
-) -> Option<String> {
-    let ExpressionNode::Membership(membership) = syntax_trees.expressions.expression(atom) else {
-        return None;
-    };
-    if !is_self_subject(syntax_trees, membership.value) {
-        return None;
-    }
-    let domain = syntax_trees
-        .expressions
-        .identifier_path_members(membership.domain);
-    match domain {
-        [case_name] => Some(case_name.as_str(syntax_trees).to_owned()),
-        [head, case_name] if head.as_str(syntax_trees) == data_name => {
-            Some(case_name.as_str(syntax_trees).to_owned())
-        }
-        _ => None,
-    }
-}
-
-fn is_self_subject(syntax_trees: &SyntaxTrees, value: ExpressionHandle) -> bool {
-    let ExpressionNode::Name(path) = syntax_trees.expressions.expression(value) else {
-        return false;
-    };
-    matches!(
-        syntax_trees.expressions.identifier_path_members(*path),
-        [name] if name.as_str(syntax_trees) == "self"
-    )
-}
-
-fn flatten_or(
-    syntax_trees: &SyntaxTrees,
-    handle: ExpressionHandle,
-    out: &mut Vec<ExpressionHandle>,
-) {
-    if let ExpressionNode::Binary(binary) = syntax_trees.expressions.expression(handle) {
-        if binary.operator == BinaryOperator::Or {
-            flatten_or(syntax_trees, binary.left, out);
-            flatten_or(syntax_trees, binary.right, out);
-            return;
-        }
-    }
-    out.push(handle);
-}
-
-fn flatten_and(
-    syntax_trees: &SyntaxTrees,
-    handle: ExpressionHandle,
-    out: &mut Vec<ExpressionHandle>,
-) {
-    if let ExpressionNode::Binary(binary) = syntax_trees.expressions.expression(handle) {
-        if binary.operator == BinaryOperator::And {
-            flatten_and(syntax_trees, binary.left, out);
-            flatten_and(syntax_trees, binary.right, out);
-            return;
-        }
-    }
-    out.push(handle);
-}
-
-/// Whether the subtree still binds the `self` receiver -- a bare `self` name
-/// or a `self.<member>` access the caller declined to rewrite.
-fn mentions_self(syntax: &SyntaxTrees, handle: ExpressionHandle) -> bool {
-    let node = syntax.expressions.expression(handle);
-    if is_self_subject(syntax, handle) {
-        return true;
-    }
-    match node {
-        ExpressionNode::Member(member) => mentions_self(syntax, member.receiver),
-        ExpressionNode::Binary(binary) => {
-            mentions_self(syntax, binary.left) || mentions_self(syntax, binary.right)
-        }
-        ExpressionNode::Unary(unary) => mentions_self(syntax, unary.operand),
-        ExpressionNode::Cast(cast) => mentions_self(syntax, cast.value),
-        ExpressionNode::Indexed(indexed) => {
-            mentions_self(syntax, indexed.collection) || mentions_self(syntax, indexed.index)
-        }
-        ExpressionNode::Membership(membership) => mentions_self(syntax, membership.value),
-        ExpressionNode::Borrow(borrow) => mentions_self(syntax, borrow.target),
-        ExpressionNode::Range(range) => {
-            mentions_self(syntax, range.start) || mentions_self(syntax, range.end)
-        }
-        ExpressionNode::Call(call) => {
-            mentions_self(syntax, call.receiver)
-                || syntax
-                    .expressions
-                    .expression_handles(call.arguments)
-                    .iter()
-                    .any(|argument| mentions_self(syntax, *argument))
-        }
-        _ => false,
-    }
 }

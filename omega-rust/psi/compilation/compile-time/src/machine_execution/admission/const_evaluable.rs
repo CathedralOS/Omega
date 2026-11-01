@@ -14,6 +14,7 @@ use typed_trees::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, T
 
 use crate::BuildTimeValue;
 use crate::build_time_evaluation::type_reference_table;
+use numerics::literals::FloatFormat;
 
 pub(super) fn require_const_evaluable_result(
     program: &TypedTrees,
@@ -163,14 +164,8 @@ fn check_primitive(
     match (primitive, value) {
         (PrimitiveType::Bool, BuildTimeValue::Bool(_))
         | (PrimitiveType::F32 | PrimitiveType::F64, BuildTimeValue::Float(_)) => Ok(()),
-        (
-            PrimitiveType::F32,
-            BuildTimeValue::UndeterminedNaN(numerics::literals::FloatFormat::F32),
-        )
-        | (
-            PrimitiveType::F64,
-            BuildTimeValue::UndeterminedNaN(numerics::literals::FloatFormat::F64),
-        ) => Ok(()),
+        (PrimitiveType::F32, BuildTimeValue::UndeterminedNaN(FloatFormat::F32))
+        | (PrimitiveType::F64, BuildTimeValue::UndeterminedNaN(FloatFormat::F64)) => Ok(()),
         (primitive, BuildTimeValue::Int(_)) if primitive.accepts_integer_literal() => Ok(()),
         _ => Err(format!(
             "{path} expected `{}`, found {}",

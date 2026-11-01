@@ -821,7 +821,7 @@ fn bind_occurrences(
             _ => return None,
         };
         bindings.push(ScopedArithmeticBinding {
-            binder,
+            binder: binder.clone(),
             value: match binder {
                 ScopedArithmeticBinder::Symbol(symbol)
                     if program

@@ -1,6 +1,9 @@
 use crate::interpreter::evaluator::{EvalResult, Evaluator, Halt, SymbolHandle, Value};
 use typed_trees::signature::StateSignature;
 use typed_trees::trait_definition::TraitDefinition;
+use validation::{
+    exact_compiler_intrinsic_boundary_requirement, is_canonical_process_exit_requirement,
+};
 impl<'program> Evaluator<'program> {
     /// Validate the exact requirement's byte result before advancing input.
     /// A same-spelled declaration or invalid result symbol supplies no identity.
@@ -8,9 +11,8 @@ impl<'program> Evaluator<'program> {
         &mut self,
         target: SymbolHandle,
     ) -> EvalResult<Value> {
-        let requirement =
-            validation::exact_compiler_intrinsic_boundary_requirement(self.program, target)
-                .map_or(target, |(requirement, _)| requirement);
+        let requirement = exact_compiler_intrinsic_boundary_requirement(self.program, target)
+            .map_or(target, |(requirement, _)| requirement);
         let type_symbol = self
             .program
             .traits()
@@ -83,10 +85,7 @@ impl<'program> Evaluator<'program> {
     ) -> Option<(&'program TraitDefinition, &'program StateSignature)> {
         self.boundary_trait_requirement(target_symbol).or_else(|| {
             let (requirement, _provider) =
-                validation::exact_compiler_intrinsic_boundary_requirement(
-                    self.program,
-                    target_symbol,
-                )?;
+                exact_compiler_intrinsic_boundary_requirement(self.program, target_symbol)?;
             self.boundary_trait_requirement(requirement)
         })
     }
@@ -121,10 +120,6 @@ impl<'program> Evaluator<'program> {
         trait_symbol: SymbolHandle,
         requirement_symbol: SymbolHandle,
     ) -> bool {
-        validation::is_canonical_process_exit_requirement(
-            self.program,
-            trait_symbol,
-            requirement_symbol,
-        )
+        is_canonical_process_exit_requirement(self.program, trait_symbol, requirement_symbol)
     }
 }

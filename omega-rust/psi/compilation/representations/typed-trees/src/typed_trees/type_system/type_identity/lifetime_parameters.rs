@@ -36,6 +36,18 @@ pub fn portable_lifetime_parameter_identity(
         ("implementation", program.symbols.display_path(owner, "::"))
     } else if let Some(declaration) = program.trait_definition_by_symbol(owner) {
         ("trait", program.trait_declaration_path(declaration))
+    } else if program
+        .type_aliases()
+        .iter()
+        .any(|alias| alias.symbol == owner)
+    {
+        // This is an alias's declaration-owned parameter coordinate, used by
+        // source formation. Expanded runtime types retain their supplied
+        // regions and never acquire an alias nominal or ABI identity.
+        (
+            "type-alias-parameter",
+            program.symbols.display_path(owner, "::"),
+        )
     } else if program.data_definition_by_symbol(owner).is_some() {
         ("data", program.symbols.display_path(owner, "::"))
     } else {
@@ -207,6 +219,13 @@ pub fn declaration_lifetime_parameters(
     program
         .machine_by_symbol(owner)
         .map(|owner| owner.lifetime_parameters.as_slice())
+        .or_else(|| {
+            program
+                .type_aliases()
+                .iter()
+                .find(|alias| alias.symbol == owner)
+                .map(|alias| alias.lifetime_parameters.as_slice())
+        })
         .or_else(|| {
             program
                 .conformance_by_symbol(owner)

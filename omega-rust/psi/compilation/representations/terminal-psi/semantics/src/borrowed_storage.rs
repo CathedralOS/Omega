@@ -5,6 +5,7 @@
 //! access, lifetime and loan closure remain independent receiving judgments.
 //! All possible origins remain relevant; a relative child cannot refine an
 //! inexact parent, and captured scalar coordinates never become live selectors.
+use crate::scalar_ordering::ScalarOrdering;
 use semantic_vocabulary::{BlockId, PlaceId, ValueId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::StructuralPathSegment;
@@ -176,10 +177,7 @@ impl Projection {
     /// Resolve only a complete fixed address proved from each selector's own
     /// captured scalar snapshot. This does not prove access, bounds or lifetime.
     /// Unknown symbolic coordinates remain unknown; overlap is never equality.
-    pub fn fixed_address(
-        &self,
-        ordering: &crate::scalar_ordering::ScalarOrdering,
-    ) -> Option<Vec<StructuralPathSegment>> {
+    pub fn fixed_address(&self, ordering: &ScalarOrdering) -> Option<Vec<StructuralPathSegment>> {
         self.reference_origin_path(ordering)?
             .into_iter()
             .map(|projection| match projection {
@@ -196,7 +194,7 @@ impl Projection {
     /// endpoint. Conservative interference `path` cannot supply this evidence.
     pub fn reference_origin_path(
         &self,
-        ordering: &crate::scalar_ordering::ScalarOrdering,
+        ordering: &ScalarOrdering,
     ) -> Option<Vec<terminal_psi::ReferenceOriginProjection>> {
         use terminal_psi::ReferenceOriginProjection::{Element, Exact};
         if self.indirect {
@@ -357,7 +355,7 @@ pub fn regions_overlap_at(
     left: &Region,
     right: &Region,
     position: Position,
-    relations: &crate::scalar_ordering::ScalarOrdering,
+    relations: &ScalarOrdering,
 ) -> bool {
     if !left.overlaps(right) {
         return false;
@@ -376,7 +374,7 @@ pub fn regions_overlap_at(
 fn window_excludes_index(
     window: &Projection,
     selected: &Projection,
-    relations: &crate::scalar_ordering::ScalarOrdering,
+    relations: &ScalarOrdering,
     position: Position,
 ) -> bool {
     let (Some((start, end)), Some(birth)) = (window.window, window.captured_at) else {

@@ -29,6 +29,11 @@ use crate::{
     IntegerCastChainWitnessError, IntegerCorrelatedForbiddenRootConversionError,
     IntegerCorrelatedForbiddenRootWitnessError, KernelError,
 };
+use equality_rules::{check_equality_symmetry, check_equality_transitivity};
+use integer_order_rules::{
+    check_integer_add_order, check_integer_order_weakening, check_integer_subtract_order,
+};
+use propositional_rules::{check_assumption, check_conjunction_introduction, check_semantic_axiom};
 
 /// Proof-rule families exercised by one accepted certificate. The set is a
 /// deterministic review projection, not a second proof checker.
@@ -318,12 +323,9 @@ fn re_decide_in_mathematical_core(
         proof,
         &mut Budget::default(),
     ) {
-        // Admission reserved the stack before the bounded traversal. Kernel
-        // recursion has returned; collect the exact closure on that same
-        // stack instead of spawning a second worker per accepted certificate.
-        Ok(denoted) => Ok(MathematicalCoreDecision::Judged(
-            denoted.receipt_on_current_thread(),
-        )),
+        // Kernel recursion has returned. The exact closure uses its ordinary
+        // arena-handle walk, including when admission already owns a worker.
+        Ok(denoted) => Ok(MathematicalCoreDecision::Judged(denoted.receipt())),
         Err(BoundedDenotationError::Unsupported(family)) => {
             Ok(MathematicalCoreDecision::Refused(family))
         }
@@ -392,15 +394,9 @@ fn check_node_locally(
     };
     match &proof.rule {
         ProofRule::Primitive(_) => propositional_rules::check_primitive(&scope, proof, acceptance),
-        ProofRule::SemanticAxiom { .. } => {
-            propositional_rules::check_semantic_axiom(&scope, proof, acceptance)
-        }
-        ProofRule::Assumption { .. } => {
-            propositional_rules::check_assumption(&scope, proof, acceptance)
-        }
-        ProofRule::ConjunctionIntroduction(_) => {
-            propositional_rules::check_conjunction_introduction(proof, acceptance)
-        }
+        ProofRule::SemanticAxiom { .. } => check_semantic_axiom(&scope, proof, acceptance),
+        ProofRule::Assumption { .. } => check_assumption(&scope, proof, acceptance),
+        ProofRule::ConjunctionIntroduction(_) => check_conjunction_introduction(proof, acceptance),
         ProofRule::ConjunctionElimination { .. } => {
             propositional_rules::check_conjunction_elimination(proof, acceptance)
         }
@@ -416,33 +412,23 @@ fn check_node_locally(
         ProofRule::ImplicationElimination { .. } => {
             propositional_rules::check_implication_elimination(proof, acceptance)
         }
-        ProofRule::EqualitySymmetry { .. } => {
-            equality_rules::check_equality_symmetry(proof, acceptance)
-        }
+        ProofRule::EqualitySymmetry { .. } => check_equality_symmetry(proof, acceptance),
         ProofRule::PredicateDenotation { .. } => {
             equality_rules::check_predicate_denotation(&scope, proof, acceptance)
         }
         ProofRule::ValueEqualityTransport { .. } => {
             equality_rules::check_value_equality_transport(&scope, proof, acceptance)
         }
-        ProofRule::EqualityTransitivity { .. } => {
-            equality_rules::check_equality_transitivity(proof, acceptance)
-        }
-        ProofRule::IntegerSubtractOrder { .. } => {
-            integer_order_rules::check_integer_subtract_order(proof, acceptance)
-        }
-        ProofRule::IntegerAddOrder { .. } => {
-            integer_order_rules::check_integer_add_order(proof, acceptance)
-        }
+        ProofRule::EqualityTransitivity { .. } => check_equality_transitivity(proof, acceptance),
+        ProofRule::IntegerSubtractOrder { .. } => check_integer_subtract_order(proof, acceptance),
+        ProofRule::IntegerAddOrder { .. } => check_integer_add_order(proof, acceptance),
         ProofRule::IntegerSubtractAntitone { .. } => {
             integer_order_rules::check_integer_subtract_antitone(proof, acceptance)
         }
         ProofRule::IntegerOrderDiscreteness { .. } => {
             integer_order_rules::check_integer_order_discreteness(proof, acceptance)
         }
-        ProofRule::IntegerOrderWeakening { .. } => {
-            integer_order_rules::check_integer_order_weakening(proof, acceptance)
-        }
+        ProofRule::IntegerOrderWeakening { .. } => check_integer_order_weakening(proof, acceptance),
         ProofRule::IntegerLessOrEqualTransitivity { .. } => {
             integer_order_rules::check_integer_less_or_equal_transitivity(proof, acceptance)
         }

@@ -1,0 +1,1 @@
+{"role":"intended-invalid","entry":"main.omg","rejection_contains":["is suffixed `u64` but lands in a `u32` place"]}

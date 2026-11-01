@@ -501,6 +501,9 @@ profiles bound to the actual binary digests. See
 - Keep using `cargo fmt` and `cargo clean` directly — `mbx clean` differs.
   Whole-workspace formatting is `python tools/fmt.py`: `cargo fmt --all`
   exceeds the Windows command-line limit at this workspace's size.
+  `cargo fmt -p <package>` formats the whole package, so drift in files you did
+  not edit lands in your diff: check `git status` afterwards and restore the
+  extras, or check only your files with `rustfmt --edition 2024 --check <file>...`.
 - Compile a program: `mbx run -p omega -- --check <root.omg>`; run it:
   `mbx run -p omega -- run <root.omg>`. The CLI package is `omega` (binary
   `omega`) — there is no `omega-cli` package. The full flag surface:
@@ -509,15 +512,39 @@ profiles bound to the actual binary digests. See
   `python tools/corpus_gate.py --filter <group/name fragment>`; a crate's own
   Rust tests run by package and name filter
   (`mbx nextest run -p <crate> <filter>`).
-- **Full suites are manual triggers.** An agent never starts the unfiltered
-  corpus gate, the [full baseline](tools/testing.md#full-baseline), or any
-  other whole-corpus or whole-workspace sweep. Only the user starts those.
-  Agents doing work run focused checks: the change's own witnesses, the touched
-  fixture domains through `--filter`, and the affected crates' tests.
+- **Validate with witnesses, never with a sweep.** A check answers one
+  question: did this change move the behavior it touches? The answer comes
+  from the few programs that can move: the change's own fact places and their
+  reject twins, the fixtures named for the touched behavior, and the touched
+  crates' tests. That is tens of fixtures and minutes of execution, not
+  thousands of fixtures and hours. More fixtures do not add confidence about
+  this change; they add drift, timeouts and false alarms to chase.
+  - Count before running. Write the fixture count, the expected build time and
+    the expected execution time in the claim note. Past about 200 fixtures or
+    15 minutes, the selection is a sweep: narrow it before starting.
+  - A domain is not a focus. `--filter facts/` selects nearly 14,000 fixtures
+    and `--filter fail/` about 11,000. Filter by fact or fixture name:
+    `--filter facts/saved_observation_snapshot` selects 105.
+  - Unfiltered and whole-domain runs, the [full baseline](tools/testing.md#full-baseline),
+    and any other whole-corpus or whole-workspace sweep are the user's to start.
+  - A comparison must reach the code it compares. Before trusting base and
+    candidate agreeing, confirm a fixture got past parsing, admission and
+    package review into the stage the change touched. Two builds failing the
+    same way earlier prove nothing.
+  - Stored outcomes are history. A row that disagrees with today's run is
+    attributed with `--compare <base>` on that fixture, not chased.
+  - If a single fixture takes minutes to check or a build takes most of an
+    hour, that is a workflow defect to measure and report, not a reason to
+    wait longer.
 - Validation policy — what a change must run, baseline gates, corpus and
   bootstrap gates, test selection, slow builds — lives in
   [tools/testing.md](tools/testing.md). Read it before running more than the
   affected crate's check.
+- Reuse valid completed evidence when its inputs and affected consumers still
+  apply; retain its revision, command and outcome. A broader run needs a concrete
+  change-specific obligation that focused affected-path tests and relevant
+  positive/rejection controls cannot establish. This does not authorize the
+  user-triggered sweeps above or replace required GitHub `compiler-check`.
 - **Keep progress PRs bounded.** Name the changed behavior and its necessary
   checks before building. Reuse unchanged results; finish and enqueue once
   those checks and required review pass. Full Product builds, self-hosting,
@@ -672,6 +699,16 @@ The rules that touch every edit:
   into `source/library` and migrates its consumers together, preserving oracles
   and negative coverage. Do not create another permanent hierarchy or stale
   inventory. A Rust test of one crate stays beside that crate.
+- Tests check behavior or structure, never source text. Do not read source
+  files with `include_str!` or similar and assert that names or fragments
+  are present or absent: such a test breaks on a rename, passes when the
+  forbidden call goes through another spelling, and says nothing about what
+  the program does. An ownership or dependency rule belongs in
+  `tools/check_native_boundary.py` (cargo metadata) or in visibility and
+  types, so a violation stops compiling. An order or count rule belongs in a
+  test that runs the code and observes it. In the week to 2026-11-01, 261
+  such reads were added; PR #1139 replaced the ones it could and deleted
+  165 spelling-only asserts.
 - Write direct prose: state the idea in literal words.
 - Read the matching skill before starting: `.agents/skills/` — `advance` for
   the sample loop, `rust-systems-programmer` for Rust implementation and review,

@@ -68,3 +68,15 @@ The [inferred application](inferred/main.omg) and its [stale-write twin](inferre
 The nine places and inferred application are pinned under `tests/omega/{pass,fail}/facts/saved_case_predicate*`. On macOS ARM64, optimized producer source `914d1adfdf4` executes the nine places with native and Terminal exit 0; their nine twins reject selected-case access. The authored four-target Build rows and target bodies remain checked. Windows and Linux execution require matching hosts.
 
 The parent remains open for its remaining saved numeric/byte observations and single-evaluation pattern destructuring acceptance. This row closes the generic/reference case-observation requirement only.
+
+## Build-owned target-body migration
+
+The `target_body` place and its twin carry no source target prefix.
+`BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named
+implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected
+by explicit target-keyed Build rows. The operation, inputs, contracts and exit
+oracle are unchanged. The entry wrapper and each implementation check a tag
+(17 for x86-64, 29 for AArch64), so a wrong Build row traps. Observed evidence is
+Linux x86-64 native and Terminal Psi agreement for the positive and source
+rejection for the twin; the other hosted targets keep their authored rows,
+unexecuted here.

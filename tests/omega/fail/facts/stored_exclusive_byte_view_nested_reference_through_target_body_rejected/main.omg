@@ -3,36 +3,64 @@
 // Expected exit: 0
 data Bundle<'storage> { windows: [&'storage mut [u8]; 1]; }
 data Wrapper<'bundle, 'storage> { bundle: &'bundle Bundle<'storage>; }
-windows_x86_64 machine observe(wrapper: &Wrapper) -> bool
-requires wrapper.bundle.windows[0].len == 1
-{
-    wrapper.bundle.windows[0].len == 1 && wrapper.bundle.windows[0][0] == 19
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_x86_64 machine observe(wrapper: &Wrapper) -> bool
-requires wrapper.bundle.windows[0].len == 1
-{
-    wrapper.bundle.windows[0].len == 1 && wrapper.bundle.windows[0][0] == 19
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-macos_arm64 machine observe(wrapper: &Wrapper) -> bool
-requires wrapper.bundle.windows[0].len == 1
-{
-    wrapper.bundle.windows[0].len == 1 && wrapper.bundle.windows[0][0] == 19
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
 
-linux_arm64 machine observe(wrapper: &Wrapper) -> bool
-requires wrapper.bundle.windows[0].len == 1
-{
-    wrapper.bundle.windows[0].len == 1 && wrapper.bundle.windows[0][0] == 19
+boundary trait SelectedObserve {
+    machine observe(wrapper: &Wrapper) -> bool
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires wrapper.bundle.windows[0].len == 1;
 }
+
+X86Observe satisfies SelectedObserve {
+    machine observe(wrapper: &Wrapper) -> bool
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires wrapper.bundle.windows[0].len == 1
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        wrapper.bundle.windows[0].len == 1 && wrapper.bundle.windows[0][0] == 19
+    }
+}
+
+ArmObserve satisfies SelectedObserve {
+    machine observe(wrapper: &Wrapper) -> bool
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires wrapper.bundle.windows[0].len == 1
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        wrapper.bundle.windows[0].len == 1 && wrapper.bundle.windows[0][0] == 19
+    }
+}
+
 
 machine main() crashes Trap {
     let mut backing: [u8; 1] = [19];
     let bundle: Bundle = Bundle { windows: [&mut backing[..0]] };
     let wrapper: Wrapper = Wrapper { bundle: &bundle };
-    let observed: bool = observe(&wrapper);
+    let observed: bool = SelectedObserve::observe(&wrapper);
     transition observed { true -> done() false -> bad() }
     machine done() {}
     machine bad() crashes Trap { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

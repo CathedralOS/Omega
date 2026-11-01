@@ -18,6 +18,18 @@ pub enum ScalarCoordinateProjection {
     },
 }
 
+/// Typed projection geometry, including a whole structural endpoint. The
+/// selected type is not a value, read permission, or selector-bound decision.
+pub struct StructuralCoordinate {
+    pub root: facts::PlaceRoot,
+    pub type_reference: TypeReferenceHandle,
+    pub result_type_reference: TypeReferenceHandle,
+    pub projections: Vec<ScalarCoordinateProjection>,
+    pub source_requirements: Vec<Vec<facts::PlaceSegment>>,
+    endpoint: Endpoint,
+    stored_crossing: bool,
+}
+
 pub struct StructuralScalarCoordinate {
     pub root: facts::PlaceRoot,
     pub type_reference: TypeReferenceHandle,
@@ -100,6 +112,76 @@ pub fn structural_scalar_coordinate_in_type(
     source_type: TypeReferenceHandle,
     coordinate: &[facts::PlaceSegment],
 ) -> Option<StructuralScalarCoordinate> {
+    let selected = structural_coordinate_in_type(program, root, source_type, coordinate)?;
+    let StructuralCoordinate {
+        root,
+        type_reference: source_type,
+        result_type_reference,
+        mut projections,
+        mut source_requirements,
+        endpoint,
+        stored_crossing,
+    } = selected;
+    let mut crossings = Vec::new();
+    let readable_leaf =
+        readable_projection_carrier(program, result_type_reference, &mut crossings)?;
+    ordinary_carrier(program, readable_leaf)?;
+    let primitive_type = realized_scalar_carrier(program, result_type_reference)?;
+    if !stored_crossing && !crossings.is_empty() {
+        // Loading the final scalar referent needs the complete original path,
+        // just as crossings inside the declaration walk do.
+        source_requirements[0].clear();
+        source_requirements[0].extend_from_slice(coordinate);
+    }
+    projections.extend(
+        crossings
+            .into_iter()
+            .map(ScalarCoordinateProjection::Storage),
+    );
+    Some(StructuralScalarCoordinate {
+        root,
+        type_reference: source_type,
+        result_type_reference,
+        primitive_type,
+        domain: program.arithmetic_domain_for_type_reference(readable_leaf),
+        projections,
+        source_requirements,
+        endpoint,
+    })
+}
+
+/// Resolve any typed projection under one exact formal telescope. A structural
+/// endpoint needs no invented scalar descendant; access and formation remain
+/// separate obligations of the observation owner.
+pub fn structural_coordinate(
+    program: &dyn crate::CheckingInput,
+    parameters: &[StateParameter],
+    parameter: SymbolHandle,
+    coordinate: &[facts::PlaceSegment],
+) -> Option<StructuralCoordinate> {
+    let mut inputs = parameters.iter().filter(|input| {
+        input.symbol == parameter && !input.is_const && !input.relevance.is_erased()
+    });
+    let input = inputs.next()?;
+    if inputs.next().is_some() {
+        return None;
+    }
+    structural_coordinate_in_type(
+        program,
+        facts::PlaceRoot::Symbol(parameter),
+        input.type_reference,
+        coordinate,
+    )
+}
+
+/// The common declaration walk. Unlike scalar observation, selecting a stored
+/// reference endpoint does not load its referent at the end of this walk.
+pub fn structural_coordinate_in_type(
+    program: &dyn crate::CheckingInput,
+    root: facts::PlaceRoot,
+    source_type: TypeReferenceHandle,
+    coordinate: &[facts::PlaceSegment],
+) -> Option<StructuralCoordinate> {
     let source_type = match program
         .type_reference_table
         .type_reference(crate::peel_declared_constraints(program, source_type))
@@ -264,12 +346,24 @@ pub fn structural_scalar_coordinate_in_type(
     if selected_case.is_valid() {
         return None;
     }
-    let result_type_reference = carrier;
-    let mut crossings = Vec::new();
-    let readable_leaf = readable_projection_carrier(program, carrier, &mut crossings)?;
-    ordinary_carrier(program, readable_leaf)?;
-    let primitive_type = realized_scalar_carrier(program, result_type_reference)?;
-    stored_crossing |= !crossings.is_empty();
+    let source_requirements =
+        projection_source_requirements(coordinate, &projections, stored_crossing);
+    Some(StructuralCoordinate {
+        root,
+        type_reference: source_type,
+        result_type_reference: carrier,
+        projections,
+        source_requirements,
+        endpoint,
+        stored_crossing,
+    })
+}
+
+fn projection_source_requirements(
+    coordinate: &[facts::PlaceSegment],
+    projections: &[ScalarCoordinateProjection],
+    stored_crossing: bool,
+) -> Vec<Vec<facts::PlaceSegment>> {
     let prefix = if stored_crossing {
         coordinate
     } else {
@@ -284,22 +378,7 @@ pub fn structural_scalar_coordinate_in_type(
             .unwrap_or(coordinate.len());
         &coordinate[..end]
     };
-    let source_requirements = vec![prefix.to_vec()];
-    projections.extend(
-        crossings
-            .into_iter()
-            .map(ScalarCoordinateProjection::Storage),
-    );
-    Some(StructuralScalarCoordinate {
-        root,
-        type_reference: source_type,
-        result_type_reference,
-        primitive_type,
-        domain: program.arithmetic_domain_for_type_reference(readable_leaf),
-        projections,
-        source_requirements,
-        endpoint,
-    })
+    vec![prefix.to_vec()]
 }
 
 /// Legacy static-field recipes retain their original final-field split.

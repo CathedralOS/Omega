@@ -30,5 +30,5 @@ invokes Console
 }
 
 public ProviderSinkImplementation satisfies Sink {
-    Sink::emit = Provider::emit;
+    machine emit(byte: i32) reaches Console { Provider::emit(byte) }
 }

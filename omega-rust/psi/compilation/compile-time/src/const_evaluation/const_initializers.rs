@@ -48,21 +48,21 @@
 //! orders that extent's evaluation; neither a probe stand-in nor a provisional
 //! layout may provide the encoded value.
 
+use crate::syntax_probes::extend_normalization_owners;
 use crate::unique::{extend_unique, push_unique};
-use std::collections::HashMap;
-
 use diagnostics::Diagnostic;
 use language_core::constant_value::EvaluatedConstant;
 use language_semantics::const_value::DecodedCanonicalConstValue;
 use source::SourceSpan;
-use syntax_trees::SyntaxTrees;
+use std::collections::HashMap;
 use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 use syntax_trees::item::{
     ConstDefinition, ConstInitializerCustody, ConstInitializerNormalization, Item, ItemHandle,
 };
 use syntax_trees::types::ConstArgumentOrigin;
+use syntax_trees::{FloatSpelling, SyntaxTrees};
 use syntax_trees_to_symbol_resolved_trees::pre_resolution::{
-    ConstInitializerSelection, InitializerCustodyPurpose,
+    ConstInitializerSelection, InitializerCustodyPurpose, resolve_deferred_initializer_probe,
 };
 
 mod invocations;
@@ -505,21 +505,19 @@ pub(crate) fn evaluate(
             .iter()
             .flat_map(|ordinal| declarations[*ordinal].normalization_owners.iter().copied())
             .collect::<Vec<_>>();
-        crate::syntax_probes::extend_normalization_owners(
-            &probe,
-            &mut probe_declarations,
-            &owners,
-        )?;
+        extend_normalization_owners(&probe, &mut probe_declarations, &owners)?;
         let probe = crate::syntax_probes::normalize_initializer_probe_data(
             probe,
             sources.clone(),
             bindings,
             context.retained_base(),
+            [
+                context.declaration_syntax,
+                context.retained_declaration_syntax,
+            ],
             &probe_declarations,
         )?;
-        let frontier = syntax_trees_to_symbol_resolved_trees::pre_resolution::resolve_deferred_initializer_probe(
-            context.resolution_request(probe),
-        )?;
+        let frontier = resolve_deferred_initializer_probe(context.resolution_request(probe))?;
         // Ready values still need real helper implementations and their type,
         // proof and operator dependencies. Reuse the scalar probe's retained
         // body demand; unrelated implementations remain with their owners and
@@ -860,9 +858,7 @@ pub(crate) fn evaluate(
                     ScalarValue::Float { format, bits } => {
                         let literal = numerics::literals::FloatLiteral::from_bits(format, bits)
                             .ok_or_else(|| failure(reference, "invalid floating representation"))?;
-                        ExpressionNode::Float(syntax_trees::FloatSpelling::materialized(
-                            literal, reference,
-                        ))
+                        ExpressionNode::Float(FloatSpelling::materialized(literal, reference))
                     }
                     ScalarValue::Index(value) => match value.decode_encoding() {
                         Some(DecodedCanonicalConstValue::Integer { value, .. }) => {

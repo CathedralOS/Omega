@@ -1,9 +1,8 @@
 //! Current target catalogs, physical addresses and independent byte replay agree on narrow loads.
 use super::tests::{encode_fixture_row, replay_fixture_row};
 use super::{
-    Architecture, NativeTarget, OptimizedSelectedFormEncodingError,
-    PostAllocationMachineInstruction, SelectedFormEncodingState, SelectedInstruction,
-    SelectedInstructionId, SelectedInstructionKind,
+    Architecture, Error, NativeTarget, PostAllocationMachineInstruction, SelectedFormEncodingState,
+    SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
 };
 use physical_instructions::{
     PhysicalAddressOperation, PhysicalOperandFootprint, PostAllocationMachineFunction,
@@ -239,7 +238,7 @@ fn narrow_loads_join_catalog_address_encoder_and_receiving_replay_on_four_target
                     foreign,
                     &mut encoded.clone()
                 ),
-                Err(OptimizedSelectedFormEncodingError::ArtifactMismatch)
+                Err(Error::ArtifactMismatch)
             ));
             let mut changed_row = row.clone();
             changed_row.address = foreign;

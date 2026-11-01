@@ -49,13 +49,14 @@ mod synthesis;
 mod uses;
 mod work_domain;
 
+pub(super) use uses::{collect_expression_handles, visit_expression_type_inputs};
 pub(crate) use uses::{statement_call_inputs, statement_type_inputs};
 
 use crate::preparation::module_normalization::validate_with_const_resolution_mode;
 pub(crate) use arguments::{
-    DomainCarrier, DomainHead, closed_argument_identity, domain_application_head,
-    domain_index_telescope, monomorphizable_argument_slugs, normalize_domain_head_positions,
-    selected_domain_family, type_reference_slug,
+    DomainCarrier, DomainHead, closed_argument_identity, closed_parameter_argument_identity,
+    domain_application_head, domain_index_telescope, monomorphizable_argument_slugs,
+    normalize_domain_head_positions, selected_domain_family, type_reference_slug,
 };
 pub(in crate::preparation::generic_data) use arguments::{
     canonicalize_monomorphizable_argument_handles, complete_argument_tuple,
@@ -640,6 +641,8 @@ pub struct GenericDataRequest<'a> {
     /// arguments the unit may name without owning their syntax. Templates
     /// still come only from this unit. Requires `sources`.
     pub retained_base: Option<&'a symbol_resolved_trees::SymbolResolvedTrees>,
+    pub declaration_syntax: Option<&'a SyntaxTrees>,
+    pub retained_declaration_syntax: Option<&'a SyntaxTrees>,
 }
 
 impl GenericDataRequest<'_> {
@@ -650,6 +653,8 @@ impl GenericDataRequest<'_> {
             sources: None,
             top_level_bindings: Vec::new(),
             retained_base: None,
+            declaration_syntax: None,
+            retained_declaration_syntax: None,
         }
     }
 }
@@ -700,6 +705,8 @@ fn normalize_generic_data_in_mode(
         sources,
         top_level_bindings,
         retained_base,
+        declaration_syntax,
+        retained_declaration_syntax,
     } = request;
     let Some(sources) = sources else {
         if retained_base.is_some() || !top_level_bindings.is_empty() {
@@ -707,6 +714,12 @@ fn normalize_generic_data_in_mode(
                 "generic data normalization against a retained base or scoped bindings requires source custody",
             )]);
         }
+        let selection = declaration_selection::ConstantSelection::new(&syntax, None, Vec::new())?;
+        let declarations = declaration_syntax
+            .into_iter()
+            .chain(retained_declaration_syntax)
+            .collect::<Vec<_>>();
+        super::type_aliases::normalize_with_declarations(&mut syntax, &selection, &declarations)?;
         let (syntax, warnings) = normalize_generic_data_with_warnings(syntax, mode, domain)?;
         for warning in warnings {
             eprintln!("{warning}");
@@ -719,6 +732,11 @@ fn normalize_generic_data_in_mode(
         top_level_bindings,
         retained_base,
     )?;
+    let declarations = declaration_syntax
+        .into_iter()
+        .chain(retained_declaration_syntax)
+        .collect::<Vec<_>>();
+    super::type_aliases::normalize_with_declarations(&mut syntax, &selection, &declarations)?;
     // Module constant admission replays domain obligations too. Bind lexical
     // carrier heads before that admission, not only before data substitution.
     domain_heads::normalize(&mut syntax, Some(&selection))?;

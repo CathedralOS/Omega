@@ -7,6 +7,7 @@
 use semantic_vocabulary::{
     AuthoredFieldStorage, ScalarApplicationId, ScalarType, StructuralTypeId, TargetCarrierLayout,
 };
+use terminal_psi::TerminalIdentityIndex;
 use terminal_psi::{
     StructuralFieldDeclaration, StructuralPathSegment, StructuralRecordStorage,
     StructuralTypeDeclaration, StructuralTypeShape,
@@ -611,7 +612,7 @@ mod tests {
     ) -> StructuralFieldDeclaration {
         StructuralFieldDeclaration {
             id: StructuralFieldId::new(value).expect("field identity"),
-            identity: terminal_psi::TerminalIdentityIndex(4),
+            identity: TerminalIdentityIndex(4),
             relevance: BindingRelevance::Relevant,
             field_type,
             storage,
@@ -629,7 +630,7 @@ mod tests {
             descriptor_cleanup: false,
             scalar_restriction: None,
             id: identity(value),
-            identity: terminal_psi::TerminalIdentityIndex(value as u32),
+            identity: TerminalIdentityIndex(value as u32),
             shape,
         };
         let mut types = vec![
@@ -741,7 +742,7 @@ mod tests {
                 descriptor_cleanup: false,
                 scalar_restriction: None,
                 id: identity(1),
-                identity: terminal_psi::TerminalIdentityIndex(1),
+                identity: TerminalIdentityIndex(1),
                 shape: StructuralTypeShape::PrimitiveScalar(scalar(64)),
             },
             StructuralTypeDeclaration {
@@ -752,7 +753,7 @@ mod tests {
                 descriptor_cleanup: false,
                 scalar_restriction: None,
                 id: identity(2),
-                identity: terminal_psi::TerminalIdentityIndex(2),
+                identity: TerminalIdentityIndex(2),
                 shape: StructuralTypeShape::FixedArray {
                     element: identity(1),
                     length: terminal_psi::ArrayExtent::Application(dependency),
@@ -800,7 +801,7 @@ mod tests {
                 descriptor_cleanup: false,
                 scalar_restriction: None,
                 id: identity(1),
-                identity: terminal_psi::TerminalIdentityIndex(3),
+                identity: TerminalIdentityIndex(3),
                 shape: StructuralTypeShape::Record {
                     storage: StructuralRecordStorage::Authored(AuthoredRecordStorage {
                         byte_size: 1,
@@ -824,7 +825,7 @@ mod tests {
                 descriptor_cleanup: false,
                 scalar_restriction: None,
                 id: identity(2),
-                identity: terminal_psi::TerminalIdentityIndex(2),
+                identity: TerminalIdentityIndex(2),
                 shape: StructuralTypeShape::Record {
                     storage: StructuralRecordStorage::Packed,
                     fields: vec![field(2, StructuralFieldType::Structural(identity(1)), None)],
@@ -837,8 +838,8 @@ mod tests {
                 types.iter(),
                 identity(2),
                 &[
-                    StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(4)),
-                    StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(4))
+                    StructuralPathSegment::Field(TerminalIdentityIndex(4)),
+                    StructuralPathSegment::Field(TerminalIdentityIndex(4))
                 ]
             ),
             Some(ReferenceStorageProjection {
@@ -859,7 +860,7 @@ mod tests {
             descriptor_cleanup: false,
             scalar_restriction: None,
             id: identity(1),
-            identity: terminal_psi::TerminalIdentityIndex(1),
+            identity: TerminalIdentityIndex(1),
             shape: StructuralTypeShape::Record {
                 storage: StructuralRecordStorage::Authored(AuthoredRecordStorage {
                     byte_size: 1,
@@ -894,9 +895,7 @@ mod tests {
             reference_storage_projection(
                 types.iter(),
                 identity(1),
-                &[StructuralPathSegment::Field(
-                    terminal_psi::TerminalIdentityIndex(4)
-                )]
+                &[StructuralPathSegment::Field(TerminalIdentityIndex(4))]
             ),
             None
         );

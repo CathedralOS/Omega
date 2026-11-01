@@ -1032,6 +1032,15 @@ impl ConstructorStorage {
                 {
                     return Err(malformed());
                 }
+                // A copied shared descriptor in a whole-home place is held by
+                // that place's frame binding, which the copy's producer
+                // inserts. A row keyed at the bare identity would outrank the
+                // frame binding and keep the element's type, so the call that
+                // re-presents the identity under its formal's type would fail
+                // to rejoin it.
+                if !transfers_custody && target.path.is_empty() {
+                    continue;
+                }
                 self.byte_descriptors
                     .insert(target.clone(), binding.relocated_descriptor(home, &target)?)?;
             }

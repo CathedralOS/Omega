@@ -5,7 +5,13 @@ use crate::checked_interpreter_dispatch::boundary_dispatch::signature_families::
     FamilyProbe, finite_signature_family,
 };
 use diagnostics::Diagnostic;
+use effects::provider_plan::ServiceMethod;
+use effects::provider_plan::{ProviderBinding, ProviderPlan};
+use language_semantics::MachineSupplyMode;
+use provider_planning::service_schema::schema_binds_exact_boundary_operator;
+use provider_planning::service_schema::schema_binds_exact_boundary_requirement;
 use typed_trees::TypedTrees;
+use typed_trees::machine::Machine;
 mod closed_trait_applications;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -72,11 +78,11 @@ pub(crate) enum ResolvedAdapterRow {
 /// binding, or a schema bound to an exact boundary operator.
 pub(crate) enum SelectedAdapterTarget<'a> {
     TopLevelRequirement {
-        method: &'a effects::provider_plan::ServiceMethod,
-        requirement: &'a typed_trees::machine::Machine,
+        method: &'a ServiceMethod,
+        requirement: &'a Machine,
     },
     TraitRequirement {
-        method: &'a effects::provider_plan::ServiceMethod,
+        method: &'a ServiceMethod,
         receiver_trait: &'a typed_trees::trait_definition::TraitDefinition,
         requirement_owner: &'a typed_trees::trait_definition::TraitDefinition,
         signature: &'a typed_trees::signature::StateSignature,
@@ -89,23 +95,16 @@ pub(crate) enum SelectedAdapterTarget<'a> {
 /// would look up, and a row that fails here fails identically in both paths.
 pub(crate) fn resolve_selected_adapter_target<'a>(
     typed: &'a TypedTrees,
-    plan: &'a effects::provider_plan::ProviderPlan,
+    plan: &'a ProviderPlan,
     row: &'a effects::provider_plan::ProviderPlanRow,
 ) -> Result<Option<SelectedAdapterTarget<'a>>, Diagnostic> {
-    if !matches!(
-        row.binding,
-        effects::provider_plan::ProviderBinding::CheckedAdapter { .. }
-    ) {
+    if !matches!(row.binding, ProviderBinding::CheckedAdapter { .. }) {
         return Ok(None);
     }
     let provider_context =
         provider_planning::ProviderPlanningContext::new(typed, source::DependencyScope::Product);
     if typed.operators().iter().any(|operator| {
-        provider_planning::service_schema::schema_binds_exact_boundary_operator(
-            provider_context,
-            &plan.schema,
-            operator,
-        )
+        schema_binds_exact_boundary_operator(provider_context, &plan.schema, operator)
     }) {
         return Ok(None);
     }
@@ -138,11 +137,7 @@ pub(crate) fn resolve_selected_adapter_target<'a>(
         .machines()
         .iter()
         .filter(|requirement| {
-            provider_planning::service_schema::schema_binds_exact_boundary_requirement(
-                provider_context,
-                &plan.schema,
-                requirement,
-            )
+            schema_binds_exact_boundary_requirement(provider_context, &plan.schema, requirement)
         })
         .collect::<Vec<_>>();
     match top_level_requirements.as_slice() {
@@ -209,7 +204,7 @@ pub(crate) fn resolve_selected_adapter_target<'a>(
 pub(crate) fn resolve_selected_adapter_row(
     typed: &TypedTrees,
     declarations: &typed_trees::references::DeclarationSelection,
-    plan: &effects::provider_plan::ProviderPlan,
+    plan: &ProviderPlan,
     row: &effects::provider_plan::ProviderPlanRow,
     specialization_rows: &[effects::SelectedRequirementSpecialization],
     specialization_identities: &terminal_psi::TerminalIdentityTable,
@@ -236,7 +231,7 @@ pub(crate) fn resolve_selected_adapter_row(
 fn resolve_template_adapter_rows(
     typed: &TypedTrees,
     declarations: &typed_trees::references::DeclarationSelection,
-    plan: &effects::provider_plan::ProviderPlan,
+    plan: &ProviderPlan,
     row: &effects::provider_plan::ProviderPlanRow,
     specialization_rows: &[effects::SelectedRequirementSpecialization],
     specialization_identities: &terminal_psi::TerminalIdentityTable,
@@ -329,16 +324,13 @@ fn resolve_template_adapter_rows(
 }
 
 /// Exact selected Plan text for one service method's requirement identity.
-fn method_identity<'a>(
-    plan: &'a effects::provider_plan::ProviderPlan,
-    method: &'a effects::provider_plan::ServiceMethod,
-) -> &'a str {
+fn method_identity<'a>(plan: &'a ProviderPlan, method: &'a ServiceMethod) -> &'a str {
     plan.schema.identity_text(method.requirement_identity)
 }
 
 fn require_parameter_count(
-    plan: &effects::provider_plan::ProviderPlan,
-    method: &effects::provider_plan::ServiceMethod,
+    plan: &ProviderPlan,
+    method: &ServiceMethod,
     actual: usize,
 ) -> Result<(), Diagnostic> {
     if actual != method.parameter_count {
@@ -373,10 +365,10 @@ fn require_parameter_count(
 fn resolve_top_level_requirement_adapter_row(
     typed: &TypedTrees,
     declarations: &typed_trees::references::DeclarationSelection,
-    plan: &effects::provider_plan::ProviderPlan,
+    plan: &ProviderPlan,
     row: &effects::provider_plan::ProviderPlanRow,
-    method: &effects::provider_plan::ServiceMethod,
-    requirement: &typed_trees::machine::Machine,
+    method: &ServiceMethod,
+    requirement: &Machine,
     machine_identity: &str,
     specialization_rows: &[effects::SelectedRequirementSpecialization],
     specialization_identities: &terminal_psi::TerminalIdentityTable,
@@ -460,11 +452,11 @@ fn resolve_top_level_requirement_adapter_row(
 fn resolve_specialized_top_level_requirement_adapter_rows(
     typed: &TypedTrees,
     declarations: &typed_trees::references::DeclarationSelection,
-    plan: &effects::provider_plan::ProviderPlan,
+    plan: &ProviderPlan,
     row: &effects::provider_plan::ProviderPlanRow,
-    method: &effects::provider_plan::ServiceMethod,
-    requirement: &typed_trees::machine::Machine,
-    adapter: &typed_trees::machine::Machine,
+    method: &ServiceMethod,
+    requirement: &Machine,
+    adapter: &Machine,
     machine_identity: &str,
     specialization_rows: &[effects::SelectedRequirementSpecialization],
     specialization_identities: &terminal_psi::TerminalIdentityTable,
@@ -516,7 +508,7 @@ fn resolve_specialized_top_level_requirement_adapter_rows(
             })
             .count();
         if closed_receipts != 1
-            || closed.supply_mode != language_semantics::MachineSupplyMode::TopLevelRequirement
+            || closed.supply_mode != MachineSupplyMode::TopLevelRequirement
             || !typed.machine_type_parameters(closed).is_empty()
         {
             return Err(Diagnostic::error(format!(
@@ -591,9 +583,7 @@ fn resolve_specialized_top_level_requirement_adapter_rows(
         .iter()
         .filter(|receipt| receipt.template == requirement.symbol)
         .filter_map(|receipt| typed.machine(receipt.instance))
-        .filter(|instance| {
-            instance.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
-        })
+        .filter(|instance| instance.supply_mode == MachineSupplyMode::TopLevelRequirement)
         .count();
     if resolved.len() != retained {
         return Err(Diagnostic::error(format!(
@@ -615,9 +605,9 @@ fn resolve_specialized_top_level_requirement_adapter_rows(
 #[allow(clippy::too_many_arguments)]
 fn resolve_family_adapter_row(
     typed: &TypedTrees,
-    plan: &effects::provider_plan::ProviderPlan,
+    plan: &ProviderPlan,
     row: &effects::provider_plan::ProviderPlanRow,
-    method: &effects::provider_plan::ServiceMethod,
+    method: &ServiceMethod,
     receiver_trait: &typed_trees::trait_definition::TraitDefinition,
     requirement_owner: &typed_trees::trait_definition::TraitDefinition,
     signature: &typed_trees::signature::StateSignature,
@@ -770,16 +760,10 @@ fn resolve_family_adapter_row(
 /// body.
 fn planned_checked_adapter<'typed>(
     typed: &'typed TypedTrees,
-    plan: &effects::provider_plan::ProviderPlan,
+    plan: &ProviderPlan,
     row: &effects::provider_plan::ProviderPlanRow,
     machine_identity: &str,
-) -> Result<
-    (
-        &'typed typed_trees::machine::Machine,
-        &'typed typed_trees::state::State,
-    ),
-    Diagnostic,
-> {
+) -> Result<(&'typed Machine, &'typed typed_trees::state::State), Diagnostic> {
     if plan.provider_type.is_empty() {
         return Err(Diagnostic::error(format!(
             "selected checked-adapter ProviderPlan `{}` has no nominal provider type",
@@ -805,7 +789,7 @@ fn planned_checked_adapter<'typed>(
 /// requirement: its unbound binders have no tuple to close them.
 fn require_nongeneric_adapter(
     typed: &TypedTrees,
-    adapter: &typed_trees::machine::Machine,
+    adapter: &Machine,
     machine_identity: &str,
 ) -> Result<(), Diagnostic> {
     if !typed.machine_type_parameters(adapter).is_empty() {
@@ -821,11 +805,11 @@ fn require_nongeneric_adapter(
 /// requirement through exactly one internal conformance.
 fn sole_boundary_conformance(
     typed: &TypedTrees,
-    adapter: &typed_trees::machine::Machine,
-    requirement: &typed_trees::machine::Machine,
+    adapter: &Machine,
+    requirement: &Machine,
     machine_identity: &str,
-    plan: &effects::provider_plan::ProviderPlan,
-    method: &effects::provider_plan::ServiceMethod,
+    plan: &ProviderPlan,
+    method: &ServiceMethod,
     spelled: &str,
 ) -> Result<(), Diagnostic> {
     let conformances = typed

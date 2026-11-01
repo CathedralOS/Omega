@@ -15,6 +15,7 @@ use arena::HandleSpan;
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionNode;
+use typed_trees::operator::scalar_operand_read_type;
 use typed_trees::statement::{StatementNode, TableLocalData};
 use validation::expression_result_type_reference;
 
@@ -44,11 +45,7 @@ pub(in crate::monomorphization) fn materialize(
                     continue;
                 };
                 if validation::reference_shell(program, actual).is_some()
-                    && typed_trees::operator::scalar_operand_read_type(
-                        program,
-                        actual,
-                        local.type_reference,
-                    ) != actual
+                    && scalar_operand_read_type(program, actual, local.type_reference) != actual
                 {
                     insertions.push((offset, actual));
                 }

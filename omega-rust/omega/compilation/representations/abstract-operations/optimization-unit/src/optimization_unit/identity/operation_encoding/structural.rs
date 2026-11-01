@@ -10,6 +10,7 @@ use crate::optimization_unit::identity::structural_encoding::{
 
 use super::scalar::encode_byte_sequence_operand;
 use super::{AbstractOperation, CanonicalBytes};
+use abstract_operations::StructuralCopyPath;
 pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) {
     use AbstractOperation as O;
     macro_rules! tag {
@@ -499,20 +500,18 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             path,
         } => {
             bytes.u8(match path {
-                abstract_operations::StructuralCopyPath::Ordinary(_) => 88,
-                abstract_operations::StructuralCopyPath::Case(_) => 91,
+                StructuralCopyPath::Ordinary(_) => 88,
+                StructuralCopyPath::Case(_) => 91,
             });
             bytes.id(*psi_operation);
             encode_structural_operation_result(bytes, result);
             bytes.id(*source);
             match path {
-                abstract_operations::StructuralCopyPath::Ordinary(path) => {
+                StructuralCopyPath::Ordinary(path) => {
                     bytes.slice(path, encode_structural_path_segment);
                 }
-                abstract_operations::StructuralCopyPath::Case(path) => {
-                    crate::optimization_unit::identity::proposition_encoding::encode_canonical_path(
-                        bytes, path,
-                    );
+                StructuralCopyPath::Case(path) => {
+                    super::super::proposition_encoding::encode_canonical_path(bytes, path);
                 }
             }
         }

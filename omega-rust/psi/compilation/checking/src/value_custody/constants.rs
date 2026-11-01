@@ -19,10 +19,55 @@ use crate::CheckingInput;
 use crate::frozen_program::expression_table;
 use diagnostics::Diagnostic;
 use language_semantics::Multiplicity;
-use symbols::BuiltinTypeAtom;
+use symbols::{BuiltinTypeAtom, SymbolKind};
 use typed_trees::data::DataMember;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+
+/// Read only a completed scalar declaration value in its independently
+/// declared carrier. This validates encoding/fit, not initializer equality;
+/// initializer evaluation and source admission remain with their owners.
+/// No pending observation or arbitrary initializer traversal supplies a value.
+pub(crate) fn completed_integer_constant(
+    program: &dyn CheckingInput,
+    expression: ExpressionHandle,
+) -> Option<typed_trees::closed_numeric::ClosedIntegerValue> {
+    use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
+    if !expression_table(program).expression_is_valid(expression) {
+        return None;
+    }
+    let ExpressionNode::Name(path) = expression_table(program).expression(expression) else {
+        return None;
+    };
+    if !path.symbol.is_valid() || program.symbols.get(path.symbol).kind != SymbolKind::Const {
+        return None;
+    }
+    let mut declarations = program
+        .const_declarations()
+        .iter()
+        .filter(|declaration| declaration.symbol == path.symbol);
+    let declaration = declarations.next()?;
+    if declarations.next().is_some() || declaration.pending_target_observation {
+        return None;
+    }
+    let primitive = program.primitive_type_reference(declaration.declared_type)?;
+    primitive.landed_landing_fixed()?;
+    let encoding = declaration.evaluated_value.as_ref()?.encoding()?;
+    crate::validate_exact_const_value_encoding(program, declaration.declared_type, encoding)
+        .ok()?;
+    let DecodedCanonicalConstValue::Integer { value, .. } =
+        CanonicalConstValue::new("", encoding, "").decode_encoding()?
+    else {
+        return None;
+    };
+    let value = numerics::bignum::BigInt::from_i128(value);
+    super::literals::land_integer_value(&value, primitive)?;
+    Some(typed_trees::closed_numeric::ClosedIntegerValue {
+        value,
+        primitive: Some(primitive),
+        type_reference: Some(declaration.declared_type),
+    })
+}
 
 pub(crate) fn validate_constants(program: &dyn CheckingInput, diagnostics: &mut Vec<Diagnostic>) {
     for declaration in program.const_declarations() {
@@ -264,5 +309,109 @@ fn eligible_type(
         TypeReferenceNode::Reference { .. }
         | TypeReferenceNode::Slice { .. }
         | TypeReferenceNode::ConstExpression(_) => false,
+    }
+}
+
+#[cfg(test)]
+mod completed_integer_tests {
+    use super::*;
+    use language_semantics::const_value::CanonicalConstValue;
+    use symbols::{SymbolNameRef, SymbolTableBuilder};
+    use typed_trees::{
+        TypedTrees,
+        constant::ConstDeclaration,
+        expression::{Expression, NamePath},
+        name::Identifier,
+        types::{PrimitiveType, TypeReferenceNode},
+    };
+
+    fn fixture(
+        encoding: Option<String>,
+        pending: bool,
+        copies: usize,
+    ) -> (TypedTrees, ExpressionHandle) {
+        let mut builder = SymbolTableBuilder::default();
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let children = builder.insert_children(
+            root,
+            symbols::builtin_type_symbols()
+                .into_iter()
+                .chain([(SymbolKind::Module, SymbolNameRef::Static("ns"))]),
+        );
+        let u64_symbol = children.handle_at(BuiltinTypeAtom::U64.ordinal() as u32);
+        let namespace = children.handle_at(symbols::BUILTIN_TYPE_COUNT as u32);
+        let symbol = builder
+            .insert_children(namespace, [(SymbolKind::Const, SymbolNameRef::Static("C"))])
+            .start();
+        let mut program = TypedTrees::default();
+        program.symbols = builder.finish();
+        let carrier = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: u64_symbol,
+                name: Identifier::generated("u64"),
+            });
+        for _ in 0..copies {
+            program.push_const_declaration(ConstDeclaration {
+                symbol,
+                declared_type: carrier,
+                pending_target_observation: pending,
+                evaluated_value: encoding
+                    .clone()
+                    .map(language_core::constant_value::EvaluatedConstant::Encoded),
+                ..Default::default()
+            });
+        }
+        let expression =
+            program
+                .expression_table
+                .insert_tree(&Expression::Name(NamePath::resolved(
+                    vec![Identifier::generated("ns"), Identifier::generated("C")],
+                    namespace,
+                    symbol,
+                )));
+        (program, expression)
+    }
+
+    #[test]
+    fn completed_integer_leaves_require_exact_ready_canonical_carriers() {
+        let encoded = |kind: &str, value| {
+            CanonicalConstValue::from_decoded(
+                &language_semantics::const_value::DecodedCanonicalConstValue::Integer {
+                    type_name: kind.to_owned(),
+                    value,
+                },
+                value.to_string(),
+            )
+            .expect("test integer has a canonical structural encoding")
+            .encoding
+        };
+        for (encoding, pending, copies, expected) in [
+            (Some(encoded("u64", 0)), false, 1, Some(0)),
+            (
+                Some(encoded("u64", i128::from(u64::MAX))),
+                false,
+                1,
+                Some(u64::MAX),
+            ),
+            (Some(encoded("u8", 0)), false, 1, None),
+            (Some(encoded("u64", -1)), false, 1, None),
+            (Some("malformed".to_owned()), false, 1, None),
+            (None, false, 1, None),
+            (Some(encoded("u64", 0)), true, 1, None),
+            (Some(encoded("u64", 0)), false, 0, None),
+            (Some(encoded("u64", 0)), false, 2, None),
+        ] {
+            let (program, expression) = fixture(encoding, pending, copies);
+            let value = completed_integer_constant(&program, expression);
+            assert_eq!(
+                value.as_ref().and_then(|value| value.value.to_u64()),
+                expected
+            );
+            if let Some(value) = value {
+                assert_eq!(value.primitive, Some(PrimitiveType::U64));
+                assert!(value.type_reference.is_some());
+            }
+        }
     }
 }

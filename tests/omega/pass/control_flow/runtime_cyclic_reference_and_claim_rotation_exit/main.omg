@@ -33,7 +33,7 @@ public boundary trait Selection {
     machine select(token: Token, choose: bool) -> u32 reaches;
 }
 Selector satisfies Selection {
-    Selection::select = select_adapter;
+    machine select(token: Token, choose: bool) -> u32 { select_adapter(token, choose) }
 }
 machine select_adapter(token: Token, choose: bool) -> u32
 satisfies Selection::select

@@ -29,12 +29,23 @@ pub(super) fn observe_statement<'program>(
     equations: &[(StructuralTerm, StructuralTerm)],
     citations: &[PendingStructuralCitation],
     path: &mut Vec<SymbolHandle>,
+    arrivals: &mut StructuralArrivalLog,
+    arrival_parent: usize,
     fresh: &mut usize,
-    requirement: &mut Option<&mut dyn StructuralPrefixVisitor>,
+    visitors: &mut [&mut (dyn StructuralPrefixVisitor + '_)],
     guarantees: &CitationFacts,
 ) -> Option<()> {
-    let observer = requirement.as_deref()?;
-    if observer.site().state == state.symbol || path.contains(&observer.site().state) {
+    // Only members observing inside another body ride a call entry. A site
+    // in this state or on the current path is already (or can only still be)
+    // served by this frame's own statements.
+    let mut active: Vec<&mut (dyn StructuralPrefixVisitor + '_)> = visitors
+        .iter_mut()
+        .filter_map(|member| {
+            (member.site().state != state.symbol && !path.contains(&member.site().state))
+                .then_some(&mut **member)
+        })
+        .collect();
+    if active.is_empty() {
         return Some(());
     }
     for site in crate::machine_calls::calls::collect_call_sites_in_statement(
@@ -48,8 +59,15 @@ pub(super) fn observe_statement<'program>(
         else {
             continue;
         };
-        let observer = requirement.as_deref()?;
-        if path.contains(&entry.symbol) || !prefix_site_is_reachable(program, entry, observer) {
+        let mut eligible: Vec<&mut (dyn StructuralPrefixVisitor + '_)> = active
+            .iter_mut()
+            .filter_map(|member| {
+                (!path.contains(&entry.symbol)
+                    && prefix_site_is_reachable(program, entry, &**member))
+                .then_some(&mut **member)
+            })
+            .collect();
+        if eligible.is_empty() {
             continue;
         }
         if !body_can_be_observed(
@@ -106,8 +124,8 @@ pub(super) fn observe_statement<'program>(
                 environment,
                 (invocation, state, state.return_type),
             )?;
-            if let Some(observer) = requirement.as_deref_mut() {
-                observer.entered_body(state.symbol, statement_index, expression, entry.symbol);
+            for member in eligible.iter_mut() {
+                member.entered_body(state.symbol, statement_index, expression, entry.symbol);
             }
             recognize_structural_state_leaves(
                 program,
@@ -124,8 +142,10 @@ pub(super) fn observe_statement<'program>(
                 citations.to_vec(),
                 true,
                 path,
+                arrivals,
+                arrival_parent,
                 fresh,
-                requirement,
+                eligible.as_mut_slice(),
                 guarantees.clone(),
             )?;
         }
