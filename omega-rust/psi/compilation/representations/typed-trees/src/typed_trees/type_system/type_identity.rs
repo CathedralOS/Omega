@@ -17,7 +17,6 @@
 //! and domains, `open_index_identity.rs` identifies open index operations and
 //! `result_dispatch_terms.rs` collects result dispatch terms.
 
-mod applied_constants;
 mod callable_identity;
 mod constraint_identity;
 mod derived_declarations;
