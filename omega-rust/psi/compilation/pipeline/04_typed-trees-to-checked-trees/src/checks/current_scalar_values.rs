@@ -400,6 +400,7 @@ impl<'program> CurrentScalarValues<'program> {
                                 let (value, dependencies) = values.reference_scalar_initializer(
                                     statement,
                                     local.initial_value,
+                                    primitive,
                                     frames,
                                 );
                                 (readable.then_some(value).flatten(), dependencies)

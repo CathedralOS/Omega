@@ -632,7 +632,23 @@ fn capture_preserves_source(
         }
         return Some(true);
     }
-    if crate::flow::operand_binds_live_view(program, reference) {
+    if source_read_changes_interpretation(program, state, capture, remaining) == Some(true) {
+        return Some(false);
+    }
+    let source_reference = program
+        .state_flow_site(state.machine_symbol, capture.state_symbol)
+        .and_then(|(machine, state)| {
+            validation::expression_result_type_reference(
+                program,
+                machine,
+                state,
+                capture.expression,
+            )
+        });
+    if crate::flow::operand_binds_live_view(program, reference)
+        || source_reference
+            .is_some_and(|source| crate::flow::operand_binds_live_view(program, source))
+    {
         // Referent contents are invocation-live; construction selected its
         // address and descriptor geometry earlier. Authored source substitution
         // is valid only when those independent binding/selector epochs agree.
@@ -706,17 +722,6 @@ fn reference_construction_preserves_source(
     remaining: &[facts::PlaceSegment],
     invocation: &checked_trees::FlowOperandFact,
 ) -> Option<bool> {
-    if !computed_values_have_source_identity(program, facts, capture.expression) {
-        if exact_returned_loan(
-            program,
-            state.state_symbol,
-            capture.statement_index,
-            capture.expression,
-        ) {
-            return Some(true);
-        }
-        return Some(false);
-    }
     // Canonical source places erase representation boundaries to their backing.
     // Equal binding epochs therefore do not permit substituting that backing's
     // numerical predicates for this view. Exact captured-value proofs above
@@ -733,15 +738,39 @@ fn reference_construction_preserves_source(
         statement,
         capture.expression,
     )?;
+    let expected = validation::expression_result_type_reference(
+        program,
+        machine,
+        captured_state,
+        capture.expression,
+    )
+    .and_then(|reference| {
+        validation::scalar_observation_meaning(program, reference).map(|meaning| meaning.0)
+    });
     if sources.iter().any(|source| {
-        (!source.recasts.is_empty() || source.representation.is_some())
-            && !source
+        if let Some(expected) = expected {
+            !source
                 .scalar_storage_coordinate(program, captured_state)
                 .is_some_and(|scalar| {
                     scalar.preserves_scalar_value
-                        && scalar.source_primitive == scalar.view_primitive
+                        && scalar.source_primitive == expected
+                        && scalar.view_primitive == expected
                 })
+        } else {
+            !source.recasts.is_empty() || source.representation.is_some()
+        }
     }) {
+        return Some(false);
+    }
+    if !computed_values_have_source_identity(program, facts, capture.expression) {
+        if exact_returned_loan(
+            program,
+            state.state_symbol,
+            capture.statement_index,
+            capture.expression,
+        ) {
+            return Some(true);
+        }
         return Some(false);
     }
     let mut selectors = Vec::new();
@@ -784,6 +813,56 @@ fn reference_construction_preserves_source(
     }
 
     Some(true)
+}
+
+/// An owned scalar capture can originate in an implicit read through a view.
+/// Its backing may be stable while the read's numeric interpretation differs.
+fn source_read_changes_interpretation(
+    program: &dyn ::validation::CheckingInput,
+    state: &FlowStateFact,
+    capture: &checked_trees::FlowOperandFact,
+    remaining: &[facts::PlaceSegment],
+) -> Option<bool> {
+    if !matches!(
+        program.expression_table.expression(capture.expression),
+        typed_trees::expression::ExpressionNode::Name(_)
+            | typed_trees::expression::ExpressionNode::Member(_)
+            | typed_trees::expression::ExpressionNode::Indexed(_)
+    ) {
+        return Some(false);
+    }
+    let (machine, captured_state) =
+        program.state_flow_site(state.machine_symbol, capture.state_symbol)?;
+    let reference = validation::expression_result_type_reference(
+        program,
+        machine,
+        captured_state,
+        capture.expression,
+    )?;
+    let (expected, _) = validation::scalar_observation_meaning(program, reference)?;
+    let mut place = validation::canonical_place_from_expression(program, capture.expression)?;
+    place.extend_segments(remaining);
+    let mut owned_frames = None;
+    let frames = crate::flow::shared_call_frames_or(None, program, &mut owned_frames)?;
+    let backing = frames.storage_read_backing_at_expression(
+        machine,
+        captured_state,
+        capture.expression,
+        place.root.as_symbol()?,
+        &place.segments,
+    )?;
+    Some(backing.sources.iter().any(|source| {
+        source
+            .scalar_storage_coordinate(program, captured_state)
+            .map_or_else(
+                || !source.recasts.is_empty() || source.representation.is_some(),
+                |scalar| {
+                    !scalar.preserves_scalar_value
+                        || scalar.source_primitive != expected
+                        || scalar.view_primitive != expected
+                },
+            )
+    }))
 }
 
 /// One exact returned reference to parameter storage. The callee projects a

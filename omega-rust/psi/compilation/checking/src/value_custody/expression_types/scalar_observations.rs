@@ -146,7 +146,9 @@ pub(crate) fn builtin_scalar_operand_references(
     Some([reference(0)?, reference(1)?])
 }
 
-pub(crate) fn scalar_observation_meaning(
+/// Select the primitive carrier and policy of a readable scalar type. The
+/// source operation separately supplies its captured content observation.
+pub fn scalar_observation_meaning(
     program: &dyn crate::CheckingInput,
     declared: TypeReferenceHandle,
 ) -> Option<(PrimitiveType, ArithmeticDomain)> {

@@ -68,6 +68,7 @@ impl CurrentScalarValues<'_> {
         &self,
         statement: &typed_trees::statement::StatementNode,
         expression: ExpressionHandle,
+        primitive: PrimitiveType,
         frames: Option<&validation::CallFrameResolver<'_>>,
     ) -> (Option<ScopedArithmeticValue>, Option<Vec<String>>) {
         let Some(frames) = frames else {
@@ -95,8 +96,13 @@ impl CurrentScalarValues<'_> {
                 // Its dedicated observation owner may establish that meaning;
                 // this identity route retains only unchanged interpretations.
                 if source.collection_coarse
-                    || !source.recasts.is_empty()
-                    || source.representation.is_some()
+                    || !source
+                        .scalar_storage_coordinate(self.program, self.state)
+                        .is_some_and(|scalar| {
+                            scalar.preserves_scalar_value
+                                && scalar.source_primitive == primitive
+                                && scalar.view_primitive == primitive
+                        })
                 {
                     return None;
                 }

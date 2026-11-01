@@ -99,9 +99,9 @@ pub(crate) use result_type::domain_expression_result_type_reference;
 pub(crate) use result_type::{
     cast_result_type_reference, operand_arithmetic_domain, selected_operator_result_type_reference,
 };
+pub use scalar_observations::scalar_observation_meaning;
 pub(crate) use scalar_observations::{
     builtin_scalar_operand_references, readable_observation_type_reference,
-    scalar_observation_meaning,
 };
 
 pub(crate) use cast_validation::validate_cast_types;

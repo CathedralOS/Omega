@@ -388,6 +388,7 @@ pub use value_custody::expression_types::validate_match_dispatch;
 pub use value_custody::expression_types::{
     arithmetic_result_type_reference, expression_result_type_reference,
     join_result_type_references, parameter_expression_result_type_reference,
+    scalar_observation_meaning,
 };
 pub use value_custody::expression_types::{
     structural_match_cases_are_covered, structural_match_pattern_case,
