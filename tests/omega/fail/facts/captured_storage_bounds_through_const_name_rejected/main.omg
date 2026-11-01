@@ -1,0 +1,63 @@
+// Counter's declared 0..16 bounds survive a disjoint field write and captured scalar read, so an incoming pumped < 16 guard admits pumped + 1.
+// Expected exit: 0
+public data Counter [copy]
+where pumped >= 0 && pumped <= 16,
+{
+    before: u32;
+    pumped: i32;
+    after: u32;
+    have: u32;
+    marker: u32;
+    origin: u32;
+}
+public machine update(counter: &mut Counter, choose: bool) crashes Trap {
+    transition { _ -> pump_loop(counter, choose) }
+    machine pump_loop(counter: &mut Counter, choose: bool) {
+        counter.have = 1;
+        transition choose { true -> left(counter, choose) _ -> right(counter, choose) }
+    }
+    machine left(counter: &mut Counter, choose: bool) {
+        counter.marker = 11;
+        transition { _ -> pump_handle(counter, choose) }
+    }
+    machine right(counter: &mut Counter, choose: bool) {
+        counter.marker = 13;
+        transition { _ -> pump_handle(counter, choose) }
+    }
+    machine pump_handle(counter: &mut Counter, choose: bool) {
+        transition counter.pumped <= 16 { true -> pump_next(counter, choose) _ -> finish(counter) }
+    }
+    machine pump_next(counter: &mut Counter, choose: bool) {
+        counter.pumped = counter.pumped + 1;
+        transition { _ -> pump_loop(counter, choose) }
+    }
+    machine finish(counter: &mut Counter) {
+        transition counter.pumped == 16 { true -> done() _ -> failed() }
+    }
+    machine done() {}
+    machine failed() { crash Trap; }
+}
+machine intact(counter: &Counter, origin: u32, marker: u32) -> bool {
+    counter.before == 0x13579BDF && counter.after == 0x2468ACE0
+        && counter.pumped == 16 && counter.have == 1
+        && counter.origin == origin && counter.marker == marker
+}
+
+const FIRST: Counter = Counter { before: 0x13579BDF, pumped: 0, after: 0x2468ACE0, have: 0, marker: 0, origin: 11 };
+const SECOND: Counter = Counter { before: 0x13579BDF, pumped: 0, after: 0x2468ACE0, have: 0, marker: 0, origin: 13 };
+
+machine main() crashes Trap {
+    let mut first: Counter = FIRST;
+    update(&mut first, true);
+    let mut second: Counter = SECOND;
+    update(&mut second, false);
+    transition intact(&first, 11, 11) && intact(&second, 13, 13)
+        && FIRST.pumped == 0 && SECOND.pumped == 0
+        && FIRST.marker == 0 && SECOND.marker == 0
+        && FIRST.have == 0 && SECOND.have == 0 {
+        true -> done()
+        _ -> failed()
+    }
+    machine done() {}
+    machine failed() { crash Trap; }
+}

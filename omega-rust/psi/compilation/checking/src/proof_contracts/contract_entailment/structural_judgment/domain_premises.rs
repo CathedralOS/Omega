@@ -974,6 +974,68 @@ impl StructuralJudge<'_> {
         self.intake_equation_fact(predicate, super::value_predicates::boolean_term(true), 0);
     }
 
+    /// A legal storage read captures the resident declaration's bounds on this
+    /// exact value. They remain true of the snapshot after its source changes;
+    /// neither the receiving annotation nor a later storage version supplies
+    /// a premise. The read owner calls this only after observing the scalar
+    /// with an unchanged receiver.
+    pub(super) fn intake_completed_storage_bounds(
+        &mut self,
+        machine: &typed_trees::machine::Machine,
+        state: &typed_trees::state::State,
+        expression: ExpressionHandle,
+        value: &StructuralTerm,
+    ) {
+        let program = self.program;
+        let Some(reference) =
+            crate::expression_result_type_reference(program, machine, state, expression)
+        else {
+            return;
+        };
+        let Some(meaning) =
+            crate::value_custody::expression_types::scalar_observation_meaning(program, reference)
+        else {
+            return;
+        };
+        if !meaning.0.is_fixed_integer()
+            || !super::super::structural_terms::scalar_operand_is_observed(
+                program, reference, value,
+            )
+        {
+            return;
+        }
+        let Some(carrier) = crate::proof_contracts::arithmetic_domains::primitive_range(meaning.0)
+        else {
+            return;
+        };
+        // General default domains may have an open restoration window. Only
+        // the interval-only store rule guarantees these facts at every scalar
+        // read; a necessary consequence of a mixed predicate is insufficient.
+        let declared = crate::proof_contracts::arithmetic_domains::enforced_declared_range_interval(
+            program, reference,
+        );
+        let standing = crate::proof_contracts::default_domains::stored_field_where_interval(
+            program, machine, state, expression,
+        );
+        let bounds = declared
+            .into_iter()
+            .chain(standing)
+            .fold(carrier, |bounds, restriction| bounds.intersect(restriction));
+        for (operator, bound) in [
+            (BinaryOperator::GreaterOrEqual, bounds.low),
+            (BinaryOperator::LessOrEqual, bounds.high),
+        ] {
+            let Some(bound) = bound else { continue };
+            self.intake_observed_integer_bound(
+                reference,
+                meaning,
+                value,
+                operator,
+                numerics::bignum::BigInt::from_i64(bound),
+            );
+        }
+    }
+
     /// A completed atomic load is a fresh snapshot of a declaration-valid
     /// resident. Its bound belongs to this captured value, never to a cached
     /// value of the cell or the receiving annotation's requested predicate.
