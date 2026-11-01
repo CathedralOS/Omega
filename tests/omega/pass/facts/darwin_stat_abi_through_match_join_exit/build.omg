@@ -1,0 +1,25 @@
+use omega::language::core::external_binding;
+machine build(builder: &mut Build) {
+    Build::application(builder, "darwin_stat_abi_match_join");
+    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
+    Build::bind<StatExchange::fill>(builder, macos_arm64, ForeignBinding::DllImport { import: DllImport::MachODylibSymbol { install_name: "libomega_darwin_stat_fixture.dylib", symbol: "_darwin_stat_fixture_fill" } });
+    Build::bind<StatExchange::fill>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName { library: "omega_darwin_stat_fixture.dll", export: "darwin_stat_fixture_fill" } });
+    Build::bind<StatExchange::fill>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libomega_darwin_stat_fixture.so", symbol: "darwin_stat_fixture_fill", version: "DARWIN_STAT_1.0" } });
+    Build::bind<StatExchange::fill>(builder, linux_arm64, ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libomega_darwin_stat_fixture.so", symbol: "darwin_stat_fixture_fill", version: "DARWIN_STAT_1.0" } });
+    Build::bind<StatExchange::check>(builder, macos_arm64, ForeignBinding::DllImport { import: DllImport::MachODylibSymbol { install_name: "libomega_darwin_stat_fixture.dylib", symbol: "_darwin_stat_fixture_check" } });
+    Build::bind<StatExchange::check>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName { library: "omega_darwin_stat_fixture.dll", export: "darwin_stat_fixture_check" } });
+    Build::bind<StatExchange::check>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libomega_darwin_stat_fixture.so", symbol: "darwin_stat_fixture_check", version: "DARWIN_STAT_1.0" } });
+    Build::bind<StatExchange::check>(builder, linux_arm64, ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libomega_darwin_stat_fixture.so", symbol: "darwin_stat_fixture_check", version: "DARWIN_STAT_1.0" } });
+    Build::bind<StatExchange::extent>(builder, macos_arm64, ForeignBinding::DllImport { import: DllImport::MachODylibSymbol { install_name: "libomega_darwin_stat_fixture.dylib", symbol: "_darwin_stat_fixture_size" } });
+    Build::bind<StatExchange::extent>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName { library: "omega_darwin_stat_fixture.dll", export: "darwin_stat_fixture_size" } });
+    Build::bind<StatExchange::extent>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libomega_darwin_stat_fixture.so", symbol: "darwin_stat_fixture_size", version: "DARWIN_STAT_1.0" } });
+    Build::bind<StatExchange::extent>(builder, linux_arm64, ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libomega_darwin_stat_fixture.so", symbol: "darwin_stat_fixture_size", version: "DARWIN_STAT_1.0" } });
+    Build::bind<StatExchange::alignment>(builder, macos_arm64, ForeignBinding::DllImport { import: DllImport::MachODylibSymbol { install_name: "libomega_darwin_stat_fixture.dylib", symbol: "_darwin_stat_fixture_alignment" } });
+    Build::bind<StatExchange::alignment>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName { library: "omega_darwin_stat_fixture.dll", export: "darwin_stat_fixture_alignment" } });
+    Build::bind<StatExchange::alignment>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libomega_darwin_stat_fixture.so", symbol: "darwin_stat_fixture_alignment", version: "DARWIN_STAT_1.0" } });
+    Build::bind<StatExchange::alignment>(builder, linux_arm64, ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libomega_darwin_stat_fixture.so", symbol: "darwin_stat_fixture_alignment", version: "DARWIN_STAT_1.0" } });
+}
