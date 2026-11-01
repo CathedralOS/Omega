@@ -1,0 +1,7 @@
+// Expected exit: 0.
+// Expected output contains: hello
+use omega_language_std::console;
+
+machine entry_start() reaches Console {
+    Console::write_line("hello");
+}

@@ -1,0 +1,3 @@
+// Expected exit: 0.
+machine entry_start() {
+}
