@@ -1,5 +1,23 @@
 # Closed opaque carrier exchange
 
+Build-owned source migration is owned by **BUILD-OWNED-TARGET-SELECTION** and
+**BUILD-OWNED-NATIVE-BINDINGS**. Every raw `AddressParts` binding belongs to the
+package that declares it. Its Build records the exact requirement, target and
+original libc or Windows shim locator, with byte lengths inferred from the
+literal. Independent consumers select the producer and its opaque representation;
+they do not repeat the producer's private native imports. The raw qualified-result
+controls retain their complete `UncheckedFactory` return obligations.
+
+The target-body places call `ExchangeObservation::observe` through ordinary
+named implementations selected by four hosted Build rows. The requirement retains
+the original complete service reach and boolean result; its selected body keeps
+the same construction, replacement and sibling checks. The qualified input twin
+keeps its original differing Linux body, so selecting other targets cannot hide
+its missing issuer. Copy permission, Linear consumption, qualification routes,
+Inert cleanup rejection, and every authored exit and diagnostic oracle are
+unchanged. The qualified continuation's remaining acceptance below stays open.
+
+
 Parent: [OPAQUE-BY-VALUE-BOUNDARY-ABI](../../../../TASKS.md).
 Requirement: preserve the exact selected closed Inert carrier and one owned
 occurrence through by-value foreign results, transport and consuming arguments,
