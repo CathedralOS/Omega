@@ -1,0 +1,38 @@
+// The case comparison retains its completed receiver through a recursive transition cycle.
+// Invalid: removes only the array-bound fact at the multiplicity call.
+data Syntax [copy] { dummy: u64; }
+data Mode [copy] { case Affine; case Unrestricted; case Linear; }
+data Kind [copy] { case Data; case Array; case CaseView; case GenericParameter; case Other; }
+data Row [copy] { kind: Kind; inner: u64; }
+data Table [copy] { rows: [Row; 3]; modes: [Mode; 3]; }
+machine Table::row(table: &Table, handle: u64) -> Row crashes Trap {
+    transition handle < 3 { true -> read(table, handle) _ -> Row { kind: Kind::Other, inner: 0 } }
+    machine read(table: &Table, handle: u64) -> Row requires handle < 3 { table.rows[handle] }
+}
+machine Table::multiplicity(table: &Table, handle: u64) -> Mode crashes Trap {
+    transition { _ -> read(table, handle) }
+    machine read(table: &Table, handle: u64) -> Mode requires handle < 3 { table.modes[handle] }
+}
+machine Table::declared_linear(syntax: &Syntax, table: &Table, handle: u64) -> bool crashes Trap {
+    transition { _ -> level(syntax, table, handle, 0) }
+    machine level(syntax: &Syntax, table: &Table, handle: u64, depth: u64) -> bool {
+        let row: Row = Table::row(table, handle);
+        transition row.kind {
+            Kind::Data -> answer(false)
+            Kind::Array -> array(syntax, table, row, depth)
+            Kind::CaseView -> answer(Table::multiplicity(table, handle) == Mode::Linear)
+            Kind::GenericParameter -> answer(false)
+            _ -> answer(false)
+        }
+    }
+    machine array(syntax: &Syntax, table: &Table, row: Row, depth: u64) -> bool {
+        transition depth < 16 { true -> level(syntax, table, row.inner, depth + 1) _ -> answer(false) }
+    }
+    machine answer(linear: bool) -> bool { linear }
+}
+machine main() crashes Trap {
+    let syntax: Syntax = Syntax { dummy: 0 };
+    let table: Table = Table { rows: [Row { kind: Kind::Array, inner: 1 }, Row { kind: Kind::CaseView, inner: 0 }, Row { kind: Kind::CaseView, inner: 0 }], modes: [Mode::Unrestricted, Mode::Linear, Mode::Affine] };
+    transition Table::declared_linear(&syntax, &table, 0) && Table::declared_linear(&syntax, &table, 1) && !Table::declared_linear(&syntax, &table, 2) { true -> done() _ -> bad() }
+    machine done() {} machine bad() { crash Trap; }
+}
