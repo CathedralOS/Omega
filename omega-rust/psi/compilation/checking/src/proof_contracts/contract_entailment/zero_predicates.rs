@@ -7,9 +7,10 @@
 
 use typed_trees::data::{DataDefinition, DataMember};
 use typed_trees::signature::StateParameter;
+use typed_trees::types::TypeReferenceNode;
 
 use super::refuted_requires::instantiated_selected_fact_judgment;
-use super::structural_judgment::{StructuralJudge, StructuralJudgment};
+use super::structural_judgment::{StructuralJudge, StructuralJudgment, StructuralTerm};
 use super::structural_terms::{zero_constructor_operands, zero_value_structural_term};
 
 pub fn data_predicates_admit_zero(
@@ -21,6 +22,44 @@ pub fn data_predicates_admit_zero(
     }
     let mut parameters = Vec::new();
     let mut bindings = Vec::new();
+    if let Some(origin) = definition.generic_instance
+        && let TypeReferenceNode::Generic { base_symbol, .. } =
+            program.type_reference_table.type_reference(origin)
+        && let Some(template) = program.unique_data_definition_by_symbol(*base_symbol)
+    {
+        for parameter in program.data_type_parameters(template) {
+            let Some((_, value)) = crate::proof_contracts::default_domains::applied_const_integer(
+                program,
+                definition,
+                parameter.symbol,
+            ) else {
+                continue;
+            };
+            let (typed_trees::data::TypeParameterKind::Const { type_reference }
+            | typed_trees::data::TypeParameterKind::Value { type_reference }) = parameter.kind
+            else {
+                continue;
+            };
+            // A retained static actual is not zeroed storage. Bind its exact
+            // declaration symbol into this proof frame before interpreting the
+            // predicate. Private names cannot collide with authored fields.
+            let name = format!(
+                "\0data-constant:{}:{}",
+                parameter.symbol.arena_index(),
+                parameter.symbol.generation(),
+            );
+            parameters.push(StateParameter {
+                symbol: parameter.symbol,
+                name: name.as_str().into(),
+                type_reference,
+                ..Default::default()
+            });
+            bindings.push((
+                name,
+                StructuralTerm::Integer(numerics::bignum::BigInt::from_i128(value)),
+            ));
+        }
+    }
     for member in program.data_members(definition) {
         let DataMember::Field(field) = member else {
             continue;

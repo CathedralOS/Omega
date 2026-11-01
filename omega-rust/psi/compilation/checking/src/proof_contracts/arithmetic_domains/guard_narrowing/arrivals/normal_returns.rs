@@ -5,24 +5,41 @@
 //! local active frames; unknown inputs and recurrent calls never prove themselves.
 
 use super::{ArrivalWalk, ExpressionObservation, ValueObservationSite, incoming_environments};
-use crate::CallFrameResolver;
-use crate::DependencyBodyRead;
 use crate::proof_contracts::arithmetic_domains::{Interval, Machine, State};
+use crate::{CallFrameResolver, DependencyBodyRead};
 use checked_trees::IntegerRangeRecipe;
-use std::cell::RefCell;
 use symbols::SymbolHandle;
-use typed_trees::statement::TransitionExit;
-use typed_trees::statement::{StatementNode, TransitionTargetNode};
+use typed_trees::statement::{StatementNode, TransitionExit, TransitionTargetNode};
 
 /// One outer range request owns the active invocation graph. Ordinary and
 /// terminal descendants share it; recurrence retains published guarantees
 /// rather than using the recursive body as its own proof.
 #[derive(Default)]
-pub(crate) struct ReturnInference {
-    active: RefCell<Vec<(SymbolHandle, SymbolHandle)>>,
+pub(crate) enum ReturnInference<'request> {
+    #[default]
+    Root,
+    Active {
+        parent: &'request ReturnInference<'request>,
+        identity: (SymbolHandle, SymbolHandle),
+    },
 }
 
-impl ReturnInference {
+impl ReturnInference<'_> {
+    fn contains(&self, identity: (SymbolHandle, SymbolHandle)) -> bool {
+        let mut current = self;
+        while let Self::Active {
+            parent,
+            identity: active,
+        } = current
+        {
+            if *active == identity {
+                return true;
+            }
+            current = parent;
+        }
+        false
+    }
+
     pub(crate) fn infer(
         &self,
         program: &dyn crate::CheckingInput,
@@ -71,7 +88,7 @@ fn inferred_normal_return_interval_in(
     entry: &State,
     target_primitive: Option<typed_trees::types::PrimitiveType>,
     actuals: &[ActualRange],
-    inference: &ReturnInference,
+    inference: &ReturnInference<'_>,
 ) -> Option<(Interval, Option<IntegerRangeRecipe>)> {
     // This judgment publishes integer intervals. Other result carriers have
     // their own evidence owners and cannot benefit from this body traversal.
@@ -104,22 +121,24 @@ fn inferred_normal_return_interval_in(
         return interval.clone();
     }
     let identity = (machine.symbol, entry.symbol);
-    {
-        let mut active = inference.active.borrow_mut();
-        if active.contains(&identity) {
-            return None;
-        }
-        active.push(identity);
+    if inference.contains(identity) {
+        return None;
     }
+    // Descendants borrow this invocation's ancestry. A sibling return starts
+    // from its parent again; no mutable stack, unwind action or ambient scope
+    // can leak an unfinished inference into another request.
+    let active = ReturnInference::Active {
+        parent: inference,
+        identity,
+    };
     let interval = discover_normal_return_interval(
         program,
         machine,
         entry,
         target_primitive,
         actuals,
-        inference,
+        &active,
     );
-    inference.active.borrow_mut().pop();
     if interval.is_none() && crate::proof_contracts::contract_entailment::struct_trace() {
         eprintln!(
             "STRUCT integer-return unknown owner={} entry={:?} primitive={target_primitive:?} supply={:?} all-exits={}",
@@ -166,7 +185,7 @@ fn discover_normal_return_interval(
     entry: &State,
     target_primitive: Option<typed_trees::types::PrimitiveType>,
     actuals: &[ActualRange],
-    inference: &ReturnInference,
+    inference: &ReturnInference<'_>,
 ) -> Option<(Interval, Option<IntegerRangeRecipe>)> {
     if machine.target_family_interface
         && program.machine_states(machine).first()?.symbol == entry.symbol

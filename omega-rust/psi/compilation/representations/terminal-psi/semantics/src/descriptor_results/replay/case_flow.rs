@@ -8,7 +8,9 @@ use semantic_vocabulary::StructuralCaseId;
 use std::sync::Arc;
 
 mod values;
-pub(super) use values::{Storage, Transfer};
+pub(super) use values::{Storage, Transfer, contains_case};
+mod result;
+pub(super) use result::ResultCases;
 
 #[derive(Clone, Default, PartialEq, Eq)]
 pub(super) struct CurrentCases {

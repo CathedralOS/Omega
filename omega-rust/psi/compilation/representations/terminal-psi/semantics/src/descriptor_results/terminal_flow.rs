@@ -73,13 +73,11 @@ pub(super) fn adapt(
             .result
             .structural()
             .filter(|result| {
-                slot_kind
-                    .owned_slots(
-                        &module.structural_types,
-                        result.place,
-                        result.structural_type,
-                    )
-                    .is_some_and(|slots| !slots.is_empty())
+                slot_kind.tracks_returned_value(
+                    &module.structural_types,
+                    result.place,
+                    result.structural_type,
+                )
             })
             .map(|_| Vec::new()),
         places: Vec::new(),
@@ -1015,13 +1013,11 @@ pub(super) fn adapt(
                         arguments.push(argument);
                     }
                     let descriptor_result = result.filter(|result| {
-                        slot_kind
-                            .owned_slots(
-                                &module.structural_types,
-                                result.place,
-                                result.structural_type,
-                            )
-                            .is_some_and(|slots| !slots.is_empty())
+                        slot_kind.tracks_returned_value(
+                            &module.structural_types,
+                            result.place,
+                            result.structural_type,
+                        )
                     });
                     if let Some(result) = descriptor_result {
                         let expected = callee.result.structural()?;
