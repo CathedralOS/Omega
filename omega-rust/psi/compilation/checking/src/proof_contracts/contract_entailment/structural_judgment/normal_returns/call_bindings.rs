@@ -502,4 +502,64 @@ mod completed_registration_tests {
             Some(deferred)
         );
     }
+    #[test]
+    fn completed_range_retains_nested_completed_argument_suppliers() {
+        let mut program = typed_trees::TypedTrees::default();
+        let result_type =
+            program
+                .type_reference_table
+                .insert(typed_trees::types::TypeReferenceNode::Named {
+                    symbol: SymbolHandle::invalid(),
+                    name: typed_trees::name::Identifier::generated("u64"),
+                });
+        let mut judge = StructuralJudge::from_declaration_requires(
+            &program,
+            SymbolHandle::invalid(),
+            &[],
+            &[],
+            true,
+        );
+        judge.runtime_body_values = true;
+        let range = checked_trees::IntegerRangeRecipe::bounds(
+            numerics::bignum::BigInt::from_i64(4),
+            numerics::bignum::BigInt::from_i64(7),
+        );
+        let capture = |occurrence| StructuralTerm::CapturedValue {
+            statement: arena::Handle::invalid(),
+            expression: ExpressionHandle::from_arena_index(occurrence),
+            occurrence: usize::try_from(occurrence).expect("small test occurrence"),
+            callable: SymbolHandle::from_arena_index(occurrence),
+            result_type,
+            integer_range: Some(Arc::new(range.clone())),
+        };
+        let inner = capture(1);
+        let outer = capture(2);
+        let description = |target, arguments| StructuralTerm::Application {
+            result_type,
+            target: SymbolHandle::from_arena_index(target),
+            selections: Vec::new(),
+            machine: format!("completed_{target}"),
+            arguments,
+        };
+        // Both calls have already returned. The second call consumed this
+        // exact saved first result, not a reconstructed application argument.
+        judge.intake_normal_call_equations(vec![
+            CapturedResultEquation::completed_call(inner.clone(), description(1, Vec::new())),
+            CapturedResultEquation::completed_call(outer.clone(), description(2, vec![inner])),
+        ]);
+        assert_eq!(judge.completed_integer_range_recipe(&outer), Some(range));
+
+        // Public result equations still outrank the saved enclosure.
+        judge.intake_normal_call_equations(vec![CapturedResultEquation::public((
+            outer.clone(),
+            StructuralTerm::Integer(numerics::bignum::BigInt::from_i64(7)),
+        ))]);
+        assert_eq!(
+            judge.completed_integer_range_recipe(&outer),
+            Some(checked_trees::IntegerRangeRecipe::bounds(
+                numerics::bignum::BigInt::from_i64(7),
+                numerics::bignum::BigInt::from_i64(7),
+            )),
+        );
+    }
 }
