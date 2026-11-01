@@ -123,7 +123,27 @@ pub(crate) fn check_callable(
                 continue;
             }
 
-            if parameter.type_reference.is_valid()
+            // Owning a loan carrier is distinct from borrowing its backing.
+            // Declaration-only transport preserves the exact existing claim
+            // and every carried debt; a matching algebra alone would also
+            // permit laundering that loan into a new owned result.
+            let owned_source = program.type_multiplicity(parameter.type_reference)
+                == Multiplicity::Linear
+                && compatible_plans.iter().any(|plan| {
+                    owned_source_can_supply(
+                        program,
+                        callable,
+                        parameter.type_reference,
+                        &[],
+                        plan,
+                        return_type,
+                        &[],
+                        result_plan,
+                    )
+                });
+            if owned_source {
+                owned_sources.push(parameter.name.as_str());
+            } else if parameter.type_reference.is_valid()
                 && crate::borrow::view_link::returns_borrow(program, parameter.type_reference)
             {
                 borrowed_sources.push(BorrowedContentSource {
@@ -131,8 +151,6 @@ pub(crate) fn check_callable(
                     parameter,
                     compatible_plans,
                 });
-            } else if program.type_multiplicity(parameter.type_reference) == Multiplicity::Linear {
-                owned_sources.push(parameter.name.as_str());
             }
         }
 
@@ -221,6 +239,34 @@ pub(crate) fn check_callable(
         retained_borrow_custodies,
         diagnostics,
     );
+}
+
+/// Root claims and structural subclaims use the same ownership judgment.
+/// Equal algebra does not turn an owned loan carrier into owned backing.
+#[allow(clippy::too_many_arguments)]
+fn owned_source_can_supply(
+    program: &dyn ::validation::CheckingInput,
+    callable: SymbolHandle,
+    source: TypeReferenceHandle,
+    source_applications: &[TypeReferenceHandle],
+    source_plan: &ContentProjectionPlan,
+    result: TypeReferenceHandle,
+    result_applications: &[TypeReferenceHandle],
+    result_plan: &ContentProjectionPlan,
+) -> bool {
+    use validation::borrow_contracts::OwnedCarrierLoanRelation;
+    match validation::borrow_contracts::owned_carrier_loan_relation(
+        program,
+        callable,
+        source,
+        source_applications,
+        result,
+        result_applications,
+    ) {
+        OwnedCarrierLoanRelation::ViewFree => true,
+        OwnedCarrierLoanRelation::Preserved => source_plan == result_plan,
+        OwnedCarrierLoanRelation::Unproven => false,
+    }
 }
 
 struct BorrowedContentSource<'a> {

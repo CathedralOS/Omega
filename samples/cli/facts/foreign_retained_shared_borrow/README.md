@@ -88,6 +88,13 @@ registration, moves the realized Buffer through a call and record field, then
 registers it again. It retains the allocation seal through the ordinary owned
 storage transaction; a scalar resident alone cannot authorize a new root.
 
+The [wrapper-redemption control](controls/wrapper_redemption/main.omg) keeps
+Pending debt in one returned field while attempting to publish owned Buffer
+backing in another. Preserving a loan-bearing sibling cannot turn that loan
+into ownership. The generic owned-sibling declaration under
+`tests/omega/pass/core/content_owned_sibling_in_loan_carrier` pins the converse:
+a disjoint borrowed field does not take away an actual owned content source.
+
 The controls additionally require early disposal, capacity reuse, repeated
 completion, call-scoped retention and unsupported persistent retention
 to reject for their stated obligations. Two simultaneous registrations remain

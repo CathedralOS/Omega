@@ -242,9 +242,9 @@ impl<'program> Evaluator<'program> {
         call: &TableCall,
         frame: &mut Frame,
     ) -> EvalResult<Value> {
-        if let Some(dispatch) = &call.static_requirement_dispatch {
+        if call.static_requirement_dispatch.is_some() {
             return self.run_selected_realization(
-                dispatch.realization_state,
+                call.target_symbol,
                 statement_table(self.program).expression_handles(call.arguments),
                 frame,
             );
