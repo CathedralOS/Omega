@@ -237,7 +237,21 @@ pub(crate) fn retain_returns(
                     origins.push(match &decision.origin {
                         CheckedScalarReturnOrigin::Forwarded => ScalarReturnOrigin::Forwarded,
                         CheckedScalarReturnOrigin::Established(route) => {
-                            let route = super::establishment_route(identities, checked, route)?;
+                            // A target body or checked application can invoke an
+                            // authored issuer declaration. Retain this exact
+                            // returning body, not the head's nominal identity.
+                            let route = match route {
+                                language_semantics::DomainEstablishmentRoute::ExactMachine { machine: issuer } => {
+                                    if !checked.typed.machine_invokes_declaration(symbol, *issuer)
+                                        .map_err(LoweringError::Unsupported)?
+                                    {
+                                        return unsupported("checked scalar return has no declaration correspondence to its issuer");
+                                    }
+                                    language_semantics::DomainEstablishmentRoute::ExactMachine { machine: symbol }
+                                }
+                                route => *route,
+                            };
+                            let route = super::establishment_route(identities, checked, &route)?;
                             let position = domain
                                 .establishment_routes
                                 .iter()

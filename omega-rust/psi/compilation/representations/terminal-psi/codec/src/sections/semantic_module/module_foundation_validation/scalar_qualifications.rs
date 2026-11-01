@@ -203,7 +203,10 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
                     )?;
                     match domain.establishment_routes.get(*route as usize) {
                         Some(ScalarDomainEstablishmentRoute::ExactMachine { declaration: issuer, machine_identity }) => {
-                            (*machine_identity == declaration.callable && issuer.identity() == declaration.semantic_declaration)
+                            (module.identities.text(*machine_identity).zip(module.identities.text(declaration.callable))
+                                .is_some_and(|(issued, callable)| issued == terminal_psi::CheckedMachineDeclaration::callable_evidence_identity(
+                                    callable, declaration.specialization.as_ref().map(|application| &application.commitment),
+                                )) && issuer.identity() == declaration.semantic_declaration)
                                 || declaration.specialization.as_ref().is_some_and(|specialization| {
                                     *machine_identity == specialization.template_callable
                                         && issuer.identity() == specialization.template_semantic_declaration

@@ -28,6 +28,8 @@ mod indexed_family_controls;
 mod mathematical_actuals;
 #[path = "provider_choice_controls.rs"]
 mod provider_choice_controls;
+#[path = "scalar_issuer_controls.rs"]
+mod scalar_issuer_controls;
 #[path = "synchronous_provider_controls.rs"]
 mod synchronous_provider_controls;
 #[path = "task_activation_controls.rs"]
@@ -50,6 +52,7 @@ enum InspectionControls {
     BoundaryProviders,
     BehaviorAdmission,
     CallbackTelescope,
+    ScalarIssuer,
 }
 
 #[derive(Clone, Copy)]
@@ -142,6 +145,9 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
             }
             [machine, "callback-telescope-controls"] => {
                 (*machine, false, Some(InspectionControls::CallbackTelescope))
+            }
+            [machine, "scalar-issuer-controls"] => {
+                (*machine, false, Some(InspectionControls::ScalarIssuer))
             }
             [machine, "indexed-family-controls"] => {
                 (*machine, false, Some(InspectionControls::IndexedFamily))
@@ -337,6 +343,7 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
             }
             match controls {
                 InspectionControls::MethodApplications => closed_conformance_controls(&decoded)?,
+                InspectionControls::ScalarIssuer => scalar_issuer_controls::inspect(&decoded)?,
                 InspectionControls::ClosedReach => closed_reach_controls::inspect(&decoded)?,
                 InspectionControls::ClosedReachCaptures => {
                     closed_reach_controls::inspect_captures(&decoded)?
