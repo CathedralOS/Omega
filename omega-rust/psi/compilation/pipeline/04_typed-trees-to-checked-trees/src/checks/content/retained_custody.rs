@@ -113,7 +113,7 @@ pub(crate) fn check_callable(
                 else {
                     continue;
                 };
-                if compatible_content(input_plan, result_plan)
+                if input_plan.algebra == result_plan.algebra
                     && !compatible_plans.contains(input_plan)
                 {
                     compatible_plans.push(input_plan.clone());
@@ -123,7 +123,9 @@ pub(crate) fn check_callable(
                 continue;
             }
 
-            if type_contains_reference(program, parameter.type_reference) {
+            if parameter.type_reference.is_valid()
+                && crate::borrow::view_link::returns_borrow(program, parameter.type_reference)
+            {
                 borrowed_sources.push(BorrowedContentSource {
                     parameter_position,
                     parameter,
@@ -447,10 +449,6 @@ fn projection_domain(term: &ContentConservationTerm) -> Option<SemanticDomainId>
     Some(*semantic_domain)
 }
 
-fn compatible_content(left: &ContentProjectionPlan, right: &ContentProjectionPlan) -> bool {
-    left.algebra == right.algebra
-}
-
 fn append_type_domains(
     program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
@@ -502,13 +500,6 @@ fn nominal_domain_application(
             symbol,
             semantic_domain: definition.semantic_id,
         })
-}
-
-fn type_contains_reference(
-    program: &dyn ::validation::CheckingInput,
-    type_reference: TypeReferenceHandle,
-) -> bool {
-    type_reference.is_valid() && crate::borrow::view_link::returns_borrow(program, type_reference)
 }
 
 fn push_unique_domain_application(domains: &mut Vec<DomainApplication>, domain: DomainApplication) {

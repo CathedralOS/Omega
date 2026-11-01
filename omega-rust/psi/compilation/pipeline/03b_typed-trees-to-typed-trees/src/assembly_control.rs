@@ -10,6 +10,8 @@ pub(crate) use normalization::normalize;
 
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
+use typed_trees::statement::AssemblyControlPoint;
+use typed_trees::statement::StatementNode;
 
 pub(crate) fn admit(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
     for machine in program.machines() {
@@ -18,12 +20,7 @@ pub(crate) fn admit(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
                 .statement_table
                 .statements(state.statement_nodes)
                 .iter()
-                .any(|statement| {
-                    matches!(
-                        statement,
-                        typed_trees::statement::StatementNode::Assembly(_)
-                    )
-                })
+                .any(|statement| matches!(statement, StatementNode::Assembly(_)))
             {
                 continue;
             }
@@ -55,10 +52,7 @@ pub(crate) fn validate_primitive_meanings(program: &TypedTrees) -> Result<(), Ve
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             for statement in program.statement_table.statements(state.statement_nodes) {
-                let typed_trees::statement::StatementNode::Assembly(
-                    typed_trees::statement::AssemblyControlPoint::Entry(handle),
-                ) = statement
-                else {
+                let StatementNode::Assembly(AssemblyControlPoint::Entry(handle)) = statement else {
                     continue;
                 };
                 let graph = program.statement_table.assembly(*handle);

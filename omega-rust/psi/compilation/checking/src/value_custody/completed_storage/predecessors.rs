@@ -6,6 +6,7 @@
 //! but a transported judgment must hold for every selected possibility.
 
 use arena::Handle;
+use checked_trees::FlowStatementFact;
 use checked_trees::{CheckFacts, FlowOperandFact};
 use facts::PlaceSegment;
 
@@ -77,10 +78,7 @@ pub fn predecessors_in_control(
     value: Handle<FlowOperandFact>,
     projection: &[PlaceSegment],
     observation: super::StoredObservation,
-    active_statements: Option<(
-        symbols::SymbolHandle,
-        arena::HandleSpan<checked_trees::FlowStatementFact>,
-    )>,
+    active_statements: Option<(symbols::SymbolHandle, arena::HandleSpan<FlowStatementFact>)>,
 ) -> Option<Vec<(Handle<FlowOperandFact>, Vec<PlaceSegment>)>> {
     if !control.operands.is_valid(value) {
         return None;
@@ -177,10 +175,7 @@ pub fn owned_observation_projection(
     program: &dyn crate::CheckingInput,
     control: &checked_trees::FlowControlFacts,
     capture: &FlowOperandFact,
-    active_statements: Option<(
-        symbols::SymbolHandle,
-        arena::HandleSpan<checked_trees::FlowStatementFact>,
-    )>,
+    active_statements: Option<(symbols::SymbolHandle, arena::HandleSpan<FlowStatementFact>)>,
 ) -> Option<Option<(Handle<FlowOperandFact>, Vec<PlaceSegment>)>> {
     let Some(member) = program.expression_table.member_node(capture.expression) else {
         return Some(None);

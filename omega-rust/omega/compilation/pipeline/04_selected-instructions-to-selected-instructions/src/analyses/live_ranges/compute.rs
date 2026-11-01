@@ -9,6 +9,7 @@ mod function;
 mod interference;
 
 use std::collections::BTreeSet;
+use std::sync::Arc;
 
 use crate::{LiveRangeError, ValidatedLiveness};
 use register_model::{RegisterOperandAccess, RegisterUnitId};
@@ -39,9 +40,7 @@ pub(crate) fn compute_terminal_live_ranges(
         .iter()
         .zip(&liveness.plan().functions)
         .enumerate()
-        .map(|(index, (selected, live))| {
-            compute_function(index, selected, live).map(std::sync::Arc::new)
-        })
+        .map(|(index, (selected, live))| compute_function(index, selected, live).map(Arc::new))
         .collect::<Result<Vec<_>, _>>()?;
     Ok(LiveRangePlan {
         selected: selected.selected_identity(),
@@ -91,7 +90,7 @@ pub(crate) fn compute_terminal_live_ranges_reusing(
                 carried[function_index] = true;
                 return Ok(facts.clone());
             }
-            compute_function(function_index, function, live).map(std::sync::Arc::new)
+            compute_function(function_index, function, live).map(Arc::new)
         })
         .collect::<Result<Vec<_>, _>>()?;
     Ok((

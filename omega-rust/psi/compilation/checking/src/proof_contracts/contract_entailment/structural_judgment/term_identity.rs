@@ -304,6 +304,7 @@ impl PartialEq for StructuralTerm {
                 value == other_value
             }
             Self::CapturedValue {
+                statement,
                 expression,
                 callable,
                 occurrence,
@@ -311,6 +312,7 @@ impl PartialEq for StructuralTerm {
                 integer_range,
             } => {
                 let Self::CapturedValue {
+                    statement: other_statement,
                     expression: other_expression,
                     callable: other_callable,
                     occurrence: other_occurrence,
@@ -320,14 +322,21 @@ impl PartialEq for StructuralTerm {
                 else {
                     return false;
                 };
-                (expression, callable, occurrence, result_type, integer_range)
-                    == (
-                        other_expression,
-                        other_callable,
-                        other_occurrence,
-                        other_result_type,
-                        other_range,
-                    )
+                (
+                    expression,
+                    statement,
+                    callable,
+                    occurrence,
+                    result_type,
+                    integer_range,
+                ) == (
+                    other_expression,
+                    other_statement,
+                    other_callable,
+                    other_occurrence,
+                    other_result_type,
+                    other_range,
+                )
             }
             Self::BoundProjection { subject, path } => {
                 let Self::BoundProjection {
@@ -530,6 +539,7 @@ impl std::fmt::Debug for StructuralTerm {
             Self::Variable(value) => formatter.debug_tuple("Variable").field(value).finish(),
             Self::BoundValue(value) => formatter.debug_tuple("BoundValue").field(value).finish(),
             Self::CapturedValue {
+                statement,
                 expression,
                 callable,
                 occurrence,
@@ -538,6 +548,7 @@ impl std::fmt::Debug for StructuralTerm {
             } => formatter
                 .debug_struct("CapturedValue")
                 .field("expression", expression)
+                .field("statement", statement)
                 .field("callable", callable)
                 .field("occurrence", occurrence)
                 .field("result_type", result_type)

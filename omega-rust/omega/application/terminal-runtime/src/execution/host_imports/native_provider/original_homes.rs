@@ -4,7 +4,8 @@
 
 use super::super::scalar_codec::{decode, encode, scalar_extent};
 use native_provider_runtime::{
-    NativeHomeId, NativePointerSlot, NativePointerTarget, NativeProviderProcess,
+    NativeHomeId, NativePointerSlot, NativePointerTarget, NativeProviderError,
+    NativeProviderProcess,
 };
 use runtime_abi::NativeBorrowedStorageLayout;
 use semantic_vocabulary::{CanonicalStructuralPathSegment as Path, ScalarType, StructuralTypeId};
@@ -33,9 +34,7 @@ pub(super) struct Sponsor {
 impl Sponsor {
     pub fn with<T>(
         &mut self,
-        f: impl FnOnce(
-            &mut NativeProviderProcess,
-        ) -> Result<T, native_provider_runtime::NativeProviderError>,
+        f: impl FnOnce(&mut NativeProviderProcess) -> Result<T, NativeProviderError>,
     ) -> Result<T, TerminalEffectRejection> {
         if let Some(reason) = &self.failure {
             return Err(rejection(reason.clone()));
@@ -62,7 +61,7 @@ impl Sponsor {
         &mut self,
         adapter: native_provider_runtime::NativeAdapterId,
         arguments: &[native_provider_runtime::NativeArgument<'_>],
-    ) -> Result<Vec<u8>, native_provider_runtime::NativeProviderError> {
+    ) -> Result<Vec<u8>, NativeProviderError> {
         // Installation already established the process. Preserve the actual
         // exit status for the call owner to distinguish a declared trap.
         let result = self

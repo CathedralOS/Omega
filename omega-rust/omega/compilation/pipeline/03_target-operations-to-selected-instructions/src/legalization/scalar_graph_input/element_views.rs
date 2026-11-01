@@ -1,6 +1,9 @@
 //! Descriptor observations retain their complete storage coordinate. This
 //! joins declaration geometry only; source availability remains the shared
 //! ownership walk, and selector bounds remain operation-owned certificates.
+use crate::structural_inputs::structural_reference_input::{
+    ReferenceSourceGeometry, descriptor_source_geometry,
+};
 use optimization_unit::PsiOptimizationFunction;
 use terminal_psi::{StructuralAccess, StructuralArgument, StructuralTypeDeclaration};
 
@@ -8,7 +11,7 @@ pub(in crate::legalization) fn descriptor_geometry(
     function: &PsiOptimizationFunction,
     source: &StructuralArgument,
     types: &[StructuralTypeDeclaration],
-) -> Option<crate::structural_inputs::structural_reference_input::ReferenceSourceGeometry> {
+) -> Option<ReferenceSourceGeometry> {
     descriptor_geometry_access(function, source, types, false)
 }
 
@@ -20,7 +23,7 @@ pub(in crate::legalization) fn descriptor_metadata_geometry(
     function: &PsiOptimizationFunction,
     source: &StructuralArgument,
     types: &[StructuralTypeDeclaration],
-) -> Option<crate::structural_inputs::structural_reference_input::ReferenceSourceGeometry> {
+) -> Option<ReferenceSourceGeometry> {
     descriptor_geometry_access(function, source, types, true)
 }
 
@@ -29,7 +32,7 @@ fn descriptor_geometry_access(
     source: &StructuralArgument,
     types: &[StructuralTypeDeclaration],
     metadata: bool,
-) -> Option<crate::structural_inputs::structural_reference_input::ReferenceSourceGeometry> {
+) -> Option<ReferenceSourceGeometry> {
     let actual = optimization_unit_semantics::structural_place_backing_access(
         function,
         source.place,
@@ -92,11 +95,7 @@ fn descriptor_geometry_access(
     } {
         return None;
     }
-    crate::structural_inputs::structural_reference_input::descriptor_source_geometry(
-        root,
-        &source.path,
-        types,
-    )
+    descriptor_source_geometry(root, &source.path, types)
 }
 
 /// Element counts use the selected two-word descriptor, in elements.
@@ -104,7 +103,7 @@ pub(in crate::legalization) fn length_geometry(
     function: &PsiOptimizationFunction,
     source: &StructuralArgument,
     types: &[StructuralTypeDeclaration],
-) -> Option<crate::structural_inputs::structural_reference_input::ReferenceSourceGeometry> {
+) -> Option<ReferenceSourceGeometry> {
     let mut geometry = descriptor_metadata_geometry(function, source, types)?;
     if !geometry.readable
         || !types.iter().any(|declaration| {
@@ -127,10 +126,7 @@ pub(in crate::legalization) fn byte_length_geometry(
     function: &PsiOptimizationFunction,
     source: &StructuralArgument,
     types: &[StructuralTypeDeclaration],
-) -> Option<(
-    crate::structural_inputs::structural_reference_input::ReferenceSourceGeometry,
-    terminal_psi::ByteSequenceCarrier,
-)> {
+) -> Option<(ReferenceSourceGeometry, terminal_psi::ByteSequenceCarrier)> {
     let mut geometry = descriptor_metadata_geometry(function, source, types)?;
     if !geometry.readable {
         return None;

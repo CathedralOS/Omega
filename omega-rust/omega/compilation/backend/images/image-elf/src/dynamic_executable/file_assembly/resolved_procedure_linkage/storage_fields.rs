@@ -1,5 +1,6 @@
 //! Storage addresses, encoded fields and storage byte access.
 
+use crate::dynamic_executable::checked;
 use crate::dynamic_executable::checked::require;
 use crate::dynamic_executable::file_assembly::dynamic_file_envelope::ValidatedElfDynamicFileEnvelope;
 use crate::dynamic_executable::file_assembly::resolved_procedure_linkage::candidates::ElfResolvedProcedureLinkageContents;
@@ -38,7 +39,7 @@ pub(crate) fn storage_address(
             })?
         }
     };
-    crate::dynamic_executable::checked::checked_sum_u64(
+    checked::checked_sum_u64(
         base,
         u64::try_from(fixup.byte_offset)
             .map_err(|_| Diagnostic::error("procedure fixup byte offset exceeds Elf64_Addr"))?,
@@ -66,7 +67,7 @@ pub(crate) fn semantic_target_address(
                 ));
             }
         };
-        return crate::dynamic_executable::checked::checked_sum_u64(
+        return checked::checked_sum_u64(
             base,
             u64::try_from(byte_offset).map_err(|_| {
                 Diagnostic::error("general relocation slot offset exceeds Elf64_Addr")
@@ -85,9 +86,9 @@ pub(crate) fn semantic_target_address(
         }
         ElfProcedureLinkageSemanticTarget::PltEntry { logical_ordinal } => (
             ElfPlacedDynamicSectionKind::ProcedureLinkage,
-            crate::dynamic_executable::checked::checked_sum_u64(
+            checked::checked_sum_u64(
                 procedure_linkage_header_size(layout)?,
-                crate::dynamic_executable::checked::checked_product_u64(
+                checked::checked_product_u64(
                     u64::from(logical_ordinal),
                     PROCEDURE_LINKAGE_ENTRY_SIZE,
                     "procedure-linkage entry offset",
@@ -99,10 +100,10 @@ pub(crate) fn semantic_target_address(
         ),
         ElfProcedureLinkageSemanticTarget::PltLazyTail { logical_ordinal } => (
             ElfPlacedDynamicSectionKind::ProcedureLinkage,
-            crate::dynamic_executable::checked::checked_sum_u64(
-                crate::dynamic_executable::checked::checked_sum_u64(
+            checked::checked_sum_u64(
+                checked::checked_sum_u64(
                     procedure_linkage_header_size(layout)?,
-                    crate::dynamic_executable::checked::checked_product_u64(
+                    checked::checked_product_u64(
                         u64::from(logical_ordinal),
                         PROCEDURE_LINKAGE_ENTRY_SIZE,
                         "procedure-linkage lazy-tail offset",
@@ -118,7 +119,7 @@ pub(crate) fn semantic_target_address(
         ),
         ElfProcedureLinkageSemanticTarget::GotPltHeaderWord { word_index } => (
             ElfPlacedDynamicSectionKind::ProcedureGot,
-            crate::dynamic_executable::checked::checked_product_u64(
+            checked::checked_product_u64(
                 u64::from(word_index),
                 ELF64_GOT_WORD_SIZE,
                 "procedure GOT header-word offset",
@@ -127,8 +128,8 @@ pub(crate) fn semantic_target_address(
         ),
         ElfProcedureLinkageSemanticTarget::GotPltSlot { logical_ordinal } => (
             ElfPlacedDynamicSectionKind::ProcedureGot,
-            crate::dynamic_executable::checked::checked_product_u64(
-                crate::dynamic_executable::checked::checked_sum_u64(
+            checked::checked_product_u64(
+                checked::checked_sum_u64(
                     GOT_PLT_HEADER_WORDS,
                     u64::from(logical_ordinal),
                     "procedure GOT slot index",
@@ -148,15 +149,11 @@ pub(crate) fn semantic_target_address(
         "procedure fixup semantic target kind drifted from absolute layout",
     )?;
     require(
-        crate::dynamic_executable::checked::checked_sum_u64(
-            offset,
-            1,
-            "procedure fixup target extent",
-            "Elf64_Addr",
-        )? <= section.byte_size(),
+        checked::checked_sum_u64(offset, 1, "procedure fixup target extent", "Elf64_Addr")?
+            <= section.byte_size(),
         "procedure fixup semantic target lies outside its exact section",
     )?;
-    crate::dynamic_executable::checked::checked_sum_u64(
+    checked::checked_sum_u64(
         section.virtual_address().ok_or_else(|| {
             Diagnostic::error("procedure fixup semantic target has no allocated address")
         })?,
@@ -198,12 +195,8 @@ pub(crate) fn encode_field(
 ) -> Result<u64, Diagnostic> {
     let mutable_bits = match kind {
         ElfProcedureLinkageFixupKind::X86PcRelative32 => {
-            let next_instruction = crate::dynamic_executable::checked::checked_sum_u64(
-                source_address,
-                4,
-                "x86-64 relocation PC",
-                "Elf64_Addr",
-            )?;
+            let next_instruction =
+                checked::checked_sum_u64(source_address, 4, "x86-64 relocation PC", "Elf64_Addr")?;
             let delta = i128::from(target_address) - i128::from(next_instruction);
             u64::from(u32::from_le_bytes(
                 i32::try_from(delta)
@@ -268,7 +261,7 @@ pub(crate) fn decode_rejoins_target(
         ElfProcedureLinkageFixupKind::X86PcRelative32 => {
             let displacement = i32::from_le_bytes((field as u32).to_le_bytes());
             checked_add_signed(
-                crate::dynamic_executable::checked::checked_sum_u64(
+                checked::checked_sum_u64(
                     source_address,
                     4,
                     "decoded x86-64 relocation PC",
@@ -401,11 +394,7 @@ pub(crate) fn write_field(
     width: u8,
     value: u64,
 ) -> Result<(), Diagnostic> {
-    let end = crate::dynamic_executable::checked::checked_sum(
-        offset,
-        usize::from(width),
-        "procedure fixup field end",
-    )?;
+    let end = checked::checked_sum(offset, usize::from(width), "procedure fixup field end")?;
     let field = bytes
         .get_mut(offset..end)
         .ok_or_else(|| Diagnostic::error("procedure fixup field exceeds its exact storage"))?;

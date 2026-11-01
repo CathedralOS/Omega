@@ -9,7 +9,9 @@ use crate::tables::expressions_of;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::name::Identifier;
 use typed_trees::types::TypeReferenceHandle;
+use typed_trees::types::TypeReferenceNode;
 
 mod region_application;
 
@@ -102,7 +104,6 @@ fn retain_access_result_type(
     program: &mut TypedTrees,
     returned: TypeReferenceHandle,
 ) -> TypeReferenceHandle {
-    use typed_trees::types::TypeReferenceNode;
     match program
         .type_reference_table
         .type_reference(returned)
@@ -170,7 +171,7 @@ fn retain_access_result_type(
                 .type_reference_table
                 .insert(TypeReferenceNode::Named {
                     symbol,
-                    name: typed_trees::name::Identifier::generated(name),
+                    name: Identifier::generated(name),
                 })
         }
         _ => returned,
@@ -186,10 +187,7 @@ fn apply_result_type(
     parameters: Option<&[typed_trees::signature::StateParameter]>,
     arguments: &[ExpressionHandle],
     return_type: TypeReferenceHandle,
-    lifetimes: &[(
-        typed_trees::name::Identifier,
-        Option<typed_trees::name::Identifier>,
-    )],
+    lifetimes: &[(Identifier, Option<Identifier>)],
 ) -> Result<TypeReferenceHandle, Vec<diagnostics::Diagnostic>> {
     let return_type = if lifetimes.is_empty() {
         return_type
@@ -234,11 +232,9 @@ fn apply_runtime_result_operands(
         program,
         &[return_type],
         |program, node| match node {
-            typed_trees::types::TypeReferenceNode::Named { symbol, .. } => symbols.contains(symbol),
-            typed_trees::types::TypeReferenceNode::ConstExpression(expression) => {
-                names_parameter(program, *expression)
-            }
-            typed_trees::types::TypeReferenceNode::FixedArray {
+            TypeReferenceNode::Named { symbol, .. } => symbols.contains(symbol),
+            TypeReferenceNode::ConstExpression(expression) => names_parameter(program, *expression),
+            TypeReferenceNode::FixedArray {
                 length: typed_trees::types::FixedArrayLength::ConstParameter { symbol, .. },
                 ..
             } => symbols.contains(symbol),
@@ -257,9 +253,9 @@ fn apply_runtime_result_operands(
         .map(|(symbol, argument)| {
             (
                 symbol,
-                program.type_reference_table.insert(
-                    typed_trees::types::TypeReferenceNode::ConstExpression(*argument),
-                ),
+                program
+                    .type_reference_table
+                    .insert(TypeReferenceNode::ConstExpression(*argument)),
             )
         })
         .collect::<Vec<_>>();

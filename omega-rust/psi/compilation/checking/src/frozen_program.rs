@@ -504,6 +504,8 @@ impl CheckingInput for CheckingProjection<'_> {
 #[doc(hidden)]
 #[derive(Default)]
 pub struct CheckingMemos {
+    // Raw application association; reset with all context-sensitive inputs.
+    pub(crate) provider_applications: OnceLock<Arc<Vec<crate::ProviderApplicationAssociation>>>,
     pub(crate) indexed_logical_machines: OnceLock<Arc<Vec<symbols::SymbolHandle>>>,
     /// Exact satisfaction associations depend only on this immutable typed
     /// program, not changing progress summaries, effects or selected layouts.
@@ -545,6 +547,23 @@ pub struct CheckingMemos {
             crate::CapturedNumericObservations,
         >,
     >,
+    /// One exact-operation operand-fit verdict per (machine, expression),
+    /// published by a single per-machine population instead of a fresh
+    /// prefix walk per occurrence. `None` retains "processed, no
+    /// observation" so a later query does not walk again.
+    pub(crate) operand_fit_outcomes: Mutex<
+        symbols::SymbolKeyMap<
+            (
+                symbols::SymbolHandle,
+                typed_trees::expression::ExpressionHandle,
+            ),
+            Option<crate::proof_contracts::contract_entailment::OperandFitOutcome>,
+        >,
+    >,
+    /// Machines whose operand-fit expressions were already enumerated;
+    /// even a machine with no qualifying expression populates only once.
+    pub(crate) operand_fit_populated:
+        Mutex<symbols::SymbolKeyMap<symbols::SymbolHandle, ()>>,
     proof_only: OnceLock<Arc<ProofOnlyClassification>>,
     pub(crate) license_candidates: OnceLock<Arc<LicenseCandidates>>,
     pub(crate) entry_machines: OnceLock<Arc<EntryMachines>>,

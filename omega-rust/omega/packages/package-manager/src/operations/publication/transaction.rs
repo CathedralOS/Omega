@@ -10,6 +10,7 @@ use super::{
     BUILD_FILE, JOURNAL_FILE, LOCK_FILE, PackagePublicationError, PackagePublicationLimits,
     TRANSACTION_LOCK,
 };
+use platform_custody::record_file::RecordFileError;
 
 /// Filesystem coordination for accepted package changes, not compiler review.
 /// The caller must supply the reviewed bytes and recheck candidate source.
@@ -165,10 +166,7 @@ impl PackageFileTransaction {
         self.journal
             .write_new(Path::new(JOURNAL_FILE), &encoded, self.limits.journal())
             .map_err(|error| {
-                if matches!(
-                    error,
-                    platform_custody::record_file::RecordFileError::PublishedButUnconfirmed { .. }
-                ) {
+                if matches!(error, RecordFileError::PublishedButUnconfirmed { .. }) {
                     PackagePublicationError::Pending(Box::new(error.into()))
                 } else {
                     error.into()

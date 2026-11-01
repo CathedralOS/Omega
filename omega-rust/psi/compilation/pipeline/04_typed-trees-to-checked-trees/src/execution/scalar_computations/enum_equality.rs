@@ -19,6 +19,7 @@ use super::{
     CheckedScalarComputationKind, CheckedScalarExpression, ExpressionHandle, PrimitiveType,
     operator_is_builtin,
 };
+use crate::values::scalar::structural_fields::structural_data;
 use checked_trees::CheckedScalarComputationStructuralArgument;
 use typed_trees::data::{DataDefinition, DataShapeKind};
 use typed_trees::expression::BinaryOperator;
@@ -41,10 +42,8 @@ impl Builder<'_, '_> {
         let unequal = binary.operator == BinaryOperator::NotEqual;
         let (left_type, mut left, mut left_receiver) = self.enum_operand(binary.left)?;
         let (right_type, mut right, mut right_receiver) = self.enum_operand(binary.right)?;
-        let left_owner =
-            crate::values::scalar::structural_fields::structural_data(self.program, left_type)?;
-        let right_owner =
-            crate::values::scalar::structural_fields::structural_data(self.program, right_type)?;
+        let left_owner = structural_data(self.program, left_type)?;
+        let right_owner = structural_data(self.program, right_type)?;
         if left_owner.symbol != right_owner.symbol
             || self.program.normalized_type_identity(left_type)
                 != self.program.normalized_type_identity(right_type)
@@ -251,8 +250,7 @@ impl Builder<'_, '_> {
         case: symbols::SymbolHandle,
     ) -> Option<CheckedScalarComputationHandle> {
         let (returned, subject, receiver_value) = self.completed_case_subject(expression)?;
-        let owner =
-            crate::values::scalar::structural_fields::structural_data(self.program, returned)?;
+        let owner = structural_data(self.program, returned)?;
         if !self.program.data_members(owner).iter().any(|member| {
             member
                 .as_variant()

@@ -9,15 +9,16 @@ use crate::input::token_cursor::{Input, ParseResult};
 use crate::tables::{exprs_of, items, stmts, stmts_of};
 use arena::HandleSpan;
 use language_core::inline_assembly::{
-    AsmCatalogEntry, AsmInstructionAvailability, AsmInstructionRefusal, AsmInstructionShape,
-    AsmMemoryTransferKind, asm_catalog_entry,
+    AsmCatalogEntry, AsmFenceKind, AsmInstructionAvailability, AsmInstructionRefusal,
+    AsmInstructionShape, AsmMemoryTransferKind, AsmSchedulingHintKind, AsmTargetApplicability,
+    asm_catalog_entry, is_unmodeled_aarch64_scratch_view, scratch_register,
 };
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use syntax_trees::identifier::Identifier;
 use syntax_trees::statement::{
-    AssemblyFactKind, StatementHandle, StatementNode, TableAssignment, TableCall, TableTransition,
-    TransitionExit, TransitionGuardNode, TransitionTargetHandle,
+    AssemblyExit, AssemblyFactKind, StatementHandle, StatementNode, TableAssignment, TableCall,
+    TableTransition, TransitionExit, TransitionGuardNode, TransitionTargetHandle,
 };
 use tokens::PunctuationKind;
 
@@ -79,7 +80,7 @@ pub(crate) fn parse_asm_block_statement_handles<'tokens, 'source>(
     let input = input.take_contextual("asm")?;
     let (contract, input) = parse_asm_where_contract(syntax_trees, input)?;
     let mut input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
-    let mut target_requirement = language_core::inline_assembly::AsmTargetApplicability::Any;
+    let mut target_requirement = AsmTargetApplicability::Any;
     let mut blocks = Vec::new();
     let mut primitives = Vec::new();
     let body_requires = contract.requires.clone();
@@ -121,10 +122,7 @@ pub(crate) fn parse_asm_block_statement_handles<'tokens, 'source>(
             input = input.take_punctuation(PunctuationKind::Colon, ":")?;
             continue;
         }
-        if !matches!(
-            block.exit,
-            syntax_trees::statement::AssemblyExit::Fallthrough
-        ) {
+        if !matches!(block.exit, AssemblyExit::Fallthrough) {
             return Err(input.error_here("an asm control transfer must be the final instruction in its block (including a labeled block)"));
         }
         // A bare destination is local to this assembly CFG. The existing
@@ -149,9 +147,9 @@ pub(crate) fn parse_asm_block_statement_handles<'tokens, 'source>(
             block.exit = if let AsmInstructionShape::JumpZeroFlag { when_set } = contract.shape {
                 // Both polarities consume the same explicit modeled ZF version.
                 scratch::name(syntax_trees, "zf");
-                syntax_trees::statement::AssemblyExit::ZeroFlag(label, when_set)
+                AssemblyExit::ZeroFlag(label, when_set)
             } else {
-                syntax_trees::statement::AssemblyExit::Jump(label)
+                AssemblyExit::Jump(label)
             };
             block.instruction_count += 1;
             input = rest;
@@ -177,8 +175,7 @@ pub(crate) fn parse_asm_block_statement_handles<'tokens, 'source>(
             stmts_of(syntax_trees).statement(instruction.statement)
             && let ExpressionNode::Name(path) = exprs_of(syntax_trees).expression(assignment.target)
             && let [name] = exprs_of(syntax_trees).identifier_path_members(*path)
-            && let Some((_, _, clobber)) =
-                language_core::inline_assembly::scratch_register(name.as_str(syntax_trees))
+            && let Some((_, _, clobber)) = scratch_register(name.as_str(syntax_trees))
         {
             realized_clobbers.insert(clobber);
         }
@@ -197,15 +194,13 @@ pub(crate) fn parse_asm_block_statement_handles<'tokens, 'source>(
             stmts_of(syntax_trees).statement(instruction.statement),
             StatementNode::Transition(_)
         ) {
-            block.exit = syntax_trees::statement::AssemblyExit::EnclosingTransition;
+            block.exit = AssemblyExit::EnclosingTransition;
         }
         // The catalog's target-independent NOP has no inputs, effects or
         // fault. Its executable semantics are the empty statement sequence;
         // retaining an uncallable builtin would invent a runtime obligation.
         if instruction.contract.shape
-            != AsmInstructionShape::SchedulingHint(
-                language_core::inline_assembly::AsmSchedulingHintKind::Nop,
-            )
+            != AsmInstructionShape::SchedulingHint(AsmSchedulingHintKind::Nop)
         {
             block.instructions.push(instruction.statement);
         }
@@ -245,8 +240,7 @@ pub(crate) fn parse_asm_block_statement_handles<'tokens, 'source>(
                 block.label.as_str(syntax_trees)
             )));
         }
-        if let syntax_trees::statement::AssemblyExit::Jump(label)
-        | syntax_trees::statement::AssemblyExit::ZeroFlag(label, _) = &block.exit
+        if let AssemblyExit::Jump(label) | AssemblyExit::ZeroFlag(label, _) = &block.exit
             && !blocks
                 .iter()
                 .any(|target| target.label.as_str(syntax_trees) == label.as_str(syntax_trees))
@@ -271,9 +265,7 @@ pub(crate) fn parse_asm_block_statement_handles<'tokens, 'source>(
         let [name] = exprs_of(syntax_trees).identifier_path_members(*path) else {
             continue;
         };
-        if language_core::inline_assembly::is_unmodeled_aarch64_scratch_view(
-            name.as_str(syntax_trees),
-        ) {
+        if is_unmodeled_aarch64_scratch_view(name.as_str(syntax_trees)) {
             return Err(input.error_here(format!("unsupported AArch64 scratch register view `{}`: register aliases require shared-bit state modeling", name.as_str(syntax_trees))));
         }
         if language_core::inline_assembly::is_unmodeled_x86_scratch_view(name.as_str(syntax_trees))
@@ -285,9 +277,7 @@ pub(crate) fn parse_asm_block_statement_handles<'tokens, 'source>(
     let uses_scratch = exprs_of(syntax_trees).iter_expressions().skip(expression_start).any(|(_, node)| {
         matches!(node, ExpressionNode::Name(path) if matches!(exprs_of(syntax_trees).identifier_path_members(*path), [name] if scratch::NAMES.iter().any(|register| !register.is_empty() && *register == name.as_str(syntax_trees))))
     });
-    if target_requirement == language_core::inline_assembly::AsmTargetApplicability::Aarch64
-        && observes_hardware_flags
-    {
+    if target_requirement == AsmTargetApplicability::Aarch64 && observes_hardware_flags {
         return Err(input
             .error_here("x86 flags snapshots/restoration cannot observe AArch64 scratch state"));
     }
@@ -298,10 +288,7 @@ pub(crate) fn parse_asm_block_statement_handles<'tokens, 'source>(
     }
     let last = blocks.last_mut().expect("assembly has a nonempty block");
     if !contract.ensures.is_empty()
-        && (!matches!(
-            last.exit,
-            syntax_trees::statement::AssemblyExit::Fallthrough
-        ) || last.has_no_local_post_state)
+        && (!matches!(last.exit, AssemblyExit::Fallthrough) || last.has_no_local_post_state)
     {
         return Err(
             input.error_here("asm `ensures` requires a falling-through block at the body exit")
@@ -428,7 +415,7 @@ struct ParsedAssemblyBlock {
     instructions: Vec<StatementHandle>,
     instruction_count: u32,
     has_no_local_post_state: bool,
-    exit: syntax_trees::statement::AssemblyExit,
+    exit: AssemblyExit,
 }
 
 fn assembly_label_starts(input: Input<'_, '_>) -> bool {
@@ -800,8 +787,7 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
             for operand in [destination, left, source] {
                 if let ExpressionNode::Name(path) = exprs_of(syntax_trees).expression(operand)
                     && let [name] = exprs_of(syntax_trees).identifier_path_members(*path)
-                    && let Some((_, target, _)) =
-                        language_core::inline_assembly::scratch_register(name.as_str(syntax_trees))
+                    && let Some((_, target, _)) = scratch_register(name.as_str(syntax_trees))
                 {
                     contract.target = contract.target.intersect(target).ok_or_else(|| mnemonic_site.error_here("assembly instruction and register operands require incompatible targets"))?;
                 }
@@ -820,8 +806,7 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                         "{spelling} requires a modeled 32-bit register destination"
                     )));
                 };
-                let Some((_, register_target, _)) =
-                    language_core::inline_assembly::scratch_register(name.as_str(syntax_trees))
+                let Some((_, register_target, _)) = scratch_register(name.as_str(syntax_trees))
                 else {
                     return Err(mnemonic_site.error_here(format!(
                         "{spelling} requires a modeled 32-bit register destination"
@@ -835,7 +820,7 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                 if contract.shape == AsmInstructionShape::SubtractThreeOperand {
                     let modeled_left = match exprs_of(syntax_trees).expression(left) {
                         ExpressionNode::Name(path) => {
-                            matches!(exprs_of(syntax_trees).identifier_path_members(*path), [name] if language_core::inline_assembly::scratch_register(name.as_str(syntax_trees)).is_some_and(|(_, target, _)| target == register_target))
+                            matches!(exprs_of(syntax_trees).identifier_path_members(*path), [name] if scratch_register(name.as_str(syntax_trees)).is_some_and(|(_, target, _)| target == register_target))
                         }
                         _ => false,
                     };
@@ -850,22 +835,19 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
                     // branches. Full six-bit PUSHFQ images remain x86-only;
                     // mixing that observation with W-register state rejects.
                     contract.clobbers = match register_target {
-                        language_core::inline_assembly::AsmTargetApplicability::Aarch64 => {
-                            &["nzcv"]
-                        }
+                        AsmTargetApplicability::Aarch64 => &["nzcv"],
                         _ => &["rflags"],
                     };
                 }
                 let admitted_source = match exprs_of(syntax_trees).expression(source) {
                     ExpressionNode::Integer(literal) => literal.value_u64().is_some_and(|value| {
                         value <= u32::MAX as u64
-                            && (register_target
-                                != language_core::inline_assembly::AsmTargetApplicability::Aarch64
+                            && (register_target != AsmTargetApplicability::Aarch64
                                 || value <= 4095
                                 || (value & 4095 == 0 && value >> 12 <= 4095))
                     }),
                     ExpressionNode::Name(path) => {
-                        matches!(exprs_of(syntax_trees).identifier_path_members(*path), [name] if language_core::inline_assembly::scratch_register(name.as_str(syntax_trees)).is_some_and(|(_, target, _)| target == register_target))
+                        matches!(exprs_of(syntax_trees).identifier_path_members(*path), [name] if scratch_register(name.as_str(syntax_trees)).is_some_and(|(_, target, _)| target == register_target))
                     }
                     _ => false,
                 };
@@ -1003,18 +985,14 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
             ParsedAsmInstruction::ok(statement, contract, input)
         }
         AsmInstructionShape::MemoryFence(kind) => {
-            let (kind, input) = if kind.target()
-                == language_core::inline_assembly::AsmTargetApplicability::Aarch64
-            {
+            let (kind, input) = if kind.target() == AsmTargetApplicability::Aarch64 {
                 let (option, rest) = input.take_identifier()?;
-                let kind = language_core::inline_assembly::AsmFenceKind::from_aarch64_option(
-                    option.as_str(syntax_trees),
-                )
-                .ok_or_else(|| {
-                    input.error_here(
-                        "dmb requires an explicit supported full-system option: ld, st, or sy",
-                    )
-                })?;
+                let kind = AsmFenceKind::from_aarch64_option(option.as_str(syntax_trees))
+                    .ok_or_else(|| {
+                        input.error_here(
+                            "dmb requires an explicit supported full-system option: ld, st, or sy",
+                        )
+                    })?;
                 (kind, rest)
             } else {
                 (kind, input)

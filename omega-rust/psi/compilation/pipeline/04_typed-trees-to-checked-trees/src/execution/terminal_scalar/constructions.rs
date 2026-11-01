@@ -1,13 +1,17 @@
 //! Structural values retain a type namespace without inventing source parameters.
 
+use super::super::terminal_unit::reference_backing_shapes;
+use super::super::terminal_unit::scalar_case_value_shapes;
+use super::super::terminal_unit::scalar_operand_shapes;
 use checked_trees::{
-    CheckedScalarComputationKind, CheckedScalarComputationPlans, CheckedUnitStructuralTypePlan,
+    CheckedScalarComputationKind as ComputationKind, CheckedScalarComputationPlans,
+    CheckedUnitStructuralTypePlan as TypePlan,
 };
 use symbols::SymbolHandle;
 
 /// Retain a Case subject's value shapes and enqueue its field values.
 fn retain_case_subject_fields(
-    shapes: &mut Vec<CheckedUnitStructuralTypePlan>,
+    shapes: &mut Vec<TypePlan>,
     plans: &CheckedScalarComputationPlans,
     program: &dyn ::validation::CheckingInput,
     subject: &checked_trees::CheckedScalarCaseConstruction,
@@ -15,7 +19,7 @@ fn retain_case_subject_fields(
 ) -> Option<()> {
     retain_declarations(
         shapes,
-        super::super::terminal_unit::scalar_case_value_shapes(program, subject.type_reference)?,
+        scalar_case_value_shapes(program, subject.type_reference)?,
     )?;
     pending.extend(
         plans
@@ -33,15 +37,12 @@ pub(crate) fn retain_shapes(
     structural_values: &checked_trees::CheckedStructuralValuePlans,
     state: SymbolHandle,
     is_executable: impl Fn(u32) -> bool,
-    shapes: &mut Vec<CheckedUnitStructuralTypePlan>,
+    shapes: &mut Vec<TypePlan>,
 ) -> Option<()> {
     let retained = (|| {
         macro_rules! retain_operand {
             ($type_reference:expr) => {
-                retain_declarations(
-                    shapes,
-                    super::super::terminal_unit::scalar_operand_shapes(program, $type_reference)?,
-                )
+                retain_declarations(shapes, scalar_operand_shapes(program, $type_reference)?)
             };
         }
         // A stored reference publishes only its pointer shape. Forming one also
@@ -96,11 +97,7 @@ pub(crate) fn retain_shapes(
                     retain_operand!(structural_values.nodes.get(value).type_reference)?;
                     retain_declarations(
                         shapes,
-                        super::super::terminal_unit::reference_backing_shapes(
-                            program,
-                            *backing_type,
-                            source.type_identity,
-                        )?,
+                        reference_backing_shapes(program, *backing_type, source.type_identity)?,
                     )?;
                     if source_value.is_valid() {
                         // A projected computed source also owns its complete
@@ -126,32 +123,29 @@ pub(crate) fn retain_shapes(
             }
             visited.push(handle);
             match &plans.nodes.get(handle).kind {
-                CheckedScalarComputationKind::CaseMembership {
+                ComputationKind::CaseMembership {
                     subject: checked_trees::CheckedScalarComputationStructuralArgument::Place(_),
                     receiver_value,
                     ..
                 } if !receiver_value.is_valid() => {}
-                CheckedScalarComputationKind::CaseMembership {
+                ComputationKind::CaseMembership {
                     subject:
                         checked_trees::CheckedScalarComputationStructuralArgument::Case(subject),
                     ..
                 } => retain_case_subject_fields(shapes, plans, program, subject, &mut pending)?,
-                CheckedScalarComputationKind::SelectedComparison { left, right, .. } => {
+                ComputationKind::SelectedComparison { left, right, .. } => {
                     pending.extend([*left, *right])
                 }
                 checked_trees::cast_or_qualification_triple_pattern!(operand, ..) => {
                     pending.push(*operand)
                 }
-                CheckedScalarComputationKind::ByteSequenceLiteralComparison {
-                    operand_type,
-                    ..
-                }
-                | CheckedScalarComputationKind::StorageAddress { operand_type, .. }
-                | CheckedScalarComputationKind::ByteSequencePredicate { operand_type, .. } => {
+                ComputationKind::ByteSequenceLiteralComparison { operand_type, .. }
+                | ComputationKind::StorageAddress { operand_type, .. }
+                | ComputationKind::ByteSequencePredicate { operand_type, .. } => {
                     retain_operand!(*operand_type)?;
                 }
-                CheckedScalarComputationKind::StructuralField { receiver_value, .. }
-                | CheckedScalarComputationKind::CaseMembership { receiver_value, .. } => {
+                ComputationKind::StructuralField { receiver_value, .. }
+                | ComputationKind::CaseMembership { receiver_value, .. } => {
                     if !receiver_value.is_valid() {
                         continue;
                     }
@@ -173,9 +167,8 @@ pub(crate) fn retain_shapes(
                     // neither the observed leaf nor a source local supplies it.
                     retain_operand!(root.type_reference)?;
                 }
-                CheckedScalarComputationKind::RetainedConstant { .. }
-                | CheckedScalarComputationKind::Value(_) => {}
-                CheckedScalarComputationKind::Dispatch { subject, arms, .. } => {
+                ComputationKind::RetainedConstant { .. } | ComputationKind::Value(_) => {}
+                ComputationKind::Dispatch { subject, arms, .. } => {
                     pending.extend(subject.scalar_operands(&plans.operands));
                     if let checked_trees::CheckedDispatchSubject::Structural { value, .. } = subject
                     {
@@ -188,7 +181,7 @@ pub(crate) fn retain_shapes(
                         pending.push(arm.value);
                     }
                 }
-                CheckedScalarComputationKind::Call {
+                ComputationKind::Call {
                     callee,
                     arguments,
                     structural_arguments,
@@ -272,13 +265,13 @@ pub(crate) fn retain_shapes(
                         }
                     }
                 }
-                CheckedScalarComputationKind::Select {
+                ComputationKind::Select {
                     condition,
                     when_true,
                     when_false,
                     ..
                 } => pending.extend([*condition, *when_true, *when_false]),
-                CheckedScalarComputationKind::WithOperands {
+                ComputationKind::WithOperands {
                     operands, operand, ..
                 } => {
                     pending.push(*operand);
@@ -294,8 +287,8 @@ pub(crate) fn retain_shapes(
                         }
                     }
                 }
-                CheckedScalarComputationKind::Apply { operands, .. }
-                | CheckedScalarComputationKind::StorageObservation { operands, .. } => {
+                ComputationKind::Apply { operands, .. }
+                | ComputationKind::StorageObservation { operands, .. } => {
                     pending.extend(plans.operands.span(*operands)?)
                 }
             }
@@ -306,8 +299,8 @@ pub(crate) fn retain_shapes(
 }
 
 fn retain_declarations(
-    shapes: &mut Vec<CheckedUnitStructuralTypePlan>,
-    declarations: impl IntoIterator<Item = CheckedUnitStructuralTypePlan>,
+    shapes: &mut Vec<TypePlan>,
+    declarations: impl IntoIterator<Item = TypePlan>,
 ) -> Option<()> {
     for declaration in declarations {
         if let Some(existing) =

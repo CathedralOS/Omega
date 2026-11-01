@@ -1,3 +1,4 @@
+use crate::CheckingInput;
 use access_plans::{AccessFieldEntry, FieldAccess};
 use diagnostics::Diagnostic;
 use language_semantics::Multiplicity;
@@ -43,16 +44,9 @@ pub(super) fn exact_access_entry_for_field<'view>(
         })
 }
 
-fn expected_accessor_operations(access: &FieldAccess) -> Vec<&'static str> {
-    access.operation_names()
-}
-
 /// Independently replay the compiler-derived nominal and stable-member joins
 /// before any accessor is accepted as an ordinary typed operation.
-pub(crate) fn validate_plans(
-    program: &dyn crate::CheckingInput,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
+pub(crate) fn validate_plans(program: &dyn CheckingInput, diagnostics: &mut Vec<Diagnostic>) {
     for view in &program.access_view_plans {
         macro_rules! view {
             ($detail:literal) => {
@@ -249,7 +243,7 @@ pub(crate) fn validate_plans(
                 }
             }
 
-            let expected_operations = expected_accessor_operations(&field.access);
+            let expected_operations = field.access.operation_names();
             if field
                 .accessor_targets
                 .iter()

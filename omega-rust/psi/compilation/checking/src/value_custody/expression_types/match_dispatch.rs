@@ -201,6 +201,13 @@ pub fn validate_match_dispatch(
         }
     }
     for arm in arms {
+        // Arms that recover different type equations for one binder (a case
+        // match on `Value<T>` recovering `T == i32` in one arm, `T == bool` in
+        // another) deliver values with no common type to compare. Each is
+        // judged against the destination under its own equations.
+        if !program.static_type_contexts_agree(peer, arm.value) {
+            continue;
+        }
         check_compatible_values(
             program,
             machine,

@@ -2,11 +2,13 @@
 
 use super::{Machine, Shape, State, primitive};
 use crate::build_time_evaluation::type_reference_table;
+use typed_trees::closed_numeric::has_builtin_anonymous_operands;
 use typed_trees::{
     TypedTrees,
     expression::{BinaryOperator, ExpressionHandle},
     types::{PrimitiveType, TypeReferenceHandle},
 };
+use validation::has_builtin_binary_expression_meaning;
 
 #[derive(Clone, Copy)]
 pub(super) enum EvaluationContext<'program> {
@@ -63,12 +65,9 @@ impl EvaluationContext<'_> {
 
     pub(super) fn has_builtin(self, program: &TypedTrees, expression: ExpressionHandle) -> bool {
         match self {
-            Self::Machine(machine, state) => validation::has_builtin_binary_expression_meaning(
-                program,
-                machine,
-                Some(state),
-                expression,
-            ),
+            Self::Machine(machine, state) => {
+                has_builtin_binary_expression_meaning(program, machine, Some(state), expression)
+            }
             // Closed positions decide every operator after reconstructing its
             // operand shapes, before any selective execution or rational landing.
             Self::Closed => true,
@@ -116,9 +115,7 @@ impl EvaluationContext<'_> {
         let references = [reference(program, left)?, reference(program, right)?];
         let anonymous = matches!((left, right), (Shape::Anonymous(_), Shape::Anonymous(_)));
         let builtin = if anonymous {
-            typed_trees::closed_numeric::has_builtin_anonymous_operands(
-                program, expression, spelling,
-            )
+            has_builtin_anonymous_operands(program, expression, spelling)
         } else {
             typed_trees::operator::has_builtin_spelled_expression_meaning(
                 program,

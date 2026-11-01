@@ -8,8 +8,9 @@ use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::static_applications::{StaticMachineApplicationHandle, StaticMachineBindingValue};
 use typed_trees::trait_definition::{AppliedTraitScope, TraitApplicationEnvironment};
-use typed_trees::typed_trees::AccessLifecycleOperation;
+use typed_trees::typed_trees::{AccessExecutionDeclaration, AccessLifecycleOperation};
 use typed_trees::types::{TypeOperandOrigin, TypeReferenceHandle, TypeReferenceNode};
+use validation::collect_call_sites_in_statement;
 
 pub(super) struct Demand {
     pub callable: SymbolHandle,
@@ -126,9 +127,7 @@ fn operation_arguments(
             schema: *schema,
         }));
     }
-    let Some(contract) =
-        typed_trees::typed_trees::AccessExecutionDeclaration::authenticate(program, call.target)?
-    else {
+    let Some(contract) = AccessExecutionDeclaration::authenticate(program, call.target)? else {
         return Ok(None);
     };
     // A retained generic body is not an executable placement demand. Its
@@ -186,9 +185,7 @@ fn invocations(program: &TypedTrees) -> Vec<Invocation> {
                 .statement_table
                 .indexed_statements(state.statement_nodes)
             {
-                for site in
-                    validation::collect_call_sites_in_statement(program, machine, state, position)
-                {
+                for site in collect_call_sites_in_statement(program, machine, state, position) {
                     match site {
                         validation::CallSite::Statement(call) => {
                             let target = call

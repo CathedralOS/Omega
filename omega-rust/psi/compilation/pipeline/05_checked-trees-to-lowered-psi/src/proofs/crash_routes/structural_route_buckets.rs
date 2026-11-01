@@ -1,5 +1,10 @@
 //! Structural crash route buckets and their root substitution.
 
+use crate::proofs::contract_predicates::canonical_connectives;
+use crate::proofs::contract_predicates::canonical_equality;
+use crate::proofs::contract_predicates::connective;
+use crate::proofs::contract_predicates::equality_from_polarities;
+use crate::proofs::contract_predicates::proposition_with_polarity;
 use crate::proofs::crash_routes::crash_predicates::{
     boolean_input_budget, charge_boolean_expansion, contains_boolean_connective,
     flatten_checked_boolean_connective,
@@ -269,9 +274,7 @@ impl RouteTerms<'_> {
                     _ if contains_boolean_connective(expression)
                         || contains_structural_atomic_proposition(expression) =>
                     {
-                        crate::proofs::contract_predicates::equality_from_polarities(
-                            left, right, positive, remaining, lower,
-                        )
+                        equality_from_polarities(left, right, positive, remaining, lower)
                     }
                     _ => self.lower_atom_polarity(
                         identities,
@@ -283,13 +286,11 @@ impl RouteTerms<'_> {
                 }
             }
             CheckedBooleanExpression::And { left, right }
-            | CheckedBooleanExpression::Or { left, right } => {
-                crate::proofs::contract_predicates::connective(
-                    lower(left, positive, remaining)?,
-                    lower(right, positive, remaining)?,
-                    matches!(expression, CheckedBooleanExpression::And { .. }) == positive,
-                )
-            }
+            | CheckedBooleanExpression::Or { left, right } => connective(
+                lower(left, positive, remaining)?,
+                lower(right, positive, remaining)?,
+                matches!(expression, CheckedBooleanExpression::And { .. }) == positive,
+            ),
             _ => self.lower_atom_polarity(identities, expression, positive, remaining, depth + 1),
         }
     }
@@ -309,9 +310,7 @@ impl RouteTerms<'_> {
         ) {
             // Mathematical comparisons share their logical meaning with scalar
             // contracts, while embedded leaves retain this structural namespace.
-            return crate::proofs::contract_predicates::proposition_with_polarity(
-                identities, expression, self, positive, remaining,
-            );
+            return proposition_with_polarity(identities, expression, self, positive, remaining);
         }
         if let CheckedBooleanExpression::ScalarIeeeFloatComparison { kind, left, right } =
             expression
@@ -335,7 +334,7 @@ impl RouteTerms<'_> {
             });
         }
         let term = self.lower_term(identities, expression)?;
-        crate::proofs::contract_predicates::canonical_equality(
+        canonical_equality(
             ScalarTerm::boolean(true),
             ScalarTerm::boolean_not(term).map_err(LoweringError::InvalidCrashPredicate)?,
         )
@@ -505,10 +504,7 @@ impl RouteTerms<'_> {
                 .into_iter()
                 .map(|leaf| self.lower_proposition(identities, leaf, remaining, depth + 1))
                 .collect::<Result<Vec<_>, _>>()?;
-            return crate::proofs::contract_predicates::canonical_connectives(
-                propositions,
-                conjunction,
-            );
+            return canonical_connectives(propositions, conjunction);
         }
         let mut left = ScalarTerm::boolean(true);
         let mut right = self.lower_term(identities, expression)?;
@@ -677,10 +673,7 @@ pub(crate) fn substitute_structural_crash_route_roots(
             Proposition::Equal(left, right) => {
                 substitute_term(left, substitutions)?;
                 substitute_term(right, substitutions)?;
-                *proposition = crate::proofs::contract_predicates::canonical_equality(
-                    left.clone(),
-                    right.clone(),
-                )?;
+                *proposition = canonical_equality(left.clone(), right.clone())?;
             }
             Proposition::LessThan(left, right) | Proposition::LessOrEqual(left, right) => {
                 substitute_term(left, substitutions)?;
@@ -707,10 +700,7 @@ pub(crate) fn substitute_structural_crash_route_roots(
                 // Actual roots may reverse formal order or identify two
                 // formals. Rebuild the same connective in its new namespace;
                 // declaration-local canonical order is not caller order.
-                *proposition = crate::proofs::contract_predicates::canonical_connectives(
-                    std::mem::take(propositions),
-                    conjunction,
-                )?;
+                *proposition = canonical_connectives(std::mem::take(propositions), conjunction)?;
             }
             Proposition::Implication {
                 premise,

@@ -7,6 +7,7 @@ use crate::type_reference::lower_type_reference_into_table;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;
+use typed::static_applications::StaticMachineLifetimeBinding as LifetimeBinding;
 use typed_trees as typed;
 
 pub(crate) fn lower_domain_definition(
@@ -151,15 +152,16 @@ pub(crate) fn lower_cleanup_selection(
         let lifetimes = parameters
             .iter()
             .zip(authored.lifetime_arguments.iter())
-            .map(
-                |(parameter, argument)| typed::static_applications::StaticMachineLifetimeBinding {
-                    parameter: crate::lowerer::name::lower_name(parameter),
-                    argument: argument.clone(),
-                },
-            )
+            .map(|(parameter, argument)| LifetimeBinding {
+                parameter: crate::lowerer::name::lower_name(parameter),
+                argument: argument.clone(),
+            })
             .collect::<Vec<_>>();
-        expression_table_mut(&mut lowerer.typed_trees)
-            .set_static_machine_application_lifetimes(application, &lifetimes);
+        expression_table_mut(&mut lowerer.typed_trees).set_static_machine_application_lifetimes(
+            application,
+            selected.symbol,
+            &lifetimes,
+        );
     }
     Ok(typed::domain::CleanupSelection {
         application,

@@ -2,6 +2,7 @@
 //! The call owns a separate result slot; floating controls retain their own
 //! slot. Rematerialize the address after the call so its volatile ABI pointer
 //! need not survive counterparty clobbers. Loads retain the exact scalar width.
+use super::super::scalar_stack::address_register;
 use super::super::{Builder, SelectedInstructionProvenance, VirtualRegisterId};
 use crate::SelectedInstructionError;
 use crate::selection::scalar_call_abi::load_transfer;
@@ -32,11 +33,7 @@ fn address(
     let result = operation
         .result
         .ok_or_else(SelectedInstructionError::custody)?;
-    let address = super::super::scalar_stack::address_register(
-        builder,
-        result.value,
-        result.definition_site,
-    )?;
+    let address = address_register(builder, result.value, result.definition_site)?;
     builder.emit_frame_address(
         FrameStorageSlotId::Local(LocalStorageSlotId::BoundaryResult {
             operation: operation.operation,

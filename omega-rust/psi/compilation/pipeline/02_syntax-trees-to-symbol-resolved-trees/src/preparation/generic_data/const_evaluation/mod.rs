@@ -11,6 +11,7 @@ mod remainder;
 mod templates;
 mod values;
 
+use crate::preparation::generic_data::module_constants::reject_module_constant_selection;
 pub(super) use arguments::{
     EvaluatedConst, const_integer_type, evaluate_const_argument_expression,
     generic_const_integer_types, prepare_closed_application,
@@ -57,12 +58,8 @@ fn module_constant_selection_gate(
     if const_values.contains_key(name.as_str(syntax))
         || const_definitions.contains_key(name.as_str(syntax))
     {
-        crate::preparation::generic_data::module_constants::reject_module_constant_selection(
-            syntax,
-            name.as_str(syntax),
-            name.source_span(),
-        )
-        .map_err(|reason| Diagnostic::error(reason).with_source_span(name.source_span()))?;
+        reject_module_constant_selection(syntax, name.as_str(syntax), name.source_span())
+            .map_err(|reason| Diagnostic::error(reason).with_source_span(name.source_span()))?;
     }
     Ok(())
 }

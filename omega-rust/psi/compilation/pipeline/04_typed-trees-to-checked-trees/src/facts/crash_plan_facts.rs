@@ -2,6 +2,8 @@
 
 use crate::facts::crash_calls;
 use crate::flow::indexed_statements;
+use crate::proof::machine_parameter_evidence_signatures;
+use crate::values;
 use validation::contract_structure::{
     callable_binders, declared_callable, declared_fact, declared_termination, generic_binders,
     is_true_crash_route, signature_generic_binders,
@@ -15,10 +17,7 @@ pub(crate) fn build_crash_contract_capsules(
     let mut signatures = Vec::new();
     for machine in program.machines() {
         for (owner_symbol, target_state, signature) in
-            crate::proof::machine_parameter_evidence_signatures(
-                program,
-                program.machine_type_parameters(machine),
-            )
+            machine_parameter_evidence_signatures(program, program.machine_type_parameters(machine))
         {
             // The binder symbol is the callable target inside the generic
             // body. A nominal requirement symbol remains authority metadata;
@@ -27,19 +26,19 @@ pub(crate) fn build_crash_contract_capsules(
         }
     }
     for definition in program.data_definitions() {
-        signatures.extend(crate::proof::machine_parameter_evidence_signatures(
+        signatures.extend(machine_parameter_evidence_signatures(
             program,
             program.data_type_parameters(definition),
         ));
     }
     for definition in program.domain_definitions() {
-        signatures.extend(crate::proof::machine_parameter_evidence_signatures(
+        signatures.extend(machine_parameter_evidence_signatures(
             program,
             program.domain_type_parameters(definition),
         ));
     }
     for definition in program.traits() {
-        signatures.extend(crate::proof::machine_parameter_evidence_signatures(
+        signatures.extend(machine_parameter_evidence_signatures(
             program,
             program.trait_type_parameters(definition),
         ));
@@ -53,7 +52,7 @@ pub(crate) fn build_crash_contract_capsules(
                     .requirement_machine_instances(declaration)
                     .filter(|instance| instance.symbol != declaration.symbol),
             ) {
-                signatures.extend(crate::proof::machine_parameter_evidence_signatures(
+                signatures.extend(machine_parameter_evidence_signatures(
                     program,
                     program.state_signature_type_parameters(signature),
                 ));
@@ -328,7 +327,7 @@ fn build_structural_runtime_requirements(
         }
         match fact {
             typed_trees::domain::ProofFact::Expression(expression) => {
-                requirements.push(crate::values::lower_machine_entry_boolean_expression(
+                requirements.push(values::lower_machine_entry_boolean_expression(
                     program,
                     operators,
                     machine,
@@ -338,7 +337,7 @@ fn build_structural_runtime_requirements(
             }
             typed_trees::domain::ProofFact::Membership(membership) => {
                 let primitive = validation::scalar_membership_carrier(program, membership)?;
-                let subject = crate::values::lower_unit_scalar_argument(
+                let subject = values::lower_unit_scalar_argument(
                     program,
                     operators,
                     entry,
@@ -361,7 +360,7 @@ fn build_structural_runtime_requirements(
         }
     }
     requirements.extend(
-        crate::values::lower_scalar_parameter_refinement_predicates(program, machine)
+        values::lower_scalar_parameter_refinement_predicates(program, machine)
             .into_iter()
             .collect::<Option<Vec<_>>>()?,
     );
@@ -405,7 +404,7 @@ fn build_structural_runtime_guarantees(
         .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
         .map(|fact| {
             let expression = fact.as_expression()?;
-            crate::values::lower_machine_entry_boolean_expression(
+            values::lower_machine_entry_boolean_expression(
                 program,
                 operators,
                 machine,
@@ -577,7 +576,7 @@ fn build_published_crash_buckets(
                     );
                     let scalar = operators.and_then(|operators| match &owner {
                         CrashContractOwner::Machine(machine) => {
-                            crate::values::lower_machine_entry_boolean_expression(
+                            values::lower_machine_entry_boolean_expression(
                                 program,
                                 operators,
                                 machine,
@@ -586,7 +585,7 @@ fn build_published_crash_buckets(
                             )
                         }
                         CrashContractOwner::Signature(signature) => {
-                            crate::values::lower_signature_crash_contract_expression(
+                            values::lower_signature_crash_contract_expression(
                                 program,
                                 operators,
                                 signature,
@@ -594,7 +593,7 @@ fn build_published_crash_buckets(
                             )
                         }
                         CrashContractOwner::Operator(operator) => {
-                            crate::values::lower_operator_crash_contract_expression(
+                            values::lower_operator_crash_contract_expression(
                                 program,
                                 operators,
                                 operator,

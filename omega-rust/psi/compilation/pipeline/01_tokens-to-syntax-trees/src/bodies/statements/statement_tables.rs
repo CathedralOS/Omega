@@ -1,6 +1,7 @@
 //! Copying expression handles and identifier paths into the statement
 //! table.
 
+use crate::bodies::copy_expression_handles_to_statement_table;
 use crate::diagnostics::parse_error::ParseError;
 use crate::tables::{exprs, exprs_of};
 use arena::HandleSpan;
@@ -9,6 +10,7 @@ use syntax_trees::expression::{
     ExpressionHandle, ExpressionNode, TableCallExpression, TableIndexedExpression,
     TableMemberExpression,
 };
+use syntax_trees::identifier::Identifier;
 use syntax_trees::statement::TableCall;
 
 /// Deep-copy an expression that is a valid place (member / name / indexed /
@@ -159,10 +161,7 @@ pub(crate) fn expression_handle_to_statement_call(
         receiver,
         target,
         machine_arguments: call.machine_arguments,
-        arguments: crate::bodies::copy_expression_handles_to_statement_table(
-            syntax_trees,
-            call.arguments,
-        ),
+        arguments: copy_expression_handles_to_statement_table(syntax_trees, call.arguments),
         evidence_arguments: call.evidence_arguments,
         operational_acknowledgement: call.operational_acknowledgement,
         discards_result: false,
@@ -172,10 +171,7 @@ pub(crate) fn expression_handle_to_statement_call(
 fn split_expression_call_handle(
     syntax_trees: &mut SyntaxTrees,
     call: &TableCallExpression,
-) -> Option<(
-    HandleSpan<syntax_trees::identifier::Identifier>,
-    syntax_trees::identifier::Identifier,
-)> {
+) -> Option<(HandleSpan<Identifier>, Identifier)> {
     let receiver = if call.receiver.is_valid() {
         crate::bodies::copy_expression_to_statement_identifier_path(syntax_trees, call.receiver)?
     } else {

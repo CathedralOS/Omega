@@ -3,7 +3,9 @@
 //! scalars can retain the same place only through the flow owner's complete
 //! write footprints in the admitted control order; no source expression or
 //! call initializer is replayed to recover a value.
-use crate::flow::expressions;
+use crate::flow::{call_flows, expressions, state_statements};
+use crate::values::resolve_structural_parameter_path;
+use crate::values::structural_parameter_place;
 use checked_trees::CheckFacts;
 use facts::{FactPayload, ProgramPoint};
 use symbols::SymbolHandle;
@@ -226,13 +228,12 @@ fn evidence_inner(
             if machine_symbol != flow.machine_symbol
                 || event_state != state_symbol
                 || !(order.precedes(statement_index, statement)
-                    || (statement
-                        == crate::flow::state_statements(program, state.statement_nodes).len()
+                    || (statement == state_statements(program, state.statement_nodes).len()
                         && order.position(statement_index).is_some()))
             {
                 continue;
             }
-            let Some(call) = crate::flow::call_flows(&facts.flow.control, flow.calls)
+            let Some(call) = call_flows(&facts.flow.control, flow.calls)
                 .iter()
                 .find(|call| {
                     call.statement_index == statement_index && call.call_ordinal == call_ordinal
@@ -472,11 +473,9 @@ impl<'program> QueryArguments<'program> {
         let frame = self.frames.get(frame)?;
         let parameters = program.proposition_parameters(frame.declaration);
         let project = |occurrence| {
-            let (position, path, _) =
-                crate::values::structural_parameter_place(program, parameters, occurrence)?;
-            let (_, segments, _, _) = crate::values::resolve_structural_parameter_path(
-                program, parameters, position, &path,
-            )?;
+            let (position, path, _) = structural_parameter_place(program, parameters, occurrence)?;
+            let (_, segments, _, _) =
+                resolve_structural_parameter_path(program, parameters, position, &path)?;
             Some((position, segments))
         };
         if let Some((position, mut segments)) = project(expression) {
@@ -530,10 +529,9 @@ impl QueryArguments<'_> {
                 let frame = self.frames.get(frame)?;
                 let parameters = program.proposition_parameters(frame.declaration);
                 let (position, path, _) =
-                    crate::values::structural_parameter_place(program, parameters, expression)?;
-                let (_, mut segments, _, _) = crate::values::resolve_structural_parameter_path(
-                    program, parameters, position, &path,
-                )?;
+                    structural_parameter_place(program, parameters, expression)?;
+                let (_, mut segments, _, _) =
+                    resolve_structural_parameter_path(program, parameters, position, &path)?;
                 segments.extend_from_slice(suffix);
                 self.source_projection(program, *frame.arguments.get(position as usize)?, &segments)
             }

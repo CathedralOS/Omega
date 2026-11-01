@@ -1,5 +1,6 @@
 //! Ordinary native-input vocabulary. Field and variant coverage is exhaustive.
 
+use super::super::value::{RecordError, RecordWriter};
 use super::record_fields;
 
 record_fields!(effects::AssumedBindingContractSelection { required, supplied });
@@ -239,10 +240,7 @@ record_fields!(effects::provider_plan::ServiceResultClaim {
 // Keep the existing flattened wire order. The in-memory surface and target
 // attachments are separate owners; they are not a new native record format.
 impl super::super::value::RecordValue for effects::provider_plan::ServiceSchema {
-    fn write(
-        &self,
-        output: &mut super::super::value::RecordWriter,
-    ) -> Result<(), super::super::value::RecordError> {
+    fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
         self.validate_calling_applications()
             .map_err(|reason| output.error(reason))?;
         let effects::provider_plan::ServiceSchema {
@@ -270,9 +268,7 @@ impl super::super::value::RecordValue for effects::provider_plan::ServiceSchema 
         Ok(())
     }
 
-    fn read(
-        input: &mut super::super::value::RecordReader<'_>,
-    ) -> Result<Self, super::super::value::RecordError> {
+    fn read(input: &mut super::super::value::RecordReader<'_>) -> Result<Self, RecordError> {
         use super::super::value::RecordValue;
         use effects::provider_plan::{
             BoundaryCallingPlanCommitment, ServiceCallingApplication, ServiceCallingPlan,

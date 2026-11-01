@@ -1,4 +1,5 @@
 use symbols::SymbolHandle;
+use typed_trees::types::TypeConstraintNode;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -105,15 +106,13 @@ pub(super) fn mutable_scalar_representation_facts(
             } => {
                 for constraint in program.type_reference_table.constraints(*constraints) {
                     match constraint {
-                        typed_trees::types::TypeConstraintNode::Domain(domain)
-                            if domain.symbol.is_valid() =>
-                        {
+                        TypeConstraintNode::Domain(domain) if domain.symbol.is_valid() => {
                             if !domains.contains(&domain.symbol) {
                                 domains.push(domain.symbol);
                             }
                         }
-                        typed_trees::types::TypeConstraintNode::ArithmeticDomain(_) => {}
-                        typed_trees::types::TypeConstraintNode::Range {
+                        TypeConstraintNode::ArithmeticDomain(_) => {}
+                        TypeConstraintNode::Range {
                             minimum,
                             maximum,
                             end_inclusive,
@@ -133,8 +132,7 @@ pub(super) fn mutable_scalar_representation_facts(
                                 None => (minimum, maximum),
                             });
                         }
-                        typed_trees::types::TypeConstraintNode::Domain(_)
-                        | typed_trees::types::TypeConstraintNode::Named(_) => {
+                        TypeConstraintNode::Domain(_) | TypeConstraintNode::Named(_) => {
                             return None;
                         }
                     }

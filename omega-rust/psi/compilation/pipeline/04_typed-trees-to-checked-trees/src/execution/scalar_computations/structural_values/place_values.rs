@@ -9,8 +9,31 @@
 
 use super::super::{Builder, ExpressionHandle, ExpressionNode, TypeReferenceNode};
 use super::place_types::{projection_root_expression, readable_place};
-use checked_trees::CheckedStructuralValueKind;
+use checked_trees::{
+    CheckedScalarComputationHandle, CheckedScalarExpressionRole,
+    CheckedStructuralAccess as StructuralAccess, CheckedStructuralValueKind as ValueKind,
+    CheckedUnitStructuralArgumentPlan as ArgumentPlan,
+    CheckedUnitStructuralArgumentSourcePlan as SourcePlan,
+    CheckedUnitStructuralPathSegment as PathSegment,
+};
+use facts::PlaceRoot;
+use language_semantics::Multiplicity;
+use language_semantics::ReferenceAccess;
 use typed_trees::types::TypeReferenceHandle;
+use validation::CanonicalPlace;
+use validation::ContentsRequirement;
+use validation::borrowed_slice_view_result;
+use validation::canonical_place_type_reference;
+use validation::expression_result_type_reference;
+use validation::has_contents;
+use validation::logical_structural_type_identity;
+use validation::reference_result_custody::is_reference_record;
+use validation::reference_result_custody::stored_loan_parts;
+use validation::reference_shell;
+use validation::stored_structural_type_identity;
+use validation::stores_reference_shape;
+use validation::value_preserving_cast_operand;
+use validation::zeroed_structural_parts;
 
 impl Builder<'_, '_> {
     /// A shared reference with the same unrestricted carrier retains
@@ -22,21 +45,20 @@ impl Builder<'_, '_> {
         &mut self,
         expression: ExpressionHandle,
         expected: TypeReferenceHandle,
-    ) -> Option<CheckedStructuralValueKind> {
+    ) -> Option<ValueKind> {
         let borrow = self
             .program
             .expression_table
             .borrow_expression(expression)?;
-        if borrow.access != language_semantics::ReferenceAccess::Shared
+        if borrow.access != ReferenceAccess::Shared
             || !matches!(
                 self.program.type_reference_table.type_reference(expected),
                 TypeReferenceNode::Reference {
-                    access: language_semantics::ReferenceAccess::Shared,
+                    access: ReferenceAccess::Shared,
                     ..
                 }
             )
-            || self.program.type_multiplicity(expected)
-                != language_semantics::Multiplicity::Unrestricted
+            || self.program.type_multiplicity(expected) != Multiplicity::Unrestricted
         {
             return None;
         }
@@ -47,26 +69,20 @@ impl Builder<'_, '_> {
         // it), even though reborrowing a stored descriptor already works.
         let machine = self.program.machine_by_symbol(self.machine)?;
         let state = self.program.state_in_machine(machine, self.state)?;
-        let actual =
-            validation::expression_result_type_reference(self.program, machine, state, target)?;
+        let actual = expression_result_type_reference(self.program, machine, state, target)?;
         if self.program.normalized_type_identity(actual)
             != self.program.normalized_type_identity(expected)
         {
             return None;
         }
         let source = self.structural_value(target, actual)?;
-        Some(CheckedStructuralValueKind::Projection {
+        Some(ValueKind::Projection {
             source,
             logical_root_type_identity: Default::default(),
             path: Vec::new(),
             projection_evaluations: Default::default(),
             copies_selected_value: false,
-            type_identity: validation::stored_structural_type_identity(
-                self.program,
-                actual,
-                &[],
-                &[],
-            ),
+            type_identity: stored_structural_type_identity(self.program, actual, &[], &[]),
         })
     }
 
@@ -81,8 +97,8 @@ impl Builder<'_, '_> {
         &mut self,
         expression: ExpressionHandle,
         expected: TypeReferenceHandle,
-    ) -> Option<CheckedStructuralValueKind> {
-        let operand = validation::value_preserving_cast_operand(
+    ) -> Option<ValueKind> {
+        let operand = value_preserving_cast_operand(
             self.program,
             self.state,
             self.statement_index,
@@ -90,15 +106,13 @@ impl Builder<'_, '_> {
         )?;
         let machine = self.program.machine_by_symbol(self.machine)?;
         let state = self.program.state_in_machine(machine, self.state)?;
-        let actual =
-            validation::expression_result_type_reference(self.program, machine, state, operand)?;
-        let carrier = validation::stored_structural_type_identity(self.program, actual, &[], &[]);
-        if carrier != validation::stored_structural_type_identity(self.program, expected, &[], &[])
-        {
+        let actual = expression_result_type_reference(self.program, machine, state, operand)?;
+        let carrier = stored_structural_type_identity(self.program, actual, &[], &[]);
+        if carrier != stored_structural_type_identity(self.program, expected, &[], &[]) {
             return None;
         }
         let source = self.structural_value(operand, actual)?;
-        Some(CheckedStructuralValueKind::Projection {
+        Some(ValueKind::Projection {
             source,
             logical_root_type_identity: Default::default(),
             path: Vec::new(),
@@ -115,7 +129,7 @@ impl Builder<'_, '_> {
         &mut self,
         expression: ExpressionHandle,
         expected: TypeReferenceHandle,
-    ) -> Option<CheckedStructuralValueKind> {
+    ) -> Option<ValueKind> {
         if let Some(kind) = self.copied_dispatch_place(expression, expected) {
             return Some(kind);
         }
@@ -125,14 +139,14 @@ impl Builder<'_, '_> {
             .collect::<Vec<_>>();
         for (ordinal, value) in computations.into_iter().enumerate() {
             self.push_scalar_root(
-                checked_trees::CheckedScalarExpressionRole::StructuralValueSelector {
+                CheckedScalarExpressionRole::StructuralValueSelector {
                     expression,
                     selector_ordinal: u32::try_from(ordinal).ok()?,
                 },
                 value,
             )?;
         }
-        Some(CheckedStructuralValueKind::CopiedStructuralPlace { source, leaf })
+        Some(ValueKind::CopiedStructuralPlace { source, leaf })
     }
 
     /// The `SharedBorrow` argument plan a borrowed leaf read produces: the
@@ -143,12 +157,9 @@ impl Builder<'_, '_> {
         expression: ExpressionHandle,
         expected: TypeReferenceHandle,
     ) -> Option<(
-        checked_trees::CheckedUnitStructuralArgumentPlan,
+        ArgumentPlan,
         TypeReferenceHandle,
-        Vec<(
-            ExpressionHandle,
-            checked_trees::CheckedScalarComputationHandle,
-        )>,
+        Vec<(ExpressionHandle, CheckedScalarComputationHandle)>,
     )> {
         let place = self.canonical_place(expression)?;
         let symbol = place.root.as_symbol()?;
@@ -157,8 +168,7 @@ impl Builder<'_, '_> {
         // authored leaf must keep its symbol until binding resolves that roster.
         // StructuralLocal already represents both live locals and named formals;
         // independent source replay still checks the exact authored root.
-        let source =
-            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol };
+        let source = SourcePlan::StructuralLocal { symbol };
         // A copied value observes its selector at this evaluation point. Use
         // the computation's scalar namespace, including captured immutable
         // locals, rather than replaying the selector's original storage read.
@@ -176,14 +186,14 @@ impl Builder<'_, '_> {
         {
             let mut reference = local.type_reference;
             let mut crossings = Vec::new();
-            while let Some(shell) = validation::reference_shell(self.program, reference) {
-                if shell.access == language_semantics::ReferenceAccess::WriteOnly {
+            while let Some(shell) = reference_shell(self.program, reference) {
+                if shell.access == ReferenceAccess::WriteOnly {
                     return None;
                 }
-                if !validation::stores_reference_shape(self.program, reference, &[]) {
+                if !stores_reference_shape(self.program, reference, &[]) {
                     break;
                 }
-                crossings.push(checked_trees::CheckedUnitStructuralPathSegment::Referent);
+                crossings.push(PathSegment::Referent);
                 reference = shell.referee;
             }
             crossings.append(&mut path);
@@ -200,20 +210,16 @@ impl Builder<'_, '_> {
         // remains on `projected` and in the comparison above, while descriptors
         // and bounded-byte shapes follow the same registry rule as owned values.
         for _ in 0..projected.referent_crossings {
-            path.push(checked_trees::CheckedUnitStructuralPathSegment::Referent);
+            path.push(PathSegment::Referent);
         }
-        let type_identity = validation::stored_structural_type_identity(
-            self.program,
-            projected.reference,
-            &[],
-            &[],
-        );
-        let mut source = checked_trees::CheckedUnitStructuralArgumentPlan {
+        let type_identity =
+            stored_structural_type_identity(self.program, projected.reference, &[], &[]);
+        let mut source = ArgumentPlan {
             source,
             path,
             projection_evaluations: Default::default(),
             type_identity,
-            access: checked_trees::CheckedStructuralAccess::SharedBorrow,
+            access: StructuralAccess::SharedBorrow,
         };
         source.retain_projection_evaluations(
             self.projection_selector_span(expression, &selectors)?,
@@ -231,7 +237,7 @@ impl Builder<'_, '_> {
         &mut self,
         expression: ExpressionHandle,
         expected: TypeReferenceHandle,
-    ) -> Option<CheckedStructuralValueKind> {
+    ) -> Option<ValueKind> {
         if !matches!(
             self.program.expression_table.expression(expression),
             ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
@@ -249,14 +255,14 @@ impl Builder<'_, '_> {
         // selected storage carrier. Keep projections in the same carrier
         // namespace as whole owned values; their exact membership decisions
         // are retained on the value node and consumed during emission.
-        if validation::stored_structural_type_identity(self.program, projected, &[], &[])
-            != validation::stored_structural_type_identity(self.program, expected, &[], &[])
+        if stored_structural_type_identity(self.program, projected, &[], &[])
+            != stored_structural_type_identity(self.program, expected, &[], &[])
         {
             return None;
         }
         for (ordinal, (_, value)) in selectors.iter().enumerate() {
             self.push_scalar_root(
-                checked_trees::CheckedScalarExpressionRole::StructuralValueSelector {
+                CheckedScalarExpressionRole::StructuralValueSelector {
                     expression,
                     selector_ordinal: u32::try_from(ordinal).ok()?,
                 },
@@ -264,30 +270,30 @@ impl Builder<'_, '_> {
             )?;
         }
         let root_expression = projection_root_expression(self.program, expression);
-        let root_reference = validation::canonical_place_type_reference(
+        let root_reference = canonical_place_type_reference(
             self.program,
             self.state,
             self.statement_index,
-            &validation::CanonicalPlace {
+            &CanonicalPlace {
                 root: place.root,
                 segments: Vec::new(),
             },
         )?;
-        if matches!(place.root, facts::PlaceRoot::Expression(_)) {
+        if matches!(place.root, PlaceRoot::Expression(_)) {
             // The canonical place walk starts at borrowed storage. An
             // evaluated value instead owns its stored descriptor, so retain
             // each actual pointer crossing before selecting the first field.
             // View descriptors already interpret their own element paths.
             let mut reference = root_reference;
-            while let Some(shell) = validation::reference_shell(self.program, reference)
-                && validation::stores_reference_shape(self.program, reference, &[])
+            while let Some(shell) = reference_shell(self.program, reference)
+                && stores_reference_shape(self.program, reference, &[])
             {
-                path.insert(0, checked_trees::CheckedUnitStructuralPathSegment::Referent);
+                path.insert(0, PathSegment::Referent);
                 reference = shell.referee;
             }
         }
         let source = self.structural_value(root_expression, root_reference)?;
-        if matches!(place.root, facts::PlaceRoot::Expression(_)) {
+        if matches!(place.root, PlaceRoot::Expression(_)) {
             // The selected copy and its evaluated containing owner have
             // independent completions. Publish the actual backing producer
             // even when the selected leaf owns a new copied value; contextual
@@ -299,33 +305,28 @@ impl Builder<'_, '_> {
         // checked disposition is independent: an anonymous owner's eventual
         // death cannot turn an observation into a partial ownership move.
         let projection_evaluations = self.projection_selector_span(expression, &selectors)?;
-        if !checked_trees::CheckedUnitStructuralArgumentPlan::projection_evaluations_match(
+        if !ArgumentPlan::projection_evaluations_match(
             &path,
             projection_evaluations,
             &self.plans.operands,
         ) {
             return None;
         }
-        Some(CheckedStructuralValueKind::Projection {
+        Some(ValueKind::Projection {
             source,
             // Symbol-rooted paths use the declared borrowed backing. An
             // expression-rooted path above already retains its physical hops.
-            logical_root_type_identity: if matches!(place.root, facts::PlaceRoot::Symbol(_))
-                && validation::stores_reference_shape(self.program, root_reference, &[])
+            logical_root_type_identity: if matches!(place.root, PlaceRoot::Symbol(_))
+                && stores_reference_shape(self.program, root_reference, &[])
             {
-                validation::logical_structural_type_identity(self.program, root_reference, &[], &[])
+                logical_structural_type_identity(self.program, root_reference, &[], &[])
             } else {
                 Default::default()
             },
             path,
             projection_evaluations,
             copies_selected_value: super::place_types::copied_place_type(self.program, expected),
-            type_identity: validation::stored_structural_type_identity(
-                self.program,
-                projected,
-                &[],
-                &[],
-            ),
+            type_identity: stored_structural_type_identity(self.program, projected, &[], &[]),
         })
     }
 
@@ -333,15 +334,14 @@ impl Builder<'_, '_> {
         &self,
         expression: ExpressionHandle,
         expected: TypeReferenceHandle,
-    ) -> Option<checked_trees::CheckedUnitStructuralArgumentPlan> {
+    ) -> Option<ArgumentPlan> {
         if let ExpressionNode::SavedSubject(saved) =
             self.program.expression_table.expression(expression)
         {
             let source = self.program.saved_value_source(saved)?;
             let machine = self.program.machine_by_symbol(self.machine)?;
             let state = self.program.state_in_machine(machine, self.state)?;
-            let actual =
-                validation::expression_result_type_reference(self.program, machine, state, source)?;
+            let actual = expression_result_type_reference(self.program, machine, state, source)?;
             if self.program.normalized_type_identity(actual)
                 != self.program.normalized_type_identity(expected)
             {
@@ -352,20 +352,12 @@ impl Builder<'_, '_> {
                 .expression_table
                 .value_capture(saved.capture)
                 .value_anchor;
-            return Some(checked_trees::CheckedUnitStructuralArgumentPlan {
-                source:
-                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
-                        expression: anchor,
-                    },
+            return Some(ArgumentPlan {
+                source: SourcePlan::StructuralExpression { expression: anchor },
                 path: Vec::new(),
                 projection_evaluations: Default::default(),
-                type_identity: validation::stored_structural_type_identity(
-                    self.program,
-                    expected,
-                    &[],
-                    &[],
-                ),
-                access: checked_trees::CheckedStructuralAccess::Owned,
+                type_identity: stored_structural_type_identity(self.program, expected, &[], &[]),
+                access: StructuralAccess::Owned,
             });
         }
         let Some(name) = self.program.expression_table.name_path_node(expression) else {
@@ -391,15 +383,10 @@ impl Builder<'_, '_> {
             // A reference formal is borrowed ingress, not owned descriptor
             // storage. Its value must retain the ordinary loan/view route.
             // Locals may own stored carriers even when their type is a view.
-            if validation::reference_shell(self.program, type_reference).is_some() {
+            if reference_shell(self.program, type_reference).is_some() {
                 return None;
             }
-            (
-                checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                    parameter_index,
-                },
-                type_reference,
-            )
+            (SourcePlan::Parameter { parameter_index }, type_reference)
         } else {
             let (_, local) = self
                 .program
@@ -415,13 +402,10 @@ impl Builder<'_, '_> {
                                 .program
                                 .primitive_type_reference(local.type_reference)
                                 .is_none()
-                                && validation::zeroed_structural_parts(
-                                    self.program,
-                                    local.type_reference,
-                                )))
+                                && zeroed_structural_parts(self.program, local.type_reference)))
                 })?;
             (
-                checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                SourcePlan::StructuralLocal {
                     symbol: local.symbol,
                 },
                 local.type_reference,
@@ -431,8 +415,8 @@ impl Builder<'_, '_> {
         // qualification compatibility (including predicate-only weakening);
         // the completed source still supplies its actual membership roster.
         // Keep reference descriptors and representation-bearing shells exact.
-        if validation::stored_structural_type_identity(self.program, reference, &[], &[])
-            != validation::stored_structural_type_identity(self.program, expected, &[], &[])
+        if stored_structural_type_identity(self.program, reference, &[], &[])
+            != stored_structural_type_identity(self.program, expected, &[], &[])
             || !names_owned_structural_value(self.program, reference)
         {
             return None;
@@ -441,14 +425,13 @@ impl Builder<'_, '_> {
         // Qualifications remain on the node and completed source contract,
         // not as competing storage rows. Stored reference descriptors
         // and bounded byte owners keep the shells their representation needs.
-        let type_identity =
-            validation::stored_structural_type_identity(self.program, reference, &[], &[]);
-        Some(checked_trees::CheckedUnitStructuralArgumentPlan {
+        let type_identity = stored_structural_type_identity(self.program, reference, &[], &[]);
+        Some(ArgumentPlan {
             projection_evaluations: Default::default(),
             source,
             path: Vec::new(),
             type_identity,
-            access: checked_trees::CheckedStructuralAccess::Owned,
+            access: StructuralAccess::Owned,
         })
     }
 }
@@ -461,22 +444,19 @@ fn names_owned_structural_value(
     program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> bool {
-    validation::has_contents(
+    has_contents(
         program,
         reference,
         &[],
-        validation::ContentsRequirement::StructuralConstruction,
-    ) || validation::has_contents(
-        program,
-        reference,
-        &[],
-        validation::ContentsRequirement::LinearOwned,
-    ) || validation::has_contents(
-        program,
-        reference,
-        &[],
-        validation::ContentsRequirement::OwnedOrSharedView,
-    ) || validation::reference_result_custody::is_reference_record(program, reference)
-        || validation::reference_result_custody::stored_loan_parts(program, reference).is_some()
-        || validation::borrowed_slice_view_result(program, reference)
+        ContentsRequirement::StructuralConstruction,
+    ) || has_contents(program, reference, &[], ContentsRequirement::LinearOwned)
+        || has_contents(
+            program,
+            reference,
+            &[],
+            ContentsRequirement::OwnedOrSharedView,
+        )
+        || is_reference_record(program, reference)
+        || stored_loan_parts(program, reference).is_some()
+        || borrowed_slice_view_result(program, reference)
 }

@@ -11,6 +11,7 @@ use crate::emission::expression_validation::{
     direct_expression_contains_short_circuit, validate_direct_parameter_types,
 };
 use crate::emission::operation_emission::buffer::{OperationBuffer, structural_result_declaration};
+use crate::emission::operation_emission::expressions::path_with_current_bounds;
 use crate::emission::operation_emission::expressions::{
     LoweredDirectExpression, emit_byte_length, emit_direct_expression, emit_element_length,
 };
@@ -122,10 +123,7 @@ pub(crate) fn emit(
     };
     let end = end.unwrap_or(length);
     let source = terminal_psi::StructuralArgument {
-        path: crate::emission::operation_emission::expressions::path_with_current_bounds(
-            &source.path,
-            operations.next_identity,
-        ),
+        path: path_with_current_bounds(&source.path, operations.next_identity),
         ..source
     };
     let producer = operations.allocate();

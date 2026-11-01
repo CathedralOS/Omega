@@ -2,11 +2,12 @@
 
 use crate::facts::crash_calls::private_summaries::crash_route_expressions_by_identity;
 use crate::facts::crash_calls::summary_predicates::{
-    CallArgumentSubstitution, SummaryCrashBucket, SummaryCrashPredicate, SummaryCrashRouteGuard,
-    concrete_guard_scalar_value, normalize_summary_buckets, normalize_summary_guards,
-    scalar_guard_is_integer_comparison, scalar_guard_proves_false, summary_boolean_value,
-    summary_closed_float_relation,
+    CallArgumentSubstitution, SummaryCrashBucket, SummaryCrashPredicate,
+    SummaryCrashRouteGuard as RouteGuard, concrete_guard_scalar_value, normalize_summary_buckets,
+    normalize_summary_guards, scalar_guard_is_integer_comparison, scalar_guard_proves_false,
+    summary_boolean_value, summary_closed_float_relation,
 };
+use crate::facts::crash_entry_values;
 use crate::flow::active_context_handles;
 use crate::places::place_at;
 use checked_trees::CrashPredicateExpression;
@@ -123,7 +124,7 @@ pub(crate) fn call_argument_substitution<'program>(
         argument_index = argument_index.saturating_add(1);
         let entry_identity = argument.and_then(|argument| {
             let (machine, state) = owner?;
-            crate::facts::crash_entry_values::entry_operand(
+            crash_entry_values::entry_operand(
                 program,
                 machine.symbol,
                 state.symbol,
@@ -143,7 +144,7 @@ pub(crate) fn call_argument_substitution<'program>(
                 )
             })
             .or_else(|| {
-                crate::facts::crash_entry_values::checked_projected_entry_value(
+                crash_entry_values::checked_projected_entry_value(
                     program,
                     operators,
                     semantic,
@@ -206,7 +207,7 @@ pub(crate) fn call_argument_substitution<'program>(
                             symbols: &caller_symbols,
                             value_at_place: |place: &validation::CanonicalPlace, _observation| {
                                 if containing_statement.is_none_or(|statement| {
-                                    crate::facts::crash_entry_values::statement_may_overwrite_place(
+                                    crash_entry_values::statement_may_overwrite_place(
                                         program,
                                         machine.symbol,
                                         statement,
@@ -345,7 +346,7 @@ impl StructuralArgumentSubstitution<'_> {
     ) -> Option<CrashPredicateExpression> {
         let ordinal = ordinal as usize;
         let parameter = self.target_parameters.get(ordinal)?;
-        let projection = crate::facts::crash_entry_values::formal_member_place_projection(
+        let projection = crash_entry_values::formal_member_place_projection(
             self.program,
             parameter.type_reference,
             members,
@@ -367,7 +368,7 @@ impl StructuralArgumentSubstitution<'_> {
         {
             return Some(value);
         }
-        let mut expression = crate::facts::crash_entry_values::entry_place_before_statement(
+        let mut expression = crash_entry_values::entry_place_before_statement(
             self.program,
             self.machine,
             self.state,
@@ -450,7 +451,7 @@ impl StructuralArgumentSubstitution<'_> {
         )?;
         let place = self.observation_place(leaf.parameter_position as usize, &suffix)?;
         let (parameter_position, path) =
-            crate::facts::crash_entry_values::entry_parameter_place_before_statement(
+            crash_entry_values::entry_parameter_place_before_statement(
                 self.program,
                 self.machine,
                 self.state,
@@ -492,14 +493,13 @@ fn boolean_view_observation(
             }
             // Writable locals retain their initial observation only across an
             // unchanged storage window, shared with entry provenance.
-            let initial_value =
-                crate::facts::crash_entry_values::local_initial_value_before_statement(
-                    program,
-                    machine.symbol,
-                    state.symbol,
-                    before_statement,
-                    path.symbol,
-                )?;
+            let initial_value = crash_entry_values::local_initial_value_before_statement(
+                program,
+                machine.symbol,
+                state.symbol,
+                before_statement,
+                path.symbol,
+            )?;
             boolean_view_observation(
                 program,
                 operators,
@@ -569,7 +569,7 @@ fn boolean_view_observation(
                         if let Some(statement) = program
                             .statement_table
                             .statement_at(state, before_statement)
-                            && crate::facts::crash_entry_values::statement_may_overwrite_place(
+                            && crash_entry_values::statement_may_overwrite_place(
                                 program,
                                 machine.symbol,
                                 statement,
@@ -1253,7 +1253,7 @@ pub(crate) fn refine_published_crash_routes(
         for guard in bucket.alternative_guards() {
             match guard {
                 checked_trees::CrashRouteGuard::Truth => {
-                    guards.push(SummaryCrashRouteGuard::Truth);
+                    guards.push(RouteGuard::Truth);
                 }
                 checked_trees::CrashRouteGuard::Predicate(identity) => {
                     let expression = *route_expressions.get(identity).expect(
@@ -1301,7 +1301,7 @@ pub(crate) fn refine_published_crash_routes(
                         continue;
                     }
                     let Some(predicate) = identity.expression() else {
-                        guards.push(SummaryCrashRouteGuard::Truth);
+                        guards.push(RouteGuard::Truth);
                         continue;
                     };
                     // The direct evaluator follows actuals and local initializers.
@@ -1309,17 +1309,16 @@ pub(crate) fn refine_published_crash_routes(
                     // may enter it; callee meaning cannot authorize caller operators.
                     // A projected leaf keeps the per-field caller name when the
                     // read projection stayed pristine across sibling writes.
-                    let entry_predicate =
-                        crate::facts::crash_entry_values::substitute_entry_projected(
-                            predicate,
-                            &mut |ordinal, members| {
-                                substitution.fields.entry_operand(
-                                    &substitution.identity,
-                                    ordinal,
-                                    members,
-                                )
-                            },
-                        );
+                    let entry_predicate = crash_entry_values::substitute_entry_projected(
+                        predicate,
+                        &mut |ordinal, members| {
+                            substitution.fields.entry_operand(
+                                &substitution.identity,
+                                ordinal,
+                                members,
+                            )
+                        },
+                    );
                     let concrete_value = (builtin_meaning && entry_predicate.is_some())
                         .then(|| {
                             crate::checks::contracts::call_site_boolean_contract_expression_value(
@@ -1336,7 +1335,7 @@ pub(crate) fn refine_published_crash_routes(
                         .flatten();
                     match concrete_value {
                         Some(false) => {}
-                        Some(true) => guards.push(SummaryCrashRouteGuard::Truth),
+                        Some(true) => guards.push(RouteGuard::Truth),
                         None => {
                             // Live storage evidence decides a guard entry
                             // custody cannot carry: each referenced formal is
@@ -1345,7 +1344,7 @@ pub(crate) fn refine_published_crash_routes(
                             // honors this route's own selected meaning, and a
                             // missing value leaves the substitution missing
                             // rather than inventing an origin.
-                            if let Some(value) = crate::facts::crash_entry_values::substitute_entry(
+                            if let Some(value) = crash_entry_values::substitute_entry(
                                 predicate,
                                 &substitution.values,
                             )
@@ -1364,7 +1363,7 @@ pub(crate) fn refine_published_crash_routes(
                                 }
                             }) {
                                 if value {
-                                    guards.push(SummaryCrashRouteGuard::Truth);
+                                    guards.push(RouteGuard::Truth);
                                 }
                                 continue;
                             }
@@ -1384,7 +1383,7 @@ pub(crate) fn refine_published_crash_routes(
                                 // the unconditional ceiling without inventing
                                 // a guard in the caller namespace.
                                 if !scalar_guard_proves_false(builtin_meaning, scalar.as_ref()) {
-                                    guards.push(SummaryCrashRouteGuard::Truth);
+                                    guards.push(RouteGuard::Truth);
                                 }
                                 continue;
                             };
@@ -1407,14 +1406,12 @@ pub(crate) fn refine_published_crash_routes(
                             });
                             match value {
                                 Some(false) => {}
-                                Some(true) => guards.push(SummaryCrashRouteGuard::Truth),
-                                None => guards.push(SummaryCrashRouteGuard::Predicate(
-                                    SummaryCrashPredicate {
-                                        identity: predicate,
-                                        builtin_meaning,
-                                        scalar,
-                                    },
-                                )),
+                                Some(true) => guards.push(RouteGuard::Truth),
+                                None => guards.push(RouteGuard::Predicate(SummaryCrashPredicate {
+                                    identity: predicate,
+                                    builtin_meaning,
+                                    scalar,
+                                })),
                             }
                         }
                     }

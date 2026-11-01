@@ -30,6 +30,12 @@ pub struct ConstInitializerPayload {
     pub pending_destination: Option<ConstDestinationObligation>,
 }
 
+use crate::constant::initializer_dependencies::ConstInitializerDependencies;
+use crate::constant::initializer_dependencies::DependencyPurpose;
+use crate::constant::initializer_dependencies::collect;
+use crate::constant::pending_const_initializer_leaves;
+use crate::preparation::generic_data::canonicalize_pending_initializer_payload;
+use crate::preparation::generic_data::const_destination_requires_proof;
 pub use syntax_trees::item::ConstDestinationObligation;
 
 impl ConstInitializerSelection {
@@ -77,10 +83,7 @@ impl ConstInitializerSelection {
         syntax: &SyntaxTrees,
         definition: &syntax_trees::item::ConstDefinition,
         expression: syntax_trees::expression::ExpressionHandle,
-    ) -> Result<
-        crate::constant::initializer_dependencies::ConstInitializerDependencies,
-        Vec<Diagnostic>,
-    > {
+    ) -> Result<ConstInitializerDependencies, Vec<Diagnostic>> {
         if !self
             .pending_leaves(syntax, definition)?
             .iter()
@@ -100,10 +103,7 @@ impl ConstInitializerSelection {
         definition: &syntax_trees::item::ConstDefinition,
         expression: syntax_trees::expression::ExpressionHandle,
         selected_calls: Option<&[(source::SourceSpan, source::SourceSpan)]>,
-    ) -> Result<
-        crate::constant::initializer_dependencies::ConstInitializerDependencies,
-        Vec<Diagnostic>,
-    > {
+    ) -> Result<ConstInitializerDependencies, Vec<Diagnostic>> {
         let declaration = self
             .frontier
             .trees
@@ -119,13 +119,7 @@ impl ConstInitializerSelection {
             root,
             syntax.expressions.source_span(expression),
         )
-        .and_then(|expression| {
-            crate::constant::initializer_dependencies::collect(
-                &self.frontier.trees,
-                expression,
-                selected_calls,
-            )
-        })
+        .and_then(|expression| collect(&self.frontier.trees, expression, selected_calls))
         .map_err(|reason| {
             vec![Diagnostic::error(reason).with_source_span(definition.name.source_span())]
         })
@@ -135,13 +129,10 @@ impl ConstInitializerSelection {
         &self,
         _syntax: &SyntaxTrees,
         definition: &syntax_trees::item::ConstDefinition,
-    ) -> Result<
-        crate::constant::initializer_dependencies::ConstInitializerDependencies,
-        Vec<Diagnostic>,
-    > {
+    ) -> Result<ConstInitializerDependencies, Vec<Diagnostic>> {
         self.declaration_dependencies(
             definition,
-            crate::constant::initializer_dependencies::DependencyPurpose::DeclarationReadiness,
+            DependencyPurpose::DeclarationReadiness,
             definition
                 .normalization
                 .as_ref()
@@ -153,13 +144,10 @@ impl ConstInitializerSelection {
         &self,
         definition: &syntax_trees::item::ConstDefinition,
         selected_calls: &[(source::SourceSpan, source::SourceSpan)],
-    ) -> Result<
-        crate::constant::initializer_dependencies::ConstInitializerDependencies,
-        Vec<Diagnostic>,
-    > {
+    ) -> Result<ConstInitializerDependencies, Vec<Diagnostic>> {
         self.declaration_dependencies(
             definition,
-            crate::constant::initializer_dependencies::DependencyPurpose::DeclarationReadiness,
+            DependencyPurpose::DeclarationReadiness,
             Some(selected_calls),
         )
     }
@@ -168,26 +156,16 @@ impl ConstInitializerSelection {
         &self,
         definition: &syntax_trees::item::ConstDefinition,
         selected_calls: Option<&[(source::SourceSpan, source::SourceSpan)]>,
-    ) -> Result<
-        crate::constant::initializer_dependencies::ConstInitializerDependencies,
-        Vec<Diagnostic>,
-    > {
-        self.declaration_dependencies(
-            definition,
-            crate::constant::initializer_dependencies::DependencyPurpose::Authored,
-            selected_calls,
-        )
+    ) -> Result<ConstInitializerDependencies, Vec<Diagnostic>> {
+        self.declaration_dependencies(definition, DependencyPurpose::Authored, selected_calls)
     }
 
     fn declaration_dependencies(
         &self,
         definition: &syntax_trees::item::ConstDefinition,
-        purpose: crate::constant::initializer_dependencies::DependencyPurpose,
+        purpose: DependencyPurpose,
         selected_calls: Option<&[(source::SourceSpan, source::SourceSpan)]>,
-    ) -> Result<
-        crate::constant::initializer_dependencies::ConstInitializerDependencies,
-        Vec<Diagnostic>,
-    > {
+    ) -> Result<ConstInitializerDependencies, Vec<Diagnostic>> {
         let declaration = self
             .frontier
             .trees
@@ -250,14 +228,11 @@ impl ConstInitializerSelection {
         syntax: &SyntaxTrees,
         definition: &syntax_trees::item::ConstDefinition,
     ) -> Result<Vec<crate::constant::PendingConstInitializerLeaf>, Vec<Diagnostic>> {
-        crate::constant::pending_const_initializer_leaves(
-            syntax,
-            definition,
-            &self.frontier.selection,
+        pending_const_initializer_leaves(syntax, definition, &self.frontier.selection).map_err(
+            |reason| {
+                vec![Diagnostic::error(reason).with_source_span(definition.name.source_span())]
+            },
         )
-        .map_err(|reason| {
-            vec![Diagnostic::error(reason).with_source_span(definition.name.source_span())]
-        })
     }
 
     /// Encode completed initializer payloads, without asserting the destination's
@@ -268,11 +243,7 @@ impl ConstInitializerSelection {
         syntax: &SyntaxTrees,
         definition: &syntax_trees::item::ConstDefinition,
     ) -> Result<ConstInitializerPayload, String> {
-        crate::preparation::generic_data::canonicalize_pending_initializer_payload(
-            syntax,
-            definition,
-            Some(&self.frontier.selection),
-        )
+        canonicalize_pending_initializer_payload(syntax, definition, Some(&self.frontier.selection))
     }
 
     pub fn initializer_requires_destination_proof(
@@ -280,11 +251,7 @@ impl ConstInitializerSelection {
         syntax: &SyntaxTrees,
         definition: &syntax_trees::item::ConstDefinition,
     ) -> bool {
-        crate::preparation::generic_data::const_destination_requires_proof(
-            syntax,
-            definition,
-            Some(&self.frontier.selection),
-        )
+        const_destination_requires_proof(syntax, definition, Some(&self.frontier.selection))
     }
 }
 

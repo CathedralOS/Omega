@@ -6,6 +6,8 @@ use crate::proof_contracts::contract_entailment::structural_judgment::{
 };
 use crate::proof_contracts::contract_entailment::structural_terms::structural_term;
 use diagnostics::Diagnostic;
+use language_semantics::declaration_selection::CollectionMeasure;
+use symbols::SymbolHandle;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 use typed_trees::machine::Machine;
 use typed_trees::signature::SignatureContractKind;
@@ -101,7 +103,7 @@ pub fn instantiated_value_call_requires_proven(
     caller_state: &typed_trees::state::State,
     statement_index: usize,
     site: crate::machine_calls::calls::CallSite<'_>,
-    callee_owner: symbols::SymbolHandle,
+    callee_owner: SymbolHandle,
     callee_parameters: &[typed_trees::signature::StateParameter],
     arguments: &[ExpressionHandle],
     expression: ExpressionHandle,
@@ -268,7 +270,7 @@ fn authored_requires_spellings(
 pub(super) fn instantiated_fact_judgment(
     program: &dyn crate::CheckingInput,
     judge: &StructuralJudge,
-    callee_owner: symbols::SymbolHandle,
+    callee_owner: SymbolHandle,
     callee_parameters: &[typed_trees::signature::StateParameter],
     fact: ExpressionHandle,
     map: &[(String, StructuralTerm)],
@@ -291,19 +293,16 @@ pub(super) fn instantiated_fact_judgment(
 pub(super) fn instantiated_selected_fact_judgment(
     program: &dyn crate::CheckingInput,
     judge: &StructuralJudge,
-    callee_owner: symbols::SymbolHandle,
+    callee_owner: SymbolHandle,
     callee_parameters: &[typed_trees::signature::StateParameter],
     fact: ExpressionHandle,
     map: &[(String, StructuralTerm)],
     machine_map: &[(
-        symbols::SymbolHandle,
+        SymbolHandle,
         typed_trees::types::TypeReferenceHandle,
         typed_trees::expression::StaticMachineArgument,
     )],
-    type_map: &[(
-        symbols::SymbolHandle,
-        typed_trees::types::TypeReferenceHandle,
-    )],
+    type_map: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
     caller_scope: Option<(&Machine, &typed_trees::state::State)>,
 ) -> StructuralJudgment {
     if program.static_type_predicate_operands(fact).is_some() {
@@ -604,12 +603,12 @@ fn uncertified_call_projection(program: &dyn crate::CheckingInput, term: &Struct
 fn instantiated_operands(
     program: &dyn crate::CheckingInput,
     judge: &StructuralJudge,
-    callee_owner: symbols::SymbolHandle,
+    callee_owner: SymbolHandle,
     callee_parameters: &[typed_trees::signature::StateParameter],
     binary: &typed_trees::expression::TableBinaryExpression,
     map: &[(String, StructuralTerm)],
     machine_map: &[(
-        symbols::SymbolHandle,
+        SymbolHandle,
         typed_trees::types::TypeReferenceHandle,
         typed_trees::expression::StaticMachineArgument,
     )],
@@ -647,7 +646,7 @@ fn instantiated_operands(
 fn instantiated_fact_spelling(
     program: &dyn crate::CheckingInput,
     judge: &StructuralJudge,
-    callee_owner: symbols::SymbolHandle,
+    callee_owner: SymbolHandle,
     callee_parameters: &[typed_trees::signature::StateParameter],
     fact: ExpressionHandle,
     map: &[(String, StructuralTerm)],
@@ -715,9 +714,8 @@ fn declared_len_extent_term(
     let mut names = Vec::new();
     match &term {
         StructuralTerm::Projection { subject, path } => {
-            if language_semantics::declaration_selection::CollectionMeasure::from_authored_spelling(
-                path.as_str(),
-            ) != Some(language_semantics::declaration_selection::CollectionMeasure::Length)
+            if CollectionMeasure::from_authored_spelling(path.as_str())
+                != Some(CollectionMeasure::Length)
             {
                 return term;
             }
@@ -751,14 +749,10 @@ fn declared_len_extent_term(
         StructuralTerm::Opaque(name) => {
             let mut members: Vec<String> =
                 name.split('.').map(|member| member.to_string()).collect();
-            if members
-                .last()
-                .is_none_or(|last| {
-                    language_semantics::declaration_selection::CollectionMeasure::from_authored_spelling(
-                        last.as_str(),
-                    ) != Some(language_semantics::declaration_selection::CollectionMeasure::Length)
-                })
-            {
+            if members.last().is_none_or(|last| {
+                CollectionMeasure::from_authored_spelling(last.as_str())
+                    != Some(CollectionMeasure::Length)
+            }) {
                 return term;
             }
             members.pop();
@@ -783,7 +777,7 @@ fn declared_len_extent_term(
 /// parameter map.
 pub(crate) fn collect_instantiated_conjuncts(
     program: &dyn crate::CheckingInput,
-    scope: symbols::SymbolHandle,
+    scope: SymbolHandle,
     parameters: &[typed_trees::signature::StateParameter],
     fact: ExpressionHandle,
     map: &[(String, StructuralTerm)],

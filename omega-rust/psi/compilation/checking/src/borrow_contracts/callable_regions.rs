@@ -3,15 +3,43 @@
 //! borrows its preceding environment. Fresh invocation binders overlay only
 //! the original signature: a compound operand may also retain captured regions.
 
+use super::CallableLifetimeApplication;
 use super::callable_refinement::{CallableBorrowContract, captured_lifetimes};
 use super::carried_lifetimes::RegionIdentity;
-use typed_trees::type_identity::applied_lifetime_parameter_identity;
+use typed_trees::type_identity::{
+    LifetimeParameterIdentity, applied_lifetime_parameter_identity, lifetime_parameter_identity,
+};
+
+pub(super) struct AppliedRegionBinding {
+    pub(super) parameter: LifetimeParameterIdentity,
+    pub(super) argument: RegionIdentity,
+}
+
+pub(super) fn applied_region<'scope>(
+    program: &dyn crate::CheckingInput,
+    bindings: &'scope [AppliedRegionBinding],
+    parameter: LifetimeParameterIdentity,
+) -> Option<&'scope RegionIdentity> {
+    let owner = program.lifetime_declaration_owner(parameter.declaration);
+    if !owner.is_valid() {
+        return None;
+    }
+    bindings
+        .iter()
+        .rev()
+        .find(|binding| {
+            binding.parameter.ordinal == parameter.ordinal && binding.parameter.declaration == owner
+        })
+        .map(|binding| &binding.argument)
+}
 
 pub(super) struct CallableRegions {
     pub(super) names: Vec<(String, RegionIdentity)>,
     pub(super) arguments: Vec<(String, RegionIdentity)>,
     pub(super) applications: Vec<Vec<(String, RegionIdentity)>>,
     pub(super) fresh_count: usize,
+    pub(super) bindings: Vec<AppliedRegionBinding>,
+    pub(super) own_lifetimes: Vec<(LifetimeParameterIdentity, RegionIdentity)>,
 }
 
 pub(super) fn resolve(
@@ -43,25 +71,75 @@ pub(super) fn resolve(
     if let Some(application) = applications.last() {
         names.extend_from_slice(application);
     }
-    for binding in contract.lifetime_bindings {
-        let identity = arguments
-            .iter()
-            .rev()
-            .find(|(name, _)| name == binding.argument.as_str())
-            .map(|(_, identity)| identity.clone())
-            .ok_or("callable input region has no lexical declaration custody")?;
-        names.push((binding.parameter.as_str().to_owned(), identity));
+    let owner = program.lifetime_declaration_owner(contract.lexical_owner);
+    let fresh_parameters = contract
+        .lifetime_parameters
+        .iter()
+        .map(|parameter| {
+            lifetime_parameter_identity(
+                program.typed_program(),
+                contract.lexical_owner,
+                parameter.as_str(),
+            )
+            .filter(|parameter| parameter.declaration == owner && owner.is_valid())
+            .ok_or("callable invocation binder has no exact declaration custody")
+        })
+        .collect::<Result<Vec<_>, &'static str>>()?;
+    let mut bindings = Vec::new();
+    for application in contract.lifetime_applications {
+        let supplied = match application {
+            CallableLifetimeApplication::Enclosing { bindings }
+            | CallableLifetimeApplication::Invocation { bindings } => *bindings,
+        };
+        // Values were normalized in their supplying context before entering
+        // this receiver. Reapplying a receiver frame would capture a recursive
+        // same-declaration operand a second time.
+        for (position, binding) in supplied.iter().enumerate() {
+            if program.lifetime_declaration_owner(binding.parameter.declaration)
+                != binding.parameter.declaration
+                || program.lifetime_declaration_owner(binding.argument.declaration)
+                    != binding.argument.declaration
+            {
+                return Err("callable lifetime frame lost its canonical declaration coordinates");
+            }
+            let parameter_name = typed_trees::type_identity::lifetime_parameter_name(
+                program.typed_program(),
+                binding.parameter,
+            )
+            .ok_or("callable capture lost its exact receiving lifetime ordinal")?;
+            typed_trees::type_identity::lifetime_parameter_name(
+                program.typed_program(),
+                binding.argument,
+            )
+            .ok_or("callable input region lost its exact supplying lifetime ordinal")?;
+            if supplied[..position]
+                .iter()
+                .any(|prior| prior.parameter == binding.parameter)
+            {
+                return Err("callable capture repeats a receiving lifetime parameter");
+            }
+            if matches!(application, CallableLifetimeApplication::Enclosing { .. })
+                && fresh_parameters.contains(&binding.parameter)
+            {
+                continue;
+            }
+            let argument =
+                RegionIdentity::Captured(binding.argument.declaration, binding.argument.ordinal);
+            names.push((parameter_name.as_str().to_owned(), argument.clone()));
+            bindings.push(AppliedRegionBinding {
+                parameter: binding.parameter,
+                argument,
+            });
+        }
     }
     let mut fresh_count = 0;
-    for parameter in contract.lifetime_parameters {
-        if contract.supplied_telescope
-            && contract
-                .lifetime_bindings
-                .iter()
-                .any(|binding| binding.parameter == *parameter)
-        {
+    let mut own_lifetimes = Vec::with_capacity(fresh_parameters.len());
+    for (parameter, declaration) in contract.lifetime_parameters.iter().zip(fresh_parameters) {
+        if let Some(region) = applied_region(program, &bindings, declaration) {
+            own_lifetimes.push((declaration, region.clone()));
             continue;
         }
+        own_lifetimes.push((declaration, RegionIdentity::Fresh(fresh_count)));
         names.push((
             parameter.as_str().to_owned(),
             RegionIdentity::Fresh(fresh_count),
@@ -73,5 +151,7 @@ pub(super) fn resolve(
         arguments,
         applications,
         fresh_count,
+        bindings,
+        own_lifetimes,
     })
 }

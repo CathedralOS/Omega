@@ -23,7 +23,7 @@ use crate::custody::lock::CacheEntryLock;
 use crate::custody::tree::verify_local_cache_custody;
 #[cfg(test)]
 use crate::custody::tree::verify_local_cache_root_custody;
-use crate::error::local_snapshot_invalid;
+use crate::error::{local_snapshot_invalid, local_source_changed};
 use crate::identity::SourceContentDigest;
 use crate::limits::LOCAL_SNAPSHOT_LOCK_TIMEOUT;
 use crate::limits::{LOCAL_CACHE_SNAPSHOTS, LocalSourceLimits};
@@ -264,16 +264,11 @@ pub(super) fn verify_requested_local_root(
     requested_root: &Path,
     expected_canonical_root: &Path,
 ) -> Result<(), SourceResolveError> {
-    let canonical =
-        requested_root
-            .canonicalize()
-            .map_err(|_| SourceResolveError::LocalSourceChanged {
-                path: requested_root.to_path_buf(),
-            })?;
+    let canonical = requested_root
+        .canonicalize()
+        .map_err(|_| local_source_changed(requested_root))?;
     if canonical != expected_canonical_root {
-        return Err(SourceResolveError::LocalSourceChanged {
-            path: requested_root.to_path_buf(),
-        });
+        return Err(local_source_changed(requested_root));
     }
     Ok(())
 }
@@ -354,15 +349,10 @@ pub(super) fn verify_live_source_unchanged(
     captured: &ResolvedLocalSource,
     limits: LocalSourceLimits,
 ) -> Result<(), SourceResolveError> {
-    let current = resolve_local_source(&captured.root, limits).map_err(|_| {
-        SourceResolveError::LocalSourceChanged {
-            path: captured.root.clone(),
-        }
-    })?;
+    let current = resolve_local_source(&captured.root, limits)
+        .map_err(|_| local_source_changed(&captured.root))?;
     if !same_source_identity(&current, captured) {
-        return Err(SourceResolveError::LocalSourceChanged {
-            path: captured.root.clone(),
-        });
+        return Err(local_source_changed(&captured.root));
     }
     Ok(())
 }

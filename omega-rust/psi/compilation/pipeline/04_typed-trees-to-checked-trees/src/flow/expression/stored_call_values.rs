@@ -5,6 +5,9 @@
 mod lifetime_sources;
 mod suppliers;
 
+use super::super::stored_values::append_preserved_binding;
+use super::super::stored_values::append_store;
+use super::super::stored_values::join;
 use super::{Execution, InvocationSite};
 use arena::Handle;
 use checked_trees::{BorrowCallFact, FlowOperandFact, FlowStorageSnapshot};
@@ -123,34 +126,25 @@ impl Execution<'_, '_, '_> {
         value: CallStoredValue,
     ) -> Handle<FlowStorageSnapshot> {
         match value {
-            CallStoredValue::Unavailable => super::super::stored_values::append_store(
+            CallStoredValue::Unavailable => append_store(
                 &mut self.context.control,
                 previous,
                 destination,
                 Handle::invalid(),
                 &[],
             ),
-            CallStoredValue::Captured(value) => super::super::stored_values::append_store(
-                &mut self.context.control,
-                previous,
-                destination,
-                value,
-                &[],
-            ),
+            CallStoredValue::Captured(value) => {
+                append_store(&mut self.context.control, previous, destination, value, &[])
+            }
             CallStoredValue::Incoming(source) => {
-                super::super::stored_values::append_preserved_binding(
-                    &mut self.context.control,
-                    previous,
-                    destination,
-                    source,
-                )
+                append_preserved_binding(&mut self.context.control, previous, destination, source)
             }
             CallStoredValue::Alternatives(values) => {
                 let predecessors = values
                     .into_iter()
                     .map(|value| self.install_call_stored_value(previous, destination, value))
                     .collect::<Vec<_>>();
-                super::super::stored_values::join(&mut self.context.control, &predecessors)
+                join(&mut self.context.control, &predecessors)
             }
         }
     }

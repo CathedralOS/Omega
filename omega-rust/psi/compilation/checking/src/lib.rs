@@ -22,6 +22,9 @@ pub use declarations::operators::{
 };
 pub use declarations::traits::refinement_fit;
 pub use declarations::traits::{
+    ProviderApplicationAssociation, ProviderApplicationIdentity, provider_application_associations,
+};
+pub use declarations::traits::{
     ProviderRegionCorrespondence, closed_provider_region_correspondence,
     provider_region_correspondence,
 };
@@ -267,14 +270,16 @@ pub use crate::declarations::selection_authority::{
     validate_authored_declaration_selections,
 };
 pub use crate::machine_calls::call_cycles::{
-    RankRelevance, RuntimeRankBodyWitness, RuntimeRankComponents, ValidatedProofCallComponent,
-    ValidatedProofRankInterval, ValidatedProofRankingRelation, ValidatedProofRecursiveCallSite,
+    RankRelevance, RuntimeRankBodyWitness, RuntimeRankComponents, RuntimeRankInput,
+    RuntimeRankOperand, ValidatedProofCallComponent, ValidatedProofRankInterval,
+    ValidatedProofRankingRelation, ValidatedProofRecursiveCallSite,
     ValidatedProofRecursiveComponent, ValidatedProofRecursiveEdge, ValidatedProofRecursiveMember,
-    ValidatedProofRecursiveTransitionLane, ValidatedRuntimeNaturalComponent,
-    ValidatedRuntimeNaturalEdge, ValidatedRuntimeNaturalState, activation_target_state_index,
-    internal_state_index, machine_call_dependency_symbols, prepare_runtime_rank_components,
-    rank_relevance, retain_runtime_rank_component, retained_internal_rank_nonincrease,
-    retained_runtime_natural_components, retained_runtime_recursive_components,
+    ValidatedProofRecursiveTransitionLane, ValidatedRuntimeIntegerRank,
+    ValidatedRuntimeNaturalComponent, ValidatedRuntimeNaturalEdge, ValidatedRuntimeNaturalState,
+    activation_target_state_index, internal_state_index, machine_call_dependency_symbols,
+    prepare_runtime_rank_components, rank_relevance, retain_runtime_rank_component,
+    retained_internal_rank_nonincrease, retained_runtime_natural_components,
+    retained_runtime_recursive_components,
 };
 pub use crate::machine_calls::calls::{
     AssignmentStorageOrigins, AssignmentWriteTarget, CallFrameResolver, CallWriteOrigins,
@@ -682,7 +687,9 @@ pub use value_custody::membership_evidence;
 
 pub use machine_calls::terminal_transitions::normalize_terminal_transition_calls;
 
-pub use proof_contracts::bound_expression_meaning::static_type_boolean_equalities;
+pub use proof_contracts::bound_expression_meaning::{
+    case_membership_type_facts, static_type_boolean_equalities,
+};
 pub mod native_locators;
 
 pub use value_custody::literals::land_owned_fixed_byte_literal;

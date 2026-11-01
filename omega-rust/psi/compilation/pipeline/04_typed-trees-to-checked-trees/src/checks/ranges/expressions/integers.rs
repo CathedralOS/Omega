@@ -12,7 +12,7 @@ use super::super::facts::RangeFacts;
 /// `checked_add`, so an inclusive range whose end is `i64::MAX` (e.g. the
 /// `..=usize::MAX` overflow edge) reports a proof failure (`None`) rather than
 /// silently wrapping — the overflow is surfaced as a diagnostic, never a panic.
-pub(in crate::checks::ranges) fn provable_range_bounds(
+pub(in super::super) fn provable_range_bounds(
     program: &dyn ::validation::CheckingInput,
     facts: &RangeFacts<'_>,
     range: &TableRangeExpression,
@@ -35,10 +35,7 @@ pub(in crate::checks::ranges) fn provable_range_bounds(
 ///
 /// Returns `None` on overflow so the caller can report a proof error instead of
 /// wrapping (the `..=` overflow edge is a proof failure, never a panic).
-pub(in crate::checks::ranges) fn normalize_exclusive_end(
-    end: i64,
-    end_inclusive: bool,
-) -> Option<i64> {
+pub(in super::super) fn normalize_exclusive_end(end: i64, end_inclusive: bool) -> Option<i64> {
     if end_inclusive {
         end.checked_add(1)
     } else {
@@ -46,7 +43,7 @@ pub(in crate::checks::ranges) fn normalize_exclusive_end(
     }
 }
 
-pub(in crate::checks::ranges) fn expression_integer_value(
+pub(in super::super) fn expression_integer_value(
     program: &dyn ::validation::CheckingInput,
     facts: &RangeFacts<'_>,
     expression: ExpressionHandle,
@@ -113,7 +110,7 @@ pub(in crate::checks::ranges) fn expression_integer_value(
     }
 }
 
-pub(in crate::checks::ranges) fn expression_name(
+pub(in super::super) fn expression_name(
     program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<(SymbolHandle, Option<&str>)> {

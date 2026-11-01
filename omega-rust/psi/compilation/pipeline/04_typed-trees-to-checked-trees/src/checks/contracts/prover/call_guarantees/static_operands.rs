@@ -5,6 +5,7 @@
 mod projections;
 
 use super::{Callable, Invocation, arithmetic};
+use crate::facts::contract_occurrences::append_expression_occurrences;
 use crate::flow::expressions;
 use symbols::SymbolHandle;
 use typed_trees::data::TypeParameterKind;
@@ -209,11 +210,7 @@ pub(super) fn bindings(
 ) -> Option<Vec<ScopedArithmeticBinding>> {
     let tuple = tuple(program, invocation);
     let mut occurrences = Vec::new();
-    crate::facts::contract_occurrences::append_expression_occurrences(
-        program,
-        expression,
-        &mut occurrences,
-    );
+    append_expression_occurrences(program, expression, &mut occurrences);
     let mut result = Vec::<ScopedArithmeticBinding>::new();
     for occurrence in occurrences {
         if let Some(projection) = validation::immutable_record_projection(program, occurrence) {

@@ -5,6 +5,9 @@ use super::{
 };
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::row;
+use crate::selection::scalar_call_abi::{
+    incoming_float_transfer, integer_carrier_normalization, scalar_shape,
+};
 use legalized_operations::LegalizedScalarInstruction;
 
 pub(super) fn emit(
@@ -20,8 +23,7 @@ pub(super) fn emit(
     };
     let result = operation.result.ok_or_else(invalid)?;
     let scalar_type = result.scalar_type;
-    let result_shape =
-        crate::selection::scalar_call_abi::scalar_shape(scalar_type).ok_or_else(invalid)?;
+    let result_shape = scalar_shape(scalar_type).ok_or_else(invalid)?;
     if call
         .result_placement
         .as_ref()
@@ -87,12 +89,8 @@ pub(super) fn emit(
         },
     )?;
     let output = builder.register(result.value, result.definition_site, scalar_type)?;
-    let (kind, key) = crate::selection::scalar_call_abi::incoming_float_transfer(
-        scalar_type,
-        &builder.constraints.keys,
-    )
-    .unwrap_or((
-        crate::selection::scalar_call_abi::integer_carrier_normalization(scalar_type),
+    let (kind, key) = incoming_float_transfer(scalar_type, &builder.constraints.keys).unwrap_or((
+        integer_carrier_normalization(scalar_type),
         builder.constraints.keys.copy_i64,
     ));
     builder.emit(

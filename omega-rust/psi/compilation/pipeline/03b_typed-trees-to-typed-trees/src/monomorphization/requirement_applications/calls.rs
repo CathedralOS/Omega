@@ -5,10 +5,15 @@
 use crate::tables::{expressions_of, expressions_of_mut};
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
+use typed_trees::data::TypeParameterKind;
+use typed_trees::expression::ExpressionNode;
+use typed_trees::statement::StatementNode;
 use typed_trees::{
     TypedTrees, expression::StaticMachineArgument, references::StaticArgumentCall,
     trait_definition::AppliedTraitScope, types::TypeReferenceHandle,
 };
+use validation::expression_traversal::collect_expression_tree;
+use validation::expression_type_reference_in_state;
 
 use super::super::failed;
 use super::selected_applications;
@@ -18,6 +23,7 @@ mod invocation_binding_views;
 #[derive(Clone, PartialEq, Eq)]
 pub(super) struct InvocationTuple {
     pub owner: SymbolHandle,
+    pub lifetime_declaration: SymbolHandle,
     pub arguments: Vec<StaticMachineArgument>,
     pub lifetimes: Vec<typed_trees::static_applications::StaticMachineLifetimeBinding>,
 }
@@ -46,6 +52,10 @@ fn occurrence(
             owner: expressions_of(program)
                 .static_machine_application(application)
                 .lexical_owner,
+            lifetime_declaration: program
+                .expression_table
+                .static_machine_application(application)
+                .lifetime_binding_declaration,
             arguments,
             lifetimes: expressions_of(program)
                 .static_machine_application_lifetimes(application)
@@ -54,6 +64,7 @@ fn occurrence(
     } else {
         InvocationTuple {
             owner,
+            lifetime_declaration: SymbolHandle::invalid(),
             arguments,
             lifetimes: Vec::new(),
         }
@@ -109,8 +120,7 @@ fn inferred_method_arguments(
         // even when runtime matching independently infers another candidate.
         if !matches!(
             parameter.kind,
-            typed_trees::data::TypeParameterKind::Type
-                | typed_trees::data::TypeParameterKind::Const { .. }
+            TypeParameterKind::Type | TypeParameterKind::Const { .. }
         ) {
             continue;
         }
@@ -156,8 +166,7 @@ fn inferred_method_arguments(
     for parameter in &parameters[explicit.len()..] {
         if !matches!(
             parameter.kind,
-            typed_trees::data::TypeParameterKind::Type
-                | typed_trees::data::TypeParameterKind::Const { .. }
+            TypeParameterKind::Type | TypeParameterKind::Const { .. }
         ) {
             return None;
         }
@@ -199,12 +208,7 @@ fn receiver_scope<'p>(
             expressions_of(program)
                 .name_path_node(call.receiver)
                 .map_or_else(SymbolHandle::invalid, |path| path.symbol),
-            validation::expression_type_reference_in_state(
-                program,
-                state.symbol,
-                position,
-                call.receiver,
-            ),
+            expression_type_reference_in_state(program, state.symbol, position, call.receiver),
         ),
     };
     validation::qualified_trait_scope(program, machine.symbol, symbol, reference)
@@ -232,13 +236,7 @@ fn source_scope<'p>(
     target: SymbolHandle,
     receiver: impl FnOnce() -> Option<AppliedTraitScope<'p>>,
     application: TypeReferenceHandle,
-) -> Result<
-    Option<(
-        SymbolHandle,
-        typed_trees::trait_definition::AppliedTraitScope<'p>,
-    )>,
-    Vec<Diagnostic>,
-> {
+) -> Result<Option<(SymbolHandle, AppliedTraitScope<'p>)>, Vec<Diagnostic>> {
     if let Some(closed) = program.closed_requirement_application(target) {
         return closed
             .trait_scope
@@ -283,7 +281,7 @@ fn source_scope<'p>(
         None if program.trait_type_parameters(owner).is_empty()
             && owner.lifetime_parameters.is_empty() =>
         {
-            Some(typed_trees::trait_definition::AppliedTraitScope::abstract_scope(owner))
+            Some(AppliedTraitScope::abstract_scope(owner))
         }
         None => None,
     };
@@ -293,7 +291,7 @@ fn source_scope<'p>(
 fn instance_in_scope(
     program: &TypedTrees,
     template: SymbolHandle,
-    scope: &typed_trees::trait_definition::AppliedTraitScope<'_>,
+    scope: &AppliedTraitScope<'_>,
     invocation: &InvocationTuple,
 ) -> SymbolHandle {
     let arguments = &invocation.arguments;
@@ -317,7 +315,12 @@ fn instance_in_scope(
                     || expressions_of(program)
                         .static_machine_application(application.application)
                         .lexical_owner
-                        == invocation.owner)
+                        == invocation.owner
+                        && program
+                            .expression_table
+                            .static_machine_application(application.application)
+                            .lifetime_binding_declaration
+                            == invocation.lifetime_declaration)
                 && parameters
                     .iter()
                     .zip(arguments)
@@ -355,12 +358,12 @@ fn instance_in_scope(
 /// invocation. Its complete logical selection must be prepared and retargeted
 /// alongside the ordinary statement; the binding's later statement position is
 /// not a second invocation. Erased-only packages keep their own source point.
-fn source_expression_roster(
+pub(super) fn source_expression_roster(
     program: &TypedTrees,
     machine: SymbolHandle,
     state: SymbolHandle,
     position: usize,
-    statement: &typed_trees::statement::StatementNode,
+    statement: &StatementNode,
 ) -> Vec<typed_trees::expression::ExpressionHandle> {
     let mut expressions = Vec::new();
     validation::collect_statement_expression_trees(program, statement, &mut expressions);
@@ -372,11 +375,7 @@ fn source_expression_roster(
                 .unwrap_or(package.statement_index)
                 == position
         {
-            validation::expression_traversal::collect_expression_tree(
-                program,
-                package.call,
-                &mut expressions,
-            );
+            collect_expression_tree(program, package.call, &mut expressions);
         }
     }
     expressions
@@ -451,7 +450,7 @@ fn prepare_invocations(
 pub(super) fn invocation_tuples<'p>(
     program: &'p TypedTrees,
     requirement: SymbolHandle,
-    scope: &typed_trees::trait_definition::AppliedTraitScope<'_>,
+    scope: &AppliedTraitScope<'_>,
 ) -> Result<Vec<InvocationTuple>, Vec<Diagnostic>> {
     let mut tuples = Vec::new();
     let mut add = |owner,
@@ -543,7 +542,7 @@ pub(super) fn invocation_tuples<'p>(
                                         expressions_of(program)
                                             .name_path_node(call.receiver)
                                             .map_or_else(SymbolHandle::invalid, |path| path.symbol),
-                                        validation::expression_type_reference_in_state(
+                                        expression_type_reference_in_state(
                                             program,
                                             state.symbol,
                                             position,
@@ -696,7 +695,7 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
                                     expressions_of(program)
                                         .name_path_node(call.receiver)
                                         .map_or_else(SymbolHandle::invalid, |path| path.symbol),
-                                    validation::expression_type_reference_in_state(
+                                    expression_type_reference_in_state(
                                         program,
                                         state.symbol,
                                         position,
@@ -784,37 +783,31 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
             &mut arguments,
         )
         .map_err(|message| vec![Diagnostic::error(message)])?;
-        let bindings = super::invocation_bindings(program, &parameters, &arguments)?;
+        let bindings = super::invocation_bindings(program, lexical_owner, &parameters, &arguments)?;
         expressions_of_mut(program)
             .static_machine_application_mut(application)
             .binding_declaration = template;
         expressions_of_mut(program).set_static_machine_application_bindings(application, &bindings);
     }
     for (handle, selected) in expression_updates {
-        if let typed_trees::expression::ExpressionNode::Call(call) =
-            expressions_of_mut(program).expression_mut(handle)
-        {
+        if let ExpressionNode::Call(call) = expressions_of_mut(program).expression_mut(handle) {
             call.target_symbol = selected;
         }
     }
     for (handle, selected) in statement_updates {
-        if let typed_trees::statement::StatementNode::Call(call) =
-            program.statement_table.statement_mut(handle)
-        {
+        if let StatementNode::Call(call) = program.statement_table.statement_mut(handle) {
             call.target_symbol = selected;
         }
     }
     for (handle, selected) in expression_dispatch_updates {
-        if let typed_trees::expression::ExpressionNode::Call(call) =
-            expressions_of_mut(program).expression_mut(handle)
+        if let ExpressionNode::Call(call) = expressions_of_mut(program).expression_mut(handle)
             && let Some(dispatch) = &mut call.static_requirement_dispatch
         {
             dispatch.contract_signature = selected;
         }
     }
     for (handle, selected) in statement_dispatch_updates {
-        if let typed_trees::statement::StatementNode::Call(call) =
-            program.statement_table.statement_mut(handle)
+        if let StatementNode::Call(call) = program.statement_table.statement_mut(handle)
             && let Some(dispatch) = &mut call.static_requirement_dispatch
         {
             dispatch.contract_signature = selected;

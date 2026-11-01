@@ -23,6 +23,8 @@ use super::{
 };
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::invalid;
+use crate::selection::established_view_input::{element_view_type, view_type};
+use crate::structural_inputs::structural_reference_input::PointerSlot;
 use legalized_operations::LegalizedRuntimeIndexOperand;
 use semantic_vocabulary::{IntegerValue, PlaceId, ValueId};
 
@@ -38,7 +40,7 @@ pub(super) fn projection_base(
     place: PlaceId,
     byte_offset: u32,
 ) -> Result<Option<VirtualRegisterId>, SelectedInstructionError> {
-    let byte_view = crate::selection::established_view_input::view_type(source, place).is_some();
+    let byte_view = view_type(source, place).is_some();
     let view_offset = if byte_view {
         builder.transport.view(place).map(|view| view.byte_offset)
     } else {
@@ -47,10 +49,7 @@ pub(super) fn projection_base(
             .element_view(place)
             .map(|view| view.byte_offset)
     };
-    if !byte_view
-        && view_offset.is_none()
-        && crate::selection::established_view_input::element_view_type(source, place).is_none()
-    {
+    if !byte_view && view_offset.is_none() && element_view_type(source, place).is_none() {
         return Ok(builder
             .transport
             .pointers
@@ -83,16 +82,10 @@ pub(super) fn projection_origin<'slots>(
     row: &impl super::super::call_arguments::InvocationArgumentSource,
     place: PlaceId,
     byte_offset: u32,
-    mut slots: &'slots [crate::structural_inputs::structural_reference_input::PointerSlot],
-) -> Result<
-    (
-        Option<VirtualRegisterId>,
-        &'slots [crate::structural_inputs::structural_reference_input::PointerSlot],
-    ),
-    SelectedInstructionError,
-> {
-    let root_view = crate::selection::established_view_input::view_type(source, place).is_some()
-        || crate::selection::established_view_input::element_view_type(source, place).is_some();
+    mut slots: &'slots [PointerSlot],
+) -> Result<(Option<VirtualRegisterId>, &'slots [PointerSlot]), SelectedInstructionError> {
+    let root_view =
+        view_type(source, place).is_some() || element_view_type(source, place).is_some();
     let pointer = if root_view {
         if let Some(first) = slots.first() {
             if first.byte_offset != 0 || first.indices != (0..0) || first.scalar_descriptor {
@@ -297,7 +290,7 @@ pub(in crate::selection) fn cross_references(
     place: PlaceId,
     pointer: VirtualRegisterId,
     indices: &[LegalizedRuntimeIndexOperand],
-    pointer_slots: &[crate::structural_inputs::structural_reference_input::PointerSlot],
+    pointer_slots: &[PointerSlot],
 ) -> Result<(VirtualRegisterId, usize), SelectedInstructionError> {
     cross_references_at_site(
         builder,
@@ -319,7 +312,7 @@ pub(in crate::selection) fn cross_references_at_site(
     place: PlaceId,
     mut pointer: VirtualRegisterId,
     indices: &[LegalizedRuntimeIndexOperand],
-    pointer_slots: &[crate::structural_inputs::structural_reference_input::PointerSlot],
+    pointer_slots: &[PointerSlot],
 ) -> Result<(VirtualRegisterId, usize), SelectedInstructionError> {
     // Every reference crossing ends its own contiguous address region. Preserve
     // each pointer load before applying the following region's offset or indices.
@@ -373,7 +366,7 @@ pub(super) fn scalar_reference(
     place: PlaceId,
     pointer: VirtualRegisterId,
     indices: &[LegalizedRuntimeIndexOperand],
-    slots: &[crate::structural_inputs::structural_reference_input::PointerSlot],
+    slots: &[PointerSlot],
 ) -> Result<Option<(VirtualRegisterId, VirtualRegisterId)>, SelectedInstructionError> {
     let (home, byte_offset, traversals) = if let Some(slot) =
         slots.last().filter(|slot| slot.scalar_descriptor)

@@ -1,11 +1,15 @@
 #[path = "terminal_build_bindings.rs"]
 mod build_bindings;
+#[path = "terminal_calling_policy.rs"]
+mod calling_policy;
 #[path = "terminal_carried_requirements.rs"]
 mod carried_requirements;
 #[path = "terminal_cleanup_resume.rs"]
 mod cleanup_resume;
 #[path = "terminal_extent_view.rs"]
 mod extent_view;
+#[path = "terminal_input_contents.rs"]
+mod input_contents;
 #[path = "terminal_mutable_boundary.rs"]
 mod mutable_boundary;
 #[path = "terminal_mutable_boundary_provision.rs"]
@@ -32,6 +36,12 @@ pub(super) fn observe_portable(
     words: &[&str],
 ) -> Result<(), String> {
     match words {
+        ["calling-policy", target, accepted, rejected] => {
+            calling_policy::observe(artifact, target, accepted, rejected)
+        }
+        ["input-storage", expected, contents @ ..] => {
+            input_contents::observe(artifact, expected, contents)
+        }
         ["result-storage", oracles @ ..] => result_observation::observe(artifact, oracles),
         ["project-requests"] => project_requests::observe(artifact, requests),
         ["result-custody", cells, bytes, oracle @ ..] => {

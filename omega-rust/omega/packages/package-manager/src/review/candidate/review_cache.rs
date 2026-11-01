@@ -43,6 +43,7 @@
 //! stores; `record_codec` owns the record byte layout. This module owns the
 //! record type, its capture from a fresh review, and the directory store.
 
+use std::process::id;
 mod key;
 mod record_codec;
 
@@ -246,7 +247,7 @@ impl CompiledReviewCache {
         static SEQUENCE: AtomicU64 = AtomicU64::new(0);
         let temporary = self.directory.join(format!(
             "{}.{}.tmp",
-            std::process::id(),
+            id(),
             SEQUENCE.fetch_add(1, Ordering::Relaxed)
         ));
         if std::fs::write(&temporary, &trailer).is_err() {
@@ -329,14 +330,12 @@ pub(crate) fn record_compiled_review(
 #[cfg(test)]
 mod tests {
     use super::{CheckedSourceCacheLimits, CompiledReviewCache};
+    use std::process::id;
     use std::time::{Duration, SystemTime};
 
     #[test]
     fn full_cache_evicts_its_oldest_records_before_storing() {
-        let directory = std::env::temp_dir().join(format!(
-            "omega-review-cache-eviction-{}",
-            std::process::id()
-        ));
+        let directory = std::env::temp_dir().join(format!("omega-review-cache-eviction-{}", id()));
         let _ = std::fs::remove_dir_all(&directory);
         std::fs::create_dir_all(&directory).unwrap();
         let written = |name: &str, seconds: u64| {

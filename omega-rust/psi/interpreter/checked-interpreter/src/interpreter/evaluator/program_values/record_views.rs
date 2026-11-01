@@ -3,6 +3,8 @@ use crate::interpreter::evaluator::{
     ReferenceProjection, ReferenceProjectionStep, TypeReferenceHandle, TypeReferenceNode, Value,
     interpreter_f32_from_bits, interpreter_f32_to_bits, trap, type_reference_table, wrap_to_width,
 };
+use layout_plans::IntegerInterpretation::Signed;
+use layout_plans::IntegerInterpretation::Unsigned;
 impl<'program> Evaluator<'program> {
     pub(in crate::interpreter::evaluator) fn assemble_scalar_byte_region(
         &self,
@@ -101,20 +103,18 @@ impl<'program> Evaluator<'program> {
             .ok_or_else(|| Halt::Trap("stored-integer recast write is not integer".to_owned()))?;
         let bit_count = u32::from(stored_width_bits);
         let fits = match interpretation {
-            layout_plans::IntegerInterpretation::Signed => {
+            Signed => {
                 let magnitude = 1_i128 << (bit_count - 1);
                 i128::from(integer) >= -magnitude && i128::from(integer) < magnitude
             }
-            layout_plans::IntegerInterpretation::Unsigned => {
-                i128::from(integer) >= 0 && i128::from(integer) < (1_i128 << bit_count)
-            }
+            Unsigned => i128::from(integer) >= 0 && i128::from(integer) < (1_i128 << bit_count),
         };
         if !fits {
             return trap(format!(
                 "stored-integer recast write value {integer} does not fit {stored_width_bits}-bit {} storage",
                 match interpretation {
-                    layout_plans::IntegerInterpretation::Signed => "signed",
-                    layout_plans::IntegerInterpretation::Unsigned => "unsigned",
+                    Signed => "signed",
+                    Unsigned => "unsigned",
                 }
             ));
         }
@@ -314,9 +314,7 @@ impl<'program> Evaluator<'program> {
                 & 0xFF;
             bits |= byte << (8 * byte_index);
         }
-        if matches!(interpretation, layout_plans::IntegerInterpretation::Signed)
-            && stored_width_bits < 64
-        {
+        if matches!(interpretation, Signed) && stored_width_bits < 64 {
             let sign_bit = 1u64 << (stored_width_bits - 1);
             if bits & sign_bit != 0 {
                 bits |= !0u64 << stored_width_bits;

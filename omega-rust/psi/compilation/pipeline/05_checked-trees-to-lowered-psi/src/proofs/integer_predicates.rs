@@ -1,7 +1,8 @@
 //! Integer predicate operations shared by entry requirements and crash routes.
 //! Callers own leaf namespaces; this conversion preserves carrier and policy
-//! meaning. Partial operators still need explicit safety evidence, never the
-//! requirement being translated as its own premise.
+//! meaning and consumes checking's occurrence-bound formation decisions.
+//! Generated partial terms without a decision still need explicit safety
+//! evidence, never the requirement being translated as its own premise.
 
 use super::crash_routes::structural_arithmetic::{
     safe_exact_structural_divisor, safe_exact_structural_shift, safe_policy_structural_divisor,
@@ -18,6 +19,52 @@ pub(crate) fn lower(
 ) -> Result<ScalarTerm, LoweringError> {
     let mut lower_operand = |operand| lower(operand, runtime_requirements, leaf);
     match expression {
+        CheckedScalarExpression::IntegerWiden {
+            primitive_type,
+            operand,
+        } => {
+            let target_type = integer_scalar_type(*primitive_type)?.as_integer().ok_or(
+                LoweringError::Unsupported("integer predicate widening has no integer target"),
+            )?;
+            let operand = lower_operand(operand)?;
+            let source_type =
+                operand
+                    .scalar_type()
+                    .as_integer()
+                    .ok_or(LoweringError::Unsupported(
+                        "integer predicate widening has no integer operand",
+                    ))?;
+            ScalarTerm::integer_widen(source_type, target_type, operand)
+                .map_err(LoweringError::InvalidCrashPredicate)
+        }
+        CheckedScalarExpression::IntegerExactCast {
+            primitive_type,
+            operand,
+            formation_decided,
+            ..
+        } => {
+            let target_type = integer_scalar_type(*primitive_type)?.as_integer().ok_or(
+                LoweringError::Unsupported("integer predicate exact cast has no integer target"),
+            )?;
+            let operand = lower_operand(operand)?;
+            let source_type =
+                operand
+                    .scalar_type()
+                    .as_integer()
+                    .ok_or(LoweringError::Unsupported(
+                        "integer predicate exact cast has no integer operand",
+                    ))?;
+            // The clause being translated cannot establish its own partial
+            // operand. Full-carrier inclusion is total; other exact casts need
+            // the independently retained source occurrence decision.
+            if !*formation_decided && !source_type.can_widen_to(target_type) {
+                return unsupported(
+                    "integer predicate exact cast lacks independent formation evidence",
+                );
+            }
+            ScalarTerm::integer_exact_cast(source_type, target_type, operand)
+                .map_err(LoweringError::InvalidCrashPredicate)
+        }
         CheckedScalarExpression::IntegerBitwiseNot {
             primitive_type,
             operand,
@@ -66,6 +113,7 @@ pub(crate) fn lower(
             primitive_type,
             left,
             right,
+            formation_decided,
             ..
         } if matches!(
             kind,
@@ -90,14 +138,16 @@ pub(crate) fn lower(
                 kind,
                 CheckedIntegerBinaryKind::ExactShiftLeft
                     | CheckedIntegerBinaryKind::ExactShiftRight
-            ) && !safe_exact_structural_shift(
-                matches!(kind, CheckedIntegerBinaryKind::ExactShiftLeft),
-                value_type,
-                count_type,
-                &value,
-                &count,
-                runtime_requirements,
-            ) {
+            ) && !*formation_decided
+                && !safe_exact_structural_shift(
+                    matches!(kind, CheckedIntegerBinaryKind::ExactShiftLeft),
+                    value_type,
+                    count_type,
+                    &value,
+                    &count,
+                    runtime_requirements,
+                )
+            {
                 return unsupported(
                     "structural crash Exact shift requires explicit terminal count and overflow safety evidence",
                 );
@@ -124,6 +174,7 @@ pub(crate) fn lower(
             primitive_type,
             left,
             right,
+            formation_decided,
             ..
         } if matches!(
             kind,
@@ -159,12 +210,9 @@ pub(crate) fn lower(
             if matches!(
                 kind,
                 CheckedIntegerBinaryKind::ExactDivide | CheckedIntegerBinaryKind::ExactRemainder
-            ) && !safe_exact_structural_divisor(
-                integer_type,
-                &left,
-                &right,
-                runtime_requirements,
-            ) {
+            ) && !*formation_decided
+                && !safe_exact_structural_divisor(integer_type, &left, &right, runtime_requirements)
+            {
                 return unsupported(
                     "structural crash exact division requires explicit terminal divisor safety evidence",
                 );
@@ -175,7 +223,8 @@ pub(crate) fn lower(
                     | CheckedIntegerBinaryKind::WrappingRemainder
                     | CheckedIntegerBinaryKind::SaturatingDivide
                     | CheckedIntegerBinaryKind::SaturatingRemainder
-            ) && !safe_policy_structural_divisor(integer_type, &right, runtime_requirements)
+            ) && !*formation_decided
+                && !safe_policy_structural_divisor(integer_type, &right, runtime_requirements)
             {
                 return unsupported(
                     "structural crash policy division requires explicit terminal nonzero-divisor evidence",

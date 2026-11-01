@@ -5,12 +5,21 @@
 //! results. Views keep invocation-live contents, while owned leaves retain their
 //! completion frontier. None of these relations grants a loan or membership.
 
+use crate::checks::termination::progress::fact_subjects::subject_from_place;
+use crate::collections::push_unique;
 use arena::Handle;
 use checked_trees::{FlowCallFact, FlowFacts, FlowOperandFact, FlowStateFact};
-use facts::PlaceSegment;
+use facts::{FactPlan, PlaceSegment};
 use language_semantics::ProgressSubject;
+use typed_trees::expression::TableCallExpression;
 use typed_trees::{expression::ExpressionNode, machine::Machine};
-use validation::CanonicalPlace;
+use validation::completed_storage::captured_retention_profiles_at_path;
+use validation::completed_storage::descriptor_suppliers;
+use validation::completed_storage::reference_captures_at_path;
+use validation::{
+    CallFrameResolver, CanonicalPlace, CheckingInput, canonical_place_type_reference,
+    fixed_array_type_length, project_type_reference_from_segments, reference_shell,
+};
 
 use super::call_places::{
     ArgumentScope, call_argument_place, call_result_place, call_result_value_place,
@@ -32,14 +41,14 @@ pub(super) enum CapturedOrigins {
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn at_call(
-    program: &dyn validation::CheckingInput,
+    program: &dyn CheckingInput,
     flow: &FlowFacts,
-    semantic: &facts::FactPlan,
+    semantic: &FactPlan,
     machine: &Machine,
     state: &FlowStateFact,
     call: &FlowCallFact,
     place: &CanonicalPlace,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&CallFrameResolver<'_>>,
 ) -> CapturedOrigins {
     let Some(_) = program.state_by_symbol(state.state_symbol) else {
         return CapturedOrigins::Unavailable;
@@ -55,14 +64,10 @@ pub(super) fn at_call(
     if epoch.state_symbol != state.state_symbol || epoch.statement_index != call.statement_index {
         return CapturedOrigins::Unavailable;
     }
-    let observation = validation::canonical_place_type_reference(
-        program,
-        state.state_symbol,
-        call.statement_index,
-        place,
-    )
-    .filter(|reference| validation::reference_shell(program, *reference).is_some())
-    .map_or(StoredObservation::Contents, |_| StoredObservation::Binding);
+    let observation =
+        canonical_place_type_reference(program, state.state_symbol, call.statement_index, place)
+            .filter(|reference| reference_shell(program, *reference).is_some())
+            .map_or(StoredObservation::Contents, |_| StoredObservation::Binding);
     match flow::stored_values::at_snapshot(
         program,
         &flow.control,
@@ -97,7 +102,7 @@ pub(super) fn at_call(
                     return CapturedOrigins::Unavailable;
                 };
                 for subject in subjects {
-                    crate::collections::push_unique(&mut joined, subject);
+                    push_unique(&mut joined, subject);
                 }
             }
             CapturedOrigins::Exact(joined)
@@ -131,15 +136,15 @@ pub(super) fn at_call(
 
 #[allow(clippy::too_many_arguments)]
 fn resolve_captures(
-    program: &dyn validation::CheckingInput,
+    program: &dyn CheckingInput,
     flow: &FlowFacts,
-    semantic: &facts::FactPlan,
+    semantic: &FactPlan,
     machine: &Machine,
     state: &FlowStateFact,
     call: &FlowCallFact,
     capture: Handle<FlowOperandFact>,
     projection: Vec<PlaceSegment>,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&CallFrameResolver<'_>>,
 ) -> Option<Vec<ProgressSubject>> {
     let mut owned_frames = None;
     let frames = flow::shared_call_frames_or(call_frames, program, &mut owned_frames)?;
@@ -159,12 +164,12 @@ fn resolve_captures(
             .iter()
             .position(|segment| matches!(segment, PlaceSegment::Index { .. }))
         {
-            let collection = validation::project_type_reference_from_segments(
+            let collection = project_type_reference_from_segments(
                 program,
                 capture.type_reference,
                 &projection[..selector],
             )?;
-            let length = validation::fixed_array_type_length(program, collection)?;
+            let length = fixed_array_type_length(program, collection)?;
             if length == 0 {
                 return None;
             }
@@ -179,20 +184,17 @@ fn resolve_captures(
             return None;
         }
         ancestry.push(handle);
-        let selected_type = validation::project_type_reference_from_segments(
-            program,
-            capture.type_reference,
-            &projection,
-        )?;
-        let live = validation::reference_shell(program, selected_type).is_some()
+        let selected_type =
+            project_type_reference_from_segments(program, capture.type_reference, &projection)?;
+        let live = reference_shell(program, selected_type).is_some()
             || (!projection.is_empty()
-                && validation::reference_shell(program, capture.type_reference).is_some());
+                && reference_shell(program, capture.type_reference).is_some());
         // A synthetic returned descriptor is a checked completed value too.
         // Select it before requiring an authored expression: its exact supplier
         // association, rather than an invented source spelling, owns lineage.
         if live {
             let (operands, _) = flow::captured_call_operands(program, flow, state, call)?;
-            if let Some(stored) = validation::completed_storage::reference_captures_at_path(
+            if let Some(stored) = reference_captures_at_path(
                 program,
                 &flow.control,
                 handle,
@@ -223,22 +225,11 @@ fn resolve_captures(
         // replace those captured binding histories.
         if live
             && let Some(profiles) =
-                validation::completed_storage::captured_retention_profiles_at_path(
-                    program,
-                    &flow.control,
-                    capture,
-                    &projection,
-                )
+                captured_retention_profiles_at_path(program, &flow.control, capture, &projection)
         {
             let suppliers = profiles
                 .iter()
-                .map(|profile| {
-                    validation::completed_storage::descriptor_suppliers(
-                        &flow.control,
-                        *profile,
-                        &mut Vec::new(),
-                    )
-                })
+                .map(|profile| descriptor_suppliers(&flow.control, *profile, &mut Vec::new()))
                 .collect::<Vec<_>>();
             if suppliers.iter().any(Option::is_some) {
                 for suppliers in suppliers {
@@ -267,9 +258,8 @@ fn resolve_captures(
             program.expression_table.expression(capture.expression),
             ExpressionNode::Borrow(_) | ExpressionNode::Call(_)
         ) || (!projection.is_empty()
-            && validation::reference_shell(program, capture.type_reference).is_some());
-        let observation = if validation::reference_shell(program, capture.type_reference).is_some()
-        {
+            && reference_shell(program, capture.type_reference).is_some());
+        let observation = if reference_shell(program, capture.type_reference).is_some() {
             StoredObservation::Binding
         } else {
             StoredObservation::Contents
@@ -303,7 +293,7 @@ fn resolve_captures(
             live,
             frames,
         )? {
-            crate::collections::push_unique(&mut subjects, subject);
+            push_unique(&mut subjects, subject);
         }
     }
     (!subjects.is_empty()).then_some(subjects)
@@ -311,7 +301,7 @@ fn resolve_captures(
 
 #[allow(clippy::too_many_arguments)]
 fn resolve_leaf(
-    program: &dyn validation::CheckingInput,
+    program: &dyn CheckingInput,
     flow: &FlowFacts,
     machine: &Machine,
     state: &FlowStateFact,
@@ -319,7 +309,7 @@ fn resolve_leaf(
     capture: &FlowOperandFact,
     projection: &[PlaceSegment],
     live: bool,
-    frames: &validation::CallFrameResolver<'_>,
+    frames: &CallFrameResolver<'_>,
 ) -> Option<Vec<ProgressSubject>> {
     let sources = if let Some(nested) = program.expression_table.call_node(capture.expression) {
         call_result_place(
@@ -344,12 +334,10 @@ fn resolve_leaf(
             Some(frames),
         )?]
     };
-    let resolve = |state: &FlowStateFact,
-                   index,
-                   nested: &typed_trees::expression::TableCallExpression,
-                   relative: &[PlaceSegment]| {
-        call_result_value_place(program, frames, state, index, nested, relative, 16)
-    };
+    let resolve =
+        |state: &FlowStateFact, index, nested: &TableCallExpression, relative: &[PlaceSegment]| {
+            call_result_value_place(program, frames, state, index, nested, relative, 16)
+        };
     let mut subjects = Vec::new();
     for source in sources {
         if !flow::operand_entry_origin_is_stable(program, flow, capture, &source) {
@@ -379,7 +367,7 @@ fn resolve_leaf(
             if let Some(subject) = frozen_references::entry_subject(
                 program, flow, machine, state, call, capture, &source, frames,
             ) {
-                crate::collections::push_unique(&mut subjects, subject);
+                push_unique(&mut subjects, subject);
                 continue;
             }
             if !bindings_preserved(program, flow, state, call, capture, &source) {
@@ -388,7 +376,7 @@ fn resolve_leaf(
             for subject in
                 super::direct_at_place(program, flow, machine, state, call, source, Some(frames))?
             {
-                crate::collections::push_unique(&mut subjects, subject);
+                push_unique(&mut subjects, subject);
             }
         } else {
             let source = flow::trace_value_origin_before_statement(
@@ -407,18 +395,15 @@ fn resolve_leaf(
                     )
                 },
             )?;
-            let subject = crate::checks::termination::progress::fact_subjects::subject_from_place(
-                source.root,
-                &source.segments,
-            )?;
-            crate::collections::push_unique(&mut subjects, subject);
+            let subject = subject_from_place(source.root, &source.segments)?;
+            push_unique(&mut subjects, subject);
         }
     }
     (!subjects.is_empty()).then_some(subjects)
 }
 
 fn bindings_preserved(
-    program: &dyn validation::CheckingInput,
+    program: &dyn CheckingInput,
     flow: &FlowFacts,
     state: &FlowStateFact,
     call: &FlowCallFact,

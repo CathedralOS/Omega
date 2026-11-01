@@ -52,11 +52,19 @@ fn project_one(
                 .collect::<BTreeSet<_>>()
                 == internal_edges
     })?;
+    // This optimization certifies one unsigned counter, not a lexicographic
+    // tuple. General tuple ranks retain their source evidence unchanged.
+    let rank_type = natural
+        .scalar_rank_value(natural.ranks.first()?.values)?
+        .integer_type;
+    if rank_type.sign() != semantic_vocabulary::IntegerSign::Unsigned {
+        return None;
+    }
     let ranks = natural
         .ranks
         .iter()
-        .map(|rank| (rank.block, rank.value))
-        .collect::<BTreeMap<_, _>>();
+        .map(|rank| Some((rank.block, natural.scalar_rank_value(rank.values)?.value)))
+        .collect::<Option<BTreeMap<_, _>>>()?;
 
     // The countdown idiom crosses exactly one strict edge: the counted
     // backedge returning to the header.
@@ -68,6 +76,7 @@ fn project_one(
     let [backedge] = strict.as_slice() else {
         return None;
     };
+    let successor_rank = natural.scalar_rank_value(backedge.successor_ranks)?.value;
     let header_id = backedge.target;
     let decrement_id = backedge.source;
     let rank_parameter = *ranks.get(&header_id)?;
@@ -135,11 +144,11 @@ fn project_one(
     };
     if *jump_edge != backedge.edge
         || *target != header_id
-        || arguments.get(argument_index).copied() != Some(backedge.successor_rank)
+        || arguments.get(argument_index).copied() != Some(successor_rank)
     {
         return None;
     }
-    let subtract = scalar_operation(decrement, backedge.successor_rank)?;
+    let subtract = scalar_operation(decrement, successor_rank)?;
     let ::terminal_psi::OperationKind::ExactIntegerSubtract {
         left,
         right: one,
@@ -163,9 +172,9 @@ fn project_one(
         component: component.id.clone(),
         header: header_id,
         rank_parameter,
-        rank_type: natural.rank_type,
-        lower_bound: natural.rank_type.minimum_value(),
-        upper_bound: natural.rank_type.maximum_value(),
+        rank_type,
+        lower_bound: rank_type.minimum_value(),
+        upper_bound: rank_type.maximum_value(),
         guard: OptimizerUnsignedPositiveGuard {
             block: header_id,
             edge: guard.edge,
@@ -182,7 +191,7 @@ fn project_one(
                 target: header_id,
             },
             argument_index: u32::try_from(argument_index).ok()?,
-            argument: backedge.successor_rank,
+            argument: successor_rank,
             source_parameter,
             target_parameter: rank_parameter,
             one,

@@ -27,6 +27,7 @@ use crate::typed_expressions::{
 };
 use arena::HandleSpan;
 use symbols::SymbolHandle;
+use typed_trees::boundary::called_boundary_signature;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::name::Identifier;
@@ -37,6 +38,8 @@ use typed_trees::statement::{
     TransitionTargetNode,
 };
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::{expression, statement};
+use validation::expression_traversal::visit_post_order;
 
 /// The caller's argument for the SIBLING a sibling-length atom names --
 /// `None`/invalid when the parameter's constraints carry no such atom or the
@@ -551,9 +554,7 @@ pub(crate) fn ensures_witness_bounds_at<'program>(
             StatementNode::Call(call) => {
                 let written = call_frames.and_then(|frames| frames.may_write_paths(machine, call));
                 retire_written_witnesses(&mut witnesses, written.as_deref());
-                let Some(signature) =
-                    typed_trees::boundary::called_boundary_signature(program, call)
-                else {
+                let Some(signature) = called_boundary_signature(program, call) else {
                     continue;
                 };
                 let Some(origins) =
@@ -894,38 +895,31 @@ fn collect_nested_receiving_obligations(
     let mut fields = Vec::new();
     let mut visited = Vec::new();
     for (_, root) in program.tables.expression_roots(statement) {
-        validation::expression_traversal::visit_post_order(
-            program,
-            root,
-            &mut visited,
-            |expression, node| {
-                if let ExpressionNode::Call(call) = node {
-                    calls.push(CallOccurrence {
-                        target_symbol: call.target_symbol,
-                        target: call.target.clone(),
-                        receiver: call.receiver.is_valid().then(|| {
-                            Identifier::generated(
-                                program.expression_table.display_name(call.receiver),
-                            )
-                        }),
-                        arguments: program.expression_table.expression_handles(call.arguments),
-                    });
+        visit_post_order(program, root, &mut visited, |expression, node| {
+            if let ExpressionNode::Call(call) = node {
+                calls.push(CallOccurrence {
+                    target_symbol: call.target_symbol,
+                    target: call.target.clone(),
+                    receiver: call.receiver.is_valid().then(|| {
+                        Identifier::generated(program.expression_table.display_name(call.receiver))
+                    }),
+                    arguments: program.expression_table.expression_handles(call.arguments),
+                });
+            }
+            if let ExpressionNode::StructLiteral(literal) = node {
+                for field in program.expression_table.struct_fields(literal.fields) {
+                    let Some(reference) = validation::selected_construction_field_type(
+                        program,
+                        expression,
+                        literal,
+                        field.field_symbol,
+                    ) else {
+                        continue;
+                    };
+                    fields.push((field, reference));
                 }
-                if let ExpressionNode::StructLiteral(literal) = node {
-                    for field in program.expression_table.struct_fields(literal.fields) {
-                        let Some(reference) = validation::selected_construction_field_type(
-                            program,
-                            expression,
-                            literal,
-                            field.field_symbol,
-                        ) else {
-                            continue;
-                        };
-                        fields.push((field, reference));
-                    }
-                }
-            },
-        );
+            }
+        });
     }
     for (field, reference) in fields {
         collect_receiving_initializer_obligation(
@@ -1182,7 +1176,7 @@ fn collect_bounded_state_return_obligation(
     return_type: TypeReferenceHandle,
     proof_plan: &mut ProofPlan<'_>,
 ) {
-    let Some(typed_trees::statement::StatementNode::Expression(value)) = statement_table(program)
+    let Some(statement::StatementNode::Expression(value)) = statement_table(program)
         .statements(state.statement_nodes)
         .last()
     else {
@@ -1316,10 +1310,7 @@ fn table_transition_target_state_and_arguments<'program>(
     program: &'program dyn ::validation::CheckingInput,
     state: &'program State,
     target: TransitionTargetHandle,
-) -> Option<(
-    &'program State,
-    &'program [typed_trees::expression::ExpressionHandle],
-)> {
+) -> Option<(&'program State, &'program [expression::ExpressionHandle])> {
     let TransitionTargetNode::Named {
         path, arguments, ..
     } = program.statement_table.transition_target(target)

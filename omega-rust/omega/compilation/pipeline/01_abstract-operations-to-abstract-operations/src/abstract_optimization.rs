@@ -40,6 +40,7 @@ use crate::publication::{
     OptimizedAbstractProjectionError, ValidatedOptimizedAbstractPlan, publish_optimization_run,
 };
 use crate::rules::built_in_psi_steps_for_selections;
+use terminal_fuel::TerminalFuelSchedule;
 
 #[derive(Debug)]
 pub enum AbstractOptimizationError {
@@ -67,11 +68,9 @@ pub fn optimize_abstract_operations(
             phase,
         ));
     }
-    let verified = build_verified_psi_optimization_unit(
-        input,
-        terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
-    )
-    .map_err(AbstractOptimizationError::UnitBuild)?;
+    let verified =
+        build_verified_psi_optimization_unit(input, TerminalFuelSchedule::CURRENT.identity())
+            .map_err(AbstractOptimizationError::UnitBuild)?;
     let run =
         run_psi_pipeline_for_projection(verified, selections, psi_selections, budget_per_pass)
             .map_err(AbstractOptimizationError::Run)?;

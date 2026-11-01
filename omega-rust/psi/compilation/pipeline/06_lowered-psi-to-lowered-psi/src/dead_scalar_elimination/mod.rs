@@ -15,6 +15,7 @@
 mod liveness;
 
 use crate::PsiOptimizationStageError;
+use crate::retained_identities::{boundary_application_results, record_named_rows};
 use lowered_psi::LoweredPsi;
 
 pub(super) fn eliminate(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizationStageError> {
@@ -23,11 +24,8 @@ pub(super) fn eliminate(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizatio
     // value: proof projections, retained suspension frontiers, boundary
     // results and the quotient catalogue's correspondence endpoints survive
     // publication unchanged.
-    let mut retained_values =
-        crate::retained_identities::record_named_rows(&before.semantic_module).values;
-    retained_values.extend(crate::retained_identities::boundary_application_results(
-        &before.semantic_module,
-    ));
+    let mut retained_values = record_named_rows(&before.semantic_module).values;
+    retained_values.extend(boundary_application_results(&before.semantic_module));
     // Join predicates remain the same proof questions. A value explicitly
     // named by a retained header is a semantic use, even when no executable
     // operation reads it after the selected rewrite.

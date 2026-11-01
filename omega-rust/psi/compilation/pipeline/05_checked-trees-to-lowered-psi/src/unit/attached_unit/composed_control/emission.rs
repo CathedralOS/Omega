@@ -28,6 +28,7 @@ use super::super::{CheckedUnitEffectOperationPlan, ValueDeclaration, unsupported
 use super::{CheckedTrees, LoweringError, catalogs, literal_arguments};
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
+use crate::unit::StructuralTypeId;
 use std::borrow::Cow;
 
 /// Storage established by one selected operation sequence. Scalar operands,
@@ -79,10 +80,7 @@ impl OperationSequence {
 pub(super) struct ComposedOperationCatalogs<'frame, 'catalogs> {
     pub(super) structural_types:
         &'frame mut Cow<'catalogs, [crate::unit::StructuralTypeDeclaration]>,
-    type_ids: &'frame [(
-        typed_trees::type_identity::TypeIdentityId,
-        crate::unit::StructuralTypeId,
-    )],
+    type_ids: &'frame [(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
     service_ids: &'frame [(crate::unit::ServiceReachId, crate::unit::ServiceId)],
     signatures: &'frame [super::super::signatures::MachineSignature],
     boundary_parameters: &'frame [super::super::operation_frame::BoundaryParameters],

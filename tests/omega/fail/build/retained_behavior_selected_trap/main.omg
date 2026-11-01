@@ -1,0 +1,10 @@
+// The same program and public contract; only the selected implementation differs.
+public boundary trait Assertion {
+    machine check(value: bool) reaches crashes Trap;
+}
+Noop satisfies Assertion { machine check(value: bool) {} }
+Trapping satisfies Assertion { machine check(value: bool) crashes Trap { crash Trap; } }
+
+machine main() reaches Assertion crashes Trap {
+    Assertion::check(false);
+}

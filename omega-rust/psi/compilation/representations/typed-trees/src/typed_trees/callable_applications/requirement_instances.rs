@@ -10,18 +10,20 @@
 //! requirement or permission to capture a region in a specialization operand.
 
 use super::{AppliedCallableOwner, AppliedCallableSignature, CallableApplication};
+use crate::type_identity;
 use crate::{TypedTrees, data, signature, static_applications, types};
 use arena::HandleSpan;
 use symbols::SymbolHandle;
+use type_identity::applied_type_identity;
 
 #[derive(Clone, Copy)]
 pub struct ClosedRequirementApplication<'program> {
     pub declaring_trait: SymbolHandle,
     pub template: SymbolHandle,
     /// Complete declaring application, independent of the executable signature.
-    pub trait_application_identity: crate::type_identity::NormalizedTypeIdentity,
-    pub portable_trait_application_identity: crate::type_identity::NormalizedTypeIdentity,
-    pub portable_local_arguments: &'program [crate::type_identity::NormalizedTypeIdentity],
+    pub trait_application_identity: type_identity::NormalizedTypeIdentity,
+    pub portable_trait_application_identity: type_identity::NormalizedTypeIdentity,
+    pub portable_local_arguments: &'program [type_identity::NormalizedTypeIdentity],
     pub trait_scope: crate::trait_definition::RetainedTraitScope,
     pub trait_arguments: &'program [types::TypeReferenceHandle],
     pub local_arguments: &'program [types::TypeReferenceHandle],
@@ -169,10 +171,19 @@ impl TypedTrees {
             let binding_owner = self
                 .static_machine_application(receipt.binding_application)
                 .lexical_owner;
-            let lifetimes = self.static_machine_application_lifetimes(application.application);
-            let same_regions = lifetimes
-                == self.static_machine_application_lifetimes(receipt.binding_application)
-                && (lifetimes.is_empty() || source_owner == binding_owner);
+            let same_regions = self
+                .static_application_lifetimes_for_declaration(application.application, realization)
+                .ok()
+                .zip(
+                    self.static_application_lifetimes_for_declaration(
+                        receipt.binding_application,
+                        realization,
+                    )
+                    .ok(),
+                )
+                .is_some_and(|(source, selected)| {
+                    source == selected && (source.is_empty() || source_owner == binding_owner)
+                });
             same_regions
                 && parameters.len() == arguments.len()
                 && bindings.len() == parameters.len()
@@ -271,14 +282,24 @@ impl TypedTrees {
         let bindings = self
             .static_machine_application_bindings(application)
             .to_vec();
+        // Binding payloads can come from a transient public invocation view.
+        // Copy them in the source telescope before closing the receiving one;
+        // validation alone cannot supply missing operand custody.
         let local_arguments = bindings
             .iter()
             .map(|binding| match &binding.value {
                 static_applications::StaticMachineBindingValue::Type(actual)
-                | static_applications::StaticMachineBindingValue::Const(actual) => Ok(*actual),
+                | static_applications::StaticMachineBindingValue::Const(actual) => self
+                    .static_operand_type_reference_in_scope(
+                        &crate::expression::StaticMachineArgument {
+                            type_reference: *actual,
+                            ..Default::default()
+                        },
+                        lexical_owner,
+                    ),
                 static_applications::StaticMachineBindingValue::Machine(actual)
                 | static_applications::StaticMachineBindingValue::Conformance(actual) => {
-                    self.static_operand_type_reference(actual)
+                    self.static_operand_type_reference_in_scope(actual, lexical_owner)
                 }
                 static_applications::StaticMachineBindingValue::RuntimeValue { .. } => {
                     Err("runtime operand does not close a requirement instance")
@@ -303,13 +324,8 @@ impl TypedTrees {
         let portable_local_arguments = local_arguments
             .iter()
             .map(|argument| {
-                crate::type_identity::portable_applied_type_identity(
-                    self,
-                    *argument,
-                    lexical_owner,
-                    &[],
-                )
-                .ok_or("closed requirement has no complete portable local operand")
+                type_identity::portable_applied_type_identity(self, *argument, lexical_owner, &[])
+                    .ok_or("closed requirement has no complete portable local operand")
             })
             .collect::<Result<Vec<_>, _>>()?;
         // Signature and ABI equality are insufficient cache coordinates. The
@@ -323,6 +339,12 @@ impl TypedTrees {
                 && existing.portable_trait_application_identity
                     == portable_trait_application_identity
                 && existing.portable_local_arguments == portable_local_arguments
+                && self
+                    .static_machine_application(existing.application)
+                    .lifetime_binding_declaration
+                    == self
+                        .static_machine_application(application)
+                        .lifetime_binding_declaration
                 && self.static_machine_application_lifetimes(existing.application)
                     == self.static_machine_application_lifetimes(application)
                 && (self
@@ -354,19 +376,14 @@ impl TypedTrees {
                                     let existing_owner = self
                                         .static_machine_application(existing.application)
                                         .lexical_owner;
-                                    crate::type_identity::applied_type_identity(
-                                        self,
-                                        *left,
-                                        existing_owner,
-                                        &[],
-                                    )
-                                    .zip(crate::type_identity::applied_type_identity(
-                                        self,
-                                        *right,
-                                        lexical_owner,
-                                        &[],
-                                    ))
-                                    .is_some_and(|(left, right)| left == right)
+                                    applied_type_identity(self, *left, existing_owner, &[])
+                                        .zip(applied_type_identity(
+                                            self,
+                                            *right,
+                                            lexical_owner,
+                                            &[],
+                                        ))
+                                        .is_some_and(|(left, right)| left == right)
                                 }
                                 (left, right) => left == right,
                             }

@@ -3,7 +3,7 @@
 
 use crate::typed_expressions::type_reference_table;
 use proof_admission::{Term, TermHandle};
-use symbols::{BuiltinTypeAtom, SymbolHandle};
+use symbols::{BuiltinTypeAtom, BuiltinTypeMember, SymbolHandle};
 use typed_trees::name::Identifier;
 
 use super::{Elaborator, ScopeEntry};
@@ -16,8 +16,7 @@ impl<'a> Elaborator<'a> {
         symbol: SymbolHandle,
         name: &Identifier,
     ) -> Result<TermHandle, Vec<diagnostics::Diagnostic>> {
-        if self.program.symbols.builtin_type_member(symbol)
-            == Some(symbols::BuiltinTypeMember::AddressBound)
+        if self.program.symbols.builtin_type_member(symbol) == Some(BuiltinTypeMember::AddressBound)
         {
             // Symbolic Int owned by the exact address carrier, not a host-size
             // literal or an authored assumption. Numeric closure belongs to

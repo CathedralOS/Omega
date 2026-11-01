@@ -1,6 +1,7 @@
 //! Declared call-result types select typed method candidates. These queries do
 //! not prove a runtime receiver origin, effects, or reference access legality.
 
+use resolved::types::TypeReference;
 use symbol_resolved_trees as resolved;
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
@@ -27,7 +28,7 @@ pub(crate) fn declared_call_state(
 pub(crate) fn declared_call_return(
     program: &resolved::SymbolResolvedTrees,
     target: SymbolHandle,
-) -> Option<&resolved::types::TypeReference> {
+) -> Option<&TypeReference> {
     if !target.is_valid() {
         return None;
     }
@@ -100,14 +101,12 @@ pub(crate) fn declared_call_parameters(
 
 pub(crate) fn peel<'program>(
     program: &'program resolved::SymbolResolvedTrees,
-    mut reference: &'program resolved::types::TypeReference,
-) -> &'program resolved::types::TypeReference {
+    mut reference: &'program TypeReference,
+) -> &'program TypeReference {
     loop {
         reference = match reference {
-            resolved::types::TypeReference::Reference(reference) => {
-                program.child_type_reference(reference.referee)
-            }
-            resolved::types::TypeReference::Constrained(reference) => {
+            TypeReference::Reference(reference) => program.child_type_reference(reference.referee),
+            TypeReference::Constrained(reference) => {
                 program.child_type_reference(reference.base_type)
             }
             _ => return reference,
@@ -149,8 +148,8 @@ pub(crate) fn computed_receiver_method_target(
             reference = match projection {
                 ExpressionNode::Indexed(_) => {
                     let element = match peel(program, reference) {
-                        resolved::types::TypeReference::FixedArray(array) => array.element_type,
-                        resolved::types::TypeReference::Slice(slice) => slice.element_type,
+                        TypeReference::FixedArray(array) => array.element_type,
+                        TypeReference::Slice(slice) => slice.element_type,
                         _ => return None,
                     };
                     if !element.is_valid() {
@@ -159,9 +158,7 @@ pub(crate) fn computed_receiver_method_target(
                     program.child_type_reference(element)
                 }
                 ExpressionNode::Member(member) => {
-                    let resolved::types::TypeReference::Named { symbol, .. } =
-                        peel(program, reference)
-                    else {
+                    let TypeReference::Named { symbol, .. } = peel(program, reference) else {
                         return None;
                     };
                     let definition = program
@@ -199,11 +196,10 @@ pub(crate) fn computed_receiver_method_target(
 /// spelling elsewhere cannot supply a result type or a callable identity.
 pub(crate) fn declared_type_method_target(
     program: &resolved::SymbolResolvedTrees,
-    reference: &resolved::types::TypeReference,
+    reference: &TypeReference,
     target: &resolved::name::DiagnosticName,
 ) -> SymbolHandle {
-    let resolved::types::TypeReference::Named { symbol: owner, .. } = peel(program, reference)
-    else {
+    let TypeReference::Named { symbol: owner, .. } = peel(program, reference) else {
         return SymbolHandle::invalid();
     };
     if !owner.is_valid() || program.symbols.get(*owner).kind != SymbolKind::Data {

@@ -1,0 +1,14 @@
+// Twin of pass/proofs/exact_widening_keeps_source_carrier: the operand is
+// read from an `i32`, so the conversion carries no `0..=255` carrier bound
+// and the case constraint stays unproved.
+
+public data Reading
+    requires (self in Reading::Eof) || ((self in Reading::Byte) && (self.value >= 0 && self.value <= 255))
+{
+    case Eof;
+    case Byte(value: i32);
+}
+
+machine widen_case(cell: i32) -> Reading {
+    Reading::Byte { value: cell as i64 as i32 }
+}

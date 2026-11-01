@@ -29,6 +29,17 @@ fn retain_semantic_context(
     );
 }
 
+use super::super::case_tag_segments_may_overlap;
+use super::super::observations::case_observation;
+use super::super::observations::predicate_case_dependencies;
+use super::super::operand_contexts::ContentObservationPoint;
+use super::super::operand_contexts::SourceWriteRelation;
+use super::super::operand_contexts::contents_observation_survives;
+use super::super::operand_contexts::contents_overlap;
+use super::super::reference_spans::appended_span_since;
+use super::super::stable_case_subject;
+use crate::authored_selections::typed_operator_has_no_authored_selection;
+use crate::facts::boolean_predicates;
 use crate::flow::append_constraint_ref;
 use crate::flow::expressions;
 use crate::flow::guard_predicates::{expression_is_stable_predicate, guard_observations};
@@ -36,6 +47,8 @@ use crate::flow::reference_spans;
 use crate::flow::retained_constraint_refs;
 use crate::flow::retained_flow_contexts;
 use crate::flow::{FlowBuildContext, GuardObservation};
+use crate::semantic::places::append_place;
+use crate::values;
 use arena::{Handle, HandleSpan};
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::{FlowConstraintKind, FlowConstraintRef, FlowSemanticContextRef};
@@ -221,7 +234,7 @@ pub(in crate::flow) fn append_comparison_bounds_context(
     };
     for &expression in expressions {
         let mut float_predicates = Vec::new();
-        crate::values::float_predicates::collect_true(
+        values::float_predicates::collect_true(
             program,
             machine,
             state,
@@ -277,7 +290,7 @@ pub(in crate::flow) fn append_comparison_bounds_context(
         ExpressionNode::Integer(value) => value.value_bignum(),
         ExpressionNode::Member(_) => {
             let checked_trees::CheckedScalarExpression::IntegerLiteral { literal } =
-                crate::values::lower_unit_scalar_argument(
+                values::lower_unit_scalar_argument(
                     program,
                     build.operators,
                     state,
@@ -335,7 +348,7 @@ pub(in crate::flow) fn append_comparison_bounds_context(
         else {
             continue;
         };
-        let place = crate::semantic::places::append_place(semantic, place.root, &place.segments);
+        let place = append_place(semantic, place.root, &place.segments);
         let Some(carrier) = validation::expression_type_reference_in_state(
             program,
             state_symbol,
@@ -399,7 +412,7 @@ pub(in crate::flow) fn append_comparison_bounds_context(
             semantic.places.get(row.place),
         )
         .and_then(|subject| {
-            crate::values::integer_bounds_at_place(
+            values::integer_bounds_at_place(
                 program,
                 semantic,
                 build.semantic_context_views(semantic, *active_contexts),
@@ -642,7 +655,7 @@ pub(in crate::flow) fn append_predicate_context(
             active_constraints,
         );
     }
-    let predicate_dependencies = super::super::observations::predicate_case_dependencies(
+    let predicate_dependencies = predicate_case_dependencies(
         program,
         build,
         state_symbol,
@@ -684,7 +697,7 @@ pub(in crate::flow) fn append_predicate_context(
                 if !expression_is_stable_predicate(program, observation) {
                     continue;
                 }
-                let Some(dependencies) = super::super::observations::predicate_case_dependencies(
+                let Some(dependencies) = predicate_case_dependencies(
                     program,
                     build,
                     state_symbol,
@@ -712,24 +725,19 @@ pub(in crate::flow) fn append_predicate_context(
                     .any(|place| {
                         // The shared selected-place law authenticates index
                         // coordinates independently of current contents.
-                        !super::super::stable_case_subject(
-                            program,
-                            machine,
-                            state,
-                            statement_index,
-                            place,
-                        ) || !super::super::entry_origin_is_stable(
-                            program,
-                            &build.control,
-                            entry_writes,
-                            entry_unknown_write,
-                            place,
-                        )
+                        !stable_case_subject(program, machine, state, statement_index, place)
+                            || !super::super::entry_origin_is_stable(
+                                program,
+                                &build.control,
+                                entry_writes,
+                                entry_unknown_write,
+                                place,
+                            )
                     })
                 {
                     continue;
                 }
-                let context = crate::facts::boolean_predicates::seed_with_dependencies(
+                let context = boolean_predicates::seed_with_dependencies(
                     semantic,
                     &predicate,
                     point,
@@ -753,7 +761,7 @@ pub(in crate::flow) fn append_predicate_context(
             ) else {
                 continue;
             };
-            let Some(observed) = super::super::observations::case_observation(
+            let Some(observed) = case_observation(
                 program,
                 build,
                 state_symbol,
@@ -763,36 +771,31 @@ pub(in crate::flow) fn append_predicate_context(
             ) else {
                 continue;
             };
-            let statements = super::super::reference_spans::appended_span_since(
-                &build.control.statements,
-                build.state_statements_start,
-            );
-            let first = super::super::operand_contexts::ContentObservationPoint {
+            let statements =
+                appended_span_since(&build.control.statements, build.state_statements_start);
+            let first = ContentObservationPoint {
                 state: state_symbol,
                 statement: observation_statement_index,
                 writes: observed.origin_writes,
                 unknown_write: observed.origin_unknown_write,
             };
-            let second = super::super::operand_contexts::ContentObservationPoint {
+            let second = ContentObservationPoint {
                 state: state_symbol,
                 statement: statement_index,
                 writes: entry_writes,
                 unknown_write: entry_unknown_write,
             };
-            let write_changes: super::super::operand_contexts::SourceWriteRelation = if observed
-                .descriptor
-                .is_valid()
-            {
-                super::super::operand_contexts::contents_overlap
+            let write_changes: SourceWriteRelation = if observed.descriptor.is_valid() {
+                contents_overlap
             } else {
                 |program, place, written| {
-                    super::super::case_tag_segments_may_overlap(program, &place.segments, written)
+                    case_tag_segments_may_overlap(program, &place.segments, written)
                 }
             };
             if std::iter::once(&observed.subject)
                 .chain(&observed.dependencies)
                 .any(|subject| {
-                    !super::super::operand_contexts::contents_observation_survives(
+                    !contents_observation_survives(
                         program,
                         &build.control,
                         statements,
@@ -805,16 +808,12 @@ pub(in crate::flow) fn append_predicate_context(
             {
                 continue;
             }
-            let place = crate::semantic::places::append_place(
-                semantic,
-                observed.subject.root,
-                &observed.subject.segments,
-            );
+            let place = append_place(semantic, observed.subject.root, &observed.subject.segments);
             let dependencies = observed
                 .dependencies
                 .iter()
                 .map(|dependency| {
-                    FactPlace::Place(crate::semantic::places::append_place(
+                    FactPlace::Place(append_place(
                         semantic,
                         dependency.root,
                         &dependency.segments,
@@ -894,7 +893,7 @@ pub(in crate::flow) fn append_predicate_context(
         entry_writes,
         entry_unknown_write,
     ) {
-        let context = crate::facts::boolean_predicates::seed_with_dependencies(
+        let context = boolean_predicates::seed_with_dependencies(
             semantic,
             &predicate,
             point,
@@ -1045,7 +1044,7 @@ pub(in crate::flow) fn append_match_pattern_context(
             active_constraints,
         );
     }
-    if let Some(predicate) = crate::facts::boolean_predicates::bind_current_match(
+    if let Some(predicate) = boolean_predicates::bind_current_match(
         program,
         build.operators,
         state_symbol,
@@ -1067,7 +1066,7 @@ pub(in crate::flow) fn append_match_pattern_context(
             &predicate,
             entry_writes,
             entry_unknown_write,
-        ) && let Some(context) = crate::facts::boolean_predicates::capture_entry_expression(
+        ) && let Some(context) = boolean_predicates::capture_entry_expression(
             program,
             semantic,
             state_symbol,
@@ -1079,12 +1078,8 @@ pub(in crate::flow) fn append_match_pattern_context(
         // Preserve the existing current-observation route independently of
         // original-entry capture. Unknown entry provenance supplies no clause.
         if !build.active_completed_copies.is_empty() {
-            let context = crate::facts::boolean_predicates::seed(
-                semantic,
-                &predicate,
-                point,
-                FactOrigin::TransitionGuard,
-            );
+            let context =
+                boolean_predicates::seed(semantic, &predicate, point, FactOrigin::TransitionGuard);
             retain_semantic_context(build, active_contexts, active_constraints, context);
         }
     }
@@ -1121,22 +1116,18 @@ fn match_input_has_builtin_meaning(
     let recurse = |child| match_input_has_builtin_meaning(program, operators, child);
     match program.expression_table.expression(expression) {
         ExpressionNode::Binary(binary) => {
-            crate::values::operator_is_builtin(operators, expression)
-                && crate::authored_selections::typed_operator_has_no_authored_selection(
-                    program, expression,
-                )
+            values::operator_is_builtin(operators, expression)
+                && typed_operator_has_no_authored_selection(program, expression)
                 && recurse(binary.left)
                 && recurse(binary.right)
         }
         ExpressionNode::Unary(unary) => {
-            crate::values::operator_is_builtin(operators, expression)
-                && crate::authored_selections::typed_operator_has_no_authored_selection(
-                    program, expression,
-                )
+            values::operator_is_builtin(operators, expression)
+                && typed_operator_has_no_authored_selection(program, expression)
                 && recurse(unary.operand)
         }
         ExpressionNode::Indexed(indexed) => {
-            crate::values::operator_is_builtin(operators, expression)
+            values::operator_is_builtin(operators, expression)
                 && recurse(indexed.collection)
                 && recurse(indexed.index)
         }
@@ -1235,8 +1226,7 @@ fn append_observation_context(
         {
             return Handle::invalid();
         }
-        let place =
-            crate::semantic::places::append_place(semantic, observed.root, &observed.segments);
+        let place = append_place(semantic, observed.root, &observed.segments);
         crate::collections::push_unique(&mut places, place);
     }
     let mut refs = HandleSpan::empty();
@@ -1260,8 +1250,7 @@ fn append_observation_context(
         semantic.append_ref(&mut refs, fact);
     }
     for dependency in dependencies {
-        let place =
-            crate::semantic::places::append_place(semantic, dependency.root, &dependency.segments);
+        let place = append_place(semantic, dependency.root, &dependency.segments);
         let fact = semantic.append_fact(Fact {
             place: FactPlace::Place(place),
             point,
@@ -1291,7 +1280,7 @@ fn append_entry_path_context(
     active_contexts: &mut HandleSpan<FlowSemanticContextRef>,
     active_constraints: &mut HandleSpan<FlowConstraintRef>,
 ) {
-    let Some(context) = crate::facts::boolean_predicates::capture_entry_guard(
+    let Some(context) = boolean_predicates::capture_entry_guard(
         program,
         build.operators,
         semantic,

@@ -6,9 +6,11 @@ use super::super::{
 };
 use super::{Engine, Interval, OpaqueTerm, Polynomial};
 use crate::frozen_program::expression_table;
+use crate::proof_contracts::arithmetic_domains::DispatchSelection;
 use crate::{
     StrictArithmeticBindingValue, StrictArithmeticExpressionBinding, StrictArithmeticSymbolBinding,
 };
+use typed_trees::expression::UnaryOperator;
 
 /// Only the independently formed scoped remainder marker creates this recipe.
 /// Polynomials capture the actual roster before another declaration is read.
@@ -524,10 +526,7 @@ impl<'program> Engine<'program> {
     /// Boolean patterns select a condition's truth; integer patterns contribute
     /// exact equality or its integer complement. Neither spelling nor a shared
     /// runtime carrier supplies the selected equality law.
-    pub(super) fn install_dispatch_selection(
-        &mut self,
-        selection: crate::proof_contracts::arithmetic_domains::DispatchSelection,
-    ) {
+    pub(super) fn install_dispatch_selection(&mut self, selection: DispatchSelection) {
         use crate::proof_contracts::arithmetic_domains::DispatchCondition;
         let (subject, pattern) = match selection.condition {
             DispatchCondition::Equality { subject, pattern } => (subject, pattern),
@@ -581,9 +580,7 @@ impl<'program> Engine<'program> {
                 self.requires_unsatisfiable |= value != positive;
                 return;
             }
-            ExpressionNode::Unary(unary)
-                if unary.operator == typed_trees::expression::UnaryOperator::LogicalNot =>
-            {
+            ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
                 self.collect_condition_comparisons(unary.operand, !positive, comparisons);
                 return;
             }
@@ -1003,6 +1000,9 @@ impl<'program> Engine<'program> {
     ) {
         if self.opaque_terms.iter().any(|(minted, _)| *minted == atom) {
             return;
+        }
+        if matches!(&term, OpaqueTerm::Conditional { .. }) {
+            self.conditional_terms.push(self.opaque_terms.len());
         }
         self.opaque_terms.push((atom, term));
     }

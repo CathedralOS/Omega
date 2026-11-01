@@ -13,7 +13,9 @@
 //! match-derived place and returned-window proofs share that evidence query.
 
 use crate::frozen_program::expression_table;
+use language_core::ReferenceAccess;
 use std::collections::HashSet;
+use typed_trees::domain::ProofFact;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableMatchExpression};
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
@@ -402,11 +404,7 @@ pub fn single_member_argument_symbol(
     argument: ExpressionHandle,
 ) -> Option<symbols::SymbolHandle> {
     let named = match expression_table(program).expression(argument) {
-        ExpressionNode::Borrow(borrow)
-            if borrow.access == language_core::ReferenceAccess::Shared =>
-        {
-            borrow.target
-        }
+        ExpressionNode::Borrow(borrow) if borrow.access == ReferenceAccess::Shared => borrow.target,
         _ => argument,
     };
     let path = expression_table(program).name_path_node(named)?;
@@ -644,15 +642,13 @@ pub fn collect_transition_target_expression_trees(
 /// Copying and occurrence checking choose their own structural/runtime walks.
 pub fn append_fact_expression_roots(
     program: &dyn crate::CheckingInput,
-    fact: &typed_trees::domain::ProofFact,
+    fact: &ProofFact,
     expressions: &mut Vec<ExpressionHandle>,
 ) {
     match fact {
-        typed_trees::domain::ProofFact::Expression(expression) => expressions.push(*expression),
-        typed_trees::domain::ProofFact::Membership(membership) => {
-            expressions.push(membership.value)
-        }
-        typed_trees::domain::ProofFact::Proposition(application) => expressions.extend(
+        ProofFact::Expression(expression) => expressions.push(*expression),
+        ProofFact::Membership(membership) => expressions.push(membership.value),
+        ProofFact::Proposition(application) => expressions.extend(
             expression_table(program)
                 .expression_handles(application.arguments)
                 .iter()
@@ -664,18 +660,18 @@ pub fn append_fact_expression_roots(
 /// Append structural expression trees from a contract's proof-fact span.
 pub fn collect_contract_facts(
     program: &dyn crate::CheckingInput,
-    facts: arena::HandleSpan<typed_trees::domain::ProofFact>,
+    facts: arena::HandleSpan<ProofFact>,
     handles: &mut Vec<ExpressionHandle>,
 ) {
     for fact in program.proof_facts.span_or_empty(facts) {
         match fact {
-            typed_trees::domain::ProofFact::Expression(expression) => {
+            ProofFact::Expression(expression) => {
                 collect_expression_tree(program, *expression, handles)
             }
-            typed_trees::domain::ProofFact::Membership(membership) => {
+            ProofFact::Membership(membership) => {
                 collect_expression_tree(program, membership.value, handles)
             }
-            typed_trees::domain::ProofFact::Proposition(application) => {
+            ProofFact::Proposition(application) => {
                 for argument in expression_table(program).expression_handles(application.arguments)
                 {
                     collect_expression_tree(program, *argument, handles);

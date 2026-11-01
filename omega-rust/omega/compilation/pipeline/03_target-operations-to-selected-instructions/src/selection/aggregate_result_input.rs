@@ -13,6 +13,10 @@
 //! it as a storage restriction: an authorized boundary result occupies the
 //! same home as any other value of its declared representation.
 use crate::selection::place_declaration::{arrivals, declares_block_parameter};
+use crate::structural_inputs::structural_reference_input::{
+    PointerSlot, ReferenceSourceGeometry, descriptor_source_geometry, leaf_copy_projection,
+    owned_storage_shape, primitive_array_shape, reference_source_geometry, stored_value_shape,
+};
 
 use legalized_operations::{
     LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
@@ -237,11 +241,7 @@ pub(super) fn membership_layout(
     place: semantic_vocabulary::PlaceId,
     path: &[terminal_psi::StructuralPathSegment],
     case: semantic_vocabulary::StructuralCaseId,
-) -> Option<(
-    u32,
-    u32,
-    crate::structural_inputs::structural_reference_input::ReferenceSourceGeometry,
-)> {
+) -> Option<(u32, u32, ReferenceSourceGeometry)> {
     let signature = source.structural.as_ref()?;
     let parameter = signature
         .parameters
@@ -261,11 +261,7 @@ pub(super) fn membership_layout(
         let (_, result) = operation_result(source, place)?;
         result.structural_type
     };
-    let geometry = crate::structural_inputs::structural_reference_input::reference_source_geometry(
-        identity,
-        path,
-        &signature.structural_types,
-    )?;
+    let geometry = reference_source_geometry(identity, path, &signature.structural_types)?;
     if !geometry.readable
         || geometry
             .pointer_slots
@@ -356,18 +352,16 @@ pub(super) fn call_result<'a>(
     )?;
     let shape = match &declaration.shape {
         terminal_psi::StructuralTypeShape::Record { .. }
-        | terminal_psi::StructuralTypeShape::FixedArray { .. } => {
-            crate::structural_inputs::structural_reference_input::primitive_array_shape(
+        | terminal_psi::StructuralTypeShape::FixedArray { .. } => primitive_array_shape(
+            result.structural_type,
+            &source.structural.as_ref()?.structural_types,
+        )
+        .or_else(|| {
+            crate::structural_inputs::structural_reference_input::shape(
                 result.structural_type,
                 &source.structural.as_ref()?.structural_types,
             )
-            .or_else(|| {
-                crate::structural_inputs::structural_reference_input::shape(
-                    result.structural_type,
-                    &source.structural.as_ref()?.structural_types,
-                )
-            })?
-        }
+        })?,
         terminal_psi::StructuralTypeShape::Reference { .. }
         | terminal_psi::StructuralTypeShape::Sum { .. }
         | terminal_psi::StructuralTypeShape::Mixed { .. } => {
@@ -378,7 +372,7 @@ pub(super) fn call_result<'a>(
         }
         terminal_psi::StructuralTypeShape::ByteSequence(
             terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
-        ) => crate::structural_inputs::structural_reference_input::owned_storage_shape(
+        ) => owned_storage_shape(
             result.structural_type,
             &source.structural.as_ref()?.structural_types,
         )?,
@@ -921,10 +915,7 @@ pub(super) fn block_parameter_shape(
     // qualifications change no geometry and remain in the semantic contract.
     // Storage transport preserves established contents; it does not grant
     // call-copy permission to nested descriptors or erased declarations.
-    crate::structural_inputs::structural_reference_input::stored_value_shape(
-        parameter.structural_type,
-        &signature.structural_types,
-    )
+    stored_value_shape(parameter.structural_type, &signature.structural_types)
 }
 
 /// Transfer a stored block value according to its declared representation.
@@ -936,8 +927,7 @@ pub(crate) struct BlockParameterProjection {
     pub(crate) transport: selected_instructions::SelectedStructuralTransport,
     /// Ordered pointer loads before the selected storage. The edge snapshots
     /// the final descriptor or address before replacing any destination home.
-    pub(crate) pointer_slots:
-        Vec<crate::structural_inputs::structural_reference_input::PointerSlot>,
+    pub(crate) pointer_slots: Vec<PointerSlot>,
     pub(crate) indices: Vec<legalized_operations::LegalizedRuntimeIndexOperand>,
     /// An SSA view's coordinate origin lies inside its retained backing.
     pub(crate) base_byte_offset: Option<selected_instructions::VirtualRegisterId>,
@@ -978,13 +968,12 @@ pub(super) fn block_parameter_transport(
             argument.access,
             &argument.path,
         )?;
-        let (selected, offset) =
-            crate::structural_inputs::structural_reference_input::leaf_copy_projection(
-                root,
-                &argument.path,
-                parameter.structural_type,
-                declarations,
-            )?;
+        let (selected, offset) = leaf_copy_projection(
+            root,
+            &argument.path,
+            parameter.structural_type,
+            declarations,
+        )?;
         if selected != parameter.structural_type
             && terminal_semantics::borrowed_referent_presentation(
                 declarations.iter(),
@@ -994,10 +983,7 @@ pub(super) fn block_parameter_transport(
         {
             return None;
         }
-        let root_shape = crate::structural_inputs::structural_reference_input::stored_value_shape(
-            root,
-            declarations,
-        )?;
+        let root_shape = stored_value_shape(root, declarations)?;
         let selected_shape = block_parameter_shape(source, parameter)?;
         if offset.checked_add(selected_shape.byte_size)? > root_shape.byte_size
             || offset % u32::from(selected_shape.alignment) != 0
@@ -1023,12 +1009,7 @@ pub(super) fn block_parameter_transport(
         {
             return None;
         }
-        let geometry =
-            crate::structural_inputs::structural_reference_input::descriptor_source_geometry(
-                root,
-                &argument.path,
-                declarations,
-            )?;
+        let geometry = descriptor_source_geometry(root, &argument.path, declarations)?;
         if !geometry.readable
             || !crate::structural_inputs::runtime_indices_match(indices, &geometry.elements)
             || geometry

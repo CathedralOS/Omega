@@ -9,6 +9,7 @@ use crate::record::{
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::signature::StateSignature;
+use typed_trees_to_checked_trees::derive_authored_signature_crash_buckets;
 
 pub(crate) fn project(
     compilation: &PackageReviewInput<'_>,
@@ -29,11 +30,8 @@ pub(crate) fn project(
         context.subject_name,
         "static signature crash capsule",
     )?;
-    let derived = typed_trees_to_checked_trees::derive_authored_signature_crash_buckets(
-        compilation.checking_input,
-        signature,
-    )
-    .map_err(|diagnostic| vec![diagnostic])?;
+    let derived = derive_authored_signature_crash_buckets(compilation.checking_input, signature)
+        .map_err(|diagnostic| vec![diagnostic])?;
     if derived != capsule.published_buckets() {
         return Err(vec![Diagnostic::error(
             "callable policy static crash capsule differs from its exact authored signature",

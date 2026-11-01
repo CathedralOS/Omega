@@ -131,7 +131,10 @@ pub(crate) fn admit_machine_rankings(
                         );
                     }
                 }
-                Some(ranking::DecreaseOutcome::Unproven) => {
+                Some(
+                    ranking::DecreaseOutcome::Unproven
+                    | ranking::DecreaseOutcome::RequiresComponent,
+                ) => {
                     local_terminates = false;
                     diagnostic = format!(
                         "cannot prove the `terminates by` ranking for machine {}",

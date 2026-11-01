@@ -1,9 +1,13 @@
 //! Same-invocation state arrivals transport live completed facts. Ordinary
 //! machine applications contribute unknown inputs to callable non-entry states;
 //! their incidental actuals never become assumptions of a generic body.
+use crate::facts::boolean_predicates::BoundPredicate;
+use crate::facts::boolean_predicates::EntryPaths;
+use crate::facts::boolean_predicates::seed_entry_paths;
+use crate::values::integer_bounds_at_place;
 use validation::CallSite;
 
-use crate::flow::FlowBuildContext;
+use crate::flow::{FlowBuildContext, active_context_handles, canonical_place_from_semantic_place};
 
 use arena::HandleSpan;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -40,8 +44,8 @@ pub(super) struct StateValues {
     /// A later field cannot forget an earlier unknown predecessor.
     field_sources: Vec<fields::BoundsSource>,
     qualifications: Vec<qualifications::QualifiedInput>,
-    predicates: Vec<crate::facts::boolean_predicates::BoundPredicate>,
-    entry_paths: crate::facts::boolean_predicates::EntryPaths,
+    predicates: Vec<BoundPredicate>,
+    entry_paths: EntryPaths,
     /// Selected cases delivered by same-machine transition predecessors.
     /// Scalar deliveries are joined independently in `StateValues::values`.
     argument_edges: ArgumentInputs,
@@ -205,7 +209,7 @@ pub(super) fn unknown_inputs(
                     fields: Vec::new(),
                     qualifications: Vec::new(),
                     predicates: Vec::new(),
-                    entry_paths: crate::facts::boolean_predicates::EntryPaths::unknown(),
+                    entry_paths: EntryPaths::unknown(),
                     values: program
                         .state_parameters(state)
                         .iter()
@@ -312,7 +316,7 @@ pub(super) fn record_transition(
                 .and_then(|captured| {
                     let mut joined: Option<facts::IntegerRange> = None;
                     for place in &captured.places {
-                        let incoming = crate::values::integer_bounds_at_place(
+                        let incoming = integer_bounds_at_place(
                             program,
                             semantic,
                             captured
@@ -355,12 +359,8 @@ pub(super) fn record_transition(
         arguments,
         contexts,
     );
-    let path_contexts = crate::flow::active_context_handles(&build.contexts, contexts);
-    let entry_paths = crate::facts::boolean_predicates::EntryPaths::retained(
-        semantic,
-        &path_contexts,
-        machine.symbol,
-    );
+    let path_contexts = active_context_handles(&build.contexts, contexts);
+    let entry_paths = EntryPaths::retained(semantic, &path_contexts, machine.symbol);
     let mut qualifications = argument_qualifications;
     qualifications.extend(qualifications::capture_invocation_referents(
         program,
@@ -465,7 +465,7 @@ pub(super) fn record_invocation<'plans>(
             fields: Vec::new(),
             qualifications: Vec::new(),
             predicates: Vec::new(),
-            entry_paths: crate::facts::boolean_predicates::EntryPaths::unknown(),
+            entry_paths: EntryPaths::unknown(),
             bounds: Vec::new(),
             values: program
                 .state_parameters(destination)
@@ -584,7 +584,7 @@ fn completed_argument_facts(
         }
     }
     let contexts = if live_view {
-        crate::flow::active_context_handles(&build.contexts, invocation_contexts)
+        active_context_handles(&build.contexts, invocation_contexts)
     } else {
         build
             .contexts
@@ -640,11 +640,9 @@ fn selected_case_at(
         let Some(handle) = fact.place.as_place() else {
             continue;
         };
-        let Some(fact_place) = crate::flow::canonical_place_from_semantic_place(
-            program,
-            semantic,
-            semantic.places.get(handle),
-        ) else {
+        let Some(fact_place) =
+            canonical_place_from_semantic_place(program, semantic, semantic.places.get(handle))
+        else {
             continue;
         };
         if fact_place != *place {
@@ -717,7 +715,7 @@ fn ensure_input_row(
         fields: Vec::new(),
         qualifications: Vec::new(),
         predicates: Vec::new(),
-        entry_paths: crate::facts::boolean_predicates::EntryPaths::unknown(),
+        entry_paths: EntryPaths::unknown(),
         argument_edges: ArgumentInputs::Edges(Vec::new()),
         cases: Vec::new(),
     });
@@ -812,7 +810,7 @@ pub(super) fn append_entry_context(
     if let Some(entry) = validation::activation_target_state_index(program, machine, machine.symbol)
         .and_then(|index| program.machine_states(machine).get(index))
     {
-        crate::facts::boolean_predicates::seed_entry_paths(
+        seed_entry_paths(
             semantic,
             machine.symbol,
             entry.symbol,

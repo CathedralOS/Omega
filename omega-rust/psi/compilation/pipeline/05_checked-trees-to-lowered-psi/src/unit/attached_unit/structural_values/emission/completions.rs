@@ -8,6 +8,7 @@ use super::{
     CompletionOccurrence, Emission, NormalDeathReceipt, ValueCompletion, ValueContinuation,
 };
 use crate::checked_facts::flow_facts;
+use crate::emission::claim_bindings::completed_value_paths;
 use crate::expression_preparation::bindings::LoanAccess;
 
 impl Emission<'_, '_, '_> {
@@ -213,14 +214,7 @@ impl Emission<'_, '_, '_> {
         };
         let claims = match self.operations.declared_source_claims(&argument)? {
             Some(claims) => claims,
-            None if crate::emission::claim_bindings::completed_value_paths(
-                self.checked,
-                completion.value,
-            )?
-            .is_empty() =>
-            {
-                Vec::new()
-            }
+            None if completed_value_paths(self.checked, completion.value)?.is_empty() => Vec::new(),
             None => {
                 return super::super::super::unsupported(
                     "fresh completed operand has no producer custody namespace",

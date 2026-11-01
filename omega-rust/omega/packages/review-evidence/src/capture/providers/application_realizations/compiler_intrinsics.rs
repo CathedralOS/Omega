@@ -11,7 +11,12 @@ use crate::record::{
     PackageReviewBoundaryApplicationRealization, PackageReviewSourceLocationOwner,
     PackageReviewSourceLocationRole,
 };
+use checked_trees::CheckedBoundaryOperatorApplicationUseSite;
 use diagnostics::Diagnostic;
+use effects::provider_plan::ProviderBinding;
+use provider_planning::IntrinsicRequirement;
+use provider_planning::ProviderPlanningContext;
+use selected_dispatch::CheckedOperatorAuthoredUseKind;
 use semantic_vocabulary::PackageKeyIdentity;
 
 pub(super) fn project(
@@ -46,14 +51,10 @@ pub(super) fn project(
             continue;
         }
         let expression = match application.site {
-            checked_trees::CheckedBoundaryOperatorApplicationUseSite::Expression {
-                expression,
-                ..
+            CheckedBoundaryOperatorApplicationUseSite::Expression { expression, .. }
+            | CheckedBoundaryOperatorApplicationUseSite::MatchEquality { expression, .. } => {
+                expression
             }
-            | checked_trees::CheckedBoundaryOperatorApplicationUseSite::MatchEquality {
-                expression,
-                ..
-            } => expression,
             _ => continue,
         };
         // This projection describes the selected Product realization. Build
@@ -84,35 +85,26 @@ pub(super) fn project(
         // call selects the requirement's callable entry state, while a token
         // use's `Operator` occurrence selects the operator declaration itself.
         let selection_target = match actual_use.kind {
-            selected_dispatch::CheckedOperatorAuthoredUseKind::Named => {
-                provider_planning::IntrinsicRequirement::by_symbol(
-                    compilation.checking_input,
-                    application.requirement_symbol,
-                )
-                .map_or(application.requirement_symbol, |requirement| {
-                    requirement.call_target
-                })
-            }
-            selected_dispatch::CheckedOperatorAuthoredUseKind::FixedToken(_) => {
-                application.requirement_symbol
-            }
+            CheckedOperatorAuthoredUseKind::Named => IntrinsicRequirement::by_symbol(
+                compilation.checking_input,
+                application.requirement_symbol,
+            )
+            .map_or(application.requirement_symbol, |requirement| {
+                requirement.call_target
+            }),
+            CheckedOperatorAuthoredUseKind::FixedToken(_) => application.requirement_symbol,
         };
         // A token use on a specialized machine member retains an `Operator`
         // selection resolved to the machine instance, not the member.
         let alternate_target = match actual_use.kind {
-            selected_dispatch::CheckedOperatorAuthoredUseKind::FixedToken(_) => {
+            CheckedOperatorAuthoredUseKind::FixedToken(_) => {
                 specialized_machine_of_member(compilation, application.requirement_symbol)
                     .unwrap_or_default()
             }
-            selected_dispatch::CheckedOperatorAuthoredUseKind::Named => {
-                symbols::SymbolHandle::default()
-            }
+            CheckedOperatorAuthoredUseKind::Named => symbols::SymbolHandle::default(),
         };
         let implicit_source_span = match application.site {
-            checked_trees::CheckedBoundaryOperatorApplicationUseSite::MatchEquality {
-                source_arm,
-                ..
-            } => {
+            CheckedBoundaryOperatorApplicationUseSite::MatchEquality { source_arm, .. } => {
                 let source_use = compilation
                     .facts
                     .operators
@@ -274,10 +266,7 @@ pub(super) fn project(
                 application.requirement_symbol,
             ))]);
         };
-        if !matches!(
-            row.binding,
-            effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }
-        ) {
+        if !matches!(row.binding, ProviderBinding::CompilerIntrinsic { .. }) {
             if implicit_source_span.is_some() {
                 return Err(vec![Diagnostic::error(
                     "implicit Match application has no supported intrinsic review realization",
@@ -305,7 +294,7 @@ pub(super) fn project(
         // The demand names a boundary operator or a top-level boundary
         // requirement; the review row keys on the same overload coordinate
         // for either species.
-        let requirement_identity = provider_planning::IntrinsicRequirement::by_symbol(
+        let requirement_identity = IntrinsicRequirement::by_symbol(
             compilation.checking_input,
             application.requirement_symbol,
         )
@@ -314,7 +303,7 @@ pub(super) fn project(
                 .typed
                 .symbols
                 .authored_origin(application.requirement_symbol);
-            provider_planning::IntrinsicRequirement::by_symbol(compilation.checking_input, origin)
+            IntrinsicRequirement::by_symbol(compilation.checking_input, origin)
         })
         .map(|requirement| requirement.into_source().requirement_identity)
         .or_evidence("actual compiler-intrinsic application names no boundary operator or top-level boundary requirement",)?;
@@ -344,7 +333,7 @@ pub(super) fn project(
 
 #[derive(Clone, Copy)]
 struct ExactApplicationUse {
-    kind: selected_dispatch::CheckedOperatorAuthoredUseKind,
+    kind: CheckedOperatorAuthoredUseKind,
     origin: checked_trees::CheckedValueOrigin,
 }
 
@@ -352,7 +341,7 @@ fn authored_use_kind(
     compilation: &PackageReviewInput<'_>,
     expression: typed_trees::expression::ExpressionHandle,
     requirement: symbols::SymbolHandle,
-) -> selected_dispatch::CheckedOperatorAuthoredUseKind {
+) -> CheckedOperatorAuthoredUseKind {
     token_authored_use_kind(
         compilation,
         expression,
@@ -371,7 +360,7 @@ fn authored_use_kind(
             compilation.typed.symbols.authored_origin(machine),
         )
     })
-    .unwrap_or(selected_dispatch::CheckedOperatorAuthoredUseKind::Named)
+    .unwrap_or(CheckedOperatorAuthoredUseKind::Named)
 }
 
 /// When `requirement` is a member generated inside a specialized machine
@@ -398,10 +387,8 @@ fn selects_requirement_provider(
     selected_plans: &[effects::provider_plan::ProviderPlan],
     requirement: symbols::SymbolHandle,
 ) -> bool {
-    let context = provider_planning::ProviderPlanningContext::new(
-        &compilation.program.typed,
-        source::DependencyScope::Product,
-    );
+    let context =
+        ProviderPlanningContext::new(&compilation.program.typed, source::DependencyScope::Product);
     let origin = compilation.typed.symbols.authored_origin(requirement);
     [requirement, origin].into_iter().any(|requirement| {
         provider_planning::selected_requirement_plan(context, selected_plans, requirement).is_some()
@@ -410,7 +397,7 @@ fn selects_requirement_provider(
 
 fn exact_application_uses(
     compilation: &PackageReviewInput<'_>,
-    site: checked_trees::CheckedBoundaryOperatorApplicationUseSite,
+    site: CheckedBoundaryOperatorApplicationUseSite,
     requirement: symbols::SymbolHandle,
 ) -> Vec<ExactApplicationUse> {
     // Implicit Match equality keeps its operator occurrence even when the
@@ -425,7 +412,7 @@ fn exact_application_uses(
         .iter()
         .filter_map(|(_, operator_use)| {
             (site
-                == checked_trees::CheckedBoundaryOperatorApplicationUseSite::Expression {
+                == CheckedBoundaryOperatorApplicationUseSite::Expression {
                     expression: operator_use.expression,
                     origin: operator_use.origin,
                 }
@@ -443,7 +430,7 @@ fn exact_application_uses(
                 .iter()
                 .filter_map(|(_, requirement_use)| {
                     (site
-                        == checked_trees::CheckedBoundaryOperatorApplicationUseSite::Expression {
+                        == CheckedBoundaryOperatorApplicationUseSite::Expression {
                             expression: requirement_use.expression,
                             origin: requirement_use.origin,
                         }
@@ -482,9 +469,7 @@ fn exact_application_uses(
                                     })
                         }))
                     .then_some(ExactApplicationUse {
-                        kind: selected_dispatch::CheckedOperatorAuthoredUseKind::FixedToken(
-                            operator_use.spelling,
-                        ),
+                        kind: CheckedOperatorAuthoredUseKind::FixedToken(operator_use.spelling),
                         origin: operator_use.origin,
                     })
                 }),

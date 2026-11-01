@@ -6,10 +6,11 @@
 
 use semantic_vocabulary::{ScalarType, StructuralDomainId, StructuralTypeId};
 use terminal_psi::{
-    BoundaryMachineResult, BoundaryStructuralResultDeclaration, StructuralAccess,
-    StructuralArgument, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralPathQualification, StructuralResultDeclaration, TerminalDynamicSlot,
-    TerminalDynamicStructuralFormal,
+    BoundaryMachineResult, BoundaryStructuralResultDeclaration as ResultDeclaration,
+    StructuralAccess, StructuralArgument, StructuralMultiplicity,
+    StructuralParameterDeclaration as ParameterDeclaration, StructuralPathQualification,
+    StructuralResultDeclaration, TerminalDynamicSlot,
+    TerminalDynamicStructuralFormal as StructuralFormal,
 };
 
 use crate::AbstractFunction;
@@ -24,10 +25,8 @@ pub struct StructuralCallFormal<'declaration> {
     pub projected_qualifications: &'declaration [StructuralPathQualification],
 }
 
-impl<'declaration> From<&'declaration StructuralParameterDeclaration>
-    for StructuralCallFormal<'declaration>
-{
-    fn from(parameter: &'declaration StructuralParameterDeclaration) -> Self {
+impl<'declaration> From<&'declaration ParameterDeclaration> for StructuralCallFormal<'declaration> {
+    fn from(parameter: &'declaration ParameterDeclaration) -> Self {
         Self {
             position: parameter.position,
             structural_type: parameter.structural_type,
@@ -39,10 +38,8 @@ impl<'declaration> From<&'declaration StructuralParameterDeclaration>
     }
 }
 
-impl<'declaration> From<&'declaration TerminalDynamicStructuralFormal>
-    for StructuralCallFormal<'declaration>
-{
-    fn from(parameter: &'declaration TerminalDynamicStructuralFormal) -> Self {
+impl<'declaration> From<&'declaration StructuralFormal> for StructuralCallFormal<'declaration> {
+    fn from(parameter: &'declaration StructuralFormal) -> Self {
         Self {
             position: parameter.position,
             structural_type: parameter.structural_type,
@@ -85,10 +82,8 @@ impl<'declaration> From<&'declaration StructuralResultDeclaration>
     }
 }
 
-impl<'declaration> From<&'declaration BoundaryStructuralResultDeclaration>
-    for StructuralCallResult<'declaration>
-{
-    fn from(result: &'declaration BoundaryStructuralResultDeclaration) -> Self {
+impl<'declaration> From<&'declaration ResultDeclaration> for StructuralCallResult<'declaration> {
+    fn from(result: &'declaration ResultDeclaration) -> Self {
         Self {
             structural_type: result.structural_type,
             multiplicity: result.multiplicity,
@@ -172,7 +167,7 @@ impl<'declaration> AbstractCallSignature<'declaration> {
 /// the argument at that position, and re-root it at the formal's path and
 /// access.
 pub fn call_source(
-    structural_parameters: &[StructuralParameterDeclaration],
+    structural_parameters: &[ParameterDeclaration],
     arguments: &[StructuralArgument],
     formal: &StructuralArgument,
 ) -> Option<StructuralArgument> {

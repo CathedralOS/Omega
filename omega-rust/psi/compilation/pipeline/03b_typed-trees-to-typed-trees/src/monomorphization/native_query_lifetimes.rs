@@ -27,23 +27,26 @@ pub(super) fn retain(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
         );
         let lifetimes =
             super::application_lifetimes::bind(program, operand.symbol, &operand, application)?;
+        let declaration = program
+            .machines()
+            .iter()
+            .find(|machine| program.machine_or_state_symbol(machine, operand.symbol))
+            .map(|machine| machine.symbol)
+            .unwrap_or(operand.symbol);
         if !expressions_of(program)
             .static_machine_application(application)
             .binding_declaration
             .is_valid()
         {
-            let declaration = program
-                .machines()
-                .iter()
-                .find(|machine| program.machine_or_state_symbol(machine, operand.symbol))
-                .map(|machine| machine.symbol)
-                .unwrap_or(operand.symbol);
             expressions_of_mut(program)
                 .static_machine_application_mut(application)
                 .binding_declaration = declaration;
         }
-        expressions_of_mut(program)
-            .set_static_machine_application_lifetimes(application, &lifetimes);
+        expressions_of_mut(program).set_static_machine_application_lifetimes(
+            application,
+            declaration,
+            &lifetimes,
+        );
     }
     Ok(())
 }

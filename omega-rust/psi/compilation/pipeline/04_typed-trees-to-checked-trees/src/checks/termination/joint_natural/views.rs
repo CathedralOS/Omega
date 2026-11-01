@@ -10,10 +10,10 @@ pub(super) enum Order {
 impl Order {
     pub(super) fn function(self) -> checked_trees::CheckedNaturalRankFunction {
         match self {
-            Self::Descending => checked_trees::CheckedNaturalRankFunction::Identity,
-            Self::BoundedDistance | Self::IncreasingTo => {
-                checked_trees::CheckedNaturalRankFunction::Complement
+            Self::Descending | Self::BoundedDistance => {
+                checked_trees::CheckedNaturalRankFunction::Identity
             }
+            Self::IncreasingTo => checked_trees::CheckedNaturalRankFunction::Complement,
         }
     }
 }
@@ -29,8 +29,13 @@ pub(super) struct SelectedView {
     pub(super) declaration: Option<symbols::SymbolHandle>,
     pub(super) observation: validation::RankPremiseObservation,
     pub(super) coordinate: validation::RankSubjectCoordinate,
-    pub(super) upper: Option<typed_trees::expression::ExpressionHandle>,
+    pub(super) upper: Option<UpperInput>,
     pub(super) measure: validation::RankingRangeMeasure,
+}
+
+pub(super) struct UpperInput {
+    pub(super) expression: typed_trees::expression::ExpressionHandle,
+    pub(super) coordinate: Option<validation::RankSubjectCoordinate>,
 }
 
 pub(super) fn select(
@@ -50,6 +55,9 @@ pub(super) fn select(
         return None;
     };
     let subject = *subjects.first()?;
+    if !validation::place_has_builtin_coordinates(program, machine, Some(entry), subject) {
+        return None;
+    }
     let mut place =
         validation::canonical_place_from_expression_in_state(program, entry.symbol, 0, subject)?;
     let mut application = None;
@@ -92,13 +100,19 @@ pub(super) fn select(
             measure,
             parameter,
             body,
-            carrier,
+            input_carrier,
+            result_carrier,
         } if subjects.len() == 1 => {
             application = Some(Application {
                 measure,
                 parameter,
                 body,
-                primitive: typed_trees::types::PrimitiveType::from_builtin_atom(carrier)?,
+                input_primitive: typed_trees::types::PrimitiveType::from_builtin_atom(
+                    input_carrier,
+                )?,
+                result_primitive: typed_trees::types::PrimitiveType::from_builtin_atom(
+                    result_carrier,
+                )?,
             });
             (
                 Order::Descending,
@@ -109,7 +123,7 @@ pub(super) fn select(
                     subject,
                     parameter,
                     body,
-                    carrier,
+                    carrier: result_carrier,
                 },
             )
         }
@@ -164,7 +178,42 @@ pub(super) fn select(
             parameter: place.root.as_symbol()?,
             path: place.segments,
         },
-        upper,
+        upper: upper.map(|expression| {
+            // A storage observation needs the same entry selector/load receipts
+            // as the lower coordinate. Retaining only its proof expression loses
+            // those receipts when executable arrival observations are produced.
+            let coordinate = validation::canonical_place_from_expression_in_state(
+                program,
+                entry.symbol,
+                0,
+                expression,
+            )
+            .and_then(|place| {
+                if !validation::place_has_builtin_coordinates(
+                    program,
+                    machine,
+                    Some(entry),
+                    expression,
+                ) {
+                    return None;
+                }
+                let parameter = place.root.as_symbol()?;
+                validation::structural_scalar_coordinate(
+                    program,
+                    program.state_parameters(entry),
+                    parameter,
+                    &place.segments,
+                )?;
+                Some(validation::RankSubjectCoordinate {
+                    parameter,
+                    path: place.segments,
+                })
+            });
+            UpperInput {
+                expression,
+                coordinate,
+            }
+        }),
         measure,
     })
 }

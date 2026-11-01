@@ -11,7 +11,10 @@
 //! aggregate root claim. Storage movement and cleanup retain those events in
 //! their own custody replay.
 
+use super::claim_outcomes::claim_paths_are_case_alternatives;
+use super::claim_outcomes::preserved_inactive_place;
 use super::linear_obligations::LinearPlace;
+use super::linear_validation::permission_event_statement_index;
 use crate::flow::{CapturedValueChoice, SelectionCondition, SelectionConditions};
 use checked_trees::{
     CheckFacts, FlowOperandCompletion, FlowOperandFact, FlowPermissionEvaluation,
@@ -609,7 +612,7 @@ fn captured_claims(
             && let Some(state) = program.state_by_symbol(operand.state_symbol)
         {
             place.segments.extend_from_slice(&expected.path);
-            if super::claim_outcomes::preserved_inactive_place(
+            if preserved_inactive_place(
                 program,
                 &facts.borrow,
                 state,
@@ -825,10 +828,7 @@ fn check_frontier(
         for other in &claims[index + 1..] {
             if claim.path != other.path
                 && claim.source == other.source
-                && !super::claim_outcomes::claim_paths_are_case_alternatives(
-                    &claim.path,
-                    &other.path,
-                )
+                && !claim_paths_are_case_alternatives(&claim.path, &other.path)
             {
                 let overlap = conditions.all(claim.condition, other.condition);
                 if conditions.possible(&facts.flow.control, overlap) {
@@ -968,8 +968,7 @@ fn trace_missing_frontier(
         .iter()
         .filter_map(|(_, event)| {
             (event.state_symbol == operand.state_symbol
-                && super::linear_validation::permission_event_statement_index(event.source)
-                    == Some(operand.statement_index))
+                && permission_event_statement_index(event.source) == Some(operand.statement_index))
             .then(|| (event, ownership.segments.span_or_empty(event.segments)))
         })
         .collect::<Vec<_>>();
@@ -1011,7 +1010,7 @@ fn trace_missing_frontier(
                     || transfers
                         .iter()
                         .any(|(transfer, _)| transfer.root == event.root))
-                && super::linear_validation::permission_event_statement_index(event.source)
+                && permission_event_statement_index(event.source)
                     .is_some_and(|statement| statement <= operand.statement_index))
             .then(|| (event, ownership.segments.span_or_empty(event.segments)))
         })

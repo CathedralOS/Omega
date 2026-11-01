@@ -4,7 +4,9 @@
 use crate::retained_identities::proof_values::{retain_contract_values, retain_proposition};
 use semantic_vocabulary::{BlockId, EdgeId, MachineId, OperationId, ValueId};
 use std::collections::{BTreeMap, BTreeSet};
+use terminal_psi::OperationKind;
 use terminal_psi::TerminalModule;
+use terminal_psi::call_structural_pair_pattern;
 
 /// Block-local identities that module-level evidence carriers name by
 /// identity rather than through a direct executable use. A control-flow
@@ -123,9 +125,7 @@ pub(super) fn block_local_evidence_over_machines<'machine>(
     }
     for machine in machines {
         for operation in machine.blocks.iter().flat_map(|block| &block.operations) {
-            if let terminal_psi::OperationKind::TransformContent { derivations, .. } =
-                &operation.kind
-            {
+            if let OperationKind::TransformContent { derivations, .. } = &operation.kind {
                 for step in derivations.iter().flat_map(|derived| &derived.ancestry) {
                     evidence.operations.insert(step.producer_operation);
                 }
@@ -338,9 +338,7 @@ fn machine_transitions(machine: &terminal_psi::TerminalMachine) -> Vec<MachineId
         // whether a callee returns cannot decide whether its body must survive.
         targets.extend(block.module_invocations().map(|call| call.inputs.callee));
         for operation in &block.operations {
-            if let terminal_psi::call_structural_pair_pattern!(selected_evidence, ..) =
-                &operation.kind
-            {
+            if let call_structural_pair_pattern!(selected_evidence, ..) = &operation.kind {
                 for evidence in selected_evidence {
                     for evidence_use in &evidence.uses {
                         targets.push(evidence_use.target);

@@ -9,7 +9,11 @@ use package_source::{GitSourceRequest, SourceResolver};
 
 use super::{DeclaredBuildSource, GitPackageSourceRequest, PackageSourceCustody};
 use crate::declarations::PackageKey;
+use crate::declarations::dependencies::read::DependencyProjections;
 use crate::resolution::graph::PackageRootSourceRequest;
+use crate::resolution::graph::admit_locked_issued_source_request;
+use crate::resolution::graph::reconcile::PackageSourceClosureLimits;
+use package_source::local::operations::capture_local_source_input;
 use package_source::local::resolution_observations::CapturedLocalSource;
 use package_source::{
     ExternalLocalLineage, ExternalSourceContext, GitCommitId, GitTreeId, ImmutableSourceResolution,
@@ -44,9 +48,7 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
                 acquired.entry_path().display()
             ));
         }
-        if active.len()
-            > crate::resolution::graph::reconcile::PackageSourceClosureLimits::default().max_depth
-        {
+        if active.len() > PackageSourceClosureLimits::default().max_depth {
             return Err("Build dependency depth exceeds the package resolution limit".into());
         }
         Ok(())
@@ -149,13 +151,11 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
                 "requesting Build has no source custody in this acquisition operation".into(),
             );
         }
-        let projected =
-            crate::declarations::dependencies::read::DependencyProjections::from_executed_requests(
-                requests.iter().map(|issued| issued.request()),
-            )?;
+        let projected = DependencyProjections::from_executed_requests(
+            requests.iter().map(|issued| issued.request()),
+        )?;
         if projected.authored_request_count()
-            > crate::resolution::graph::reconcile::PackageSourceClosureLimits::default()
-                .max_dependency_requests
+            > PackageSourceClosureLimits::default().max_dependency_requests
         {
             return Err("issued Build requests exceed the package resolution limit".into());
         }
@@ -165,9 +165,7 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
             .ok_or("Build dependency occurrence has not been issued")?;
         let origin = requester.acquisition_origin();
         if let Some(subject) = self.locked_source {
-            crate::resolution::graph::admit_locked_issued_source_request(
-                subject, origin, purpose, ordinal, request,
-            )?;
+            admit_locked_issued_source_request(subject, origin, purpose, ordinal, request)?;
         }
         self.acquire_source(origin, request)
     }
@@ -270,10 +268,7 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
             // belong to the operation's first acquisition.
             return Ok(acquired);
         }
-        if self.sources.len()
-            >= crate::resolution::graph::reconcile::PackageSourceClosureLimits::default()
-                .max_packages
-        {
+        if self.sources.len() >= PackageSourceClosureLimits::default().max_packages {
             return Err("acquired Build sources exceed the package resolution limit".into());
         }
         self.sources.push(acquired.clone());
@@ -443,7 +438,7 @@ impl AcquiredBuildSource {
         context: ExternalSourceContext,
     ) -> Result<Self, BuildSourceAcquisitionError> {
         let limits = limits.compiler_bounded();
-        let capture = package_source::local::operations::capture_local_source_input(root, limits)
+        let capture = capture_local_source_input(root, limits)
             .map_err(BuildSourceAcquisitionError::Source)?;
         let canonical_path = capture.canonical_live_root().to_str().ok_or_else(|| {
             BuildSourceAcquisitionError::Identity(
@@ -495,11 +490,8 @@ impl AcquiredBuildSource {
         {
             return Err("Git acquisition does not match the requested root source".into());
         }
-        let capture = package_source::local::operations::capture_local_source_input(
-            source.snapshot_root(),
-            source.source_limits(),
-        )
-        .map_err(|error| error.to_string())?;
+        let capture = capture_local_source_input(source.snapshot_root(), source.source_limits())
+            .map_err(|error| error.to_string())?;
         if capture.normalized().content_identity != source.content_identity() {
             return Err("captured Git source differs from its authenticated snapshot".into());
         }
@@ -550,10 +542,9 @@ impl AcquiredBuildSource {
                 );
             }
         }
-        let requests =
-            crate::declarations::dependencies::read::DependencyProjections::from_executed_requests(
-                returned.requests().iter().map(|issued| issued.request()),
-            )?;
+        let requests = DependencyProjections::from_executed_requests(
+            returned.requests().iter().map(|issued| issued.request()),
+        )?;
         let custody = PackageSourceCustody::from_resolved_parts(
             PackageKey::new(name.clone().into(), self.lineage.clone()),
             returned.declaration().kind(),

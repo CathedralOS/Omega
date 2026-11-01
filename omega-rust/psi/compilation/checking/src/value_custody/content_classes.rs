@@ -15,6 +15,7 @@
 //! This owner answers them for the whole table at once and hands the rows
 //! to `CheckFacts`, so lowering reads a row instead of re-entering checking.
 
+use crate::CheckingInput;
 use checked_trees::{ContentClassFacts, ContentClassRow};
 use typed_trees::types::TypeReferenceHandle;
 
@@ -28,15 +29,12 @@ use crate::value_custody::storage_contents::ContentsRequirement;
 /// would read a hole. Row 0 is the classification of the invalid handle, so
 /// an index the table does not name reads the same answer the classifier
 /// gives a reference that names nothing.
-pub fn classify_program_content_classes(program: &dyn crate::CheckingInput) -> ContentClassFacts {
+pub fn classify_program_content_classes(program: &dyn CheckingInput) -> ContentClassFacts {
     crate::classify_type_references(program, content_classes, ContentClassFacts::with_rows)
 }
 
 /// One type reference's content classification.
-fn content_classes(
-    program: &dyn crate::CheckingInput,
-    reference: TypeReferenceHandle,
-) -> ContentClassRow {
+fn content_classes(program: &dyn CheckingInput, reference: TypeReferenceHandle) -> ContentClassRow {
     macro_rules! contents {
         ($requirement:expr $(,)?) => {
             crate::has_contents(program, reference, &[], $requirement)

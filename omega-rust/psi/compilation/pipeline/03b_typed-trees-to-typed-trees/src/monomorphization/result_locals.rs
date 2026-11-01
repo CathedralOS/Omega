@@ -17,9 +17,12 @@
 use crate::tables::expressions_of;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
+use typed_trees::references::DeclarationSelection;
 use typed_trees::statement::{StatementNode, TableLocalData};
 use typed_trees::type_identity::TypeIdentityRequest;
+use typed_trees::type_identity::applied_type_identity;
 use typed_trees::types::TypeReferenceHandle;
+use validation::expression_result_type_reference;
 
 mod dispatch_subjects;
 mod operand_captures;
@@ -62,19 +65,14 @@ fn apply_updates(program: &mut TypedTrees, mut updates: Vec<InferredUpdate>) -> 
             continue;
         };
         if local.type_reference == update.type_reference
-            || typed_trees::type_identity::applied_type_identity(
-                program,
-                local.type_reference,
-                update.owner,
-                &[],
-            )
-            .zip(typed_trees::type_identity::applied_type_identity(
-                program,
-                update.type_reference,
-                update.owner,
-                &[],
-            ))
-            .is_some_and(|(previous, current)| previous == current)
+            || applied_type_identity(program, local.type_reference, update.owner, &[])
+                .zip(applied_type_identity(
+                    program,
+                    update.type_reference,
+                    update.owner,
+                    &[],
+                ))
+                .is_some_and(|(previous, current)| previous == current)
         {
             continue;
         }
@@ -195,16 +193,15 @@ pub(super) fn refresh_generic_call_results(
         // predicates out of the sweep even when iteration roots were projected.
         let type_start = program.type_reference_table.type_reference_count() + 1;
         let expression_start = expressions_of(program).expression_count() + 1;
-        let lifetimes = expressions_of(program)
-            .static_machine_application_lifetimes(candidate.binding_application)
-            .iter()
-            .map(|binding| (binding.parameter.clone(), binding.argument.clone()))
-            .collect::<Vec<_>>();
         // Copy the declaration result before substitution. An open caller's
         // result uses this call's exact constants or caller binders, never the
         // callee's unbound parameters or the inferred destination as evidence.
         let selected_return = program
-            .apply_callable_type(return_type, &[], &lifetimes, selection.callee_symbol)
+            .apply_static_application_type(
+                return_type,
+                candidate.binding_application,
+                candidate.template.template_symbol,
+            )
             .map_err(|message| vec![diagnostics::Diagnostic::error(message)])?;
         // Application already owns a fresh graph. Remap that graph in place:
         // copying it again leaves an unused open graph inside the substitution
@@ -257,9 +254,7 @@ pub(super) fn refresh_generic_call_results(
     if !changed_owners.is_empty() {
         // Open result substitution is also a graph producer. Settle its owned
         // constraints before another selection reads the newly inferred type.
-        let roots = typed_trees::references::DeclarationSelection::from_symbols(
-            changed_owners.iter().copied(),
-        );
+        let roots = DeclarationSelection::from_symbols(changed_owners.iter().copied());
         super::finalize_domain_instance_identities(program, &roots)
             .map_err(|diagnostic| vec![diagnostic])?;
     }
@@ -304,12 +299,7 @@ pub(crate) fn refresh(
                         .constructed_value_type_reference(local.initial_value);
                     retained.is_valid().then_some(retained)
                 } else {
-                    validation::expression_result_type_reference(
-                        program,
-                        machine,
-                        state,
-                        local.initial_value,
-                    )
+                    expression_result_type_reference(program, machine, state, local.initial_value)
                 };
                 let Some(type_reference) = reference else {
                     continue;

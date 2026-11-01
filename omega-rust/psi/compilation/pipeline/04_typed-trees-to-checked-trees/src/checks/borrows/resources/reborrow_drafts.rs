@@ -3,11 +3,12 @@
 use checked_trees::{
     BorrowFacts, BorrowLoanFact, CheckedBorrowResourceDispositionTarget,
     CheckedBorrowResourceLifecyclePhase, CheckedDirectBorrowLoanResource,
-    CheckedParentBorrowResource, CheckedReborrowAccessEffect, CheckedReborrowLoanResource,
-    CheckedReborrowParentEndStatus, CheckedReborrowParentSuspensionBoundary,
-    CheckedReborrowResourceDisposition, CheckedReborrowResourceDispositionEvent,
-    CheckedReborrowRestorationObligation, CheckedRetiredParentResourceDispositionStep,
-    FlowInvalidationSource, ParentLexicalStatusAtChildEnd,
+    CheckedParentBorrowResource as BorrowResource, CheckedReborrowAccessEffect,
+    CheckedReborrowLoanResource as LoanResource, CheckedReborrowParentEndStatus,
+    CheckedReborrowParentSuspensionBoundary, CheckedReborrowResourceDisposition,
+    CheckedReborrowResourceDispositionEvent, CheckedReborrowRestorationObligation,
+    CheckedRetiredParentResourceDispositionStep, FlowInvalidationSource,
+    ParentLexicalStatusAtChildEnd,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -33,11 +34,8 @@ pub(crate) struct CheckedReborrowLoanResourceDraft {
 }
 
 impl CheckedReborrowLoanResourceDraft {
-    pub(crate) fn close(
-        &self,
-        parent_resource: CheckedParentBorrowResource,
-    ) -> CheckedReborrowLoanResource {
-        CheckedReborrowLoanResource {
+    pub(crate) fn close(&self, parent_resource: BorrowResource) -> LoanResource {
+        LoanResource {
             loan: self.loan,
             machine_symbol: self.machine_symbol,
             state_symbol: self.state_symbol,
@@ -174,16 +172,16 @@ impl CheckedReborrowDispositionEventDraft {
 #[derive(Debug)]
 pub(crate) struct ResourceHandles {
     pub(crate) direct: Vec<arena::Handle<CheckedDirectBorrowLoanResource>>,
-    pub(crate) reborrows: Vec<arena::Handle<CheckedReborrowLoanResource>>,
+    pub(crate) reborrows: Vec<arena::Handle<LoanResource>>,
 }
 
 impl ResourceHandles {
-    fn parent(&self, index: ParentResourceIndex) -> CheckedParentBorrowResource {
+    fn parent(&self, index: ParentResourceIndex) -> BorrowResource {
         match index {
-            ParentResourceIndex::Direct(index) => CheckedParentBorrowResource::DirectRoot {
+            ParentResourceIndex::Direct(index) => BorrowResource::DirectRoot {
                 resource: self.direct[index],
             },
-            ParentResourceIndex::Reborrow(index) => CheckedParentBorrowResource::Reborrow {
+            ParentResourceIndex::Reborrow(index) => BorrowResource::Reborrow {
                 resource: self.reborrows[index],
             },
         }

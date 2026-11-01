@@ -1,6 +1,7 @@
 use typed_trees::TypedTrees;
 use typed_trees::data::{DataDefinition, DataField, DataMember};
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
+use typed_trees::operator::{comparison_operator_spelling, has_builtin_spelled_expression_meaning};
 use typed_trees::types::PrimitiveType;
 
 #[derive(Clone, Copy)]
@@ -167,8 +168,7 @@ fn zero_storage_binary_is_builtin(
     if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) {
         return true;
     }
-    let Some(spelling) = typed_trees::operator::comparison_operator_spelling(binary.operator)
-    else {
+    let Some(spelling) = comparison_operator_spelling(binary.operator) else {
         return false;
     };
     let operands = [binary.left, binary.right];
@@ -186,13 +186,7 @@ fn zero_storage_binary_is_builtin(
             .map(|field| field.type_reference)
             .or_else(|| validation::landed_integer_literal_type_reference(typed, operand))
     });
-    typed_trees::operator::has_builtin_spelled_expression_meaning(
-        typed,
-        data.symbol,
-        expression,
-        spelling,
-        &operand_types,
-    )
+    has_builtin_spelled_expression_meaning(typed, data.symbol, expression, spelling, &operand_types)
 }
 
 fn evaluate_domain_fact_binary(

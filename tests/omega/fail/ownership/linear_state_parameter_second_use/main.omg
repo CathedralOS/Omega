@@ -2,11 +2,13 @@
 // then carried again across the state's edge; a claim transfers only once.
 data Receipt [linear] { code: i32; }
 
-boundary requirement Receipt::ack(receipt: Receipt);
+boundary trait ReceiptAck {
+    machine ack(receipt: Receipt) reaches;
+}
 
 machine consume(receipt: Receipt) -> i32 {
     let observed: i32 = receipt.code;
-    Receipt::ack(receipt);
+    ReceiptAck::ack(receipt);
     observed
 }
 
@@ -20,6 +22,6 @@ machine main() {
     }
 
     machine again(last: Receipt) {
-        Receipt::ack(last);
+        ReceiptAck::ack(last);
     }
 }

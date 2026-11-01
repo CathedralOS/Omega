@@ -7,6 +7,10 @@ use super::requirement_applications::selected_applications;
 use super::{CallSite, Diagnostic, SymbolHandle, TypedTrees, failed};
 use crate::expression_roots::append_statement_roots;
 use crate::tables::{expressions_of, expressions_of_mut};
+use typed_trees::data::TypeParameterKind;
+use typed_trees::product_operand::ProductApplicationDemand;
+use typed_trees::static_applications::StaticMachineBindingValue;
+use typed_trees::static_applications::StaticMachineLifetimeBinding;
 use validation::contract_identities::{accepted_template_commitment, normalized_machine_identity};
 
 macro_rules! err {
@@ -76,9 +80,7 @@ pub(super) fn close(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>, Vec<D
             .into_iter()
             .filter_map(|handle| {
                 let selected = program.product_operand_applications.get(handle);
-                if selected.demand
-                    != typed_trees::product_operand::ProductApplicationDemand::Selected
-                {
+                if selected.demand != ProductApplicationDemand::Selected {
                     return None;
                 }
                 Some((
@@ -328,12 +330,7 @@ fn realize_capture(
             let callback_count = program
                 .conformance_type_parameters(&conformance)
                 .iter()
-                .filter(|parameter| {
-                    matches!(
-                        parameter.kind,
-                        typed_trees::data::TypeParameterKind::Machine { .. }
-                    )
-                })
+                .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Machine { .. }))
                 .count();
             let selected_callbacks = if application.callable_application.is_valid() {
                 expressions_of(program)
@@ -353,10 +350,7 @@ fn realize_capture(
                 .iter()
                 .zip(&mut executable_arguments)
             {
-                if matches!(
-                    parameter.kind,
-                    typed_trees::data::TypeParameterKind::Machine { .. }
-                ) {
+                if matches!(parameter.kind, TypeParameterKind::Machine { .. }) {
                     *argument = selected_callbacks[callback_ordinal].clone();
                     callback_ordinal += 1;
                 }
@@ -374,7 +368,6 @@ fn realize_capture(
                 ));
             }
             for (parameter, argument) in parameters.iter().zip(&executable_arguments) {
-                use typed_trees::data::TypeParameterKind;
                 match &parameter.kind {
                     TypeParameterKind::Type => {
                         let reference = program
@@ -484,18 +477,12 @@ fn realize_capture(
                 .iter()
                 .zip(application.arguments.iter())
             {
-                if matches!(
-                    parameter.kind,
-                    typed_trees::data::TypeParameterKind::Machine { .. }
-                ) {
+                if matches!(parameter.kind, TypeParameterKind::Machine { .. }) {
                     let binding = bindings
                         .iter_mut()
                         .find(|binding| binding.parameter == parameter.symbol)
                         .ok_or_else(|| err!("capture lost its declared Machine binder"))?;
-                    binding.value =
-                        typed_trees::static_applications::StaticMachineBindingValue::Machine(
-                            original.clone(),
-                        );
+                    binding.value = StaticMachineBindingValue::Machine(original.clone());
                 }
             }
             let binding = expressions_of_mut(program).retain_static_machine_application(
@@ -511,15 +498,16 @@ fn realize_capture(
                 .lifetime_parameters
                 .iter()
                 .zip(&application.lifetime_arguments)
-                .map(|(parameter, argument)| {
-                    typed_trees::static_applications::StaticMachineLifetimeBinding {
-                        parameter: parameter.clone(),
-                        argument: typed_trees::name::Identifier::generated(argument),
-                    }
+                .map(|(parameter, argument)| StaticMachineLifetimeBinding {
+                    parameter: parameter.clone(),
+                    argument: typed_trees::name::Identifier::generated(argument),
                 })
                 .collect::<Vec<_>>();
-            expressions_of_mut(program)
-                .set_static_machine_application_lifetimes(binding, &lifetimes);
+            expressions_of_mut(program).set_static_machine_application_lifetimes(
+                binding,
+                conformance.symbol,
+                &lifetimes,
+            );
             expressions_of_mut(program)
                 .set_static_machine_application_selected_machines(binding, &selected_callbacks);
             candidate.binding_application = binding;

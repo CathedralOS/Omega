@@ -1,0 +1,18 @@
+module clock;
+public boundary trait Clock { machine sleep(milliseconds: u32) -> i32 reaches; }
+LocalClock satisfies Clock {
+    machine sleep(milliseconds: u32) -> i32 reaches { 9 }
+}
+
+// Equal callable spellings from different packages retain distinct requirements.
+// Expected: the other package provider does not satisfy this requirement.
+use other_clock::clock::DependencyClock;
+machine main() crashes Trap {
+    let local: i32 = Clock::sleep(0);
+    transition local == 9 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

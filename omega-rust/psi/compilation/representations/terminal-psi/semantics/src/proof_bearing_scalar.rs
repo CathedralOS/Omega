@@ -469,41 +469,28 @@ fn build_denotation(
             if !operands_match {
                 return Err(OperationSemanticError::OperandShapeMismatch(tag));
             }
-            let built = match denotation {
-                ScalarLeafDenotation::ExactIntegerAdd => {
-                    ScalarTerm::exact_integer_add(result_type, left.clone(), right.clone())
-                }
-                ScalarLeafDenotation::ExactIntegerSubtract => {
-                    ScalarTerm::exact_integer_subtract(result_type, left.clone(), right.clone())
-                }
-                ScalarLeafDenotation::ExactIntegerMultiply => {
-                    ScalarTerm::exact_integer_multiply(result_type, left.clone(), right.clone())
-                }
-                ScalarLeafDenotation::ExactIntegerDivide => {
-                    ScalarTerm::exact_integer_divide(result_type, left.clone(), right.clone())
-                }
-                ScalarLeafDenotation::ExactIntegerRemainder => {
-                    ScalarTerm::exact_integer_remainder(result_type, left.clone(), right.clone())
-                }
-                ScalarLeafDenotation::WrappingIntegerDivide => {
-                    ScalarTerm::wrapping_integer_divide(result_type, left.clone(), right.clone())
-                }
+            // The exact-arithmetic cohort states one kernel constructor per
+            // row; the operands are already typed against `result_type`.
+            let constructor = match denotation {
+                ScalarLeafDenotation::ExactIntegerAdd => ScalarTerm::exact_integer_add,
+                ScalarLeafDenotation::ExactIntegerSubtract => ScalarTerm::exact_integer_subtract,
+                ScalarLeafDenotation::ExactIntegerMultiply => ScalarTerm::exact_integer_multiply,
+                ScalarLeafDenotation::ExactIntegerDivide => ScalarTerm::exact_integer_divide,
+                ScalarLeafDenotation::ExactIntegerRemainder => ScalarTerm::exact_integer_remainder,
+                ScalarLeafDenotation::WrappingIntegerDivide => ScalarTerm::wrapping_integer_divide,
                 ScalarLeafDenotation::WrappingIntegerRemainder => {
-                    ScalarTerm::wrapping_integer_remainder(result_type, left.clone(), right.clone())
+                    ScalarTerm::wrapping_integer_remainder
                 }
                 ScalarLeafDenotation::SaturatingIntegerDivide => {
-                    ScalarTerm::saturating_integer_divide(result_type, left.clone(), right.clone())
+                    ScalarTerm::saturating_integer_divide
                 }
                 ScalarLeafDenotation::SaturatingIntegerRemainder => {
-                    ScalarTerm::saturating_integer_remainder(
-                        result_type,
-                        left.clone(),
-                        right.clone(),
-                    )
+                    ScalarTerm::saturating_integer_remainder
                 }
                 _ => return Err(invalid()),
-            }
-            .map_err(OperationSemanticError::InvalidProposition)?;
+            };
+            let built = constructor(result_type, left.clone(), right.clone())
+                .map_err(OperationSemanticError::InvalidProposition)?;
             (built, None, vec![left, right])
         }
         _ => return Err(OperationSemanticError::OperandShapeMismatch(tag)),

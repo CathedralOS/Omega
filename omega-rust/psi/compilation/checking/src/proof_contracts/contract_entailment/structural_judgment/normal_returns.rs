@@ -8,8 +8,10 @@
 
 mod array_elements;
 mod body_completion;
+mod call_bindings;
 mod collection_extents;
 mod completed_scalar_calls;
+mod statements;
 pub(super) use completed_scalar_calls::CapturedResultEquation;
 mod match_captures;
 mod match_composition;
@@ -20,7 +22,12 @@ use super::super::specification_calls::{
     AppliedProofBindings, SelectedCallContract, owner_contracts, owner_leading_operands,
     owner_return_type, owner_symbol, selected_call_contract,
 };
+use crate::CallQualificationContract;
+use crate::CheckingInput;
 use crate::frozen_program::expression_table;
+use crate::value_custody::places::collection_operations::MeasureReceiver;
+use numerics::bignum::BigInt;
+use std::sync::Arc;
 
 use super::value_predicates::boolean_term;
 use super::{MembershipGuarantee, StructuralJudge, StructuralJudgment, StructuralTerm};
@@ -736,18 +743,40 @@ impl<'program> StructuralJudge<'program> {
         scope: ValueScope<'_>,
         invocation: Option<crate::CallSite<'_>>,
     ) -> Option<Vec<NormalOperationEntry<'program>>> {
-        if arguments.len() != parameters.len() {
+        let leading = invocation
+            .and_then(|site| {
+                super::super::specification_calls::selected_call_site_contract(
+                    self.program,
+                    scope.0.symbol,
+                    site,
+                )
+                .map(|owner| owner_leading_operands(&owner))
+            })
+            .unwrap_or(0);
+        if arguments.len() != leading + parameters.len() {
             return None;
         }
         let operands = arguments
             .iter()
-            .zip(parameters)
-            .map(|(expression, parameter)| NormalOperand {
-                expression: *expression,
-                reference: parameter.type_reference,
-                demand: NormalValueDemand::Value,
+            .enumerate()
+            .map(|(position, expression)| {
+                let reference = if position < leading {
+                    crate::expression_result_type_reference(
+                        self.program,
+                        scope.0,
+                        scope.1,
+                        *expression,
+                    )?
+                } else {
+                    parameters.get(position - leading)?.type_reference
+                };
+                Some(NormalOperand {
+                    expression: *expression,
+                    reference,
+                    demand: NormalValueDemand::Value,
+                })
             })
-            .collect::<Vec<_>>();
+            .collect::<Option<Vec<_>>>()?;
         Some(
             self.clone()
                 .evaluate_normal_operands(
@@ -818,7 +847,7 @@ impl<'program> StructuralJudge<'program> {
                     return None;
                 }
                 // A loop iteration cannot borrow a previous invocation's alias.
-                std::sync::Arc::make_mut(&mut self.normal_results).retain(|(expression, _)| {
+                Arc::make_mut(&mut self.normal_results).retain(|(expression, _)| {
                     !aliases.iter().any(|(alias, _, _)| alias == expression)
                 });
             }
@@ -837,7 +866,7 @@ impl<'program> StructuralJudge<'program> {
                         if *completed_source != source {
                             return None;
                         }
-                        let results = std::sync::Arc::make_mut(&mut context.normal_results);
+                        let results = Arc::make_mut(&mut context.normal_results);
                         results.retain(|(expression, _)| *expression != alias);
                         results.push((alias, value.observed_value()?.clone()));
                     }
@@ -1271,8 +1300,7 @@ impl<'program> StructuralJudge<'program> {
         // Retire a prior evaluation of this static node. Repeated edges are
         // distinct invocations; saved earlier values already retain their own
         // capture sequence and equations in the caller environment.
-        std::sync::Arc::make_mut(&mut self.normal_results)
-            .retain(|(source, _)| *source != expression);
+        Arc::make_mut(&mut self.normal_results).retain(|(source, _)| *source != expression);
         let scalar_storage_read = self.requires_value_preservation()
             && super::super::observed_projections::scalar_storage_read(
                 program, scope.0, scope.1, expression,
@@ -1620,6 +1648,7 @@ impl<'program> StructuralJudge<'program> {
                             // defaults still need their independent producers.
                             judge.capture_sequence += 1;
                             Some(StructuralTerm::CapturedValue {
+                                statement: arena::Handle::invalid(),
                                 expression,
                                 callable: SymbolHandle::invalid(),
                                 occurrence: judge.capture_sequence,
@@ -1828,6 +1857,7 @@ impl<'program> StructuralJudge<'program> {
                     pre_call_judge.rejoin_pure_outcomes(&judge_refs, Some(expression));
                 rejoined.capture_sequence += 1;
                 let captured = StructuralTerm::CapturedValue {
+                    statement: arena::Handle::invalid(),
                     expression,
                     callable,
                     occurrence: rejoined.capture_sequence,
@@ -1930,8 +1960,9 @@ impl<'program> StructuralJudge<'program> {
                 expression,
                 primitive,
             )
-            .map(std::sync::Arc::new);
+            .map(Arc::new);
         let value = StructuralTerm::CapturedValue {
+            statement: arena::Handle::invalid(),
             expression,
             callable: SymbolHandle::invalid(),
             integer_range,
@@ -1980,9 +2011,8 @@ impl<'program> StructuralJudge<'program> {
             // The completed quoted-byte view has exact descriptor geometry.
             // Its contents remain opaque: a byte count supplies neither an
             // encoding predicate nor authority to observe another referent.
-            let extent = StructuralTerm::Integer(numerics::bignum::BigInt::from_u64(
-                u64::try_from(bytes.len()).ok()?,
-            ));
+            let extent =
+                StructuralTerm::Integer(BigInt::from_u64(u64::try_from(bytes.len()).ok()?));
             for measure in [
                 language_semantics::declaration_selection::CollectionMeasure::Length,
                 language_semantics::declaration_selection::CollectionMeasure::Capacity,
@@ -2003,7 +2033,7 @@ impl<'program> StructuralJudge<'program> {
     }
 
     pub(super) fn assume_normal_equation(&mut self, left: StructuralTerm, right: StructuralTerm) {
-        std::sync::Arc::make_mut(&mut self.normal_guarantees).push((left.clone(), right.clone()));
+        Arc::make_mut(&mut self.normal_guarantees).push((left.clone(), right.clone()));
         self.intake_equation(left, right, 0);
     }
 
@@ -2115,8 +2145,7 @@ impl<'program> StructuralJudge<'program> {
                 }
                 facts::PlaceSegment::FixedIndex { index } => {
                     let index_u64 = u64::try_from(*index).ok()?;
-                    let index_term =
-                        StructuralTerm::Integer(numerics::bignum::BigInt::from_u64(index_u64));
+                    let index_term = StructuralTerm::Integer(BigInt::from_u64(index_u64));
                     value = super::super::observed_projections::project_index(
                         program,
                         current_type,
@@ -2331,205 +2360,23 @@ impl<'program> StructuralJudge<'program> {
                 owner_symbol(&owner)
             );
         }
-        // References are live subjects. Only the frame owner can publish their
-        // exact prefix origins and preservation through this normal return.
-        // A written subject or replaced formal binding needs post-state facts,
-        // not the detached child term captured during operand evaluation.
-        let Some(machine) = program.machine(scope.0.symbol) else {
-            return None;
-        };
-        let frames = self.frame_resolver();
-        // An opaque frame establishes no preservation or post-call reference
-        // correspondence. Isolated operand snapshots and independent result
-        // guarantees remain usable, but no live referent is reintroduced.
-        let subjects = frames.filter(|_| writes.is_complete()).and_then(|frames| {
-            frames.expression_call_reference_subjects(machine, expression, parameters)
-        });
-        if !independent_call_application(
-            program,
-            self.machine_symbol,
-            owner_symbol(&owner),
-            typed_trees::references::StaticArgumentCall::Expression(expression, call),
-        ) {
-            return None;
-        }
-        let leading_operands = owner_leading_operands(&owner);
-        let Some(arguments) = expression_table(program)
-            .expression_handles(call.arguments)
-            .get(leading_operands..)
-        else {
-            return None;
-        };
-        if arguments.len() != parameters.len() {
-            return None;
-        }
-        // The checked local-name gate rejects parameter/local collisions and
-        // duplicate locals in each state; state forwarding creates a fresh
-        // environment. Names here locate values only in that validated scope;
-        // exact symbols still own the public formal/result substitution.
-        // All actual values belong to the caller environment. Installing a
-        // formal map before this capture would reinterpret another actual in
-        // the callee's telescope.
-        let completed_arguments = actuals?;
-        let Some(actuals) = completed_arguments
-            .get(leading_operands..)
-            .filter(|actuals| actuals.len() == arguments.len())
-        else {
-            return None;
-        };
-        // Entry requirements observe the arguments before this call's writes.
-        // Guarantees may use only formals whose observations survive return.
-        // Keep both substitutions: dropping a mutable input's post-state
-        // observation must not erase a proven entry requirement or an
-        // independent guarantee about the captured result.
-        let mut entry_bindings = parameters
-            .iter()
-            .zip(actuals)
-            .filter_map(|(parameter, value)| {
-                let subject = subjects
-                    .as_ref()
-                    .and_then(|subjects| {
-                        subjects
-                            .iter()
-                            .find(|subject| subject.entry.parameter == parameter.symbol)
-                    })
-                    .map(|subject| &subject.entry);
-                self.entry_argument_value(parameter, value, subject, environment, scope)
-                    .map(|value| (parameter.symbol, value))
-            })
-            .collect::<Vec<_>>();
-        // One authenticated telescope supplies closed constants and completed
-        // runtime operands. Executable formals already captured above retain
-        // their own ordered value; header subjects never replay their storage.
-        let static_bindings = super::super::specification_calls::call_contract_scalar_substitution(
-            program,
-            scope.0.symbol,
-            &owner,
+        let call_bindings::CapturedCallBindings {
+            entry_bindings,
+            bindings,
+            mut post_storage,
+        } = self.capture_call_bindings(
             site,
-            |subject| {
-                self.completed_scalar_subject(subject, site, completed_arguments, scope.0, scope.1)
-            },
+            expression,
+            arena::Handle::invalid(),
+            &owner,
+            &application,
+            parameters,
+            actuals,
+            environment,
+            scope,
+            writes,
         )?;
-        for (parameter, value) in static_bindings {
-            if !entry_bindings
-                .iter()
-                .any(|(symbol, _)| *symbol == parameter.symbol)
-            {
-                entry_bindings.push((parameter.symbol, value));
-            }
-        }
-        let mut bindings = entry_bindings
-            .iter()
-            .filter_map(|(symbol, value)| {
-                let Some(parameter) = parameters
-                    .iter()
-                    .find(|parameter| parameter.symbol == *symbol)
-                else {
-                    return application
-                        .constants
-                        .iter()
-                        .any(|constant| constant.symbol == *symbol)
-                        .then(|| (*symbol, value.clone()))
-                        .or_else(|| {
-                            application
-                                .runtime_parameters
-                                .iter()
-                                .any(|runtime| runtime.symbol == *symbol)
-                                .then(|| (*symbol, value.clone()))
-                        });
-                };
-                let observed =
-                    if crate::reference_shell(program, parameter.type_reference).is_none() {
-                        (!parameter.is_mutable).then(|| value.clone())?
-                    } else if subjects.as_ref().is_some_and(|subjects| {
-                        subjects.iter().any(|subject| {
-                            subject.entry.parameter == *symbol && subject.preserved_on_return
-                        })
-                    }) {
-                        value.clone()
-                    } else if !parameter.is_mutable
-                        && crate::slice_view_shell(program, parameter.type_reference, &[]).is_some()
-                    {
-                        // The passed descriptor can survive without preserved
-                        // referent contents. Retain only its metadata identity;
-                        // a pre-call contents observation is not a post-call fact.
-                        super::super::structural_terms::descriptor_only_observation(
-                            parameter.type_reference,
-                            value.clone(),
-                        )
-                    } else {
-                        return None;
-                    };
-                Some((*symbol, observed))
-            })
-            .collect::<Vec<_>>();
-        // A stable reference binding can designate changed contents. Capture
-        // those contents as a fresh post-call value, never as the entry value.
-        // The frame owns the exact referent coordinate; selected public
-        // guarantees own its equations. Install it only after retiring writes.
-        let mut post_storage = Vec::new();
-        for subject in subjects.as_ref().into_iter().flatten() {
-            if subject.preserved_on_return || !subject.stable_on_return {
-                continue;
-            }
-            let Some(coordinate) = self.captured_reference_subject(&subject.entry) else {
-                continue;
-            };
-            self.capture_sequence += 1;
-            let value = StructuralTerm::CapturedValue {
-                expression,
-                callable: owner_symbol(&owner),
-                occurrence: self.capture_sequence,
-                result_type: subject.entry.type_reference,
-                integer_range: None,
-            };
-            let mut observed = if program
-                .primitive_type_reference(subject.entry.type_reference)
-                .is_some()
-            {
-                StructuralTerm::ObservedValue {
-                    observed_type: subject.entry.type_reference,
-                    descriptor: None,
-                    value: Box::new(value.clone()),
-                }
-            } else {
-                value.clone()
-            };
-            // The normal boundary restores declared predicates on these fresh
-            // returned contents; retired pre-call observations supply none.
-            self.intake_admitted_value_predicates(subject.entry.type_reference, value.clone());
-            if let Some(parameter) = parameters.iter().find(|parameter| {
-                parameter.symbol == subject.entry.parameter
-                    && !parameter.is_mutable
-                    && crate::slice_view_shell(program, parameter.type_reference, &[]).is_some()
-            }) && let Some((_, descriptor)) = entry_bindings
-                .iter()
-                .find(|(symbol, _)| *symbol == subject.entry.parameter)
-            {
-                observed = super::super::structural_terms::reference_argument_observation(
-                    program,
-                    parameter.type_reference,
-                    descriptor,
-                    Some(observed),
-                )?;
-            }
-            // Exact formal substitution selects the first binding. Replace
-            // its metadata-only row rather than shadowing this authenticated
-            // post-call observation with an earlier same-symbol entry value.
-            if let Some((_, current)) = bindings
-                .iter_mut()
-                .find(|(symbol, _)| *symbol == subject.entry.parameter)
-            {
-                *current = observed;
-            } else {
-                bindings.push((subject.entry.parameter, observed));
-            }
-            post_storage.push(PostCallStorage {
-                coordinate,
-                value,
-                backing: None,
-            });
-        }
+        let actuals = actuals?.get(owner_leading_operands(&owner)..)?;
         let callable = match owner {
             SelectedCallContract::Concrete(machine, _) => machine.symbol,
             _ => owner_symbol(&owner),
@@ -2565,6 +2412,7 @@ impl<'program> StructuralJudge<'program> {
         let captured = result_presentation.as_ref().map(|presentation| {
             self.capture_sequence += 1;
             StructuralTerm::CapturedValue {
+                statement: arena::Handle::invalid(),
                 expression,
                 occurrence: self.capture_sequence,
                 callable,
@@ -2585,7 +2433,7 @@ impl<'program> StructuralJudge<'program> {
                             presentation.type_reference,
                         )
                     })
-                    .map(std::sync::Arc::new),
+                    .map(Arc::new),
             }
         });
         if super::super::struct_trace() {
@@ -2683,41 +2531,19 @@ impl<'program> StructuralJudge<'program> {
                 }
             }
         }
-        std::sync::Arc::make_mut(&mut self.normal_content_guarantees).extend(guarantees.content);
+        Arc::make_mut(&mut self.normal_content_guarantees).extend(guarantees.content);
         // A saved local now resolves to this occurrence, so the callee's case
         // tags must classify it here; the citation route's saved-binding tags
         // never meet that environment term. Tags never become value equations.
-        let tags_have_complete_bindings = parameters.iter().all(|parameter| {
-            bindings
-                .iter()
-                .any(|(symbol, _)| *symbol == parameter.symbol)
-        });
-        let tag_map = parameters
-            .iter()
-            .filter_map(|parameter| {
-                bindings
-                    .iter()
-                    .find(|(symbol, _)| *symbol == parameter.symbol)
-                    .map(|(_, value)| (parameter.name.as_str().to_owned(), value.clone()))
-            })
-            .chain(captured.as_ref().map(|captured| {
-                (
-                    crate::proof_contracts::contract_entailment::RESULT_BINDER.to_owned(),
-                    captured.clone(),
-                )
-            }))
-            .collect::<Vec<_>>();
-        let mut case_guarantees = Vec::new();
+        let case_guarantees =
+            self.normal_call_case_guarantees(&owner, parameters, &bindings, captured.as_ref());
         let selected_signature = match owner {
             SelectedCallContract::Signature(signature)
             | SelectedCallContract::DynamicSlot { signature, .. } => Some(signature),
             _ => None,
         };
-        let qualification_contract = crate::CallQualificationContract::prepare(
-            program,
-            call.target_symbol,
-            selected_signature,
-        );
+        let qualification_contract =
+            CallQualificationContract::prepare(program, call.target_symbol, selected_signature);
         for contract in contracts
             .iter()
             .filter(|contract| contract.kind == SignatureContractKind::Ensures)
@@ -2753,26 +2579,13 @@ impl<'program> StructuralJudge<'program> {
                             root = subject;
                         }
                         if Some(root) == captured.as_ref() && guarantee.semantic_domain.is_valid() {
-                            std::sync::Arc::make_mut(&mut self.normal_memberships).push(
-                                MembershipGuarantee {
-                                    subject,
-                                    domain: guarantee.domain_symbol,
-                                    semantic_domain: guarantee.semantic_domain,
-                                },
-                            );
+                            Arc::make_mut(&mut self.normal_memberships).push(MembershipGuarantee {
+                                subject,
+                                domain: guarantee.domain_symbol,
+                                semantic_domain: guarantee.semantic_domain,
+                            });
                         }
                     }
-                }
-                let ProofFact::Expression(guarantee) = fact else {
-                    continue;
-                };
-                if tags_have_complete_bindings {
-                    self.instantiated_contract_case_guarantees(
-                        &owner,
-                        *guarantee,
-                        &tag_map,
-                        &mut case_guarantees,
-                    );
                 }
             }
         }
@@ -2797,46 +2610,7 @@ impl<'program> StructuralJudge<'program> {
                 .map(CapturedResultEquation::public),
             );
         }
-        for equation in equations {
-            // This producer already authenticated the completed call and its
-            // eager inputs. Preserve that identity instead of evaluating its
-            // description again; active dependency collectors still own the walk.
-            let completed_identity =
-                equation.completed_call_identity && !self.has_resolution_dependency_collector();
-            let (left, right) = (equation.left.clone(), equation.right.clone());
-            let max_premise_occ = self.rewrites.max_premise_occurrence();
-            let pattern_occ = match (
-                Self::term_max_captured_occurrence(&left),
-                Self::term_max_captured_occurrence(&right),
-            ) {
-                (Some(l), Some(r)) => {
-                    if l > r {
-                        Some(l)
-                    } else if r > l {
-                        Some(r)
-                    } else {
-                        None
-                    }
-                }
-                (Some(l), None) => Some(l),
-                (None, Some(r)) => Some(r),
-                (None, None) => None,
-            };
-            if let Some(occ) = pattern_occ
-                && occ <= max_premise_occ
-            {
-                std::sync::Arc::make_mut(&mut self.rewrites)
-                    .bump_integer_premise_revision_for_occurrences(occ);
-            }
-            std::sync::Arc::make_mut(&mut self.captured_result_equations).push(equation);
-            std::sync::Arc::make_mut(&mut self.normal_guarantees)
-                .push((left.clone(), right.clone()));
-            if completed_identity {
-                self.intake_completed_call_identity(left, right);
-            } else {
-                self.intake_equation(left, right, 0);
-            }
-        }
+        self.intake_normal_call_equations(equations);
         if let (Some(captured), Some(result_presentation)) = (captured, result_presentation) {
             let result_type = result_presentation.type_reference;
             self.intake_admitted_value_predicates(result_type, captured.clone());
@@ -2852,7 +2626,7 @@ impl<'program> StructuralJudge<'program> {
             );
             // A construction describes payload, never the identity or admission of
             // this call's result. Equal field geometry cannot merge linear roots.
-            std::sync::Arc::make_mut(&mut self.normal_results).push((expression, captured));
+            Arc::make_mut(&mut self.normal_results).push((expression, captured));
         }
         for guarantee in &case_guarantees {
             self.intake_case_guarantee(guarantee);
@@ -2866,7 +2640,7 @@ impl<'program> StructuralJudge<'program> {
 /// owner. Representation recasts, construction and projection have only their
 /// ordered children's effects; the recast checker owns compatibility and loans.
 fn discarded_value_has_no_own_effects(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     scope: ValueScope<'_>,
     expression: ExpressionHandle,
 ) -> bool {
@@ -2909,9 +2683,7 @@ fn discarded_value_has_no_own_effects(
             if crate::value_custody::places::collection_operations::collection_measure_member(
                 program,
                 member,
-                crate::value_custody::places::collection_operations::MeasureReceiver::Declared(
-                    reference,
-                ),
+                MeasureReceiver::Declared(reference),
             )
             .is_some()
             {
@@ -2977,13 +2749,11 @@ impl<'program> NormalReturnPath<'program> {
         // Every evaluation retires this static node's prior occurrence, even
         // when its current value is discarded. Only demanded values enter the
         // completed-result roster; ordered traversal still keeps child effects.
-        std::sync::Arc::make_mut(&mut self.judge.normal_results)
-            .retain(|(source, _)| *source != expression);
+        Arc::make_mut(&mut self.judge.normal_results).retain(|(source, _)| *source != expression);
         if matches!(demand, NormalValueDemand::Value)
             && self.observation == NormalValueObservation::Observed
         {
-            std::sync::Arc::make_mut(&mut self.judge.normal_results)
-                .push((expression, self.value.clone()));
+            Arc::make_mut(&mut self.judge.normal_results).push((expression, self.value.clone()));
         }
         self
     }
@@ -2993,7 +2763,7 @@ impl<'program> NormalReturnPath<'program> {
 /// definitions with ordinary scalar results. Other calls need the shared
 /// proof-only classification; runtime calls still require complete write frames.
 pub(in crate::proof_contracts::contract_entailment) fn call_has_mathematical_denotation(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     caller: SymbolHandle,
     call: &typed_trees::expression::TableCallExpression,
 ) -> bool {
@@ -3026,9 +2796,6 @@ pub(in crate::proof_contracts::contract_entailment) fn call_has_mathematical_den
     }
 }
 
-fn program_expression_is_live(
-    program: &dyn crate::CheckingInput,
-    expression: ExpressionHandle,
-) -> bool {
+fn program_expression_is_live(program: &dyn CheckingInput, expression: ExpressionHandle) -> bool {
     expression.is_valid() && expression_table(program).expression_is_valid(expression)
 }

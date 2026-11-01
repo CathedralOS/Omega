@@ -1,6 +1,7 @@
 //! The identity context: package qualification and the normalization of
 //! type references, index expressions and const or nominal names.
 
+use super::LifetimeParameterIdentity;
 use crate::TypedTrees;
 use crate::expression::{ExpressionHandle, ExpressionNode};
 use crate::type_identity::substitution;
@@ -18,6 +19,9 @@ use symbols::JoinedPath;
 use symbols::SymbolHandle;
 
 mod match_dispatch;
+
+#[cfg(test)]
+mod argument_roles_tests;
 
 #[derive(Default)]
 pub(crate) struct TypeIdentityContext<'binders> {
@@ -91,7 +95,12 @@ impl TypeIdentityContext<'_> {
         let operand_owner = program
             .type_reference_table
             .operand_lifetime_owner(reference);
-        if self.invalid_application.is_some() && operand_owner.is_valid() && !self.declared_carrier
+        if self.invalid_application.is_some()
+            && operand_owner.is_valid()
+            && !program
+                .type_reference_table
+                .has_resolved_operand_lifetimes(reference)
+            && !self.declared_carrier
         {
             Self {
                 application_owner: operand_owner,
@@ -153,33 +162,7 @@ impl TypeIdentityContext<'_> {
             name,
             self.application_scopes,
         ) {
-            if self.qualification == TypeIdentityQualification::PackageQualified {
-                if let Some(identity) =
-                    super::lifetime_parameters::portable_lifetime_parameter_identity(
-                        program, region,
-                    )
-                {
-                    return identity;
-                }
-                if let Some(invalid) = self.invalid_application {
-                    invalid.set(true);
-                }
-                return "unresolved-region".to_owned();
-            }
-            return compound(
-                "region",
-                [
-                    atom(
-                        "owner",
-                        &format!(
-                            "{}:{}",
-                            region.declaration.arena_index(),
-                            region.declaration.generation()
-                        ),
-                    ),
-                    atom("ordinal", &region.ordinal.to_string()),
-                ],
-            );
+            return self.encode_lifetime(program, region);
         }
         if let Some(invalid) = self.invalid_application {
             invalid.set(true);
@@ -213,6 +196,66 @@ impl TypeIdentityContext<'_> {
             substitutions: &self.substitutions[..*start],
             substitution_scope_starts: &self.substitution_scope_starts[..scope_ordinal],
             ..*self
+        }
+    }
+
+    fn resolved_lifetime(&self, program: &TypedTrees, region: LifetimeParameterIdentity) -> String {
+        let Some((region, _)) = super::apply_resolved_lifetime_parameter_identity(
+            program,
+            region,
+            if self.application_argument_owner.is_valid() {
+                self.application_argument_owner
+            } else {
+                self.application_owner
+            },
+            self.application_scopes,
+        ) else {
+            if let Some(invalid) = self.invalid_application {
+                invalid.set(true);
+            }
+            return "unresolved-region".to_owned();
+        };
+        self.encode_lifetime(program, region)
+    }
+
+    fn encode_lifetime(&self, program: &TypedTrees, region: LifetimeParameterIdentity) -> String {
+        if self.qualification == TypeIdentityQualification::PackageQualified {
+            if let Some(identity) =
+                super::lifetime_parameters::portable_lifetime_parameter_identity(program, region)
+            {
+                return identity;
+            }
+            if let Some(invalid) = self.invalid_application {
+                invalid.set(true);
+            }
+            return "unresolved-region".to_owned();
+        }
+        compound(
+            "region",
+            [
+                atom(
+                    "owner",
+                    &format!(
+                        "{}:{}",
+                        region.declaration.arena_index(),
+                        region.declaration.generation()
+                    ),
+                ),
+                atom("ordinal", &region.ordinal.to_string()),
+            ],
+        )
+    }
+
+    fn lifetime_slot(
+        &self,
+        program: &TypedTrees,
+        name: &crate::name::Identifier,
+        region: Option<LifetimeParameterIdentity>,
+    ) -> String {
+        if let Some(region) = region.filter(|region| region.declaration.is_valid()) {
+            self.resolved_lifetime(program, region)
+        } else {
+            self.lifetime(program, name.as_str())
         }
     }
 
@@ -327,6 +370,7 @@ fn generic_type_identity(
     symbol: SymbolHandle,
     name: &str,
     lifetimes: &[crate::name::Identifier],
+    regions: &[LifetimeParameterIdentity],
     arguments: impl Iterator<Item = String>,
     context: &TypeIdentityContext<'_>,
 ) -> String {
@@ -350,9 +394,9 @@ fn generic_type_identity(
                     .filter(|_| !context.declared_carrier)
                     .into_iter()
                     .flat_map(|_| {
-                        lifetimes
-                            .iter()
-                            .map(|lifetime| context.lifetime(program, lifetime.as_str()))
+                        lifetimes.iter().enumerate().map(|(ordinal, lifetime)| {
+                            context.lifetime_slot(program, lifetime, regions.get(ordinal).copied())
+                        })
                     }),
             )
             .chain(arguments),
@@ -368,6 +412,7 @@ fn generic_reference_identity<'program>(
     mut symbol: SymbolHandle,
     mut name: &'program crate::name::Identifier,
     lifetimes: &[crate::name::Identifier],
+    regions: &[LifetimeParameterIdentity],
     mut arguments: arena::HandleSpan<TypeReferenceHandle>,
     context: &TypeIdentityContext<'_>,
 ) -> String {
@@ -418,16 +463,13 @@ fn generic_reference_identity<'program>(
     // The declaration's telescope owns argument roles for code selections as
     // well as data applications. A const in a nested implementation must use
     // the same index grammar before and after caller-side substitution.
-    let parameters = if context.invalid_application.is_some() || context.storage_value_indices {
-        program.declaration_type_parameters(symbol)
-    } else {
-        &[]
-    };
+    let parameters = program.declaration_type_parameters(symbol);
     generic_type_identity(
         program,
         symbol,
         name.as_str(),
         lifetimes,
+        regions,
         program
             .type_reference_handles(arguments)
             .iter()
@@ -463,10 +505,9 @@ fn generic_reference_identity<'program>(
                         Err(_) => substitution::rejected(context),
                     };
                 }
-                let is_index = context.invalid_application.is_some()
-                    && parameters
-                        .get(ordinal)
-                        .is_some_and(|parameter| parameter.kind.is_const_or_value());
+                let is_index = parameters
+                    .get(ordinal)
+                    .is_some_and(|parameter| parameter.kind.is_const_or_value());
                 if is_index {
                     substitution::index_argument(
                         program,
@@ -518,6 +559,7 @@ pub(super) fn static_nominal_argument_identity(
             argument.symbol,
             "",
             &application.lifetime_arguments,
+            &[],
             application.arguments.iter().map(|argument| {
                 substitution::index_argument(
                     program,
@@ -670,7 +712,17 @@ pub(crate) fn normalize_type_reference(
                                 }
                                 "elided-region".to_owned()
                             },
-                            |lifetime| context.lifetime(program, lifetime.as_str()),
+                            |lifetime| {
+                                context.lifetime_slot(
+                                    program,
+                                    lifetime,
+                                    program
+                                        .type_reference_table
+                                        .operand_lifetimes(type_reference)
+                                        .first()
+                                        .copied(),
+                                )
+                            },
                         )
                     }),
             ),
@@ -721,6 +773,9 @@ pub(crate) fn normalize_type_reference(
             *base_symbol,
             base_name,
             lifetime_arguments,
+            program
+                .type_reference_table
+                .operand_lifetimes(type_reference),
             *arguments,
             context,
         ),

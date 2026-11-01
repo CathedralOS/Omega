@@ -20,6 +20,7 @@ use terminal_psi::{
 };
 
 use super::TerminalRuntimeError;
+use super::native_word::native_word_envelope;
 
 pub(super) struct AbsoluteValueImport {
     signature: TerminalImportSignature,
@@ -91,19 +92,16 @@ impl AbsoluteValueImport {
                 "abs calling application differs from its admitted signature",
             ));
         }
-        let envelope = super::native_word::native_word_envelope(
-            &application.signature,
-            application.signature.parameters[0],
-        )
-        .map_err(invalid)?;
+        let envelope =
+            native_word_envelope(&application.signature, application.signature.parameters[0])
+                .map_err(invalid)?;
         if envelope.byte_size != 4 || envelope.alignment != 4 {
             return Err(invalid(
                 "abs native argument must occupy one aligned 32-bit integer word",
             ));
         }
         if let Some(root) = application.signature.result {
-            let envelope = super::native_word::native_word_envelope(&application.signature, root)
-                .map_err(invalid)?;
+            let envelope = native_word_envelope(&application.signature, root).map_err(invalid)?;
             if envelope.byte_size != 4 || envelope.alignment != 4 || envelope.contains_record {
                 return Err(invalid(
                     "abs native result must be one signed integer scalar",

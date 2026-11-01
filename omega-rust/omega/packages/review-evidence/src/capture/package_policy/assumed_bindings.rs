@@ -3,6 +3,8 @@
 //! transitive semantic dependencies. Keeping it in each accepted meaning makes
 //! a resolution-only update unable to silently preserve changed trust.
 use crate::capture::PackageReviewInput;
+use crate::capture::contracts::facts::project_trait_requirement_contracts;
+use crate::record::PackageReviewCallableContract;
 use diagnostics::Diagnostic;
 
 pub(super) fn project(input: &PackageReviewInput<'_>) -> Result<Vec<String>, Vec<Diagnostic>> {
@@ -20,10 +22,7 @@ pub(super) fn project(input: &PackageReviewInput<'_>) -> Result<Vec<String>, Vec
             .map(|byte| format!("{byte:02x}"))
             .collect::<String>()
     };
-    let contract = |identity: &str| -> Result<
-        Vec<crate::record::PackageReviewCallableContract>,
-        Vec<Diagnostic>,
-    > {
+    let contract = |identity: &str| -> Result<Vec<PackageReviewCallableContract>, Vec<Diagnostic>> {
         for definition in input.traits() {
             for signature in input.trait_machine_signatures(definition) {
                 if input.trait_requirement_callable_identity_text(definition, signature) == identity
@@ -53,12 +52,7 @@ pub(super) fn project(input: &PackageReviewInput<'_>) -> Result<Vec<String>, Vec
                         },
                     };
                     let contracts =
-                        crate::capture::contracts::facts::project_trait_requirement_contracts(
-                            input,
-                            signature,
-                            &context,
-                            &[],
-                        )?;
+                        project_trait_requirement_contracts(input, signature, &context, &[])?;
                     return Ok(contracts);
                 }
             }
@@ -93,8 +87,8 @@ pub(super) fn project(input: &PackageReviewInput<'_>) -> Result<Vec<String>, Vec
         })
         .collect::<Vec<_>>()
         .join("; ");
-    let render = |contracts: &[crate::record::PackageReviewCallableContract]| {
-        crate::record::PackageReviewCallableContract::canonical_set_text(contracts)
+    let render = |contracts: &[PackageReviewCallableContract]| {
+        PackageReviewCallableContract::canonical_set_text(contracts)
             .map_err(|error| vec![Diagnostic::error(error.to_string())])
     };
     let mut rows = Vec::new();
@@ -138,8 +132,8 @@ pub(super) fn project(input: &PackageReviewInput<'_>) -> Result<Vec<String>, Vec
 /// one side's precondition is unproved rather than refuted. Authority
 /// qualifications are not integer bounds and stay outside this classification.
 fn assessment(
-    required: &[crate::record::PackageReviewCallableContract],
-    supplied: &[crate::record::PackageReviewCallableContract],
+    required: &[PackageReviewCallableContract],
+    supplied: &[PackageReviewCallableContract],
 ) -> String {
     use crate::record::PackageReviewContractKind as Kind;
     let mut findings = Vec::new();
@@ -195,7 +189,7 @@ fn disjoint(left: (i128, i128), right: (i128, i128)) -> bool {
     left.0 <= left.1 && right.0 <= right.1 && (left.1 < right.0 || right.1 < left.0)
 }
 
-fn parameter_subjects(contracts: &[crate::record::PackageReviewCallableContract]) -> Vec<u32> {
+fn parameter_subjects(contracts: &[PackageReviewCallableContract]) -> Vec<u32> {
     use crate::record::{
         PackageReviewContractExpression as Expression, PackageReviewContractFact as Fact,
         PackageReviewContractKind as Kind,
@@ -227,7 +221,7 @@ fn parameter_subjects(contracts: &[crate::record::PackageReviewCallableContract]
 }
 
 fn literal_integer_interval(
-    contracts: &[crate::record::PackageReviewCallableContract],
+    contracts: &[PackageReviewCallableContract],
     kind: crate::record::PackageReviewContractKind,
     subject: &Subject,
 ) -> (i128, i128) {

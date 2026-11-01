@@ -7,6 +7,7 @@ use crate::{
     AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionKind,
     AuthoredDeclarationSelectionOccurrenceId, AuthoredDeclarationSelections,
 };
+use arena::HandleSpan;
 use language_semantics::declaration_selection::CompilerDerivedSelectionPartition;
 use source::{SourceId, SourceSpan, Span};
 use symbols::SymbolHandle;
@@ -401,10 +402,7 @@ fn shorten_records(
     shortened
 }
 
-fn insert_members(
-    table: &mut ExpressionTable,
-    members: &[&str],
-) -> arena::HandleSpan<DiagnosticName> {
+fn insert_members(table: &mut ExpressionTable, members: &[&str]) -> HandleSpan<DiagnosticName> {
     let span = table.reserve_name_path_members(members.len() as u32);
     for (offset, member) in members.iter().enumerate() {
         table.set_name_path_member_at_offset(

@@ -4,7 +4,8 @@ use super::{NativeBuildEvaluation, PackageBuildHandoff};
 use crate::build_execution::build_record_codec;
 use filesystem_authority::observation_codec::{ObservationCursor, push_framed};
 use language_semantics::declaration_selection::{
-    CapturedNativeDeclaration, CapturedNativeIntent, NativeBindingProducer, ProductTarget,
+    CapturedNativeDeclaration, CapturedNativeIntent, NativeBindingProducer, NativeBindingSource,
+    ProductTarget,
 };
 use semantic_vocabulary::{ForeignLocatorCandidate, NativeBindingLocator, PackageKeyIdentity};
 use std::sync::Arc;
@@ -28,16 +29,24 @@ fn count(cursor: &mut ObservationCursor<'_>) -> Option<usize> {
 fn choices(bundle: &PackageBuildHandoff, output: &mut Vec<u8>) {
     number(output, bundle.native_declarations().len() as u64);
     for declaration in bundle.native_declarations() {
-        output.extend_from_slice(&declaration.producer.package.digest());
-        string(output, &declaration.producer.declaration_path);
-        string(output, &declaration.producer.callable_identity);
-        string(output, &declaration.requirement_path);
-        output.extend_from_slice(&declaration.source_occurrence_digest);
-        output.push(match declaration.resolution_stratum {
+        output.extend_from_slice(&declaration.source.producer.package.digest());
+        string(output, &declaration.source.producer.declaration_path);
+        string(output, &declaration.source.producer.callable_identity);
+        string(output, &declaration.source.requirement_path);
+        output.extend_from_slice(&declaration.source.source_occurrence_digest);
+        output.push(match declaration.source.resolution_stratum {
             source::SourceResolutionStratum::Base => 0,
             source::SourceResolutionStratum::CurrentActivationExtension => 1,
             source::SourceResolutionStratum::DependencyActivationExtension => 2,
         });
+        string(output, &declaration.requirement_identity);
+        match &declaration.dependency_alias {
+            None => output.push(0),
+            Some(alias) => {
+                output.push(1);
+                string(output, alias);
+            }
+        }
     }
     number(output, bundle.native_intents().len() as u64);
     for intent in bundle.native_intents() {
@@ -85,7 +94,13 @@ fn choices(bundle: &PackageBuildHandoff, output: &mut Vec<u8>) {
 
 pub fn digest(bundle: &PackageBuildHandoff) -> [u8; 32] {
     let mut digest =
-        crate::digest_encoder::DomainDigestEncoder::new(b"omega-package-native-outputs-v1\0");
+        crate::digest_encoder::DomainDigestEncoder::new(b"omega-package-native-outputs-v2\0");
+    let anchors = bundle
+        .native_declarations()
+        .iter()
+        .map(|declaration| &declaration.requirement)
+        .collect::<Vec<_>>();
+    digest.raw(&super::provider_selection_codec::retained_declarations_digest(&anchors));
     let mut bytes = Vec::new();
     choices(bundle, &mut bytes);
     digest.bytes(&bytes);
@@ -100,7 +115,16 @@ pub fn digest(bundle: &PackageBuildHandoff) -> [u8; 32] {
 }
 
 pub fn encode(bundle: &PackageBuildHandoff) -> Vec<u8> {
-    let mut output = b"OMG-NATIVE-OUTPUTS\x01".to_vec();
+    let mut output = b"OMG-NATIVE-OUTPUTS\x02".to_vec();
+    let anchors = bundle
+        .native_declarations()
+        .iter()
+        .map(|declaration| &declaration.requirement)
+        .collect::<Vec<_>>();
+    push_framed(
+        &mut output,
+        &super::provider_selection_codec::encode_retained_declarations(&anchors),
+    );
     choices(bundle, &mut output);
     match bundle.native_evaluation() {
         None => output.push(0),
@@ -125,12 +149,17 @@ pub fn encode(bundle: &PackageBuildHandoff) -> Vec<u8> {
 
 pub fn decode(bytes: &[u8], handoff: PackageBuildHandoff) -> Option<PackageBuildHandoff> {
     let mut cursor = ObservationCursor::new(bytes);
-    let magic = b"OMG-NATIVE-OUTPUTS\x01";
+    let magic = b"OMG-NATIVE-OUTPUTS\x02";
     if cursor.bytes(magic.len())? != magic {
         return None;
     }
+    let anchors = super::provider_selection_codec::decode_retained_declarations(cursor.framed()?)?;
+    let declared_count = count(&mut cursor)?;
+    if declared_count != anchors.len() {
+        return None;
+    }
     let mut declarations = Vec::new();
-    for _ in 0..count(&mut cursor)? {
+    for requirement in anchors {
         let package = PackageKeyIdentity::from_digest(cursor.bytes(32)?.try_into().ok()?)?;
         let declaration_path = read_string(&mut cursor)?;
         let callable_identity = read_string(&mut cursor)?;
@@ -142,15 +171,26 @@ pub fn decode(bytes: &[u8], handoff: PackageBuildHandoff) -> Option<PackageBuild
             2 => source::SourceResolutionStratum::DependencyActivationExtension,
             _ => return None,
         };
+        let requirement_identity = read_string(&mut cursor)?;
+        let dependency_alias = match cursor.u8()? {
+            0 => None,
+            1 => Some(read_string(&mut cursor)?),
+            _ => return None,
+        };
         declarations.push(CapturedNativeDeclaration {
-            producer: NativeBindingProducer {
-                package,
-                declaration_path,
-                callable_identity,
+            source: NativeBindingSource {
+                producer: NativeBindingProducer {
+                    package,
+                    declaration_path,
+                    callable_identity,
+                },
+                requirement_path,
+                source_occurrence_digest,
+                resolution_stratum,
             },
-            requirement_path,
-            source_occurrence_digest,
-            resolution_stratum,
+            requirement,
+            requirement_identity,
+            dependency_alias,
         });
     }
     let mut intents = Vec::new();

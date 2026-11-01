@@ -33,7 +33,10 @@ use machine_code::SelectedFormEncoding;
 use super::super::{
     WholeFunctionReturnEvidence, WholeFunctionReturnMechanism, WholeFunctionReturnValueEvidence,
     error::WholeFunctionExitContractError::{
-        self, NonReturnControlEffect, NonReturnMemoryEffect, NonReturnStackEffect,
+        self, DuplicateInstruction, InstructionRosterMismatch, MissingInstruction,
+        NonReturnControlEffect, NonReturnMemoryEffect, NonReturnStackEffect, OffsetOverflow,
+        ReturnEffectsMismatch, ReturnEncodingMismatch, ReturnOperandMismatch,
+        ReturnPlacementMismatch,
     },
 };
 
@@ -245,28 +248,19 @@ pub(in crate::exit_contract) fn unique_encoding_rows<'a>(
             for instruction in block.instructions.iter().chain(std::iter::once(
                 selected_instructions::terminator_instruction(&block.terminator),
             )) {
-                let row =
-                    encoded
-                        .next()
-                        .ok_or(WholeFunctionExitContractError::MissingInstruction(
-                            instruction.id,
-                        ))?;
+                let row = encoded.next().ok_or(MissingInstruction(instruction.id))?;
                 if row.instruction != instruction.id
                     || rows
                         .insert((function.machine, row.instruction), row)
                         .is_some()
                 {
-                    return Err(WholeFunctionExitContractError::DuplicateInstruction(
-                        row.instruction,
-                    ));
+                    return Err(DuplicateInstruction(row.instruction));
                 }
             }
         }
     }
     if let Some(row) = encoded.next() {
-        return Err(WholeFunctionExitContractError::DuplicateInstruction(
-            row.instruction,
-        ));
+        return Err(DuplicateInstruction(row.instruction));
     }
     Ok(rows)
 }
@@ -291,9 +285,7 @@ pub(in crate::exit_contract) fn unique_layout_rows(
                     .insert((function.machine, row.instruction), (block, row))
                     .is_some()
                 {
-                    return Err(WholeFunctionExitContractError::DuplicateInstruction(
-                        row.instruction,
-                    ));
+                    return Err(DuplicateInstruction(row.instruction));
                 }
             }
         }
@@ -445,17 +437,13 @@ pub(in crate::exit_contract) fn validate_non_return(
                 SelectedFormMachineDisposition::Aarch64FusedBranchNonZeroToCbnzV1 { .. } => false,
             };
             if branch_terminator || !disposition_matches || layout.branch.is_some() {
-                return Err(WholeFunctionExitContractError::InstructionRosterMismatch(
-                    instruction,
-                ));
+                return Err(InstructionRosterMismatch(instruction));
             }
             &footprint.encoded
         }
         None => {
             if !branch_terminator {
-                return Err(WholeFunctionExitContractError::InstructionRosterMismatch(
-                    instruction,
-                ));
+                return Err(InstructionRosterMismatch(instruction));
             }
             layout
                 .branch
@@ -466,9 +454,7 @@ pub(in crate::exit_contract) fn validate_non_return(
                     }
                     machine_code::ResolvedBranchEvidence::Jump(branch) => &branch.decoded_effects,
                 })
-                .ok_or(WholeFunctionExitContractError::InstructionRosterMismatch(
-                    instruction,
-                ))?
+                .ok_or(InstructionRosterMismatch(instruction))?
         }
     };
     let temporary_stack = balanced_temporary_stack(architecture, kind, effects);
@@ -866,9 +852,7 @@ pub(in crate::exit_contract) fn validate_return(
                 || selected.operands.len() != usize::from(fragment_count)
                 || machine.operands.len() != usize::from(fragment_count)
             {
-                return Err(WholeFunctionExitContractError::ReturnOperandMismatch(
-                    selected.id,
-                ));
+                return Err(ReturnOperandMismatch(selected.id));
             }
             let mut fragments = Vec::new();
             for (ordinal, (selected_operand, operand)) in
@@ -881,9 +865,7 @@ pub(in crate::exit_contract) fn validate_return(
                     || operand.read_units != operand.storage_units
                     || !operand.write_units.is_empty()
                 {
-                    return Err(WholeFunctionExitContractError::ReturnOperandMismatch(
-                        selected.id,
-                    ));
+                    return Err(ReturnOperandMismatch(selected.id));
                 }
                 fragments.push(machine_code::WholeFunctionReturnFragmentEvidence {
                     virtual_register: operand.virtual_register,
@@ -895,14 +877,10 @@ pub(in crate::exit_contract) fn validate_return(
         }
         SelectedInstructionKind::ReturnScalar => {
             let Some(result_view) = result_view else {
-                return Err(WholeFunctionExitContractError::ReturnOperandMismatch(
-                    selected.id,
-                ));
+                return Err(ReturnOperandMismatch(selected.id));
             };
             let [operand]: &[PhysicalOperandFootprint] = machine.operands.as_slice() else {
-                return Err(WholeFunctionExitContractError::ReturnOperandMismatch(
-                    selected.id,
-                ));
+                return Err(ReturnOperandMismatch(selected.id));
             };
             if selected.operands.len() != 1
                 || operand.operand != 0
@@ -913,9 +891,7 @@ pub(in crate::exit_contract) fn validate_return(
                 || operand.read_units != operand.storage_units
                 || !operand.write_units.is_empty()
             {
-                return Err(WholeFunctionExitContractError::ReturnOperandMismatch(
-                    selected.id,
-                ));
+                return Err(ReturnOperandMismatch(selected.id));
             }
             WholeFunctionReturnValueEvidence::ScalarV1 {
                 virtual_register: operand.virtual_register,
@@ -925,16 +901,12 @@ pub(in crate::exit_contract) fn validate_return(
         }
         SelectedInstructionKind::ReturnUnit => {
             if !selected.operands.is_empty() || !machine.operands.is_empty() {
-                return Err(WholeFunctionExitContractError::ReturnOperandMismatch(
-                    selected.id,
-                ));
+                return Err(ReturnOperandMismatch(selected.id));
             }
             WholeFunctionReturnValueEvidence::UnitV1
         }
         _ => {
-            return Err(WholeFunctionExitContractError::ReturnOperandMismatch(
-                selected.id,
-            ));
+            return Err(ReturnOperandMismatch(selected.id));
         }
     };
     let (bytes, effects): (&[u8], &MachineEncodedEffects) =
@@ -943,27 +915,18 @@ pub(in crate::exit_contract) fn validate_return(
                 (bytes, &footprint.encoded)
             }
             _ => {
-                return Err(WholeFunctionExitContractError::ReturnEncodingMismatch(
-                    selected.id,
-                ));
+                return Err(ReturnEncodingMismatch(selected.id));
             }
         };
     if bytes != layout.bytes || layout.branch.is_some() || effects != &machine.alternative.encoded {
-        return Err(WholeFunctionExitContractError::ReturnEncodingMismatch(
-            selected.id,
-        ));
+        return Err(ReturnEncodingMismatch(selected.id));
     }
     let end = layout
         .offset
-        .checked_add(
-            u64::try_from(layout.bytes.len())
-                .map_err(|_| WholeFunctionExitContractError::OffsetOverflow)?,
-        )
-        .ok_or(WholeFunctionExitContractError::OffsetOverflow)?;
+        .checked_add(u64::try_from(layout.bytes.len()).map_err(|_| OffsetOverflow)?)
+        .ok_or(OffsetOverflow)?;
     if end != layout_block_end {
-        return Err(WholeFunctionExitContractError::ReturnPlacementMismatch(
-            selected.id,
-        ));
+        return Err(ReturnPlacementMismatch(selected.id));
     }
     let mechanism = match target.architecture {
         Architecture::X86_64 => {
@@ -980,9 +943,7 @@ pub(in crate::exit_contract) fn validate_return(
                 || effects.control != MachineEncodedControlEffect::ReturnFromActivationStackV1
                 || bytes != [0xc3]
             {
-                return Err(WholeFunctionExitContractError::ReturnEffectsMismatch(
-                    selected.id,
-                ));
+                return Err(ReturnEffectsMismatch(selected.id));
             }
             WholeFunctionReturnMechanism::X86ActivationStackReturnV1 {
                 stack_pointer,
@@ -991,9 +952,7 @@ pub(in crate::exit_contract) fn validate_return(
             }
         }
         Architecture::Aarch64 => {
-            let link_register = link_register.ok_or(
-                WholeFunctionExitContractError::ReturnEffectsMismatch(selected.id),
-            )?;
+            let link_register = link_register.ok_or(ReturnEffectsMismatch(selected.id))?;
             if effects.memory != MachineEncodedMemoryEffect::NoneV1
                 || effects.stack != MachineEncodedStackEffect::UnchangedV1
                 || effects.control
@@ -1002,9 +961,7 @@ pub(in crate::exit_contract) fn validate_return(
                     })
                 || bytes != [0xc0, 0x03, 0x5f, 0xd6]
             {
-                return Err(WholeFunctionExitContractError::ReturnEffectsMismatch(
-                    selected.id,
-                ));
+                return Err(ReturnEffectsMismatch(selected.id));
             }
             WholeFunctionReturnMechanism::Aarch64LinkRegisterReturnV1 {
                 stack_pointer,
@@ -1013,9 +970,7 @@ pub(in crate::exit_contract) fn validate_return(
         }
     };
     if effects.trap != MachineEncodedTrapBehavior::MayArchitecturalFaultV1 {
-        return Err(WholeFunctionExitContractError::ReturnEffectsMismatch(
-            selected.id,
-        ));
+        return Err(ReturnEffectsMismatch(selected.id));
     }
     Ok(WholeFunctionReturnEvidence {
         block,

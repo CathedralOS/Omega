@@ -8,8 +8,9 @@
 //! declaration, never a made-up result or an unreconciled handler rejection.
 
 use numerics::bignum::BigInt;
+use numerics::float_semantics::FloatClass;
 use numerics::float_semantics::{FloatFormat, FloatMeaning, FloatSemantics, IntegerFormat};
-use semantic_vocabulary::{IeeeFloatFormat, IeeeFloatValue, IntegerValue};
+use semantic_vocabulary::{IeeeFloatFormat, IeeeFloatValue, IntegerValue, ScalarType};
 use target_operations::{
     IeeeFloatArithmeticOperation, IeeeFloatBinaryOperation, IeeeFloatRoundingDirection,
     IeeeFloatToIntegerDomain, NearestIeeeFloatArithmeticRealization,
@@ -54,10 +55,7 @@ impl NumericImport {
                 || result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
                 || !result.qualifications.is_empty()
                 || !result.projected_qualifications.is_empty()
-                || signature.scalar_parameters
-                    != [semantic_vocabulary::ScalarType::IeeeFloat(
-                        realization.format,
-                    )]
+                || signature.scalar_parameters != [ScalarType::IeeeFloat(realization.format)]
             {
                 return Err(TerminalRuntimeError::InvalidProvision(
                     "classification result differs from its admitted sum contract",
@@ -138,13 +136,11 @@ impl TerminalEffectHandler for NumericImport {
                 format,
                 &terminal_interpreter::float_result_policy::meaning(*value),
             ) {
-                numerics::float_semantics::FloatClass::NaN => (0, None),
-                numerics::float_semantics::FloatClass::Infinity { negative } => (1, Some(negative)),
-                numerics::float_semantics::FloatClass::Normal { negative } => (2, Some(negative)),
-                numerics::float_semantics::FloatClass::Subnormal { negative } => {
-                    (3, Some(negative))
-                }
-                numerics::float_semantics::FloatClass::Zero { negative } => (4, Some(negative)),
+                FloatClass::NaN => (0, None),
+                FloatClass::Infinity { negative } => (1, Some(negative)),
+                FloatClass::Normal { negative } => (2, Some(negative)),
+                FloatClass::Subnormal { negative } => (3, Some(negative)),
+                FloatClass::Zero { negative } => (4, Some(negative)),
             };
             return Ok(TerminalEffectResult::ScalarAggregate(
                 terminal_interpreter::TerminalScalarAggregateValue {

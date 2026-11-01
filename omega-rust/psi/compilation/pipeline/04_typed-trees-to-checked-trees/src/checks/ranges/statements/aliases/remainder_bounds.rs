@@ -1,9 +1,13 @@
 //! A bound established by the remainder value captured at this statement.
 
 use checked_trees::CheckedOperatorResolutionStatus;
+use typed_trees::closed_numeric::land_integer;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
+use typed_trees::unsigned_integer_primitive_pattern;
+use validation::expression_result_type_reference;
+use validation::has_builtin_binary_expression_meaning;
 
 use super::RangeFacts;
 
@@ -37,12 +41,7 @@ fn unsigned_remainder_upper_bound(
         return None;
     };
     if binary.operator != BinaryOperator::Modulo
-        || !validation::has_builtin_binary_expression_meaning(
-            program,
-            machine,
-            Some(state),
-            expression,
-        )
+        || !has_builtin_binary_expression_meaning(program, machine, Some(state), expression)
         || facts.checked_operators.is_some_and(|operators| {
             operators.uses.iter().any(|(_, operator)| {
                 operator.expression == expression
@@ -52,18 +51,14 @@ fn unsigned_remainder_upper_bound(
     {
         return None;
     }
-    let result_type =
-        validation::expression_result_type_reference(program, machine, state, expression)?;
+    let result_type = expression_result_type_reference(program, machine, state, expression)?;
     let primitive = program.primitive_type_reference(result_type)?;
-    if !matches!(
-        primitive,
-        typed_trees::unsigned_integer_primitive_pattern!()
-    ) {
+    if !matches!(primitive, unsigned_integer_primitive_pattern!()) {
         // Signed remainder follows the dividend's sign, not Euclidean modulo.
         return None;
     }
     let divisor = program.closed_integer_value_in(binary.right, machine.symbol)?;
-    typed_trees::closed_numeric::land_integer(&divisor.value, primitive)?;
+    land_integer(&divisor.value, primitive)?;
     let upper = divisor.value.to_i64()?;
     // No bound on the dividend's magnitude is needed, even for a full u64 or
     // a Saturating expression. A positive closed divisor needs no mutable

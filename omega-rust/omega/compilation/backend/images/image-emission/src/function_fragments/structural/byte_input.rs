@@ -1,6 +1,7 @@
 //! Publish owned byte-input results from their selected occurrence and real frame home.
 use super::{Error, attribution, fragment, host, placed_text_offset, selected, source};
 use crate::ObjectBoundarySettlement;
+use crate::object_artifact::replay::boundary::result_placement::hosted_read_byte_declaration_is_valid;
 use machine_code::{
     BoundaryExecutionRecord, BoundaryResultRecord, BoundarySettlementRecord,
     BoundaryStructuralResultRecord, SemanticCodeSite,
@@ -84,7 +85,7 @@ pub(in crate::function_fragments) fn cleanup_actions_match(
             let mut types = contract.structural_types.iter().filter(|declaration| declaration.id == result.structural_type);
             let Some(declaration) = types.next() else { return false; };
             if types.next().is_some() { return false; }
-            crate::object_artifact::replay::boundary::result_placement::hosted_read_byte_declaration_is_valid(declaration)
+            hosted_read_byte_declaration_is_valid(declaration)
         })
 }
 
@@ -285,9 +286,7 @@ fn result_declaration(
         .iter()
         .filter(|row| row.id == structural_type);
     let declaration = matching.next().ok_or_else(invalid)?;
-    if matching.next().is_some()
-        || !crate::object_artifact::replay::boundary::result_placement::hosted_read_byte_declaration_is_valid(declaration)
-    {
+    if matching.next().is_some() || !hosted_read_byte_declaration_is_valid(declaration) {
         return Err(invalid());
     }
     Ok(declaration)

@@ -4,8 +4,13 @@ use super::{LoweringError, ValueDeclaration, emit_direct_expression, unsupported
 use crate::checked_facts::value_facts;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
+use crate::emission::operation_emission::expressions::emit_prepared_path;
 use crate::emission::operation_emission::view_subslice;
+use crate::expression_preparation::bindings::structural_paths::structural_argument;
 use crate::scalar_lowering::branch_states::prepared::LoweredScalarEffect;
+use crate::scalar_lowering::computations::cases::structural_case_identity;
+use crate::unit::attached_unit::argument_memberships;
+use crate::unit::attached_unit::view_ranges::establish;
 
 pub(crate) fn emit(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
@@ -77,10 +82,7 @@ pub(crate) fn emit(
                                 "case observation requires readable completed custody",
                             );
                         }
-                        let case =
-                            crate::scalar_lowering::computations::cases::structural_case_identity(
-                                checked, *case,
-                            )?;
+                        let case = structural_case_identity(checked, *case)?;
                         let checked_trees::CheckedScalarComputationStructuralArgument::Place(
                             subject,
                         ) = subject
@@ -310,12 +312,8 @@ pub(crate) fn emit(
                     .chain(span.structural_parameters.iter())
                     .cloned()
                     .collect::<Vec<_>>();
-                let (qualifications, projected) = crate::unit::attached_unit::argument_memberships(
-                    &source,
-                    &parameters,
-                    evaluation,
-                    operations,
-                )?;
+                let (qualifications, projected) =
+                    argument_memberships(&source, &parameters, evaluation, operations)?;
                 let (structural_type, qualifications, projected) =
                     crate::emission::completed_place::present_capture(
                         capture,
@@ -451,9 +449,7 @@ pub(crate) fn emit(
                 )?;
             }
             LoweredScalarEffect::EstablishElementView(view) => {
-                crate::unit::attached_unit::view_ranges::establish(
-                    view, values, next_value, operations,
-                )?;
+                establish(view, values, next_value, operations)?;
             }
             LoweredScalarEffect::ViewSubslice {
                 source,
@@ -462,20 +458,10 @@ pub(crate) fn emit(
                 place,
                 structural_type,
             } => {
-                let path = crate::emission::operation_emission::expressions::emit_prepared_path(
-                    &source.path,
-                    0,
-                    values,
-                    next_value,
-                    operations,
-                );
+                let path = emit_prepared_path(&source.path, 0, values, next_value, operations);
                 view_subslice::emit(
                     source.family,
-                    crate::expression_preparation::bindings::structural_paths::structural_argument(
-                        source.place,
-                        path,
-                        source.access,
-                    ),
+                    structural_argument(source.place, path, source.access),
                     Some(start),
                     end.as_ref(),
                     *place,

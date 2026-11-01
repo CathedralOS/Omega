@@ -2,6 +2,9 @@
 //!
 //! Each conjunct may use a different existing proof route. No child is installed
 //! as a premise: all queries keep the same substituted operands and live context.
+use super::super::call_bounds::proves_in_context;
+use super::super::current_values::proves_call;
+use super::super::entailment::structural_call_requirement;
 use checked_trees::{CheckFacts, FlowCallFact, FlowStateFact};
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 
@@ -108,7 +111,7 @@ pub(super) fn proves(
             expression,
             call_frames,
         )
-        || super::super::call_bounds::proves_in_context(
+        || proves_in_context(
             program,
             facts,
             state_flow,
@@ -117,7 +120,7 @@ pub(super) fn proves(
             expression,
             call_frames,
         )
-        || super::super::entailment::structural_call_requirement(
+        || structural_call_requirement(
             program,
             facts,
             state_flow,
@@ -167,13 +170,7 @@ pub(super) fn proves(
             call_frames,
         )
         || standing_domain_fact_proves_requirement(program, state_flow, call_flow, expression)
-        || super::super::current_values::proves_call(
-            program,
-            state_flow,
-            call_flow,
-            expression,
-            call_frames,
-        );
+        || proves_call(program, state_flow, call_flow, expression, call_frames);
     if proven {
         return true;
     }

@@ -5,7 +5,9 @@ use crate::flow::expressions;
 use crate::places::place_at;
 use validation::CanonicalPlace;
 
-use super::super::{EXPRESSION_WALK_DEPTH_BOUND, ExpressionHandle, ExpressionNode, Machine, State};
+use super::super::{
+    EXPRESSION_WALK_DEPTH_BOUND as ND, ExpressionHandle, ExpressionNode, Machine, State,
+};
 use super::ReadWalk;
 
 use checked_trees::{
@@ -57,7 +59,7 @@ impl ReadWalk<'_, '_, '_> {
         {
             return self.descend_and_capture_symbol_place(expression, place, depth);
         }
-        self.temporary_member_symbol(member).is_valid()
+        self.temporary_member_symbol_at(member, 0).is_valid()
             && self.collect_reads(member.receiver, depth + 1)
     }
 
@@ -76,20 +78,13 @@ impl ReadWalk<'_, '_, '_> {
     /// supply), or a member name no field of the agreed declaration owns all stay
     /// unproven. The footprint itself still comes from the receiver's own read
     /// scan — this answers only which field the projection selects.
-    fn temporary_member_symbol(
-        &self,
-        member: &typed_trees::expression::TableMemberExpression,
-    ) -> SymbolHandle {
-        self.temporary_member_symbol_at(member, 0)
-    }
-
     fn temporary_member_symbol_at(
         &self,
         member: &typed_trees::expression::TableMemberExpression,
         depth: usize,
     ) -> SymbolHandle {
         let program = self.program;
-        if depth >= EXPRESSION_WALK_DEPTH_BOUND {
+        if depth >= ND {
             return SymbolHandle::invalid();
         }
         let direct = validation::effective_member_symbol(program, member.receiver, member);
@@ -124,9 +119,7 @@ impl ReadWalk<'_, '_, '_> {
         let program = self.program;
         let machine = self.machine;
         let state = self.state;
-        if depth >= EXPRESSION_WALK_DEPTH_BOUND
-            || !program.expression_table.expression_is_valid(receiver)
-        {
+        if depth >= ND || !program.expression_table.expression_is_valid(receiver) {
             return None;
         }
         match program.expression_table.expression(receiver) {
@@ -266,9 +259,7 @@ impl ReadWalk<'_, '_, '_> {
         let machine = self.machine;
         let state = self.state;
         let statement_index = self.statement_index;
-        if depth >= EXPRESSION_WALK_DEPTH_BOUND
-            || !program.expression_table.expression_is_valid(expression)
-        {
+        if depth >= ND || !program.expression_table.expression_is_valid(expression) {
             return false;
         }
         match program.expression_table.expression(expression) {
@@ -350,9 +341,7 @@ pub(super) fn member_receiver_escapes_binder(
     receiver: ExpressionHandle,
     depth: usize,
 ) -> bool {
-    if depth >= EXPRESSION_WALK_DEPTH_BOUND
-        || !program.expression_table.expression_is_valid(receiver)
-    {
+    if depth >= ND || !program.expression_table.expression_is_valid(receiver) {
         return false;
     }
     match program.expression_table.expression(receiver) {

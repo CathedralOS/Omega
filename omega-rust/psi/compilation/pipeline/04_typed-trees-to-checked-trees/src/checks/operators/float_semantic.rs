@@ -12,6 +12,7 @@
 //! owner, so composing a conversion cannot reinterpret a source operation in
 //! the callee's scope or replace its arithmetic policy.
 
+use crate::facts::operator_crashes::named_call_operands;
 use crate::flow::expressions;
 use checked_trees::{CheckFacts, CheckedArithmeticPolicyAdapter};
 use facts::{FactContextHandle, FactPayload, ProgramPoint};
@@ -650,7 +651,7 @@ fn selected_expression<'program>(
         let operands = if let Some(selected_use) = selected_use {
             selected_use.operands(program)?
         } else {
-            crate::facts::operator_crashes::named_call_operands(
+            named_call_operands(
                 program,
                 program.expression_table.call_node(expression)?,
                 program.operator_parameters(operator),
@@ -677,11 +678,8 @@ fn selected_expression<'program>(
                         None,
                     )
                 })?;
-            let operands = crate::facts::operator_crashes::named_call_operands(
-                program,
-                call,
-                program.operator_parameters(operator),
-            )?;
+            let operands =
+                named_call_operands(program, call, program.operator_parameters(operator))?;
             (operator, operands)
         }
         node @ ExpressionNode::Binary(binary) => {

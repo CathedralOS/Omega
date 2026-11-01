@@ -3,6 +3,7 @@ use symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::{SymbolHandle, SymbolKind, SymbolTableAppender};
 
 use super::super::names::{parameter_seeds, symbol_seed};
+use symbol_resolved_trees::proposition::PropositionBinderKind;
 
 pub(in crate::symbols) fn insert_proposition_symbol_children(
     builder: &mut impl SymbolTableAppender,
@@ -19,9 +20,7 @@ pub(in crate::symbols) fn insert_proposition_symbol_children(
             .iter()
             .map(|binder| {
                 let kind = match binder.kind {
-                    symbol_resolved_trees::proposition::PropositionBinderKind::Machine => {
-                        SymbolKind::PropositionMachineParameter
-                    }
+                    PropositionBinderKind::Machine => SymbolKind::PropositionMachineParameter,
                     _ => SymbolKind::TypeParameter,
                 };
                 symbol_seed(kind, &binder.name, has_sources)

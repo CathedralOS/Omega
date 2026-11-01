@@ -12,6 +12,7 @@ mod service;
 mod signature;
 pub(super) use service::method as encode_service_method;
 
+use super::values::external_policy::encode_producer;
 use super::{
     encoder::{Encoder, encode_canonical_component},
     values::{identity::encode_nominal, providers::encode_compiler_intrinsic_execution},
@@ -82,11 +83,7 @@ fn row(
     encoder.field("method", |encoder| encoder.string(&row.method))?;
     encoder.field_by("requirement", &row.requirement, encode_nominal)?;
     encoder.option_field("realization", row.realization.as_ref(), encode_nominal)?;
-    encoder.option_field(
-        "native_build",
-        row.native_build.as_ref(),
-        super::values::external_policy::encode_producer,
-    )?;
+    encoder.option_field("native_build", row.native_build.as_ref(), encode_producer)?;
     encoder.field("requirement_lifetime_partition", |encoder| {
         encoder.sequence(&row.requirement_lifetime_partition, |encoder, ordinal| {
             encoder.u32_field("ordinal", *ordinal)?;

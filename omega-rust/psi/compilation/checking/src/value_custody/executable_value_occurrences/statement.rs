@@ -1,7 +1,9 @@
 use super::SymbolHandle;
 use super::ValueOccurrenceVisitor;
 use checked_trees::CheckedValueStatementRole;
+use language_core::inline_assembly::AsmRegisterOperation;
 use typed_trees::statement::{StatementNode, TransitionGuardNode};
+use typed_trees::types::PrimitiveType;
 
 impl ValueOccurrenceVisitor<'_, '_> {
     pub(super) fn collect_statement(
@@ -34,11 +36,7 @@ impl ValueOccurrenceVisitor<'_, '_> {
                     .program
                     .symbols
                     .builtin_function_for_symbol(call.target_symbol)
-                    .and_then(|builtin| {
-                        language_core::inline_assembly::AsmRegisterOperation::from_intrinsic_name(
-                            builtin.name(),
-                        )
-                    });
+                    .and_then(|builtin| AsmRegisterOperation::from_intrinsic_name(builtin.name()));
                 for (argument_index, argument) in self
                     .program
                     .statement_table
@@ -57,9 +55,7 @@ impl ValueOccurrenceVisitor<'_, '_> {
                         },
                         register_operation
                             .and_then(|operation| operation.input_carriers().get(argument_index))
-                            .and_then(|carrier| {
-                                typed_trees::types::PrimitiveType::from_name(carrier.name())
-                            }),
+                            .and_then(|carrier| PrimitiveType::from_name(carrier.name())),
                     );
                 }
             }

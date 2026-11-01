@@ -11,9 +11,9 @@ use super::{
 use encoded_scalar_plan::{Step, plan};
 use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
 use selected_instructions::{
-    MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedControlEffect,
+    MachineAlternativeFamily as Family, MachineAlternativeKey, MachineEncodedControlEffect,
     MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
-    MachineEncodedTrapBehavior, SelectedInstructionKind,
+    MachineEncodedTrapBehavior, SelectedInstructionKind as Kind,
 };
 
 fn codec_plan(load: bool, registers: [u8; 6]) -> Vec<Step> {
@@ -290,23 +290,21 @@ fn resolved_plan(plan: &[Step]) -> Result<Vec<Step>, Error> {
 
 fn request(
     physical: &ValidatedPhysicalRegisterModel,
-    kind: SelectedInstructionKind,
+    kind: Kind,
     alternative: MachineAlternativeKey,
     operands: &[RegisterViewId],
 ) -> Result<(bool, [u8; 6]), Error> {
     if physical.identity() != crate::canonical_x86_64_physical_register_model_identity() {
         return Err(Error::NonCanonicalPhysicalModel);
     }
-    let load = kind == SelectedInstructionKind::LoadEncodedScalar;
+    let load = kind == Kind::LoadEncodedScalar;
     let family = if load {
-        MachineAlternativeFamily::LoadEncodedScalar
+        Family::LoadEncodedScalar
     } else {
-        MachineAlternativeFamily::StoreEncodedScalar
+        Family::StoreEncodedScalar
     };
-    if !matches!(
-        kind,
-        SelectedInstructionKind::LoadEncodedScalar | SelectedInstructionKind::StoreEncodedScalar
-    ) || alternative != (MachineAlternativeKey { family, variant: 0 })
+    if !matches!(kind, Kind::LoadEncodedScalar | Kind::StoreEncodedScalar)
+        || alternative != (MachineAlternativeKey { family, variant: 0 })
     {
         return Err(Error::EncodedFormMismatch);
     }
@@ -324,7 +322,7 @@ fn request(
 
 pub(super) fn encode(
     physical: &ValidatedPhysicalRegisterModel,
-    kind: SelectedInstructionKind,
+    kind: Kind,
     alternative: MachineAlternativeKey,
     operands: &[RegisterViewId],
 ) -> Result<ValidatedX86_64SelectedFormEncoding, Error> {
@@ -335,7 +333,7 @@ pub(super) fn encode(
 
 pub(super) fn validate(
     physical: &ValidatedPhysicalRegisterModel,
-    kind: SelectedInstructionKind,
+    kind: Kind,
     alternative: MachineAlternativeKey,
     operands: &[RegisterViewId],
     bytes: &[u8],

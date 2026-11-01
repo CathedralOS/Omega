@@ -5,6 +5,7 @@ use crate::TypedTrees;
 use crate::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 use super::{OperatorConstBinding, OperatorDefinition};
+use crate::static_applications;
 use crate::typed_trees::declarations::operator::operand_signatures::normalized_operand_parameters;
 use crate::typed_trees::declarations::operator::spellings::declared_domain_constraints_match;
 use crate::typed_trees::declarations::operator::type_matching::type_reference_matches_with_policy;
@@ -54,10 +55,10 @@ pub struct ClosedOperatorRealizationApplication {
 pub fn closed_operator_application_from_bindings(
     program: &TypedTrees,
     operator: &OperatorDefinition,
-    bindings: &[crate::static_applications::StaticMachineBinding],
+    bindings: &[static_applications::StaticMachineBinding],
 ) -> Option<Vec<ClosedOperatorApplicationArgument>> {
     use crate::data::TypeParameterKind;
-    use crate::static_applications::StaticMachineBindingValue;
+    use static_applications::StaticMachineBindingValue;
     let parameters = program.operator_type_parameters(operator);
     if !operator.lifetime_parameters.is_empty() || parameters.len() != bindings.len() {
         return None;
@@ -102,11 +103,8 @@ pub fn closed_operator_application_from_bindings(
                     TypeParameterKind::Const { type_reference },
                     StaticMachineBindingValue::Const(actual),
                 ) => {
-                    let carrier = crate::static_applications::project_type_operand(
-                        program,
-                        *type_reference,
-                        &types,
-                    );
+                    let carrier =
+                        static_applications::project_type_operand(program, *type_reference, &types);
                     Some(ClosedOperatorApplicationArgument::Const {
                         binder_symbol: parameter.symbol,
                         declared_carrier: carrier,

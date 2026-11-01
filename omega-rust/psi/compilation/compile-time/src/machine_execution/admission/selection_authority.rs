@@ -12,6 +12,10 @@ use typed_trees::{
 };
 
 use super::{BuildTimeCallEdge, BuildTimeInvocationCustody, BuildTimeSelectionAuthority};
+use typed_trees::AuthoredDeclarationSelectionTarget;
+use typed_trees_to_checked_trees::typed_operator_authored_selection_candidates;
+use validation::compiler_operations::build_product_request_intrinsic;
+use validation::has_builtin_binary_expression_meaning;
 
 /// One declaration-selection rejection. An authored occurrence carries its
 /// own source span so the reporting owner can point at the selection rather
@@ -239,18 +243,16 @@ fn expression_selection_violation(
     if matches!(
         program.expression_table.expression(expression),
         ExpressionNode::Binary(_)
-    ) && !validation::has_builtin_binary_expression_meaning(
-        input,
-        machine,
-        Some(state),
-        expression,
-    ) && !selected.iter().any(|row| {
-        row.expression == expression && row.origin.machine_symbol() == Some(machine.symbol)
-    }) && !checked_operators.is_some_and(|facts| {
-        facts
-            .selected_trait_candidate_in_machine(expression, machine.symbol)
-            .is_some()
-    }) {
+    ) && !has_builtin_binary_expression_meaning(input, machine, Some(state), expression)
+        && !selected.iter().any(|row| {
+            row.expression == expression && row.origin.machine_symbol() == Some(machine.symbol)
+        })
+        && !checked_operators.is_some_and(|facts| {
+            facts
+                .selected_trait_candidate_in_machine(expression, machine.symbol)
+                .is_some()
+        })
+    {
         return Some(SelectionViolation {
             message: format!(
                 "build-time binary operator requires exact authored selection before evaluation; the evaluator cannot execute it as a builtin operator (machine `{}`, state `{}`, expression {expression:?})",
@@ -382,12 +384,9 @@ fn expression_occurrence_violation(
                 message,
                 source_span: Some(selection.source_span()),
             };
-            match validation::compiler_operations::build_product_request_intrinsic(
-                input, expression, selection,
-            ) {
+            match build_product_request_intrinsic(input, expression, selection) {
                 Ok(Some(expected)) => {
-                    if selection.target()
-                        != typed_trees::AuthoredDeclarationSelectionTarget::Intrinsic(expected)
+                    if selection.target() != AuthoredDeclarationSelectionTarget::Intrinsic(expected)
                     {
                         return Some(located(
                             "Build request occurrence differs from its source-issued inert meaning"
@@ -423,13 +422,13 @@ fn expression_occurrence_violation(
                     };
                     use validation::selection_resolution::AuthoredSelectionResolutionTarget as Resolution;
                     let retained = match selection.target() {
-                        typed_trees::AuthoredDeclarationSelectionTarget::Resolved(target) => {
+                        AuthoredDeclarationSelectionTarget::Resolved(target) => {
                             Some(Resolution::Declaration(target.selected_symbol()))
                         }
-                        typed_trees::AuthoredDeclarationSelectionTarget::Intrinsic(intrinsic) => {
+                        AuthoredDeclarationSelectionTarget::Intrinsic(intrinsic) => {
                             Some(Resolution::Intrinsic(intrinsic))
                         }
-                        typed_trees::AuthoredDeclarationSelectionTarget::LateBound(_) => None,
+                        AuthoredDeclarationSelectionTarget::LateBound(_) => None,
                     };
                     if retained != Some(expected) {
                         return Some(located("Build static operand occurrence does not retain its exact checked meaning".to_owned()));
@@ -439,8 +438,8 @@ fn expression_occurrence_violation(
             }
             let requester = package_for_source(program, selection.source_span());
             let owner = match selection.target() {
-                typed_trees::AuthoredDeclarationSelectionTarget::Intrinsic(_) => continue,
-                typed_trees::AuthoredDeclarationSelectionTarget::LateBound(binding) => {
+                AuthoredDeclarationSelectionTarget::Intrinsic(_) => continue,
+                AuthoredDeclarationSelectionTarget::LateBound(binding) => {
                     if binding
                         == typed_trees::AuthoredDeclarationSelectionLateBinding::CheckedOperator
                         && (typed_trees_to_checked_trees::typed_operator_has_no_authored_selection(
@@ -484,7 +483,7 @@ fn expression_occurrence_violation(
                         }
                     }
                 }
-                typed_trees::AuthoredDeclarationSelectionTarget::Resolved(selected) => {
+                AuthoredDeclarationSelectionTarget::Resolved(selected) => {
                     // Builtin type slots are compiler-owned identities, not
                     // declarations with a fictional source/package owner.
                     // Same-spelled or generated symbols do not classify here.
@@ -523,9 +522,7 @@ fn unresolved_operator_candidates_are_confined(
     requester: PackageCustody,
     authority: &dyn BuildTimeSelectionAuthority,
 ) -> bool {
-    let candidates = typed_trees_to_checked_trees::typed_operator_authored_selection_candidates(
-        program, expression,
-    );
+    let candidates = typed_operator_authored_selection_candidates(program, expression);
     candidates.into_iter().all(|candidate| {
         require_selection(
             program,
@@ -657,8 +654,7 @@ fn late_bound_selection_symbol(
                 .authored_declaration_selections()
                 .get(**occurrence)
                 .is_some_and(|selection| {
-                    selection.target()
-                        == typed_trees::AuthoredDeclarationSelectionTarget::LateBound(binding)
+                    selection.target() == AuthoredDeclarationSelectionTarget::LateBound(binding)
                 })
         })
         .count();

@@ -3,6 +3,9 @@
 //! and every projected access remain independently checked.
 
 use crate::LoweringError;
+use terminal_semantics::canonical_structural_storage_path;
+use terminal_semantics::primitive_projection_declaration;
+use terminal_semantics::{primitive_projection_type, primitive_read_projection_type};
 
 fn geometry_error(
     error: calling_conventions::terminal_layout::TerminalLayoutError,
@@ -290,11 +293,7 @@ fn contiguous_primitive_projection(
         )
         && let StructuralTypeShape::ByteSequence(carrier) = declarations.get(&selected)?.shape
     {
-        let scalar = terminal_semantics::primitive_projection_type(
-            declarations.values().copied(),
-            root,
-            path,
-        )?;
+        let scalar = primitive_projection_type(declarations.values().copied(), root, path)?;
         let payload_offset: u32 = match carrier {
             terminal_psi::ByteSequenceCarrier::BoundedOwned { .. } => 8,
             terminal_psi::ByteSequenceCarrier::BoundedView { .. }
@@ -365,11 +364,7 @@ pub(super) fn primitive_read_projection(
     path: &[StructuralPathSegment],
     declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
 ) -> Option<PrimitiveProjection> {
-    let scalar = terminal_semantics::primitive_read_projection_type(
-        declarations.values().copied(),
-        root,
-        path,
-    )?;
+    let scalar = primitive_read_projection_type(declarations.values().copied(), root, path)?;
     let projection = primitive_access_projection(
         root,
         path,
@@ -724,12 +719,9 @@ pub(super) fn case_projection(
     let endpoint =
         terminal_semantics::canonical_case_leaf_type(declarations.values().copied(), root, path)
             .ok_or_else(invalid)?;
-    let storage_path = terminal_semantics::canonical_structural_storage_path(
-        declarations.values().copied(),
-        root,
-        path,
-    )
-    .ok_or_else(invalid)?;
+    let storage_path =
+        canonical_structural_storage_path(declarations.values().copied(), root, path)
+            .ok_or_else(invalid)?;
     // The static canonical path keeps every stored-pointer crossing. Ordinary
     // copies already separate their regions and require readable references;
     // use that geometry rather than flattening pointers into inline offsets.
@@ -1182,14 +1174,11 @@ fn runtime_projection_with_leaf_type(
             contiguous_primitive_projection(structural_type, path, declarations).ok_or(
                 LoweringError::UnsupportedStructuralReference(structural_type),
             )?;
-        let endpoint = terminal_semantics::primitive_projection_declaration(
-            declarations.values().copied(),
-            structural_type,
-            path,
-        )
-        .ok_or(LoweringError::UnsupportedStructuralReference(
-            structural_type,
-        ))?;
+        let endpoint =
+            primitive_projection_declaration(declarations.values().copied(), structural_type, path)
+                .ok_or(LoweringError::UnsupportedStructuralReference(
+                    structural_type,
+                ))?;
         let shape = structural_shape(endpoint, declarations, cache, active)?;
         return Ok((endpoint, shape, byte_offset, indices));
     }

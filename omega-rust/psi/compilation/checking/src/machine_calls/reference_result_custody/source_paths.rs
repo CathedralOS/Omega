@@ -3,8 +3,11 @@
 //! an exact pointer, descriptor equality or permission. Both custody replay
 //! and completed operand capture use this same dimension-preserving projection.
 
+use checked_trees::CheckedMemberIdentity;
 use checked_trees::{CheckedReferenceOriginProjection, CheckedUnitStructuralPathSegment};
+use facts::PlaceSegment;
 use semantic_vocabulary::ReferenceOriginExtent;
+use typed_trees::data::DataMember;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
@@ -14,7 +17,7 @@ use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 pub fn reference_origin_path(
     program: &dyn crate::CheckingInput,
     mut selected: TypeReferenceHandle,
-    mut segments: &[facts::PlaceSegment],
+    mut segments: &[PlaceSegment],
 ) -> Option<(
     Vec<CheckedReferenceOriginProjection>,
     TypeReferenceHandle,
@@ -33,10 +36,10 @@ pub fn reference_origin_path(
         let selection = segments.iter().position(|segment| {
             matches!(
                 segment,
-                facts::PlaceSegment::Index { .. }
-                    | facts::PlaceSegment::FixedIndex { .. }
-                    | facts::PlaceSegment::FixedRange { .. }
-                    | facts::PlaceSegment::OpaqueRange
+                PlaceSegment::Index { .. }
+                    | PlaceSegment::FixedIndex { .. }
+                    | PlaceSegment::FixedRange { .. }
+                    | PlaceSegment::OpaqueRange
             )
         });
         let prefix_length = selection.unwrap_or(segments.len());
@@ -60,8 +63,8 @@ pub fn reference_origin_path(
         // assertion that the array and slice types are interchangeable.
         let trailing_window = position + 1 == segments.len()
             && match segments[position] {
-                facts::PlaceSegment::FixedRange { .. } | facts::PlaceSegment::OpaqueRange => true,
-                facts::PlaceSegment::Index { expression } => !is_element_selection(expression),
+                PlaceSegment::FixedRange { .. } | PlaceSegment::OpaqueRange => true,
+                PlaceSegment::Index { expression } => !is_element_selection(expression),
                 _ => false,
             };
         if trailing_window {
@@ -88,29 +91,27 @@ pub fn reference_origin_path(
         };
         selected = *element_type;
         let (projection, consumed) = match segments[position] {
-            facts::PlaceSegment::FixedIndex { index } => (
+            PlaceSegment::FixedIndex { index } => (
                 CheckedReferenceOriginProjection::Exact(
                     CheckedUnitStructuralPathSegment::FixedIndex(u64::try_from(index).ok()?),
                 ),
                 1,
             ),
-            facts::PlaceSegment::Index { expression } if is_element_selection(expression) => {
+            PlaceSegment::Index { expression } if is_element_selection(expression) => {
                 (CheckedReferenceOriginProjection::Element, 1)
             }
-            facts::PlaceSegment::FixedRange { start, end } => {
+            PlaceSegment::FixedRange { start, end } => {
                 // A view window and its element selector share one array
                 // dimension. This is provenance, not a new address: the
                 // descriptor retains its captured window, selector and
                 // bound. Never consult the selector's later value here.
                 let projection = match segments.get(position.checked_add(1)?)? {
-                    facts::PlaceSegment::Index { expression }
+                    PlaceSegment::Index { expression }
                         if start < end && is_element_selection(*expression) =>
                     {
                         CheckedReferenceOriginProjection::Element
                     }
-                    facts::PlaceSegment::FixedIndex { index }
-                        if *index < end.checked_sub(start)? =>
-                    {
+                    PlaceSegment::FixedIndex { index } if *index < end.checked_sub(start)? => {
                         CheckedReferenceOriginProjection::Exact(
                             CheckedUnitStructuralPathSegment::FixedIndex(
                                 u64::try_from(start.checked_add(*index)?).ok()?,
@@ -121,11 +122,10 @@ pub fn reference_origin_path(
                 };
                 (projection, 2)
             }
-            facts::PlaceSegment::OpaqueRange => {
+            PlaceSegment::OpaqueRange => {
                 match segments.get(position.checked_add(1)?)? {
-                    facts::PlaceSegment::Index { expression }
-                        if is_element_selection(*expression) => {}
-                    facts::PlaceSegment::FixedIndex { .. } => {}
+                    PlaceSegment::Index { expression } if is_element_selection(*expression) => {}
+                    PlaceSegment::FixedIndex { .. } => {}
                     _ => return None,
                 }
                 (CheckedReferenceOriginProjection::Element, 2)
@@ -146,7 +146,7 @@ pub fn reference_origin_path(
 pub fn parameter_reference_origin_path(
     program: &dyn crate::CheckingInput,
     parameter: TypeReferenceHandle,
-    segments: &[facts::PlaceSegment],
+    segments: &[PlaceSegment],
 ) -> Option<(
     u32,
     Vec<CheckedReferenceOriginProjection>,
@@ -169,7 +169,7 @@ pub fn parameter_reference_origin_path(
 pub(super) fn structural_path(
     program: &dyn crate::CheckingInput,
     mut selected: TypeReferenceHandle,
-    segments: &[facts::PlaceSegment],
+    segments: &[PlaceSegment],
 ) -> Option<(Vec<CheckedUnitStructuralPathSegment>, TypeReferenceHandle)> {
     let mut path = Vec::new();
     let mut payload = None;
@@ -180,26 +180,21 @@ pub(super) fn structural_path(
             path.push(CheckedUnitStructuralPathSegment::Referent);
         }
         match segment {
-            facts::PlaceSegment::Case { variant } => {
+            PlaceSegment::Case { variant } => {
                 let data = program.closed_data_definition(selected)?;
                 let case = program
                     .data_members(data)
                     .iter()
                     .find_map(|member| match member {
-                        typed_trees::data::DataMember::Variant(case) if case.symbol == *variant => {
-                            Some(case)
-                        }
+                        DataMember::Variant(case) if case.symbol == *variant => Some(case),
                         _ => None,
                     })?;
                 path.push(CheckedUnitStructuralPathSegment::Case(
-                    checked_trees::CheckedMemberIdentity::of_member(
-                        case.identity,
-                        case.name.clone(),
-                    ),
+                    CheckedMemberIdentity::of_member(case.identity, case.name.clone()),
                 ));
                 payload = Some(case);
             }
-            facts::PlaceSegment::Field { symbol } => {
+            PlaceSegment::Field { symbol } => {
                 let field = if let Some(case) = payload.take() {
                     program
                         .data_payload_fields(case)
@@ -211,23 +206,16 @@ pub(super) fn structural_path(
                         .data_members(data)
                         .iter()
                         .find_map(|member| match member {
-                            typed_trees::data::DataMember::Field(field)
-                                if field.symbol == *symbol =>
-                            {
-                                Some(field)
-                            }
+                            DataMember::Field(field) if field.symbol == *symbol => Some(field),
                             _ => None,
                         })?
                 };
                 path.push(CheckedUnitStructuralPathSegment::Field(
-                    checked_trees::CheckedMemberIdentity::of_member(
-                        field.identity,
-                        field.name.clone(),
-                    ),
+                    CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
                 ));
                 selected = field.type_reference;
             }
-            facts::PlaceSegment::FixedIndex { index } => {
+            PlaceSegment::FixedIndex { index } => {
                 let TypeReferenceNode::FixedArray { element_type, .. } =
                     program.type_reference_table.type_reference(selected)
                 else {

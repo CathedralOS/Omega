@@ -3,6 +3,7 @@
 //! field values.
 
 use crate::flow::expressions;
+use crate::flow::relative_place_segments_from_expression;
 use crate::places::place_at;
 use checked_trees::{CheckFacts, FlowStateFact};
 use symbols::SymbolHandle;
@@ -373,8 +374,7 @@ fn predicate_expression_holds_on_value(
     if let Some((required, subject)) =
         typed_trees::byte_predicates::byte_predicate_call(program, expression)
     {
-        let Some(segments) =
-            crate::flow::relative_place_segments_from_expression(program, subject, domain)
+        let Some(segments) = relative_place_segments_from_expression(program, subject, domain)
         else {
             return false;
         };
@@ -438,9 +438,7 @@ fn member_subject_satisfies_domain(
     capture: Option<&checked_trees::FlowOperandFact>,
     frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
-    let Some(segments) =
-        crate::flow::relative_place_segments_from_expression(program, member, domain)
-    else {
+    let Some(segments) = relative_place_segments_from_expression(program, member, domain) else {
         return false;
     };
     if let Some(member_value) = literal_member_value(program, value, &segments) {

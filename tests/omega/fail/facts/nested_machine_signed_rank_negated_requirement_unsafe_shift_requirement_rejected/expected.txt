@@ -1,0 +1,1 @@
+exact shifts prove `count < 64`

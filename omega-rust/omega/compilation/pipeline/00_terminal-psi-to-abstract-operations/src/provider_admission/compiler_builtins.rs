@@ -31,11 +31,14 @@ use crate::provider_admission::AdmittedTerminalMechanism;
 use crate::provider_admission::{NativeRealizationInput, ProviderAdmissionRequest};
 use crate::{AdmittedBoundaryExecution, AdmittedBoundarySettlement};
 use diagnostics::Diagnostic;
+use effects::CompilerAccessorScalarOperation;
+use semantic_vocabulary::{BoundaryCompletion, ExternalCompletionKind};
 use target_operations::{
     BoundarySettlementRealization, CompilerBuiltinExecution, HostedExitProcessI32Realization,
     HostedReadByteRealization, HostedWriteByteI32Realization,
     NearestIeeeFloatArithmeticRealization,
 };
+use terminal_psi::TerminalAccessorKind;
 
 /// Admit each derived builtin proposal through the receiving policy and the
 /// local target catalog. Derivation already bound every proposal to its one
@@ -197,7 +200,7 @@ pub(super) fn settle_compiler_builtins<'request>(
                 if demand.placement_commitment != placement_commitment
                     || demand.access_slot != access_slot
                     || demand.operation != operation
-                    || operation == terminal_psi::TerminalAccessorKind::Take
+                    || operation == TerminalAccessorKind::Take
                     || effects::compiler_accessor_scalar_contract_identity(
                         // Direct callable selection projects a lookup schema;
                         // the sealed operation binds the satisfied contract.
@@ -364,14 +367,10 @@ pub(super) fn boundary_contract_matches_selected_schema(
     }) && matching.next().is_none()
 }
 
-fn compiler_builtin_completion(
-    execution: CompilerBuiltinExecution,
-) -> semantic_vocabulary::BoundaryCompletion {
+fn compiler_builtin_completion(execution: CompilerBuiltinExecution) -> BoundaryCompletion {
     match execution {
         CompilerBuiltinExecution::HostedExitProcessI32 => {
-            semantic_vocabulary::BoundaryCompletion::External(
-                semantic_vocabulary::ExternalCompletionKind::ProcessExit,
-            )
+            BoundaryCompletion::External(ExternalCompletionKind::ProcessExit)
         }
         CompilerBuiltinExecution::HostedWriteByteI32
         | CompilerBuiltinExecution::HostedReadByte
@@ -379,9 +378,7 @@ fn compiler_builtin_completion(
         | CompilerBuiltinExecution::ProgramStorageEntry
         | CompilerBuiltinExecution::AccessLifecycle { .. }
         | CompilerBuiltinExecution::NearestIeeeFloatArithmetic { .. }
-        | CompilerBuiltinExecution::AccessorScalarAccess { .. } => {
-            semantic_vocabulary::BoundaryCompletion::NormalReturn
-        }
+        | CompilerBuiltinExecution::AccessorScalarAccess { .. } => BoundaryCompletion::NormalReturn,
     }
 }
 
@@ -439,15 +436,11 @@ fn float_arithmetic_realization(
     Ok(realization)
 }
 
-fn access_operation(
-    operation: terminal_psi::TerminalAccessorKind,
-) -> effects::CompilerAccessorScalarOperation {
+fn access_operation(operation: TerminalAccessorKind) -> CompilerAccessorScalarOperation {
     match operation {
-        terminal_psi::TerminalAccessorKind::Read => effects::CompilerAccessorScalarOperation::Read,
-        terminal_psi::TerminalAccessorKind::Take => effects::CompilerAccessorScalarOperation::Take,
-        terminal_psi::TerminalAccessorKind::Write => {
-            effects::CompilerAccessorScalarOperation::Write
-        }
+        TerminalAccessorKind::Read => CompilerAccessorScalarOperation::Read,
+        TerminalAccessorKind::Take => CompilerAccessorScalarOperation::Take,
+        TerminalAccessorKind::Write => CompilerAccessorScalarOperation::Write,
     }
 }
 

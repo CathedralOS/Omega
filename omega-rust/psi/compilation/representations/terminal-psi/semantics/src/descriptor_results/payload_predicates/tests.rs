@@ -2,6 +2,7 @@ use super::*;
 use semantic_vocabulary::{
     ByteSequencePredicate, IntegerSign, IntegerType, IntegerValue, PlaceId, StructuralTypeId,
 };
+use std::slice::from_ref;
 use terminal_psi::{StructuralTypeShape, TerminalIdentityIndex};
 
 #[test]
@@ -142,18 +143,10 @@ fn closure_gate_preserves_eligible_and_opaque_domain_behavior() {
         projected_qualifications: Vec::new(),
     };
     let mut contract = empty.clone();
-    assert!(closure_may_change(
-        &types,
-        std::slice::from_ref(&domain),
-        &contract
-    ));
-    close(&types, std::slice::from_ref(&domain), &mut contract);
+    assert!(closure_may_change(&types, from_ref(&domain), &contract));
+    close(&types, from_ref(&domain), &mut contract);
     assert_eq!(contract.qualifications, vec![domain_id]);
-    assert!(!closure_may_change(
-        &types,
-        std::slice::from_ref(&domain),
-        &contract
-    ));
+    assert!(!closure_may_change(&types, from_ref(&domain), &contract));
 
     let mut opaque = domain.clone();
     opaque.predicate = None;
@@ -161,7 +154,7 @@ fn closure_gate_preserves_eligible_and_opaque_domain_behavior() {
     unknown.required_memberships = None;
     for excluded in [opaque, unknown] {
         let mut contract = empty.clone();
-        let domains = std::slice::from_ref(&excluded);
+        let domains = from_ref(&excluded);
         assert!(!closure_may_change(&types, domains, &contract));
         close(&types, domains, &mut contract);
         assert_eq!(contract, empty);
@@ -169,7 +162,7 @@ fn closure_gate_preserves_eligible_and_opaque_domain_behavior() {
     // Eligibility must not substitute for proving the predicate.
     let mut unprovable = domain;
     unprovable.predicate.as_mut().unwrap().proposition = Proposition::Falsehood;
-    let domains = std::slice::from_ref(&unprovable);
+    let domains = from_ref(&unprovable);
     let mut contract = empty.clone();
     assert!(closure_may_change(&types, domains, &contract));
     close(&types, domains, &mut contract);

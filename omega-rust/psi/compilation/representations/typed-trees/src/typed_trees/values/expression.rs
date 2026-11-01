@@ -263,6 +263,17 @@ impl ExpressionTable {
         self.completed_values.is_valid(capture)
     }
 
+    /// Re-anchor a completed value to another alias of the same capture. The
+    /// anchor must stay reachable from the owning dispatch, so a rewrite that
+    /// removes the arm holding the first alias names a surviving one.
+    pub fn set_value_anchor(
+        &mut self,
+        capture: Handle<CompletedValueCapture>,
+        anchor: ExpressionHandle,
+    ) {
+        self.completed_values.get_mut(capture).value_anchor = anchor;
+    }
+
     /// The definition supplying this alias. This is a dependency/type query,
     /// never an executable child edge or permission to evaluate the source.
     pub fn saved_subject_source(&self, saved: &TableSavedSubject) -> Option<ExpressionHandle> {
@@ -535,6 +546,7 @@ impl ExpressionTable {
                 selected_machine_arguments: HandleSpan::empty(),
                 bindings: HandleSpan::empty(),
                 lifetime_bindings: HandleSpan::empty(),
+                lifetime_binding_declaration: SymbolHandle::invalid(),
                 binding_declaration: SymbolHandle::invalid(),
                 conformance_selection: None,
             })
@@ -659,8 +671,12 @@ impl ExpressionTable {
     pub fn set_static_machine_application_lifetimes(
         &mut self,
         application: StaticMachineApplicationHandle,
+        declaration: SymbolHandle,
         bindings: &[StaticMachineLifetimeBinding],
     ) {
+        self.static_machine_applications
+            .get_mut(application)
+            .lifetime_binding_declaration = declaration;
         let previous = self
             .static_machine_applications
             .get(application)

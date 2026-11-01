@@ -28,11 +28,15 @@
 //! these exact arguments.
 
 use super::IntegerSet;
+use crate::CheckingInput;
 use crate::frozen_program::expression_table;
 use crate::proof_contracts::bound_expression_meaning::has_builtin_binary_expression_meaning;
+use language_core::ReferenceAccess;
 use std::collections::VecDeque;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 use typed_trees::machine::Machine;
+use typed_trees::signature::SignatureContractKind;
+use typed_trees::signature::StateParameter;
 use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TransitionExit, TransitionGuardNode};
 use typed_trees::statement::{TransitionTargetHandle, TransitionTargetNode};
@@ -80,7 +84,7 @@ pub(crate) enum Binding {
 
 /// The integer carrier of a type, when it is a builtin fixed integer.
 pub(crate) fn integer_carrier(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<(i128, i128)> {
     program
@@ -103,7 +107,7 @@ pub(crate) enum ValueShape {
 }
 
 pub(crate) fn value_shape(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<ValueShape> {
     let mut reference = type_reference;
@@ -117,7 +121,7 @@ pub(crate) fn value_shape(
         match program.type_reference_table.type_reference(reference) {
             TypeReferenceNode::Reference {
                 referee, access, ..
-            } if *access == language_core::ReferenceAccess::Shared => {
+            } if *access == ReferenceAccess::Shared => {
                 reference = *referee;
             }
             TypeReferenceNode::Reference { .. } => return None,
@@ -164,14 +168,14 @@ pub(crate) fn value_shape(
 /// integer collections. A declaration call has no checked caller admission:
 /// neither a legacy range nor a domain qualification may disappear when its
 /// formal is viewed through `value_shape`'s representation-only projection.
-fn has_only_carrier_parameters(program: &dyn crate::CheckingInput, entry: &State) -> bool {
+fn has_only_carrier_parameters(program: &dyn CheckingInput, entry: &State) -> bool {
     program.state_parameters(entry).iter().all(|parameter| {
         let mut reference = parameter.type_reference;
         for _ in 0..8 {
             match program.type_reference_table.type_reference(reference) {
                 TypeReferenceNode::Reference {
                     referee,
-                    access: language_core::ReferenceAccess::Shared,
+                    access: ReferenceAccess::Shared,
                     ..
                 } => reference = *referee,
                 TypeReferenceNode::FixedArray { element_type, .. }
@@ -194,7 +198,7 @@ fn has_only_carrier_parameters(program: &dyn crate::CheckingInput, entry: &State
 /// its machine symbol or its entry state symbol. `entered_by_call` admits
 /// arrival requirements, which the caller's checked body already proved.
 pub(crate) fn admitted_predicate_machine(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     symbol: symbols::SymbolHandle,
     entered_by_call: bool,
 ) -> Option<usize> {
@@ -232,12 +236,7 @@ pub(crate) fn admitted_predicate_machine(
                 .machine_contracts(machine)
                 .iter()
                 .chain(program.state_contracts(entry))
-                .all(|contract| {
-                    !matches!(
-                        contract.kind,
-                        typed_trees::signature::SignatureContractKind::Requires
-                    )
-                }));
+                .all(|contract| !matches!(contract.kind, SignatureContractKind::Requires)));
     let parameters_readable = program.machine_states(machine).iter().all(|state| {
         program
             .state_parameters(state)
@@ -303,7 +302,7 @@ pub(crate) enum Scope<'scope> {
     },
     Declaration {
         owner: symbols::SymbolHandle,
-        parameters: &'scope [typed_trees::signature::StateParameter],
+        parameters: &'scope [StateParameter],
     },
 }
 
@@ -315,10 +314,7 @@ impl Scope<'_> {
         }
     }
 
-    fn parameters<'a>(
-        &'a self,
-        program: &'a dyn crate::CheckingInput,
-    ) -> &'a [typed_trees::signature::StateParameter] {
+    fn parameters<'a>(&'a self, program: &'a dyn CheckingInput) -> &'a [StateParameter] {
         match self {
             Self::State { state, .. } => program.state_parameters(state),
             Self::Declaration { parameters, .. } => parameters,
@@ -327,7 +323,7 @@ impl Scope<'_> {
 
     fn expression_type(
         self,
-        program: &dyn crate::CheckingInput,
+        program: &dyn CheckingInput,
         expression: ExpressionHandle,
     ) -> Option<TypeReferenceHandle> {
         match self {
@@ -342,11 +338,7 @@ impl Scope<'_> {
         }
     }
 
-    fn builtin_binary(
-        self,
-        program: &dyn crate::CheckingInput,
-        expression: ExpressionHandle,
-    ) -> bool {
+    fn builtin_binary(self, program: &dyn CheckingInput, expression: ExpressionHandle) -> bool {
         match self {
             Self::State { machine, state } => {
                 has_builtin_binary_expression_meaning(program, machine, Some(state), expression)
@@ -384,7 +376,7 @@ pub(crate) struct Frame<'scope> {
 /// Explore `machine` entered at its first state with `bindings` over the
 /// initial atom sets.
 pub(crate) fn explore(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: usize,
     bindings: Vec<Binding>,
     atoms: Vec<IntegerSet>,
@@ -397,9 +389,9 @@ pub(crate) fn explore(
 /// telescope, not a fabricated machine. It shares the predicate interpreter,
 /// atom splitting, call admission and work budget with executable predicates.
 pub(crate) fn explore_expression(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     owner: symbols::SymbolHandle,
-    parameters: &[typed_trees::signature::StateParameter],
+    parameters: &[StateParameter],
     expression: ExpressionHandle,
     bindings: Vec<Binding>,
     atoms: Vec<IntegerSet>,
@@ -446,7 +438,7 @@ pub(crate) fn explore_expression(
 type ResumedObservation = (Vec<IntegerSet>, Vec<(ExpressionHandle, bool)>);
 
 fn resume_after_stop(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     stop: Stop,
     atoms: Vec<IntegerSet>,
     completed_calls: &[(ExpressionHandle, bool)],
@@ -496,7 +488,7 @@ fn resume_after_stop(
 /// Nested calls share the caller's work budget. The nesting fence protects the
 /// host stack and declines proof; it never supplies a result or termination.
 fn explore_at(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     machine: usize,
     state: usize,
     bindings: Vec<Binding>,
@@ -575,7 +567,7 @@ fn join(left: &[IntegerSet], right: &[IntegerSet]) -> Option<Vec<IntegerSet>> {
 /// Run one state's statements under one joined entry. Splits fork inside the
 /// visit; only results and state entries leave it.
 fn visit(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     key: &FrameKey,
     atoms: Vec<IntegerSet>,
     remaining: &mut usize,
@@ -661,7 +653,7 @@ fn visit(
 }
 
 fn target_exit(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     frame: &Frame<'_>,
     key: &FrameKey,
     atoms: &[IntegerSet],
@@ -700,7 +692,7 @@ fn target_exit(
 /// A result position that calls a predicate returns that call's result: the
 /// call is a tail transition into the callee's entry.
 fn tail_call_exit(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     frame: &Frame<'_>,
     atoms: &[IntegerSet],
     call: &typed_trees::expression::TableCallExpression,
@@ -721,7 +713,7 @@ fn tail_call_exit(
 /// Bind `arguments`, evaluated in the current frame, to the parameters of
 /// the target state.
 fn enter(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     frame: &Frame<'_>,
     atoms: &[IntegerSet],
     machine: usize,
@@ -760,7 +752,7 @@ fn enter(
 /// A sibling state of the current machine, or the entry of another admitted
 /// predicate reached by a tail call.
 fn named_target(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     current_machine: usize,
     symbol: symbols::SymbolHandle,
 ) -> Option<(usize, usize)> {
@@ -776,7 +768,7 @@ fn named_target(
 }
 
 fn argument_binding(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     frame: &Frame<'_>,
     atoms: &[IntegerSet],
     argument: ExpressionHandle,
@@ -818,7 +810,7 @@ fn argument_binding(
 }
 
 pub(crate) fn evaluate_boolean(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     frame: &Frame<'_>,
     atoms: &[IntegerSet],
     expression: ExpressionHandle,
@@ -830,7 +822,7 @@ pub(crate) fn evaluate_boolean(
 }
 
 pub(crate) fn evaluate(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     frame: &Frame<'_>,
     atoms: &[IntegerSet],
     expression: ExpressionHandle,
@@ -933,9 +925,7 @@ pub(crate) fn evaluate(
                 Binding::Boolean(value) => Value::Boolean(*value),
             })
         }
-        ExpressionNode::Borrow(borrow)
-            if borrow.access == language_core::ReferenceAccess::Shared =>
-        {
+        ExpressionNode::Borrow(borrow) if borrow.access == ReferenceAccess::Shared => {
             match evaluate(program, frame, atoms, borrow.target)? {
                 array @ (Value::Array { .. } | Value::CollectionExtent { .. }) => Ok(array),
                 _ => Err(Stop::Unsupported),
@@ -997,7 +987,7 @@ pub(crate) fn evaluate(
 }
 
 fn evaluate_binary(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     frame: &Frame<'_>,
     atoms: &[IntegerSet],
     expression: ExpressionHandle,
@@ -1127,7 +1117,7 @@ fn decided_by_bounds(
 /// index. The result must fit the typed operand's Exact carrier; any other
 /// policy, or an unknown operand, stands down.
 fn exact_index_arithmetic(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     operator: BinaryOperator,
     left: Value,
     right: Value,

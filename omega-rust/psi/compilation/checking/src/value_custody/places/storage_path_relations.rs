@@ -6,8 +6,8 @@
 /// replacement and unresolved overlap retain ordinary conservative invalidation.
 pub fn case_tag_segments_may_overlap(
     program: &dyn crate::CheckingInput,
-    observed: &[facts::PlaceSegment],
-    written: &[facts::PlaceSegment],
+    observed: &[PlaceSegment],
+    written: &[PlaceSegment],
 ) -> bool {
     if written.len() > observed.len()
         && written
@@ -22,21 +22,21 @@ pub fn case_tag_segments_may_overlap(
 
 /// A copied observation may retain only selectors fixed at its capture.
 /// Runtime selectors need separate dependency/capture evidence.
-pub fn place_segment_has_static_identity(segment: &facts::PlaceSegment) -> bool {
+pub fn place_segment_has_static_identity(segment: &PlaceSegment) -> bool {
     match segment {
-        facts::PlaceSegment::Field { symbol } => symbol.is_valid(),
-        facts::PlaceSegment::Case { variant } => variant.is_valid(),
-        facts::PlaceSegment::FixedIndex { .. } | facts::PlaceSegment::FixedRange { .. } => true,
-        facts::PlaceSegment::Index { .. } | facts::PlaceSegment::OpaqueRange => false,
+        PlaceSegment::Field { symbol } => symbol.is_valid(),
+        PlaceSegment::Case { variant } => variant.is_valid(),
+        PlaceSegment::FixedIndex { .. } | PlaceSegment::FixedRange { .. } => true,
+        PlaceSegment::Index { .. } | PlaceSegment::OpaqueRange => false,
     }
 }
 
 /// A missing field or case identity gives no information about its descendants.
 /// Runtime indexes retain their separate conservative selector semantics.
-pub fn place_segment_has_unresolved_identity(segment: facts::PlaceSegment) -> bool {
+pub fn place_segment_has_unresolved_identity(segment: PlaceSegment) -> bool {
     match segment {
-        facts::PlaceSegment::Field { symbol } => !symbol.is_valid(),
-        facts::PlaceSegment::Case { variant } => !variant.is_valid(),
+        PlaceSegment::Field { symbol } => !symbol.is_valid(),
+        PlaceSegment::Case { variant } => !variant.is_valid(),
         _ => false,
     }
 }
@@ -45,30 +45,27 @@ pub fn place_segment_has_unresolved_identity(segment: facts::PlaceSegment) -> bo
 /// symbols, `Case` variants, and `FixedIndex` values. `FixedRange` and `Index`
 /// pairs defer to each caller — equality, overlap, and containment compare
 /// them differently.
-pub fn static_place_segment_pair_equal(
-    left: facts::PlaceSegment,
-    right: facts::PlaceSegment,
-) -> Option<bool> {
+pub fn static_place_segment_pair_equal(left: PlaceSegment, right: PlaceSegment) -> Option<bool> {
     match (left, right) {
         (
-            facts::PlaceSegment::Field {
+            PlaceSegment::Field {
                 symbol: left_symbol,
             },
-            facts::PlaceSegment::Field {
+            PlaceSegment::Field {
                 symbol: right_symbol,
             },
         ) => Some(left_symbol == right_symbol),
         (
-            facts::PlaceSegment::Case {
+            PlaceSegment::Case {
                 variant: left_variant,
             },
-            facts::PlaceSegment::Case {
+            PlaceSegment::Case {
                 variant: right_variant,
             },
         ) => Some(left_variant == right_variant),
         (
-            facts::PlaceSegment::FixedIndex { index: left_index },
-            facts::PlaceSegment::FixedIndex { index: right_index },
+            PlaceSegment::FixedIndex { index: left_index },
+            PlaceSegment::FixedIndex { index: right_index },
         ) => Some(left_index == right_index),
         _ => None,
     }
@@ -80,40 +77,42 @@ pub fn static_place_segment_pair_equal(
 /// body's re-spelled `buffer[a..b]` selects, even though the arena nodes differ.
 pub fn canonical_place_segments_equal(
     program: &dyn crate::CheckingInput,
-    left: facts::PlaceSegment,
-    right: facts::PlaceSegment,
+    left: PlaceSegment,
+    right: PlaceSegment,
 ) -> bool {
     if place_segment_has_unresolved_identity(left) || place_segment_has_unresolved_identity(right) {
         return false;
     }
     static_place_segment_pair_equal(left, right).unwrap_or_else(|| match (left, right) {
         (
-            facts::PlaceSegment::FixedRange {
+            PlaceSegment::FixedRange {
                 start: left_start,
                 end: left_end,
             },
-            facts::PlaceSegment::FixedRange {
+            PlaceSegment::FixedRange {
                 start: right_start,
                 end: right_end,
             },
         ) => left_start == right_start && left_end == right_end,
-        (facts::PlaceSegment::FixedIndex { index }, facts::PlaceSegment::Index { expression })
-        | (facts::PlaceSegment::Index { expression }, facts::PlaceSegment::FixedIndex { index }) => {
+        (PlaceSegment::FixedIndex { index }, PlaceSegment::Index { expression })
+        | (PlaceSegment::Index { expression }, PlaceSegment::FixedIndex { index }) => {
             expression_static_index(program, expression).is_some_and(|value| value == index)
         }
         (
-            facts::PlaceSegment::Index {
+            PlaceSegment::Index {
                 expression: left_expression,
             },
-            facts::PlaceSegment::Index {
+            PlaceSegment::Index {
                 expression: right_expression,
             },
-        ) => expression_table(program).expressions_structurally_equal(left_expression, right_expression),
+        ) => expression_table(program)
+            .expressions_structurally_equal(left_expression, right_expression),
         _ => false,
     })
 }
 use crate::frozen_program::expression_table;
 use checked_trees::expression::ExpressionHandle;
+use facts::PlaceSegment;
 
 /// Whether two canonical places name the same storage at one program point:
 /// the event-normalized roots match and every segment pair selects the same
@@ -135,8 +134,8 @@ pub fn canonical_places_agree(
 
 pub fn canonical_place_segments_may_overlap(
     program: &dyn crate::CheckingInput,
-    left: &[facts::PlaceSegment],
-    right: &[facts::PlaceSegment],
+    left: &[PlaceSegment],
+    right: &[PlaceSegment],
 ) -> bool {
     for (&left_segment, &right_segment) in left.iter().zip(right) {
         if place_segment_has_unresolved_identity(left_segment)
@@ -153,9 +152,9 @@ pub fn canonical_place_segments_may_overlap(
 
 pub fn canonical_place_joined_segments_may_overlap(
     program: &dyn crate::CheckingInput,
-    prefix: &[facts::PlaceSegment],
-    suffix: &[facts::PlaceSegment],
-    right: &[facts::PlaceSegment],
+    prefix: &[PlaceSegment],
+    suffix: &[PlaceSegment],
+    right: &[PlaceSegment],
 ) -> bool {
     for (&left_segment, &right_segment) in prefix.iter().chain(suffix).zip(right) {
         if place_segment_has_unresolved_identity(left_segment)
@@ -172,47 +171,44 @@ pub fn canonical_place_joined_segments_may_overlap(
 
 fn canonical_place_segment_pair_may_overlap(
     program: &dyn crate::CheckingInput,
-    left: facts::PlaceSegment,
-    right: facts::PlaceSegment,
+    left: PlaceSegment,
+    right: PlaceSegment,
 ) -> bool {
     static_place_segment_pair_equal(left, right).unwrap_or_else(|| match (left, right) {
-        (facts::PlaceSegment::OpaqueRange, _) | (_, facts::PlaceSegment::OpaqueRange) => true,
+        (PlaceSegment::OpaqueRange, _) | (_, PlaceSegment::OpaqueRange) => true,
         (
-            facts::PlaceSegment::FixedRange {
+            PlaceSegment::FixedRange {
                 start: left_start,
                 end: left_end,
             },
-            facts::PlaceSegment::FixedRange {
+            PlaceSegment::FixedRange {
                 start: right_start,
                 end: right_end,
             },
-        ) => fixed_ranges_overlap(left_start, left_end, right_start, right_end),
-        (
-            facts::PlaceSegment::FixedRange { start, end },
-            facts::PlaceSegment::FixedIndex { index },
-        )
-        | (
-            facts::PlaceSegment::FixedIndex { index },
-            facts::PlaceSegment::FixedRange { start, end },
-        ) => fixed_range_contains(start, end, index),
-        (
-            facts::PlaceSegment::FixedRange { start, end },
-            facts::PlaceSegment::Index { expression },
-        )
-        | (
-            facts::PlaceSegment::Index { expression },
-            facts::PlaceSegment::FixedRange { start, end },
-        ) => expression_static_index(program, expression)
-            .is_none_or(|index| fixed_range_contains(start, end, index)),
-        (facts::PlaceSegment::FixedIndex { index }, facts::PlaceSegment::Index { expression })
-        | (facts::PlaceSegment::Index { expression }, facts::PlaceSegment::FixedIndex { index }) => {
+        ) => {
+            left_start < left_end
+                && right_start < right_end
+                && left_start < right_end
+                && right_start < left_end
+        }
+        (PlaceSegment::FixedRange { start, end }, PlaceSegment::FixedIndex { index })
+        | (PlaceSegment::FixedIndex { index }, PlaceSegment::FixedRange { start, end }) => {
+            fixed_range_contains(start, end, index)
+        }
+        (PlaceSegment::FixedRange { start, end }, PlaceSegment::Index { expression })
+        | (PlaceSegment::Index { expression }, PlaceSegment::FixedRange { start, end }) => {
+            expression_static_index(program, expression)
+                .is_none_or(|index| fixed_range_contains(start, end, index))
+        }
+        (PlaceSegment::FixedIndex { index }, PlaceSegment::Index { expression })
+        | (PlaceSegment::Index { expression }, PlaceSegment::FixedIndex { index }) => {
             expression_static_index(program, expression).is_none_or(|value| value == index)
         }
         (
-            facts::PlaceSegment::Index {
+            PlaceSegment::Index {
                 expression: left_expression,
             },
-            facts::PlaceSegment::Index {
+            PlaceSegment::Index {
                 expression: right_expression,
             },
         ) => index_expressions_may_overlap(program, left_expression, right_expression),
@@ -222,18 +218,6 @@ fn canonical_place_segment_pair_may_overlap(
 
 fn fixed_range_contains(start: usize, end: usize, index: usize) -> bool {
     start < end && start <= index && index < end
-}
-
-fn fixed_ranges_overlap(
-    left_start: usize,
-    left_end: usize,
-    right_start: usize,
-    right_end: usize,
-) -> bool {
-    left_start < left_end
-        && right_start < right_end
-        && left_start < right_end
-        && right_start < left_end
 }
 
 fn expression_static_index(
@@ -295,14 +279,14 @@ fn index_expressions_may_overlap(
 pub fn binding_overwrite(
     program: &dyn crate::CheckingInput,
     place: &crate::CanonicalPlace,
-    segments: &[facts::PlaceSegment],
+    segments: &[PlaceSegment],
 ) -> bool {
     segments.len() <= place.segments.len() && contents_overlap(program, place, segments)
 }
 pub fn contents_overlap(
     program: &dyn crate::CheckingInput,
     place: &crate::CanonicalPlace,
-    segments: &[facts::PlaceSegment],
+    segments: &[PlaceSegment],
 ) -> bool {
     canonical_place_segments_may_overlap(program, &place.segments, segments)
 }

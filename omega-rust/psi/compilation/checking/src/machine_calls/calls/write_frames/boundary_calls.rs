@@ -30,10 +30,12 @@ use crate::machine_calls::calls::write_frames::FrameInference;
 use language_core::is_self_receiver;
 use symbols::SymbolHandle;
 use typed_trees::data::DataMember;
+use typed_trees::data::TypeParameterKind;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::machine::Machine;
 use typed_trees::signature::StateParameter;
 use typed_trees::statement::TableCall;
+use typed_trees::trait_definition::AppliedTraitScope;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 /// Recognition is deliberately broader than signature selection: even an
@@ -113,15 +115,17 @@ pub(crate) fn boundary_trait_signature<'program>(
 
 /// Statement-call validation's selection: the same exact receiver/target
 /// join as `boundary_trait_signature`, additionally admitting a requirement
-/// whose generic telescope is entirely `machine` binders. Such a binder is a
-/// compile-time selection, never a runtime formal: MP2b admits the call's
+/// whose generic telescope is `machine` and `Type` binders. A `machine` binder
+/// is a compile-time selection, never a runtime formal: MP2b admits the call's
 /// static machine argument against its bound at this same call edge, and a
 /// `native callback name from Binder` destination takes its selection from
-/// that argument (private_callbacks.md, "Authored selection"). The caller
+/// that argument (private_callbacks.md, "Authored selection"). A `Type` binder
+/// is discharged by the call's own explicit operand, which may be a binder of
+/// the generic caller, or by its arguments; the caller substitutes it into the
+/// formals before comparing them, as an ordinary generic call does. The caller
 /// still validates result use and every runtime argument against the
-/// selected signature. `Type` binders stay excluded: validation has no
-/// substitution for their formals, and fact seeding (the monomorphic
-/// `boundary_trait_signature`) must not read uninstantiated contracts.
+/// selected signature. Fact seeding (the monomorphic `boundary_trait_signature`)
+/// stays excluded: it must not read uninstantiated contracts.
 pub(crate) fn boundary_trait_call_signature<'program>(
     program: &'program dyn crate::CheckingInput,
     current_machine: &Machine,
@@ -135,7 +139,7 @@ pub(crate) fn boundary_trait_call_signature<'program>(
         &receiver_members,
         call.target.as_str(),
         CallerWriteSite::Call(call),
-        SignatureBinders::StaticMachines,
+        SignatureBinders::CallBinders,
     )
     .map(|selected| selected.signature)
 }
@@ -156,7 +160,7 @@ pub(crate) fn boundary_trait_expression_call_signature<'program>(
         &receiver_members,
         call.target.as_str(),
         CallerWriteSite::Expression(expression),
-        SignatureBinders::StaticMachines,
+        SignatureBinders::CallBinders,
     )
     .map(|selected| selected.signature)
 }
@@ -201,9 +205,11 @@ enum SignatureBinders {
     Monomorphic,
     /// Write frames substitute `Type` binders the actual arguments pin.
     ArgumentPinnedTypes,
-    /// Call validation admits `machine` binders, which no runtime argument
-    /// supplies (see `boundary_trait_call_signature`).
-    StaticMachines,
+    /// Call validation admits the binders the call itself discharges: `machine`
+    /// binders, which no runtime argument supplies, and `Type` binders, which
+    /// its explicit operands or arguments pin (see
+    /// `boundary_trait_call_signature`).
+    CallBinders,
 }
 
 struct BoundaryWriteSignature<'program> {
@@ -370,15 +376,11 @@ fn boundary_trait_signature_and_receiver_inner<'program>(
         _ => None,
     };
     let receiver_scope = if has_runtime_receiver {
-        typed_trees::trait_definition::AppliedTraitScope::from_type_reference(
-            program,
-            receiver_reference,
-            current_machine.symbol,
-        )?
+        AppliedTraitScope::from_type_reference(program, receiver_reference, current_machine.symbol)?
     } else if let Some(application) = applied {
         program.applied_requirement_scope(current_machine.symbol, application)?
     } else {
-        typed_trees::trait_definition::AppliedTraitScope::abstract_scope(trait_definition)
+        AppliedTraitScope::abstract_scope(trait_definition)
     };
     let template = program
         .closed_requirement_application(target_symbol)
@@ -446,12 +448,12 @@ fn boundary_trait_signature_and_receiver_inner<'program>(
             && match binders {
                 SignatureBinders::Monomorphic => false,
                 SignatureBinders::ArgumentPinnedTypes => {
-                    matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type)
+                    matches!(parameter.kind, TypeParameterKind::Type)
                 }
-                SignatureBinders::StaticMachines => {
+                SignatureBinders::CallBinders => {
                     matches!(
                         parameter.kind,
-                        typed_trees::data::TypeParameterKind::Machine { .. }
+                        TypeParameterKind::Type | TypeParameterKind::Machine { .. }
                     )
                 }
             }
@@ -594,8 +596,7 @@ pub(super) fn requirement_signature_by_target(
         .state_signature_type_parameters(signature)
         .iter()
         .all(|parameter| {
-            parameter.symbol.is_valid()
-                && matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type)
+            parameter.symbol.is_valid() && matches!(parameter.kind, TypeParameterKind::Type)
         })
         .then_some(signature)
 }
@@ -623,8 +624,7 @@ fn requirement_signature_in_trait<'program>(
             .state_signature_type_parameters(signature)
             .iter()
             .all(|parameter| {
-                parameter.symbol.is_valid()
-                    && matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type)
+                parameter.symbol.is_valid() && matches!(parameter.kind, TypeParameterKind::Type)
             }))
     .then_some(signature)
 }

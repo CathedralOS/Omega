@@ -169,13 +169,9 @@ impl<'program> Engine<'program> {
     fn seed_matrix(&mut self) -> bool {
         let mut changed = false;
         for (from, to, bound) in self.difference_seeds() {
-            changed |= self.record_difference(&from, &to, bound);
+            changed |= self.matrix.record(&from, &to, bound);
         }
         changed
-    }
-
-    fn record_difference(&mut self, from: &str, to: &str, bound: BigInt) -> bool {
-        self.matrix.record(from, to, bound)
     }
 
     /// Close connected components with zero, preserving lexical iteration.

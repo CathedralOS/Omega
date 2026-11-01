@@ -26,7 +26,7 @@ pub use target_context::LayoutTarget;
 
 pub use boundary_values::{
     BOUNDARY_VALUE_FIELD_CAPACITY, BOUNDARY_VALUE_SHAPE_CAPACITY, BoundaryOpaqueRepresentationUse,
-    BoundaryValueLayout, append_boundary_value_shape,
+    BoundaryValueLayout, TerminalBoundaryRecipes, append_boundary_value_shape,
 };
 pub use builder::{
     build_layout_plan, build_layout_plan_for_roots, layout_type_reference,

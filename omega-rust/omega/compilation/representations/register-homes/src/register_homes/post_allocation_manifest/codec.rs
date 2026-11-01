@@ -17,6 +17,7 @@ use super::{
     PostAllocationOptimizationManifestDecodeError, PostAllocationSelectedTransformation,
     PostAllocationSpillStatus, PostAllocationStatistics, PostAllocationUnavailableData,
 };
+use crate::codec_bytes::{decode_list, push_encoded};
 
 const POST_ALLOCATION_MANIFEST_ENVELOPE: Envelope = Envelope::new(b"OMGPAO\0\0", 16);
 
@@ -62,10 +63,8 @@ impl PostAllocationOptimizationManifest {
             },
             PostAllocationOptimizationManifestDecodeError::UnknownCompletionStatus,
         )?;
-        let selected_transformations = crate::codec_bytes::decode_list(
-            &mut cursor,
-            PostAllocationSelectedTransformation::decode,
-        )?;
+        let selected_transformations =
+            decode_list(&mut cursor, PostAllocationSelectedTransformation::decode)?;
         let liveness = LivenessIdentity::from_bytes(cursor.array()?);
         let ranges = LiveRangeIdentity::from_bytes(cursor.array()?);
         let legality = AllocationLegalityIdentity::from_bytes(cursor.array()?);
@@ -167,7 +166,7 @@ pub(super) fn encode_manifest_content(manifest: &PostAllocationOptimizationManif
         });
     }
     for value in statistics_values(manifest.statistics) {
-        crate::codec_bytes::push_encoded(&mut canonical, value.to_le_bytes());
+        push_encoded(&mut canonical, value.to_le_bytes());
     }
     canonical
 }

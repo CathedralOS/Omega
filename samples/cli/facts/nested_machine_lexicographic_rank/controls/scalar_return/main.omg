@@ -1,0 +1,36 @@
+// Joint private arrivals retain a lexicographic rank while lower components reset after a strict higher-component decrease.
+// Expected exit: 0
+data Progress [copy] { outer: u64; inner: u64; canary: u64; }
+measure Progress::Steps lexicographic { outer, inner }
+machine count(counter: u64 in Wrapping, progress: Progress) -> u64 in Wrapping
+crashes Trap
+terminates
+terminates by progress -> Progress::Steps
+requires progress.outer <= 1 && progress.inner <= 2
+{
+    transition progress.inner > 0 {
+        true -> count(counter + 1, Progress { outer: progress.outer, inner: progress.inner - 1, canary: progress.canary })
+        false -> next_row(counter, progress)
+    }
+    machine next_row(counter: u64 in Wrapping, progress: Progress) -> u64 in Wrapping
+    crashes Trap
+    terminates
+    terminates by progress -> Progress::Steps
+    requires progress.outer <= 1 && progress.inner == 0
+    {
+        transition progress.outer > 0 {
+            true -> count(counter, Progress { outer: progress.outer - 1, inner: 2, canary: progress.canary })
+            false -> done(counter, progress.canary)
+        }
+    }
+    machine done(counter: u64 in Wrapping, canary: u64) -> u64 in Wrapping crashes Trap {
+        transition canary == 641 { true -> counter false -> bad() }
+        machine bad() -> u64 in Wrapping crashes Trap { crash Trap; }
+    }
+}
+machine main() crashes Trap {
+    let observed: u64 = count(3 as u64 in Wrapping, Progress { outer: 1, inner: 2, canary: 641 }) as u64;
+    let idle: u64 = count(observed as u64 in Wrapping, Progress { outer: 0, inner: 0, canary: 641 }) as u64;
+    transition observed == 7 && idle == 7 { true -> done() false -> bad() }
+    machine done() {} machine bad() crashes Trap { crash Trap; }
+}

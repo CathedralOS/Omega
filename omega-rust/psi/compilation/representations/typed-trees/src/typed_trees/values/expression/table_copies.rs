@@ -11,6 +11,8 @@
 //! independent. Expanding a shared operand back into a tree would repeat its
 //! effects or detach later projections from its captured value.
 
+use super::CompletedValueCapture;
+use super::ValueCaptureOwner;
 use crate::name::Identifier;
 use crate::typed_trees::remapped;
 use crate::typed_trees::values::expression::{
@@ -25,10 +27,7 @@ use arena::{Handle, HandleSpan};
 #[derive(Default)]
 struct CopyGraph {
     expressions: Vec<(ExpressionHandle, ExpressionHandle)>,
-    subjects: Vec<(
-        Handle<super::CompletedValueCapture>,
-        Handle<super::CompletedValueCapture>,
-    )>,
+    subjects: Vec<(Handle<CompletedValueCapture>, Handle<CompletedValueCapture>)>,
 }
 use symbols::SymbolHandle;
 
@@ -172,12 +171,13 @@ impl ExpressionTable {
     }
 
     /// Rebase both retained source telescopes into the cloned lexical owner.
-    pub fn remap_call_static_applications(
+    pub fn remap_call_static_applications<'scope>(
         &mut self,
         application: crate::static_applications::StaticMachineApplicationHandle,
         dispatch: Option<&crate::typed_trees::StaticRequirementDispatch>,
-        symbols: &[(SymbolHandle, SymbolHandle)],
+        symbols: impl Into<crate::SymbolRebinding<'scope>>,
     ) {
+        let symbols = symbols.into();
         let selected = dispatch.map_or(Default::default(), |dispatch| {
             dispatch.selection_application
         });
@@ -192,7 +192,7 @@ impl ExpressionTable {
     fn remap_static_application(
         &mut self,
         handle: crate::static_applications::StaticMachineApplicationHandle,
-        symbols: &[(SymbolHandle, SymbolHandle)],
+        symbols: crate::SymbolRebinding<'_>,
     ) {
         let application = self.static_machine_application_mut(handle);
         application.lexical_owner = remapped(application.lexical_owner, symbols);
@@ -210,7 +210,7 @@ impl ExpressionTable {
             .collect::<Vec<_>>();
         let mut bindings = self.static_machine_application_bindings(handle).to_vec();
         for binding in &mut bindings {
-            self.remap_static_binding_symbols(binding, symbols);
+            self.remap_static_binding_symbols(binding, symbols.authored());
         }
         self.static_machine_application_bindings_mut(handle)
             .clone_from_slice(&bindings);
@@ -284,7 +284,11 @@ impl ExpressionTable {
         });
         self.set_static_machine_application_bindings(copy, &bindings);
         self.set_static_machine_application_selected_machines(copy, &selected);
-        self.set_static_machine_application_lifetimes(copy, &lifetimes);
+        self.set_static_machine_application_lifetimes(
+            copy,
+            declaration.lifetime_binding_declaration,
+            &lifetimes,
+        );
         copy
     }
 
@@ -354,11 +358,12 @@ impl ExpressionTable {
     /// arena handles and authored names stay stable; only normalized symbols
     /// change. This is the second half of cloning a lexical scope after
     /// [`Self::copy_from`] has made its payload handles independent.
-    pub fn remap_symbols_in(
+    pub fn remap_symbols_in<'scope>(
         &mut self,
         root: ExpressionHandle,
-        symbols: &[(SymbolHandle, SymbolHandle)],
+        symbols: impl Into<crate::SymbolRebinding<'scope>>,
     ) {
+        let symbols = symbols.into();
         let mut visited = Vec::new();
         self.remap_symbols_in_inner(root, symbols, &mut visited);
     }
@@ -366,7 +371,7 @@ impl ExpressionTable {
     fn remap_symbols_in_inner(
         &mut self,
         root: ExpressionHandle,
-        symbols: &[(SymbolHandle, SymbolHandle)],
+        symbols: crate::SymbolRebinding<'_>,
         visited: &mut Vec<ExpressionHandle>,
     ) {
         if !root.is_valid() || visited.contains(&root) {
@@ -386,7 +391,7 @@ impl ExpressionTable {
         if let Some(mut authority) = self.index_expression_authority(root).cloned() {
             if let Some(operation) = &mut authority.operation {
                 if let Some(application) = &mut operation.application {
-                    self.remap_static_argument_symbols(application, symbols);
+                    self.remap_static_argument_symbols(application, symbols.execution());
                 }
                 for symbol in [
                     &mut operation.provider,
@@ -459,7 +464,7 @@ impl ExpressionTable {
                     binding.selected = remapped(binding.selected, symbols);
                 }
                 call.visit_static_arguments_mut(|argument| {
-                    self.remap_static_argument_symbols(argument, symbols)
+                    self.remap_static_argument_symbols(argument, symbols.execution())
                 });
                 *self.expression_mut(root) = ExpressionNode::Call(call);
             }
@@ -527,10 +532,7 @@ impl ExpressionTable {
         expressions: &[ExpressionHandle],
     ) -> (
         HandleSpan<ExpressionHandle>,
-        Vec<(
-            Handle<super::CompletedValueCapture>,
-            super::ValueCaptureOwner,
-        )>,
+        Vec<(Handle<CompletedValueCapture>, ValueCaptureOwner)>,
     ) {
         let mut copies = CopyGraph::default();
         let expressions = self.copy_expression_list_with_occurrences(
@@ -562,7 +564,7 @@ impl ExpressionTable {
             .iter()
             .filter_map(|(capture, value)| {
                 matches!(value.owner,
-                    super::ValueCaptureOwner::StatementArgument { call, .. } if call == source
+                    ValueCaptureOwner::StatementArgument { call, .. } if call == source
                 )
                 .then_some((capture, value.owner))
             })
@@ -572,19 +574,16 @@ impl ExpressionTable {
 
     pub(crate) fn rebind_statement_operand_captures(
         &mut self,
-        captures: &[(
-            Handle<super::CompletedValueCapture>,
-            super::ValueCaptureOwner,
-        )],
+        captures: &[(Handle<CompletedValueCapture>, ValueCaptureOwner)],
         source: crate::statement::StatementHandle,
         target: crate::statement::StatementHandle,
     ) {
         for &(capture, owner) in captures {
-            if let super::ValueCaptureOwner::StatementArgument { call, position } = owner
+            if let ValueCaptureOwner::StatementArgument { call, position } = owner
                 && call == source
             {
                 self.completed_values.get_mut(capture).owner =
-                    super::ValueCaptureOwner::StatementArgument {
+                    ValueCaptureOwner::StatementArgument {
                         call: target,
                         position,
                     };
@@ -912,12 +911,12 @@ impl ExpressionTable {
         // A call owns aliases among its children. Their copied parent only
         // exists after the children, so close that exact source back-edge now.
         for (original, capture) in &copies.subjects {
-            if let super::ValueCaptureOwner::ExpressionArgument { call, position } =
+            if let ValueCaptureOwner::ExpressionArgument { call, position } =
                 source.table(self).value_capture(*original).owner
                 && call == expression
             {
                 self.completed_values.get_mut(*capture).owner =
-                    super::ValueCaptureOwner::ExpressionArgument {
+                    ValueCaptureOwner::ExpressionArgument {
                         call: copied,
                         position,
                     };
@@ -929,10 +928,10 @@ impl ExpressionTable {
     fn copy_match_subject<RetainField>(
         &mut self,
         source: CopySource<'_>,
-        capture: Handle<super::CompletedValueCapture>,
+        capture: Handle<CompletedValueCapture>,
         retain: &RetainField,
         copies: &mut CopyGraph,
-    ) -> Handle<super::CompletedValueCapture>
+    ) -> Handle<CompletedValueCapture>
     where
         RetainField: Fn(&TableStructLiteral, &TableStructLiteralField) -> bool,
     {
@@ -948,21 +947,21 @@ impl ExpressionTable {
         }
         let captured = *source.table(self).value_capture(capture);
         let subject = self.copy_subtree_with_occurrences(source, captured.subject, retain, copies);
-        let copied = if matches!(captured.owner, super::ValueCaptureOwner::Match) {
+        let copied = if matches!(captured.owner, ValueCaptureOwner::Match) {
             self.insert_match_subject(subject)
         } else {
             let owner = match captured.owner {
-                super::ValueCaptureOwner::ExpressionArgument { call, position } => {
+                ValueCaptureOwner::ExpressionArgument { call, position } => {
                     let call = copies
                         .expressions
                         .iter()
                         .find(|(source, _)| *source == call)
                         .map(|(_, copied)| *copied)
                         .unwrap_or_else(ExpressionHandle::invalid);
-                    super::ValueCaptureOwner::ExpressionArgument { call, position }
+                    ValueCaptureOwner::ExpressionArgument { call, position }
                 }
-                super::ValueCaptureOwner::StatementArgument { position, .. } => {
-                    super::ValueCaptureOwner::StatementArgument {
+                ValueCaptureOwner::StatementArgument { position, .. } => {
+                    ValueCaptureOwner::StatementArgument {
                         call: crate::statement::StatementHandle::invalid(),
                         position,
                     }

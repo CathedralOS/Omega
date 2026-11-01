@@ -17,12 +17,7 @@ pub(crate) fn project_checked_external_supply_policy<'a>(
     symbol: SymbolHandle,
 ) -> Result<Vec<PackagePolicyExternalExecutableSupply>, Vec<Diagnostic>> {
     let compilation = &input.into();
-    let machines = compilation
-        .machines()
-        .iter()
-        .filter(|machine| machine.symbol == symbol)
-        .collect::<Vec<_>>();
-    let [machine] = machines.as_slice() else {
+    let Some(machine) = compilation.exact_machine(symbol) else {
         return Err(rejected("supply has no unique checked machine"));
     };
     let conformances = compilation.machine_trait_conformances(machine);

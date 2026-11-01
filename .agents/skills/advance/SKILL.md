@@ -201,7 +201,10 @@ implementation paths do not exclude them. An explicit user-named assignment or
 same-session continuation keeps its priority even when another session claims
 it: read the note, reuse available repairs and reconcile at rebase. A `main`
 regression is single-owner (`REGRESSION-<sha>`): if another live session has
-already claimed it, skip it and take normal unassigned work. Sessions with an
+already claimed it, skip it and take normal unassigned work. No claim does not
+mean no owner: first read open and just-merged pull requests that name the
+failing fixtures or touch the file you would edit, and any smoke run still in
+progress, then repeat that check before pushing. Sessions with an
 active capability or user assignment never pivot to unrelated `main`
 regressions or check out historical `main` commits. Do not invent unrelated
 programs to fill capacity when the current fact witnesses are already assigned.

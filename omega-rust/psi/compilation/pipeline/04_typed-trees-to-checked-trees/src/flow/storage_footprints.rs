@@ -4,16 +4,20 @@
 //! writes; it never establishes a stored value, equality or untouched contents.
 //! Descriptor-slot replacement keeps the slot's own address, not its old pointer.
 use arena::Handle;
+use checked_trees::statement::StatementNode;
 use checked_trees::{FlowControlFacts, FlowOperandFact};
-use validation::CanonicalPlace;
+use typed_trees::machine::Machine;
+use validation::completed_storage::direct_referent_places;
+use validation::completed_storage::reference_backing_places;
+use validation::{CallFrameResolver, CanonicalPlace, CheckingInput};
 
 pub(super) fn assignment(
-    program: &dyn validation::CheckingInput,
-    machine: &typed_trees::machine::Machine,
-    statement: &checked_trees::statement::StatementNode,
+    program: &dyn CheckingInput,
+    machine: &Machine,
+    statement: &StatementNode,
     control: &FlowControlFacts,
     target: Handle<FlowOperandFact>,
-    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    call_frames: Option<&CallFrameResolver<'_>>,
 ) -> Option<Vec<CanonicalPlace>> {
     if !control.operands.is_valid(target) {
         return None;
@@ -23,16 +27,15 @@ pub(super) fn assignment(
         // The pre-RHS target is an address only in the producer's direct
         // geometry lane. Deferred reference inventory cannot become physical
         // write coordinates by discarding its formation/entry namespace.
-        return validation::completed_storage::direct_referent_places(control, capture.referents)
-            .map(|places| {
-                places
-                    .into_iter()
-                    .map(|place| CanonicalPlace {
-                        root: place.root,
-                        segments: place.segments,
-                    })
-                    .collect()
-            });
+        return direct_referent_places(control, capture.referents).map(|places| {
+            places
+                .into_iter()
+                .map(|place| CanonicalPlace {
+                    root: place.root,
+                    segments: place.segments,
+                })
+                .collect()
+        });
     }
     let mut owned_frames = None;
     let frames = super::shared_call_frames_or(call_frames, program, &mut owned_frames)?;
@@ -40,14 +43,7 @@ pub(super) fn assignment(
         // Unknown slot geometry cannot recover its old pointee as a target.
         return None;
     }
-    validation::completed_storage::reference_backing_places(
-        program,
-        control,
-        target,
-        &[],
-        &mut |_, _| None,
-    )
-    .map(|places| {
+    reference_backing_places(program, control, target, &[], &mut |_, _| None).map(|places| {
         places
             .into_iter()
             .map(|place| CanonicalPlace {

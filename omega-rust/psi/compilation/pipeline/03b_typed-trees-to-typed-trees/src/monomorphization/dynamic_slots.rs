@@ -34,6 +34,8 @@ use typed_trees::expression::ExpressionNode;
 use typed_trees::name::Identifier;
 use typed_trees::signature::StateParameter;
 use typed_trees::statement::StatementNode;
+use validation::dynamic_expression_call_demand;
+use validation::expression_traversal::collect_expression_tree;
 
 /// Instantiate every (selector application, requirement) the program's
 /// selections and selector calls reach, then retarget each selector call to
@@ -240,18 +242,14 @@ fn retarget_selector_calls(program: &mut TypedTrees) {
                         continue;
                     }
                     let mut tree = Vec::new();
-                    validation::expression_traversal::collect_expression_tree(
-                        program, root, &mut tree,
-                    );
+                    collect_expression_tree(program, root, &mut tree);
                     for expression in tree {
                         let Some(call) = expressions_of(program).call_node(expression) else {
                             continue;
                         };
                         if let Some(slot) = slot_for(
                             program,
-                            validation::dynamic_expression_call_demand(
-                                program, machine, state, call,
-                            ),
+                            dynamic_expression_call_demand(program, machine, state, call),
                         ) && !expression_targets
                             .iter()
                             .any(|(known, _)| *known == expression)

@@ -3,12 +3,14 @@ use super::{
     projection_label, projection_plan_for_call, structural_place_label,
 };
 use crate::frozen_program::expression_table;
+use language_semantics::ReferenceAccess;
 use language_semantics::content::{
     ContentAlgebraIdentity, ContentCaseSegment, ContentConservationEquation,
     ContentConservationTerm, ContentFieldSegment, ContentPlaceRoot, ContentPlaceSegment,
     ContentPlaceVersion, ContentProjectionPlan, ContentStructuralPlace,
 };
 use symbols::SymbolHandle;
+use typed_trees::data::DataMember;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::signature::{SignatureContract, SignatureContractKind, StateParameter};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -158,11 +160,7 @@ fn normalize_projection_subject(
     // structural place. Reject explicit exclusive lending here; the type walk
     // independently requires readable access through every enclosing reference.
     let borrowed = match expression_table(context.program).expression(borrowed) {
-        ExpressionNode::Borrow(inner)
-            if inner.access == language_semantics::ReferenceAccess::Shared =>
-        {
-            inner.target
-        }
+        ExpressionNode::Borrow(inner) if inner.access == ReferenceAccess::Shared => inner.target,
         ExpressionNode::Borrow(_) => {
             return Err("content projection subjects must use a shared borrow (`&place`), not a mutable borrow, so the proof observation never mutates authority".to_owned());
         }
@@ -445,9 +443,7 @@ fn structural_place_type(
                     .data_members(data)
                     .iter()
                     .find_map(|member| match member {
-                        typed_trees::data::DataMember::Variant(variant)
-                            if variant.name.as_str() == case.name =>
-                        {
+                        DataMember::Variant(variant) if variant.name.as_str() == case.name => {
                             Some(variant)
                         }
                         _ => None,
@@ -496,12 +492,12 @@ fn structural_place_type(
                         .data_members(data)
                         .iter()
                         .find_map(|member| match member {
-                            typed_trees::data::DataMember::Field(candidate)
+                            DataMember::Field(candidate)
                                 if candidate.name.as_str() == field.name =>
                             {
                                 Some((candidate.symbol, candidate.type_reference))
                             }
-                            typed_trees::data::DataMember::Variant(variant) => program
+                            DataMember::Variant(variant) => program
                                 .data_payload_fields(variant)
                                 .iter()
                                 .find(|candidate| candidate.name.as_str() == field.name)

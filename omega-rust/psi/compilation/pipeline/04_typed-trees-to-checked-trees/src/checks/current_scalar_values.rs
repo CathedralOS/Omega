@@ -32,6 +32,8 @@
 //! they are different values. The window length `end - start` can then meet
 //! `count as u64` for a nonnegative wrapping count, through a local, a field,
 //! a parameter, or a call, because each spelling is that same integer.
+use super::ranges::types::expression_integer_carrier_maximum;
+use super::ranges::types::expression_integer_carrier_minimum;
 use crate::checks::unsigned;
 use crate::flow::expressions;
 use crate::values::scalar::structural_fields;
@@ -1681,12 +1683,8 @@ fn integer_carrier_span(
     state: &State,
     expression: ExpressionHandle,
 ) -> Option<(numerics::bignum::BigInt, numerics::bignum::BigInt)> {
-    let minimum = super::ranges::types::expression_integer_carrier_minimum(
-        program, machine, state, expression,
-    )?;
-    let maximum = super::ranges::types::expression_integer_carrier_maximum(
-        program, machine, state, expression,
-    )?;
+    let minimum = expression_integer_carrier_minimum(program, machine, state, expression)?;
+    let maximum = expression_integer_carrier_maximum(program, machine, state, expression)?;
     Some((minimum, numerics::bignum::BigInt::from_u64(maximum)))
 }
 

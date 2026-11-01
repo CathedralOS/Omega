@@ -10,6 +10,10 @@
 //! own transport state; neither trusts the other's choice.
 
 use crate::selection::place_declaration::{arrivals, declares_block_parameter};
+use crate::structural_inputs::structural_reference_input::{
+    PointerSlot, owner_loan_geometry, projected_scalar_codec, reference_source_geometry,
+    scalar_storage_type,
+};
 use abstract_operations::control_flow::address_joins::is_address_join_in;
 
 use calling_conventions::ValueShape;
@@ -42,10 +46,7 @@ pub(crate) fn carrier_shape(
     parameter: &StructuralParameterDeclaration,
 ) -> ValueShape {
     let scalar = source.structural.as_ref().and_then(|signature| {
-        crate::structural_inputs::structural_reference_input::scalar_storage_type(
-            parameter.structural_type,
-            &signature.structural_types,
-        )
+        scalar_storage_type(parameter.structural_type, &signature.structural_types)
     });
     ValueShape::integer(if scalar.is_some() { 16 } else { 8 }, 8)
 }
@@ -123,17 +124,9 @@ pub(crate) fn projection(
         &signature.structural_types,
     );
     let mut geometry = if owner_loan {
-        crate::structural_inputs::structural_reference_input::owner_loan_geometry(
-            root,
-            &argument.path,
-            &signature.structural_types,
-        )
+        owner_loan_geometry(root, &argument.path, &signature.structural_types)
     } else {
-        crate::structural_inputs::structural_reference_input::reference_source_geometry(
-            root,
-            &argument.path,
-            &signature.structural_types,
-        )
+        reference_source_geometry(root, &argument.path, &signature.structural_types)
     }?;
     if !crate::structural_inputs::runtime_indices_match(indices, &geometry.elements) {
         return None;
@@ -159,20 +152,12 @@ pub(crate) fn projection(
     if referent != parameter.structural_type {
         return None;
     }
-    let scalar = crate::structural_inputs::structural_reference_input::scalar_storage_type(
-        referent,
-        &signature.structural_types,
-    );
+    let scalar = scalar_storage_type(referent, &signature.structural_types);
     let descriptor = retained_scalar_descriptor
         || argument.path.is_empty()
             && super::reference_input::borrowed_scalar_source(source, argument.place).is_some();
-    let codec = scalar.and_then(|_| {
-        crate::structural_inputs::structural_reference_input::projected_scalar_codec(
-            root,
-            &argument.path,
-            &signature.structural_types,
-        )
-    });
+    let codec = scalar
+        .and_then(|_| projected_scalar_codec(root, &argument.path, &signature.structural_types));
     let storage_offset = geometry
         .pointer_slots
         .first()
@@ -242,7 +227,7 @@ pub(super) fn projection_base(
     place: PlaceId,
     byte_offset: u32,
     byte_count: u32,
-    pointer_slots: &mut Vec<crate::structural_inputs::structural_reference_input::PointerSlot>,
+    pointer_slots: &mut Vec<PointerSlot>,
     pointers: &[(PlaceId, VirtualRegisterId)],
     local_slots: &[SelectedLocalStorageSlot],
     element_views: &[super::element_view_homes::ElementViewHomes],

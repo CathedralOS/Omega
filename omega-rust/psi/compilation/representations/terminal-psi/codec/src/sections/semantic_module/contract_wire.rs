@@ -76,7 +76,8 @@ pub(crate) fn encode_contract(
         contract.outcome_specific_ensures.len(),
     )?;
     for row in &contract.outcome_specific_ensures {
-        encode_outcome_guard(writer, row.guard);
+        writer.id(row.guard.result_type);
+        writer.id(row.guard.result_case);
         writer.u32(row.position);
         writer.id(row.obligation);
         encode_proposition(writer, &row.proposition, 0)?;
@@ -223,11 +224,6 @@ pub(crate) fn decode_contract(reader: &mut Reader<'_>) -> Result<MachineContract
         ensures,
         outcome_specific_ensures,
     })
-}
-
-fn encode_outcome_guard(writer: &mut Writer, guard: OutcomeSpecificGuard) {
-    writer.id(guard.result_type);
-    writer.id(guard.result_case);
 }
 
 fn decode_outcome_guard(reader: &mut Reader<'_>) -> Result<OutcomeSpecificGuard, CodecError> {

@@ -347,11 +347,20 @@ pub fn predicate_ordering_consequences(
     let Some(application) = predicate_call(program, call_expression) else {
         return Vec::new();
     };
-    let mut consequences = implication::ordering_consequences(program, &application);
+    application_ordering_consequences(program, &application)
+}
+
+/// Consequences of one independently available positive predicate occurrence.
+/// The consumer binds these inert recipes to that occurrence's captured actuals.
+pub(crate) fn application_ordering_consequences(
+    program: &dyn crate::CheckingInput,
+    application: &PredicateApplication<'_>,
+) -> Vec<PredicateOrderingConsequence> {
+    let mut consequences = implication::ordering_consequences(program, application);
     // Scalar hulls are necessary consequences, never equivalent replacements
     // of the predicate. The exact public-envelope judgment below additionally
     // checks its converse over the complete Cartesian product.
-    if let Some(intervals) = interval_consequences(program, &application) {
+    if let Some(intervals) = interval_consequences(program, application) {
         for interval in intervals.into_iter().filter(|row| !row.extent) {
             for (bound, operator) in [
                 (interval.low, BinaryOperator::GreaterOrEqual),
@@ -361,6 +370,70 @@ pub fn predicate_ordering_consequences(
                     left: PredicateIntegerOperand::Argument(PredicateIntegerSubject {
                         expression: interval.argument,
                         projection: Vec::new(),
+                    }),
+                    right: PredicateIntegerOperand::Integer(bound),
+                    operator,
+                });
+            }
+        }
+    }
+    consequences
+}
+
+/// Fixed-array element hulls on every successful predicate return. These
+/// are necessary consequences only; neither exact replacement nor arbitrary
+/// descriptor contents follow from them. The existing explorer supplies each
+/// element's bounds under the complete declared carriers.
+pub(crate) fn argument_element_consequences(
+    program: &dyn crate::CheckingInput,
+    application: &PredicateApplication<'_>,
+) -> Vec<PredicateOrderingConsequence> {
+    let Some(entry) = program
+        .machine_states(&program.machines()[application.machine])
+        .first()
+    else {
+        return Vec::new();
+    };
+    let Some(knowledge) = program
+        .state_parameters(entry)
+        .iter()
+        .map(|parameter| unknown_knowledge(program, parameter.type_reference))
+        .collect::<Option<Vec<_>>>()
+    else {
+        return Vec::new();
+    };
+    if knowledge.len() != application.arguments.len()
+        || !knowledge
+            .iter()
+            .any(|value| matches!(value, ArgumentKnowledge::Array(_)))
+    {
+        return Vec::new();
+    }
+    let Some(unfolding) = unfold(program, application.machine, &knowledge) else {
+        return Vec::new();
+    };
+    let mut consequences = Vec::new();
+    for (position, (argument, knowledge)) in
+        application.arguments.iter().zip(&knowledge).enumerate()
+    {
+        let ArgumentKnowledge::Array(_) = knowledge else {
+            continue;
+        };
+        let Some(elements) = unfolding.when_true(position) else {
+            continue;
+        };
+        for (index, element) in elements.iter().enumerate() {
+            let Some((low, high)) = element.bounds() else {
+                continue;
+            };
+            for (bound, operator) in [
+                (low, BinaryOperator::GreaterOrEqual),
+                (high, BinaryOperator::LessOrEqual),
+            ] {
+                consequences.push(PredicateOrderingConsequence {
+                    left: PredicateIntegerOperand::Argument(PredicateIntegerSubject {
+                        expression: *argument,
+                        projection: vec![facts::PlaceSegment::FixedIndex { index }],
                     }),
                     right: PredicateIntegerOperand::Integer(bound),
                     operator,

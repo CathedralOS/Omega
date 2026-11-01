@@ -13,13 +13,16 @@ machine ScalarPlacement::plan(schema: Schema) -> AccessPlan {
     let access: AccessPlan = AccessPlan::inaccessible(layout);
     transition { _ -> field0(schema, access) }
     machine field0(schema: Schema, access: AccessPlan) -> AccessPlan {
-        transition { _ -> field1(schema, AccessPlan::with(access, schema.fields[0].key, FieldAccess::External { read: ExternalRead::Read, write: true, exposure: Exposure::Exported })) }
+        let field_0_key: u64 = schema.fields[0].key;
+        transition { _ -> field1(schema, AccessPlan::with(access, field_0_key, FieldAccess::External { read: ExternalRead::Read, write: true, exposure: Exposure::Exported })) }
     }
     machine field1(schema: Schema, access: AccessPlan) -> AccessPlan {
-        transition { _ -> field2(schema, AccessPlan::with(access, schema.fields[1].key, FieldAccess::External { read: ExternalRead::Read, write: true, exposure: Exposure::Exported })) }
+        let field_1_key: u64 = schema.fields[1].key;
+        transition { _ -> field2(schema, AccessPlan::with(access, field_1_key, FieldAccess::External { read: ExternalRead::Read, write: true, exposure: Exposure::Exported })) }
     }
     machine field2(schema: Schema, access: AccessPlan) -> AccessPlan {
-        transition { _ -> field3(schema, AccessPlan::with(access, schema.fields[2].key, FieldAccess::External { read: ExternalRead::Read, write: true, exposure: Exposure::Exported })) }
+        let field_2_key: u64 = schema.fields[2].key;
+        transition { _ -> field3(schema, AccessPlan::with(access, field_2_key, FieldAccess::External { read: ExternalRead::Read, write: true, exposure: Exposure::Exported })) }
     }
     machine field3(schema: Schema, access: AccessPlan) -> AccessPlan {
         transition { _ -> finish(AccessPlan::with(access, schema.fields[3].key, FieldAccess::External { read: ExternalRead::Read, write: true, exposure: Exposure::Exported })) }

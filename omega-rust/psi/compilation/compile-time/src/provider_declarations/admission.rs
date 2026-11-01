@@ -7,6 +7,7 @@ use super::{
     ProviderSelectionIdentity, ProviderSelectionSubject, identities,
 };
 use diagnostics::Diagnostic;
+use language_semantics::declaration_selection::ProductOperandRole;
 use symbols::SymbolKind;
 
 pub(super) struct ProviderDeclarations {
@@ -111,14 +112,8 @@ pub(super) fn admit(
     previous: &[ProviderSelection],
 ) -> Result<ProviderSelection, Diagnostic> {
     for (identity, role) in [
-        (
-            &boundary_identity,
-            language_semantics::declaration_selection::ProductOperandRole::BoundarySubject,
-        ),
-        (
-            &provider_type,
-            language_semantics::declaration_selection::ProductOperandRole::Provider,
-        ),
+        (&boundary_identity, ProductOperandRole::BoundarySubject),
+        (&provider_type, ProductOperandRole::Provider),
     ] {
         let has_static_telescope = context
             .typed

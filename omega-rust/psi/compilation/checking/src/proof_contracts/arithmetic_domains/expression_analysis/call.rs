@@ -20,6 +20,7 @@ use crate::proof_contracts::arithmetic_domains::{
     ArithmeticDomain, ExpressionHandle, Interval, TableCallExpression, call_return_type,
     range_constraint_interval,
 };
+use checked_trees::IntegerRangeRecipe;
 
 pub(super) fn analyze(
     walk: &ExpressionWalk,
@@ -265,13 +266,7 @@ fn declared_return_range(
     expression: ExpressionHandle,
     call: &TableCallExpression,
     child_values: Option<&[super::CheckedIntegerValue]>,
-    cached_actuals: &mut Option<
-        Vec<(
-            symbols::SymbolHandle,
-            Interval,
-            Option<checked_trees::IntegerRangeRecipe>,
-        )>,
-    >,
+    cached_actuals: &mut Option<Vec<(symbols::SymbolHandle, Interval, Option<IntegerRangeRecipe>)>>,
 ) -> Option<Analysis> {
     let program = walk.program;
     let return_type = call_return_type(program, call)?;
@@ -427,13 +422,7 @@ fn exact_ordinary_actual_intervals(
     walk: &ExpressionWalk,
     call: &TableCallExpression,
     child_values: Option<&[super::CheckedIntegerValue]>,
-) -> Option<
-    Vec<(
-        symbols::SymbolHandle,
-        Interval,
-        Option<checked_trees::IntegerRangeRecipe>,
-    )>,
-> {
+) -> Option<Vec<(symbols::SymbolHandle, Interval, Option<IntegerRangeRecipe>)>> {
     if !call.selects_only_nominal_route() {
         return None;
     }
@@ -495,13 +484,7 @@ fn inferred_return_range(
     walk: &ExpressionWalk,
     call: &TableCallExpression,
     child_values: Option<&[super::CheckedIntegerValue]>,
-    cached_actuals: &mut Option<
-        Vec<(
-            symbols::SymbolHandle,
-            Interval,
-            Option<checked_trees::IntegerRangeRecipe>,
-        )>,
-    >,
+    cached_actuals: &mut Option<Vec<(symbols::SymbolHandle, Interval, Option<IntegerRangeRecipe>)>>,
 ) -> Option<Analysis> {
     let program = walk.program;
     let inference = walk.return_ranges?;

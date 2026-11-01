@@ -8,6 +8,8 @@ use super::member_resolution::resolve_member_symbol_from_type_symbol;
 use crate::first_valid_name_path_symbol;
 use crate::frozen_program::expression_table;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use facts::PlaceRoot;
+use member_resolution::MemberPosition;
 use symbols::SymbolHandle;
 
 pub fn contextual_canonical_place_from_expression(
@@ -58,7 +60,7 @@ pub fn contextual_canonical_place_from_expression(
                 path,
             )?;
             let mut place = CanonicalPlace {
-                root: facts::PlaceRoot::Symbol(root_symbol),
+                root: PlaceRoot::Symbol(root_symbol),
                 segments: Vec::new(),
             };
             let members = expression_table(program).name_path_members(path.members);
@@ -178,20 +180,16 @@ pub(super) fn resolve_member_symbol_from_place(
     retained: SymbolHandle,
 ) -> Option<SymbolHandle> {
     let position = match place.root {
-        facts::PlaceRoot::Symbol(symbol) => {
-            member_resolution::symbol_type_position(program, symbol)?
-        }
-        facts::PlaceRoot::Expression(expression) => {
+        PlaceRoot::Symbol(symbol) => member_resolution::symbol_type_position(program, symbol)?,
+        PlaceRoot::Expression(expression) => {
             member_resolution::expression_type_position(program, expression)?
         }
         // A type-reference root names the place's own stored type: the walk
         // resumes at that reference with its reaching application intact.
-        facts::PlaceRoot::TypeReference(reference) => {
-            member_resolution::MemberPosition::Reference(reference)
-        }
-        facts::PlaceRoot::Unknown
-        | facts::PlaceRoot::InvocationReferent { .. }
-        | facts::PlaceRoot::InvocationOutput(_) => return None,
+        PlaceRoot::TypeReference(reference) => MemberPosition::Reference(reference),
+        PlaceRoot::Unknown
+        | PlaceRoot::InvocationReferent { .. }
+        | PlaceRoot::InvocationOutput(_) => return None,
     };
 
     // The segment hops are the shared fold `member_position_after_segments`

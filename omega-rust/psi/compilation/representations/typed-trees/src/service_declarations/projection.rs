@@ -11,6 +11,9 @@ mod applied_receivers;
 mod correspondence;
 
 use super::ProviderSchemaDeclaration;
+use crate::boundary_completions::boundary_requirement_completion;
+use crate::operator::boundary_operator_requirement_identity;
+use crate::types::DomainConstraint;
 use language_semantics::service_surface::identities::ProviderIdentityTable;
 use std::sync::Arc;
 
@@ -124,9 +127,8 @@ pub fn from_typed_operator<'program>(
         return None;
     }
     let mut identities = ProviderIdentityTable::default();
-    let requirement_identity = identities.intern(
-        &crate::operator::boundary_operator_requirement_identity(program, operator),
-    );
+    let requirement_identity =
+        identities.intern(&boundary_operator_requirement_identity(program, operator));
     Some(ProjectedServiceSurface {
         program,
         schema: ProviderSchemaDeclaration::BoundaryOperator(operator.symbol),
@@ -140,14 +142,9 @@ pub fn from_typed_operator<'program>(
             receiver_applications: Vec::new(),
             trait_package_identity: program.symbols.symbol_package_identity(operator.symbol),
             methods: vec![ServiceMethod {
-                completion: crate::boundary_completions::boundary_requirement_completion(
-                    program,
-                    operator.symbol,
-                ),
+                completion: boundary_requirement_completion(program, operator.symbol),
                 name: "realize".to_owned(),
-                requirement_owner: crate::operator::boundary_operator_requirement_identity(
-                    program, operator,
-                ),
+                requirement_owner: boundary_operator_requirement_identity(program, operator),
                 requirement_owner_package_identity: program
                     .symbols
                     .symbol_package_identity(operator.symbol),
@@ -260,10 +257,7 @@ pub fn project_boundary_machine_schema<'program>(
             trait_package_identity: package_identity,
             receiver_applications: Vec::new(),
             methods: vec![ServiceMethod {
-                completion: crate::boundary_completions::boundary_requirement_completion(
-                    program,
-                    requirement.symbol,
-                ),
+                completion: boundary_requirement_completion(program, requirement.symbol),
                 name: method_name.to_owned(),
                 requirement_owner: requirement_owner.to_owned(),
                 requirement_owner_package_identity: package_identity,
@@ -321,10 +315,7 @@ fn collect_service_methods(
             symbol: signature.symbol,
         });
         methods.push(ServiceMethod {
-            completion: crate::boundary_completions::boundary_requirement_completion(
-                program,
-                signature.symbol,
-            ),
+            completion: boundary_requirement_completion(program, signature.symbol),
             name: signature.name.as_str().to_owned(),
             requirement_owner: program.trait_declaration_path(trait_definition),
             requirement_owner_package_identity: program
@@ -565,7 +556,7 @@ fn for_each_establishing_domain<'scope, Visitor>(
     requirement: symbols::SymbolHandle,
     visit: &mut Visitor,
 ) where
-    Visitor: FnMut(AppliedTypeReference<'scope>, &crate::types::DomainConstraint),
+    Visitor: FnMut(AppliedTypeReference<'scope>, &DomainConstraint),
 {
     use crate::types::{TypeConstraintNode, TypeReferenceNode};
 
@@ -610,10 +601,7 @@ fn for_each_establishing_domain<'scope, Visitor>(
 
 /// The domain coordinate a claim publishes: the registered semantic domain's
 /// name, or the authored spelling when the constraint carries no registration.
-fn domain_claim_name(
-    program: &crate::TypedTrees,
-    domain: &crate::types::DomainConstraint,
-) -> String {
+fn domain_claim_name(program: &crate::TypedTrees, domain: &DomainConstraint) -> String {
     domain
         .semantic_id
         .is_valid()

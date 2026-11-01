@@ -1,5 +1,6 @@
 //! Complete record storage is published only after all field writes.
 use super::super::{IntegerValue, ValueId};
+use super::encoded_scalar::{backing_address, constant_codec};
 use super::{
     Builder, LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
     PlaceId, SelectedInstructionProvenance, SelectedMemoryAccessRole, VirtualRegisterId, memory,
@@ -9,6 +10,9 @@ use crate::selection::construction::scalar_graph::structural::invalid;
 use crate::selection::construction::scalar_graph::structural::local_storage;
 use crate::selection::construction::scalar_graph::structural::provenance;
 use crate::selection::construction::scalar_graph::structural::transport_register;
+use crate::structural_inputs::structural_reference_input::{
+    scalar_field_codec, scalar_field_fragments,
+};
 pub(super) fn establish(
     source: &LegalizedScalarFunction,
     row: &LegalizedScalarInstruction,
@@ -126,12 +130,7 @@ pub(super) fn write_fields(
                     .ok_or_else(invalid)?
                     .structural_types;
                 if let Some(fragments) =
-                    crate::structural_inputs::structural_reference_input::scalar_field_fragments(
-                        parent,
-                        &[],
-                        initializer.field,
-                        declarations,
-                    )
+                    scalar_field_fragments(parent, &[], initializer.field, declarations)
                 {
                     super::fragmented_scalar::write(
                         builder,
@@ -145,13 +144,7 @@ pub(super) fn write_fields(
                     )?;
                     continue;
                 }
-                let codec =
-                    crate::structural_inputs::structural_reference_input::scalar_field_codec(
-                        parent,
-                        &[],
-                        initializer.field,
-                        declarations,
-                    );
+                let codec = scalar_field_codec(parent, &[], initializer.field, declarations);
                 if let Some(codec) = codec {
                     let canonical =
                         runtime_abi::ScalarStorageCodec::from_scalar(scalar).ok_or_else(invalid)?;
@@ -159,19 +152,8 @@ pub(super) fn write_fields(
                         return Err(invalid());
                     }
                     if codec != canonical || matches!(codec.byte_size(), 3 | 5 | 6 | 7) {
-                        let address = super::encoded_scalar::backing_address(
-                            builder,
-                            row,
-                            destination,
-                            pointer,
-                            offset,
-                        )?;
-                        let codec = super::encoded_scalar::constant_codec(
-                            builder,
-                            row,
-                            destination,
-                            codec,
-                        )?;
+                        let address = backing_address(builder, row, destination, pointer, offset)?;
+                        let codec = constant_codec(builder, row, destination, codec)?;
                         super::encoded_scalar::write(
                             builder,
                             row,

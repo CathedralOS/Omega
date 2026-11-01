@@ -12,6 +12,7 @@
 use crate::build_time_evaluation::EvaluationDomain;
 use diagnostics::Diagnostic;
 use source::SourceSpan;
+use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees_to_seeded_base;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::machine::MachineBodyStatus;
@@ -150,10 +151,8 @@ pub(crate) fn prepare_call_free_probe_typing(
         let (typing, _) = predecessor.append_deferred(extension)?;
         typing
     } else {
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees_to_seeded_base(
-            frontier.shared_trees(),
-        )
-        .map_err(|diagnostic| vec![diagnostic])?
+        lower_symbol_resolved_trees_to_seeded_base(frontier.shared_trees())
+            .map_err(|diagnostic| vec![diagnostic])?
     };
     Ok(typing.into_typed())
 }
@@ -249,10 +248,8 @@ fn prepare_evaluation_inputs_with_owners(
         frontier = rebased;
         typing
     } else {
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees_to_seeded_base(
-            frontier.shared_trees(),
-        )
-        .map_err(|diagnostic| vec![diagnostic])?
+        lower_symbol_resolved_trees_to_seeded_base(frontier.shared_trees())
+            .map_err(|diagnostic| vec![diagnostic])?
     };
     let mut execution = execution;
     validate_declaration_roots(typing.typed(), declaration_roots)?;
@@ -268,7 +265,11 @@ fn prepare_evaluation_inputs_with_owners(
         // raw syntax. Use the existing operational graph, not token spellings or
         // a second expression walker, to demand those same selected bodies.
         let operators = validation::derive_pre_flow_operator_selections(typing.typed());
-        selected_body_dependencies(typing.typed(), &operators, &mut execution);
+        crate::BuildTimeAdmissionPlan::infer_execution_dependencies(
+            typing.typed(),
+            &operators,
+            &mut execution,
+        );
         let (work, selection) = declaration_dependencies(
             typing.typed(),
             &operators,
@@ -324,12 +325,19 @@ fn validate_declaration_roots(
     Ok(())
 }
 
-fn selected_body_dependencies(
-    program: &TypedTrees,
-    operators: &checked_trees::CheckedOperatorFacts,
-    execution: &mut Vec<SymbolHandle>,
-) {
-    crate::BuildTimeAdmissionPlan::infer_execution_dependencies(program, operators, execution);
+/// Only a callable reference demands its implementation. Lexical ancestry
+/// retains declaration context, not the bodies enclosing a type or constant.
+fn dependency_machine(program: &TypedTrees, dependency: SymbolHandle) -> SymbolHandle {
+    if !dependency.is_valid() {
+        return SymbolHandle::invalid();
+    }
+    match program.symbols.get(dependency).kind {
+        symbols::SymbolKind::Machine => dependency,
+        symbols::SymbolKind::State => program
+            .machine_holding_state(dependency)
+            .map_or_else(SymbolHandle::invalid, |machine| machine.symbol),
+        _ => SymbolHandle::invalid(),
+    }
 }
 
 /// Calls are not the whole checking domain: a demanded signature, data predicate,
@@ -365,8 +373,13 @@ fn declaration_dependencies(
         if has_endpoint_owners && endpoint_owners != DeclarationSelection::from_symbols([]) {
             let endpoint_refs = collect_selected_program_references(program, &endpoint_owners);
             for mut symbol in endpoint_refs.symbols {
+                let body = dependency_machine(program, symbol);
                 while symbol.is_valid() {
-                    if roster.contains(symbol) && !endpoint_owners.contains(symbol) {
+                    if roster.contains(symbol)
+                        && !endpoint_owners.contains(symbol)
+                        && (program.symbols.get(symbol).kind != symbols::SymbolKind::Machine
+                            || symbol == body)
+                    {
                         selection.include(symbol);
                     }
                     symbol = program.symbols.get(symbol).parent;
@@ -430,8 +443,13 @@ fn declaration_dependencies(
             );
         }
         for mut symbol in referenced_symbols {
+            let body = dependency_machine(program, symbol);
             while symbol.is_valid() {
-                if roster.contains(symbol) && !selection.contains(symbol) {
+                if roster.contains(symbol)
+                    && !selection.contains(symbol)
+                    && (program.symbols.get(symbol).kind != symbols::SymbolKind::Machine
+                        || symbol == body)
+                {
                     selection.include(symbol);
                     changed = true;
                 }

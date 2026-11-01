@@ -1,3 +1,4 @@
+use crate::CheckingInput;
 use diagnostics::Diagnostic;
 use typed_trees::type_identity::CallableIdentityId;
 
@@ -8,17 +9,14 @@ use typed_trees::type_identity::CallableIdentityId;
 /// are selected later from the call site's expected result type. Fixed
 /// operators deliberately use their separate operand-directed validator.
 pub(crate) fn validate_named_callable_overload_declarations(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     validate_machine_overloads(program, diagnostics);
     validate_trait_requirement_overloads(program, diagnostics);
 }
 
-fn validate_machine_overloads(
-    program: &dyn crate::CheckingInput,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
+fn validate_machine_overloads(program: &dyn CheckingInput, diagnostics: &mut Vec<Diagnostic>) {
     let mut seen: Vec<(CallableIdentityId, symbols::SymbolHandle)> = Vec::new();
     // A target sibling shares its family's name and signature by design; each
     // target's one body per path is validated before resolution.
@@ -45,7 +43,7 @@ fn validate_machine_overloads(
 }
 
 fn validate_trait_requirement_overloads(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for trait_definition in program.traits() {
@@ -68,7 +66,7 @@ fn validate_trait_requirement_overloads(
 }
 
 fn duplicate_diagnostic(
-    program: &dyn crate::CheckingInput,
+    program: &dyn CheckingInput,
     kind: &str,
     identity: CallableIdentityId,
 ) -> Diagnostic {

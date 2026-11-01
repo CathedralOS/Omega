@@ -34,7 +34,7 @@ pub use typed_trees::evidence::{
 };
 pub use typed_trees::inspection::snapshot;
 pub use typed_trees::names::{identity, name};
-pub use typed_trees::type_system::{closed_numeric, type_identity, types};
+pub use typed_trees::type_system::{CaseMembershipTypeFacts, closed_numeric, type_identity, types};
 pub use typed_trees::values::const_integer;
 pub use typed_trees::values::expression;
 
@@ -51,7 +51,7 @@ pub use typed_trees::{
     PlanLaidBitFragment, PlanLaidGeometry, PlanLaidIntegerField, PlanLaidLayout,
     PlanLaidRealizations, PlanLaidRepeatedField, PlanLaidRetiredFieldIdentity,
     PlanLaidSchemaArgument, PlanLaidSchemaField, PlanLaidSchemaFieldKind, PlanLaidTargetLayout,
-    ProgramIdentity, ScalarAccessorDeclaration, ScalarAccessorOperation, TypedTreeRoots,
-    TypedTreeTables, TypedTrees, closed_conformance_applications_of,
+    ProgramIdentity, ScalarAccessorDeclaration, ScalarAccessorOperation, SymbolRebinding,
+    TypedTreeRoots, TypedTreeTables, TypedTrees, closed_conformance_applications_of,
     machine_specialization_matches_template_identity,
 };

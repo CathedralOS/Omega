@@ -18,6 +18,7 @@ use diagnostics::Diagnostic;
 use numerics::literals::{IntegerLanding, IntegerLiteral, IntegerRadix, LandedIntegerType};
 use typed_trees::TypedTrees;
 use typed_trees::expression::{DataLayoutQueryRequest, ExpressionNode};
+use typed_trees::references::DeclarationSelection;
 use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
 /// Whether selected declarations retain target-dependent observations. A
@@ -32,7 +33,7 @@ use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNod
 /// make an otherwise semantic aggregate constant a scalar observation.
 pub(crate) fn has_pending_target_observations(
     typed: &TypedTrees,
-    selection: &typed_trees::references::DeclarationSelection,
+    selection: &DeclarationSelection,
 ) -> bool {
     typed_trees::references::collect_selected_program_references(typed, selection)
         .expressions
@@ -54,10 +55,7 @@ pub(crate) fn has_pending_target_observations(
 /// Recast formation consumes the actual source and target storage geometry.
 /// Plain scalar bit/qualification views remain semantic constants. Only an
 /// unresolved representation application defers this operation's value job.
-fn has_pending_recast_geometry(
-    typed: &TypedTrees,
-    selection: &typed_trees::references::DeclarationSelection,
-) -> bool {
+fn has_pending_recast_geometry(typed: &TypedTrees, selection: &DeclarationSelection) -> bool {
     let casts = typed_trees::references::collect_selected_program_references(typed, selection)
         .expressions
         .into_iter()
@@ -151,7 +149,7 @@ pub trait LayoutQueryMeasurements {
 pub fn fold_data_layout_queries(
     program: &mut TypedTrees,
     defer_uninstalled_plans: bool,
-    selection: &typed_trees::references::DeclarationSelection,
+    selection: &DeclarationSelection,
     provider: &impl LayoutQueryProvider,
 ) -> Result<(), Vec<Diagnostic>> {
     // The proof-only classification is computed over the typed program;
@@ -184,7 +182,12 @@ pub fn fold_data_layout_queries(
     let measurements = provider.prepare(program);
     for (handle, query, reference) in queries {
         let operand = query.operand.type_reference;
-        if defer_uninstalled_plans && plan_laid_operand_pending_installation(program, operand) {
+        // An exact fixed-representation application waits for its validated plan;
+        // ordinary record packing cannot supply a provisional answer.
+        if defer_uninstalled_plans
+            && program.layout_storage_arguments(operand).is_some()
+            && program.plan_laid_layout_for_type(operand).is_none()
+        {
             continue;
         }
         let spelling = query.kind.target_name();
@@ -231,16 +234,6 @@ pub fn fold_data_layout_queries(
         *program.expression_table.expression_mut(handle) = ExpressionNode::Integer(literal);
     }
     Ok(())
-}
-
-/// An exact fixed-representation application waits for its validated plan;
-/// ordinary record packing cannot supply a provisional answer.
-fn plan_laid_operand_pending_installation(
-    program: &TypedTrees,
-    operand: TypeReferenceHandle,
-) -> bool {
-    program.layout_storage_arguments(operand).is_some()
-        && program.plan_laid_layout_for_type(operand).is_none()
 }
 
 /// A `layout_type_reference` of an unresolved fixed array returns the

@@ -6,7 +6,7 @@ use crate::selected_form_encoding::trapping_forms::{
     DividendGuard, RangeCheck, TrappingArithmetic, TrappingShape,
 };
 use selected_instructions::{
-    MachineAlternativeKey, SaturatingCarrier, SaturatingOperation, SelectedInstructionKind,
+    MachineAlternativeKey, SaturatingCarrier, SaturatingOperation, SelectedInstructionKind as Kind,
     TrappingForm,
 };
 use semantic_vocabulary::IntegerValue;
@@ -517,30 +517,30 @@ fn append_lea_immediate(bytes: &mut Vec<u8>, base: u8, destination: u8, displace
 }
 
 pub(crate) fn encode_unchecked(
-    kind: SelectedInstructionKind,
+    kind: Kind,
     alternative: MachineAlternativeKey,
     registers: &[u8],
 ) -> Result<Vec<u8>, X86_64SelectedFormEncodingError> {
     let mut bytes = Vec::new();
     match kind {
-        SelectedInstructionKind::RegisterAccess { operation } => {
+        Kind::RegisterAccess { operation } => {
             return super::register_access::encode(operation, registers);
         }
-        SelectedInstructionKind::AtomicAccess { form } => bytes.extend(
-            crate::selected_form_encoding::atomic::encode(form, &registers)?,
-        ),
+        Kind::AtomicAccess { form } => bytes.extend(crate::selected_form_encoding::atomic::encode(
+            form, &registers,
+        )?),
         // Float arithmetic is encoded only by its own module.
-        SelectedInstructionKind::AccessorScalarAccess { .. }
-        | SelectedInstructionKind::NearestIeeeFloatArithmetic { .. }
-        | SelectedInstructionKind::FloatResultPolicy { .. } => {
+        Kind::AccessorScalarAccess { .. }
+        | Kind::NearestIeeeFloatArithmetic { .. }
+        | Kind::FloatResultPolicy { .. } => {
             return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
         }
-        SelectedInstructionKind::PortWrite { port, value } => {
+        Kind::PortWrite { port, value } => {
             bytes.extend_from_slice(&x86_encoding::encode_immediate_port_write(port, value))
         }
-        SelectedInstructionKind::AtomicFence => bytes.extend_from_slice(&[0x0f, 0xae, 0xf0]),
-        SelectedInstructionKind::Crash => bytes.extend_from_slice(&[0x0f, 0x0b]),
-        SelectedInstructionKind::MaterializeI64 { value } if alternative.variant == 1 => {
+        Kind::AtomicFence => bytes.extend_from_slice(&[0x0f, 0xae, 0xf0]),
+        Kind::Crash => bytes.extend_from_slice(&[0x0f, 0x0b]),
+        Kind::MaterializeI64 { value } if alternative.variant == 1 => {
             // The dependency-breaking zero idiom realizes exactly zero; any
             // other value has no three-byte form and names the wrong variant.
             if integer_bits(value)? != 0 {
@@ -548,24 +548,24 @@ pub(crate) fn encode_unchecked(
             }
             append_self_clear(&mut bytes, registers[0]);
         }
-        SelectedInstructionKind::MaterializeI64 { value } => {
+        Kind::MaterializeI64 { value } => {
             bytes.extend([0x48 | (registers[0] >> 3), 0xb8 | (registers[0] & 7)]);
             bytes.extend(integer_bits(value)?.to_le_bytes());
         }
-        SelectedInstructionKind::ImageAddress { .. } => {
+        Kind::ImageAddress { .. } => {
             bytes.extend(byte_literal_address_bytes(registers[0]));
         }
-        SelectedInstructionKind::MaterializeBooleanEqual
-        | SelectedInstructionKind::MaterializeBooleanU64LessThan
-        | SelectedInstructionKind::MaterializeBooleanI64LessThan
-        | SelectedInstructionKind::MaterializeBooleanU64LessOrEqual
-        | SelectedInstructionKind::MaterializeBooleanI64LessOrEqual => {
+        Kind::MaterializeBooleanEqual
+        | Kind::MaterializeBooleanU64LessThan
+        | Kind::MaterializeBooleanI64LessThan
+        | Kind::MaterializeBooleanU64LessOrEqual
+        | Kind::MaterializeBooleanI64LessOrEqual => {
             let condition = match kind {
-                SelectedInstructionKind::MaterializeBooleanEqual => 4,
-                SelectedInstructionKind::MaterializeBooleanU64LessThan => 2,
-                SelectedInstructionKind::MaterializeBooleanI64LessThan => 12,
-                SelectedInstructionKind::MaterializeBooleanU64LessOrEqual => 6,
-                SelectedInstructionKind::MaterializeBooleanI64LessOrEqual => 14,
+                Kind::MaterializeBooleanEqual => 4,
+                Kind::MaterializeBooleanU64LessThan => 2,
+                Kind::MaterializeBooleanI64LessThan => 12,
+                Kind::MaterializeBooleanU64LessOrEqual => 6,
+                Kind::MaterializeBooleanI64LessOrEqual => 14,
                 _ => unreachable!("Boolean condition arm"),
             };
             let destination = registers[0];
@@ -582,7 +582,7 @@ pub(crate) fn encode_unchecked(
                 0xc0 | ((destination & 7) << 3) | (destination & 7),
             ]);
         }
-        SelectedInstructionKind::ZeroExtendU8 => {
+        Kind::ZeroExtendU8 => {
             bytes.extend([
                 0x40 | ((registers[1] >> 3) << 2) | (registers[0] >> 3),
                 0x0f,
@@ -590,7 +590,7 @@ pub(crate) fn encode_unchecked(
                 0xc0 | ((registers[1] & 7) << 3) | (registers[0] & 7),
             ]);
         }
-        SelectedInstructionKind::ZeroExtendU16 => {
+        Kind::ZeroExtendU16 => {
             bytes.extend([
                 0x40 | ((registers[1] >> 3) << 2) | (registers[0] >> 3),
                 0x0f,
@@ -598,7 +598,7 @@ pub(crate) fn encode_unchecked(
                 0xc0 | ((registers[1] & 7) << 3) | (registers[0] & 7),
             ]);
         }
-        SelectedInstructionKind::SignExtendI8 => {
+        Kind::SignExtendI8 => {
             bytes.extend([
                 0x48 | ((registers[1] >> 3) << 2) | (registers[0] >> 3),
                 0x0f,
@@ -606,7 +606,7 @@ pub(crate) fn encode_unchecked(
                 0xc0 | ((registers[1] & 7) << 3) | (registers[0] & 7),
             ]);
         }
-        SelectedInstructionKind::SignExtendI16 => {
+        Kind::SignExtendI16 => {
             bytes.extend([
                 0x48 | ((registers[1] >> 3) << 2) | (registers[0] >> 3),
                 0x0f,
@@ -614,45 +614,43 @@ pub(crate) fn encode_unchecked(
                 0xc0 | ((registers[1] & 7) << 3) | (registers[0] & 7),
             ]);
         }
-        SelectedInstructionKind::SignExtendI32 => {
+        Kind::SignExtendI32 => {
             bytes.extend([
                 0x48 | ((registers[1] >> 3) << 2) | (registers[0] >> 3),
                 0x63,
                 0xc0 | ((registers[1] & 7) << 3) | (registers[0] & 7),
             ]);
         }
-        SelectedInstructionKind::ZeroExtendU32 => {
+        Kind::ZeroExtendU32 => {
             bytes.extend([
                 0x40 | ((registers[0] >> 3) << 2) | (registers[1] >> 3),
                 0x89,
                 0xc0 | ((registers[0] & 7) << 3) | (registers[1] & 7),
             ]);
         }
-        SelectedInstructionKind::CopyI64 => {
+        Kind::CopyI64 => {
             append_register_binary(&mut bytes, 0x89, registers[0], registers[1]);
         }
-        SelectedInstructionKind::CompareI64Zero => {
+        Kind::CompareI64Zero => {
             append_self_test(&mut bytes, registers[0]);
         }
-        SelectedInstructionKind::CompareI64 => {
+        Kind::CompareI64 => {
             append_register_compare(&mut bytes, registers[1], registers[0]);
         }
-        SelectedInstructionKind::CompareI64Immediate { immediate } => {
+        Kind::CompareI64Immediate { immediate } => {
             bytes.extend([rex(0, 0, registers[0]), 0x81, modrm(3, 7, registers[0])]);
             bytes.extend(u12(immediate)?.to_le_bytes());
         }
-        SelectedInstructionKind::ByteViewAddress
-        | SelectedInstructionKind::WrappingAddI64
-        | SelectedInstructionKind::ExactAddI64 { .. } => {
+        Kind::ByteViewAddress | Kind::WrappingAddI64 | Kind::ExactAddI64 { .. } => {
             append_lea_register(&mut bytes, registers[0], registers[1], registers[2]);
         }
-        SelectedInstructionKind::ExactDivideU64 { .. } => {
+        Kind::ExactDivideU64 { .. } => {
             if registers[0] != 0 || registers[2] != 0 || registers[3] != 2 || registers[1] == 2 {
                 return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
             }
             bytes.extend([rex(0, 0, registers[1]), 0xf7, modrm(3, 6, registers[1])]);
         }
-        SelectedInstructionKind::ExactRemainderU64 { .. } => {
+        Kind::ExactRemainderU64 { .. } => {
             if registers[0] != 0 || registers[2] != 0 || registers[3] != 2 || registers[1] == 2 {
                 return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
             }
@@ -662,7 +660,7 @@ pub(crate) fn encode_unchecked(
             bytes.extend([rex(0, 0, registers[1]), 0xf7, modrm(3, 6, registers[1])]);
             append_register_binary(&mut bytes, 0x89, registers[3], registers[2]);
         }
-        SelectedInstructionKind::WrappingDivideI64 { .. } => {
+        Kind::WrappingDivideI64 { .. } => {
             if registers[0] != 0 || registers[2] != 0 || registers[3] != 2 || registers[1] == 2 {
                 return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
             }
@@ -681,7 +679,7 @@ pub(crate) fn encode_unchecked(
             bytes.extend([0xeb, 5]);
             append_signed_divide(&mut bytes, registers[1]);
         }
-        SelectedInstructionKind::ExactDivideI64 { .. } => {
+        Kind::ExactDivideI64 { .. } => {
             if registers[0] != 0 || registers[2] != 0 || registers[3] != 2 || registers[1] == 2 {
                 return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
             }
@@ -689,14 +687,14 @@ pub(crate) fn encode_unchecked(
             // divisor and the out-of-range quotient pair.
             append_signed_divide(&mut bytes, registers[1]);
         }
-        SelectedInstructionKind::ExactRemainderI64 { .. } => {
+        Kind::ExactRemainderI64 { .. } => {
             if registers[0] != 0 || registers[2] != 0 || registers[3] != 2 || registers[1] == 2 {
                 return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
             }
             append_signed_divide(&mut bytes, registers[1]);
             append_register_binary(&mut bytes, 0x89, registers[3], registers[2]);
         }
-        SelectedInstructionKind::WrappingRemainderI64 { .. } => {
+        Kind::WrappingRemainderI64 { .. } => {
             if registers[0] != 0 || registers[2] != 0 || registers[3] != 2 || registers[1] == 2 {
                 return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
             }
@@ -713,10 +711,10 @@ pub(crate) fn encode_unchecked(
             bytes.extend([rex(0, 0, registers[1]), 0xf7, modrm(3, 7, registers[1])]);
             append_register_binary(&mut bytes, 0x89, registers[3], registers[2]);
         }
-        SelectedInstructionKind::SaturatingAdd { carrier } => {
+        Kind::SaturatingAdd { carrier } => {
             append_saturating(&mut bytes, SaturatingOperation::Add, carrier, registers)?;
         }
-        SelectedInstructionKind::SaturatingSubtract { carrier } => {
+        Kind::SaturatingSubtract { carrier } => {
             append_saturating(
                 &mut bytes,
                 SaturatingOperation::Subtract,
@@ -724,10 +722,10 @@ pub(crate) fn encode_unchecked(
                 registers,
             )?;
         }
-        SelectedInstructionKind::SaturatingDivide { carrier, .. } => {
+        Kind::SaturatingDivide { carrier, .. } => {
             append_saturating(&mut bytes, SaturatingOperation::Divide, carrier, registers)?;
         }
-        SelectedInstructionKind::SaturatingRemainder { carrier, .. } => {
+        Kind::SaturatingRemainder { carrier, .. } => {
             append_saturating(
                 &mut bytes,
                 SaturatingOperation::Remainder,
@@ -735,7 +733,7 @@ pub(crate) fn encode_unchecked(
                 registers,
             )?;
         }
-        SelectedInstructionKind::SaturatingMultiply { carrier } => {
+        Kind::SaturatingMultiply { carrier } => {
             append_saturating(
                 &mut bytes,
                 SaturatingOperation::Multiply,
@@ -743,17 +741,15 @@ pub(crate) fn encode_unchecked(
                 registers,
             )?;
         }
-        SelectedInstructionKind::TrappingInteger { form } => {
+        Kind::TrappingInteger { form } => {
             append_trapping(&mut bytes, form, registers)?;
         }
-        SelectedInstructionKind::BitwiseAndI64
-        | SelectedInstructionKind::BitwiseOrI64
-        | SelectedInstructionKind::BitwiseXorI64 => {
+        Kind::BitwiseAndI64 | Kind::BitwiseOrI64 | Kind::BitwiseXorI64 => {
             // Both operations commute, so either input may already own the
             // output register. A distinct output needs one non-destructive copy.
             let opcode = match kind {
-                SelectedInstructionKind::BitwiseXorI64 => 0x31,
-                SelectedInstructionKind::BitwiseOrI64 => 0x09,
+                Kind::BitwiseXorI64 => 0x31,
+                Kind::BitwiseOrI64 => 0x09,
                 _ => 0x21,
             };
             if registers[2] == registers[0] {
@@ -765,7 +761,7 @@ pub(crate) fn encode_unchecked(
                 append_register_binary(&mut bytes, opcode, registers[1], registers[2]);
             }
         }
-        SelectedInstructionKind::BitwiseNotI64 => {
+        Kind::BitwiseNotI64 => {
             // NOT is a one-operand in-place form; a distinct result first
             // takes a non-destructive copy of the input.
             if registers[1] != registers[0] {
@@ -773,7 +769,7 @@ pub(crate) fn encode_unchecked(
             }
             bytes.extend([rex(0, 0, registers[1]), 0xf7, modrm(3, 2, registers[1])]);
         }
-        SelectedInstructionKind::ExactAddI64Immediate { immediate, .. } => {
+        Kind::ExactAddI64Immediate { immediate, .. } => {
             append_lea_immediate(
                 &mut bytes,
                 registers[0],
@@ -781,7 +777,7 @@ pub(crate) fn encode_unchecked(
                 i32::try_from(u12(immediate)?).expect("u12 fits i32"),
             );
         }
-        SelectedInstructionKind::ExactSubtractI64Immediate { immediate, .. } => {
+        Kind::ExactSubtractI64Immediate { immediate, .. } => {
             append_lea_immediate(
                 &mut bytes,
                 registers[0],
@@ -789,8 +785,7 @@ pub(crate) fn encode_unchecked(
                 -i32::try_from(u12(immediate)?).expect("u12 fits i32"),
             );
         }
-        SelectedInstructionKind::ExactSubtractI64 { .. }
-        | SelectedInstructionKind::WrappingSubtractI64 => match alternative.variant {
+        Kind::ExactSubtractI64 { .. } | Kind::WrappingSubtractI64 => match alternative.variant {
             0 => append_self_clear(&mut bytes, registers[2]),
             1 => append_register_binary(&mut bytes, 0x29, registers[1], registers[2]),
             2 => {
@@ -803,8 +798,7 @@ pub(crate) fn encode_unchecked(
             }
             _ => return Err(X86_64SelectedFormEncodingError::AlternativeMismatch),
         },
-        SelectedInstructionKind::ExactMultiplyI64 { .. }
-        | SelectedInstructionKind::WrappingMultiplyI64 => {
+        Kind::ExactMultiplyI64 { .. } | Kind::WrappingMultiplyI64 => {
             // `imul destination, source` multiplies the destination by the
             // source in place; multiplication commutes, so the aliased input
             // may hold either factor.
@@ -827,11 +821,11 @@ pub(crate) fn encode_unchecked(
                 _ => return Err(X86_64SelectedFormEncodingError::AlternativeMismatch),
             }
         }
-        SelectedInstructionKind::WrappingShiftLeftI64
-        | SelectedInstructionKind::WrappingShiftRightI64
-        | SelectedInstructionKind::WrappingShiftRightU64
+        Kind::WrappingShiftLeftI64
+        | Kind::WrappingShiftRightI64
+        | Kind::WrappingShiftRightU64
         | selected_instructions::exact_shift_i64_pair_pattern!()
-        | SelectedInstructionKind::ExactShiftRightU64 { .. } => {
+        | Kind::ExactShiftRightU64 { .. } => {
             // D3 /digit shifts r/m64 by CL: the count source must be the
             // pinned RCX view (code 1), the result takes a copy of the value
             // first because the shift form is in-place, and the digit picks
@@ -841,18 +835,14 @@ pub(crate) fn encode_unchecked(
                 return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
             }
             let digit = match kind {
-                SelectedInstructionKind::WrappingShiftLeftI64
-                | SelectedInstructionKind::ExactShiftLeftI64 { .. } => 4,
-                SelectedInstructionKind::WrappingShiftRightU64
-                | SelectedInstructionKind::ExactShiftRightU64 { .. } => 5,
+                Kind::WrappingShiftLeftI64 | Kind::ExactShiftLeftI64 { .. } => 4,
+                Kind::WrappingShiftRightU64 | Kind::ExactShiftRightU64 { .. } => 5,
                 _ => 7,
             };
             append_register_binary(&mut bytes, 0x89, registers[0], registers[2]);
             bytes.extend([rex(0, 0, registers[2]), 0xd3, modrm(3, digit, registers[2])]);
         }
-        SelectedInstructionKind::ReturnScalar
-        | SelectedInstructionKind::ReturnAggregate { .. }
-        | SelectedInstructionKind::ReturnUnit => {
+        Kind::ReturnScalar | Kind::ReturnAggregate { .. } | Kind::ReturnUnit => {
             bytes.extend_from_slice(&crate::ORDINARY_RETURN_BYTES)
         }
         selected_instructions::layout_dependent_selected_transfers!()

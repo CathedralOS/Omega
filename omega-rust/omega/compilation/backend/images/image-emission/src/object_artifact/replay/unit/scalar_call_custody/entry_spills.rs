@@ -1,5 +1,8 @@
 //! Rejoin entry-register preservation to the actual Unit ABI and frame.
 
+use crate::object_artifact::replay::unit::call_custody::parameter_staging::expected_bytes;
+use crate::object_artifact::replay::unit::call_custody::result_home::parameter_storage_end;
+use crate::object_artifact::replay::unit::stack::x86_64_stack_adjustment;
 use calling_conventions::ValueLocation;
 use machine_code::{
     ParameterFunctionAbiRecord, UnitEntryRegisterSpillRecord, UnitParameterHomeRecord,
@@ -14,11 +17,7 @@ fn spill_code_start(target: NativeTarget, frame_bytes: u32) -> usize {
             if frame_bytes == 0 {
                 0
             } else {
-                crate::object_artifact::replay::unit::stack::x86_64_stack_adjustment(
-                    frame_bytes,
-                    false,
-                )
-                .len()
+                x86_64_stack_adjustment(frame_bytes, false).len()
             }
         }
         Architecture::Aarch64 => 8,
@@ -31,10 +30,7 @@ pub(crate) fn storage_end(
     abi: Option<&ParameterFunctionAbiRecord>,
     has_continuations: bool,
 ) -> Option<u32> {
-    let mut cursor =
-        crate::object_artifact::replay::unit::call_custody::result_home::parameter_storage_end(
-            target, parameters, abi,
-        )?;
+    let mut cursor = parameter_storage_end(target, parameters, abi)?;
     let Some(abi) = abi else {
         return Some(cursor);
     };
@@ -156,13 +152,7 @@ pub(crate) fn exact_prologue(
             cursor = end;
         }
     }
-    let Some(staging) =
-        crate::object_artifact::replay::unit::call_custody::parameter_staging::expected_bytes(
-            target,
-            parameters,
-            frame_bytes,
-        )
-    else {
+    let Some(staging) = expected_bytes(target, parameters, frame_bytes) else {
         return false;
     };
     let Some(end) = cursor.checked_add(staging.len()) else {

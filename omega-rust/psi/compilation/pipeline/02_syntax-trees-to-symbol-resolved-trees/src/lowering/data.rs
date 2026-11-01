@@ -5,9 +5,16 @@
 //! application while their members lower. Case facts on generic data pass a
 //! narrow support gate before they are retained.
 
+use crate::lowering::domain::lower_proof_facts;
+use crate::lowering::expression::lower_static_machine_argument;
+use crate::lowering::name::lower_name;
 use crate::lowering::name::lower_names;
-use crate::lowering::type_reference::{lower_child_type_references, lower_type_reference_handle};
+use crate::lowering::type_reference::{
+    lower_child_type_references, lower_generic_application_origin, lower_type_reference_handle,
+};
+use crate::preparation::machine_equations::DeclaredTypeOrigin;
 use crate::resolution::lowerer::Lowerer;
+use crate::resolution::lowerer::PendingSignatureLocation;
 use crate::tables::syntax_expressions;
 use crate::tables::syntax_items;
 use crate::tables::syntax_type_references;
@@ -16,7 +23,7 @@ use diagnostics::Diagnostic;
 use std::collections::HashSet;
 use symbol_resolved_trees::data::{
     DataDefinition, DataDefinitionStorage, DataField, DataMember, DataProperties, DataVariant,
-    QuotientDefinition, TypeParameter, TypeParameterKind,
+    QuotientDefinition, QuotientEquivalenceSelection, TypeParameter, TypeParameterKind,
 };
 use symbols::SymbolHandle;
 use syntax_trees::{self as syntax, SyntaxTrees};
@@ -132,7 +139,7 @@ fn lower_data_definition_with_argument_origins(
         let field = DataMember::Field(DataField {
             identity: None,
             symbol: SymbolHandle::invalid(),
-            name: crate::lowering::name::lower_name(syntax_trees, &parameter.name),
+            name: lower_name(syntax_trees, &parameter.name),
             relevance: language_core::BindingRelevance::default(),
             type_reference: lower_type_reference_handle(lowerer, syntax_trees, *type_reference)?,
         });
@@ -161,10 +168,9 @@ fn lower_data_definition_with_argument_origins(
         if let Some(authored_type) = authored_type
             && let Some(sources) = &mut lowerer.equation_sources
         {
-            sources.declared_types.push((
-                crate::preparation::machine_equations::DeclaredTypeOrigin::Field(handle),
-                authored_type,
-            ));
+            sources
+                .declared_types
+                .push((DeclaredTypeOrigin::Field(handle), authored_type));
         }
     }
     let retired_identities = syntax_items(&syntax_trees)
@@ -190,33 +196,23 @@ fn lower_data_definition_with_argument_origins(
                     .equivalence
                     .as_ref()
                     .map(|selection| {
-                        Ok::<_, Diagnostic>(
-                            symbol_resolved_trees::data::QuotientEquivalenceSelection {
-                                relation: syntax_items(&syntax_trees)
-                                    .identifier_path_members(selection.relation)
-                                    .iter()
-                                    .map(|name| {
-                                        crate::lowering::name::lower_name(syntax_trees, name)
-                                    })
-                                    .collect(),
-                                relation_symbol: SymbolHandle::invalid(),
-                                trait_name: crate::lowering::name::lower_name(
-                                    syntax_trees,
-                                    &selection.trait_name,
-                                ),
-                                trait_symbol: SymbolHandle::invalid(),
-                                trait_arguments: lower_child_type_references(
-                                    lowerer,
-                                    syntax_trees,
-                                    selection.trait_arguments,
-                                )?,
-                                conformance_name: crate::lowering::name::lower_name(
-                                    syntax_trees,
-                                    &selection.conformance_name,
-                                ),
-                                conformance_symbol: SymbolHandle::invalid(),
-                            },
-                        )
+                        Ok::<_, Diagnostic>(QuotientEquivalenceSelection {
+                            relation: syntax_items(&syntax_trees)
+                                .identifier_path_members(selection.relation)
+                                .iter()
+                                .map(|name| lower_name(syntax_trees, name))
+                                .collect(),
+                            relation_symbol: SymbolHandle::invalid(),
+                            trait_name: lower_name(syntax_trees, &selection.trait_name),
+                            trait_symbol: SymbolHandle::invalid(),
+                            trait_arguments: lower_child_type_references(
+                                lowerer,
+                                syntax_trees,
+                                selection.trait_arguments,
+                            )?,
+                            conformance_name: lower_name(syntax_trees, &selection.conformance_name),
+                            conformance_symbol: SymbolHandle::invalid(),
+                        })
                     })
                     .transpose()?,
             })
@@ -247,7 +243,7 @@ fn lower_data_definition_with_argument_origins(
 
     Ok(DataDefinition {
         symbol: SymbolHandle::invalid(),
-        name: crate::lowering::name::lower_name(syntax_trees, &data_definition.name),
+        name: lower_name(syntax_trees, &data_definition.name),
         is_public: data_definition.is_public,
         storage: DataDefinitionStorage {
             predicate_subject_symbol: SymbolHandle::invalid(),
@@ -262,13 +258,7 @@ fn lower_data_definition_with_argument_origins(
             )?,
             generic_instance: data_definition
                 .generic_instance
-                .map(|origin| {
-                    crate::lowering::type_reference::lower_generic_application_origin(
-                        lowerer,
-                        syntax_trees,
-                        origin,
-                    )
-                })
+                .map(|origin| lower_generic_application_origin(lowerer, syntax_trees, origin))
                 .transpose()?,
             properties: DataProperties {
                 carry: data_definition.properties.carry,
@@ -277,13 +267,7 @@ fn lower_data_definition_with_argument_origins(
             cleanup_selection: data_definition
                 .cleanup_selection
                 .as_ref()
-                .map(|selection| {
-                    crate::lowering::expression::lower_static_machine_argument(
-                        lowerer,
-                        syntax_trees,
-                        selection,
-                    )
-                })
+                .map(|selection| lower_static_machine_argument(lowerer, syntax_trees, selection))
                 .transpose()?,
             quotient,
             where_facts,
@@ -406,7 +390,7 @@ where_facts: contract.where_facts })?;
                 (
                     TypeParameterKind::Proposition {
                         contract: symbol_resolved_trees::data::PropositionParameterSignature {
-                            name: crate::lowering::name::lower_name(syntax_trees, &contract.name),
+                            name: lower_name(syntax_trees, &contract.name),
                             parameters: crate::lowering::state::lower_state_parameters(
                                 lowerer,
                                 syntax_trees,
@@ -421,7 +405,7 @@ where_facts: contract.where_facts })?;
         lowered.push((
             TypeParameter {
                 symbol: SymbolHandle::invalid(),
-                name: crate::lowering::name::lower_name(syntax_trees, &parameter.name),
+                name: lower_name(syntax_trees, &parameter.name),
                 kind,
                 bounds: DataProperties {
                     carry: parameter.bounds.carry,
@@ -456,10 +440,7 @@ where_facts: contract.where_facts })?;
                 .clone();
             lowerer.pending_signature_service_reaches.push(
                 crate::resolution::lowerer::PendingSignatureServiceReach {
-                    location:
-                        crate::resolution::lowerer::PendingSignatureLocation::MachineParameter(
-                            handle,
-                        ),
+                    location: PendingSignatureLocation::MachineParameter(handle),
                     owner: crate::resolution::lowerer::PendingSignatureOwner::Requirement(owner),
                     reaches:
                         crate::selection::service_reaches::PendingAuthoredServiceReach::Authored {
@@ -484,7 +465,7 @@ fn lower_data_member(
         syntax::item::DataMember::Field(field) => Ok(DataMember::Field(DataField {
             identity: field.identity,
             symbol: SymbolHandle::invalid(),
-            name: crate::lowering::name::lower_name(syntax_trees, &field.name),
+            name: lower_name(syntax_trees, &field.name),
             relevance: field.relevance,
             type_reference: lower_type_reference_handle(
                 lowerer,
@@ -498,7 +479,7 @@ fn lower_data_member(
                 let lowered = DataField {
                     identity: field.identity,
                     symbol: SymbolHandle::invalid(),
-                    name: crate::lowering::name::lower_name(syntax_trees, &field.name),
+                    name: lower_name(syntax_trees, &field.name),
                     relevance: field.relevance,
                     type_reference: lower_type_reference_handle(
                         lowerer,
@@ -513,10 +494,9 @@ fn lower_data_member(
                     .data_payload_fields
                     .append_to_span(&mut payload, lowered);
                 if let Some(sources) = &mut lowerer.equation_sources {
-                    sources.declared_types.push((
-                        crate::preparation::machine_equations::DeclaredTypeOrigin::Payload(handle),
-                        field.type_reference,
-                    ));
+                    sources
+                        .declared_types
+                        .push((DeclaredTypeOrigin::Payload(handle), field.type_reference));
                 }
             }
             // CASE-CONSTRAINTS generic case-data synthesis: a generic case's
@@ -538,15 +518,11 @@ fn lower_data_member(
                     "case constraints on generic data may not mention generic parameters yet",
                 ));
             }
-            let where_facts = crate::lowering::domain::lower_proof_facts(
-                lowerer,
-                syntax_trees,
-                variant.where_facts,
-            )?;
+            let where_facts = lower_proof_facts(lowerer, syntax_trees, variant.where_facts)?;
             Ok(DataMember::Variant(DataVariant {
                 identity: variant.identity,
                 symbol: SymbolHandle::invalid(),
-                name: crate::lowering::name::lower_name(syntax_trees, &variant.name),
+                name: lower_name(syntax_trees, &variant.name),
                 payload,
                 where_facts,
                 retired_payload_identities: variant.retired_payload_identities.clone(),
@@ -614,12 +590,6 @@ impl GenericCaseFactGate {
         self.unsubstituted.contains(name)
             || self.consts.contains(name)
             || self.values.contains(name)
-    }
-
-    /// An expression `Name` leaf: only binders without a substitution refuse;
-    /// `const` binders arrive on the instance as their literal argument.
-    fn expression_mentions(&self, name: &str, const_mentions_allowed: bool) -> bool {
-        self.unsubstituted.contains(name) || (!const_mentions_allowed && self.consts.contains(name))
     }
 }
 
@@ -770,7 +740,9 @@ fn case_fact_expression_mentions(
             .identifier_path_members(*path)
             .iter()
             .any(|member| {
-                gate.expression_mentions(member.as_str(syntax_trees), const_mentions_allowed)
+                gate.unsubstituted.contains(member.as_str(syntax_trees))
+                    || (!const_mentions_allowed
+                        && gate.consts.contains(member.as_str(syntax_trees)))
             }),
         ExpressionNode::Binary(binary) => {
             mention_child!(binary.left) || mention_child!(binary.right)

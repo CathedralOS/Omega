@@ -3,8 +3,8 @@
 //! stored byte is an immediate, so no register carries the zero.
 
 use super::{
-    MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedMemoryEffect, RegisterViewId,
-    ValidatedPhysicalRegisterModel, ValidatedX86_64SelectedFormEncoding,
+    MachineAlternativeFamily as Family, MachineAlternativeKey, MachineEncodedMemoryEffect,
+    RegisterViewId, ValidatedPhysicalRegisterModel, ValidatedX86_64SelectedFormEncoding,
     X86_64SelectedFormEncodingError,
 };
 use crate::selected_form_encoding::copy_bytes::register_instruction;
@@ -109,22 +109,16 @@ fn request(
     operands: &[RegisterViewId],
 ) -> Result<[u8; 3], X86_64SelectedFormEncodingError> {
     // The cursor is written before either input is read.
-    byte_loop_registers::<3>(
-        physical,
-        alternative,
-        MachineAlternativeFamily::ZeroBytes,
-        operands,
-        2,
-    )
+    byte_loop_registers::<3>(physical, alternative, Family::ZeroBytes, operands, 2)
 }
 
 #[cfg(test)]
 mod tests {
     use super::super::{
-        SelectedInstructionKind, encode_x86_64_selected_form,
+        SelectedInstructionKind as Kind, encode_x86_64_selected_form,
         validate_x86_64_selected_form_encoding,
     };
-    use super::{MachineAlternativeFamily, MachineAlternativeKey, encode, validate};
+    use super::{Family, MachineAlternativeKey, encode, validate};
 
     #[test]
     fn zero_bytes_catalog_requires_the_early_clobber_cursor_and_exact_dynamic_effect() {
@@ -167,7 +161,7 @@ mod tests {
         )
         .unwrap();
         let alternative = MachineAlternativeKey {
-            family: MachineAlternativeFamily::ZeroBytes,
+            family: Family::ZeroBytes,
             variant: 0,
         };
         let operands =
@@ -189,18 +183,13 @@ mod tests {
             let operands = names.map(|name| physical.model().view_named(name).unwrap().id);
             let encoded = encode(&physical, alternative, &operands).unwrap();
             assert_eq!(
-                encode_x86_64_selected_form(
-                    &physical,
-                    SelectedInstructionKind::ZeroBytes,
-                    alternative,
-                    &operands
-                )
-                .unwrap(),
+                encode_x86_64_selected_form(&physical, Kind::ZeroBytes, alternative, &operands)
+                    .unwrap(),
                 encoded
             );
             validate_x86_64_selected_form_encoding(
                 &physical,
-                SelectedInstructionKind::ZeroBytes,
+                Kind::ZeroBytes,
                 alternative,
                 &operands,
                 encoded.bytes(),

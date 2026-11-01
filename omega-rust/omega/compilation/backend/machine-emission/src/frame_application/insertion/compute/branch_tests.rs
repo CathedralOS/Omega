@@ -1,3 +1,5 @@
+use super::super::apply_frame_protocol_to_fragments;
+use super::super::validate_frame_protocol_application;
 use super::tests::{physical, protocol, source_plan};
 use crate::frame_protocol::{FrameProtocolByteSpan, TargetFrameProtocolEncodingPlan};
 use isa_aarch64::AARCH64_CONDITIONAL_BRANCH_BYTE_REACH;
@@ -103,10 +105,8 @@ fn frame_epilogue_growth_widens_out_of_range_rel8_and_preserves_in_range_rel8() 
         source.identity = source.recomputed_identity();
         let manifest = FunctionFragmentEmissionManifestIdentity::from_canonical_bytes(b"manifest");
         let protocol = protocol(source.entry);
-        let application = super::super::apply_frame_protocol_to_fragments(
-            &source, manifest, &protocol, &physical,
-        )
-        .unwrap();
+        let application =
+            apply_frame_protocol_to_fragments(&source, manifest, &protocol, &physical).unwrap();
         let branch = &application.fragments.functions[0].blocks[0].instructions[0];
         assert_eq!(branch.bytes.len(), expected_width);
         let FunctionFragmentBranchEvidence::Conditional(evidence) =
@@ -142,21 +142,15 @@ fn frame_epilogue_growth_widens_out_of_range_rel8_and_preserves_in_range_rel8() 
                 .byte_displacement,
             padding + 2
         );
-        super::super::validate_frame_protocol_application(
-            &source,
-            manifest,
-            &protocol,
-            &physical,
-            &application,
-        )
-        .unwrap();
+        validate_frame_protocol_application(&source, manifest, &protocol, &physical, &application)
+            .unwrap();
         let mut corrupted = application.clone();
         corrupted.fragments.functions[0].blocks[0].instructions[0].bytes[1] ^= 1;
         corrupted.fragments.functions[0].bytes[2] ^= 1;
         corrupted.fragments.identity = corrupted.fragments.recomputed_identity();
         corrupted.identity = corrupted.recomputed_identity();
         assert!(
-            super::super::validate_frame_protocol_application(
+            validate_frame_protocol_application(
                 &source, manifest, &protocol, &physical, &corrupted,
             )
             .is_err()
@@ -436,8 +430,7 @@ fn apply_and_decode_aarch64_branch(
     let manifest = FunctionFragmentEmissionManifestIdentity::from_canonical_bytes(b"manifest");
     let protocol = aarch64_protocol(source.entry);
     let application =
-        super::super::apply_frame_protocol_to_fragments(source, manifest, &protocol, physical)
-            .unwrap();
+        apply_frame_protocol_to_fragments(source, manifest, &protocol, physical).unwrap();
     let function = &application.fragments.functions[0];
     let (branch_block, taken_block, fallthrough_block) =
         if backward { (1, 0, 2) } else { (0, 2, 1) };
@@ -477,14 +470,8 @@ fn apply_and_decode_aarch64_branch(
         }
         width => panic!("unexpected AArch64 conditional width {width}"),
     }
-    super::super::validate_frame_protocol_application(
-        source,
-        manifest,
-        &protocol,
-        physical,
-        &application,
-    )
-    .unwrap();
+    validate_frame_protocol_application(source, manifest, &protocol, physical, &application)
+        .unwrap();
     let width = application.fragments.functions[0].blocks[branch_block].instructions[0]
         .bytes
         .len();

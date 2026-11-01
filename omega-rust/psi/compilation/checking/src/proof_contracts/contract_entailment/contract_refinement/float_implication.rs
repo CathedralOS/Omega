@@ -5,6 +5,7 @@
 //! This is declaration substitution, not a value inferred from a provider body.
 
 use super::{Conjunct, CorrespondenceFact, correspondence_fact};
+use numerics::literals::FloatFormat;
 use symbols::SymbolHandle;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -50,8 +51,8 @@ impl FloatObservation {
                             program.primitive_type_reference(reference)?,
                             predicate.format()
                         ),
-                        (PrimitiveType::F32, numerics::literals::FloatFormat::F32)
-                            | (PrimitiveType::F64, numerics::literals::FloatFormat::F64)
+                        (PrimitiveType::F32, FloatFormat::F32)
+                            | (PrimitiveType::F64, FloatFormat::F64)
                     );
                     if !matches {
                         return None;
@@ -105,8 +106,8 @@ impl FloatObservation {
         };
         let reference = result_type(subject)?;
         let format = match program.primitive_type_reference(reference)? {
-            PrimitiveType::F32 => numerics::literals::FloatFormat::F32,
-            PrimitiveType::F64 => numerics::literals::FloatFormat::F64,
+            PrimitiveType::F32 => FloatFormat::F32,
+            PrimitiveType::F64 => FloatFormat::F64,
             _ => return None,
         };
         if endpoint.landing().is_some_and(|landing| landing != format) {
@@ -124,12 +125,8 @@ impl FloatObservation {
         // Land the decimal directly in its authenticated format, avoiding a
         // double-rounded f64 intermediate for f32 contract endpoints.
         let bound = match format {
-            numerics::literals::FloatFormat::F32 => {
-                numerics::bignum::ExactFloat::from_f32(endpoint.value_f32())
-            }
-            numerics::literals::FloatFormat::F64 => {
-                numerics::bignum::ExactFloat::from_f64(endpoint.value_f64())
-            }
+            FloatFormat::F32 => numerics::bignum::ExactFloat::from_f32(endpoint.value_f32()),
+            FloatFormat::F64 => numerics::bignum::ExactFloat::from_f64(endpoint.value_f64()),
         };
         Some(Self {
             subject: correspondence_fact(program, &ProofFact::Expression(subject), binders)?,

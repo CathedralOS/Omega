@@ -8,8 +8,20 @@
 //! evidence and never enters the public contract fingerprint.
 
 use crate::flow::indexed_statements;
-use checked_trees::{CheckFacts, CrashRouteGuard};
+use checked_trees::{
+    CheckFacts, CrashCause, CrashInterface, CrashPredicateIdentity, CrashRouteGuard,
+};
 use diagnostics::Diagnostic;
+use symbols::SymbolHandle;
+use typed_trees::data::DataMember;
+use typed_trees::expression::ExpressionHandle;
+use typed_trees::machine::Machine;
+use typed_trees::types::PrimitiveType;
+use typed_trees::types::TypeReferenceHandle;
+use validation::ContentConservationSourcePlan;
+use validation::content_conservation_plans;
+use validation::effective_member_symbol;
+use validation::first_valid_name_path_symbol;
 
 mod entry_guards;
 mod entry_requirements;
@@ -121,7 +133,7 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
     incoming_guards: &super::ranges::incoming_guards::IncomingGuardIndex,
 ) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
-    let content_conservation = validation::content_conservation_plans(program);
+    let content_conservation = content_conservation_plans(program);
     let mut integer_types = None;
     let operations_by_machine = operation_sites::collect_by_machine(facts);
     for machine in program.machines() {
@@ -196,7 +208,7 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
         classified_states.sort_by_key(|state| (state.arena_index(), state.generation()));
         classified_states.dedup();
         let state_classifications: std::collections::HashMap<
-            symbols::SymbolHandle,
+            SymbolHandle,
             StateGuardClassification,
         > = classified_states
             .iter()
@@ -294,7 +306,7 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
         // The same path classification also covers operation-local policy
         // failures. They are not source crash exits or callable crash buckets:
         // each retains its exact selected expression and raw-result adapter.
-        if crash_plan.interface() == checked_trees::CrashInterface::PublishedCeiling {
+        if crash_plan.interface() == CrashInterface::PublishedCeiling {
             for operation in operations {
                 let classification = &state_classifications[&operation.location.state()];
                 let fallthrough = source_paths.at_site(operation.location);
@@ -308,7 +320,7 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
                     integer_types,
                 );
                 let covered = crash_plan.published().iter().any(|bucket| {
-                    bucket.cause() == checked_trees::CrashCause::Trap
+                    bucket.cause() == CrashCause::Trap
                         && bucket.alternative_guards().iter().any(|guard| {
                             call_route_guard_covers(guard, &CrashRouteGuard::Truth, &consequences)
                         })
@@ -346,11 +358,11 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
 struct StateGuardClassification {
     /// Canonical identities of the state's applicable entry-meaning
     /// conjuncts, in conjunct order.
-    conjunct_identities: Vec<checked_trees::CrashPredicateIdentity>,
+    conjunct_identities: Vec<CrashPredicateIdentity>,
     /// Structural consequences of the applicable conjuncts plus the full
     /// transitive order-relation consequences, excluding the machine entry
     /// requirements each site joins separately.
-    consequences: Vec<checked_trees::CrashPredicateIdentity>,
+    consequences: Vec<CrashPredicateIdentity>,
     /// The closed order-relation set, retained so a statement-local
     /// fallthrough can extend it without rediscovering the incoming-guard
     /// relations.
@@ -364,16 +376,12 @@ struct StateGuardClassification {
 #[allow(clippy::too_many_arguments)]
 fn classify_state_guards(
     program: &dyn ::validation::CheckingInput,
-    machine: &typed_trees::machine::Machine,
-    state: symbols::SymbolHandle,
+    machine: &Machine,
+    state: SymbolHandle,
     incoming: &[super::ranges::incoming_guards::IncomingGuard],
-    eval_sites: &[(
-        typed_trees::expression::ExpressionHandle,
-        symbols::SymbolHandle,
-        usize,
-    )],
+    eval_sites: &[(ExpressionHandle, SymbolHandle, usize)],
     parameter_names: &[String],
-    content_conservation: &[validation::ContentConservationSourcePlan],
+    content_conservation: &[ContentConservationSourcePlan],
     integer_types: &IntegerTypeClassification,
 ) -> StateGuardClassification {
     let conjuncts = incoming
@@ -470,12 +478,9 @@ fn site_path_classification(
     fallthrough: Option<&source_fallthrough::SiteFallthrough>,
     entry_requirements: &entry_requirements::EntryRequirements,
     parameter_names: &[String],
-    content_conservation: &[validation::ContentConservationSourcePlan],
+    content_conservation: &[ContentConservationSourcePlan],
     integer_types: &IntegerTypeClassification,
-) -> (
-    Vec<checked_trees::CrashPredicateIdentity>,
-    Vec<checked_trees::CrashPredicateIdentity>,
-) {
+) -> (Vec<CrashPredicateIdentity>, Vec<CrashPredicateIdentity>) {
     let mut path_guard_conjuncts = classification.conjunct_identities.clone();
     path_guard_conjuncts.extend(entry_requirements.conjuncts.iter().cloned());
     let mut path_guard_consequences = entry_requirements.consequences.clone();
@@ -534,10 +539,11 @@ pub(crate) fn check_published_ceiling_coverage(
     facts: &CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
-    for caller in
-        facts.contract_plans.machines.iter().filter(|plan| {
-            plan.crash.interface() == checked_trees::CrashInterface::PublishedCeiling
-        })
+    for caller in facts
+        .contract_plans
+        .machines
+        .iter()
+        .filter(|plan| plan.crash.interface() == CrashInterface::PublishedCeiling)
     {
         let caller_machine = program.machine_by_symbol(caller.machine);
         let caller_name = caller_machine
@@ -623,7 +629,7 @@ pub(crate) fn check_published_ceiling_coverage(
 pub(crate) fn call_route_guard_covers(
     published: &CrashRouteGuard,
     surviving: &CrashRouteGuard,
-    path_guard_consequences: &[checked_trees::CrashPredicateIdentity],
+    path_guard_consequences: &[CrashPredicateIdentity],
 ) -> bool {
     match published {
         CrashRouteGuard::Truth => true,
@@ -655,16 +661,12 @@ pub(super) enum BooleanStructure {
     /// `x != true` or `x != false`. The flag is the exact polarity the
     /// occurrence establishes for that operand, including a negated or
     /// fallthrough relation.
-    Operand(typed_trees::expression::ExpressionHandle, bool),
+    Operand(ExpressionHandle, bool),
     /// `&&`/`||` as the two occurrences it joins. The flag is the polarity's
     /// effect: true when the pair is a conjunction whose sides both hold,
     /// false when the alternatives are a disjunction and must be intersected
     /// rather than split.
-    Pair(
-        typed_trees::expression::ExpressionHandle,
-        typed_trees::expression::ExpressionHandle,
-        bool,
-    ),
+    Pair(ExpressionHandle, ExpressionHandle, bool),
     /// A leaf occurrence, or a form that establishes only itself.
     Atom,
 }
@@ -676,7 +678,7 @@ pub(super) enum BooleanStructure {
 /// expression or its public route.
 pub(super) fn boolean_structure(
     program: &dyn ::validation::CheckingInput,
-    expression: typed_trees::expression::ExpressionHandle,
+    expression: ExpressionHandle,
     negated: bool,
 ) -> BooleanStructure {
     use typed_trees::expression::{BinaryOperator, ExpressionNode, UnaryOperator};
@@ -724,12 +726,12 @@ pub(super) fn boolean_structure(
 
 fn collect_structural_guard_consequences(
     program: &dyn ::validation::CheckingInput,
-    expression: typed_trees::expression::ExpressionHandle,
+    expression: ExpressionHandle,
     negated: bool,
     parameter_names: &[String],
-    content_conservation: &[validation::ContentConservationSourcePlan],
+    content_conservation: &[ContentConservationSourcePlan],
     integer_types: &IntegerTypeClassification,
-    output: &mut Vec<checked_trees::CrashPredicateIdentity>,
+    output: &mut Vec<CrashPredicateIdentity>,
 ) {
     use typed_trees::expression::ExpressionNode;
 
@@ -797,25 +799,25 @@ fn collect_structural_guard_consequences(
 
 #[derive(Clone, PartialEq, Eq)]
 struct IntegerOrderRelation {
-    left_identity: checked_trees::CrashPredicateIdentity,
-    right_identity: checked_trees::CrashPredicateIdentity,
-    left: typed_trees::expression::ExpressionHandle,
-    right: typed_trees::expression::ExpressionHandle,
+    left_identity: CrashPredicateIdentity,
+    right_identity: CrashPredicateIdentity,
+    left: ExpressionHandle,
+    right: ExpressionHandle,
     strict: bool,
 }
 
 #[derive(Clone, PartialEq, Eq)]
 struct IntegerDisequality {
-    left_identity: checked_trees::CrashPredicateIdentity,
-    right_identity: checked_trees::CrashPredicateIdentity,
+    left_identity: CrashPredicateIdentity,
+    right_identity: CrashPredicateIdentity,
 }
 
 fn collect_integer_order_relations(
     program: &dyn ::validation::CheckingInput,
-    expression: typed_trees::expression::ExpressionHandle,
+    expression: ExpressionHandle,
     negated: bool,
     parameter_names: &[String],
-    content_conservation: &[validation::ContentConservationSourcePlan],
+    content_conservation: &[ContentConservationSourcePlan],
     integer_types: &IntegerTypeClassification,
     output: &mut Vec<IntegerOrderRelation>,
     disequalities: &mut Vec<IntegerDisequality>,
@@ -882,14 +884,11 @@ fn collect_integer_order_relations(
 /// Both operands' canonical crash identities as one pair.
 fn crash_operand_identities(
     program: &dyn ::validation::CheckingInput,
-    left: typed_trees::expression::ExpressionHandle,
-    right: typed_trees::expression::ExpressionHandle,
+    left: ExpressionHandle,
+    right: ExpressionHandle,
     parameter_names: &[String],
-    content_conservation: &[validation::ContentConservationSourcePlan],
-) -> (
-    checked_trees::CrashPredicateIdentity,
-    checked_trees::CrashPredicateIdentity,
-) {
+    content_conservation: &[ContentConservationSourcePlan],
+) -> (CrashPredicateIdentity, CrashPredicateIdentity) {
     (
         crate::facts::canonical_crash_operand_identity(
             program,
@@ -909,11 +908,11 @@ fn crash_operand_identities(
 fn collect_normalized_integer_order_relation(
     program: &dyn ::validation::CheckingInput,
     operator: typed_trees::expression::BinaryOperator,
-    left: typed_trees::expression::ExpressionHandle,
-    right: typed_trees::expression::ExpressionHandle,
+    left: ExpressionHandle,
+    right: ExpressionHandle,
     negated: bool,
     parameter_names: &[String],
-    content_conservation: &[validation::ContentConservationSourcePlan],
+    content_conservation: &[ContentConservationSourcePlan],
     integer_types: &IntegerTypeClassification,
     output: &mut Vec<IntegerOrderRelation>,
     disequalities: &mut Vec<IntegerDisequality>,
@@ -970,8 +969,8 @@ fn push_transitive_integer_order_consequences(
     relations: &mut Vec<IntegerOrderRelation>,
     disequalities: &[IntegerDisequality],
     parameter_names: &[String],
-    content_conservation: &[validation::ContentConservationSourcePlan],
-    output: &mut Vec<checked_trees::CrashPredicateIdentity>,
+    content_conservation: &[ContentConservationSourcePlan],
+    output: &mut Vec<CrashPredicateIdentity>,
 ) {
     let strict_refinements = relations
         .iter()
@@ -1065,12 +1064,12 @@ fn push_transitive_integer_order_consequences(
 fn push_comparison_consequences(
     program: &dyn ::validation::CheckingInput,
     normalized: typed_trees::expression::BinaryOperator,
-    left: typed_trees::expression::ExpressionHandle,
-    right: typed_trees::expression::ExpressionHandle,
+    left: ExpressionHandle,
+    right: ExpressionHandle,
     operands_are_integers: bool,
     parameter_names: &[String],
-    content_conservation: &[validation::ContentConservationSourcePlan],
-    output: &mut Vec<checked_trees::CrashPredicateIdentity>,
+    content_conservation: &[ContentConservationSourcePlan],
+    output: &mut Vec<CrashPredicateIdentity>,
 ) {
     use typed_trees::expression::BinaryOperator;
 
@@ -1100,7 +1099,9 @@ fn push_comparison_consequences(
         ));
         output.push(crate::facts::canonical_crash_binary_path_predicate(
             program,
-            reversed_comparison(operator),
+            operator
+                .mirrored_comparison()
+                .expect("only normalized comparisons reach operand reversal"),
             right,
             left,
             parameter_names,
@@ -1137,8 +1138,8 @@ fn normalized_comparison(
 
 fn comparison_operands_are_integers(
     program: &dyn ::validation::CheckingInput,
-    left: typed_trees::expression::ExpressionHandle,
-    right: typed_trees::expression::ExpressionHandle,
+    left: ExpressionHandle,
+    right: ExpressionHandle,
     integer_types: &IntegerTypeClassification,
 ) -> bool {
     expression_is_integer_typed(program, left, integer_types)
@@ -1147,7 +1148,7 @@ fn comparison_operands_are_integers(
 
 fn expression_is_integer_typed(
     program: &dyn ::validation::CheckingInput,
-    expression: typed_trees::expression::ExpressionHandle,
+    expression: ExpressionHandle,
     integer_types: &IntegerTypeClassification,
 ) -> bool {
     use typed_trees::expression::ExpressionNode;
@@ -1161,12 +1162,10 @@ fn expression_is_integer_typed(
             expression_is_integer_typed(program, inner.target, integer_types)
         }
         ExpressionNode::Cast(cast) => type_reference_is_integer(program, cast.target_type),
-        ExpressionNode::Name(path) => {
-            validation::first_valid_name_path_symbol(path, &program.expression_table)
-                .is_some_and(|symbol| integer_types.is_integer_typed(symbol))
-        }
+        ExpressionNode::Name(path) => first_valid_name_path_symbol(path, &program.expression_table)
+            .is_some_and(|symbol| integer_types.is_integer_typed(symbol)),
         ExpressionNode::Member(member) => {
-            let symbol = validation::effective_member_symbol(program, member.receiver, member);
+            let symbol = effective_member_symbol(program, member.receiver, member);
             integer_types.is_integer_typed(symbol)
         }
         _ => false,
@@ -1175,12 +1174,12 @@ fn expression_is_integer_typed(
 
 fn type_reference_is_integer(
     program: &dyn ::validation::CheckingInput,
-    type_reference: typed_trees::types::TypeReferenceHandle,
+    type_reference: TypeReferenceHandle,
 ) -> bool {
     program
         .type_reference_table
         .primitive_type(type_reference)
-        .is_some_and(typed_trees::types::PrimitiveType::accepts_integer_literal)
+        .is_some_and(PrimitiveType::accepts_integer_literal)
 }
 
 /// Whole-program integer-type classification built once per path-conditioned
@@ -1222,10 +1221,10 @@ impl IntegerTypeClassification {
         for data in program.data_definitions() {
             for member in program.data_members(data) {
                 match member {
-                    typed_trees::data::DataMember::Field(field) => {
+                    DataMember::Field(field) => {
                         classification.record(program, field.symbol, field.type_reference);
                     }
-                    typed_trees::data::DataMember::Variant(variant) => {
+                    DataMember::Variant(variant) => {
                         for field in program.data_payload_fields(variant) {
                             classification.record(program, field.symbol, field.type_reference);
                         }
@@ -1241,8 +1240,8 @@ impl IntegerTypeClassification {
     fn record(
         &mut self,
         program: &dyn ::validation::CheckingInput,
-        symbol: symbols::SymbolHandle,
-        type_reference: typed_trees::types::TypeReferenceHandle,
+        symbol: SymbolHandle,
+        type_reference: TypeReferenceHandle,
     ) {
         if !symbol.is_valid() {
             return;
@@ -1257,18 +1256,10 @@ impl IntegerTypeClassification {
         }
     }
 
-    fn is_integer_typed(&self, symbol: symbols::SymbolHandle) -> bool {
+    fn is_integer_typed(&self, symbol: SymbolHandle) -> bool {
         symbol.is_valid()
             && self.slots.get(symbol.arena_index() as usize).is_some_and(
                 |&(generation, is_integer)| generation == symbol.generation() && is_integer,
             )
     }
-}
-
-fn reversed_comparison(
-    operator: typed_trees::expression::BinaryOperator,
-) -> typed_trees::expression::BinaryOperator {
-    operator
-        .mirrored_comparison()
-        .expect("only normalized comparisons reach operand reversal")
 }

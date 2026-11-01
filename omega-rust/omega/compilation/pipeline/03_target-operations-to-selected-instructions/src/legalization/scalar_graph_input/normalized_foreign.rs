@@ -10,6 +10,11 @@ use super::{
     TargetOperationPlan,
 };
 use crate::LegalizationError;
+use crate::structural_inputs::structural_reference_input::{
+    borrowed_byte_view_presentation, projected_scalar_codec, reference_projection,
+    runtime_borrowed_projection, runtime_projection, scalar_reference_export_width,
+    scalar_storage_type,
+};
 use calling_conventions::{BoundaryEntryPlan, ValueLocation, ValuePlacement, ValueShape};
 use semantic_vocabulary::OperationId;
 use target_operations::{
@@ -417,7 +422,7 @@ pub(in crate::legalization) fn structural_argument_at(
         u16::try_from(native.pointer_alignment).map_err(|_| LegalizationError::custody())?;
     let presentation = (semantic.access != StructuralAccess::Owned)
         .then(|| {
-            crate::structural_inputs::structural_reference_input::borrowed_byte_view_presentation(
+            borrowed_byte_view_presentation(
                 &root,
                 semantic,
                 declaration_parameter.structural_type,
@@ -432,15 +437,14 @@ pub(in crate::legalization) fn structural_argument_at(
         }
         (declaration_parameter.structural_type, offset, Vec::new())
     } else if semantic.path.contains(&StructuralPathSegment::Referent) {
-        let projection =
-            crate::structural_inputs::structural_reference_input::reference_projection(
-                root_type,
-                &semantic.path,
-                semantic.access,
-                Some(declaration_parameter.structural_type),
-                declarations,
-            )
-            .ok_or(LegalizationError::custody())?;
+        let projection = reference_projection(
+            root_type,
+            &semantic.path,
+            semantic.access,
+            Some(declaration_parameter.structural_type),
+            declarations,
+        )
+        .ok_or(LegalizationError::custody())?;
         // The foreign ABI receives the referent address, never the codec
         // descriptor. Admit a scalar only when discarding that codec cannot
         // expose bytes outside any backing admitted by its checked loan.
@@ -448,11 +452,7 @@ pub(in crate::legalization) fn structural_argument_at(
             let shape = crate::structural_inputs::shape(projection.selected, declarations)
                 .ok_or(LegalizationError::custody())?;
             let exported_width =
-                crate::structural_inputs::structural_reference_input::scalar_reference_export_width(
-                    projection.selected,
-                    semantic.access,
-                    declarations,
-                );
+                scalar_reference_export_width(projection.selected, semantic.access, declarations);
             if exported_width != Some(shape.byte_size) {
                 validate_scalar_backing_width(
                     semantic,
@@ -478,7 +478,7 @@ pub(in crate::legalization) fn structural_argument_at(
             projection.elements,
         )
     } else if semantic.access != StructuralAccess::Owned {
-        crate::structural_inputs::structural_reference_input::runtime_borrowed_projection(
+        runtime_borrowed_projection(
             root_type,
             &semantic.path,
             semantic.access,
@@ -487,12 +487,8 @@ pub(in crate::legalization) fn structural_argument_at(
         )
         .ok_or(LegalizationError::custody())?
     } else {
-        crate::structural_inputs::structural_reference_input::runtime_projection(
-            root_type,
-            &semantic.path,
-            declarations,
-        )
-        .ok_or(LegalizationError::custody())?
+        runtime_projection(root_type, &semantic.path, declarations)
+            .ok_or(LegalizationError::custody())?
     };
     let root_shape =
         crate::structural_inputs::structural_reference_input::shape(root_type, declarations)
@@ -708,17 +704,13 @@ fn validate_scalar_backing_width(
                 .structural_parameter(origin.root)
                 .is_some_and(|parameter| {
                     parameter.access != terminal_psi::StructuralAccess::Owned
-                    && crate::structural_inputs::structural_reference_input::scalar_storage_type(
-                        root, types,
-                    ).is_some()
+                        && scalar_storage_type(root, types).is_some()
                 })
         {
             return Err("physical backing remains an external descriptor");
         }
-        let codec = crate::structural_inputs::structural_reference_input::projected_scalar_codec(
-            root, &path, types,
-        )
-        .ok_or("physical backing has no scalar storage codec")?;
+        let codec = projected_scalar_codec(root, &path, types)
+            .ok_or("physical backing has no scalar storage codec")?;
         if u32::from(codec.byte_size()) != width {
             return Err("physical backing width differs from the exported referent");
         }

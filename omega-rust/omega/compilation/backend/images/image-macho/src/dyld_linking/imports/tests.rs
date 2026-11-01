@@ -15,6 +15,14 @@ use image::{
 use object_file::SymbolKind;
 use target::{ForeignLocatorCandidate, NativeTarget, TargetProfile, normalize_foreign_locator};
 
+/// The loader addresses every patched-thunk witness here uses: text at 0x1000,
+/// data at 0x2000 and BSS at 0x3000, all inside one 16 KiB arm64 page.
+const TEST_LAYOUT: FinalImageLayout = FinalImageLayout {
+    text_address: 0x1000,
+    data_address: 0x2000,
+    bss_address: 0x3000,
+};
+
 fn insert_write_import(image: &mut FinalImage) -> Handle<FinalImageSymbol> {
     let symbol = image.symbol_table.symbols.insert(FinalImageSymbol {
         name: "_write".into(),
@@ -79,17 +87,8 @@ fn image_with_normalized_import(
 }
 
 fn patch_test_thunks(image: &mut FinalImage, thunks: &[super::MachoImportThunk]) {
-    patch_import_thunks(
-        image,
-        &FinalImageLayout {
-            text_address: 0x1000,
-            data_address: 0x2000,
-            bss_address: 0x3000,
-        },
-        thunks,
-        MachoIsa::Aarch64,
-    )
-    .expect("test Mach-O thunk should patch");
+    patch_import_thunks(image, &TEST_LAYOUT, thunks, MachoIsa::Aarch64)
+        .expect("test Mach-O thunk should patch");
 }
 
 #[test]
@@ -147,17 +146,8 @@ fn x86_64_import_thunks_emit_and_validate_the_closed_jmp_rip_form() {
     assert_eq!(image.memory.text.len(), 6);
     assert_eq!(image.memory.data.len(), 8);
 
-    patch_import_thunks(
-        &mut image,
-        &FinalImageLayout {
-            text_address: 0x1000,
-            data_address: 0x2000,
-            bss_address: 0x3000,
-        },
-        &imports.thunks,
-        MachoIsa::X86_64,
-    )
-    .expect("x86-64 Mach-O thunk should patch");
+    patch_import_thunks(&mut image, &TEST_LAYOUT, &imports.thunks, MachoIsa::X86_64)
+        .expect("x86-64 Mach-O thunk should patch");
     // `jmp qword ptr [rip + 0xffa]` = 0x1006 + 0xffa = 0x2000, the binding slot.
     assert_eq!(&image.memory.text[..], &[0xff, 0x25, 0xfa, 0x0f, 0, 0]);
 
@@ -182,17 +172,8 @@ fn x86_64_mutated_import_thunk_rejects_final_validation() {
     insert_write_import(&mut image);
     let imports =
         install_import_thunks(&mut image, MachoIsa::X86_64).expect("valid x86-64 bootstrap import");
-    patch_import_thunks(
-        &mut image,
-        &FinalImageLayout {
-            text_address: 0x1000,
-            data_address: 0x2000,
-            bss_address: 0x3000,
-        },
-        &imports.thunks,
-        MachoIsa::X86_64,
-    )
-    .expect("patch");
+    patch_import_thunks(&mut image, &TEST_LAYOUT, &imports.thunks, MachoIsa::X86_64)
+        .expect("patch");
     image.memory.text[0] = 0xff;
     image.memory.text[1] = 0x24;
 

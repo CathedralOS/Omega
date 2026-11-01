@@ -10,6 +10,7 @@ use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::CollectionMeasure;
 use symbols::JoinedPath;
 use typed_trees::data::DataDefinition;
+use typed_trees::data::DataMember;
 use typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableStructLiteral,
 };
@@ -101,8 +102,8 @@ pub fn case_predicates_admit_zero(
         .data_members(definition)
         .iter()
         .filter_map(|member| match member {
-            typed_trees::data::DataMember::Field(field) => Some(field),
-            typed_trees::data::DataMember::Variant(_) => None,
+            DataMember::Field(field) => Some(field),
+            DataMember::Variant(_) => None,
         });
     let fields = common.chain(program.data_payload_fields(variant));
     let mut declared = Vec::new();
@@ -664,7 +665,7 @@ fn variant_of(
         .data_members(data_definition)
         .iter()
         .any(|member| match member {
-            typed_trees::data::DataMember::Variant(variant) => variant.symbol == case_symbol,
+            DataMember::Variant(variant) => variant.symbol == case_symbol,
             _ => false,
         })
 }
@@ -678,8 +679,8 @@ fn common_field_symbols(
         .data_members(data_definition)
         .iter()
         .filter_map(|member| match member {
-            typed_trees::data::DataMember::Field(field) => Some(field.symbol),
-            typed_trees::data::DataMember::Variant(_) => None,
+            DataMember::Field(field) => Some(field.symbol),
+            DataMember::Variant(_) => None,
         })
         .collect()
 }
@@ -739,10 +740,8 @@ fn validate_literal_facts(
                     .data_members(definition)
                     .iter()
                     .find_map(|member| match member {
-                        typed_trees::data::DataMember::Field(field) if field.symbol == *symbol => {
-                            Some(field)
-                        }
-                        typed_trees::data::DataMember::Variant(variant) => program
+                        DataMember::Field(field) if field.symbol == *symbol => Some(field),
+                        DataMember::Variant(variant) => program
                             .data_payload_fields(variant)
                             .iter()
                             .find(|field| field.symbol == *symbol),
@@ -865,7 +864,7 @@ fn validate_literal_facts(
                         "{subject} literal cannot prove {fact_adjective} fact: \
                          field `{}` is not known to satisfy domain `{}` at construction",
                         field_name.unwrap_or("<unknown>"),
-                        membership_domain_label(program, membership.domain),
+                        program.domain_path_members(membership.domain).joined_path(),
                     )));
                 }
             }
@@ -883,11 +882,4 @@ fn validate_literal_facts(
             .into_iter()
             .map(|diagnostic| diagnostic.with_source_span(source_span)),
     );
-}
-
-fn membership_domain_label(
-    program: &dyn crate::CheckingInput,
-    domain: arena::HandleSpan<typed_trees::name::Identifier>,
-) -> String {
-    program.domain_path_members(domain).joined_path()
 }

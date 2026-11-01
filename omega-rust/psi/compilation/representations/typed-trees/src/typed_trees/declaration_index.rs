@@ -27,6 +27,7 @@ pub(crate) use operator_spellings::OperatorSpellingRow;
 use operator_spellings::{DomainDeclarationScope, OperatorSpellingIndex, OperatorSpellingScope};
 mod relationships;
 mod requirement_applications;
+use crate::types::TypeReferenceHandle;
 use relationships::{DataMemberIndex, StateDeclarationIndex, StateDeclarationRevision};
 use requirement_applications::RequirementApplicationIndex;
 
@@ -175,25 +176,19 @@ pub struct CallTargetIndex {
 /// `carry_write` handle-plus-binding-frame questions.
 #[derive(Clone, Default)]
 pub struct IsolationVerdicts {
-    pub isolation: HashMap<(crate::types::TypeReferenceHandle, bool), bool>,
-    pub storage_match: HashMap<
-        (
-            crate::types::TypeReferenceHandle,
-            crate::types::TypeReferenceHandle,
-        ),
-        bool,
-    >,
+    pub isolation: HashMap<(TypeReferenceHandle, bool), bool>,
+    pub storage_match: HashMap<(TypeReferenceHandle, TypeReferenceHandle), bool>,
     pub reference_free: HashMap<
         (
-            crate::types::TypeReferenceHandle,
-            Vec<(SymbolHandle, crate::types::TypeReferenceHandle)>,
+            TypeReferenceHandle,
+            Vec<(SymbolHandle, TypeReferenceHandle)>,
         ),
         bool,
     >,
     pub carry_write: HashMap<
         (
-            crate::types::TypeReferenceHandle,
-            Vec<(SymbolHandle, crate::types::TypeReferenceHandle)>,
+            TypeReferenceHandle,
+            Vec<(SymbolHandle, TypeReferenceHandle)>,
         ),
         bool,
     >,
