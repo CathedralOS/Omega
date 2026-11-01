@@ -21,8 +21,7 @@ pub use terminal_psi::{ProofNode, ProofRule};
 use semantic_vocabulary::{IntegerMathTerm, Proposition, PropositionContext, ScalarTerm, ValueId};
 
 use crate::mathematical_core::{
-    BoundedDenotationError, Budget, run_on_verification_stack,
-    verify_bounded_certificate_on_current_thread,
+    BoundedDenotationError, Budget, verify_bounded_certificate_with_machine_parameters,
 };
 use crate::{
     IntegerAffineBoundConversionError, IntegerAffineWitnessError, IntegerCastBoundConversionError,
@@ -228,32 +227,11 @@ pub fn accept_certificate_with_machine_parameters(
     machine_parameter_values: &BTreeSet<ValueId>,
     proof: &ProofNode,
 ) -> Result<CertificateAcceptance, ProofError> {
-    // The bounded traversal recurses over the certificate's proof tree and
-    // the mathematical-core route recurses over the elaborated judgment;
-    // producer certificates nest far deeper than the default thread stack
-    // admits. Run the whole admission on the verification stack so depth
-    // is a resource limit, never a crash.
-    run_on_verification_stack(|| {
-        accept_certificate_on_current_thread(
-            context,
-            goal,
-            assumptions,
-            semantic_axioms,
-            machine_parameter_values,
-            proof,
-        )
-    })
-}
-
-/// [`accept_certificate_with_machine_parameters`] on the caller's stack.
-fn accept_certificate_on_current_thread(
-    context: &PropositionContext,
-    goal: &Proposition,
-    assumptions: &[Proposition],
-    semantic_axioms: &[Proposition],
-    machine_parameter_values: &BTreeSet<ValueId>,
-    proof: &ProofNode,
-) -> Result<CertificateAcceptance, ProofError> {
+    // The bounded traversal, elaboration and kernel retain their pending work
+    // in invocation-owned continuations. Keep admission on the caller's stack;
+    // entering another worker would hide an unfinished source traversal here.
+    #[cfg(test)]
+    crate::mathematical_core::bounded_observations::record_admission();
     context
         .validate(goal)
         .map_err(ProofError::MalformedProposition)?;
@@ -314,7 +292,7 @@ fn re_decide_in_mathematical_core(
     machine_parameter_values: &BTreeSet<ValueId>,
     proof: &ProofNode,
 ) -> Result<MathematicalCoreDecision, ProofError> {
-    match verify_bounded_certificate_on_current_thread(
+    match verify_bounded_certificate_with_machine_parameters(
         context,
         goal,
         assumptions,

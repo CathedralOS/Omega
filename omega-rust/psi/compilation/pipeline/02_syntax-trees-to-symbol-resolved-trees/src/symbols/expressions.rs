@@ -8,5 +8,6 @@ pub(super) use references::{
 };
 pub(super) use traversal::{
     assign_expression_span_symbols, assign_expression_table_symbols,
-    assign_statement_expression_symbols, assign_static_arguments_type_symbols,
+    assign_expression_with_declaration_references, assign_statement_expression_symbols,
+    assign_static_arguments_type_symbols,
 };

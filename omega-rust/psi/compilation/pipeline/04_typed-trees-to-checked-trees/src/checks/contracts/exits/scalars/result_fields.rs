@@ -22,7 +22,6 @@ use super::super::super::return_values::exit_return_call;
 use numerics::bignum::BigInt;
 use symbols::SymbolHandle;
 use typed_trees::data::DataField;
-use typed_trees::operator::has_builtin_spelled_expression_meaning;
 use typed_trees::statement::StatementNode;
 use typed_trees::statement::TransitionTargetNode;
 use validation::expression_traversal::collect_statement_expression_trees;
@@ -30,9 +29,8 @@ use validation::expression_traversal::expression_has_inert_prefix;
 use validation::field_domains::readable_type_reference;
 use validation::{
     CanonicalPlace, closed_collection_length, closed_collection_length_under_matches,
-    collection_length_receiver, expression_result_type_reference, find_state_on_machine,
-    has_builtin_bound_expression_meaning, project_type_reference_from_segments,
-    reserved_result_owner, reserved_result_place,
+    collection_length_receiver, find_state_on_machine, has_builtin_bound_expression_meaning,
+    project_type_reference_from_segments, reserved_result_owner, reserved_result_place,
 };
 
 mod descriptor_lengths;
@@ -44,7 +42,6 @@ use super::{
 use crate::flow::expressions;
 use crate::flow::state_statements;
 use crate::flow::{self};
-use crate::places::place_at;
 use checked_trees::{CheckedOperatorResolutionStatus, CheckedScalarExpression};
 use facts::{PlaceRoot, PlaceSegment};
 use typed_trees::expression::{
@@ -346,10 +343,6 @@ impl ExitScalars<'_, '_> {
             self.exit.entry_constraints,
             self.call_frames?,
         )
-    }
-
-    pub(super) fn proves_result_field_equality(&self, expression: ExpressionHandle) -> bool {
-        self.result_field_equality(expression) == Some(true)
     }
 
     /// `result.field.len` compared with a literal. Every constructed arm must
@@ -662,93 +655,6 @@ impl ExitScalars<'_, '_> {
         };
         let value = self.integer_literal(pattern)?;
         Some((subject, value))
-    }
-
-    fn result_field_equality(&self, expression: ExpressionHandle) -> Option<bool> {
-        let Some(comparison) = self.program.expression_table.binary_node(expression) else {
-            return None;
-        };
-        if comparison.operator != BinaryOperator::Equal {
-            return None;
-        }
-        let (selected, projected, expected) =
-            if let Some(selected) = self.result_projection(comparison.left) {
-                (selected, comparison.left, comparison.right)
-            } else {
-                (
-                    self.result_projection(comparison.right)?,
-                    comparison.right,
-                    comparison.left,
-                )
-            };
-        let entry = self.program.machine_states(self.machine).first()?;
-        let state = find_state_on_machine(self.program, self.machine, self.exit.state_symbol)?;
-        let reference = reserved_result_place(self.program, projected)?.type_reference;
-        let observed_reference = readable_type_reference(self.program, reference)?;
-        let primitive = self.program.primitive_type_reference(observed_reference)?;
-        let expected_reference =
-            expression_result_type_reference(self.program, self.machine, entry, expected);
-        let operand_types = if projected == comparison.left {
-            [Some(reference), expected_reference]
-        } else {
-            [expected_reference, Some(reference)]
-        };
-        // IEEE equality is not reflexive. Boolean compound denotation has a
-        // separate owner; this path proves integer computation congruence.
-        if !primitive.accepts_integer_literal()
-            || !has_builtin_spelled_expression_meaning(
-                self.program,
-                self.machine.symbol,
-                expression,
-                language_core::OperatorSpelling::Equal,
-                &operand_types,
-            )
-            || !has_builtin_bound_expression_meaning(
-                self.program,
-                self.machine,
-                Some(entry),
-                expected,
-            )
-            || !has_builtin_bound_expression_meaning(
-                self.program,
-                self.machine,
-                Some(state),
-                selected.0,
-            )
-        {
-            return None;
-        }
-        let mut expected = crate::values::lower_unit_scalar_argument(
-            self.program,
-            &self.facts.operators,
-            entry,
-            0,
-            expected,
-            primitive,
-        )?;
-        let mut subjects = Vec::new();
-        self.bind_current_scalar(&mut expected, entry, true, &mut subjects)?;
-        let mut actual = if selected.1.is_empty() {
-            crate::values::lower_unit_scalar_argument(
-                self.program,
-                &self.facts.operators,
-                state,
-                self.exit.statement_index,
-                selected.0,
-                primitive,
-            )?
-        } else {
-            let mut place = place_at(
-                self.program,
-                state.symbol,
-                self.exit.statement_index,
-                selected.0,
-            )?;
-            place.extend_segments(&selected.1);
-            return Some(expected == intern_place(place, primitive, &mut subjects));
-        };
-        self.bind_current_scalar(&mut actual, state, false, &mut subjects)?;
-        Some(actual == expected)
     }
 
     fn bind_current_scalar(

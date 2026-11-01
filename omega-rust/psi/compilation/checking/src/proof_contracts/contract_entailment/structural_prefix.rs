@@ -16,13 +16,14 @@ pub(super) use private_arrivals::{observe_private_arrivals, observe_private_arri
 use super::citations::{CitationFacts, machine_requires_facts};
 use super::structural_case_arms::{
     recognize_structural_case_arms, recognize_structural_case_arms_batched,
-    recognize_structural_state_prefix, recognize_structural_state_prefixes, structural_arm_judge,
+    recognize_structural_state_prefix_batched, recognize_structural_state_prefixes,
+    structural_arm_judge,
 };
 use super::structural_judgment::{StructuralJudge, StructuralTerm};
 use symbols::SymbolHandle;
 use typed_trees::{machine::Machine, state::State};
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) struct StructuralPrefixSite {
     pub state: SymbolHandle,
     pub statement_index: usize,
@@ -315,7 +316,23 @@ pub(super) fn observe_runtime_state_prefix(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
-    visitor: &mut dyn StructuralPrefixVisitor,
+    mut visitor: &mut dyn StructuralPrefixVisitor,
+) -> Option<()> {
+    observe_runtime_state_prefix_batched(
+        program,
+        machine,
+        state,
+        std::slice::from_mut(&mut visitor),
+    )
+}
+
+/// One walk of `state`'s prefix shared by visitors that sit at one site and
+/// complete alike; each receives what its own walk would have delivered.
+pub(super) fn observe_runtime_state_prefix_batched(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    visitors: &mut [&mut (dyn StructuralPrefixVisitor + '_)],
 ) -> Option<()> {
     let entry = program.machine_states(machine).first()?;
     let mut requires = if state.symbol == entry.symbol {
@@ -332,14 +349,14 @@ pub(super) fn observe_runtime_state_prefix(
     );
     let judge = StructuralJudge::from_runtime_state_requires(program, machine, state, &requires);
     let mut diagnostics = Vec::new();
-    recognize_structural_state_prefix(
+    recognize_structural_state_prefix_batched(
         program,
         machine,
         state,
         &judge,
         &crate::proof_only_classification(program),
         &mut diagnostics,
-        visitor,
+        visitors,
     )?;
     diagnostics.is_empty().then_some(())
 }

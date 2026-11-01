@@ -840,10 +840,10 @@ To publish a PR, push HEAD directly to origin:
 `git push origin HEAD:refs/heads/work/<short-name>`.
 On that first push, open the pull request as a draft and return its URL in the
 same turn. Later pushes update that same draft. A request to "push" includes
-this step; no separate confirmation is needed. Right after that push, run
-`python tools/landing.py land <number> --expected-head <sha>` in the background:
-it waits for `compiler-check`, marks the draft ready, enqueues and waits for
-MERGED. A draft cannot enter the queue, and it is not a place to leave the work.
+this step; no separate confirmation is needed. When the work is finished and
+pushed, run `python tools/landing.py land <number> --expected-head <sha>`: it marks
+the draft ready and hands the wait for `compiler-check` to GitHub's merge queue,
+then returns. A draft cannot enter the queue, and it is not a place to leave the work.
 
 **Retain and reuse warm worktrees as workbenches.** Teardown is never mandatory.
 Reusing an existing worktree preserves its pre-compiled `target/` directory and
@@ -866,8 +866,8 @@ including after resumption or compaction.
 
 **Never chase main with gates or rebuilds.** Main or queue SHA movement alone never
 triggers pull, rebase, build, requalification, gate re-runs, or review. A draft
-pull request is already submitted for `compiler-check`. Mark it ready and enqueue
-it in the same session; do not leave it draft across unrelated landings, and do
+pull request is already submitted for `compiler-check`. Land it with
+`tools/landing.py land` in the same session; do not leave it draft across unrelated landings, and do
 not rebase it merely because `main` moved. Once it is ready, GitHub's native
 merge queue and Actions CI perform the integration build and admission check
 against current `main`. Authors only perform focused validation on their own
@@ -1015,10 +1015,10 @@ Commit messages carry no tool attribution: no "Generated with ..." line, no
 - **Every delivery push must have a draft until it can merge.** A user request
   to "push" means push the committed work and open or update its pull request
   in the same turn. The first push opens a draft (`gh pr create --draft`).
-  Later pushes update that same draft. Right after the push, run
-  `python tools/landing.py land <number> --expected-head <sha>` in the background
-  ([tools/landing.md](tools/landing.md)); it waits for `compiler-check`, marks the
-  draft ready, enqueues and waits for MERGED. A draft cannot enter the queue. Reuse
+  Later pushes update that same draft. When the work is finished and pushed, run
+  `python tools/landing.py land <number> --expected-head <sha>`
+  ([tools/landing.md](tools/landing.md)); it marks the draft ready and GitHub adds
+  it to the queue when `compiler-check` passes. A draft cannot enter the queue. Reuse
   the existing pull request, verify its head matches the pushed commit, and
   return the PR URL. A draft is not a place to leave the work: the session
   still lands it and does not leave the draft across unrelated landings. Do
@@ -1028,8 +1028,8 @@ Commit messages carry no tool attribution: no "Generated with ..." line, no
   push as completion.
 - **Never push to `main` directly and never chase `main` with gates.** Push candidate commits
   directly from HEAD to a remote work branch ref (`git push origin HEAD:refs/heads/work/<name>`)
-  and open that pull request as a draft until it is mergeable and `compiler-check`
-  is green, then mark it ready and enqueue it ([tools/landing.md](tools/landing.md)). The queue
+  and open that pull request as a draft until the work is finished, then land it with
+  `tools/landing.py land` ([tools/landing.md](tools/landing.md)). The queue
   integrates the candidate with latest `main`, and GitHub Actions CI performs the build and checks.
   Do focused validation only on the author's own changes against the recorded worktree base;
   never chase main by rebasing, rebuilding, or re-running gates merely because main or the integration

@@ -1,0 +1,35 @@
+// A named constant supplies the open-Const length of a callable family, and the
+// selected callback measures that exact length.
+// Production: cross_module_alias. The constant is an alias chain that ends in another module's declaration.
+// Expected exit: 0
+use foreign::SELECTED;
+
+const ALIAS: u64 = SELECTED;
+const AGAIN: u64 = ALIAS;
+const TWO: u64 = 2;
+
+machine measure<'borrow, const Length: u64>(value: &'borrow [u8; Length]) -> u64 { Length }
+
+machine apply<const Count: u64, machine Callback>(value: &[u8; Count]) -> u64
+requires machine Callback(value: &[u8; Count]) -> u64;
+{ Callback(value) }
+
+machine hold(first: u64, second: u64) -> bool
+requires first == 4
+requires second == 2
+{
+    true
+}
+
+machine main() crashes Trap {
+    let four: [u8; 4] = [1u8, 2u8, 3u8, 4u8];
+    let two: [u8; 2] = [5u8, 6u8];
+    let first: u64 = apply<AGAIN, measure>(&four);
+    let second: u64 = apply<TWO, measure>(&two);
+    transition hold(first, second) && first == 4 && second == 2 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

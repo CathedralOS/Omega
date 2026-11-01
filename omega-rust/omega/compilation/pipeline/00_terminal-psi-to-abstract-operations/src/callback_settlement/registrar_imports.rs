@@ -33,6 +33,7 @@ pub(crate) struct CallbackRegistrarOccurrence {
 /// This closure does not grant native publication or registration authority.
 pub(crate) fn settle_callback_registrar_imports(
     terminal_module: &TerminalModule,
+    targets: Option<&terminal_installation::AdmittedTargetMachineSelections>,
     selected: &effects::SelectedProviderPlanFacts,
     callback_placements: &[NativeCallbackPlacement],
     callback_occurrences: impl Iterator<Item = CallbackRegistrarOccurrence> + Clone,
@@ -92,7 +93,11 @@ pub(crate) fn settle_callback_registrar_imports(
         // Only the retained plan-scoped correspondence supplies that address;
         // callback materialization still supplies the complete exact plan.
         let selected_requirement = selected.selected_requirement_identity(requirement);
-        let abi = terminal_module.calling_abi_identity(*boundary)?;
+        // Keep the operation's portable requirement for the selected-row join;
+        // its admitted physical member owns the complete calling declaration.
+        let calling_boundary =
+            crate::optimization::selected_calling_boundary(terminal_module, targets, *boundary)?;
+        let abi = terminal_module.calling_abi_identity(calling_boundary)?;
 
         let matching_realizations = calling_applications
             .iter()

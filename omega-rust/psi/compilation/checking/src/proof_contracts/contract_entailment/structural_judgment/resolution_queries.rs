@@ -47,7 +47,7 @@ pub(super) struct ResolutionObservations<'program> {
     previous: Option<Arc<Self>>,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 enum StructuralQueryKind {
     Resolution,
     Predicate,
@@ -259,7 +259,7 @@ impl<'program> StructuralJudge<'program> {
         let Some(cache) = &self.completed_resolutions else {
             return compute(self, term);
         };
-        let fingerprint = fingerprint(&term);
+        let fingerprint = self.query_bucket(kind, &term, depth);
         if let Ok(mut cache) = cache.lock()
             && let Some((value, reads)) = cache.lookup(self, kind, &term, depth, fingerprint)
         {
@@ -533,6 +533,66 @@ impl<'program> StructuralJudge<'program> {
         }
     }
 
+    /// The cache bucket of one query. Besides the term's filter it hashes every
+    /// key `CompletedResolutions::lookup` requires to be equal -- in particular
+    /// exactly the inputs `same_resolution_inputs` compares, by the same
+    /// pointer or value identity -- so a lookup scans only entries recorded
+    /// from this proof context. Each arm's judge asks the same terms; without
+    /// the context, those arms shared one bucket and every lookup compared the
+    /// contexts of all of them.
+    fn query_bucket(&self, kind: StructuralQueryKind, term: &StructuralTerm, depth: usize) -> u64 {
+        fn address<T: ?Sized>(value: &T) -> usize {
+            std::ptr::from_ref(value).cast::<()>() as usize
+        }
+        let mut hash = DefaultHasher::new();
+        fingerprint(term).hash(&mut hash);
+        (kind, depth, self.application_resolution_depth()).hash(&mut hash);
+        self.specification_terms.hash(&mut hash);
+        self.returned_field_trace
+            .as_deref()
+            .map(address)
+            .hash(&mut hash);
+        address(self.program).hash(&mut hash);
+        (self.machine_symbol, self.declaration_state).hash(&mut hash);
+        (
+            address(self.body_type_parameters),
+            self.body_type_parameters.len(),
+        )
+            .hash(&mut hash);
+        self.premise_facts.hash(&mut hash);
+        [
+            address(&*self.entry_machines),
+            address(&*self.declaration_parameters),
+            address(&*self.normal_results),
+            address(&*self.completed_nominal_captures),
+            address(&*self.returned_field_owners),
+            address(&*self.body_invocations),
+            address(&*self.normal_memberships),
+            address(&*self.normal_content_guarantees),
+            address(&*self.invalidated_storage),
+            address(&*self.storage_exposures),
+            address(&*self.stored_values),
+            address(&*self.normal_guarantees),
+            address(&*self.captured_result_equations),
+            address(&*self.substitutions),
+            address(&*self.rewrites),
+            address(&*self.disequalities),
+            address(&*self.case_facts),
+            address(&*self.case_substitutions),
+        ]
+        .hash(&mut hash);
+        (self.capture_sequence, self.storage_write_sequence).hash(&mut hash);
+        [
+            self.resolve_applications,
+            self.require_closed_computation,
+            self.runtime_body_values,
+            self.case_facts_only,
+            self.hypotheses_contradictory,
+        ]
+        .hash(&mut hash);
+        hash.finish()
+    }
+
     fn same_resolution_inputs(&self, other: &Self) -> bool {
         // Each active frame keeps these immutable owners alive. Pointer
         // equality therefore identifies the same premises/storage epoch, not
@@ -579,6 +639,44 @@ impl<'program> StructuralJudge<'program> {
             && Arc::ptr_eq(&self.case_facts, &other.case_facts)
             && Arc::ptr_eq(&self.case_substitutions, &other.case_substitutions)
             && self.hypotheses_contradictory == other.hypotheses_contradictory
+    }
+
+    /// A traversal may reuse only the same immutable proof/storage inputs and
+    /// the same dynamic resolution observers. This is stricter than resolver
+    /// membership, whose query records independently replay their reads.
+    pub(in crate::proof_contracts::contract_entailment) fn same_traversal_inputs(
+        &self,
+        other: &Self,
+    ) -> bool {
+        fn same_owner<T>(left: &Option<Arc<T>>, right: &Option<Arc<T>>) -> bool {
+            match (left, right) {
+                (None, None) => true,
+                (Some(left), Some(right)) => Arc::ptr_eq(left, right),
+                _ => false,
+            }
+        }
+        self.same_resolution_inputs(other)
+            && self.specification_terms == other.specification_terms
+            && self.same_returned_field_trace(other)
+            && same_owner(&self.active_application, &other.active_application)
+            && same_owner(
+                &self.resolution_observations,
+                &other.resolution_observations,
+            )
+            && self.ring_licenses.len() == other.ring_licenses.len()
+            && self
+                .ring_licenses
+                .iter()
+                .zip(&other.ring_licenses)
+                .all(|(left, right)| left.add_machine == right.add_machine)
+            && self.semiring_licenses.len() == other.semiring_licenses.len()
+            && self
+                .semiring_licenses
+                .iter()
+                .zip(&other.semiring_licenses)
+                .all(|(left, right)| {
+                    left.add_machine == right.add_machine && left.mul_machine == right.mul_machine
+                })
     }
 }
 

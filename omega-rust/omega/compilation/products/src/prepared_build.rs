@@ -106,10 +106,10 @@ pub struct CheckedProductSource {
     /// Product applications. The holder carries no source or target selection.
     pub terminal_publication: Arc<crate::ProductTerminalPublication>,
     /// Exact policy-entry associations into that same Product artifact.
-    pub calling_policy_code: Arc<
+    pub calling_catalog: Arc<
         std::sync::OnceLock<
             Result<
-                Option<Arc<provider_planning::calling_policy_plans::CallingPolicyCode>>,
+                Option<Arc<provider_planning::calling_policy_plans::CallingCatalog>>,
                 Vec<diagnostics::Diagnostic>,
             >,
         >,
@@ -163,7 +163,7 @@ impl CheckedProductSource {
     pub fn adopt_derived_code(&mut self, canonical: &Self) {
         debug_assert!(canonical.shares_terminal_publication(self));
         self.terminal_publication = Arc::clone(&canonical.terminal_publication);
-        self.calling_policy_code = Arc::clone(&canonical.calling_policy_code);
+        self.calling_catalog = Arc::clone(&canonical.calling_catalog);
         self.external_declarations = Arc::clone(&canonical.external_declarations);
     }
 }

@@ -22,14 +22,12 @@ use crate::places::place_at;
 mod admitted_domains;
 mod deferred_recipes;
 pub(super) use deferred_recipes::{proves_with_range_conditions, proves_with_recipe_conditions};
-mod boolean_results;
 pub(in crate::checks::contracts) use admitted_domains::BoundaryRefutations;
 pub(crate) mod calls;
 mod predicates;
 mod result_bounds;
 mod result_fields;
 mod static_calls;
-mod write_transport;
 
 pub(super) fn proves<'program>(
     program: &'program dyn ::validation::CheckingInput,
@@ -108,12 +106,9 @@ pub(super) fn proves<'program>(
                             // judgments. Proving only whole expressions with these
                             // owners loses facts when a contract combines a returned
                             // value equation with an independently observed guard.
-                            (evaluator.proves_boolean_result(atom) == Some(true)
-                                || evaluator.proves_immutable_result_comparison(atom)
+                            (evaluator.proves_immutable_result_comparison(atom)
                                 || evaluator.proves_return_arithmetic(atom)
-                                || evaluator.proves_result_field_equality(atom)
                                 || evaluator.proves_result_collection_length(atom)
-                                || evaluator.write_transported_equality(atom)
                                 || proves_exit_expression(
                                     program,
                                     facts,

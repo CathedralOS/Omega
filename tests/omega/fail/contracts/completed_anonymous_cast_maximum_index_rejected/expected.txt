@@ -1,0 +1,2 @@
+exact arithmetic in construction of `Outcome` field `next` may overflow `i32`
+exact arithmetic in machine `finish` state `entry` return value may overflow `i32`

@@ -109,6 +109,14 @@ pub(super) struct CaseGuarantee {
     case: SymbolHandle,
 }
 
+impl CaseGuarantee {
+    pub(super) fn same_resolution_payload(&self, other: &Self) -> bool {
+        self.data == other.data
+            && self.case == other.case
+            && self.subject.same_resolution_payload(&other.subject)
+    }
+}
+
 pub(crate) mod owned_snapshots;
 
 #[derive(Clone, PartialEq)]
@@ -271,6 +279,7 @@ pub(crate) enum StructuralTerm {
 mod rewrite_table;
 #[path = "structural_judgment/term_identity.rs"]
 mod term_identity;
+pub(super) use term_identity::same_static_selection_payload;
 
 impl StructuralTerm {
     /// Every contributing completed value must carry a recipe. The result
@@ -2812,7 +2821,7 @@ impl<'program> StructuralJudge<'program> {
             ExpressionNode::Cast(cast) => {
                 let (machine, state, _) = scope?;
                 let source =
-                    crate::expression_result_type_reference(program, machine, state, cast.value)?;
+                    crate::expression_result_type_reference(program, machine, state, cast.value);
                 let value = child_term!(cast.value)?;
                 super::structural_terms::conversion_term(program, cast, source, value)
             }

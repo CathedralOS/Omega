@@ -193,11 +193,16 @@ pub(crate) fn selected_source_calling_applications(
 /// Fused internal calls need no compatibility ABI and never enter this route.
 pub fn component_calling_applications(
     services: ServiceCatalog<'_>,
-    native_target: target::NativeTarget,
+    target: target::TargetProfile,
+    calling_artifact: Option<&terminal_codec::CanonicalTerminalArtifact>,
     providers: &[&crate::SelectedProviderReviewProvenance],
     explicit: &[super::BoundaryCallingPlanRealization],
-    representations: &[representation_planning::OpaqueRepresentationSelection],
 ) -> Result<Vec<calling_conventions::BoundaryCallingApplication>, Vec<Diagnostic>> {
+    let native_target = target.native_realization().ok_or_else(|| {
+        vec![Diagnostic::error(
+            "component calling application target has no native realization",
+        )]
+    })?;
     let mut applications = Vec::<calling_conventions::BoundaryCallingApplication>::new();
     for provider in providers {
         let plan = &provider.plan;
@@ -236,13 +241,17 @@ pub fn component_calling_applications(
             )
             .map_err(|error| vec![error])?;
             if selected_applications.is_empty() {
-                selected_applications.push(super::plan_computation::evaluate_default_calling_application(
-                    services, layout_target, trait_name, plan.schema.declaration.trait_package_identity,
-                    &row.method, requirement,
-                    calling_conventions::CallingPolicy::native_for_target(native_target),
-                    0, representations,
-                ).map_err(|reason| vec![Diagnostic::error(format!("cannot materialize component calling application for `{trait_name}::{}`: {reason}", row.method))])?
-                    .ok_or_else(|| vec![Diagnostic::error(format!("component boundary `{requirement}` has no exact materializable source signature"))])?);
+                let artifact = calling_artifact.ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "component calling applications have no published Product catalog",
+                    )]
+                })?;
+                selected_applications = super::evaluate_default_calling_applications(
+                    artifact, target, requirement,
+                    calling_conventions::CallingPolicy::native_for_target(native_target), 0,
+                ).map_err(|reason| vec![Diagnostic::error(format!(
+                    "cannot materialize component calling applications for `{trait_name}::{}`: {reason}", row.method
+                ))])?;
             }
             for application in selected_applications {
                 if std::env::var_os("OMEGA_TRACE_COMPONENT_CALLING").is_some() {

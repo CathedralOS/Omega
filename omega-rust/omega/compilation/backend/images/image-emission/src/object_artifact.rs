@@ -1,20 +1,13 @@
-//! Object-artifact construction: the sealed carrier types, the public
-//! builder entry points, and the single validating construction pass that
-//! replays every retained machine-code record against final bytes before
-//! sealing text, data, symbols, and relocations.
+//! The sealed object-artifact carrier. `function_fragments` is its only
+//! builder: it projects admitted current fragments into this carrier once.
 //!
-//! `carriers.rs` holds the sealed types, `construction.rs` the builders and
-//! the validating pass, and `errors.rs` the error; `call_sites`,
-//! `private_functions`, `replay` and `stack_demand` serve the pass.
+//! `carriers.rs` holds the sealed types and `errors.rs` the error;
+//! `normalized_foreign_calls`, `replay` and `stack_demand` hold the byte-level
+//! helpers that projection and retained-artifact readers share.
 
-mod call_sites;
 mod carriers;
-pub(crate) mod construction;
 mod errors;
-#[cfg(test)]
-mod installed_provider_scalar_call_custody_tests;
 mod normalized_foreign_calls;
-mod private_functions;
 pub(crate) mod replay;
 pub(crate) mod stack_demand;
 #[cfg(test)]
@@ -29,7 +22,6 @@ pub(crate) use carriers::{
     ObjectByteLiteralAddress, ObjectByteLiteralPool, ObjectCompilerPrivateFunction,
     ObjectPortEffect, ObjectScalarStack, ObjectUnitStack, find_object_function,
 };
-pub use construction::build_object_artifact;
 pub(crate) use errors::ObjectError;
 pub(crate) use normalized_foreign_calls::image_foreign_calls_match_object;
 pub use normalized_foreign_calls::{
