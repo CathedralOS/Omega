@@ -497,14 +497,7 @@ pub(super) fn normalize_with_declarations(
     selection: &ConstantSelection<'_>,
     declarations: &[&SyntaxTrees],
 ) -> Result<(), Vec<Diagnostic>> {
-    if !std::iter::once(&*syntax)
-        .chain(declarations.iter().copied())
-        .any(|forest| {
-            forest
-                .root_items()
-                .any(|item| matches!(item, Item::TypeAlias(_)))
-        })
-    {
+    if !has_alias_declarations(syntax, declarations) {
         return Ok(());
     }
     let templates = syntax.clone();
@@ -545,22 +538,35 @@ pub(super) fn normalize_with_declarations(
     Ok(())
 }
 
+fn has_alias_declarations(syntax: &SyntaxTrees, declarations: &[&SyntaxTrees]) -> bool {
+    std::iter::once(syntax)
+        .chain(declarations.iter().copied())
+        .any(|forest| {
+            forest
+                .root_items()
+                .any(|item| matches!(item, Item::TypeAlias(_)))
+        })
+}
+
 /// Build-time evaluation expands type heads before discovering constant and
 /// representation work. Imported declaration forests lend headers only.
 pub fn normalize_type_aliases(
     mut request: super::generic_data::GenericDataRequest<'_>,
 ) -> Result<SyntaxTrees, Vec<Diagnostic>> {
+    let declarations = request
+        .declaration_syntax
+        .into_iter()
+        .chain(request.retained_declaration_syntax)
+        .collect::<Vec<_>>();
+    if !has_alias_declarations(&request.syntax, &declarations) {
+        return Ok(request.syntax);
+    }
     let selection = ConstantSelection::with_retained_base(
         &request.syntax,
         request.sources,
         request.top_level_bindings,
         request.retained_base,
     )?;
-    let declarations = request
-        .declaration_syntax
-        .into_iter()
-        .chain(request.retained_declaration_syntax)
-        .collect::<Vec<_>>();
     normalize_with_declarations(&mut request.syntax, &selection, &declarations)?;
     Ok(request.syntax)
 }
