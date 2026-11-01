@@ -318,26 +318,26 @@ fn parse_refinement_clause<'tokens, 'source>(
                 return Err(input.error_here("duplicate `reaches` clause on a refinement member"));
             }
             authored_reaches = true;
-            signature
-                .service_reach_keyword_source_spans
-                .push(input.current_source_span());
-            input = input.take_contextual("reaches")?;
-            if input.at_punctuation(PunctuationKind::LessEqual) {
-                return Err(input.error_here(
+            let after_keyword = input.take_contextual("reaches")?;
+            if after_keyword.at_punctuation(PunctuationKind::LessEqual) {
+                return Err(after_keyword.error_here(
                     "`reaches <= Bound` is an installation row; a refinement narrows the authored reach set",
                 ));
             }
-            let mut reach = crate::handle_spans::HandleSpanBuilder::new();
-            while !input.at_punctuation(PunctuationKind::Semicolon) {
-                let (row, rest) = input.take_identifier()?;
-                reach.push(items(syntax_trees).append_identifier_path_member(row));
-                input = rest;
-                if input.at_punctuation(PunctuationKind::Plus) {
-                    input = input.take_punctuation(PunctuationKind::Plus, "+")?;
-                }
-            }
-            signature.service_reaches = reach.finish();
-            input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
+            // Refinement members have the same header boundary as ordinary
+            // requirements: the next clause ends this row, and one final
+            // semicolon ends the declaration. Reuse reach-member parsing so
+            // later operational clauses cannot become service names.
+            let mut reaches = Vec::new();
+            let mut installation_bound = false;
+            input = crate::contracts::take_operational_reaches_clause(
+                input,
+                &mut signature.service_reach_keyword_source_spans,
+                &mut reaches,
+                &mut installation_bound,
+                refinement_reaches_clause_boundary,
+            )?;
+            signature.service_reaches = items(syntax_trees).insert_identifier_path_members(reaches);
             continue;
         }
         if input.at_contextual("suspends") {
@@ -349,19 +349,13 @@ fn parse_refinement_clause<'tokens, 'source>(
                 .suspends_keyword_source_spans
                 .push(input.current_source_span());
             input = input.take_contextual("suspends")?;
-            if input.at_punctuation(PunctuationKind::Semicolon) {
-                signature.suspends = true;
-            } else {
+            if input.at_keyword(KeywordKind::True) || input.at_keyword(KeywordKind::False) {
                 let (value, rest) = parse_refinement_axis_bool(input)?;
                 signature.suspends = value;
-                if !rest.at_punctuation(PunctuationKind::Semicolon) {
-                    return Err(rest.error_here(
-                        "a `suspends` refinement clause reads `suspends;`, `suspends true;`, or `suspends false;`",
-                    ));
-                }
                 input = rest;
+            } else {
+                signature.suspends = true;
             }
-            input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
             continue;
         }
         if input.at_contextual("blocks") {
@@ -373,19 +367,13 @@ fn parse_refinement_clause<'tokens, 'source>(
                 .blocks_keyword_source_spans
                 .push(input.current_source_span());
             input = input.take_contextual("blocks")?;
-            if input.at_punctuation(PunctuationKind::Semicolon) {
-                signature.blocks = true;
-            } else {
+            if input.at_keyword(KeywordKind::True) || input.at_keyword(KeywordKind::False) {
                 let (value, rest) = parse_refinement_axis_bool(input)?;
                 signature.blocks = value;
-                if !rest.at_punctuation(PunctuationKind::Semicolon) {
-                    return Err(rest.error_here(
-                        "a `blocks` refinement clause reads `blocks;`, `blocks true;`, or `blocks false;`",
-                    ));
-                }
                 input = rest;
+            } else {
+                signature.blocks = true;
             }
-            input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
             continue;
         }
         if input.at_contextual("terminates") {
@@ -397,16 +385,25 @@ fn parse_refinement_clause<'tokens, 'source>(
             authored_terminates = true;
             signature.terminates_guarantee = true;
             input = input.take_contextual("terminates")?;
-            input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
             continue;
         }
         break;
     }
+    let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
     clauses.push(syntax_trees::item::TraitRefinementClause {
         requirement,
         signature,
     });
     Ok(((), input))
+}
+
+fn refinement_reaches_clause_boundary(input: Input<'_, '_>) -> bool {
+    input.at_punctuation(PunctuationKind::Semicolon)
+        || input.at_punctuation(PunctuationKind::RightBrace)
+        || input.at_contract_continuation_keyword()
+        || input.at_contextual("requires")
+        || input.at_contextual("ensures")
+        || input.at_contextual("where")
 }
 
 fn parse_refinement_axis_bool<'tokens, 'source>(

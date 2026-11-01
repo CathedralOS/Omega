@@ -23,17 +23,17 @@ trait PairAgreement<Frame,
     machine encode_covers(value: Pair)
     ensures Encode::try_from(value) in Result::Ok;
     machine encode_valid(value: Pair, frame: Frame)
-    requires Encode::try_from(value) == Result::Ok { value: frame }
+    requires Encode::try_from(value) == (Result::Ok { value: frame })
     ensures Validity::valid(frame);
     machine decode_covers(frame: Frame)
     requires Validity::valid(frame)
     ensures Decode::try_from(frame) in Result::Ok;
     machine decode_rejects(frame: Frame)
     requires !Validity::valid(frame)
-    ensures Decode::try_from(frame) == Result::Err { error: Failure::InvalidTag };
+    ensures Decode::try_from(frame) == (Result::Err { error: Failure::InvalidTag });
     machine round_trip(value: Pair, frame: Frame)
-    requires Encode::try_from(value) == Result::Ok { value: frame }
-    ensures Decode::try_from(frame) == Result::Ok { value: value };
+    requires Encode::try_from(value) == (Result::Ok { value: frame })
+    ensures Decode::try_from(frame) == (Result::Ok { value: value });
 }
 
 WriteFirst satisfies TryFrom<Pair, FirstFrame, Failure> {
@@ -73,33 +73,33 @@ FirstAgreement satisfies PairAgreement<FirstFrame, WriteFirst, ReadFirst, FirstV
     machine encode_covers(value: Pair)
     ensures WriteFirst::try_from(value) in Result::Ok { }
     machine encode_valid(value: Pair, frame: FirstFrame)
-    requires WriteFirst::try_from(value) == Result::Ok { value: frame }
+    requires WriteFirst::try_from(value) == (Result::Ok { value: frame })
     ensures FirstValidity::valid(frame) { }
     machine decode_covers(frame: FirstFrame)
     requires FirstValidity::valid(frame)
     ensures ReadFirst::try_from(frame) in Result::Ok { }
     machine decode_rejects(frame: FirstFrame)
     requires !FirstValidity::valid(frame)
-    ensures ReadFirst::try_from(frame) == Result::Err { error: Failure::InvalidTag } { }
+    ensures ReadFirst::try_from(frame) == (Result::Err { error: Failure::InvalidTag }) { }
     machine round_trip(value: Pair, frame: FirstFrame)
-    requires WriteFirst::try_from(value) == Result::Ok { value: frame }
-    ensures ReadFirst::try_from(frame) == Result::Ok { value: value } { }
+    requires WriteFirst::try_from(value) == (Result::Ok { value: frame })
+    ensures ReadFirst::try_from(frame) == (Result::Ok { value: value }) { }
 }
 SecondAgreement satisfies PairAgreement<SecondFrame, WriteSecond, ReadSecond, SecondValidity> {
     machine encode_covers(value: Pair)
     ensures WriteSecond::try_from(value) in Result::Ok { }
     machine encode_valid(value: Pair, frame: SecondFrame)
-    requires WriteSecond::try_from(value) == Result::Ok { value: frame }
+    requires WriteSecond::try_from(value) == (Result::Ok { value: frame })
     ensures SecondValidity::valid(frame) { }
     machine decode_covers(frame: SecondFrame)
     requires SecondValidity::valid(frame)
     ensures ReadSecond::try_from(frame) in Result::Ok { }
     machine decode_rejects(frame: SecondFrame)
     requires !SecondValidity::valid(frame)
-    ensures ReadSecond::try_from(frame) == Result::Err { error: Failure::InvalidTag } { }
+    ensures ReadSecond::try_from(frame) == (Result::Err { error: Failure::InvalidTag }) { }
     machine round_trip(value: Pair, frame: SecondFrame)
-    requires WriteSecond::try_from(value) == Result::Ok { value: frame }
-    ensures ReadSecond::try_from(frame) == Result::Ok { value: value } { }
+    requires WriteSecond::try_from(value) == (Result::Ok { value: frame })
+    ensures ReadSecond::try_from(frame) == (Result::Ok { value: value }) { }
 }
 
 machine require_round_trip<Frame,
@@ -153,7 +153,7 @@ machine reject_malformed<Frame, Decode satisfies TryFrom<Frame, Pair, Failure>>
 {
     let refused: Result<Pair, Failure> = convert<Frame, Pair, Failure, Decode>(malformed);
     transition refused {
-        Result::Err { error as failure } -> restored.first == value.first && restored.last == value.last
+        Result::Err { error as failure } -> (restored.first == value.first && restored.last == value.last)
         Result::Ok { value as unexpected } -> false
     }
 }

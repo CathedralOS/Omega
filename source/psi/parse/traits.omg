@@ -475,24 +475,32 @@ crashes Trap
     }
 
     machine clauses(parser: &mut Parser, input: &TokenStream, every: bool) {
-        let end: u64 in Trapping = parser.token_end;
         Parser::parse_clauses(parser, input, ClauseOwner::Refinement);
         transition parser.output.accepted {
-            true -> capacity(parser, input, every, end)
+            true -> member_end(parser, input, every)
             _ -> done()
         }
     }
 
-    machine capacity(parser: &mut Parser, input: &TokenStream, every: bool, end: u64 in Trapping) {
+    // Clause parsing leaves one declaration terminator for this member owner.
+    machine member_end(parser: &mut Parser, input: &TokenStream, every: bool) {
+        Parser::expect_punctuation(parser, input, PunctuationKind::Semicolon, ParseDiagnosticCode::ExpectedClauseEnd);
+        transition parser.output.accepted {
+            true -> capacity(parser, input, every)
+            _ -> done()
+        }
+    }
+
+    machine capacity(parser: &mut Parser, input: &TokenStream, every: bool) {
         transition parser.output.machine_count < 10240 {
-            true -> retain(parser, input, every, end)
+            true -> retain(parser, input, every)
             _ -> reject(parser, input, ParseDiagnosticCode::MachineCapacityExceeded)
         }
     }
 
-    machine retain(parser: &mut Parser, input: &TokenStream, every: bool, name_end: u64 in Trapping) {
+    machine retain(parser: &mut Parser, input: &TokenStream, every: bool) {
         let clause_count: u64 in Trapping = (parser.output.clause_count as u64 in Trapping) - parser.clause_first;
-        let end: u64 in Trapping = Parser::refinement_end(parser, clause_count, name_end);
+        let end: u64 in Trapping = parser.token_end;
         parser.output.machines[parser.output.machine_count] = MachineItem {
             has_owner: parser.machine_has_owner,
             owner: Parser::identifier_span(parser, parser.machine_owner_start, parser.machine_owner_end),
@@ -531,24 +539,4 @@ crashes Trap
     }
 
     machine done() {}
-}
-
-// Where a refinement member ends: its last clause, or its name.
-machine Parser::refinement_end(parser: &Parser, clause_count: u64 in Trapping, name_end: u64 in Trapping) -> u64 in Trapping
-crashes Trap
-{
-    transition clause_count > 0 {
-        true -> last_clause(parser)
-        _ -> named(name_end)
-    }
-
-    machine last_clause(parser: &Parser) -> u64 in Trapping {
-        let handle: u64 in Trapping = (parser.output.clause_count as u64 in Trapping) - 1;
-        let clause: Clause = SyntaxTrees::clause(&parser.output, handle);
-        clause.source_span.span.end
-    }
-
-    machine named(name_end: u64 in Trapping) -> u64 in Trapping {
-        name_end
-    }
 }
