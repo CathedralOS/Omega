@@ -25,7 +25,7 @@ use omega::language::core::numeric_conversion;
 use math;
 use calling;
 use posix_byte_view_calling;
-use filesystem_abi;
+use targets::macos_arm64::filesystem_abi;
 
 // The explicit policy exports the borrowed view as pointer/count, not one byte.
 boundary trait PosixFilesystemDarwinByteViews: Calling<DarwinArm64ByteViewCalling> {

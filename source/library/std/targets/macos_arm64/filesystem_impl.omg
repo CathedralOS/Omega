@@ -8,10 +8,12 @@ use omega::language::core::layout;
 use omega::language::core::numeric_conversion;
 use filesystem;
 use posix_filesystem_adapter;
-use filesystem_abi;
+use targets::macos_arm64::filesystem_abi;
 
+// Indexed byte recasts retain the enclosing 144-byte region; the target
+// footprint is checked against that complete backing, including padding.
 macos_arm64 machine posix_filesystem_decode_metadata(filesystem: &mut PosixFilesystem) -> MetadataResult {
-    let stat: &DarwinStat = &filesystem.stat_buf as &DarwinStat;
+    let stat: &DarwinStat = &filesystem.stat_buf[0] as &DarwinStat;
     let blocks: i64 = stat.blocks;
     let blksize: i64 = stat.blksize as i64;
     transition blocks >= 0 && blksize >= 0 {
@@ -42,7 +44,7 @@ macos_arm64 machine posix_filesystem_decode_metadata(filesystem: &mut PosixFiles
 }
 
 macos_arm64 machine posix_filesystem_permission_bits(filesystem: &PosixFilesystem) -> u32 {
-    let stat: &DarwinStat = &filesystem.stat_buf as &DarwinStat;
+    let stat: &DarwinStat = &filesystem.stat_buf[0] as &DarwinStat;
     (stat.mode as u32) & 4095
 }
 
@@ -61,7 +63,7 @@ macos_arm64 machine posix_filesystem_encode_open_options(filesystem: &mut PosixF
 // Resolve an absent directory hint from the native mode without decoding
 // unrelated size/timestamp fields or following a final symlink.
 macos_arm64 machine posix_filesystem_decode_directory_kind(filesystem: &mut PosixFilesystem) -> PosixDirectoryKind {
-    let stat: &DarwinStat = &filesystem.stat_buf as &DarwinStat;
+    let stat: &DarwinStat = &filesystem.stat_buf[0] as &DarwinStat;
     let kind: u32 = (stat.mode as u32) & 61440;
     transition kind {
         16384 -> PosixDirectoryKind::Directory
