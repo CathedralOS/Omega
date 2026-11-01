@@ -268,6 +268,7 @@ pub(super) fn append_statement_calls<'plans>(
             );
             stored_value = execution.context.control.operands.append(evaluated.capture);
         }
+        StatementNode::LocalData(local) if !local.role.has_ordinary_initializer() => {}
         StatementNode::LocalData(local) => {
             let evaluated = execution.evaluated_operand_as(
                 local.initial_value,
