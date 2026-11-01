@@ -35,7 +35,11 @@ handling in the whole-expression builder is removed.
   source formal supplies both carrier and arithmetic policy. The
   [narrow input](controls/narrow_inputs/main.omg) computes in `u8` before the
   distance widens, and its [twin](controls/narrow_inputs/invalid/main.omg) rejects.
-- Composition: both whole expressions and recursive arithmetic operands read
+- Composition: the [indexed upper](controls/indexed_upper/main.omg) computes
+  from a mutable cell and its captured selector; the caller checks cell `6 -> 2`
+  and neighboring canaries `641`/`919`. Its
+  [twin](controls/indexed_upper/invalid/main.omg) removes only the cell decrement.
+  Both whole expressions and recursive arithmetic operands read
   the same admitted destination. No enclosing entry facts are imported. Existing
   structured, indexed and call-bearing declared-measure captures remain separate
   complete values and retain their own entry/call/cast receipts.
