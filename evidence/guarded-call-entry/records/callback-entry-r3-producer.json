@@ -1,0 +1,27 @@
+{
+  "source": "ddda30fe17a842dd598705fc66d8011b22e1827c",
+  "patch_sha256": "4ca38a1b4c141a43f4192f5c952955c9f1814659cb9413b33ab2e0723027f4ce",
+  "command": [
+    "cargo",
+    "rustc",
+    "--locked",
+    "-p",
+    "omega",
+    "--bin",
+    "omega",
+    "--message-format=json",
+    "--",
+    "-C",
+    "strip=none"
+  ],
+  "exit": 0,
+  "seconds": 207.390586542,
+  "executable": {
+    "binary": "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/callback-entry-r3-omega",
+    "sha256": "b7bc6f1e94027fd92558acdb9a4f8539520f97432616508106b213e81ea5d95d",
+    "profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "1"
+    }
+  }
+}

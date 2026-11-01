@@ -1,0 +1,320 @@
+{
+  "schema": "omega-corpus-verdict-v1",
+  "revision": "730ec906baa108e8b7c161a3c3a09d27ce1f61e3",
+  "dirty": true,
+  "leg": "checked",
+  "target": null,
+  "golden": "tests/omega/corpus_outcomes.txt",
+  "golden_reason_gaps": {
+    "rows": 1,
+    "of": 18983
+  },
+  "subset": true,
+  "filter": "guarded_call_entry",
+  "shard": null,
+  "verdict": "recorded",
+  "exit_code": 0,
+  "counts": {
+    "fixtures": 20,
+    "by_status": {
+      "checked": 9,
+      "rejected": 11
+    },
+    "wrong_reason": 0,
+    "wrong_reason_fixtures": [],
+    "fail_not_rejected": 0,
+    "fail_not_rejected_fixtures": [],
+    "lost_successes": 0,
+    "lost_success_fixtures": [],
+    "pinned_off_target": 0,
+    "pinned_off_target_fixtures": [],
+    "by_verdict": {}
+  },
+  "oracle_failures": [],
+  "infrastructure_error": null,
+  "golden_provenance": null,
+  "perf_context": null,
+  "observations": [
+    {
+      "fixture": "pass/facts/guarded_call_entry_through_call_result_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3187,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "730ec906baa1"
+    },
+    {
+      "fixture": "pass/facts/guarded_call_entry_through_const_name_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3187,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "730ec906baa1"
+    },
+    {
+      "fixture": "pass/facts/guarded_call_entry_through_field_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2577,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "730ec906baa1"
+    },
+    {
+      "fixture": "pass/facts/guarded_call_entry_through_local_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2569,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "730ec906baa1"
+    },
+    {
+      "fixture": "pass/facts/guarded_call_entry_through_match_join_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2599,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "730ec906baa1"
+    },
+    {
+      "fixture": "pass/facts/guarded_call_entry_through_other_machine_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2589,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "730ec906baa1"
+    },
+    {
+      "fixture": "pass/facts/guarded_call_entry_through_other_state_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 3108,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "730ec906baa1"
+    },
+    {
+      "fixture": "pass/facts/guarded_call_entry_through_parameter_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2614,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "730ec906baa1"
+    },
+    {
+      "fixture": "pass/facts/guarded_call_entry_through_target_body_exit",
+      "tier": "pass",
+      "status": "checked",
+      "millis": 2532,
+      "expected_satisfied": null,
+      "facts": {
+        "check-target": "macos_arm64"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "730ec906baa1"
+    },
+    {
+      "fixture": "fail/facts/guarded_call_entry_mutable_fuel_zeroed_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1559,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call parse from CompactBinary::read_record: context.count <= context.slots.len && fuel > 0 (needs fact `context.count <= context.slots.len && fuel > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `read_record`",
+        "cannot prove requires contract for call parse$specialized$beaf115a8a2a42f0$0 from CompactBinary::read_record$specialized$1da497e322379031$0: context.count <= context.slots.len && fuel > 0 (needs fact `context.count <= context.slots.len && fuel > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `read_record`"
+      ],
+      "regressed_from": null,
+      "recorded_at": "730ec906baa1"
+    },
+    {
+      "fixture": "fail/facts/guarded_call_entry_stale_context_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1970,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call parse from CompactBinary::read_record: context.count <= context.slots.len && fuel > 0 (needs fact `context.count <= context.slots.len && fuel > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `read_record`",
+        "cannot prove requires contract for call parse$specialized$beaf115a8a2a42f0$0 from CompactBinary::read_record$specialized$1da497e322379031$0: context.count <= context.slots.len && fuel > 0 (needs fact `context.count <= context.slots.len && fuel > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `read_record`"
+      ],
+      "regressed_from": null,
+      "recorded_at": "730ec906baa1"
+    },
+    {
+      "fixture": "fail/facts/guarded_call_entry_through_call_result_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1503,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call parse from CompactBinary::read_record: context.count <= context.slots.len && selected > 0 (needs fact `context.count <= context.slots.len && fuel > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `read_record`",
+        "cannot prove requires contract for call parse$specialized$beaf115a8a2a42f0$0 from CompactBinary::read_record$specialized$1da497e322379031$0: context.count <= context.slots.len && selected > 0 (needs fact `context.count <= context.slots.len && fuel > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `read_record`",
+        "cannot prove requires contract for call parse$specialized$131fee117d670bc6$1 from CompactBinary::read_record$specialized$ea238ed21b061fe1$1: context.count <= context.slots.len && selected > 0 (needs fact `context.count <= context.slots.len && fuel > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `read_record`"
+      ],
+      "regressed_from": null,
+      "recorded_at": "730ec906baa1"
+    },
+    {
+      "fixture": "fail/facts/guarded_call_entry_through_const_name_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1895,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call parse from CompactBinary::read_record: context.count <= context.slots.len && selected > 0 (needs fact `context.count <= context.slots.len && fuel > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `read_record`",
+        "cannot prove requires contract for call parse$specialized$beaf115a8a2a42f0$0 from CompactBinary::read_record$specialized$1da497e322379031$0: context.count <= context.slots.len && selected > 0 (needs fact `context.count <= context.slots.len && fuel > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `read_record`",
+        "cannot prove requires contract for call parse$specialized$131fee117d670bc6$1 from CompactBinary::read_record$specialized$ea238ed21b061fe1$1: context.count <= context.slots.len && selected > 0 (needs fact `context.count <= context.slots.len && fuel > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `read_record`"
+      ],
+      "regressed_from": null,
+      "recorded_at": "730ec906baa1"
+    },
+    {
+      "fixture": "fail/facts/guarded_call_entry_through_field_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1881,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call parse from CompactBinary::read_record: context.count <= context.slots.len && selected > 0 (needs fact `context.count <= context.slots.len && fuel > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `read_record`",
+        "cannot prove requires contract for call parse$specialized$beaf115a8a2a42f0$0 from CompactBinary::read_record$specialized$1da497e322379031$0: context.count <= context.slots.len && selected > 0 (needs fact `context.count <= context.slots.len && fuel > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `read_record`",
+        "cannot prove requires contract for call parse$specialized$131fee117d670bc6$1 from CompactBinary::read_record$specialized$ea238ed21b061fe1$1: context.count <= context.slots.len && selected > 0 (needs fact `context.count <= context.slots.len && fuel > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `read_record`"
+      ],
+      "regressed_from": null,
+      "recorded_at": "730ec906baa1"
+    },
+    {
+      "fixture": "fail/facts/guarded_call_entry_through_local_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1684,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call parse from CompactBinary::read_record: context.count <= context.slots.len && selected > 0 (needs fact `context.count <= context.slots.len && fuel > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `read_record`",
+        "cannot prove requires contract for call parse$specialized$beaf115a8a2a42f0$0 from CompactBinary::read_record$specialized$1da497e322379031$0: context.count <= context.slots.len && selected > 0 (needs fact `context.count <= context.slots.len && fuel > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `read_record`",
+        "cannot prove requires contract for call parse$specialized$131fee117d670bc6$1 from CompactBinary::read_record$specialized$ea238ed21b061fe1$1: context.count <= context.slots.len && selected > 0 (needs fact `context.count <= context.slots.len && fuel > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `read_record`"
+      ],
+      "regressed_from": null,
+      "recorded_at": "730ec906baa1"
+    },
+    {
+      "fixture": "fail/facts/guarded_call_entry_through_match_join_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1634,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call parse from CompactBinary::read_record: context.count <= context.slots.len && selected > 0 (needs fact `context.count <= context.slots.len && fuel > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `read_record`",
+        "cannot prove requires contract for call parse$specialized$beaf115a8a2a42f0$0 from CompactBinary::read_record$specialized$1da497e322379031$0: context.count <= context.slots.len && selected > 0 (needs fact `context.count <= context.slots.len && fuel > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `read_record`",
+        "cannot prove requires contract for call parse$specialized$131fee117d670bc6$1 from CompactBinary::read_record$specialized$ea238ed21b061fe1$1: context.count <= context.slots.len && selected > 0 (needs fact `context.count <= context.slots.len && fuel > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `read_record`"
+      ],
+      "regressed_from": null,
+      "recorded_at": "730ec906baa1"
+    },
+    {
+      "fixture": "fail/facts/guarded_call_entry_through_other_machine_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1709,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call parse from CompactBinary::read_record: context.count <= context.slots.len && selected > 0 (needs fact `context.count <= context.slots.len && fuel > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `read_record`",
+        "cannot prove requires contract for call parse$specialized$beaf115a8a2a42f0$0 from CompactBinary::read_record$specialized$1da497e322379031$0: context.count <= context.slots.len && selected > 0 (needs fact `context.count <= context.slots.len && fuel > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `read_record`",
+        "cannot prove requires contract for call parse$specialized$131fee117d670bc6$1 from CompactBinary::read_record$specialized$ea238ed21b061fe1$1: context.count <= context.slots.len && selected > 0 (needs fact `context.count <= context.slots.len && fuel > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `read_record`"
+      ],
+      "regressed_from": null,
+      "recorded_at": "730ec906baa1"
+    },
+    {
+      "fixture": "fail/facts/guarded_call_entry_through_other_state_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1660,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call parse from CompactBinary::read_record: context.count <= context.slots.len && selected > 0 (needs fact `context.count <= context.slots.len && fuel > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `read_record`",
+        "cannot prove requires contract for call parse$specialized$beaf115a8a2a42f0$0 from CompactBinary::read_record$specialized$1da497e322379031$0: context.count <= context.slots.len && selected > 0 (needs fact `context.count <= context.slots.len && fuel > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `read_record`",
+        "cannot prove requires contract for call parse$specialized$131fee117d670bc6$1 from CompactBinary::read_record$specialized$ea238ed21b061fe1$1: context.count <= context.slots.len && selected > 0 (needs fact `context.count <= context.slots.len && fuel > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `read_record`"
+      ],
+      "regressed_from": null,
+      "recorded_at": "730ec906baa1"
+    },
+    {
+      "fixture": "fail/facts/guarded_call_entry_through_parameter_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1750,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call parse from receive: context.count <= context.slots.len && fuel > 0 (needs fact `context.count <= context.slots.len && fuel > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+        "cannot prove requires contract for call parse$specialized$beaf115a8a2a42f0$0 from receive$specialized$fd31d04fe4f074ee$0: context.count <= context.slots.len && fuel > 0 (needs fact `context.count <= context.slots.len && fuel > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`",
+        "cannot prove requires contract for call parse$specialized$131fee117d670bc6$1 from receive$specialized$756b65da49c3ef04$1: context.count <= context.slots.len && fuel > 0 (needs fact `context.count <= context.slots.len && fuel > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": "730ec906baa1"
+    },
+    {
+      "fixture": "fail/facts/guarded_call_entry_through_target_body_rejected",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1750,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call parse from CompactBinary::read_record: context.count <= context.slots.len && selected > 0 (needs fact `context.count <= context.slots.len && fuel > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `read_record`",
+        "cannot prove requires contract for call parse$specialized$beaf115a8a2a42f0$0 from CompactBinary::read_record$specialized$1da497e322379031$0: context.count <= context.slots.len && selected > 0 (needs fact `context.count <= context.slots.len && fuel > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `read_record`",
+        "cannot prove requires contract for call parse$specialized$131fee117d670bc6$1 from CompactBinary::read_record$specialized$ea238ed21b061fe1$1: context.count <= context.slots.len && selected > 0 (needs fact `context.count <= context.slots.len && fuel > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `read_record`"
+      ],
+      "regressed_from": null,
+      "recorded_at": "730ec906baa1"
+    }
+  ],
+  "fixtures": []
+}

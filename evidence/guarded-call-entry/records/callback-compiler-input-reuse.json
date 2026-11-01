@@ -1,0 +1,32 @@
+{
+  "producer_source": "fec9a6f33b26d928253030a688b22dd3e324b5e6",
+  "candidate_source": "730ec906baa108e8b7c161a3c3a09d27ce1f61e3",
+  "unchanged_inputs": [
+    {
+      "path": "omega-rust",
+      "producer_object": "7dbcb703bddcefe0af577a67b8099f8a357f70f6",
+      "candidate_object": "7dbcb703bddcefe0af577a67b8099f8a357f70f6"
+    },
+    {
+      "path": "source/library",
+      "producer_object": "caf97df8477d269a2f123cb551159b0d31d25197",
+      "candidate_object": "caf97df8477d269a2f123cb551159b0d31d25197"
+    },
+    {
+      "path": "Cargo.toml",
+      "producer_object": "2e3a2bcd27f2e7fdda48c885f2c48d6b6803e40a",
+      "candidate_object": "2e3a2bcd27f2e7fdda48c885f2c48d6b6803e40a"
+    },
+    {
+      "path": "Cargo.lock",
+      "producer_object": "2e4abe6ddc9b5546e43cd66f8644d713d351e241",
+      "candidate_object": "2e4abe6ddc9b5546e43cd66f8644d713d351e241"
+    },
+    {
+      "path": "rust-toolchain.toml",
+      "producer_object": "34677fc928123970d13e8b81641724e2a9e6f929",
+      "candidate_object": "34677fc928123970d13e8b81641724e2a9e6f929"
+    }
+  ],
+  "reason": "Only externally read samples/fixtures and TASKS changed. Corpus runner reads current fixture roots at execution; no compiler, library, Cargo or toolchain input changed. Prior observations keep original identities; these executions are fresh."
+}

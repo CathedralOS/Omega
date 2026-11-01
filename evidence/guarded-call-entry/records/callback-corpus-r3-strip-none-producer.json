@@ -1,0 +1,27 @@
+{
+  "source": "fec9a6f33b26d928253030a688b22dd3e324b5e6",
+  "patch_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "command": [
+    "cargo",
+    "rustc",
+    "--locked",
+    "--message-format=json",
+    "-p",
+    "compiler",
+    "--test",
+    "corpus_runner",
+    "--",
+    "-C",
+    "strip=none"
+  ],
+  "exit": 0,
+  "seconds": 7.2782504580000005,
+  "executable": {
+    "binary": "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/callback-corpus-r3-strip-none-omega",
+    "sha256": "f2ac9678d2bdc6699a9a0f174c3c9787d2a1e2567cca5cc822f05ecbdc1fc312",
+    "profile": {
+      "schema": "omega-compiler-build-profile-v1",
+      "opt_level": "1"
+    }
+  }
+}

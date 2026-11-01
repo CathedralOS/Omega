@@ -1,0 +1,137 @@
+{
+  "schema": "omega-corpus-verdict-v1",
+  "revision": "fec9a6f33b26d928253030a688b22dd3e324b5e6",
+  "dirty": false,
+  "leg": "checked",
+  "target": null,
+  "golden": "tests/omega/corpus_outcomes.txt",
+  "golden_reason_gaps": {
+    "rows": 1,
+    "of": 18963
+  },
+  "subset": true,
+  "filter": "opaque_call_retires_reference_contents,opaque_call_retires_mutable_argument,nested_call_opaque_write_clears_storage_fact",
+  "shard": null,
+  "verdict": "clean",
+  "exit_code": 0,
+  "counts": {
+    "fixtures": 3,
+    "by_status": {
+      "rejected": 3
+    },
+    "wrong_reason": 0,
+    "wrong_reason_fixtures": [],
+    "fail_not_rejected": 0,
+    "fail_not_rejected_fixtures": [],
+    "lost_successes": 0,
+    "lost_success_fixtures": [],
+    "pinned_off_target": 0,
+    "pinned_off_target_fixtures": [],
+    "by_verdict": {
+      "perf_faster": 1
+    }
+  },
+  "oracle_failures": [],
+  "infrastructure_error": null,
+  "golden_provenance": {
+    "stamped": 3,
+    "legacy": 0,
+    "unknown_revisions": 1,
+    "oldest": null
+  },
+  "perf_context": {
+    "golden": {
+      "incoming_observations_from": "e8e2fe90b14b2a7bad0e714ba635161d80c9f585",
+      "integration_base": "2e9f231f798bffee7a2bd46857d02adb79de70b6",
+      "measurement": "Historical three-way integration, not a new whole-corpus run. Keep incoming-main observations changed since 66fc7ac3c97, otherwise retain qualified ccdb99ca2214 observations. Also preserve the two additional incoming-main rows from e8e2fe90b14b; no compiler rebase or new full run.",
+      "recorded_source": "ccdb99ca2214b93c0e2535a31cb34a3e2167d9dd",
+      "schema": "omega-corpus-context-v1"
+    },
+    "current": {
+      "schema": "omega-corpus-context-v1",
+      "jobs": "2",
+      "cpus": 10,
+      "platform": "darwin",
+      "machine": "arm64",
+      "load1_start": 1.9,
+      "load1_end": 1.99
+    },
+    "warnings": []
+  },
+  "observations": [
+    {
+      "fixture": "fail/contracts/nested_call_opaque_write_clears_storage_fact",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1457,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call consume from exercise: counter.remaining == 24 && first == 16 && second == 8 (needs fact `counter.remaining == 24 && first == 16 && second == 8` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/contracts/opaque_call_retires_mutable_argument",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1457,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call exact_seven from after_call: output.number == 7 (needs fact `value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    },
+    {
+      "fixture": "fail/contracts/opaque_call_retires_reference_contents",
+      "tier": "fail",
+      "status": "rejected",
+      "millis": 1097,
+      "expected_satisfied": true,
+      "facts": {},
+      "diagnostics": [
+        "cannot prove requires contract for call exact_seven from after_call: view.value.number == 7 (needs fact `value == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+      ],
+      "regressed_from": null,
+      "recorded_at": null
+    }
+  ],
+  "fixtures": [
+    {
+      "fixture": "fail/contracts/nested_call_opaque_write_clears_storage_fact",
+      "verdict": "perf_faster",
+      "reasons": [
+        "13638ms -> 1457ms (>=2x faster)"
+      ],
+      "before": {
+        "fixture": "fail/contracts/nested_call_opaque_write_clears_storage_fact",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 13638,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call consume from exercise: counter.remaining == 24 && first == 16 && second == 8 (needs fact `counter.remaining == 24 && first == 16 && second == 8` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+        ],
+        "regressed_from": null,
+        "recorded_at": "ccdb99ca2214"
+      },
+      "after": {
+        "fixture": "fail/contracts/nested_call_opaque_write_clears_storage_fact",
+        "tier": "fail",
+        "status": "rejected",
+        "millis": 1457,
+        "expected_satisfied": true,
+        "facts": {},
+        "diagnostics": [
+          "cannot prove requires contract for call consume from exercise: counter.remaining == 24 && first == 16 && second == 8 (needs fact `counter.remaining == 24 && first == 16 && second == 8` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`"
+        ],
+        "regressed_from": null,
+        "recorded_at": null
+      }
+    }
+  ]
+}

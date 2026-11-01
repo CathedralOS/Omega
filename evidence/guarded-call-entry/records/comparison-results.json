@@ -1,0 +1,59 @@
+{
+  "status": "first variant reproduced; stopped",
+  "source_sha256": "f6451f4c94326363962cc02f71d089f3abdf5910eaac57fb212b46c1b5ac8a69",
+  "source_variant_count": 1,
+  "results": [
+    {
+      "producer": "r3",
+      "source_sha256": "f6451f4c94326363962cc02f71d089f3abdf5910eaac57fb212b46c1b5ac8a69",
+      "exit": 0,
+      "seconds": 2.898001208,
+      "source_receipt": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/plan-callback-v1-r3-update.json",
+      "raw_diagnostic": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/plan-callback-v1-r3-update.stderr",
+      "normal_publication": true,
+      "private_parse_requires_refusal": false
+    },
+    {
+      "producer": "r4",
+      "source_sha256": "f6451f4c94326363962cc02f71d089f3abdf5910eaac57fb212b46c1b5ac8a69",
+      "exit": 1,
+      "seconds": 1.708353625,
+      "source_receipt": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/plan-callback-v1-r4-update.json",
+      "raw_diagnostic": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/plan-callback-v1-r4-update.stderr",
+      "normal_publication": false,
+      "private_parse_requires_refusal": true
+    },
+    {
+      "producer": "r5",
+      "source_sha256": "f6451f4c94326363962cc02f71d089f3abdf5910eaac57fb212b46c1b5ac8a69",
+      "exit": 1,
+      "seconds": 1.512128625,
+      "source_receipt": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/plan-callback-v1-r5-update.json",
+      "raw_diagnostic": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/plan-callback-v1-r5-update.stderr",
+      "normal_publication": false,
+      "private_parse_requires_refusal": true
+    }
+  ],
+  "runtime_observations": [
+    {
+      "producer": "r3",
+      "receipt": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/plan-callback-v1-r3-both.json",
+      "exit": 0,
+      "native_0": true,
+      "terminal_0": true,
+      "lock_unchanged": true
+    }
+  ],
+  "all_three_source_and_build_hashes_unchanged": true,
+  "failed_requirement": "context.count <= context.slots.len && fuel > 0",
+  "observed_regression": "Identical NoSDK source passes Source/Terminal publication and both engines on R3; R4 and R5 refuse private parse during Source checking.",
+  "limits": [
+    "The diagnostic reports the combined requirement; the lost conjunct has not been separately measured.",
+    "No exact first-bad commit or compiler owner repair established.",
+    "No W edits, production changes, permanent fact row, second variant or R4/R5 engine claims."
+  ],
+  "nearest_existing_rows": [
+    "static_callable_type_requirements: supplied callable shape/type requirements, not mutable runtime count/fuel handback.",
+    "borrowed_restoration_window: owner access and post-borrow facts, not this generic Plan plus guarded private call."
+  ]
+}

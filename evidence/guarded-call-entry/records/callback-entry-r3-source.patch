@@ -1,0 +1,439 @@
+diff --git a/omega-rust/psi/compilation/checking/README.md b/omega-rust/psi/compilation/checking/README.md
+index b0b96ae0b99..bcbf3c8e737 100644
+--- a/omega-rust/psi/compilation/checking/README.md
++++ b/omega-rust/psi/compilation/checking/README.md
+@@ -300,6 +300,20 @@ bodies, not finite caller-argument composition; unknown or recursive bodies stay
+ opaque. Cycle equations retain exact frames through supported bijective
+ write-capable argument transport, not arbitrary alias-changing backedges.
+ 
++Invocation origin capture retains each operand's knowledge independently. An
++unavailable descriptor prefix leaves loaded references, runtime receivers and
++reference inventories unknown; it does not erase a validated address of owned
++storage. Complete write-frame queries still require the prefix. Entry subjects
++name the storage observed after operand evaluation, while the callee's future
++frame separately determines normal-return correspondence. An opaque future
++frame grants no preserved referent or fresh post-state observation.
++
++Unknown effects retire reachable storage observations. Existing immutable,
++non-atomic scalar bindings and code-only `dyn` selectors retain their private
++value; mutable bindings, reference payloads, atomic cells and projected storage
++keep their invalidation fences. Retaining a value neither restores an expired
++entry fact nor reconstructs an unknown initializer.
++
+ Assignment queries use one prefix result for both the direct target and its
+ alias closure. Binding replacement never closes over the former referent.
+ The located state and statement index also serve local-origin recovery without
+diff --git a/omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames/caller_aliases.rs b/omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames/caller_aliases.rs
+index ec32a999217..32d7aec1a9d 100644
+--- a/omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames/caller_aliases.rs
++++ b/omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames/caller_aliases.rs
+@@ -847,10 +847,17 @@ pub(super) fn with_caller_origin_context<T>(
+     collections: &Mutex<
+         HashMap<(SymbolHandle, SymbolHandle), Option<Vec<Option<CollectedStatementPrefix>>>>,
+     >,
+-    resolve: impl FnOnce(&mut FrameInference, &CallOriginContext<'_>) -> Option<T>,
++    resolve: impl FnOnce(&mut FrameInference, Option<&CallOriginContext<'_>>) -> Option<T>,
+ ) -> Option<T> {
+     let (state, _statement, index) = caller_statement_at_site(program, machine, symbols, site)?;
+-    let prefix = collected_prefix_at(collections, program, machine, state, symbols, index, true)?;
++    let Some(prefix) =
++        collected_prefix_at(collections, program, machine, state, symbols, index, true)
++    else {
++        // An unavailable descriptor history cannot erase independently formed
++        // owned addresses. Consumers keep unknown loaded origins explicit;
++        // footprint consumers still require the complete prefix below.
++        return resolve(&mut FrameInference::default(), None);
++    };
+     // These consumers capture invocation inputs, before this invocation's
+     // writes. Each rejects effects preceding/during its operand through the
+     // chronological capture owner. The whole-statement exposure fence would
+@@ -862,7 +869,9 @@ pub(super) fn with_caller_origin_context<T>(
+         divergent: prefix.divergent,
+         stored: prefix.stored,
+     };
+-    with_retained_origin_context(program, machine, site, evidence, resolve)
++    with_retained_origin_context(program, machine, site, evidence, |inference, prefix| {
++        resolve(inference, Some(prefix))
++    })
+ }
+ 
+ fn with_retained_origin_context<T>(
+diff --git a/omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames/demand.rs b/omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames/demand.rs
+index a501a16866a..0f5dcb80c47 100644
+--- a/omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames/demand.rs
++++ b/omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames/demand.rs
+@@ -1477,6 +1477,7 @@ impl<'program> CallFrameResolver<'program> {
+             CallerWriteSite::Expression(expression),
+             &self.caches.state_write_collections,
+             |inference, prefix| {
++                let prefix = prefix?;
+                 let mut written = Vec::new();
+                 collect_operation_written_paths(
+                     self.program,
+diff --git a/omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames/demand/call_origins.rs b/omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames/demand/call_origins.rs
+index 03d240f8cd8..49f9ee01f1b 100644
+--- a/omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames/demand/call_origins.rs
++++ b/omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames/demand/call_origins.rs
+@@ -28,8 +28,9 @@ impl<'program> CallFrameResolver<'program> {
+             site,
+             &self.caches.state_write_shared_collections,
+             |inference, prefix| {
+-                let preceding_effect =
+-                    self.prefix_may_change_origins(machine, statement, site, prefix);
++                let preceding_effect = prefix.is_none_or(|prefix| {
++                    self.prefix_may_change_origins(machine, statement, site, prefix)
++                });
+                 self.capture_operand_origins(
+                     machine,
+                     inference,
+@@ -106,17 +107,20 @@ impl<'program> CallFrameResolver<'program> {
+                 let preceding_effect = !matches!(
+                     operator_use.occurrence,
+                     checked_trees::CheckedOperatorOccurrence::Expression
+-                ) || self
+-                    .prefix_may_change_origins(machine, statement, site, prefix);
++                ) || prefix.is_none_or(|prefix| {
++                    self.prefix_may_change_origins(machine, statement, site, prefix)
++                });
+                 Some(CallWriteOrigins {
+                     receiver: Some(Vec::new()),
+-                    references: self.capture_reference_origins(
+-                        machine,
+-                        site,
+-                        prefix,
+-                        &arguments,
+-                        preceding_effect,
+-                    ),
++                    references: prefix.and_then(|prefix| {
++                        self.capture_reference_origins(
++                            machine,
++                            site,
++                            prefix,
++                            &arguments,
++                            preceding_effect,
++                        )
++                    }),
+                     arguments: self.capture_operand_origins(
+                         machine,
+                         inference,
+@@ -264,11 +268,15 @@ impl<'program> CallFrameResolver<'program> {
+                 // prefix owner has not captured those substatement updates.
+                 // Reuse its expression inventory and frame query; do not
+                 // rediscover an evaluation order from rendered paths.
+-                let nested_effect =
+-                    self.prefix_may_change_origins(machine, statement, site, prefix);
+-                let preceding_effect = nested_effect
+-                    || (receiver_expression.is_valid()
+-                        && self.operand_may_change_origins(machine, receiver_expression, prefix));
++                let preceding_effect = prefix.is_none_or(|prefix| {
++                    self.prefix_may_change_origins(machine, statement, site, prefix)
++                        || (receiver_expression.is_valid()
++                            && self.operand_may_change_origins(
++                                machine,
++                                receiver_expression,
++                                prefix,
++                            ))
++                });
+                 if !callee_has_explicit_parameters
+                     && (!receiver_members.is_empty() || receiver_expression.is_valid())
+                 {
+@@ -276,7 +284,7 @@ impl<'program> CallFrameResolver<'program> {
+                         if preceding_effect {
+                             None
+                         } else {
+-                            prefix
++                            prefix?
+                                 .argument_origins(
+                                     program,
+                                     machine,
+@@ -291,7 +299,7 @@ impl<'program> CallFrameResolver<'program> {
+                                     origins.into_iter().map(LocalWriteSource::from).collect()
+                                 })
+                         }
+-                    } else if let CallerWriteSite::Call(call) = site {
++                    } else if !preceding_effect && let CallerWriteSite::Call(call) = site {
+                         self.statement_receiver_origins(machine, state, statement, call)
+                     } else {
+                         None
+@@ -305,13 +313,15 @@ impl<'program> CallFrameResolver<'program> {
+                     &argument_types,
+                     preceding_effect,
+                 )?;
+-                result.references = self.capture_reference_origins(
+-                    machine,
+-                    site,
+-                    prefix,
+-                    arguments,
+-                    preceding_effect,
+-                );
++                result.references = prefix.and_then(|prefix| {
++                    self.capture_reference_origins(
++                        machine,
++                        site,
++                        prefix,
++                        arguments,
++                        preceding_effect,
++                    )
++                });
+                 Some(result)
+             },
+         )
+@@ -348,7 +358,7 @@ impl<'program> CallFrameResolver<'program> {
+         &self,
+         machine: &'program Machine,
+         inference: &mut frames::FrameInference,
+-        prefix: &CallOriginContext<'_>,
++        prefix: Option<&CallOriginContext<'_>>,
+         arguments: &[ExpressionHandle],
+         argument_types: &[typed_trees::types::TypeReferenceHandle],
+         mut preceding_effect: bool,
+@@ -357,7 +367,8 @@ impl<'program> CallFrameResolver<'program> {
+         let machine_symbols = self.machine_symbols(machine)?;
+         let mut result = Vec::with_capacity(arguments.len());
+         for (index, argument) in arguments.iter().enumerate() {
+-            let changes_origins = self.operand_may_change_origins(machine, *argument, prefix);
++            let changes_origins = prefix
++                .is_none_or(|prefix| self.operand_may_change_origins(machine, *argument, prefix));
+             let reference = argument_types.get(index).copied();
+             let detached = reference.is_some_and(|reference| {
+                 frames::type_is_caller_isolated_local(program, reference)
+@@ -378,18 +389,20 @@ impl<'program> CallFrameResolver<'program> {
+                 // Earlier captured referents remain unchanged.
+                 None
+             } else {
+-                prefix
+-                    .argument_origins(
+-                        program,
+-                        machine,
+-                        &machine_symbols,
+-                        &self.tables.symbols,
+-                        inference,
+-                        &[*argument],
+-                        &reference.into_iter().collect::<Vec<_>>(),
+-                    )
+-                    .and_then(|mut origins| origins.pop().flatten())
+-                    .map(|origins| origins.into_iter().map(LocalWriteSource::from).collect())
++                prefix.and_then(|prefix| {
++                    prefix
++                        .argument_origins(
++                            program,
++                            machine,
++                            &machine_symbols,
++                            &self.tables.symbols,
++                            inference,
++                            &[*argument],
++                            &reference.into_iter().collect::<Vec<_>>(),
++                        )
++                        .and_then(|mut origins| origins.pop().flatten())
++                        .map(|origins| origins.into_iter().map(LocalWriteSource::from).collect())
++                })
+             };
+             result.push(origins);
+             preceding_effect |= changes_origins;
+diff --git a/omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames/demand/normal_subjects.rs b/omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames/demand/normal_subjects.rs
+index ceaa2324ac9..c96904ae8f7 100644
+--- a/omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames/demand/normal_subjects.rs
++++ b/omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames/demand/normal_subjects.rs
+@@ -11,6 +11,7 @@ use typed_trees::machine::Machine;
+ use typed_trees::signature::StateParameter;
+ use typed_trees::types::TypeReferenceHandle;
+ 
++#[derive(Debug)]
+ pub(crate) struct InvocationEntrySubject {
+     pub parameter: SymbolHandle,
+     pub argument: ExpressionHandle,
+@@ -31,19 +32,25 @@ impl<'program> CallFrameResolver<'program> {
+         machine: &'program Machine,
+         site: crate::CallSite<'program>,
+         parameters: &[StateParameter],
++        writes: &facts::NormalizedWriteFrame,
+     ) -> Option<Vec<InvocationReferenceSubject>> {
+-        let (writes, entries) = match site {
+-            crate::CallSite::Expression { expression, .. } => (
+-                self.operation_write_frame(machine, expression),
+-                self.expression_entry_reference_subjects(machine, expression, parameters)?,
+-            ),
+-            crate::CallSite::Statement(call) => (
+-                self.may_write_frame(machine, call),
+-                self.statement_entry_reference_subjects(machine, call, parameters)?,
+-            ),
++        let entries = match site {
++            crate::CallSite::Expression { expression, .. } => {
++                self.expression_entry_reference_subjects(machine, expression, parameters)
++            }
++            crate::CallSite::Statement(call) => {
++                self.statement_entry_reference_subjects(machine, call, parameters)
++            }
+             _ => return None,
+         };
+-        let writes = writes.into_complete_paths()?;
++        if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
++            eprintln!(
++                "STRUCT invocation-entry-subjects caller={:?} entries={entries:?}",
++                machine.symbol
++            );
++        }
++        let entries = entries?;
++        let writes = writes.complete_paths();
+         entries
+             .into_iter()
+             .map(|entry| {
+@@ -51,13 +58,19 @@ impl<'program> CallFrameResolver<'program> {
+                     .iter()
+                     .find(|parameter| parameter.symbol == entry.parameter)?;
+                 let shell = crate::reference_shell(self.program, parameter.type_reference)?;
+-                let stable_on_return = !parameter.is_mutable || shell.access.is_exclusive();
++                // Entry origins were captured before invocation. An unknown
++                // future frame withholds return correspondence, not those
++                // independently established incoming subjects.
++                let stable_on_return =
++                    writes.is_some() && (!parameter.is_mutable || shell.access.is_exclusive());
+                 let preserved_on_return = stable_on_return
+-                    && !writes.iter().any(|written| {
+-                        entry
+-                            .sources
+-                            .iter()
+-                            .any(|source| super::frame_paths_overlap(written, &source.path))
++                    && writes.as_ref().is_some_and(|writes| {
++                        !writes.iter().any(|written| {
++                            entry
++                                .sources
++                                .iter()
++                                .any(|source| super::frame_paths_overlap(written, &source.path))
++                        })
+                     });
+                 Some(InvocationReferenceSubject {
+                     entry,
+diff --git a/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/normal_returns/call_bindings.rs b/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/normal_returns/call_bindings.rs
+index 60adc5fade9..21178180293 100644
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/normal_returns/call_bindings.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/normal_returns/call_bindings.rs
+@@ -36,12 +36,11 @@ impl<'program> StructuralJudge<'program> {
+             return None;
+         };
+         let frames = self.frame_resolver();
+-        // An opaque frame establishes no preservation or post-call reference
+-        // correspondence. Isolated operand snapshots and independent result
+-        // guarantees remain usable, but no live referent is reintroduced.
++        // The frame owner captures entry subjects independently of future
++        // writes. Its return flags withhold correspondence for an opaque frame;
++        // that cannot erase the current arguments' entry requirements.
+         let subjects = frames
+-            .filter(|_| writes.is_complete())
+-            .and_then(|frames| frames.call_reference_subjects(machine, site, parameters));
++            .and_then(|frames| frames.call_reference_subjects(machine, site, parameters, writes));
+         if !independent_call_application(
+             program,
+             self.machine_symbol,
+diff --git a/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/storage_effects.rs b/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/storage_effects.rs
+index dfef5b4c4cb..e49fa9fe8b6 100644
+--- a/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/storage_effects.rs
++++ b/omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/storage_effects.rs
+@@ -471,8 +471,8 @@ impl StructuralJudge<'_> {
+         Some(())
+     }
+ 
+-    /// Unknown effects retire every live storage observation, not immutable
+-    /// model premises or detached values captured before the call. Absence of
++    /// Unknown effects retire reachable live storage observations, not immutable
++    /// scalar bindings or detached values captured before the call. Absence of
+     /// a complete frame is never an empty frame or evidence of non-interference.
+     /// Incoming by-value parameters own their scalar payload or inline cells.
+     /// Retain that entry observation before the first effect, just as completed
+@@ -611,17 +611,25 @@ impl StructuralJudge<'_> {
+                             &mut preserved_fields,
+                         );
+                     }
+-                    let stable = written.is_some_and(|written| {
+-                        if let Some(backing) = &stored.backing {
+-                            return backing.survives(written);
+-                        }
+-                        stored.coordinate.has_stable_backing(program, state, frames)
+-                            && stored.coordinate.frame_path(program).is_some_and(|path| {
+-                                written
+-                                    .iter()
+-                                    .all(|written| !crate::frame_paths_overlap(written, &path))
+-                            })
+-                    });
++                    let immutable_scalar = written.is_none()
++                        && stored.coordinate.segments.is_empty()
++                        && stored
++                            .coordinate
++                            .root
++                            .as_symbol()
++                            .is_some_and(|root| self.immutable_scalar_binding(root));
++                    let stable = immutable_scalar
++                        || written.is_some_and(|written| {
++                            if let Some(backing) = &stored.backing {
++                                return backing.survives(written);
++                            }
++                            stored.coordinate.has_stable_backing(program, state, frames)
++                                && stored.coordinate.frame_path(program).is_some_and(|path| {
++                                    written
++                                        .iter()
++                                        .all(|written| !crate::frame_paths_overlap(written, &path))
++                                })
++                        });
+                     let inline = stored
+                         .coordinate
+                         .root
+@@ -710,6 +718,9 @@ impl StructuralJudge<'_> {
+         let frames = self.frame_resolver()?;
+         let mut invalidated = Vec::new();
+         let mut consider = |symbol: SymbolHandle, reference| {
++            if written.is_none() && self.immutable_scalar_binding(symbol) {
++                return;
++            }
+             let overlaps = written.is_none_or(|written| {
+                 crate::frame_coordinate_path(program, symbol, &[]).is_none_or(|path| {
+                     written
+@@ -1706,4 +1717,49 @@ impl StructuralJudge<'_> {
+     pub(super) fn storage_binding_invalidated(&self, symbol: SymbolHandle) -> bool {
+         self.invalidated_storage.contains(&symbol)
+     }
++
++    /// An immutable ordinary scalar has no write authority or reference-bearing
++    /// payload through which an opaque callee could replace its private copy.
++    /// Atomic cells are storage, not such values; classify their sealed atoms
++    /// independently of the primitive width they use.
++    fn immutable_scalar_binding(&self, symbol: SymbolHandle) -> bool {
++        if !symbol.is_valid() {
++            return false;
++        }
++        let program = self.program;
++        let owner = program.symbols.get(symbol).parent;
++        let declaration = crate::call_target_parameters(program, owner)
++            .and_then(|parameters| {
++                parameters
++                    .iter()
++                    .find(|parameter| parameter.symbol == symbol)
++            })
++            .map(|parameter| (parameter.is_mutable, parameter.type_reference))
++            .or_else(|| {
++                let state = program.state_by_symbol(owner).or_else(|| {
++                    program
++                        .machine_by_symbol(owner)
++                        .and_then(|machine| program.machine_states(machine).first())
++                })?;
++                let (_, local) = program.state_local_declaration(state, symbol)?;
++                Some((local.is_mutable, local.type_reference))
++            });
++        let Some((false, reference)) = declaration else {
++            return false;
++        };
++        let reference = program
++            .type_reference_table
++            .unconstrained_type_reference(reference);
++        match program.type_reference_table.type_reference(reference) {
++            typed_trees::types::TypeReferenceNode::Named { symbol, .. } => {
++                program
++                    .symbols
++                    .builtin_type_atom(*symbol)
++                    .is_some_and(|atom| !atom.is_atomic())
++                    && program.primitive_type_reference(reference).is_some()
++            }
++            typed_trees::types::TypeReferenceNode::DynamicTrait { .. } => true,
++            _ => false,
++        }
++    }
+ }

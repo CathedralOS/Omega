@@ -1,0 +1,15 @@
+{
+  "command": [
+    "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/shape-diagnostic-r3-omega",
+    "update",
+    "--project",
+    "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/nosdk-read-record-plan-callback/without-bytes/r3",
+    "--target",
+    "macos_arm64",
+    "--offline"
+  ],
+  "exit": 0,
+  "seconds": 2.898001208,
+  "workspace_head": "01d61c33759656027faacd5a821a56210718b3e8",
+  "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

@@ -1,0 +1,174 @@
+{
+  "schema": "omega-corpus-verdict-v1",
+  "revision": "dc2fba448f27bb9f6b2aa79368158a66705e41a6",
+  "dirty": true,
+  "leg": "both",
+  "target": "macos_arm64",
+  "golden": "tests/omega/corpus_both_macos_arm64.txt",
+  "golden_reason_gaps": {
+    "rows": 0,
+    "of": 5177
+  },
+  "subset": true,
+  "filter": "guarded_call_entry",
+  "shard": null,
+  "verdict": "recorded",
+  "exit_code": 0,
+  "counts": {
+    "fixtures": 9,
+    "by_status": {
+      "built": 9
+    },
+    "wrong_reason": 0,
+    "wrong_reason_fixtures": [],
+    "fail_not_rejected": 0,
+    "fail_not_rejected_fixtures": [],
+    "lost_successes": 0,
+    "lost_success_fixtures": [],
+    "pinned_off_target": 0,
+    "pinned_off_target_fixtures": [],
+    "by_verdict": {}
+  },
+  "oracle_failures": [],
+  "infrastructure_error": null,
+  "golden_provenance": null,
+  "perf_context": null,
+  "observations": [
+    {
+      "fixture": "pass/facts/guarded_call_entry_through_call_result_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 3533,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "dc2fba448f27"
+    },
+    {
+      "fixture": "pass/facts/guarded_call_entry_through_const_name_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2916,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "dc2fba448f27"
+    },
+    {
+      "fixture": "pass/facts/guarded_call_entry_through_field_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2672,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "dc2fba448f27"
+    },
+    {
+      "fixture": "pass/facts/guarded_call_entry_through_local_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2571,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "dc2fba448f27"
+    },
+    {
+      "fixture": "pass/facts/guarded_call_entry_through_match_join_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2982,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "dc2fba448f27"
+    },
+    {
+      "fixture": "pass/facts/guarded_call_entry_through_other_machine_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2454,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "dc2fba448f27"
+    },
+    {
+      "fixture": "pass/facts/guarded_call_entry_through_other_state_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2710,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "dc2fba448f27"
+    },
+    {
+      "fixture": "pass/facts/guarded_call_entry_through_parameter_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2696,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "dc2fba448f27"
+    },
+    {
+      "fixture": "pass/facts/guarded_call_entry_through_target_body_exit",
+      "tier": "pass",
+      "status": "built",
+      "millis": 2335,
+      "expected_satisfied": null,
+      "facts": {
+        "exit": "0",
+        "interpreter-exit": "0",
+        "interpreter": "agrees"
+      },
+      "diagnostics": [],
+      "regressed_from": null,
+      "recorded_at": "dc2fba448f27"
+    }
+  ],
+  "fixtures": []
+}

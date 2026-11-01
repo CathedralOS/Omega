@@ -1,0 +1,976 @@
+{
+  "schema": "omega-independent-callback-entry-final-review-v1",
+  "accepted": true,
+  "reviewer": "Codex independent semantic reviewer",
+  "candidate": "a53f71a77a17e7e164e2d7eac07fc391c95ecf92",
+  "fixed_base": "ddda30fe17a842dd598705fc66d8011b22e1827c",
+  "source_checkpoint": "fec9a6f33b26d928253030a688b22dd3e324b5e6",
+  "blocking_findings": [],
+  "scope": "Completed guarded invocation-entry repair across opaque callbacks and its canonical nine-place row; bounded step under CANONICALIZE-SCALAR-RANGE-CONTRACTS.",
+  "producer": {
+    "source_base": "ddda30fe17a842dd598705fc66d8011b22e1827c",
+    "patch_sha256": "4ca38a1b4c141a43f4192f5c952955c9f1814659cb9413b33ab2e0723027f4ce",
+    "patch_exactly_matches_checkpoint": true,
+    "cli_sha256": "b7bc6f1e94027fd92558acdb9a4f8539520f97432616508106b213e81ea5d95d",
+    "corpus_runner_revision": "fec9a6f33b26d928253030a688b22dd3e324b5e6",
+    "corpus_runner_sha256": "f2ac9678d2bdc6699a9a0f174c3c9787d2a1e2567cca5cc822f05ecbdc1fc312",
+    "opt_level": "1",
+    "final_compiler_library_cargo_toolchain_inputs_match_checkpoint": true
+  },
+  "source_identities": [
+    {
+      "path": "TASKS.md",
+      "git_blob": "6ed6fd75111a76b0b906ad8e8ab498522ac373f8",
+      "sha256": "432dfc925d32c2de68433938e17c124734ef466f01ed72d3ac02859de406f7e6"
+    },
+    {
+      "path": "omega-rust/psi/compilation/checking/README.md",
+      "git_blob": "bcbf3c8e737b9d891fe208c3c5c8e321c80770f5",
+      "sha256": "e4bf600bc9dfef8144e2e85cd94a5f37a80644c759ea3e58a7cd38323b4aaa77"
+    },
+    {
+      "path": "omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames/caller_aliases.rs",
+      "git_blob": "32d7aec1a9d6b1b8a27ebc7fa2850368afe99cd3",
+      "sha256": "41ee6a8731e3135b1eba5b21fd038b5bde0caa187ebfab7db551cdbb1dbb88e9"
+    },
+    {
+      "path": "omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames/demand.rs",
+      "git_blob": "0f5dcb80c47e26cd15f651d2d163209f4716f0e0",
+      "sha256": "05e869c660582993fd1a6f6b87bd276604a88b68e964a6089aca3a30886f7262"
+    },
+    {
+      "path": "omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames/demand/call_origins.rs",
+      "git_blob": "49f9ee01f1b6090485fec191bb8897590799f172",
+      "sha256": "f83629d86fdf4ac0fa1d8f80fa987371189faa818075e1ddcc5c74dc63d324bb"
+    },
+    {
+      "path": "omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames/demand/normal_subjects.rs",
+      "git_blob": "c96904ae8f7ac001307590ca243077463f1892dd",
+      "sha256": "ced795a88d81bc56e701da59de41e5dff3a51bbc96cd2c63ebb37f078e49cdd6"
+    },
+    {
+      "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/normal_returns/call_bindings.rs",
+      "git_blob": "211781802938713ce7271737256adf06e17b248d",
+      "sha256": "4ae2897f51dd484a06dd5ed839b3a270a0979e787aad09c2e91c47df0c46af62"
+    },
+    {
+      "path": "omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/storage_effects.rs",
+      "git_blob": "e49fa9fe8b64465b2fdc34f728097e47b6df659a",
+      "sha256": "0b77a5e57d3c91fb26b0707065c9fb4797fb6e7dd8b8957d7987aa28c4205640"
+    },
+    {
+      "path": "samples/cli/facts/guarded_call_entry/README.md",
+      "git_blob": "6d5c34ba1e691984e4dff96b6a73f712b1e05e9f",
+      "sha256": "c2089bad4c6592741060d0e3c048d3690f79c936401e5d700cc4db50e745f924"
+    },
+    {
+      "path": "samples/cli/facts/guarded_call_entry/call_result/build.omg",
+      "git_blob": "adc04dfca609bdb7a56d5d1965955d5c58adecc5",
+      "sha256": "dac3ba1694c57bd00e8a3b1957e37e157fd30f30b40ece41607ee9127d1790b4"
+    },
+    {
+      "path": "samples/cli/facts/guarded_call_entry/call_result/invalid/build.omg",
+      "git_blob": "adc04dfca609bdb7a56d5d1965955d5c58adecc5",
+      "sha256": "dac3ba1694c57bd00e8a3b1957e37e157fd30f30b40ece41607ee9127d1790b4"
+    },
+    {
+      "path": "samples/cli/facts/guarded_call_entry/call_result/invalid/main.omg",
+      "git_blob": "6883f14ce76b5b44d1b33d613f428dd20bfb63d7",
+      "sha256": "f32c2cb800630e90491c3cf1ad7ac91c724aee1495005b966db44b285ebc5595"
+    },
+    {
+      "path": "samples/cli/facts/guarded_call_entry/call_result/main.omg",
+      "git_blob": "0dcbac4cf0a658dac83ceb6a49fd47d3e9d7e0aa",
+      "sha256": "8859a7396be4d742fedd015941b2e6308c06d6cf71b5c268e3b075bcd655a636"
+    },
+    {
+      "path": "samples/cli/facts/guarded_call_entry/const_name/build.omg",
+      "git_blob": "adc04dfca609bdb7a56d5d1965955d5c58adecc5",
+      "sha256": "dac3ba1694c57bd00e8a3b1957e37e157fd30f30b40ece41607ee9127d1790b4"
+    },
+    {
+      "path": "samples/cli/facts/guarded_call_entry/const_name/invalid/build.omg",
+      "git_blob": "adc04dfca609bdb7a56d5d1965955d5c58adecc5",
+      "sha256": "dac3ba1694c57bd00e8a3b1957e37e157fd30f30b40ece41607ee9127d1790b4"
+    },
+    {
+      "path": "samples/cli/facts/guarded_call_entry/const_name/invalid/main.omg",
+      "git_blob": "a4537e0d746ccfd00eca494b21a66608a918a7f6",
+      "sha256": "7f87a351f56014fb1f9fa16c0f7f7bbab37b3150eda1fa70b279aedeb4f689dd"
+    },
+    {
+      "path": "samples/cli/facts/guarded_call_entry/const_name/main.omg",
+      "git_blob": "8da96da2dea04bedaea21a8a8b50fe1791596f98",
+      "sha256": "4501bf05838869df5f05a581c04f32a61116fcbf80fd55f3dbb1acc1bfc35f86"
+    },
+    {
+      "path": "samples/cli/facts/guarded_call_entry/controls/mutable_fuel_zeroed/build.omg",
+      "git_blob": "92991f37ff718598060cb30fcb33b587d27be3c7",
+      "sha256": "586e935520f8af9c0841ed7e8a712cbbde202aa21676c1e51e575efa95cda9ad"
+    },
+    {
+      "path": "samples/cli/facts/guarded_call_entry/controls/mutable_fuel_zeroed/main.omg",
+      "git_blob": "1b2a2eedee6e254c655764566cbd523b02536c05",
+      "sha256": "b2b2b53042e6e3c0f24416ae6eea93bd98a9784c902301d1e0dbed9000a050f2"
+    },
+    {
+      "path": "samples/cli/facts/guarded_call_entry/controls/stale_context/build.omg",
+      "git_blob": "92991f37ff718598060cb30fcb33b587d27be3c7",
+      "sha256": "586e935520f8af9c0841ed7e8a712cbbde202aa21676c1e51e575efa95cda9ad"
+    },
+    {
+      "path": "samples/cli/facts/guarded_call_entry/controls/stale_context/main.omg",
+      "git_blob": "224375278fed42961b04e86944662b8379f5e9a1",
+      "sha256": "b9a7a2f37efc3f729c01242efbcbb4e91ada81663d4dd4b2de5b34da3c7456bb"
+    },
+    {
+      "path": "samples/cli/facts/guarded_call_entry/field/build.omg",
+      "git_blob": "adc04dfca609bdb7a56d5d1965955d5c58adecc5",
+      "sha256": "dac3ba1694c57bd00e8a3b1957e37e157fd30f30b40ece41607ee9127d1790b4"
+    },
+    {
+      "path": "samples/cli/facts/guarded_call_entry/field/invalid/build.omg",
+      "git_blob": "adc04dfca609bdb7a56d5d1965955d5c58adecc5",
+      "sha256": "dac3ba1694c57bd00e8a3b1957e37e157fd30f30b40ece41607ee9127d1790b4"
+    },
+    {
+      "path": "samples/cli/facts/guarded_call_entry/field/invalid/main.omg",
+      "git_blob": "2eb1c267e9b85c4448d8730aa4c864017919620f",
+      "sha256": "3d9588afb6fc768172092bd6db1aa00d74664a989921da7f8ab5bfa83cc651ca"
+    },
+    {
+      "path": "samples/cli/facts/guarded_call_entry/field/main.omg",
+      "git_blob": "356b1469238db04ac68f7597b2834c9b22b84199",
+      "sha256": "a84dfb448716cd5b39f3f18479cec21061a931775869583a2929979421e0085d"
+    },
+    {
+      "path": "samples/cli/facts/guarded_call_entry/local/build.omg",
+      "git_blob": "adc04dfca609bdb7a56d5d1965955d5c58adecc5",
+      "sha256": "dac3ba1694c57bd00e8a3b1957e37e157fd30f30b40ece41607ee9127d1790b4"
+    },
+    {
+      "path": "samples/cli/facts/guarded_call_entry/local/invalid/build.omg",
+      "git_blob": "adc04dfca609bdb7a56d5d1965955d5c58adecc5",
+      "sha256": "dac3ba1694c57bd00e8a3b1957e37e157fd30f30b40ece41607ee9127d1790b4"
+    },
+    {
+      "path": "samples/cli/facts/guarded_call_entry/local/invalid/main.omg",
+      "git_blob": "09cbf254ca976240b2c037f0d007c2cb31772561",
+      "sha256": "46482fe7787672e588e98214fe2dca8a1c91d0490bd877302db0a49bd554840a"
+    },
+    {
+      "path": "samples/cli/facts/guarded_call_entry/local/main.omg",
+      "git_blob": "a79660de1491deb1ee5f7bdff812e850813c38e8",
+      "sha256": "5311bb1bfb3e1c04b57163e7414951ad53796d172425f5ec8a460b4d85ecc3b5"
+    },
+    {
+      "path": "samples/cli/facts/guarded_call_entry/match_join/build.omg",
+      "git_blob": "adc04dfca609bdb7a56d5d1965955d5c58adecc5",
+      "sha256": "dac3ba1694c57bd00e8a3b1957e37e157fd30f30b40ece41607ee9127d1790b4"
+    },
+    {
+      "path": "samples/cli/facts/guarded_call_entry/match_join/invalid/build.omg",
+      "git_blob": "adc04dfca609bdb7a56d5d1965955d5c58adecc5",
+      "sha256": "dac3ba1694c57bd00e8a3b1957e37e157fd30f30b40ece41607ee9127d1790b4"
+    },
+    {
+      "path": "samples/cli/facts/guarded_call_entry/match_join/invalid/main.omg",
+      "git_blob": "902ef78a21156a14cd6c09a8b74a83ec7747dcb5",
+      "sha256": "4faf1e30b037dece6460f1a67dcbb7f0d93ed26e0c3bc3e5a93458b413c69af8"
+    },
+    {
+      "path": "samples/cli/facts/guarded_call_entry/match_join/main.omg",
+      "git_blob": "9f7496d8cfd3eb298a6815dda22b981e1f9bc45b",
+      "sha256": "be2ddfda7b7fe7b5abb168bd897e2a417e5699506a21f6e895667156355b217a"
+    },
+    {
+      "path": "samples/cli/facts/guarded_call_entry/other_machine/build.omg",
+      "git_blob": "adc04dfca609bdb7a56d5d1965955d5c58adecc5",
+      "sha256": "dac3ba1694c57bd00e8a3b1957e37e157fd30f30b40ece41607ee9127d1790b4"
+    },
+    {
+      "path": "samples/cli/facts/guarded_call_entry/other_machine/invalid/build.omg",
+      "git_blob": "adc04dfca609bdb7a56d5d1965955d5c58adecc5",
+      "sha256": "dac3ba1694c57bd00e8a3b1957e37e157fd30f30b40ece41607ee9127d1790b4"
+    },
+    {
+      "path": "samples/cli/facts/guarded_call_entry/other_machine/invalid/main.omg",
+      "git_blob": "3bef8a061ae0497a45bcd60c77415d776431caba",
+      "sha256": "76a314ccfa3599653021a732b3d45e3c520195c29157202d882aead606387aa5"
+    },
+    {
+      "path": "samples/cli/facts/guarded_call_entry/other_machine/main.omg",
+      "git_blob": "b8b0432a480971b451c1ee2985ca639b94de9ce7",
+      "sha256": "87eef20161a088b43697de973aa4f177876ce4af3523904c1887ff4545868406"
+    },
+    {
+      "path": "samples/cli/facts/guarded_call_entry/other_state/build.omg",
+      "git_blob": "adc04dfca609bdb7a56d5d1965955d5c58adecc5",
+      "sha256": "dac3ba1694c57bd00e8a3b1957e37e157fd30f30b40ece41607ee9127d1790b4"
+    },
+    {
+      "path": "samples/cli/facts/guarded_call_entry/other_state/invalid/build.omg",
+      "git_blob": "adc04dfca609bdb7a56d5d1965955d5c58adecc5",
+      "sha256": "dac3ba1694c57bd00e8a3b1957e37e157fd30f30b40ece41607ee9127d1790b4"
+    },
+    {
+      "path": "samples/cli/facts/guarded_call_entry/other_state/invalid/main.omg",
+      "git_blob": "81adbb95cb4ac5807777d1ac723acb393928a5f2",
+      "sha256": "1a818fe0850229e6b640d1955729bb0eb3c89df3f100a40404f837603690a5df"
+    },
+    {
+      "path": "samples/cli/facts/guarded_call_entry/other_state/main.omg",
+      "git_blob": "02724480a52728b08e7291ffc0e18f9dfdf0336c",
+      "sha256": "c24132a4e6acac5d12362f19c81e2af2e10ab4880b5755e927152954afcd781e"
+    },
+    {
+      "path": "samples/cli/facts/guarded_call_entry/parameter/build.omg",
+      "git_blob": "adc04dfca609bdb7a56d5d1965955d5c58adecc5",
+      "sha256": "dac3ba1694c57bd00e8a3b1957e37e157fd30f30b40ece41607ee9127d1790b4"
+    },
+    {
+      "path": "samples/cli/facts/guarded_call_entry/parameter/invalid/build.omg",
+      "git_blob": "adc04dfca609bdb7a56d5d1965955d5c58adecc5",
+      "sha256": "dac3ba1694c57bd00e8a3b1957e37e157fd30f30b40ece41607ee9127d1790b4"
+    },
+    {
+      "path": "samples/cli/facts/guarded_call_entry/parameter/invalid/main.omg",
+      "git_blob": "74f9e20a05f098a83a682ff6a478fc5e7ba93d3a",
+      "sha256": "58642ab0a01577a4c583a68ff5612aeb73cf1157dded9b9e5b111e24f901169a"
+    },
+    {
+      "path": "samples/cli/facts/guarded_call_entry/parameter/main.omg",
+      "git_blob": "0876d921d6a5fea0e7d568dd4fd8c8e43c4c219b",
+      "sha256": "06e27602e79754597cf109afe69cea747d728c2bbb869b019ffaf936c2d2e7a6"
+    },
+    {
+      "path": "samples/cli/facts/guarded_call_entry/target_body/build.omg",
+      "git_blob": "baa9a7f5daffb4fc4107b0035f31690b499cb8f2",
+      "sha256": "0332249890b94ad0ab36c0f12bd7fe664571c659b531c904d45083eb367b5e10"
+    },
+    {
+      "path": "samples/cli/facts/guarded_call_entry/target_body/invalid/build.omg",
+      "git_blob": "baa9a7f5daffb4fc4107b0035f31690b499cb8f2",
+      "sha256": "0332249890b94ad0ab36c0f12bd7fe664571c659b531c904d45083eb367b5e10"
+    },
+    {
+      "path": "samples/cli/facts/guarded_call_entry/target_body/invalid/main.omg",
+      "git_blob": "1ee783562f2bc1fc3e8e082322ed365c2bcdb570",
+      "sha256": "805d0d0f9daa0d1ec7d493416ec24d370e8b78cdaca730bcbe1a624806b1afb2"
+    },
+    {
+      "path": "samples/cli/facts/guarded_call_entry/target_body/main.omg",
+      "git_blob": "73881efce41b0b15025b18e7fce4cd3acd7fe2af",
+      "sha256": "ea226bcd5d9bcad69041d8fb7b51af13a5f0751ed917e63d91840d591348f244"
+    },
+    {
+      "path": "tests/omega/corpus_both_macos_arm64.txt",
+      "git_blob": "2a58e1ed6b7b7ab276886fe9b1b7518b1e88c946",
+      "sha256": "05602c3a0e0ca27aba90769f71c20908b024ea0d21bb691dc30c7f8e5ab4712a"
+    },
+    {
+      "path": "tests/omega/corpus_outcomes.txt",
+      "git_blob": "5d14c143e102031260797e03d6a67672b3ac0d77",
+      "sha256": "f9e301743307b0f4e0c7b325553ff6b47e009ad9d5fe163912483a78a9aca7b9"
+    },
+    {
+      "path": "tests/omega/fail/facts/guarded_call_entry_mutable_fuel_zeroed_rejected/build.omg",
+      "git_blob": "92991f37ff718598060cb30fcb33b587d27be3c7",
+      "sha256": "586e935520f8af9c0841ed7e8a712cbbde202aa21676c1e51e575efa95cda9ad"
+    },
+    {
+      "path": "tests/omega/fail/facts/guarded_call_entry_mutable_fuel_zeroed_rejected/expected.txt",
+      "git_blob": "512d2f305bf6f12e7b7788c379692fa6c63dfe1a",
+      "sha256": "6c8351846bbe6914fd5b72f9db6ed04a3ce3a711c476a6636f4f31a515f93ee4"
+    },
+    {
+      "path": "tests/omega/fail/facts/guarded_call_entry_mutable_fuel_zeroed_rejected/main.omg",
+      "git_blob": "1b2a2eedee6e254c655764566cbd523b02536c05",
+      "sha256": "b2b2b53042e6e3c0f24416ae6eea93bd98a9784c902301d1e0dbed9000a050f2"
+    },
+    {
+      "path": "tests/omega/fail/facts/guarded_call_entry_stale_context_rejected/build.omg",
+      "git_blob": "92991f37ff718598060cb30fcb33b587d27be3c7",
+      "sha256": "586e935520f8af9c0841ed7e8a712cbbde202aa21676c1e51e575efa95cda9ad"
+    },
+    {
+      "path": "tests/omega/fail/facts/guarded_call_entry_stale_context_rejected/expected.txt",
+      "git_blob": "512d2f305bf6f12e7b7788c379692fa6c63dfe1a",
+      "sha256": "6c8351846bbe6914fd5b72f9db6ed04a3ce3a711c476a6636f4f31a515f93ee4"
+    },
+    {
+      "path": "tests/omega/fail/facts/guarded_call_entry_stale_context_rejected/main.omg",
+      "git_blob": "224375278fed42961b04e86944662b8379f5e9a1",
+      "sha256": "b9a7a2f37efc3f729c01242efbcbb4e91ada81663d4dd4b2de5b34da3c7456bb"
+    },
+    {
+      "path": "tests/omega/fail/facts/guarded_call_entry_through_call_result_rejected/build.omg",
+      "git_blob": "adc04dfca609bdb7a56d5d1965955d5c58adecc5",
+      "sha256": "dac3ba1694c57bd00e8a3b1957e37e157fd30f30b40ece41607ee9127d1790b4"
+    },
+    {
+      "path": "tests/omega/fail/facts/guarded_call_entry_through_call_result_rejected/expected.txt",
+      "git_blob": "1313668dae8c30714d00314c7c771276ef1794ad",
+      "sha256": "82b1d7c813dcdf433e6a2b685df5d6cc6fe4b7a898895ba4b4477decf35bd337"
+    },
+    {
+      "path": "tests/omega/fail/facts/guarded_call_entry_through_call_result_rejected/main.omg",
+      "git_blob": "6883f14ce76b5b44d1b33d613f428dd20bfb63d7",
+      "sha256": "f32c2cb800630e90491c3cf1ad7ac91c724aee1495005b966db44b285ebc5595"
+    },
+    {
+      "path": "tests/omega/fail/facts/guarded_call_entry_through_const_name_rejected/build.omg",
+      "git_blob": "adc04dfca609bdb7a56d5d1965955d5c58adecc5",
+      "sha256": "dac3ba1694c57bd00e8a3b1957e37e157fd30f30b40ece41607ee9127d1790b4"
+    },
+    {
+      "path": "tests/omega/fail/facts/guarded_call_entry_through_const_name_rejected/expected.txt",
+      "git_blob": "1313668dae8c30714d00314c7c771276ef1794ad",
+      "sha256": "82b1d7c813dcdf433e6a2b685df5d6cc6fe4b7a898895ba4b4477decf35bd337"
+    },
+    {
+      "path": "tests/omega/fail/facts/guarded_call_entry_through_const_name_rejected/main.omg",
+      "git_blob": "a4537e0d746ccfd00eca494b21a66608a918a7f6",
+      "sha256": "7f87a351f56014fb1f9fa16c0f7f7bbab37b3150eda1fa70b279aedeb4f689dd"
+    },
+    {
+      "path": "tests/omega/fail/facts/guarded_call_entry_through_field_rejected/build.omg",
+      "git_blob": "adc04dfca609bdb7a56d5d1965955d5c58adecc5",
+      "sha256": "dac3ba1694c57bd00e8a3b1957e37e157fd30f30b40ece41607ee9127d1790b4"
+    },
+    {
+      "path": "tests/omega/fail/facts/guarded_call_entry_through_field_rejected/expected.txt",
+      "git_blob": "1313668dae8c30714d00314c7c771276ef1794ad",
+      "sha256": "82b1d7c813dcdf433e6a2b685df5d6cc6fe4b7a898895ba4b4477decf35bd337"
+    },
+    {
+      "path": "tests/omega/fail/facts/guarded_call_entry_through_field_rejected/main.omg",
+      "git_blob": "2eb1c267e9b85c4448d8730aa4c864017919620f",
+      "sha256": "3d9588afb6fc768172092bd6db1aa00d74664a989921da7f8ab5bfa83cc651ca"
+    },
+    {
+      "path": "tests/omega/fail/facts/guarded_call_entry_through_local_rejected/build.omg",
+      "git_blob": "adc04dfca609bdb7a56d5d1965955d5c58adecc5",
+      "sha256": "dac3ba1694c57bd00e8a3b1957e37e157fd30f30b40ece41607ee9127d1790b4"
+    },
+    {
+      "path": "tests/omega/fail/facts/guarded_call_entry_through_local_rejected/expected.txt",
+      "git_blob": "1313668dae8c30714d00314c7c771276ef1794ad",
+      "sha256": "82b1d7c813dcdf433e6a2b685df5d6cc6fe4b7a898895ba4b4477decf35bd337"
+    },
+    {
+      "path": "tests/omega/fail/facts/guarded_call_entry_through_local_rejected/main.omg",
+      "git_blob": "09cbf254ca976240b2c037f0d007c2cb31772561",
+      "sha256": "46482fe7787672e588e98214fe2dca8a1c91d0490bd877302db0a49bd554840a"
+    },
+    {
+      "path": "tests/omega/fail/facts/guarded_call_entry_through_match_join_rejected/build.omg",
+      "git_blob": "adc04dfca609bdb7a56d5d1965955d5c58adecc5",
+      "sha256": "dac3ba1694c57bd00e8a3b1957e37e157fd30f30b40ece41607ee9127d1790b4"
+    },
+    {
+      "path": "tests/omega/fail/facts/guarded_call_entry_through_match_join_rejected/expected.txt",
+      "git_blob": "1313668dae8c30714d00314c7c771276ef1794ad",
+      "sha256": "82b1d7c813dcdf433e6a2b685df5d6cc6fe4b7a898895ba4b4477decf35bd337"
+    },
+    {
+      "path": "tests/omega/fail/facts/guarded_call_entry_through_match_join_rejected/main.omg",
+      "git_blob": "902ef78a21156a14cd6c09a8b74a83ec7747dcb5",
+      "sha256": "4faf1e30b037dece6460f1a67dcbb7f0d93ed26e0c3bc3e5a93458b413c69af8"
+    },
+    {
+      "path": "tests/omega/fail/facts/guarded_call_entry_through_other_machine_rejected/build.omg",
+      "git_blob": "adc04dfca609bdb7a56d5d1965955d5c58adecc5",
+      "sha256": "dac3ba1694c57bd00e8a3b1957e37e157fd30f30b40ece41607ee9127d1790b4"
+    },
+    {
+      "path": "tests/omega/fail/facts/guarded_call_entry_through_other_machine_rejected/expected.txt",
+      "git_blob": "1313668dae8c30714d00314c7c771276ef1794ad",
+      "sha256": "82b1d7c813dcdf433e6a2b685df5d6cc6fe4b7a898895ba4b4477decf35bd337"
+    },
+    {
+      "path": "tests/omega/fail/facts/guarded_call_entry_through_other_machine_rejected/main.omg",
+      "git_blob": "3bef8a061ae0497a45bcd60c77415d776431caba",
+      "sha256": "76a314ccfa3599653021a732b3d45e3c520195c29157202d882aead606387aa5"
+    },
+    {
+      "path": "tests/omega/fail/facts/guarded_call_entry_through_other_state_rejected/build.omg",
+      "git_blob": "adc04dfca609bdb7a56d5d1965955d5c58adecc5",
+      "sha256": "dac3ba1694c57bd00e8a3b1957e37e157fd30f30b40ece41607ee9127d1790b4"
+    },
+    {
+      "path": "tests/omega/fail/facts/guarded_call_entry_through_other_state_rejected/expected.txt",
+      "git_blob": "1313668dae8c30714d00314c7c771276ef1794ad",
+      "sha256": "82b1d7c813dcdf433e6a2b685df5d6cc6fe4b7a898895ba4b4477decf35bd337"
+    },
+    {
+      "path": "tests/omega/fail/facts/guarded_call_entry_through_other_state_rejected/main.omg",
+      "git_blob": "81adbb95cb4ac5807777d1ac723acb393928a5f2",
+      "sha256": "1a818fe0850229e6b640d1955729bb0eb3c89df3f100a40404f837603690a5df"
+    },
+    {
+      "path": "tests/omega/fail/facts/guarded_call_entry_through_parameter_rejected/build.omg",
+      "git_blob": "adc04dfca609bdb7a56d5d1965955d5c58adecc5",
+      "sha256": "dac3ba1694c57bd00e8a3b1957e37e157fd30f30b40ece41607ee9127d1790b4"
+    },
+    {
+      "path": "tests/omega/fail/facts/guarded_call_entry_through_parameter_rejected/expected.txt",
+      "git_blob": "1313668dae8c30714d00314c7c771276ef1794ad",
+      "sha256": "82b1d7c813dcdf433e6a2b685df5d6cc6fe4b7a898895ba4b4477decf35bd337"
+    },
+    {
+      "path": "tests/omega/fail/facts/guarded_call_entry_through_parameter_rejected/main.omg",
+      "git_blob": "74f9e20a05f098a83a682ff6a478fc5e7ba93d3a",
+      "sha256": "58642ab0a01577a4c583a68ff5612aeb73cf1157dded9b9e5b111e24f901169a"
+    },
+    {
+      "path": "tests/omega/fail/facts/guarded_call_entry_through_target_body_rejected/build.omg",
+      "git_blob": "baa9a7f5daffb4fc4107b0035f31690b499cb8f2",
+      "sha256": "0332249890b94ad0ab36c0f12bd7fe664571c659b531c904d45083eb367b5e10"
+    },
+    {
+      "path": "tests/omega/fail/facts/guarded_call_entry_through_target_body_rejected/expected.txt",
+      "git_blob": "1313668dae8c30714d00314c7c771276ef1794ad",
+      "sha256": "82b1d7c813dcdf433e6a2b685df5d6cc6fe4b7a898895ba4b4477decf35bd337"
+    },
+    {
+      "path": "tests/omega/fail/facts/guarded_call_entry_through_target_body_rejected/main.omg",
+      "git_blob": "1ee783562f2bc1fc3e8e082322ed365c2bcdb570",
+      "sha256": "805d0d0f9daa0d1ec7d493416ec24d370e8b78cdaca730bcbe1a624806b1afb2"
+    },
+    {
+      "path": "tests/omega/pass/facts/guarded_call_entry_through_call_result_exit/build.omg",
+      "git_blob": "adc04dfca609bdb7a56d5d1965955d5c58adecc5",
+      "sha256": "dac3ba1694c57bd00e8a3b1957e37e157fd30f30b40ece41607ee9127d1790b4"
+    },
+    {
+      "path": "tests/omega/pass/facts/guarded_call_entry_through_call_result_exit/expected_interpreter_exit.txt",
+      "git_blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "tests/omega/pass/facts/guarded_call_entry_through_call_result_exit/expected_native_exit.txt",
+      "git_blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "tests/omega/pass/facts/guarded_call_entry_through_call_result_exit/main.omg",
+      "git_blob": "0dcbac4cf0a658dac83ceb6a49fd47d3e9d7e0aa",
+      "sha256": "8859a7396be4d742fedd015941b2e6308c06d6cf71b5c268e3b075bcd655a636"
+    },
+    {
+      "path": "tests/omega/pass/facts/guarded_call_entry_through_const_name_exit/build.omg",
+      "git_blob": "adc04dfca609bdb7a56d5d1965955d5c58adecc5",
+      "sha256": "dac3ba1694c57bd00e8a3b1957e37e157fd30f30b40ece41607ee9127d1790b4"
+    },
+    {
+      "path": "tests/omega/pass/facts/guarded_call_entry_through_const_name_exit/expected_interpreter_exit.txt",
+      "git_blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "tests/omega/pass/facts/guarded_call_entry_through_const_name_exit/expected_native_exit.txt",
+      "git_blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "tests/omega/pass/facts/guarded_call_entry_through_const_name_exit/main.omg",
+      "git_blob": "8da96da2dea04bedaea21a8a8b50fe1791596f98",
+      "sha256": "4501bf05838869df5f05a581c04f32a61116fcbf80fd55f3dbb1acc1bfc35f86"
+    },
+    {
+      "path": "tests/omega/pass/facts/guarded_call_entry_through_field_exit/build.omg",
+      "git_blob": "adc04dfca609bdb7a56d5d1965955d5c58adecc5",
+      "sha256": "dac3ba1694c57bd00e8a3b1957e37e157fd30f30b40ece41607ee9127d1790b4"
+    },
+    {
+      "path": "tests/omega/pass/facts/guarded_call_entry_through_field_exit/expected_interpreter_exit.txt",
+      "git_blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "tests/omega/pass/facts/guarded_call_entry_through_field_exit/expected_native_exit.txt",
+      "git_blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "tests/omega/pass/facts/guarded_call_entry_through_field_exit/main.omg",
+      "git_blob": "356b1469238db04ac68f7597b2834c9b22b84199",
+      "sha256": "a84dfb448716cd5b39f3f18479cec21061a931775869583a2929979421e0085d"
+    },
+    {
+      "path": "tests/omega/pass/facts/guarded_call_entry_through_local_exit/build.omg",
+      "git_blob": "adc04dfca609bdb7a56d5d1965955d5c58adecc5",
+      "sha256": "dac3ba1694c57bd00e8a3b1957e37e157fd30f30b40ece41607ee9127d1790b4"
+    },
+    {
+      "path": "tests/omega/pass/facts/guarded_call_entry_through_local_exit/expected_interpreter_exit.txt",
+      "git_blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "tests/omega/pass/facts/guarded_call_entry_through_local_exit/expected_native_exit.txt",
+      "git_blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "tests/omega/pass/facts/guarded_call_entry_through_local_exit/main.omg",
+      "git_blob": "a79660de1491deb1ee5f7bdff812e850813c38e8",
+      "sha256": "5311bb1bfb3e1c04b57163e7414951ad53796d172425f5ec8a460b4d85ecc3b5"
+    },
+    {
+      "path": "tests/omega/pass/facts/guarded_call_entry_through_match_join_exit/build.omg",
+      "git_blob": "adc04dfca609bdb7a56d5d1965955d5c58adecc5",
+      "sha256": "dac3ba1694c57bd00e8a3b1957e37e157fd30f30b40ece41607ee9127d1790b4"
+    },
+    {
+      "path": "tests/omega/pass/facts/guarded_call_entry_through_match_join_exit/expected_interpreter_exit.txt",
+      "git_blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "tests/omega/pass/facts/guarded_call_entry_through_match_join_exit/expected_native_exit.txt",
+      "git_blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "tests/omega/pass/facts/guarded_call_entry_through_match_join_exit/main.omg",
+      "git_blob": "9f7496d8cfd3eb298a6815dda22b981e1f9bc45b",
+      "sha256": "be2ddfda7b7fe7b5abb168bd897e2a417e5699506a21f6e895667156355b217a"
+    },
+    {
+      "path": "tests/omega/pass/facts/guarded_call_entry_through_other_machine_exit/build.omg",
+      "git_blob": "adc04dfca609bdb7a56d5d1965955d5c58adecc5",
+      "sha256": "dac3ba1694c57bd00e8a3b1957e37e157fd30f30b40ece41607ee9127d1790b4"
+    },
+    {
+      "path": "tests/omega/pass/facts/guarded_call_entry_through_other_machine_exit/expected_interpreter_exit.txt",
+      "git_blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "tests/omega/pass/facts/guarded_call_entry_through_other_machine_exit/expected_native_exit.txt",
+      "git_blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "tests/omega/pass/facts/guarded_call_entry_through_other_machine_exit/main.omg",
+      "git_blob": "b8b0432a480971b451c1ee2985ca639b94de9ce7",
+      "sha256": "87eef20161a088b43697de973aa4f177876ce4af3523904c1887ff4545868406"
+    },
+    {
+      "path": "tests/omega/pass/facts/guarded_call_entry_through_other_state_exit/build.omg",
+      "git_blob": "adc04dfca609bdb7a56d5d1965955d5c58adecc5",
+      "sha256": "dac3ba1694c57bd00e8a3b1957e37e157fd30f30b40ece41607ee9127d1790b4"
+    },
+    {
+      "path": "tests/omega/pass/facts/guarded_call_entry_through_other_state_exit/expected_interpreter_exit.txt",
+      "git_blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "tests/omega/pass/facts/guarded_call_entry_through_other_state_exit/expected_native_exit.txt",
+      "git_blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "tests/omega/pass/facts/guarded_call_entry_through_other_state_exit/main.omg",
+      "git_blob": "02724480a52728b08e7291ffc0e18f9dfdf0336c",
+      "sha256": "c24132a4e6acac5d12362f19c81e2af2e10ab4880b5755e927152954afcd781e"
+    },
+    {
+      "path": "tests/omega/pass/facts/guarded_call_entry_through_parameter_exit/build.omg",
+      "git_blob": "adc04dfca609bdb7a56d5d1965955d5c58adecc5",
+      "sha256": "dac3ba1694c57bd00e8a3b1957e37e157fd30f30b40ece41607ee9127d1790b4"
+    },
+    {
+      "path": "tests/omega/pass/facts/guarded_call_entry_through_parameter_exit/expected_interpreter_exit.txt",
+      "git_blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "tests/omega/pass/facts/guarded_call_entry_through_parameter_exit/expected_native_exit.txt",
+      "git_blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "tests/omega/pass/facts/guarded_call_entry_through_parameter_exit/main.omg",
+      "git_blob": "0876d921d6a5fea0e7d568dd4fd8c8e43c4c219b",
+      "sha256": "06e27602e79754597cf109afe69cea747d728c2bbb869b019ffaf936c2d2e7a6"
+    },
+    {
+      "path": "tests/omega/pass/facts/guarded_call_entry_through_target_body_exit/build.omg",
+      "git_blob": "baa9a7f5daffb4fc4107b0035f31690b499cb8f2",
+      "sha256": "0332249890b94ad0ab36c0f12bd7fe664571c659b531c904d45083eb367b5e10"
+    },
+    {
+      "path": "tests/omega/pass/facts/guarded_call_entry_through_target_body_exit/expected_interpreter_exit.txt",
+      "git_blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "tests/omega/pass/facts/guarded_call_entry_through_target_body_exit/expected_native_exit.txt",
+      "git_blob": "573541ac9702dd3969c9bc859d2b91ec1f7e6e56",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    {
+      "path": "tests/omega/pass/facts/guarded_call_entry_through_target_body_exit/main.omg",
+      "git_blob": "73881efce41b0b15025b18e7fce4cd3acd7fe2af",
+      "sha256": "ea226bcd5d9bcad69041d8fb7b51af13a5f0751ed917e63d91840d591348f244"
+    }
+  ],
+  "canonical_sources": [
+    {
+      "path": "wiki/spec/language/state_contracts.md",
+      "git_blob": "58df5543c427ed92730f32e86573f4e5700911ee"
+    },
+    {
+      "path": "wiki/spec/language/evaluation.md",
+      "git_blob": "e76bdd6b33699e380a3abe09c11975dc6b77ab15"
+    },
+    {
+      "path": "wiki/spec/terminal-psi/fact_validity.md",
+      "git_blob": "5159dc678b42b8bb7737f0c60a0a20c966fcd6df"
+    },
+    {
+      "path": "wiki/spec/terminal-psi/dynamic_dispatch.md",
+      "git_blob": "3b2a50977724c63609ff8c21981c1a07fb8c58f3"
+    },
+    {
+      "path": "tools/testing.md",
+      "git_blob": "8c7b52c431c64c4b89c9ad1dd4ef3bd57ce9cd90"
+    },
+    {
+      "path": ".agents/skills/rust-systems-programmer/SKILL.md",
+      "git_blob": "de427ec2712f7675f6525462889e2b3dc0fe0ee7"
+    }
+  ],
+  "reviewed_receipts": [
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-selected-results.json",
+      "sha256": "6fae8e1db1471b1eb53de3e5c7566f8c72247d39cfd1e589928673071ef6c78b"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/nosdk-read-record-plan-safety-controls/r3-source-results.json",
+      "sha256": "fb0cc5b52fe00fd440cfa883daca8cd78c2a5e6b0362d8a3863bb6984731a415"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/callback-existing-opaque-controls.json",
+      "sha256": "85a766b51b1b5ae1b0dd4336d34b0b411533704ed276304ab21e928a73f9fa77"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/callback-row-corpus-check.json",
+      "sha256": "42ab4ea92bddf72a38ba92caa0a840a355ecd1dc04658c1a6a75bdf7d60d6231"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/callback-row-corpus-both.json",
+      "sha256": "1ccb81d904e01eeb58faf90d1fcfed497a7e51adbcc9c054029edae5ce7d2f51"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/independent-callback-entry-r3-results.json",
+      "sha256": "c63c874973ca5d9dabad6646e91fa1a059713d786bd2aa588cc1174500f431c5"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/callback-entry-r3-producer.json",
+      "sha256": "ea9d78068cbb2444cd4508f36cd4f3eacc55665a71736ebe5a01af8c6a9a2ba8"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/callback-entry-r3-source.patch",
+      "sha256": "4ca38a1b4c141a43f4192f5c952955c9f1814659cb9413b33ab2e0723027f4ce"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/callback-corpus-r3-strip-none-producer.json",
+      "sha256": "c7e996fdb4dd68f8b9c40e6d25b5fedc68289a4914688177438d8388ed24de4c"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/callback-compiler-input-reuse.json",
+      "sha256": "27c7654acc841b667bf493653dbc5dcaa94c1ae9144d5e6cf5ca03254a8aaf31"
+    }
+  ],
+  "raw_observation_channels": [
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-local-baseline.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-local-baseline.stderr",
+      "sha256": "39e22fbedf4310e74871175bd6892b6fc4b7ce2b101853bd692659b5f5f40058"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-local-invalid.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-local-invalid.stderr",
+      "sha256": "0c25560db711d2ae5e9d2370fabd1aef4238db137bd09faf311494678beaf891"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-local-both.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-local-both.stderr",
+      "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-field-baseline.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-field-baseline.stderr",
+      "sha256": "39e22fbedf4310e74871175bd6892b6fc4b7ce2b101853bd692659b5f5f40058"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-field-invalid.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-field-invalid.stderr",
+      "sha256": "0c25560db711d2ae5e9d2370fabd1aef4238db137bd09faf311494678beaf891"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-field-both.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-field-both.stderr",
+      "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-parameter-baseline.stdout",
+      "sha256": "12a43e8c9738f640f75448c0fe929b88025489b0b984723945cec6e5082afb78"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-parameter-baseline.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-parameter-invalid.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-parameter-invalid.stderr",
+      "sha256": "d1882c37be02ef1af957ddc068eda71a4c01d1a179468e9d469e4716af183aca"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-parameter-both.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-parameter-both.stderr",
+      "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-call_result-baseline.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-call_result-baseline.stderr",
+      "sha256": "39e22fbedf4310e74871175bd6892b6fc4b7ce2b101853bd692659b5f5f40058"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-call_result-invalid.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-call_result-invalid.stderr",
+      "sha256": "0c25560db711d2ae5e9d2370fabd1aef4238db137bd09faf311494678beaf891"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-call_result-both.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-call_result-both.stderr",
+      "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-match_join-baseline.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-match_join-baseline.stderr",
+      "sha256": "39e22fbedf4310e74871175bd6892b6fc4b7ce2b101853bd692659b5f5f40058"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-match_join-invalid.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-match_join-invalid.stderr",
+      "sha256": "0c25560db711d2ae5e9d2370fabd1aef4238db137bd09faf311494678beaf891"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-match_join-both.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-match_join-both.stderr",
+      "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-const_name-baseline.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-const_name-baseline.stderr",
+      "sha256": "39e22fbedf4310e74871175bd6892b6fc4b7ce2b101853bd692659b5f5f40058"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-const_name-invalid.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-const_name-invalid.stderr",
+      "sha256": "0c25560db711d2ae5e9d2370fabd1aef4238db137bd09faf311494678beaf891"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-const_name-both.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-const_name-both.stderr",
+      "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-other_state-baseline.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-other_state-baseline.stderr",
+      "sha256": "39e22fbedf4310e74871175bd6892b6fc4b7ce2b101853bd692659b5f5f40058"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-other_state-invalid.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-other_state-invalid.stderr",
+      "sha256": "0c25560db711d2ae5e9d2370fabd1aef4238db137bd09faf311494678beaf891"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-other_state-both.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-other_state-both.stderr",
+      "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-other_machine-baseline.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-other_machine-baseline.stderr",
+      "sha256": "39e22fbedf4310e74871175bd6892b6fc4b7ce2b101853bd692659b5f5f40058"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-other_machine-invalid.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-other_machine-invalid.stderr",
+      "sha256": "0c25560db711d2ae5e9d2370fabd1aef4238db137bd09faf311494678beaf891"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-other_machine-both.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-other_machine-both.stderr",
+      "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-target_body-baseline.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-target_body-baseline.stderr",
+      "sha256": "4aac1b5c9f7e25c1f34a00c1653f85623bf91e4651492f6630cf714a7395325c"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-target_body-invalid.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-target_body-invalid.stderr",
+      "sha256": "e9fe4f5e862faa0c1c51c3194ac935c5a2ff929044a58264ce7dcbc348205191"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-target_body-both.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-target_body-both.stderr",
+      "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/plan-callback-controls-r3-stale_context-source.json",
+      "sha256": "9957b18b62c72ab4f4f693472c3cb8239204e93a9d1fc9d06d9801d23d3bbb74"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/plan-callback-controls-r3-stale_context-source.stderr",
+      "sha256": "b60d2eb2cd52c03cd987a21e7b72802306a4d4f2c855734551ed1d93b0bfc916"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/plan-callback-controls-r3-mutable_fuel_zeroed-source.json",
+      "sha256": "58306cbb69ff4092a1df39c7aa8410ace26da2233d0921d8b0ecf23a5d4a66ba"
+    },
+    {
+      "path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/plan-callback-controls-r3-mutable_fuel_zeroed-source.stderr",
+      "sha256": "b60d2eb2cd52c03cd987a21e7b72802306a4d4f2c855734551ed1d93b0bfc916"
+    }
+  ],
+  "independent_replays": [
+    {
+      "label": "positive",
+      "receipt": {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/independent-callback-entry-match-join-r3-positive.json",
+        "sha256": "8f5ac3d16286f4b896cfe9847e04f2b04f1fc415ebb010022a49746eebea0de3"
+      },
+      "stdout": {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/independent-callback-entry-match-join-r3-positive.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stderr": {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/independent-callback-entry-match-join-r3-positive.stderr",
+        "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a"
+      }
+    },
+    {
+      "label": "twin",
+      "receipt": {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/independent-callback-entry-match-join-r3-twin.json",
+        "sha256": "77bf628d027fa5ea4f501bcc9f721dfd5215d13f001ca283970e1057c9992474"
+      },
+      "stdout": {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/independent-callback-entry-match-join-r3-twin.stdout",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stderr": {
+        "path": "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/independent-callback-entry-match-join-r3-twin.stderr",
+        "sha256": "0c25560db711d2ae5e9d2370fabd1aef4238db137bd09faf311494678beaf891"
+      }
+    }
+  ],
+  "semantic_assessment": [
+    "Invocation-entry origins are obtained independently of future write-frame completeness. The exact precomputed write frame still determines stable/preserved return flags; opaque frames grant neither preserved referents nor fresh post-call storage.",
+    "Unavailable prefix evidence remains explicitly absent. The existing validated owned-borrow-address and isolated-value operations retain independent knowledge. Loaded origins, full reference inventories and runtime receivers remain unknown; both expression and statement receivers honor the preceding-effect fence. Footprint consumers require a real prefix and retain opaque frames.",
+    "Immutable whole-root non-atomic scalar bindings and code-only dynamic selectors retain only existing observations under unknown effects. Exact declaration symbols and immutable flags own classification; reference payloads, mutable bindings, atomic cells, projected storage and prior invalidation markers retain their fences. Missing values are not recreated.",
+    "All nine programs share the same two obligations and directly return slots.len-count and fuel-1 as two distinct result fields. All non-match places observe (0,1); match arms separately observe (0,0) and (0,1). False Plan returns (99,99); omitted successful callback produces a nonzero remainder. Array contents, outside canaries and field-holder neighbor canaries are checked.",
+    "Suppliers and selected provider accept unrestricted u64 and guarantee exact identity. Each twin removes only the positive-fuel assumption, leaving callback, fresh count guard and consuming operations unchanged. All nine raw refusals name parse and missing positive fuel. Parameter already passed baseline and is composition coverage; eight other exact final positives reproduce baseline refusal.",
+    "Selected provider uses ordinary named implementation and all four hosted Build selections. Corpus pins match authored sources/builds and have explicit native/interpreter exit0 oracles.",
+    "Raw direct observations establish nine native0/Terminal0 pairs and nine intended twin refusals; two tracked safety controls reject stale context and zeroed mutable fuel. Three existing opaque-contract corpus controls retain their intended refusals. Focused corpus establishes twenty source cases (nine checked/eleven intended rejects) and nine actual engine agreements with no oracle failures.",
+    "Independent replay under one build-slot hold at the final candidate executed match_join with frozen optimized R3 CLI: native0/Terminal0; its exact twin refused parse positive fuel. Program/build bytes and accepted project lock remained unchanged.",
+    "Final candidate adds only selected source/both golden rows after 730ec906baa108e8b7c161a3c3a09d27ce1f61e3. Removing those new blocks reproduces all old golden bytes exactly. Source observations retain 730ec906 and both observations dc2fba identities with recorded dirty status; they are not relabeled as final-head executions.",
+    "README accurately distinguishes the entry-vs-return mechanism from earlier-argument snapshots, baseline defects from coverage, current results from historical producers, and source/Terminal production from pending GUI admission/runtime."
+  ],
+  "limitations": [
+    "Actual runtime qualification is macOS arm64; other hosted bindings/selections are declarations, not runtime qualification.",
+    "WindowDemo source and Terminal production reached normal package-policy review; GUI policy admission, native desktop/visible behavior and parent completion remain open. No GUI authority approval is given here.",
+    "Pre-existing mixed-predicate restoration-window soundness gap and remaining scalar migrations remain open.",
+    "Cancelled R2 and preliminary/partially transformed fixture captures are not accepted evidence.",
+    "Independent final replay covered one discriminating place and its twin; remaining places were reviewed through retained raw observations and complete focused corpus records.",
+    "This review does not verify remote evidence upload, publication, queue admission or landing."
+  ]
+}

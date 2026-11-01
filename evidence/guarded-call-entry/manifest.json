@@ -1,0 +1,503 @@
+{
+  "candidate": "a53f71a77a17e7e164e2d7eac07fc391c95ecf92",
+  "fixed_base": "ddda30fe17a842dd598705fc66d8011b22e1827c",
+  "compiler_checkpoint": "fec9a6f33b26d928253030a688b22dd3e324b5e6",
+  "candidate_cli_sha256": "b7bc6f1e94027fd92558acdb9a4f8539520f97432616508106b213e81ea5d95d",
+  "baseline_cli_sha256": "717c3b9f6443bd68d2a2243bdef18fc2ea8f9f716c29af7ad96688ebf24e94c3",
+  "baseline_applicability": "Retained6c producer differs from fixedddda in mathematical-certificate stack traversal only. Its refusal lacks the incoming context subject before certificate judgment; no origin, invocation binding, storage effect, library, Cargo or toolchain input changed. Baseline observations retain original producer identities. Eight final places refuse; parameter already accepts and is coverage.",
+  "runtime_scope": "macos_arm64 native and Terminal only; four authored Build entries do not establish other-host execution.",
+  "remaining": "WindowDemo policy review and native GUI execution; mixed-predicate restoration-window issue; remaining parent migration.",
+  "files": {
+    "records/callback-entry-r3-producer.json": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/callback-entry-r3-producer.json",
+      "sha256": "ea9d78068cbb2444cd4508f36cd4f3eacc55665a71736ebe5a01af8c6a9a2ba8",
+      "bytes": 684
+    },
+    "records/callback-entry-r3-build.json": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/callback-entry-r3-build.json",
+      "sha256": "a3e8b7b70c05f7a54ae69ae24bb06f6e91d7e370e9bc5c1382f0643f22a669d9",
+      "bytes": 363
+    },
+    "records/callback-entry-r3-omega.compiler-profile.json": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/callback-entry-r3-omega.compiler-profile.json",
+      "sha256": "f6f78bc81b8bcea9ae476c64f9c2e04dc908fcb1ff03f6aaa08f57e559018804",
+      "bytes": 6421
+    },
+    "records/callback-entry-r3-source.patch": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/callback-entry-r3-source.patch",
+      "sha256": "4ca38a1b4c141a43f4192f5c952955c9f1814659cb9413b33ab2e0723027f4ce",
+      "bytes": 23819
+    },
+    "records/callback-corpus-r3-strip-none-producer.json": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/callback-corpus-r3-strip-none-producer.json",
+      "sha256": "c7e996fdb4dd68f8b9c40e6d25b5fedc68289a4914688177438d8388ed24de4c",
+      "bytes": 713
+    },
+    "records/callback-corpus-r3-strip-none-build.json": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/callback-corpus-r3-strip-none-build.json",
+      "sha256": "23c146bb896f9a161fc82d9887eb7e899a40bb6b2cd8b7be4fe60b1cdd590d10",
+      "bytes": 380
+    },
+    "records/callback-corpus-r3-strip-none-omega.compiler-profile.json": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/callback-corpus-r3-strip-none-omega.compiler-profile.json",
+      "sha256": "6691b6b355a67ee9894c276e67660ea422de34405ff88135d841b36586283e08",
+      "bytes": 9468
+    },
+    "records/callback-compiler-input-reuse.json": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/callback-compiler-input-reuse.json",
+      "sha256": "27c7654acc841b667bf493653dbc5dcaa94c1ae9144d5e6cf5ca03254a8aaf31",
+      "bytes": 1327
+    },
+    "records/callback-existing-opaque-controls.json": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/callback-existing-opaque-controls.json",
+      "sha256": "85a766b51b1b5ae1b0dd4336d34b0b411533704ed276304ab21e928a73f9fa77",
+      "bytes": 5102
+    },
+    "records/callback-row-corpus-check.json": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/callback-row-corpus-check.json",
+      "sha256": "42ab4ea92bddf72a38ba92caa0a840a355ecd1dc04658c1a6a75bdf7d60d6231",
+      "bytes": 18541
+    },
+    "records/callback-row-corpus-both.json": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/callback-row-corpus-both.json",
+      "sha256": "1ccb81d904e01eeb58faf90d1fcfed497a7e51adbcc9c054029edae5ce7d2f51",
+      "bytes": 4421
+    },
+    "records/guarded-call-entry-selected-results.json": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-selected-results.json",
+      "sha256": "6fae8e1db1471b1eb53de3e5c7566f8c72247d39cfd1e589928673071ef6c78b",
+      "bytes": 26878
+    },
+    "records/guarded-call-entry-local-baseline.stdout": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-local-baseline.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "records/guarded-call-entry-local-baseline.stderr": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-local-baseline.stderr",
+      "sha256": "39e22fbedf4310e74871175bd6892b6fc4b7ce2b101853bd692659b5f5f40058",
+      "bytes": 433
+    },
+    "records/guarded-call-entry-local-invalid.stdout": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-local-invalid.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "records/guarded-call-entry-local-invalid.stderr": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-local-invalid.stderr",
+      "sha256": "0c25560db711d2ae5e9d2370fabd1aef4238db137bd09faf311494678beaf891",
+      "bytes": 1195
+    },
+    "records/guarded-call-entry-local-both.stdout": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-local-both.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "records/guarded-call-entry-local-both.stderr": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-local-both.stderr",
+      "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a",
+      "bytes": 29
+    },
+    "records/guarded-call-entry-field-baseline.stdout": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-field-baseline.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "records/guarded-call-entry-field-baseline.stderr": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-field-baseline.stderr",
+      "sha256": "39e22fbedf4310e74871175bd6892b6fc4b7ce2b101853bd692659b5f5f40058",
+      "bytes": 433
+    },
+    "records/guarded-call-entry-field-invalid.stdout": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-field-invalid.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "records/guarded-call-entry-field-invalid.stderr": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-field-invalid.stderr",
+      "sha256": "0c25560db711d2ae5e9d2370fabd1aef4238db137bd09faf311494678beaf891",
+      "bytes": 1195
+    },
+    "records/guarded-call-entry-field-both.stdout": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-field-both.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "records/guarded-call-entry-field-both.stderr": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-field-both.stderr",
+      "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a",
+      "bytes": 29
+    },
+    "records/guarded-call-entry-parameter-baseline.stdout": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-parameter-baseline.stdout",
+      "sha256": "12a43e8c9738f640f75448c0fe929b88025489b0b984723945cec6e5082afb78",
+      "bytes": 177
+    },
+    "records/guarded-call-entry-parameter-baseline.stderr": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-parameter-baseline.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "records/guarded-call-entry-parameter-invalid.stdout": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-parameter-invalid.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "records/guarded-call-entry-parameter-invalid.stderr": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-parameter-invalid.stderr",
+      "sha256": "d1882c37be02ef1af957ddc068eda71a4c01d1a179468e9d469e4716af183aca",
+      "bytes": 1108
+    },
+    "records/guarded-call-entry-parameter-both.stdout": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-parameter-both.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "records/guarded-call-entry-parameter-both.stderr": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-parameter-both.stderr",
+      "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a",
+      "bytes": 29
+    },
+    "records/guarded-call-entry-call_result-baseline.stdout": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-call_result-baseline.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "records/guarded-call-entry-call_result-baseline.stderr": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-call_result-baseline.stderr",
+      "sha256": "39e22fbedf4310e74871175bd6892b6fc4b7ce2b101853bd692659b5f5f40058",
+      "bytes": 433
+    },
+    "records/guarded-call-entry-call_result-invalid.stdout": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-call_result-invalid.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "records/guarded-call-entry-call_result-invalid.stderr": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-call_result-invalid.stderr",
+      "sha256": "0c25560db711d2ae5e9d2370fabd1aef4238db137bd09faf311494678beaf891",
+      "bytes": 1195
+    },
+    "records/guarded-call-entry-call_result-both.stdout": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-call_result-both.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "records/guarded-call-entry-call_result-both.stderr": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-call_result-both.stderr",
+      "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a",
+      "bytes": 29
+    },
+    "records/guarded-call-entry-match_join-baseline.stdout": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-match_join-baseline.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "records/guarded-call-entry-match_join-baseline.stderr": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-match_join-baseline.stderr",
+      "sha256": "39e22fbedf4310e74871175bd6892b6fc4b7ce2b101853bd692659b5f5f40058",
+      "bytes": 433
+    },
+    "records/guarded-call-entry-match_join-invalid.stdout": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-match_join-invalid.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "records/guarded-call-entry-match_join-invalid.stderr": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-match_join-invalid.stderr",
+      "sha256": "0c25560db711d2ae5e9d2370fabd1aef4238db137bd09faf311494678beaf891",
+      "bytes": 1195
+    },
+    "records/guarded-call-entry-match_join-both.stdout": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-match_join-both.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "records/guarded-call-entry-match_join-both.stderr": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-match_join-both.stderr",
+      "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a",
+      "bytes": 29
+    },
+    "records/guarded-call-entry-const_name-baseline.stdout": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-const_name-baseline.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "records/guarded-call-entry-const_name-baseline.stderr": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-const_name-baseline.stderr",
+      "sha256": "39e22fbedf4310e74871175bd6892b6fc4b7ce2b101853bd692659b5f5f40058",
+      "bytes": 433
+    },
+    "records/guarded-call-entry-const_name-invalid.stdout": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-const_name-invalid.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "records/guarded-call-entry-const_name-invalid.stderr": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-const_name-invalid.stderr",
+      "sha256": "0c25560db711d2ae5e9d2370fabd1aef4238db137bd09faf311494678beaf891",
+      "bytes": 1195
+    },
+    "records/guarded-call-entry-const_name-both.stdout": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-const_name-both.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "records/guarded-call-entry-const_name-both.stderr": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-const_name-both.stderr",
+      "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a",
+      "bytes": 29
+    },
+    "records/guarded-call-entry-other_state-baseline.stdout": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-other_state-baseline.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "records/guarded-call-entry-other_state-baseline.stderr": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-other_state-baseline.stderr",
+      "sha256": "39e22fbedf4310e74871175bd6892b6fc4b7ce2b101853bd692659b5f5f40058",
+      "bytes": 433
+    },
+    "records/guarded-call-entry-other_state-invalid.stdout": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-other_state-invalid.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "records/guarded-call-entry-other_state-invalid.stderr": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-other_state-invalid.stderr",
+      "sha256": "0c25560db711d2ae5e9d2370fabd1aef4238db137bd09faf311494678beaf891",
+      "bytes": 1195
+    },
+    "records/guarded-call-entry-other_state-both.stdout": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-other_state-both.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "records/guarded-call-entry-other_state-both.stderr": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-other_state-both.stderr",
+      "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a",
+      "bytes": 29
+    },
+    "records/guarded-call-entry-other_machine-baseline.stdout": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-other_machine-baseline.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "records/guarded-call-entry-other_machine-baseline.stderr": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-other_machine-baseline.stderr",
+      "sha256": "39e22fbedf4310e74871175bd6892b6fc4b7ce2b101853bd692659b5f5f40058",
+      "bytes": 433
+    },
+    "records/guarded-call-entry-other_machine-invalid.stdout": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-other_machine-invalid.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "records/guarded-call-entry-other_machine-invalid.stderr": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-other_machine-invalid.stderr",
+      "sha256": "0c25560db711d2ae5e9d2370fabd1aef4238db137bd09faf311494678beaf891",
+      "bytes": 1195
+    },
+    "records/guarded-call-entry-other_machine-both.stdout": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-other_machine-both.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "records/guarded-call-entry-other_machine-both.stderr": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-other_machine-both.stderr",
+      "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a",
+      "bytes": 29
+    },
+    "records/guarded-call-entry-target_body-baseline.stdout": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-target_body-baseline.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "records/guarded-call-entry-target_body-baseline.stderr": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-target_body-baseline.stderr",
+      "sha256": "4aac1b5c9f7e25c1f34a00c1653f85623bf91e4651492f6630cf714a7395325c",
+      "bytes": 445
+    },
+    "records/guarded-call-entry-target_body-invalid.stdout": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-target_body-invalid.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "records/guarded-call-entry-target_body-invalid.stderr": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-target_body-invalid.stderr",
+      "sha256": "e9fe4f5e862faa0c1c51c3194ac935c5a2ff929044a58264ce7dcbc348205191",
+      "bytes": 1207
+    },
+    "records/guarded-call-entry-target_body-both.stdout": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-target_body-both.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "records/guarded-call-entry-target_body-both.stderr": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-target_body-both.stderr",
+      "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a",
+      "bytes": 29
+    },
+    "records/independent-callback-entry-r3-results.json": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/independent-callback-entry-r3-results.json",
+      "sha256": "c63c874973ca5d9dabad6646e91fa1a059713d786bd2aa588cc1174500f431c5",
+      "bytes": 13055
+    },
+    "records/r3-source-results.json": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/nosdk-read-record-plan-safety-controls/r3-source-results.json",
+      "sha256": "fb0cc5b52fe00fd440cfa883daca8cd78c2a5e6b0362d8a3863bb6984731a415",
+      "bytes": 2414
+    },
+    "records/plan-callback-controls-r3-stale_context-source.json": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/plan-callback-controls-r3-stale_context-source.json",
+      "sha256": "9957b18b62c72ab4f4f693472c3cb8239204e93a9d1fc9d06d9801d23d3bbb74",
+      "bytes": 541
+    },
+    "records/plan-callback-controls-r3-stale_context-source.stdout": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/plan-callback-controls-r3-stale_context-source.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "records/plan-callback-controls-r3-stale_context-source.stderr": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/plan-callback-controls-r3-stale_context-source.stderr",
+      "sha256": "b60d2eb2cd52c03cd987a21e7b72802306a4d4f2c855734551ed1d93b0bfc916",
+      "bytes": 821
+    },
+    "records/plan-callback-controls-r3-mutable_fuel_zeroed-source.json": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/plan-callback-controls-r3-mutable_fuel_zeroed-source.json",
+      "sha256": "58306cbb69ff4092a1df39c7aa8410ace26da2233d0921d8b0ecf23a5d4a66ba",
+      "bytes": 547
+    },
+    "records/plan-callback-controls-r3-mutable_fuel_zeroed-source.stdout": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/plan-callback-controls-r3-mutable_fuel_zeroed-source.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "records/plan-callback-controls-r3-mutable_fuel_zeroed-source.stderr": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/plan-callback-controls-r3-mutable_fuel_zeroed-source.stderr",
+      "sha256": "b60d2eb2cd52c03cd987a21e7b72802306a4d4f2c855734551ed1d93b0bfc916",
+      "bytes": 821
+    },
+    "records/comparison-results.json": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/nosdk-read-record-plan-callback/without-bytes/comparison-results.json",
+      "sha256": "1d025ed75c0c954466c3e35a708e8c54ea59b8f39aa7bdb48b5c53b91fa12448",
+      "bytes": 2893
+    },
+    "records/plan-callback-v1-r3-update.json": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/plan-callback-v1-r3-update.json",
+      "sha256": "2cfd17d8abc12c263cd832f320fdc786992204634e3fe2c465ee2175442b44ef",
+      "bytes": 539
+    },
+    "records/plan-callback-v1-r3-update.stdout": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/plan-callback-v1-r3-update.stdout",
+      "sha256": "dba7e3be901db8930f39ec7168b17b3d07f93a18bb46f8a3946530c4b0714c12",
+      "bytes": 764
+    },
+    "records/plan-callback-v1-r3-update.stderr": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/plan-callback-v1-r3-update.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "records/plan-callback-v1-r4-update.json": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/plan-callback-v1-r4-update.json",
+      "sha256": "ccac264f41034fcd8a4cb2e59b5ffc68a5d0710fd1ab78064a80f1217ba14c0a",
+      "bytes": 538
+    },
+    "records/plan-callback-v1-r4-update.stdout": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/plan-callback-v1-r4-update.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "records/plan-callback-v1-r4-update.stderr": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/plan-callback-v1-r4-update.stderr",
+      "sha256": "215bc7faaab3c3af4b8859601385fc9ff726a63bee9d94832550fb56734a5752",
+      "bytes": 444
+    },
+    "records/plan-callback-v1-r5-update.json": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/plan-callback-v1-r5-update.json",
+      "sha256": "e7badad25ede2a21778ce781fa49f1579656d01e4e3df7820f1730bfa4107de6",
+      "bytes": 538
+    },
+    "records/plan-callback-v1-r5-update.stdout": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/plan-callback-v1-r5-update.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "records/plan-callback-v1-r5-update.stderr": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/plan-callback-v1-r5-update.stderr",
+      "sha256": "215bc7faaab3c3af4b8859601385fc9ff726a63bee9d94832550fb56734a5752",
+      "bytes": 444
+    },
+    "records/plan-callback-v1-r3-both.json": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/plan-callback-v1-r3-both.json",
+      "sha256": "63015c0c269b48e1e84515521395520c08dd08e9af386bba9de3c4ecba7b989b",
+      "bytes": 490
+    },
+    "records/plan-callback-v1-r3-both.stdout": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/plan-callback-v1-r3-both.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "records/plan-callback-v1-r3-both.stderr": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/plan-callback-v1-r3-both.stderr",
+      "sha256": "cacca6fdefa38c5ce573e0f7fa1a60c83798598170e109cd622699094c03eb1a",
+      "bytes": 29
+    },
+    "records/callback-entry-r3-original-run.json": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/callback-entry-r3-original-run.json",
+      "sha256": "45829644e48fedb9bc023061eafc31c038276a8b13e5476357b20facaac00037",
+      "bytes": 502
+    },
+    "records/callback-entry-r3-window-update.json": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/callback-entry-r3-window-update.json",
+      "sha256": "fb05bdd2345bfcc8b153675db81d5b804272448dcc46cbcedb66b982126203bf",
+      "bytes": 443
+    },
+    "records/callback-entry-r3-original-run.stdout": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/callback-entry-r3-original-run.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "records/callback-entry-r3-original-run.stderr": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/callback-entry-r3-original-run.stderr",
+      "sha256": "65c5d5a456342d6289a6f9dedd0d87faebce21067bb0986794e208830892d39f",
+      "bytes": 114
+    },
+    "records/callback-entry-r3-window-update.stdout": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/callback-entry-r3-window-update.stdout",
+      "sha256": "f1ece75aef1e96487a3d7a64e0a899ff2980e6b71950e54a0cd342317a986409",
+      "bytes": 1108
+    },
+    "records/callback-entry-r3-window-update.stderr": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/callback-entry-r3-window-update.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "original/main.omg": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/nosdk-read-record-plan-callback/without-bytes/r5/main.omg",
+      "sha256": "f6451f4c94326363962cc02f71d089f3abdf5910eaac57fb212b46c1b5ac8a69",
+      "bytes": 1668
+    },
+    "original/build.omg": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/nosdk-read-record-plan-callback/without-bytes/r5/build.omg",
+      "sha256": "586e935520f8af9c0841ed7e8a712cbbde202aa21676c1e51e575efa95cda9ad",
+      "bytes": 347
+    },
+    "source/730ec906baa108e8b7c161a3c3a09d27ce1f61e3.bundle": {
+      "source_path": "build/corpus-source/730ec906baa108e8b7c161a3c3a09d27ce1f61e3.bundle",
+      "sha256": "e0579aedc725f72b705074be2f575bd7a553d3a0deeb4ad1a147546920c0c04a",
+      "bytes": 17097
+    },
+    "source/dc2fba448f27bb9f6b2aa79368158a66705e41a6.bundle": {
+      "source_path": "build/corpus-source/dc2fba448f27bb9f6b2aa79368158a66705e41a6.bundle",
+      "sha256": "11ed01ab607d9506b10583cf495515842323625ca7d3fe5cff7c84e45fd8b661",
+      "bytes": 18570
+    },
+    "records/independent-callback-entry-review.json": {
+      "source_path": "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/independent-callback-entry-review.json",
+      "sha256": "0af30a226265d204e3b8099cd9c8a41f13c7c3f8e67d1a24418d8b079bf91723",
+      "bytes": 53252
+    }
+  },
+  "independent_review": "records/independent-callback-entry-review.json"
+}

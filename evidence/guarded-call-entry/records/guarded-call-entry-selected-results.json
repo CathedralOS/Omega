@@ -1,0 +1,485 @@
+{
+  "source": "fec9a6f33b26d928253030a688b22dd3e324b5e6",
+  "profiles": {
+    "candidate": {
+      "binary": "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/callback-entry-r3-omega",
+      "sha256": "b7bc6f1e94027fd92558acdb9a4f8539520f97432616508106b213e81ea5d95d",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "1"
+      }
+    },
+    "baseline": {
+      "binary": "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/captured-bounds-r5-omega",
+      "sha256": "717c3b9f6443bd68d2a2243bdef18fc2ea8f9f716c29af7ad96688ebf24e94c3",
+      "profile": {
+        "schema": "omega-compiler-build-profile-v1",
+        "opt_level": "1"
+      }
+    }
+  },
+  "target": "macos_arm64",
+  "runtime_target": "implicit host",
+  "seconds": 52.498464833,
+  "results": [
+    {
+      "place": "local",
+      "inputs": {
+        "samples/cli/facts/guarded_call_entry/local/main.omg": "5311bb1bfb3e1c04b57163e7414951ad53796d172425f5ec8a460b4d85ecc3b5",
+        "samples/cli/facts/guarded_call_entry/local/build.omg": "dac3ba1694c57bd00e8a3b1957e37e157fd30f30b40ece41607ee9127d1790b4",
+        "samples/cli/facts/guarded_call_entry/local/invalid/main.omg": "46482fe7787672e588e98214fe2dca8a1c91d0490bd877302db0a49bd554840a",
+        "samples/cli/facts/guarded_call_entry/local/invalid/build.omg": "dac3ba1694c57bd00e8a3b1957e37e157fd30f30b40ece41607ee9127d1790b4"
+      },
+      "observations": [
+        {
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/captured-bounds-r5-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/guarded_call_entry/local/main.omg"
+          ],
+          "exit": 1,
+          "seconds": 1.482513625,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-local-baseline.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-local-baseline.stderr",
+          "expected": true,
+          "baseline_defect": true
+        },
+        {
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/callback-entry-r3-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/guarded_call_entry/local/invalid/main.omg"
+          ],
+          "exit": 1,
+          "seconds": 1.413489667,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-local-invalid.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-local-invalid.stderr",
+          "expected": true,
+          "baseline_defect": false
+        },
+        {
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/callback-entry-r3-omega",
+            "run",
+            "--both",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/guarded_call_entry/local/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 3.019249625,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-local-both.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-local-both.stderr",
+          "expected": true,
+          "baseline_defect": false
+        }
+      ]
+    },
+    {
+      "place": "field",
+      "inputs": {
+        "samples/cli/facts/guarded_call_entry/field/main.omg": "a84dfb448716cd5b39f3f18479cec21061a931775869583a2929979421e0085d",
+        "samples/cli/facts/guarded_call_entry/field/build.omg": "dac3ba1694c57bd00e8a3b1957e37e157fd30f30b40ece41607ee9127d1790b4",
+        "samples/cli/facts/guarded_call_entry/field/invalid/main.omg": "3d9588afb6fc768172092bd6db1aa00d74664a989921da7f8ab5bfa83cc651ca",
+        "samples/cli/facts/guarded_call_entry/field/invalid/build.omg": "dac3ba1694c57bd00e8a3b1957e37e157fd30f30b40ece41607ee9127d1790b4"
+      },
+      "observations": [
+        {
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/captured-bounds-r5-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/guarded_call_entry/field/main.omg"
+          ],
+          "exit": 1,
+          "seconds": 1.561289125,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-field-baseline.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-field-baseline.stderr",
+          "expected": true,
+          "baseline_defect": true
+        },
+        {
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/callback-entry-r3-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/guarded_call_entry/field/invalid/main.omg"
+          ],
+          "exit": 1,
+          "seconds": 1.3948138329999997,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-field-invalid.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-field-invalid.stderr",
+          "expected": true,
+          "baseline_defect": false
+        },
+        {
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/callback-entry-r3-omega",
+            "run",
+            "--both",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/guarded_call_entry/field/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 3.1597310830000005,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-field-both.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-field-both.stderr",
+          "expected": true,
+          "baseline_defect": false
+        }
+      ]
+    },
+    {
+      "place": "parameter",
+      "inputs": {
+        "samples/cli/facts/guarded_call_entry/parameter/main.omg": "06e27602e79754597cf109afe69cea747d728c2bbb869b019ffaf936c2d2e7a6",
+        "samples/cli/facts/guarded_call_entry/parameter/build.omg": "dac3ba1694c57bd00e8a3b1957e37e157fd30f30b40ece41607ee9127d1790b4",
+        "samples/cli/facts/guarded_call_entry/parameter/invalid/main.omg": "58642ab0a01577a4c583a68ff5612aeb73cf1157dded9b9e5b111e24f901169a",
+        "samples/cli/facts/guarded_call_entry/parameter/invalid/build.omg": "dac3ba1694c57bd00e8a3b1957e37e157fd30f30b40ece41607ee9127d1790b4"
+      },
+      "observations": [
+        {
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/captured-bounds-r5-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/guarded_call_entry/parameter/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 3.5027452090000004,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-parameter-baseline.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-parameter-baseline.stderr",
+          "expected": true,
+          "baseline_defect": false
+        },
+        {
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/callback-entry-r3-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/guarded_call_entry/parameter/invalid/main.omg"
+          ],
+          "exit": 1,
+          "seconds": 1.4676817919999987,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-parameter-invalid.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-parameter-invalid.stderr",
+          "expected": true,
+          "baseline_defect": false
+        },
+        {
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/callback-entry-r3-omega",
+            "run",
+            "--both",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/guarded_call_entry/parameter/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 3.1889984580000004,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-parameter-both.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-parameter-both.stderr",
+          "expected": true,
+          "baseline_defect": false
+        }
+      ]
+    },
+    {
+      "place": "call_result",
+      "inputs": {
+        "samples/cli/facts/guarded_call_entry/call_result/main.omg": "8859a7396be4d742fedd015941b2e6308c06d6cf71b5c268e3b075bcd655a636",
+        "samples/cli/facts/guarded_call_entry/call_result/build.omg": "dac3ba1694c57bd00e8a3b1957e37e157fd30f30b40ece41607ee9127d1790b4",
+        "samples/cli/facts/guarded_call_entry/call_result/invalid/main.omg": "f32c2cb800630e90491c3cf1ad7ac91c724aee1495005b966db44b285ebc5595",
+        "samples/cli/facts/guarded_call_entry/call_result/invalid/build.omg": "dac3ba1694c57bd00e8a3b1957e37e157fd30f30b40ece41607ee9127d1790b4"
+      },
+      "observations": [
+        {
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/captured-bounds-r5-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/guarded_call_entry/call_result/main.omg"
+          ],
+          "exit": 1,
+          "seconds": 1.3747807089999995,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-call_result-baseline.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-call_result-baseline.stderr",
+          "expected": true,
+          "baseline_defect": true
+        },
+        {
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/callback-entry-r3-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/guarded_call_entry/call_result/invalid/main.omg"
+          ],
+          "exit": 1,
+          "seconds": 1.3787222499999991,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-call_result-invalid.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-call_result-invalid.stderr",
+          "expected": true,
+          "baseline_defect": false
+        },
+        {
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/callback-entry-r3-omega",
+            "run",
+            "--both",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/guarded_call_entry/call_result/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 2.7612297079999983,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-call_result-both.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-call_result-both.stderr",
+          "expected": true,
+          "baseline_defect": false
+        }
+      ]
+    },
+    {
+      "place": "match_join",
+      "inputs": {
+        "samples/cli/facts/guarded_call_entry/match_join/main.omg": "be2ddfda7b7fe7b5abb168bd897e2a417e5699506a21f6e895667156355b217a",
+        "samples/cli/facts/guarded_call_entry/match_join/build.omg": "dac3ba1694c57bd00e8a3b1957e37e157fd30f30b40ece41607ee9127d1790b4",
+        "samples/cli/facts/guarded_call_entry/match_join/invalid/main.omg": "4faf1e30b037dece6460f1a67dcbb7f0d93ed26e0c3bc3e5a93458b413c69af8",
+        "samples/cli/facts/guarded_call_entry/match_join/invalid/build.omg": "dac3ba1694c57bd00e8a3b1957e37e157fd30f30b40ece41607ee9127d1790b4"
+      },
+      "observations": [
+        {
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/captured-bounds-r5-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/guarded_call_entry/match_join/main.omg"
+          ],
+          "exit": 1,
+          "seconds": 1.417162458,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-match_join-baseline.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-match_join-baseline.stderr",
+          "expected": true,
+          "baseline_defect": true
+        },
+        {
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/callback-entry-r3-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/guarded_call_entry/match_join/invalid/main.omg"
+          ],
+          "exit": 1,
+          "seconds": 1.4558462080000005,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-match_join-invalid.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-match_join-invalid.stderr",
+          "expected": true,
+          "baseline_defect": false
+        },
+        {
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/callback-entry-r3-omega",
+            "run",
+            "--both",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/guarded_call_entry/match_join/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 3.128304750000005,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-match_join-both.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-match_join-both.stderr",
+          "expected": true,
+          "baseline_defect": false
+        }
+      ]
+    },
+    {
+      "place": "const_name",
+      "inputs": {
+        "samples/cli/facts/guarded_call_entry/const_name/main.omg": "4501bf05838869df5f05a581c04f32a61116fcbf80fd55f3dbb1acc1bfc35f86",
+        "samples/cli/facts/guarded_call_entry/const_name/build.omg": "dac3ba1694c57bd00e8a3b1957e37e157fd30f30b40ece41607ee9127d1790b4",
+        "samples/cli/facts/guarded_call_entry/const_name/invalid/main.omg": "7f87a351f56014fb1f9fa16c0f7f7bbab37b3150eda1fa70b279aedeb4f689dd",
+        "samples/cli/facts/guarded_call_entry/const_name/invalid/build.omg": "dac3ba1694c57bd00e8a3b1957e37e157fd30f30b40ece41607ee9127d1790b4"
+      },
+      "observations": [
+        {
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/captured-bounds-r5-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/guarded_call_entry/const_name/main.omg"
+          ],
+          "exit": 1,
+          "seconds": 1.4029190420000006,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-const_name-baseline.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-const_name-baseline.stderr",
+          "expected": true,
+          "baseline_defect": true
+        },
+        {
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/callback-entry-r3-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/guarded_call_entry/const_name/invalid/main.omg"
+          ],
+          "exit": 1,
+          "seconds": 1.415735208000001,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-const_name-invalid.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-const_name-invalid.stderr",
+          "expected": true,
+          "baseline_defect": false
+        },
+        {
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/callback-entry-r3-omega",
+            "run",
+            "--both",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/guarded_call_entry/const_name/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 2.334264209000004,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-const_name-both.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-const_name-both.stderr",
+          "expected": true,
+          "baseline_defect": false
+        }
+      ]
+    },
+    {
+      "place": "other_state",
+      "inputs": {
+        "samples/cli/facts/guarded_call_entry/other_state/main.omg": "c24132a4e6acac5d12362f19c81e2af2e10ab4880b5755e927152954afcd781e",
+        "samples/cli/facts/guarded_call_entry/other_state/build.omg": "dac3ba1694c57bd00e8a3b1957e37e157fd30f30b40ece41607ee9127d1790b4",
+        "samples/cli/facts/guarded_call_entry/other_state/invalid/main.omg": "1a818fe0850229e6b640d1955729bb0eb3c89df3f100a40404f837603690a5df",
+        "samples/cli/facts/guarded_call_entry/other_state/invalid/build.omg": "dac3ba1694c57bd00e8a3b1957e37e157fd30f30b40ece41607ee9127d1790b4"
+      },
+      "observations": [
+        {
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/captured-bounds-r5-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/guarded_call_entry/other_state/main.omg"
+          ],
+          "exit": 1,
+          "seconds": 1.501852250000006,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-other_state-baseline.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-other_state-baseline.stderr",
+          "expected": true,
+          "baseline_defect": true
+        },
+        {
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/callback-entry-r3-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/guarded_call_entry/other_state/invalid/main.omg"
+          ],
+          "exit": 1,
+          "seconds": 1.4125243330000004,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-other_state-invalid.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-other_state-invalid.stderr",
+          "expected": true,
+          "baseline_defect": false
+        },
+        {
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/callback-entry-r3-omega",
+            "run",
+            "--both",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/guarded_call_entry/other_state/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 2.3008623340000014,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-other_state-both.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-other_state-both.stderr",
+          "expected": true,
+          "baseline_defect": false
+        }
+      ]
+    },
+    {
+      "place": "other_machine",
+      "inputs": {
+        "samples/cli/facts/guarded_call_entry/other_machine/main.omg": "87eef20161a088b43697de973aa4f177876ce4af3523904c1887ff4545868406",
+        "samples/cli/facts/guarded_call_entry/other_machine/build.omg": "dac3ba1694c57bd00e8a3b1957e37e157fd30f30b40ece41607ee9127d1790b4",
+        "samples/cli/facts/guarded_call_entry/other_machine/invalid/main.omg": "76a314ccfa3599653021a732b3d45e3c520195c29157202d882aead606387aa5",
+        "samples/cli/facts/guarded_call_entry/other_machine/invalid/build.omg": "dac3ba1694c57bd00e8a3b1957e37e157fd30f30b40ece41607ee9127d1790b4"
+      },
+      "observations": [
+        {
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/captured-bounds-r5-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/guarded_call_entry/other_machine/main.omg"
+          ],
+          "exit": 1,
+          "seconds": 1.4428947079999972,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-other_machine-baseline.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-other_machine-baseline.stderr",
+          "expected": true,
+          "baseline_defect": true
+        },
+        {
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/callback-entry-r3-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/guarded_call_entry/other_machine/invalid/main.omg"
+          ],
+          "exit": 1,
+          "seconds": 1.4040461250000007,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-other_machine-invalid.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-other_machine-invalid.stderr",
+          "expected": true,
+          "baseline_defect": false
+        },
+        {
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/callback-entry-r3-omega",
+            "run",
+            "--both",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/guarded_call_entry/other_machine/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 2.2887458749999965,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-other_machine-both.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-other_machine-both.stderr",
+          "expected": true,
+          "baseline_defect": false
+        }
+      ]
+    },
+    {
+      "place": "target_body",
+      "inputs": {
+        "samples/cli/facts/guarded_call_entry/target_body/main.omg": "ea226bcd5d9bcad69041d8fb7b51af13a5f0751ed917e63d91840d591348f244",
+        "samples/cli/facts/guarded_call_entry/target_body/build.omg": "0332249890b94ad0ab36c0f12bd7fe664571c659b531c904d45083eb367b5e10",
+        "samples/cli/facts/guarded_call_entry/target_body/invalid/main.omg": "805d0d0f9daa0d1ec7d493416ec24d370e8b78cdaca730bcbe1a624806b1afb2",
+        "samples/cli/facts/guarded_call_entry/target_body/invalid/build.omg": "0332249890b94ad0ab36c0f12bd7fe664571c659b531c904d45083eb367b5e10"
+      },
+      "observations": [
+        {
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/captured-bounds-r5-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/guarded_call_entry/target_body/main.omg"
+          ],
+          "exit": 1,
+          "seconds": 1.537900332999996,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-target_body-baseline.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-target_body-baseline.stderr",
+          "expected": true,
+          "baseline_defect": true
+        },
+        {
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/callback-entry-r3-omega",
+            "--check",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/guarded_call_entry/target_body/invalid/main.omg"
+          ],
+          "exit": 1,
+          "seconds": 1.4009914170000002,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-target_body-invalid.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-target_body-invalid.stderr",
+          "expected": true,
+          "baseline_defect": false
+        },
+        {
+          "command": [
+            "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/callback-entry-r3-omega",
+            "run",
+            "--both",
+            "/Users/zcanann/Documents/Projects/Omega/.agents/worktree/check-reuse/samples/cli/facts/guarded_call_entry/target_body/main.omg"
+          ],
+          "exit": 0,
+          "seconds": 2.277837292000001,
+          "stdout": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-target_body-both.stdout",
+          "stderr": "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/guarded-call-entry-target_body-both.stderr",
+          "expected": true,
+          "baseline_defect": false
+        }
+      ]
+    }
+  ]
+}

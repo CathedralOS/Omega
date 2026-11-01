@@ -1,0 +1,15 @@
+{
+  "command": [
+    "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/callback-entry-r3-omega",
+    "update",
+    "--project",
+    "samples/gui/window_demo",
+    "--target",
+    "macos_arm64",
+    "--offline"
+  ],
+  "exit": 3,
+  "seconds": 124.280443291,
+  "workspace_head": "fec9a6f33b26d928253030a688b22dd3e324b5e6",
+  "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

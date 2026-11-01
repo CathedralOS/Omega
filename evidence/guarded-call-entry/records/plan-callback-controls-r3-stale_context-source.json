@@ -1,0 +1,15 @@
+{
+  "command": [
+    "/Users/zcanann/Documents/Projects/Omega/build/counter-default-domain-20261101/callback-entry-r3-omega",
+    "update",
+    "--project",
+    "/Users/zcanann/Documents/Projects/Omega/build/sdk-framebuffer-20261031/nosdk-read-record-plan-safety-controls/stale_context",
+    "--target",
+    "macos_arm64",
+    "--offline"
+  ],
+  "exit": 1,
+  "seconds": 1.757907125,
+  "workspace_head": "ddda30fe17a842dd598705fc66d8011b22e1827c",
+  "tracked_diff_sha256": "4ca38a1b4c141a43f4192f5c952955c9f1814659cb9413b33ab2e0723027f4ce"
+}
