@@ -137,7 +137,6 @@ pub fn prepare_boundary_calling_plans<'checked>(
                         policy_machine: policy_machine.name.as_str().to_owned(),
                         policy_symbol: policy_machine.symbol,
                         relationship_span: request.span,
-                        admission: Ok(()),
                     });
                 }
             }
@@ -189,8 +188,13 @@ pub fn prepare_boundary_calling_plans<'checked>(
             )
         }))
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        for (policy, admission) in pending.iter_mut().zip(admissions) {
-            policy.admission = admission.map(|_closure| ());
+        // Refuse inadmissible execution before asking the driver to publish
+        // its code. Otherwise an unrelated lowering refusal can hide the
+        // selected closure's missing termination or authority obligation.
+        for (policy, admission) in pending.iter().zip(admissions) {
+            admission.map_err(|reason| {
+                vec![Diagnostic::error(reason).with_source_span(policy.relationship_span)]
+            })?;
         }
         provider_declarations = providers.declarations;
     }
@@ -226,7 +230,6 @@ struct PreparedCallingPolicy {
     policy_machine: String,
     policy_symbol: symbols::SymbolHandle,
     relationship_span: source::SourceSpan,
-    admission: Result<(), String>,
 }
 
 impl PreparedBoundaryCallingPlans<'_> {
@@ -243,7 +246,6 @@ impl PreparedBoundaryCallingPlans<'_> {
             let diagnostic = |reason: String| {
                 vec![Diagnostic::error(reason).with_source_span(policy.relationship_span)]
             };
-            policy.admission.map_err(&diagnostic)?;
             let code = code.ok_or_else(|| {
                 diagnostic("calling policies have no published Terminal code".into())
             })?;
