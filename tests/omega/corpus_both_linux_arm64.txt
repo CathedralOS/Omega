@@ -5400,15 +5400,6 @@ pass/facts/named_conformance_dispatch_through_target_body_exit rejected 838ms in
 	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
 	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
 	cannot form specification operator `+` in trait `Arithmetic` state `combine` ensures contract: no exact selected meaning
-pass/facts/narrow_to_narrow_truncation_64to16_mask_bound_through_call_result_exit built 2208ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_narrow_truncation_64to16_mask_bound_through_const_name_exit built 1975ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_narrow_truncation_64to16_mask_bound_through_field_exit built 1986ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_narrow_truncation_64to16_mask_bound_through_local_exit built 1979ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_narrow_truncation_64to16_mask_bound_through_match_join_exit built 2020ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_narrow_truncation_64to16_mask_bound_through_other_machine_exit built 1935ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_narrow_truncation_64to16_mask_bound_through_other_state_exit built 1965ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_narrow_truncation_64to16_mask_bound_through_parameter_exit built 1986ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/narrow_to_narrow_truncation_64to16_mask_bound_through_target_body_exit built 2671ms exit:0 interpreter-exit:0 terminal-target.linux_arm64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @6e42425cd720
 pass/facts/narrow_to_narrow_truncation_64to8_mask_bound_through_call_result_exit built 1897ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/narrow_to_narrow_truncation_64to8_mask_bound_through_const_name_exit built 1989ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/narrow_to_narrow_truncation_64to8_mask_bound_through_field_exit built 1997ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720

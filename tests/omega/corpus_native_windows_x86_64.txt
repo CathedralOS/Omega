@@ -3435,15 +3435,6 @@ pass/facts/named_conformance_dispatch_through_parameter_exit rejected 3183ms @5f
 	cannot prove ensures contract for exit from apply$specialized$abaf361fafff1d4e$0 at statement 0: result == left + right
 pass/facts/named_conformance_dispatch_through_target_body_exit rejected 3132ms @5f668826adf3+wt
 	cannot prove ensures contract for exit from apply$specialized$abaf361fafff1d4e$0 at statement 0: result == left + right
-pass/facts/narrow_to_narrow_truncation_64to16_mask_bound_through_call_result_exit built 4816ms exit:0 @5f668826adf3+wt
-pass/facts/narrow_to_narrow_truncation_64to16_mask_bound_through_const_name_exit built 3664ms exit:0 @5f668826adf3+wt
-pass/facts/narrow_to_narrow_truncation_64to16_mask_bound_through_field_exit built 4305ms exit:0 @5f668826adf3+wt
-pass/facts/narrow_to_narrow_truncation_64to16_mask_bound_through_local_exit built 4425ms exit:0 @5f668826adf3+wt
-pass/facts/narrow_to_narrow_truncation_64to16_mask_bound_through_match_join_exit built 4134ms exit:0 @5f668826adf3+wt
-pass/facts/narrow_to_narrow_truncation_64to16_mask_bound_through_other_machine_exit built 3601ms exit:0 @5f668826adf3+wt
-pass/facts/narrow_to_narrow_truncation_64to16_mask_bound_through_other_state_exit built 4675ms exit:0 @5f668826adf3+wt
-pass/facts/narrow_to_narrow_truncation_64to16_mask_bound_through_parameter_exit built 5176ms exit:0 @5f668826adf3+wt
-pass/facts/narrow_to_narrow_truncation_64to16_mask_bound_through_target_body_exit built 5698ms exit:0 @5f668826adf3+wt
 pass/facts/narrow_to_narrow_truncation_64to8_mask_bound_through_call_result_exit built 4553ms exit:0 @5f668826adf3+wt
 pass/facts/narrow_to_narrow_truncation_64to8_mask_bound_through_const_name_exit built 6282ms exit:0 @5f668826adf3+wt
 pass/facts/narrow_to_narrow_truncation_64to8_mask_bound_through_field_exit built 6215ms exit:0 @5f668826adf3+wt
