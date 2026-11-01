@@ -1,5 +1,6 @@
 //! Independently replay an owned byte snapshot's exact sources and live extents.
 //! Capacity evidence is checked against the current declaration by the unit catalog.
+use super::byte_field_freshness::field_path;
 use crate::OptimizationUnitValidationError;
 use crate::unit_validation::catalog_mismatch;
 use abstract_operations::AbstractOperation as O;
@@ -92,14 +93,8 @@ pub(super) fn validate(
                         }) {
                             return Err(invalid());
                         }
-                        let exact = super::byte_field_freshness::field_path(
-                            function,
-                            types,
-                            source.place,
-                            &source.path,
-                            *field,
-                        )
-                        .ok_or_else(invalid)?;
+                        let exact = field_path(function, types, source.place, &source.path, *field)
+                            .ok_or_else(invalid)?;
                         let names = crate::unit_validation::arrival_storage::storage_names(
                             function,
                             block.id,
@@ -119,7 +114,7 @@ pub(super) fn validate(
                                 super::structural_freshness::structural_metadata_may_change(
                                     function, types, root, &exact, candidate,
                                 ) || matches!(candidate, O::StructuralByteSequenceFieldByteStore { destination, path, field, .. }
-                                    if *destination == root && super::byte_field_freshness::field_path(function, types, *destination, path, *field).is_none_or(|written| exact.starts_with(&written) || written.starts_with(&exact)))
+                                    if *destination == root && field_path(function, types, *destination, path, *field).is_none_or(|written| exact.starts_with(&written) || written.starts_with(&exact)))
                             },
                         ) {
                             return Err(invalid());

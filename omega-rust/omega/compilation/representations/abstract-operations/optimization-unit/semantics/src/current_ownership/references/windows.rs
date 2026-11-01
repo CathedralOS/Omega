@@ -2,8 +2,10 @@
 //! storage. Resolve references through the same live access walk as calls;
 //! relocating a carrier preserves its identity, parent and captured referent.
 //! A may-alias region cannot authorize moving every candidate's resources.
+use super::owned_resident;
 use super::*;
 use terminal_psi::StructuralPathSegment;
+use terminal_semantics::structural_paths_may_overlap;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn transfer(
@@ -143,11 +145,8 @@ pub(super) fn transfer(
             live.iter().any(|reference| {
                 reference.carrier == region.place
                     && (!reference.carrier_path.starts_with(&region.path)
-                        || super::owned_resident(&reference.carrier_path, &region.path))
-                    && terminal_semantics::structural_paths_may_overlap(
-                        &reference.carrier_path,
-                        &region.path,
-                    )
+                        || owned_resident(&reference.carrier_path, &region.path))
+                    && structural_paths_may_overlap(&reference.carrier_path, &region.path)
             })
         }) {
             return Err(fail("resource-free window overlaps a live descriptor"));
@@ -191,11 +190,8 @@ pub(super) fn transfer(
     if staged_live.iter().any(|reference| {
         reference.carrier == destination.place
             && (!reference.carrier_path.starts_with(&destination.path)
-                || super::owned_resident(&reference.carrier_path, &destination.path))
-            && terminal_semantics::structural_paths_may_overlap(
-                &reference.carrier_path,
-                &destination.path,
-            )
+                || owned_resident(&reference.carrier_path, &destination.path))
+            && structural_paths_may_overlap(&reference.carrier_path, &destination.path)
     }) {
         return Err(fail("window destination still owns reference custody"));
     }
@@ -226,7 +222,7 @@ pub(super) fn transfer(
     }
     if staged_live.iter().enumerate().any(|(position, reference)| {
         reference.carrier == source.place
-            && super::owned_resident(&reference.carrier_path, &source.path)
+            && owned_resident(&reference.carrier_path, &source.path)
             && !relocations
                 .iter()
                 .any(|(selected, _)| *selected == position)

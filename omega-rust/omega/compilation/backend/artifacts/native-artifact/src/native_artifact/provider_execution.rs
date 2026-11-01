@@ -13,6 +13,8 @@ use installation_evidence::ProviderExecutionEvidence;
 
 use super::{NativeProviderExecution, NativeSelectedProviderPlan};
 use crate::physical::sole_terminal_operation;
+use semantic_vocabulary::BoundaryCompletion;
+use terminal_psi::find_boundary_machine;
 
 pub(super) fn replay_provider_executions(
     module: &terminal_psi::TerminalModule,
@@ -23,11 +25,9 @@ pub(super) fn replay_provider_executions(
 ) -> Result<(), ProviderExecutionReplayError> {
     let mut required_executions = BTreeSet::new();
     for installed in boundary_settlements {
-        let boundary = terminal_psi::find_boundary_machine(
-            &module.boundary_machines,
-            installed.settlement.boundary,
-        )
-        .ok_or(ProviderExecutionReplayError::AbsentSettlementBoundary)?;
+        let boundary =
+            find_boundary_machine(&module.boundary_machines, installed.settlement.boundary)
+                .ok_or(ProviderExecutionReplayError::AbsentSettlementBoundary)?;
         let image_emission::BoundaryExecutionRecord::AdmittedProvider(execution) =
             installed.settlement.execution
         else {
@@ -49,10 +49,7 @@ pub(super) fn replay_provider_executions(
                 else {
                     return Err(ProviderExecutionReplayError::ForeignOperationIsNotBoundaryCall);
                 };
-                (
-                    *boundary,
-                    semantic_vocabulary::BoundaryCompletion::NormalReturn,
-                )
+                (*boundary, BoundaryCompletion::NormalReturn)
             }
             target_operations::CallSiteOwner::ExternalCompletion(owner) => {
                 let mut completions = module
@@ -82,17 +79,14 @@ pub(super) fn replay_provider_executions(
                         "native external completion retained returning-call custody",
                     ));
                 }
-                (
-                    boundary,
-                    semantic_vocabulary::BoundaryCompletion::External(kind),
-                )
+                (boundary, BoundaryCompletion::External(kind))
             }
             target_operations::CallSiteOwner::InvokeNoNormal(_)
             | target_operations::CallSiteOwner::CleanupAction { .. } => {
                 return Err(ProviderExecutionReplayError::MissingForeignOperationOwner);
             }
         };
-        let boundary = terminal_psi::find_boundary_machine(&module.boundary_machines, boundary_id)
+        let boundary = find_boundary_machine(&module.boundary_machines, boundary_id)
             .ok_or(ProviderExecutionReplayError::AbsentForeignBoundary)?;
         if boundary.completion != completion {
             return Err(ProviderExecutionReplayError::Shared(

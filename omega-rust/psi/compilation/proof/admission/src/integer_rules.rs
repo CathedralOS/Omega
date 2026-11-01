@@ -2,6 +2,8 @@
 //! ring normalization, the fixed native integer readings, and the affine,
 //! cast, forbidden-root and shift normalizations a proof node may cite.
 
+#[cfg(test)]
+use semantic_vocabulary::IntegerType;
 pub(crate) mod closed_integer;
 pub(crate) mod fixed_integer;
 pub(crate) mod integer_affine;
@@ -13,10 +15,7 @@ pub(crate) mod wrapping_equality;
 
 /// Test-only scalar-term shortcut shared by the integer rule suites.
 #[cfg(test)]
-pub(crate) fn value(
-    id: u64,
-    integer_type: semantic_vocabulary::IntegerType,
-) -> semantic_vocabulary::ScalarTerm {
+pub(crate) fn value(id: u64, integer_type: IntegerType) -> semantic_vocabulary::ScalarTerm {
     semantic_vocabulary::ScalarTerm::value(
         semantic_vocabulary::ValueId::new(id).expect("value"),
         semantic_vocabulary::ScalarType::Integer(integer_type),

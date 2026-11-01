@@ -1,4 +1,5 @@
 //! Active/pruned machine rosters and structural/service catalog validation.
+use super::operation_contracts::structural_source_contract;
 use crate::OptimizationUnitValidationError;
 use crate::unit_validation::function_structure;
 use crate::unit_validation::function_structure::validate_function;
@@ -7,12 +8,21 @@ use crate::unit_validation::services::{
     validate_provider_service_refinements, validate_root_service_reach,
 };
 use crate::unit_validation::structural_catalog::index_structural_catalogs;
+use crate::unit_validation::structural_catalog::resolve_structural_path;
+use optimization_unit::SourceCheckedScalarReceiving;
 use optimization_unit::{PsiOptimizationFunction, PsiOptimizationUnit};
+use semantic_vocabulary::ObligationId;
 use semantic_vocabulary::{
     BoundaryMachineId, MachineId, OperationId, ScalarType, ServiceId, StructuralTypeId, ValueId,
 };
 use std::collections::{BTreeMap, BTreeSet};
+use terminal_codec::canonical_proposition_order_key;
+use terminal_psi::StructuralFieldType;
+use terminal_psi::StructuralTypeDeclaration;
 use terminal_psi::find_structural_case;
+use terminal_semantics::indexed_byte_store_goal;
+use terminal_semantics::projected_field_declaration;
+use terminal_semantics::runtime_structural_path_tip;
 
 pub(super) struct UnitIndexes<'a> {
     pub(super) machines: BTreeMap<MachineId, &'a PsiOptimizationFunction>,
@@ -171,7 +181,7 @@ pub(super) fn index_and_validate_unit_catalogs<'unit>(
 fn validate_dynamic_catalog(
     unit: &PsiOptimizationUnit,
     machines: &BTreeMap<MachineId, &PsiOptimizationFunction>,
-    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
 ) -> Result<(), OptimizationUnitValidationError> {
     let invalid = || OptimizationUnitValidationError::DynamicDispatchCatalogMismatch;
     for (ordinal, interface) in unit.dynamic_dispatch.interfaces.iter().enumerate() {
@@ -237,12 +247,7 @@ fn validate_dynamic_catalog(
                                     | terminal_psi::StructuralPathSegment::Case(_)
                                     | terminal_psi::StructuralPathSegment::FixedIndex(_)
                             )
-                        })
-                            || crate::unit_validation::structural_catalog::resolve_structural_path(
-                                types,
-                                result.structural_type,
-                                path,
-                            )
+                        }) || resolve_structural_path(types, result.structural_type, path)
                             .is_none()
                             || slot.result_claim_paths[..position].iter().any(|previous| {
                                 path.starts_with(previous) || previous.starts_with(path)
@@ -279,12 +284,7 @@ fn validate_dynamic_catalog(
                                 | terminal_psi::StructuralPathSegment::FixedIndex(_)
                         )
                     })
-                    || crate::unit_validation::structural_catalog::resolve_structural_path(
-                        types,
-                        formal.structural_type,
-                        &claim.path,
-                    )
-                    .is_none()
+                    || resolve_structural_path(types, formal.structural_type, &claim.path).is_none()
                     || slot.entry_claim_paths[..claim_position]
                         .iter()
                         .any(|previous| {
@@ -399,7 +399,7 @@ fn validate_dynamic_catalog(
 fn validate_structural_field_range_authority(
     unit: &PsiOptimizationUnit,
     function: &PsiOptimizationFunction,
-    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
 ) -> Result<(), OptimizationUnitValidationError> {
     use abstract_operations::AbstractOperation as O;
     use terminal_psi::{RecordFieldValue, StructuralTypeShape};
@@ -463,10 +463,9 @@ fn validate_structural_field_range_authority(
                 ..
             } => {
                 let invalid = OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch;
-                let root =
-                    super::operation_contracts::structural_source_contract(function, source.place)
-                        .ok_or_else(|| invalid.clone())?;
-                let collection = terminal_semantics::runtime_structural_path_tip(
+                let root = structural_source_contract(function, source.place)
+                    .ok_or_else(|| invalid.clone())?;
+                let collection = runtime_structural_path_tip(
                     types.values().copied(),
                     root.structural_type,
                     &source.path,
@@ -503,12 +502,9 @@ fn validate_structural_field_range_authority(
                 obligation,
             } => {
                 let invalid = OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch;
-                let root = super::operation_contracts::structural_source_contract(
-                    function,
-                    destination.place,
-                )
-                .ok_or_else(|| invalid.clone())?;
-                let selected = terminal_semantics::runtime_structural_path_tip(
+                let root = structural_source_contract(function, destination.place)
+                    .ok_or_else(|| invalid.clone())?;
+                let selected = runtime_structural_path_tip(
                     types.values().copied(),
                     root.structural_type,
                     &destination.path,
@@ -592,7 +588,7 @@ fn validate_structural_field_range_authority(
                         *field,
                     )
                     .ok_or(invalid.clone())?;
-                    goal = terminal_semantics::indexed_byte_store_goal(goal, *value, predicates)
+                    goal = indexed_byte_store_goal(goal, *value, predicates)
                         .map_err(|_| invalid.clone())?;
                 }
                 if let O::ByteSequenceWrite {
@@ -602,7 +598,7 @@ fn validate_structural_field_range_authority(
                     let predicates =
                         function_structure::byte_write_predicates(unit, function, *destination)
                             .ok_or(invalid.clone())?;
-                    goal = terminal_semantics::indexed_byte_store_goal(goal, *value, predicates)
+                    goal = indexed_byte_store_goal(goal, *value, predicates)
                         .map_err(|_| invalid.clone())?;
                 }
                 require_operation!(psi_operation, obligation, &goal);
@@ -625,7 +621,7 @@ fn validate_structural_field_range_authority(
                 ) {
                     return Err(invalid);
                 }
-                let Some(terminal_psi::StructuralTypeDeclaration {
+                let Some(StructuralTypeDeclaration {
                     shape:
                         StructuralTypeShape::ByteSequence(
                             terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity },
@@ -801,7 +797,7 @@ fn validate_structural_field_range_authority(
                 let root = optimization_unit::field_evidence(function, location.root)
                     .and_then(|row| row.root_type)
                     .ok_or(OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch)?;
-                let declaration = terminal_semantics::projected_field_declaration(
+                let declaration = projected_field_declaration(
                     types.values().copied(),
                     root,
                     &location.path,
@@ -810,7 +806,7 @@ fn validate_structural_field_range_authority(
                 .ok_or(OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch)?;
                 let bounded = matches!(
                     declaration.field_type,
-                    terminal_psi::StructuralFieldType::AtomicBoundedInteger(_)
+                    StructuralFieldType::AtomicBoundedInteger(_)
                 );
                 let requires = bounded && event.joins_modification_order();
                 if requires != resident_obligation.is_some() {
@@ -836,10 +832,10 @@ fn validate_structural_field_range_authority(
                         value,
                     )
                     .ok_or(OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch)?;
-                    terminal_codec::canonical_proposition_order_key(&requirement).map_err(
-                        |_| OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch,
-                    )?;
-                    let receiving = optimization_unit::SourceCheckedScalarReceiving {
+                    canonical_proposition_order_key(&requirement).map_err(|_| {
+                        OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch
+                    })?;
+                    let receiving = SourceCheckedScalarReceiving {
                         value,
                         restriction: declaration.field_type.clone(),
                     };
@@ -888,7 +884,7 @@ fn validate_structural_field_range_authority(
                 } else {
                     (destination.structural_type(), path.as_slice())
                 };
-                let declaration = terminal_semantics::projected_field_declaration(
+                let declaration = projected_field_declaration(
                     types.values().copied(),
                     storage_type,
                     storage_path,
@@ -917,7 +913,7 @@ fn validate_structural_field_range_authority(
                 result_case,
                 fields,
             } => {
-                let Some(terminal_psi::StructuralTypeDeclaration {
+                let Some(StructuralTypeDeclaration {
                     shape: StructuralTypeShape::Sum { cases },
                     ..
                 }) = types.get(&result.structural_type).copied()
@@ -949,7 +945,7 @@ fn validate_structural_field_range_authority(
                 result,
                 fields,
             } => {
-                let Some(terminal_psi::StructuralTypeDeclaration {
+                let Some(StructuralTypeDeclaration {
                     shape:
                         StructuralTypeShape::Record {
                             fields: declarations,
@@ -989,7 +985,7 @@ fn validate_field_range_authority(
     operation: OperationId,
     declaration: &terminal_psi::StructuralFieldDeclaration,
     value: ValueId,
-    obligation: Option<semantic_vocabulary::ObligationId>,
+    obligation: Option<ObligationId>,
 ) -> Result<(), OptimizationUnitValidationError> {
     validate_initialization_range_authority(
         unit,
@@ -1005,9 +1001,9 @@ fn validate_scalar_range_authority(
     unit: &PsiOptimizationUnit,
     machine: MachineId,
     operation: OperationId,
-    restriction: &terminal_psi::StructuralFieldType,
+    restriction: &StructuralFieldType,
     value: ValueId,
-    obligation: Option<semantic_vocabulary::ObligationId>,
+    obligation: Option<ObligationId>,
 ) -> Result<(), OptimizationUnitValidationError> {
     validate_range_fact(
         unit,
@@ -1022,9 +1018,9 @@ fn validate_initialization_range_authority(
     unit: &PsiOptimizationUnit,
     machine: MachineId,
     operation: OperationId,
-    restriction: &terminal_psi::StructuralFieldType,
+    restriction: &StructuralFieldType,
     value: ValueId,
-    obligation: Option<semantic_vocabulary::ObligationId>,
+    obligation: Option<ObligationId>,
 ) -> Result<(), OptimizationUnitValidationError> {
     validate_range_fact(
         unit,
@@ -1043,8 +1039,8 @@ fn require_scalar_receiving_fact(
     machine: MachineId,
     operation: OperationId,
     value: ValueId,
-    restriction: Option<&terminal_psi::StructuralFieldType>,
-    obligation: Option<semantic_vocabulary::ObligationId>,
+    restriction: Option<&StructuralFieldType>,
+    obligation: Option<ObligationId>,
 ) -> Result<(), OptimizationUnitValidationError> {
     let invalid = || OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch;
     if restriction.is_some() != obligation.is_some() {
@@ -1053,7 +1049,7 @@ fn require_scalar_receiving_fact(
     let Some(restriction) = restriction else {
         return Ok(());
     };
-    let receiving = optimization_unit::SourceCheckedScalarReceiving {
+    let receiving = SourceCheckedScalarReceiving {
         value,
         restriction: restriction.clone(),
     };
@@ -1080,12 +1076,12 @@ fn require_accepted_goal_fact(
     unit: &PsiOptimizationUnit,
     machine: MachineId,
     provenance: optimization_unit::PsiProvenance,
-    obligation: Option<semantic_vocabulary::ObligationId>,
+    obligation: Option<ObligationId>,
     goal: Option<&semantic_vocabulary::Proposition>,
 ) -> Result<(), OptimizationUnitValidationError> {
     let invalid = || OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch;
     if let Some(goal) = goal {
-        terminal_codec::canonical_proposition_order_key(goal).map_err(|_| invalid())?;
+        canonical_proposition_order_key(goal).map_err(|_| invalid())?;
     }
     if unit
         .accepted_obligation_fact(machine, provenance, obligation)
@@ -1101,7 +1097,7 @@ fn validate_range_fact(
     machine: MachineId,
     operation: OperationId,
     requirement: Option<semantic_vocabulary::Proposition>,
-    obligation: Option<semantic_vocabulary::ObligationId>,
+    obligation: Option<ObligationId>,
 ) -> Result<(), OptimizationUnitValidationError> {
     let Some(requirement) = requirement else {
         return Ok(());

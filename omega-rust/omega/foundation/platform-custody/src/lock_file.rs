@@ -4,8 +4,7 @@ use cap_fs_ext::{FollowSymlinks, OpenOptionsFollowExt};
 #[cfg(unix)]
 use cap_std::fs::OpenOptionsExt;
 use cap_std::fs::{Dir as CapabilityDirectory, File as CapabilityFile, OpenOptions};
-use std::io;
-use std::path::Path;
+use std::{io, path::Path};
 
 /// Open the lock file `name` directly beneath `directory` for reading and
 /// writing, creating it owner-only (mode 0600 on Unix) when it is absent.

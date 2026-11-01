@@ -11,9 +11,11 @@ use semantic_vocabulary::{
     ContentTerm, StructuralPlaceKind,
 };
 use terminal_psi::{
-    ClaimContentProjection, ContentConservationGuarantee, ContentEntryClaim,
-    ContentIdentityReshuffle, ContentPartitionComposition, ContentPlaceSubstitution,
-    StructuralPlaceDeclaration,
+    ClaimContentProjection, ContentBackingAddressTransport, ContentBodyProjectionSubstitution,
+    ContentBoundaryBodyRequirement, ContentClaimAddress, ContentClaimProjection,
+    ContentConservationGuarantee, ContentEntryClaim, ContentIdentityReshuffle, ContentLineageStep,
+    ContentPartitionComposition, ContentPlaceSubstitution, ContentTransformationCustody,
+    ContentTransformationDerivation, StructuralPlaceDeclaration,
 };
 
 use super::wire::{Reader, Writer};
@@ -83,7 +85,7 @@ pub(crate) fn encode_content_conservation_guarantee(
 
 pub(crate) fn encode_content_transformations(
     writer: &mut Writer,
-    derivations: &[terminal_psi::ContentTransformationDerivation],
+    derivations: &[ContentTransformationDerivation],
 ) -> Result<(), CodecError> {
     writer.len("content transformation derivations", derivations.len())?;
     for derived in derivations {
@@ -118,11 +120,11 @@ pub(crate) fn encode_content_transformations(
 
 fn encode_content_transformation_custody(
     writer: &mut Writer,
-    custody: &terminal_psi::ContentTransformationCustody,
+    custody: &ContentTransformationCustody,
 ) -> Result<(), CodecError> {
     match custody {
-        terminal_psi::ContentTransformationCustody::Derived => writer.u8(0),
-        terminal_psi::ContentTransformationCustody::Boundary {
+        ContentTransformationCustody::Derived => writer.u8(0),
+        ContentTransformationCustody::Boundary {
             requirements,
             addresses,
         } => {
@@ -154,16 +156,16 @@ fn encode_content_transformation_custody(
 
 fn decode_content_transformation_custody(
     reader: &mut Reader<'_>,
-) -> Result<terminal_psi::ContentTransformationCustody, CodecError> {
+) -> Result<ContentTransformationCustody, CodecError> {
     match reader.u8()? {
-        0 => Ok(terminal_psi::ContentTransformationCustody::Derived),
-        1 => Ok(terminal_psi::ContentTransformationCustody::Boundary {
+        0 => Ok(ContentTransformationCustody::Derived),
+        1 => Ok(ContentTransformationCustody::Boundary {
             requirements: decode_counted(reader, |reader| {
-                Ok(terminal_psi::ContentBoundaryBodyRequirement {
+                Ok(ContentBoundaryBodyRequirement {
                     boundary: reader.id("BoundaryMachineId")?,
                     guarantee: decode_content_conservation_guarantee(reader)?,
                     substitutions: decode_counted(reader, |reader| {
-                        Ok(terminal_psi::ContentBodyProjectionSubstitution {
+                        Ok(ContentBodyProjectionSubstitution {
                             source: decode_content_term(reader, 0)?,
                             target: decode_content_term(reader, 0)?,
                         })
@@ -171,15 +173,13 @@ fn decode_content_transformation_custody(
                 })
             })?,
             addresses: decode_counted(reader, |reader| {
-                fn endpoint(
-                    reader: &mut Reader<'_>,
-                ) -> Result<terminal_psi::ContentClaimAddress, CodecError> {
-                    Ok(terminal_psi::ContentClaimAddress {
+                fn endpoint(reader: &mut Reader<'_>) -> Result<ContentClaimAddress, CodecError> {
+                    Ok(ContentClaimAddress {
                         claim: reader.id("ClaimId")?,
                         subject: decode_content_structural_place(reader)?,
                     })
                 }
-                Ok(terminal_psi::ContentBackingAddressTransport {
+                Ok(ContentBackingAddressTransport {
                     input: endpoint(reader)?,
                     output: endpoint(reader)?,
                 })
@@ -191,12 +191,10 @@ fn decode_content_transformation_custody(
 
 pub(crate) fn decode_content_transformations(
     reader: &mut Reader<'_>,
-) -> Result<Vec<terminal_psi::ContentTransformationDerivation>, CodecError> {
-    fn bindings(
-        reader: &mut Reader<'_>,
-    ) -> Result<Vec<terminal_psi::ContentClaimProjection>, CodecError> {
+) -> Result<Vec<ContentTransformationDerivation>, CodecError> {
+    fn bindings(reader: &mut Reader<'_>) -> Result<Vec<ContentClaimProjection>, CodecError> {
         super::wire::decode_counted(reader, |reader| {
-            Ok(terminal_psi::ContentClaimProjection {
+            Ok(ContentClaimProjection {
                 claim: reader.id("ClaimId")?,
                 projection: ContentProjectionIdentity {
                     domain: reader.id("ContentDomainId")?,
@@ -207,11 +205,11 @@ pub(crate) fn decode_content_transformations(
         })
     }
     super::wire::decode_counted(reader, |reader| {
-        Ok(terminal_psi::ContentTransformationDerivation {
+        Ok(ContentTransformationDerivation {
             conservation: decode_content_conservation(reader)?,
             lineage_roots: super::wire::decode_counted(reader, |reader| reader.id("ClaimId"))?,
             ancestry: super::wire::decode_counted(reader, |reader| {
-                Ok(terminal_psi::ContentLineageStep {
+                Ok(ContentLineageStep {
                     producer_operation: reader.id("OperationId")?,
                     inputs: super::wire::decode_counted(reader, |reader| reader.id("ClaimId"))?,
                     outputs: super::wire::decode_counted(reader, |reader| reader.id("ClaimId"))?,

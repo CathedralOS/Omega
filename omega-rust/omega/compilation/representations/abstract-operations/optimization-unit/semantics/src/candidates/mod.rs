@@ -66,6 +66,7 @@ use global_value_numbering::{
     validate_phi_translated_scalar_common_subexpression_candidate,
     validate_total_scalar_identity_candidate,
 };
+use optimization_unit::OptimizationNode;
 use proof_check_elision::{is_proof_check_elision_rule, validate_proof_check_elision_candidate};
 use sparse_conditional_constant_propagation::validate_scalar_evaluation_candidate;
 use state_specialization::validate_state_argument_specialization_candidate;
@@ -236,7 +237,7 @@ pub(crate) fn candidate_function(
 /// Rebuild a node's derived definitions, uses, successors, and ownership from
 /// its operation; `node_index` is the node's position inside `block`.
 pub(crate) fn rebuild_node_metadata(
-    node: &mut optimization_unit::OptimizationNode,
+    node: &mut OptimizationNode,
     block: semantic_vocabulary::BlockId,
     node_index: usize,
 ) -> Result<(), OptimizationUnitValidationError> {
@@ -256,7 +257,7 @@ pub(crate) fn rebuild_node_metadata(
 
 /// Stamp `node` with the effect link at `effect` and return the next offset.
 pub(crate) fn set_node_effect_link(
-    node: &mut optimization_unit::OptimizationNode,
+    node: &mut OptimizationNode,
     effect: u64,
 ) -> Result<u64, OptimizationUnitValidationError> {
     let output = effect
@@ -275,10 +276,7 @@ pub(crate) fn set_node_effect_link(
 pub(crate) fn land_folded_nodes(
     output: &mut PsiOptimizationUnit,
     machine: semantic_vocabulary::MachineId,
-    folded: Vec<(
-        optimization_unit::NodeLocation,
-        optimization_unit::OptimizationNode,
-    )>,
+    folded: Vec<(optimization_unit::NodeLocation, OptimizationNode)>,
 ) -> Result<(), OptimizationUnitValidationError> {
     let function = output
         .function_mut(machine)
@@ -303,9 +301,7 @@ pub(crate) fn land_folded_nodes(
 /// landed whole nodes with no per-node edit passes `|_| Ok(())`.
 pub(crate) fn sweep_output_nodes(
     function: &mut PsiOptimizationFunction,
-    mut per_node: impl FnMut(
-        &mut optimization_unit::OptimizationNode,
-    ) -> Result<(), OptimizationUnitValidationError>,
+    mut per_node: impl FnMut(&mut OptimizationNode) -> Result<(), OptimizationUnitValidationError>,
 ) -> Result<(), OptimizationUnitValidationError> {
     let mut effect = 0u64;
     for block in &mut function.blocks {
@@ -348,7 +344,7 @@ pub(crate) fn require_realized_rows(
 pub(crate) fn candidate_node(
     block: &optimization_unit::OptimizationBlock,
     node: u32,
-) -> Result<&optimization_unit::OptimizationNode, OptimizationUnitValidationError> {
+) -> Result<&OptimizationNode, OptimizationUnitValidationError> {
     let index = usize::try_from(node)
         .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?;
     block
@@ -377,7 +373,7 @@ pub(crate) fn candidate_block(
 pub(crate) fn realize_node_provenance<'node>(
     machine: semantic_vocabulary::MachineId,
     block: semantic_vocabulary::BlockId,
-    nodes: impl Iterator<Item = (usize, &'node optimization_unit::OptimizationNode)>,
+    nodes: impl Iterator<Item = (usize, &'node OptimizationNode)>,
     realized: &mut Vec<ProvenanceRewrite>,
 ) -> Option<()> {
     for (node_index, node) in nodes {

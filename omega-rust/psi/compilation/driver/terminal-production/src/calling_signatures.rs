@@ -11,14 +11,13 @@ use terminal_psi::{
     CallingSignatureDeclaration, CallingSignatureTelescope, TerminalModule,
 };
 
+use semantic_vocabulary::BoundaryMachineId;
+
 pub(crate) fn capture(
     checked: &CheckedTrees,
     inventory: &PreparedProviderInventory,
     module: &mut TerminalModule,
-    sources: &[(
-        symbols::SymbolHandle,
-        semantic_vocabulary::BoundaryMachineId,
-    )],
+    sources: &[(symbols::SymbolHandle, BoundaryMachineId)],
 ) -> Result<(), Diagnostic> {
     let services = inventory.services_for(checked)?;
     let signatures = services.signatures();

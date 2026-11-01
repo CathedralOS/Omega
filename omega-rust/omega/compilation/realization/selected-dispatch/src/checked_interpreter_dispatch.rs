@@ -7,6 +7,7 @@
 mod boundary_dispatch;
 
 use crate::SelectedExecution;
+use boundary_dispatch::settle_selected_boundary_adapter_dispatch;
 use diagnostics::Diagnostic;
 
 /// Exact adapter and IEEE comparison bindings for one checked-source oracle.
@@ -34,10 +35,8 @@ pub fn prepare_checked_interpreter_dispatch(
             "comparison provider provenance disagrees with the selected provider plans",
         )]);
     }
-    let boundary_adapters = boundary_dispatch::settle_selected_boundary_adapter_dispatch(
-        checked,
-        selected_provider_plans,
-    )?;
+    let boundary_adapters =
+        settle_selected_boundary_adapter_dispatch(checked, selected_provider_plans)?;
     let float_comparisons = crate::selected_dispatch::float_comparisons::selected_executions(
         checked,
         source::DependencyScope::Product,

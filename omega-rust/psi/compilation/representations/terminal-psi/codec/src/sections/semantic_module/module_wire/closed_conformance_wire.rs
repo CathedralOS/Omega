@@ -3,6 +3,8 @@
 //! application.
 
 use super::super::CodecError;
+use super::super::reach_application_wire::{decode_argument, encode_argument};
+use super::super::scalar_wire::{decode_scalar_type, encode_scalar_type};
 use super::super::wire::{Reader, Writer};
 use crate::sections::semantic_module::wire::decode_counted;
 use terminal_psi::{
@@ -48,7 +50,7 @@ pub(super) fn encode_closed_conformance_application(
             ClosedConformanceCallableResult::Unit => writer.u8(1),
             ClosedConformanceCallableResult::Scalar(scalar) => {
                 writer.u8(2);
-                super::super::scalar_wire::encode_scalar_type(writer, scalar);
+                encode_scalar_type(writer, scalar);
             }
             ClosedConformanceCallableResult::Structural(identity) => {
                 writer.u8(3);
@@ -109,7 +111,7 @@ pub(super) fn encode_closed_conformance_application(
             applied.method_arguments.len(),
         )?;
         for argument in &applied.method_arguments {
-            super::super::reach_application_wire::encode_argument(writer, argument);
+            encode_argument(writer, argument);
         }
     }
     writer.len("closed conformance rows", application.rows.len())?;
@@ -169,9 +171,7 @@ pub(super) fn decode_closed_conformance_application(
                 callable: super::target_family_wire::decode_callable(reader)?,
                 result: match reader.u8()? {
                     1 => ClosedConformanceCallableResult::Unit,
-                    2 => ClosedConformanceCallableResult::Scalar(
-                        super::super::scalar_wire::decode_scalar_type(reader)?,
-                    ),
+                    2 => ClosedConformanceCallableResult::Scalar(decode_scalar_type(reader)?),
                     3 => {
                         ClosedConformanceCallableResult::Structural(reader.id("StructuralTypeId")?)
                     }
@@ -231,10 +231,7 @@ pub(super) fn decode_closed_conformance_application(
                 } else {
                     None
                 },
-                method_arguments: decode_counted(
-                    reader,
-                    super::super::reach_application_wire::decode_argument,
-                )?,
+                method_arguments: decode_counted(reader, decode_argument)?,
             })
         })?,
         rows: decode_counted(reader, |reader| {

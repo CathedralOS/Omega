@@ -7,7 +7,12 @@
 //! supplies those premises at its own explicit runtime boundary.
 
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
+use std::sync::Arc;
+use target::NormalizedImportLocator;
+use terminal_installation::AdmittedScalarApplications;
+use terminal_installation::CheckedPrivateEntryRamRecipe;
 use terminal_psi::TerminalPsiIdentity;
+use terminal_psi_to_abstract_operations::TerminalTargetProviderProposal;
 
 mod native_adapters;
 
@@ -19,7 +24,7 @@ fn capture_scalar_applications(
     identity: TerminalPsiIdentity,
     target: target::TargetProfile,
     installation: Option<&terminal_installation::AdmittedProviderSelections>,
-) -> Result<Option<terminal_installation::AdmittedScalarApplications>, &'static str> {
+) -> Result<Option<AdmittedScalarApplications>, &'static str> {
     if input.plan().psi != identity
         || input.target_machine_selections().is_none_or(|selected| {
             selected.terminal_psi() != identity || selected.target() != target.target_name()
@@ -62,8 +67,7 @@ struct RuntimeHostRequirement {
     /// Produced once from this admitted row. An unavailable physical route
     /// stays an explicit runtime limitation; it does not invalidate an otherwise
     /// valid native program or cause the interpreter to compile a replacement.
-    native_adapter:
-        Option<Result<std::sync::Arc<image_emission::NativeForeignAdapterImage>, String>>,
+    native_adapter: Option<Result<Arc<image_emission::NativeForeignAdapterImage>, String>>,
 }
 
 /// Exact callable host and selected-provider companions. These are shared
@@ -228,12 +232,7 @@ impl TerminalRuntimeHostProvisions {
             .find(|row| row.boundary == boundary)?
             .native_adapter
             .as_ref()
-            .map(|adapter| {
-                adapter
-                    .as_ref()
-                    .map(std::sync::Arc::as_ref)
-                    .map_err(String::as_str)
-            })
+            .map(|adapter| adapter.as_ref().map(Arc::as_ref).map_err(String::as_str))
     }
 
     pub const fn installation(&self) -> Option<&terminal_installation::AdmittedProviderSelections> {
@@ -265,7 +264,7 @@ pub struct TerminalCallableRuntimeProvisions {
     entry: MachineId,
     target: target::TargetProfile,
     host: TerminalRuntimeHostProvisions,
-    scalar_applications: Option<terminal_installation::AdmittedScalarApplications>,
+    scalar_applications: Option<AdmittedScalarApplications>,
 }
 
 impl TerminalCallableRuntimeProvisions {
@@ -315,9 +314,7 @@ impl TerminalCallableRuntimeProvisions {
         self
     }
 
-    pub fn scalar_applications(
-        &self,
-    ) -> Option<&terminal_installation::AdmittedScalarApplications> {
+    pub fn scalar_applications(&self) -> Option<&AdmittedScalarApplications> {
         self.scalar_applications.as_ref()
     }
 }
@@ -330,19 +327,16 @@ pub struct TerminalRuntimeProvisions {
     entry: MachineId,
     source_signature_identity: [u8; 32],
     target_slot: target::ProgramEntrySlotDeclaration,
-    target_provider_proposals:
-        Vec<terminal_psi_to_abstract_operations::TerminalTargetProviderProposal>,
+    target_provider_proposals: Vec<TerminalTargetProviderProposal>,
     host_provisions: TerminalRuntimeHostProvisions,
-    private_entry_ram: Vec<terminal_installation::CheckedPrivateEntryRamRecipe>,
-    components: Vec<std::sync::Arc<crate::NativeComponentProduct>>,
+    private_entry_ram: Vec<CheckedPrivateEntryRamRecipe>,
+    components: Vec<Arc<crate::NativeComponentProduct>>,
     component_publications: Vec<crate::NativeComponentPublicationReceipt>,
-    scalar_applications: Option<terminal_installation::AdmittedScalarApplications>,
+    scalar_applications: Option<AdmittedScalarApplications>,
 }
 
 impl TerminalRuntimeProvisions {
-    pub fn scalar_applications(
-        &self,
-    ) -> Option<&terminal_installation::AdmittedScalarApplications> {
+    pub fn scalar_applications(&self) -> Option<&AdmittedScalarApplications> {
         self.scalar_applications.as_ref()
     }
 
@@ -398,12 +392,12 @@ impl TerminalRuntimeProvisions {
         }
         Ok(())
     }
-    pub fn component_products(&self) -> &[std::sync::Arc<crate::NativeComponentProduct>] {
+    pub fn component_products(&self) -> &[Arc<crate::NativeComponentProduct>] {
         &self.components
     }
     pub fn with_component_products(
         mut self,
-        components: Vec<std::sync::Arc<crate::NativeComponentProduct>>,
+        components: Vec<Arc<crate::NativeComponentProduct>>,
     ) -> Result<Self, &'static str> {
         self.validate_component_products(&components)?;
         self.components = components;
@@ -422,12 +416,7 @@ impl TerminalRuntimeProvisions {
                 .layout
                 .normalized_imports
                 .iter()
-                .any(|import| {
-                    matches!(
-                        import.locator,
-                        target::NormalizedImportLocator::Component(_)
-                    )
-                }) =>
+                .any(|import| matches!(import.locator, NormalizedImportLocator::Component(_))) =>
             {
                 Err(
                     "component native product has no complete retained runtime image/resource roster",
@@ -451,7 +440,7 @@ impl TerminalRuntimeProvisions {
         }
         self.validate_component_product_roster()?;
         for import in &object.object().layout.normalized_imports {
-            let target::NormalizedImportLocator::Component(locator) = &import.locator else {
+            let NormalizedImportLocator::Component(locator) = &import.locator else {
                 continue;
             };
             let mut products = self
@@ -491,7 +480,7 @@ impl TerminalRuntimeProvisions {
     }
     fn validate_component_products(
         &self,
-        components: &[std::sync::Arc<crate::NativeComponentProduct>],
+        components: &[Arc<crate::NativeComponentProduct>],
     ) -> Result<(), &'static str> {
         let mut expected = 0;
         for provision in self.host() {
@@ -536,13 +525,10 @@ impl TerminalRuntimeProvisions {
         }
         Ok(())
     }
-    pub fn private_entry_ram(&self) -> &[terminal_installation::CheckedPrivateEntryRamRecipe] {
+    pub fn private_entry_ram(&self) -> &[CheckedPrivateEntryRamRecipe] {
         &self.private_entry_ram
     }
-    pub fn with_private_entry_ram(
-        mut self,
-        recipes: Vec<terminal_installation::CheckedPrivateEntryRamRecipe>,
-    ) -> Self {
+    pub fn with_private_entry_ram(mut self, recipes: Vec<CheckedPrivateEntryRamRecipe>) -> Self {
         self.private_entry_ram = recipes;
         self
     }
@@ -636,15 +622,13 @@ impl TerminalRuntimeProvisions {
     /// native target's admitted entry, backing and external host provisions.
     pub fn with_target_provider_proposals(
         mut self,
-        proposals: Vec<terminal_psi_to_abstract_operations::TerminalTargetProviderProposal>,
+        proposals: Vec<TerminalTargetProviderProposal>,
     ) -> Self {
         self.target_provider_proposals = proposals;
         self
     }
 
-    pub fn target_provider_proposals(
-        &self,
-    ) -> &[terminal_psi_to_abstract_operations::TerminalTargetProviderProposal] {
+    pub fn target_provider_proposals(&self) -> &[TerminalTargetProviderProposal] {
         &self.target_provider_proposals
     }
 

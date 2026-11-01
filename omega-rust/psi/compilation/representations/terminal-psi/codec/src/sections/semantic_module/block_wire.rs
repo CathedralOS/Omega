@@ -25,12 +25,131 @@ mod owned_value_tests;
 use semantic_vocabulary::CanonicalStructuralPathSegment;
 use terminal_psi::{Block, Operation, OperationKind, OperationResult};
 
+use self::atomic_operations::{
+    decode_atomic_access, decode_atomic_fence, encode_atomic_access, encode_atomic_fence,
+};
+use self::operation_tags::{
+    ATOMIC_ACCESS, ATOMIC_FENCE, BOOLEAN_CONSTANT, BOOLEAN_EQUAL, BOOLEAN_NOT,
+    BOOLEAN_STRUCTURAL_FIELD, BOUNDARY_CALL, BYTE_SEQUENCE_EQUAL, BYTE_SEQUENCE_LENGTH,
+    BYTE_SEQUENCE_PREDICATE, BYTE_SEQUENCE_READ, BYTE_SEQUENCE_STORE, BYTE_SEQUENCE_SUBSLICE,
+    BYTE_SEQUENCE_WRITE, CALL, CALL_DYNAMIC, CALL_STRUCTURAL, CALL_STRUCTURAL_SCALAR,
+    CALL_STRUCTURAL_WITH_SCALAR_ARGUMENTS, CALL_UNIT, ELEMENT_VIEW_LENGTH, ELEMENT_VIEW_READ,
+    ELEMENT_VIEW_SUBSLICE, ELEMENT_VIEW_WRITE, ESTABLISH_ACCESS_REFERENCE,
+    ESTABLISH_ACTIVATION_CLAIM, ESTABLISH_BYTE_SEQUENCE_CONCATENATION,
+    ESTABLISH_BYTE_SEQUENCE_LITERAL, ESTABLISH_ELEMENT_VIEW, ESTABLISH_MUTABLE_ELEMENT_VIEW,
+    ESTABLISH_NATIVE_CODE_LAYOUT, ESTABLISH_PRIMITIVE_LOCAL, ESTABLISH_RECORD, ESTABLISH_REFERENCE,
+    ESTABLISH_SCALAR_ARRAY, ESTABLISH_SCALAR_CASE, ESTABLISH_STORAGE_VIEW_REFERENCE,
+    ESTABLISH_STRUCTURAL_ARRAY, ESTABLISH_STRUCTURAL_CASE, ESTABLISH_STRUCTURAL_LOCAL,
+    ESTABLISH_TRIVIAL_AFFINE_LOCAL, ESTABLISH_ZEROED_STRUCTURAL, EXACT_INTEGER_ADD,
+    EXACT_INTEGER_DIVIDE, EXACT_INTEGER_MULTIPLY, EXACT_INTEGER_REMAINDER,
+    EXACT_INTEGER_SHIFT_LEFT, EXACT_INTEGER_SHIFT_RIGHT, EXACT_INTEGER_SUBTRACT,
+    FLOAT_RESULT_POLICY, IEEE_FLOAT_COMPARE, IEEE_FLOAT_CONSTANT, INTEGER_BITWISE_AND,
+    INTEGER_BITWISE_NOT, INTEGER_BITWISE_OR, INTEGER_BITWISE_XOR, INTEGER_CONSTANT, INTEGER_EQUAL,
+    INTEGER_EXACT_CAST, INTEGER_LESS_OR_EQUAL, INTEGER_LESS_THAN, INTEGER_WIDEN,
+    LANDED_SCALAR_REPRESENTATION_VIEW, MERGE_ACTIVATION_CLAIM, MOVE_STRUCTURAL_FIELD,
+    MOVE_STRUCTURAL_VALUE, NEAREST_IEEE_FLOAT_FUSED_MULTIPLY_ADD, PORT_WRITE,
+    PREDICATE_CHECKED_STRUCTURAL_BYTE_VIEW_FIELD_STORE, PRIMITIVE_SCALAR_READ,
+    PROJECTED_ELEMENT_VIEW_READ, PROJECTED_PRIMITIVE_SCALAR_READ, PROJECTED_RELEASE_REFERENCE,
+    PROJECTED_WRITE_ONLY_PRIMITIVE_STORE, RANGE_CHECKED_STRUCTURAL_SCALAR_FIELD_STORE,
+    READ_SCALAR_APPLICATION, REGISTER_ACCESS, REGISTER_OBSERVATION, RELEASE_ACTIVATION_CLAIM,
+    RELEASE_REFERENCE, REPLACE_DISCARDABLE_STRUCTURAL_FIELD, RESTRICTED_ATOMIC_ACCESS,
+    RESTRICTED_WRITE_ONLY_PRIMITIVE_STORE, SATURATING_INTEGER_ADD, SATURATING_INTEGER_DIVIDE,
+    SATURATING_INTEGER_MULTIPLY, SATURATING_INTEGER_REMAINDER, SATURATING_INTEGER_SUBTRACT,
+    SCALAR_REPRESENTATION_VIEW, SCALAR_STRUCTURAL_FIELD, SELECT_IMPLEMENTATION,
+    SPLIT_ACTIVATION_CLAIM, STORAGE_ADDRESS, STORE_STRUCTURAL_FIELD,
+    STRUCTURAL_BYTE_SEQUENCE_FIELD_BYTE_STORE, STRUCTURAL_BYTE_SEQUENCE_FIELD_LENGTH,
+    STRUCTURAL_BYTE_SEQUENCE_FIELD_READ, STRUCTURAL_BYTE_SEQUENCE_FIELD_STORE,
+    STRUCTURAL_BYTE_VIEW_FIELD_STORE, STRUCTURAL_CASE_LEAF_COPY, STRUCTURAL_CASE_MEMBERSHIP,
+    STRUCTURAL_LEAF_COPY, STRUCTURAL_SCALAR_FIELD_STORE, TRANSFORM_CONTENT, TRAPPING_INTEGER,
+    WRAPPING_INTEGER_ADD, WRAPPING_INTEGER_DIVIDE, WRAPPING_INTEGER_MULTIPLY,
+    WRAPPING_INTEGER_REMAINDER, WRAPPING_INTEGER_SHIFT_LEFT, WRAPPING_INTEGER_SHIFT_RIGHT,
+    WRAPPING_INTEGER_SUBTRACT, WRITE_ONLY_PRIMITIVE_STORE,
+};
+use self::scalar_operations::{
+    decode_boolean_equal, decode_boolean_not, decode_exact_integer_add,
+    decode_exact_integer_divide, decode_exact_integer_multiply, decode_exact_integer_remainder,
+    decode_exact_integer_shift_left, decode_exact_integer_shift_right,
+    decode_exact_integer_subtract, decode_float_result_policy, decode_ieee_float_compare,
+    decode_integer_bitwise_and, decode_integer_bitwise_not, decode_integer_bitwise_or,
+    decode_integer_bitwise_xor, decode_integer_equal, decode_integer_exact_cast,
+    decode_integer_less_or_equal, decode_integer_less_than, decode_integer_widen,
+    decode_landed_scalar_representation_view, decode_nearest_ieee_float_fused_multiply_add,
+    decode_saturating_integer_add, decode_saturating_integer_divide,
+    decode_saturating_integer_multiply, decode_saturating_integer_remainder,
+    decode_saturating_integer_subtract, decode_scalar_representation_view, decode_trapping_integer,
+    decode_wrapping_integer_add, decode_wrapping_integer_divide, decode_wrapping_integer_multiply,
+    decode_wrapping_integer_remainder, decode_wrapping_integer_shift_left,
+    decode_wrapping_integer_shift_right, decode_wrapping_integer_subtract, encode_boolean_equal,
+    encode_boolean_not, encode_exact_integer_add, encode_exact_integer_divide,
+    encode_exact_integer_multiply, encode_exact_integer_remainder, encode_exact_integer_shift_left,
+    encode_exact_integer_shift_right, encode_exact_integer_subtract, encode_float_result_policy,
+    encode_ieee_float_compare, encode_integer_bitwise_and, encode_integer_bitwise_not,
+    encode_integer_bitwise_or, encode_integer_bitwise_xor, encode_integer_equal,
+    encode_integer_exact_cast, encode_integer_less_or_equal, encode_integer_less_than,
+    encode_integer_widen, encode_nearest_ieee_float_fused_multiply_add,
+    encode_saturating_integer_add, encode_saturating_integer_divide,
+    encode_saturating_integer_multiply, encode_saturating_integer_remainder,
+    encode_saturating_integer_subtract, encode_scalar_representation_view, encode_trapping_integer,
+    encode_wrapping_integer_add, encode_wrapping_integer_divide, encode_wrapping_integer_multiply,
+    encode_wrapping_integer_remainder, encode_wrapping_integer_shift_left,
+    encode_wrapping_integer_shift_right, encode_wrapping_integer_subtract,
+};
+use self::storage_operations::{
+    decode_boolean_structural_field, decode_byte_sequence_length, decode_byte_sequence_read,
+    decode_byte_sequence_subslice, decode_byte_sequence_write, decode_element_view_length,
+    decode_element_view_read, decode_element_view_subslice, decode_element_view_write,
+    decode_establish_access_reference, decode_establish_element_view,
+    decode_establish_mutable_element_view, decode_establish_reference,
+    decode_move_structural_field, decode_move_structural_value, decode_primitive_scalar_read,
+    decode_projected_element_view_read, decode_projected_primitive_scalar_read,
+    decode_projected_write_only_primitive_store,
+    decode_range_checked_structural_scalar_field_store, decode_release_reference,
+    decode_restricted_write_only_primitive_store, decode_scalar_structural_field,
+    decode_store_structural_field, decode_structural_byte_sequence_field_byte_store,
+    decode_structural_byte_sequence_field_length, decode_structural_byte_sequence_field_read,
+    decode_structural_byte_sequence_field_store, decode_structural_byte_view_field_store,
+    decode_structural_case_leaf_copy, decode_structural_case_membership,
+    decode_structural_leaf_copy, decode_structural_scalar_field_store,
+    decode_write_only_primitive_store, encode_boolean_structural_field,
+    encode_byte_sequence_length, encode_byte_sequence_read, encode_byte_sequence_subslice,
+    encode_byte_sequence_write, encode_element_view_length, encode_element_view_read,
+    encode_element_view_subslice, encode_element_view_write, encode_establish_access_reference,
+    encode_establish_element_view, encode_establish_mutable_element_view,
+    encode_establish_reference, encode_move_structural_field, encode_move_structural_value,
+    encode_primitive_scalar_read, encode_release_reference, encode_scalar_structural_field,
+    encode_store_structural_field, encode_structural_byte_sequence_field_byte_store,
+    encode_structural_byte_sequence_field_length, encode_structural_byte_sequence_field_read,
+    encode_structural_byte_sequence_field_store, encode_structural_byte_view_field_store,
+    encode_structural_case_leaf_copy, encode_structural_case_membership,
+    encode_structural_leaf_copy, encode_structural_scalar_field_store,
+    encode_write_only_primitive_store,
+};
+use self::value_operations::{
+    decode_boolean_constant, decode_byte_sequence_equal, decode_byte_sequence_predicate,
+    decode_establish_byte_sequence_concatenation, decode_establish_byte_sequence_literal,
+    decode_establish_primitive_local, decode_establish_record, decode_establish_scalar_array,
+    decode_establish_scalar_case, decode_establish_structural_array,
+    decode_establish_structural_case, decode_establish_structural_local,
+    decode_establish_trivial_affine_local, decode_establish_zeroed_structural,
+    decode_ieee_float_constant, decode_integer_constant, encode_boolean_constant,
+    encode_byte_sequence_equal, encode_byte_sequence_predicate,
+    encode_establish_byte_sequence_concatenation, encode_establish_byte_sequence_literal,
+    encode_establish_primitive_local, encode_establish_record, encode_establish_scalar_array,
+    encode_establish_scalar_case, encode_establish_structural_array,
+    encode_establish_structural_case, encode_establish_structural_local,
+    encode_establish_trivial_affine_local, encode_establish_zeroed_structural,
+    encode_ieee_float_constant, encode_integer_constant,
+};
 use super::CodecError;
 use super::machine_wire::{
     decode_declaration, decode_declarations, encode_declaration, encode_declarations,
 };
 use super::proof_term_wire::{decode_proof_formals, encode_proof_formals};
 use super::structural_field_wire::encode_canonical_structural_path;
+use super::structural_place_wire::{
+    decode_structural_arguments, decode_structural_path, encode_structural_arguments,
+    encode_structural_path,
+};
 use super::structural_result_wire::{decode_operation_result, encode_operation_result};
 use super::structural_signature_wire::{
     decode_structural_parameters, encode_structural_parameters,
@@ -101,56 +220,52 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
     }
     match operation.kind.clone() {
         OperationKind::ReadScalarApplication { application } => {
-            writer.u8(operation_tags::READ_SCALAR_APPLICATION);
+            writer.u8(READ_SCALAR_APPLICATION);
             writer.id(application);
         }
         OperationKind::StorageAddress { source } => {
-            writer.u8(operation_tags::STORAGE_ADDRESS);
+            writer.u8(STORAGE_ADDRESS);
             writer.id(source.place);
             super::structural_signature_wire::encode_structural_access(writer, source.access);
-            super::structural_place_wire::encode_structural_path(
-                writer,
-                "storage address source path",
-                &source.path,
-            )?;
+            encode_structural_path(writer, "storage address source path", &source.path)?;
         }
         OperationKind::EstablishAccessReference { source, resident } => {
-            storage_operations::encode_establish_access_reference(writer, source, resident)?
+            encode_establish_access_reference(writer, source, resident)?
         }
         OperationKind::EstablishReference { source, storage } => {
-            storage_operations::encode_establish_reference(writer, source, storage)?
+            encode_establish_reference(writer, source, storage)?
         }
         OperationKind::ReleaseReference { source, path } => {
-            storage_operations::encode_release_reference(writer, source, path)?
+            encode_release_reference(writer, source, path)?
         }
         OperationKind::EstablishPrimitiveLocal {
             value,
             range_obligation,
-        } => value_operations::encode_establish_primitive_local(writer, value, range_obligation)?,
+        } => encode_establish_primitive_local(writer, value, range_obligation)?,
         OperationKind::PrimitiveScalarRead { source, path } => {
-            storage_operations::encode_primitive_scalar_read(writer, source, path)?
+            encode_primitive_scalar_read(writer, source, path)?
         }
         OperationKind::StructuralCaseMembership { source, path, case } => {
-            storage_operations::encode_structural_case_membership(writer, source, path, case)?
+            encode_structural_case_membership(writer, source, path, case)?
         }
         OperationKind::StructuralLeafCopy { source, path } => {
-            storage_operations::encode_structural_leaf_copy(writer, source, path)?
+            encode_structural_leaf_copy(writer, source, path)?
         }
         OperationKind::MoveStructuralValue { source } => {
-            storage_operations::encode_move_structural_value(writer, source)?
+            encode_move_structural_value(writer, source)?
         }
         OperationKind::TransformContent {
             source,
             parents,
             derivations,
         } => {
-            writer.u8(operation_tags::TRANSFORM_CONTENT);
-            super::structural_place_wire::encode_structural_arguments(writer, &[source])?;
-            super::structural_place_wire::encode_structural_arguments(writer, &parents)?;
+            writer.u8(TRANSFORM_CONTENT);
+            encode_structural_arguments(writer, &[source])?;
+            encode_structural_arguments(writer, &parents)?;
             super::content_wire::encode_content_transformations(writer, &derivations)?;
         }
         OperationKind::StructuralCaseLeafCopy { source, path } => {
-            storage_operations::encode_structural_case_leaf_copy(writer, source, &path)?
+            encode_structural_case_leaf_copy(writer, source, &path)?
         }
         OperationKind::ByteSequenceSubslice {
             source,
@@ -158,23 +273,14 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             end,
             length,
             obligation,
-        } => storage_operations::encode_byte_sequence_subslice(
-            writer, source, start, end, length, obligation,
-        )?,
+        } => encode_byte_sequence_subslice(writer, source, start, end, length, obligation)?,
         OperationKind::ByteSequenceWrite {
             destination,
             index,
             value,
             length,
             obligation,
-        } => storage_operations::encode_byte_sequence_write(
-            writer,
-            destination,
-            index,
-            value,
-            length,
-            obligation,
-        )?,
+        } => encode_byte_sequence_write(writer, destination, index, value, length, obligation)?,
         OperationKind::ElementViewWrite {
             destination,
             path,
@@ -182,45 +288,31 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             value,
             length,
             obligation,
-        } => storage_operations::encode_element_view_write(
-            writer,
-            destination,
-            path,
-            index,
-            value,
-            length,
-            obligation,
-        )?,
+        } => {
+            encode_element_view_write(writer, destination, path, index, value, length, obligation)?
+        }
         OperationKind::ByteSequenceRead {
             source,
             index,
             length,
             obligation,
-        } => storage_operations::encode_byte_sequence_read(
-            writer, source, index, length, obligation,
-        )?,
+        } => encode_byte_sequence_read(writer, source, index, length, obligation)?,
         OperationKind::ByteSequenceLength { source } => {
-            storage_operations::encode_byte_sequence_length(writer, source)?
+            encode_byte_sequence_length(writer, source)?
         }
         OperationKind::WriteOnlyPrimitiveStore {
             destination,
             value,
             path,
             range_obligation,
-        } => storage_operations::encode_write_only_primitive_store(
-            writer,
-            destination,
-            value,
-            path,
-            range_obligation,
-        )?,
+        } => encode_write_only_primitive_store(writer, destination, value, path, range_obligation)?,
         OperationKind::ByteSequenceStore {
             destination,
             source,
             length,
             obligation,
         } => {
-            writer.u8(operation_tags::BYTE_SEQUENCE_STORE);
+            writer.u8(BYTE_SEQUENCE_STORE);
             writer.id(destination);
             writer.id(source);
             writer.id(length);
@@ -233,7 +325,7 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             source,
             length,
             obligation,
-        } => storage_operations::encode_structural_byte_sequence_field_store(
+        } => encode_structural_byte_sequence_field_store(
             writer,
             destination,
             path,
@@ -248,7 +340,7 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             field,
             source,
             predicate_obligation,
-        } => storage_operations::encode_structural_byte_view_field_store(
+        } => encode_structural_byte_view_field_store(
             writer,
             destination,
             path,
@@ -260,9 +352,7 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             source,
             path,
             field,
-        } => storage_operations::encode_structural_byte_sequence_field_length(
-            writer, source, path, field,
-        )?,
+        } => encode_structural_byte_sequence_field_length(writer, source, path, field)?,
         OperationKind::StructuralByteSequenceFieldByteStore {
             destination,
             path,
@@ -271,7 +361,7 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             value,
             length,
             obligation,
-        } => storage_operations::encode_structural_byte_sequence_field_byte_store(
+        } => encode_structural_byte_sequence_field_byte_store(
             writer,
             destination,
             path,
@@ -288,7 +378,7 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             index,
             length,
             obligation,
-        } => storage_operations::encode_structural_byte_sequence_field_read(
+        } => encode_structural_byte_sequence_field_read(
             writer, source, path, field, index, length, obligation,
         )?,
         OperationKind::StructuralScalarFieldStore {
@@ -297,7 +387,7 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             field,
             value,
             range_obligation,
-        } => storage_operations::encode_structural_scalar_field_store(
+        } => encode_structural_scalar_field_store(
             writer,
             destination,
             path,
@@ -309,23 +399,16 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             source,
             path,
             field,
-        } => storage_operations::encode_move_structural_field(writer, source, path, field)?,
+        } => encode_move_structural_field(writer, source, path, field)?,
         OperationKind::StoreStructuralField {
             disposition,
             destination,
             path,
             field,
             value,
-        } => storage_operations::encode_store_structural_field(
-            writer,
-            destination,
-            disposition,
-            path,
-            field,
-            value,
-        )?,
+        } => encode_store_structural_field(writer, destination, disposition, path, field, value)?,
         OperationKind::EstablishStructuralArray { elements } => {
-            value_operations::encode_establish_structural_array(writer, elements)?
+            encode_establish_structural_array(writer, elements)?
         }
         OperationKind::EstablishActivationClaim {
             bound,
@@ -334,7 +417,7 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             established_case,
             rejected_case,
         } => {
-            writer.u8(operation_tags::ESTABLISH_ACTIVATION_CLAIM);
+            writer.u8(ESTABLISH_ACTIVATION_CLAIM);
             writer.u64(bound);
             writer.id(committed);
             writer.id(backing_type);
@@ -349,14 +432,10 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             covered_case,
             rejected_case,
         } => {
-            writer.u8(operation_tags::SPLIT_ACTIVATION_CLAIM);
+            writer.u8(SPLIT_ACTIVATION_CLAIM);
             writer.id(source.place);
             super::structural_signature_wire::encode_structural_access(writer, source.access);
-            super::structural_place_wire::encode_structural_path(
-                writer,
-                "activation claim split",
-                &source.path,
-            )?;
+            encode_structural_path(writer, "activation claim split", &source.path)?;
             writer.id(claim);
             writer.u64(bound_at);
             writer.id(committed_at);
@@ -371,18 +450,14 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             covered_case,
             rejected_case,
         } => {
-            writer.u8(operation_tags::MERGE_ACTIVATION_CLAIM);
+            writer.u8(MERGE_ACTIVATION_CLAIM);
             for (argument, label) in [
                 (lower, "activation claim merge lower"),
                 (upper, "activation claim merge upper"),
             ] {
                 writer.id(argument.place);
                 super::structural_signature_wire::encode_structural_access(writer, argument.access);
-                super::structural_place_wire::encode_structural_path(
-                    writer,
-                    label,
-                    &argument.path,
-                )?;
+                encode_structural_path(writer, label, &argument.path)?;
             }
             writer.id(lower_claim);
             writer.id(upper_claim);
@@ -390,114 +465,78 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             writer.id(rejected_case);
         }
         OperationKind::ReleaseActivationClaim { source, claim } => {
-            writer.u8(operation_tags::RELEASE_ACTIVATION_CLAIM);
+            writer.u8(RELEASE_ACTIVATION_CLAIM);
             writer.id(source.place);
             super::structural_signature_wire::encode_structural_access(writer, source.access);
-            super::structural_place_wire::encode_structural_path(
-                writer,
-                "activation claim release",
-                &source.path,
-            )?;
+            encode_structural_path(writer, "activation claim release", &source.path)?;
             writer.id(claim);
         }
         OperationKind::EstablishScalarArray { elements } => {
-            value_operations::encode_establish_scalar_array(writer, elements)?
+            encode_establish_scalar_array(writer, elements)?
         }
         OperationKind::EstablishScalarCase {
             result_case,
             fields,
-        } => value_operations::encode_establish_scalar_case(writer, result_case, fields)?,
+        } => encode_establish_scalar_case(writer, result_case, fields)?,
         OperationKind::EstablishByteSequenceConcatenation {
             left,
             right,
             capacity_obligation,
-        } => value_operations::encode_establish_byte_sequence_concatenation(
-            writer,
-            left,
-            right,
-            capacity_obligation,
-        )?,
+        } => {
+            encode_establish_byte_sequence_concatenation(writer, left, right, capacity_obligation)?
+        }
         OperationKind::ByteSequencePredicate { operand, predicate } => {
-            value_operations::encode_byte_sequence_predicate(writer, operand, predicate)?
+            encode_byte_sequence_predicate(writer, operand, predicate)?
         }
         OperationKind::ByteSequenceEqual { left, right } => {
-            value_operations::encode_byte_sequence_equal(writer, left, right)?
+            encode_byte_sequence_equal(writer, left, right)?
         }
         OperationKind::EstablishByteSequenceLiteral {
             destination,
             bytes,
             qualifications,
-        } => value_operations::encode_establish_byte_sequence_literal(
-            writer,
-            destination,
-            bytes,
-            &qualifications,
-        )?,
+        } => encode_establish_byte_sequence_literal(writer, destination, bytes, &qualifications)?,
         OperationKind::EstablishElementView {
             region,
             destination,
             source,
             element,
-        } => storage_operations::encode_establish_element_view(
-            writer,
-            destination,
-            source,
-            element,
-            region,
-        )?,
+        } => encode_establish_element_view(writer, destination, source, element, region)?,
         OperationKind::EstablishMutableElementView {
             region,
             destination,
             source,
             element,
-        } => storage_operations::encode_establish_mutable_element_view(
-            writer,
-            destination,
-            source,
-            element,
-            region,
-        )?,
-        OperationKind::ElementViewLength { source } => {
-            storage_operations::encode_element_view_length(writer, source)?
-        }
+        } => encode_establish_mutable_element_view(writer, destination, source, element, region)?,
+        OperationKind::ElementViewLength { source } => encode_element_view_length(writer, source)?,
         OperationKind::ElementViewRead {
             source,
             index,
             length,
             obligation,
             path,
-        } => storage_operations::encode_element_view_read(
-            writer, source, index, length, obligation, path,
-        )?,
+        } => encode_element_view_read(writer, source, index, length, obligation, path)?,
         OperationKind::ElementViewSubslice {
             source,
             start,
             end,
             length,
             obligation,
-        } => storage_operations::encode_element_view_subslice(
-            writer, source, start, end, length, obligation,
-        )?,
-        OperationKind::EstablishZeroedStructural {} => {
-            value_operations::encode_establish_zeroed_structural(writer)?
-        }
-        OperationKind::EstablishStructuralLocal {} => {
-            value_operations::encode_establish_structural_local(writer)?
-        }
+        } => encode_element_view_subslice(writer, source, start, end, length, obligation)?,
+        OperationKind::EstablishZeroedStructural {} => encode_establish_zeroed_structural(writer)?,
+        OperationKind::EstablishStructuralLocal {} => encode_establish_structural_local(writer)?,
         OperationKind::EstablishTrivialAffineLocal { destination } => {
-            value_operations::encode_establish_trivial_affine_local(writer, destination)?
+            encode_establish_trivial_affine_local(writer, destination)?
         }
         OperationKind::EstablishNativeCodeLayout { machine } => {
-            writer.u8(operation_tags::ESTABLISH_NATIVE_CODE_LAYOUT);
+            writer.u8(ESTABLISH_NATIVE_CODE_LAYOUT);
             writer.u64(machine.get());
         }
-        OperationKind::EstablishRecord { fields } => {
-            value_operations::encode_establish_record(writer, fields)?
-        }
+        OperationKind::EstablishRecord { fields } => encode_establish_record(writer, fields)?,
         OperationKind::EstablishStructuralCase {
             result_case,
             fields,
-        } => value_operations::encode_establish_structural_case(writer, result_case, fields)?,
+        } => encode_establish_structural_case(writer, result_case, fields)?,
         OperationKind::Call {
             callee,
             arguments,
@@ -554,7 +593,7 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             crash_continuations,
         } => call_operations::encode_tagged_module_invocation(
             writer,
-            operation_tags::CALL_UNIT,
+            CALL_UNIT,
             callee,
             arguments,
             erased_arguments,
@@ -575,7 +614,7 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             crash_continuations,
         } => call_operations::encode_tagged_module_invocation(
             writer,
-            operation_tags::CALL_STRUCTURAL_SCALAR,
+            CALL_STRUCTURAL_SCALAR,
             callee,
             arguments,
             erased_arguments,
@@ -645,168 +684,144 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
         OperationKind::RegisterAccess { service, event } => {
             call_operations::encode_register_access(writer, service, event)?
         }
-        OperationKind::IntegerConstant { value } => {
-            value_operations::encode_integer_constant(writer, value)?
-        }
-        OperationKind::BooleanConstant { value } => {
-            value_operations::encode_boolean_constant(writer, value)?
-        }
-        OperationKind::IeeeFloatConstant { value } => {
-            value_operations::encode_ieee_float_constant(writer, value)?
-        }
+        OperationKind::IntegerConstant { value } => encode_integer_constant(writer, value)?,
+        OperationKind::BooleanConstant { value } => encode_boolean_constant(writer, value)?,
+        OperationKind::IeeeFloatConstant { value } => encode_ieee_float_constant(writer, value)?,
         OperationKind::IeeeFloatCompare {
             comparison,
             left,
             right,
-        } => scalar_operations::encode_ieee_float_compare(writer, comparison, left, right)?,
+        } => encode_ieee_float_compare(writer, comparison, left, right)?,
         OperationKind::ScalarRepresentationView {
             operand,
             landing_obligation,
-        } => scalar_operations::encode_scalar_representation_view(
-            writer,
-            operand,
-            landing_obligation,
-        )?,
+        } => encode_scalar_representation_view(writer, operand, landing_obligation)?,
         OperationKind::NearestIeeeFloatFusedMultiplyAdd {
             left,
             right,
             addend,
-        } => scalar_operations::encode_nearest_ieee_float_fused_multiply_add(
-            writer, left, right, addend,
-        )?,
+        } => encode_nearest_ieee_float_fused_multiply_add(writer, left, right, addend)?,
         OperationKind::BooleanStructuralField {
             source,
             ref path,
             field,
-        } => storage_operations::encode_boolean_structural_field(writer, source, path, field)?,
+        } => encode_boolean_structural_field(writer, source, path, field)?,
         OperationKind::ScalarStructuralField {
             source,
             ref path,
             field,
-        } => storage_operations::encode_scalar_structural_field(writer, source, path, field)?,
-        OperationKind::BooleanNot { operand } => {
-            scalar_operations::encode_boolean_not(writer, operand)?
-        }
-        OperationKind::BooleanEqual { left, right } => {
-            scalar_operations::encode_boolean_equal(writer, left, right)?
-        }
-        OperationKind::IntegerEqual { left, right } => {
-            scalar_operations::encode_integer_equal(writer, left, right)?
-        }
+        } => encode_scalar_structural_field(writer, source, path, field)?,
+        OperationKind::BooleanNot { operand } => encode_boolean_not(writer, operand)?,
+        OperationKind::BooleanEqual { left, right } => encode_boolean_equal(writer, left, right)?,
+        OperationKind::IntegerEqual { left, right } => encode_integer_equal(writer, left, right)?,
         OperationKind::IntegerLessThan { left, right } => {
-            scalar_operations::encode_integer_less_than(writer, left, right)?
+            encode_integer_less_than(writer, left, right)?
         }
         OperationKind::IntegerLessOrEqual { left, right } => {
-            scalar_operations::encode_integer_less_or_equal(writer, left, right)?
+            encode_integer_less_or_equal(writer, left, right)?
         }
         OperationKind::IntegerBitwiseNot { operand } => {
-            scalar_operations::encode_integer_bitwise_not(writer, operand)?
+            encode_integer_bitwise_not(writer, operand)?
         }
-        OperationKind::IntegerWiden { operand } => {
-            scalar_operations::encode_integer_widen(writer, operand)?
-        }
+        OperationKind::IntegerWiden { operand } => encode_integer_widen(writer, operand)?,
         OperationKind::IntegerExactCast {
             operand,
             obligation,
-        } => scalar_operations::encode_integer_exact_cast(writer, operand, obligation)?,
+        } => encode_integer_exact_cast(writer, operand, obligation)?,
         OperationKind::IntegerBitwiseAnd { left, right } => {
-            scalar_operations::encode_integer_bitwise_and(writer, left, right)?
+            encode_integer_bitwise_and(writer, left, right)?
         }
         OperationKind::IntegerBitwiseOr { left, right } => {
-            scalar_operations::encode_integer_bitwise_or(writer, left, right)?
+            encode_integer_bitwise_or(writer, left, right)?
         }
         OperationKind::IntegerBitwiseXor { left, right } => {
-            scalar_operations::encode_integer_bitwise_xor(writer, left, right)?
+            encode_integer_bitwise_xor(writer, left, right)?
         }
         OperationKind::WrappingIntegerShiftLeft { value, count } => {
-            scalar_operations::encode_wrapping_integer_shift_left(writer, value, count)?
+            encode_wrapping_integer_shift_left(writer, value, count)?
         }
         OperationKind::WrappingIntegerShiftRight { value, count } => {
-            scalar_operations::encode_wrapping_integer_shift_right(writer, value, count)?
+            encode_wrapping_integer_shift_right(writer, value, count)?
         }
         OperationKind::ExactIntegerShiftLeft {
             value,
             count,
             obligation,
-        } => scalar_operations::encode_exact_integer_shift_left(writer, value, count, obligation)?,
+        } => encode_exact_integer_shift_left(writer, value, count, obligation)?,
         OperationKind::ExactIntegerShiftRight {
             value,
             count,
             obligation,
-        } => scalar_operations::encode_exact_integer_shift_right(writer, value, count, obligation)?,
+        } => encode_exact_integer_shift_right(writer, value, count, obligation)?,
         OperationKind::ExactIntegerAdd {
             left,
             right,
             obligation,
-        } => scalar_operations::encode_exact_integer_add(writer, left, right, obligation)?,
+        } => encode_exact_integer_add(writer, left, right, obligation)?,
         OperationKind::ExactIntegerSubtract {
             left,
             right,
             obligation,
-        } => scalar_operations::encode_exact_integer_subtract(writer, left, right, obligation)?,
+        } => encode_exact_integer_subtract(writer, left, right, obligation)?,
         OperationKind::ExactIntegerMultiply {
             left,
             right,
             obligation,
-        } => scalar_operations::encode_exact_integer_multiply(writer, left, right, obligation)?,
+        } => encode_exact_integer_multiply(writer, left, right, obligation)?,
         OperationKind::ExactIntegerDivide {
             left,
             right,
             obligation,
-        } => scalar_operations::encode_exact_integer_divide(writer, left, right, obligation)?,
+        } => encode_exact_integer_divide(writer, left, right, obligation)?,
         OperationKind::ExactIntegerRemainder {
             left,
             right,
             obligation,
-        } => scalar_operations::encode_exact_integer_remainder(writer, left, right, obligation)?,
+        } => encode_exact_integer_remainder(writer, left, right, obligation)?,
         OperationKind::WrappingIntegerDivide {
             left,
             right,
             obligation,
-        } => scalar_operations::encode_wrapping_integer_divide(writer, left, right, obligation)?,
+        } => encode_wrapping_integer_divide(writer, left, right, obligation)?,
         OperationKind::WrappingIntegerRemainder {
             left,
             right,
             obligation,
-        } => scalar_operations::encode_wrapping_integer_remainder(writer, left, right, obligation)?,
+        } => encode_wrapping_integer_remainder(writer, left, right, obligation)?,
         OperationKind::SaturatingIntegerDivide {
             left,
             right,
             obligation,
-        } => scalar_operations::encode_saturating_integer_divide(writer, left, right, obligation)?,
+        } => encode_saturating_integer_divide(writer, left, right, obligation)?,
         OperationKind::SaturatingIntegerRemainder {
             left,
             right,
             obligation,
-        } => {
-            scalar_operations::encode_saturating_integer_remainder(writer, left, right, obligation)?
-        }
+        } => encode_saturating_integer_remainder(writer, left, right, obligation)?,
         OperationKind::WrappingIntegerAdd { left, right } => {
-            scalar_operations::encode_wrapping_integer_add(writer, left, right)?
+            encode_wrapping_integer_add(writer, left, right)?
         }
         OperationKind::SaturatingIntegerAdd { left, right } => {
-            scalar_operations::encode_saturating_integer_add(writer, left, right)?
+            encode_saturating_integer_add(writer, left, right)?
         }
         OperationKind::WrappingIntegerSubtract { left, right } => {
-            scalar_operations::encode_wrapping_integer_subtract(writer, left, right)?
+            encode_wrapping_integer_subtract(writer, left, right)?
         }
         OperationKind::SaturatingIntegerSubtract { left, right } => {
-            scalar_operations::encode_saturating_integer_subtract(writer, left, right)?
+            encode_saturating_integer_subtract(writer, left, right)?
         }
         OperationKind::WrappingIntegerMultiply { left, right } => {
-            scalar_operations::encode_wrapping_integer_multiply(writer, left, right)?
+            encode_wrapping_integer_multiply(writer, left, right)?
         }
         OperationKind::SaturatingIntegerMultiply { left, right } => {
-            scalar_operations::encode_saturating_integer_multiply(writer, left, right)?
+            encode_saturating_integer_multiply(writer, left, right)?
         }
-        OperationKind::TrappingInteger { operation } => {
-            scalar_operations::encode_trapping_integer(writer, operation)?
-        }
+        OperationKind::TrappingInteger { operation } => encode_trapping_integer(writer, operation)?,
         OperationKind::FloatResultPolicy { policy } => {
-            scalar_operations::encode_float_result_policy(writer, &policy)?;
+            encode_float_result_policy(writer, &policy)?;
         }
         OperationKind::AtomicFence { ordering } => {
-            atomic_operations::encode_atomic_fence(writer, ordering);
+            encode_atomic_fence(writer, ordering);
         }
         OperationKind::AtomicAccess {
             place,
@@ -814,14 +829,7 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             field,
             event,
             resident_obligation,
-        } => atomic_operations::encode_atomic_access(
-            writer,
-            place,
-            &path,
-            field,
-            event,
-            resident_obligation,
-        )?,
+        } => encode_atomic_access(writer, place, &path, field, event, resident_obligation)?,
     }
     writer.boolean(operation.suspension_crossing.is_some());
     if let Some(crossing) = operation.suspension_crossing {
@@ -865,88 +873,48 @@ fn decode_operation(reader: &mut Reader<'_>) -> Result<Operation, CodecError> {
         tag => return Err(CodecError::InvalidTag("OperationResult", tag)),
     };
     let kind = match reader.u8()? {
-        operation_tags::READ_SCALAR_APPLICATION => OperationKind::ReadScalarApplication {
+        READ_SCALAR_APPLICATION => OperationKind::ReadScalarApplication {
             application: reader.id("ScalarApplicationId")?,
         },
-        operation_tags::ESTABLISH_NATIVE_CODE_LAYOUT => OperationKind::EstablishNativeCodeLayout {
+        ESTABLISH_NATIVE_CODE_LAYOUT => OperationKind::EstablishNativeCodeLayout {
             machine: reader.id("native code layout machine")?,
         },
-        operation_tags::STORAGE_ADDRESS => OperationKind::StorageAddress {
+        STORAGE_ADDRESS => OperationKind::StorageAddress {
             source: terminal_psi::StructuralArgument {
                 place: reader.id("PlaceId")?,
                 access: super::structural_signature_wire::decode_structural_access(reader)?,
-                path: super::structural_place_wire::decode_structural_path(reader)?,
+                path: decode_structural_path(reader)?,
             },
         },
-        operation_tags::BYTE_SEQUENCE_SUBSLICE => {
-            storage_operations::decode_byte_sequence_subslice(reader)?
+        BYTE_SEQUENCE_SUBSLICE => decode_byte_sequence_subslice(reader)?,
+        ESTABLISH_ELEMENT_VIEW => decode_establish_element_view(reader)?,
+        ESTABLISH_MUTABLE_ELEMENT_VIEW => decode_establish_mutable_element_view(reader)?,
+        ELEMENT_VIEW_LENGTH => decode_element_view_length(reader)?,
+        ELEMENT_VIEW_READ => decode_element_view_read(reader)?,
+        PROJECTED_ELEMENT_VIEW_READ => decode_projected_element_view_read(reader)?,
+        ELEMENT_VIEW_SUBSLICE => decode_element_view_subslice(reader)?,
+        BYTE_SEQUENCE_WRITE => decode_byte_sequence_write(reader)?,
+        ELEMENT_VIEW_WRITE => decode_element_view_write(reader)?,
+        BYTE_SEQUENCE_READ => decode_byte_sequence_read(reader)?,
+        BYTE_SEQUENCE_LENGTH => decode_byte_sequence_length(reader)?,
+        ESTABLISH_PRIMITIVE_LOCAL => decode_establish_primitive_local(reader)?,
+        ESTABLISH_REFERENCE => decode_establish_reference(reader, false)?,
+        ESTABLISH_ACCESS_REFERENCE => decode_establish_access_reference(reader)?,
+        ESTABLISH_STORAGE_VIEW_REFERENCE => decode_establish_reference(reader, true)?,
+        RELEASE_REFERENCE => decode_release_reference(reader, false)?,
+        PROJECTED_RELEASE_REFERENCE => decode_release_reference(reader, true)?,
+        PRIMITIVE_SCALAR_READ => decode_primitive_scalar_read(reader)?,
+        PROJECTED_PRIMITIVE_SCALAR_READ => decode_projected_primitive_scalar_read(reader)?,
+        RESTRICTED_WRITE_ONLY_PRIMITIVE_STORE => {
+            decode_restricted_write_only_primitive_store(reader)?
         }
-        operation_tags::ESTABLISH_ELEMENT_VIEW => {
-            storage_operations::decode_establish_element_view(reader)?
+        PROJECTED_WRITE_ONLY_PRIMITIVE_STORE => {
+            decode_projected_write_only_primitive_store(reader)?
         }
-        operation_tags::ESTABLISH_MUTABLE_ELEMENT_VIEW => {
-            storage_operations::decode_establish_mutable_element_view(reader)?
-        }
-        operation_tags::ELEMENT_VIEW_LENGTH => {
-            storage_operations::decode_element_view_length(reader)?
-        }
-        operation_tags::ELEMENT_VIEW_READ => storage_operations::decode_element_view_read(reader)?,
-        operation_tags::PROJECTED_ELEMENT_VIEW_READ => {
-            storage_operations::decode_projected_element_view_read(reader)?
-        }
-        operation_tags::ELEMENT_VIEW_SUBSLICE => {
-            storage_operations::decode_element_view_subslice(reader)?
-        }
-        operation_tags::BYTE_SEQUENCE_WRITE => {
-            storage_operations::decode_byte_sequence_write(reader)?
-        }
-        operation_tags::ELEMENT_VIEW_WRITE => {
-            storage_operations::decode_element_view_write(reader)?
-        }
-        operation_tags::BYTE_SEQUENCE_READ => {
-            storage_operations::decode_byte_sequence_read(reader)?
-        }
-        operation_tags::BYTE_SEQUENCE_LENGTH => {
-            storage_operations::decode_byte_sequence_length(reader)?
-        }
-        operation_tags::ESTABLISH_PRIMITIVE_LOCAL => {
-            value_operations::decode_establish_primitive_local(reader)?
-        }
-        operation_tags::ESTABLISH_REFERENCE => {
-            storage_operations::decode_establish_reference(reader, false)?
-        }
-        operation_tags::ESTABLISH_ACCESS_REFERENCE => {
-            storage_operations::decode_establish_access_reference(reader)?
-        }
-        operation_tags::ESTABLISH_STORAGE_VIEW_REFERENCE => {
-            storage_operations::decode_establish_reference(reader, true)?
-        }
-        operation_tags::RELEASE_REFERENCE => {
-            storage_operations::decode_release_reference(reader, false)?
-        }
-        operation_tags::PROJECTED_RELEASE_REFERENCE => {
-            storage_operations::decode_release_reference(reader, true)?
-        }
-        operation_tags::PRIMITIVE_SCALAR_READ => {
-            storage_operations::decode_primitive_scalar_read(reader)?
-        }
-        operation_tags::PROJECTED_PRIMITIVE_SCALAR_READ => {
-            storage_operations::decode_projected_primitive_scalar_read(reader)?
-        }
-        operation_tags::RESTRICTED_WRITE_ONLY_PRIMITIVE_STORE => {
-            storage_operations::decode_restricted_write_only_primitive_store(reader)?
-        }
-        operation_tags::PROJECTED_WRITE_ONLY_PRIMITIVE_STORE => {
-            storage_operations::decode_projected_write_only_primitive_store(reader)?
-        }
-        operation_tags::STRUCTURAL_CASE_MEMBERSHIP => {
-            storage_operations::decode_structural_case_membership(reader)?
-        }
-        operation_tags::STRUCTURAL_LEAF_COPY => {
-            storage_operations::decode_structural_leaf_copy(reader)?
-        }
-        operation_tags::TRANSFORM_CONTENT => {
-            let mut sources = super::structural_place_wire::decode_structural_arguments(reader)?;
+        STRUCTURAL_CASE_MEMBERSHIP => decode_structural_case_membership(reader)?,
+        STRUCTURAL_LEAF_COPY => decode_structural_leaf_copy(reader)?,
+        TRANSFORM_CONTENT => {
+            let mut sources = decode_structural_arguments(reader)?;
             if sources.len() != 1 {
                 return Err(CodecError::MalformedStructuralFoundation(
                     "content transformation requires one payload",
@@ -955,84 +923,65 @@ fn decode_operation(reader: &mut Reader<'_>) -> Result<Operation, CodecError> {
             let source = sources.remove(0);
             OperationKind::TransformContent {
                 source,
-                parents: super::structural_place_wire::decode_structural_arguments(reader)?,
+                parents: decode_structural_arguments(reader)?,
                 derivations: super::content_wire::decode_content_transformations(reader)?,
             }
         }
-        operation_tags::MOVE_STRUCTURAL_VALUE => {
-            storage_operations::decode_move_structural_value(reader)?
-        }
-        operation_tags::STRUCTURAL_CASE_LEAF_COPY => {
-            storage_operations::decode_structural_case_leaf_copy(reader)?
-        }
-        operation_tags::WRITE_ONLY_PRIMITIVE_STORE => {
-            storage_operations::decode_write_only_primitive_store(reader)?
-        }
-        operation_tags::BYTE_SEQUENCE_STORE => OperationKind::ByteSequenceStore {
+        MOVE_STRUCTURAL_VALUE => decode_move_structural_value(reader)?,
+        STRUCTURAL_CASE_LEAF_COPY => decode_structural_case_leaf_copy(reader)?,
+        WRITE_ONLY_PRIMITIVE_STORE => decode_write_only_primitive_store(reader)?,
+        BYTE_SEQUENCE_STORE => OperationKind::ByteSequenceStore {
             destination: reader.id("PlaceId")?,
             source: reader.id("PlaceId")?,
             length: reader.id("ValueId")?,
             obligation: reader.id("ObligationId")?,
         },
-        operation_tags::STRUCTURAL_BYTE_SEQUENCE_FIELD_STORE => {
-            storage_operations::decode_structural_byte_sequence_field_store(reader)?
+        STRUCTURAL_BYTE_SEQUENCE_FIELD_STORE => {
+            decode_structural_byte_sequence_field_store(reader)?
         }
-        operation_tags::STRUCTURAL_BYTE_VIEW_FIELD_STORE => {
-            storage_operations::decode_structural_byte_view_field_store(reader, false)?
+        STRUCTURAL_BYTE_VIEW_FIELD_STORE => decode_structural_byte_view_field_store(reader, false)?,
+        PREDICATE_CHECKED_STRUCTURAL_BYTE_VIEW_FIELD_STORE => {
+            decode_structural_byte_view_field_store(reader, true)?
         }
-        operation_tags::PREDICATE_CHECKED_STRUCTURAL_BYTE_VIEW_FIELD_STORE => {
-            storage_operations::decode_structural_byte_view_field_store(reader, true)?
+        STRUCTURAL_BYTE_SEQUENCE_FIELD_LENGTH => {
+            decode_structural_byte_sequence_field_length(reader)?
         }
-        operation_tags::STRUCTURAL_BYTE_SEQUENCE_FIELD_LENGTH => {
-            storage_operations::decode_structural_byte_sequence_field_length(reader)?
+        STRUCTURAL_BYTE_SEQUENCE_FIELD_BYTE_STORE => {
+            decode_structural_byte_sequence_field_byte_store(reader)?
         }
-        operation_tags::STRUCTURAL_BYTE_SEQUENCE_FIELD_BYTE_STORE => {
-            storage_operations::decode_structural_byte_sequence_field_byte_store(reader)?
+        STRUCTURAL_BYTE_SEQUENCE_FIELD_READ => decode_structural_byte_sequence_field_read(reader)?,
+        STRUCTURAL_SCALAR_FIELD_STORE => decode_structural_scalar_field_store(reader)?,
+        RANGE_CHECKED_STRUCTURAL_SCALAR_FIELD_STORE => {
+            decode_range_checked_structural_scalar_field_store(reader)?
         }
-        operation_tags::STRUCTURAL_BYTE_SEQUENCE_FIELD_READ => {
-            storage_operations::decode_structural_byte_sequence_field_read(reader)?
+        MOVE_STRUCTURAL_FIELD => decode_move_structural_field(reader)?,
+        STORE_STRUCTURAL_FIELD => {
+            decode_store_structural_field(reader, terminal_psi::StructuralStoreDisposition::Vacant)?
         }
-        operation_tags::STRUCTURAL_SCALAR_FIELD_STORE => {
-            storage_operations::decode_structural_scalar_field_store(reader)?
-        }
-        operation_tags::RANGE_CHECKED_STRUCTURAL_SCALAR_FIELD_STORE => {
-            storage_operations::decode_range_checked_structural_scalar_field_store(reader)?
-        }
-        operation_tags::MOVE_STRUCTURAL_FIELD => {
-            storage_operations::decode_move_structural_field(reader)?
-        }
-        operation_tags::STORE_STRUCTURAL_FIELD => {
-            storage_operations::decode_store_structural_field(
-                reader,
-                terminal_psi::StructuralStoreDisposition::Vacant,
-            )?
-        }
-        operation_tags::REPLACE_DISCARDABLE_STRUCTURAL_FIELD => {
-            storage_operations::decode_store_structural_field(
-                reader,
-                terminal_psi::StructuralStoreDisposition::ReplaceDiscardable,
-            )?
-        }
-        operation_tags::ESTABLISH_ACTIVATION_CLAIM => OperationKind::EstablishActivationClaim {
+        REPLACE_DISCARDABLE_STRUCTURAL_FIELD => decode_store_structural_field(
+            reader,
+            terminal_psi::StructuralStoreDisposition::ReplaceDiscardable,
+        )?,
+        ESTABLISH_ACTIVATION_CLAIM => OperationKind::EstablishActivationClaim {
             bound: reader.u64()?,
             committed: reader.id("ValueId")?,
             backing_type: reader.id("StructuralTypeId")?,
             established_case: reader.id("StructuralCaseId")?,
             rejected_case: reader.id("StructuralCaseId")?,
         },
-        operation_tags::RELEASE_ACTIVATION_CLAIM => OperationKind::ReleaseActivationClaim {
+        RELEASE_ACTIVATION_CLAIM => OperationKind::ReleaseActivationClaim {
             source: terminal_psi::StructuralArgument {
                 place: reader.id("PlaceId")?,
                 access: super::structural_signature_wire::decode_structural_access(reader)?,
-                path: super::structural_place_wire::decode_structural_path(reader)?,
+                path: decode_structural_path(reader)?,
             },
             claim: reader.id("ClaimId")?,
         },
-        operation_tags::SPLIT_ACTIVATION_CLAIM => OperationKind::SplitActivationClaim {
+        SPLIT_ACTIVATION_CLAIM => OperationKind::SplitActivationClaim {
             source: terminal_psi::StructuralArgument {
                 place: reader.id("PlaceId")?,
                 access: super::structural_signature_wire::decode_structural_access(reader)?,
-                path: super::structural_place_wire::decode_structural_path(reader)?,
+                path: decode_structural_path(reader)?,
             },
             claim: reader.id("ClaimId")?,
             bound_at: reader.u64()?,
@@ -1040,179 +989,95 @@ fn decode_operation(reader: &mut Reader<'_>) -> Result<Operation, CodecError> {
             covered_case: reader.id("StructuralCaseId")?,
             rejected_case: reader.id("StructuralCaseId")?,
         },
-        operation_tags::MERGE_ACTIVATION_CLAIM => OperationKind::MergeActivationClaim {
+        MERGE_ACTIVATION_CLAIM => OperationKind::MergeActivationClaim {
             lower: terminal_psi::StructuralArgument {
                 place: reader.id("PlaceId")?,
                 access: super::structural_signature_wire::decode_structural_access(reader)?,
-                path: super::structural_place_wire::decode_structural_path(reader)?,
+                path: decode_structural_path(reader)?,
             },
             upper: terminal_psi::StructuralArgument {
                 place: reader.id("PlaceId")?,
                 access: super::structural_signature_wire::decode_structural_access(reader)?,
-                path: super::structural_place_wire::decode_structural_path(reader)?,
+                path: decode_structural_path(reader)?,
             },
             lower_claim: reader.id("ClaimId")?,
             upper_claim: reader.id("ClaimId")?,
             covered_case: reader.id("StructuralCaseId")?,
             rejected_case: reader.id("StructuralCaseId")?,
         },
-        operation_tags::ESTABLISH_SCALAR_ARRAY => {
-            value_operations::decode_establish_scalar_array(reader)?
+        ESTABLISH_SCALAR_ARRAY => decode_establish_scalar_array(reader)?,
+        ESTABLISH_SCALAR_CASE => decode_establish_scalar_case(reader)?,
+        ESTABLISH_BYTE_SEQUENCE_CONCATENATION => {
+            decode_establish_byte_sequence_concatenation(reader)?
         }
-        operation_tags::ESTABLISH_SCALAR_CASE => {
-            value_operations::decode_establish_scalar_case(reader)?
+        BYTE_SEQUENCE_PREDICATE => decode_byte_sequence_predicate(reader)?,
+        BYTE_SEQUENCE_EQUAL => decode_byte_sequence_equal(reader)?,
+        ESTABLISH_BYTE_SEQUENCE_LITERAL => decode_establish_byte_sequence_literal(reader)?,
+        INTEGER_CONSTANT => decode_integer_constant(reader)?,
+        BOOLEAN_CONSTANT => decode_boolean_constant(reader)?,
+        IEEE_FLOAT_CONSTANT => decode_ieee_float_constant(reader)?,
+        IEEE_FLOAT_COMPARE => decode_ieee_float_compare(reader)?,
+        SCALAR_REPRESENTATION_VIEW => decode_scalar_representation_view(reader)?,
+        LANDED_SCALAR_REPRESENTATION_VIEW => decode_landed_scalar_representation_view(reader)?,
+        NEAREST_IEEE_FLOAT_FUSED_MULTIPLY_ADD => {
+            decode_nearest_ieee_float_fused_multiply_add(reader)?
         }
-        operation_tags::ESTABLISH_BYTE_SEQUENCE_CONCATENATION => {
-            value_operations::decode_establish_byte_sequence_concatenation(reader)?
-        }
-        operation_tags::BYTE_SEQUENCE_PREDICATE => {
-            value_operations::decode_byte_sequence_predicate(reader)?
-        }
-        operation_tags::BYTE_SEQUENCE_EQUAL => {
-            value_operations::decode_byte_sequence_equal(reader)?
-        }
-        operation_tags::ESTABLISH_BYTE_SEQUENCE_LITERAL => {
-            value_operations::decode_establish_byte_sequence_literal(reader)?
-        }
-        operation_tags::INTEGER_CONSTANT => value_operations::decode_integer_constant(reader)?,
-        operation_tags::BOOLEAN_CONSTANT => value_operations::decode_boolean_constant(reader)?,
-        operation_tags::IEEE_FLOAT_CONSTANT => {
-            value_operations::decode_ieee_float_constant(reader)?
-        }
-        operation_tags::IEEE_FLOAT_COMPARE => scalar_operations::decode_ieee_float_compare(reader)?,
-        operation_tags::SCALAR_REPRESENTATION_VIEW => {
-            scalar_operations::decode_scalar_representation_view(reader)?
-        }
-        operation_tags::LANDED_SCALAR_REPRESENTATION_VIEW => {
-            scalar_operations::decode_landed_scalar_representation_view(reader)?
-        }
-        operation_tags::NEAREST_IEEE_FLOAT_FUSED_MULTIPLY_ADD => {
-            scalar_operations::decode_nearest_ieee_float_fused_multiply_add(reader)?
-        }
-        operation_tags::BOOLEAN_STRUCTURAL_FIELD => {
-            storage_operations::decode_boolean_structural_field(reader)?
-        }
-        operation_tags::SCALAR_STRUCTURAL_FIELD => {
-            storage_operations::decode_scalar_structural_field(reader)?
-        }
-        operation_tags::WRAPPING_INTEGER_ADD => {
-            scalar_operations::decode_wrapping_integer_add(reader)?
-        }
-        operation_tags::SATURATING_INTEGER_ADD => {
-            scalar_operations::decode_saturating_integer_add(reader)?
-        }
-        operation_tags::WRAPPING_INTEGER_SUBTRACT => {
-            scalar_operations::decode_wrapping_integer_subtract(reader)?
-        }
-        operation_tags::SATURATING_INTEGER_SUBTRACT => {
-            scalar_operations::decode_saturating_integer_subtract(reader)?
-        }
-        operation_tags::WRAPPING_INTEGER_MULTIPLY => {
-            scalar_operations::decode_wrapping_integer_multiply(reader)?
-        }
-        operation_tags::SATURATING_INTEGER_MULTIPLY => {
-            scalar_operations::decode_saturating_integer_multiply(reader)?
-        }
-        operation_tags::BOOLEAN_NOT => scalar_operations::decode_boolean_not(reader)?,
-        operation_tags::BOOLEAN_EQUAL => scalar_operations::decode_boolean_equal(reader)?,
-        operation_tags::INTEGER_EQUAL => scalar_operations::decode_integer_equal(reader)?,
-        operation_tags::INTEGER_LESS_THAN => scalar_operations::decode_integer_less_than(reader)?,
-        operation_tags::INTEGER_LESS_OR_EQUAL => {
-            scalar_operations::decode_integer_less_or_equal(reader)?
-        }
-        operation_tags::INTEGER_BITWISE_AND => {
-            scalar_operations::decode_integer_bitwise_and(reader)?
-        }
-        operation_tags::INTEGER_BITWISE_OR => scalar_operations::decode_integer_bitwise_or(reader)?,
-        operation_tags::INTEGER_BITWISE_XOR => {
-            scalar_operations::decode_integer_bitwise_xor(reader)?
-        }
-        operation_tags::WRAPPING_INTEGER_SHIFT_LEFT => {
-            scalar_operations::decode_wrapping_integer_shift_left(reader)?
-        }
-        operation_tags::WRAPPING_INTEGER_SHIFT_RIGHT => {
-            scalar_operations::decode_wrapping_integer_shift_right(reader)?
-        }
-        operation_tags::INTEGER_BITWISE_NOT => {
-            scalar_operations::decode_integer_bitwise_not(reader)?
-        }
-        operation_tags::INTEGER_WIDEN => scalar_operations::decode_integer_widen(reader)?,
-        operation_tags::INTEGER_EXACT_CAST => scalar_operations::decode_integer_exact_cast(reader)?,
-        operation_tags::EXACT_INTEGER_SHIFT_RIGHT => {
-            scalar_operations::decode_exact_integer_shift_right(reader)?
-        }
-        operation_tags::EXACT_INTEGER_SHIFT_LEFT => {
-            scalar_operations::decode_exact_integer_shift_left(reader)?
-        }
-        operation_tags::EXACT_INTEGER_ADD => scalar_operations::decode_exact_integer_add(reader)?,
-        operation_tags::EXACT_INTEGER_SUBTRACT => {
-            scalar_operations::decode_exact_integer_subtract(reader)?
-        }
-        operation_tags::EXACT_INTEGER_MULTIPLY => {
-            scalar_operations::decode_exact_integer_multiply(reader)?
-        }
-        operation_tags::EXACT_INTEGER_DIVIDE => {
-            scalar_operations::decode_exact_integer_divide(reader)?
-        }
-        operation_tags::EXACT_INTEGER_REMAINDER => {
-            scalar_operations::decode_exact_integer_remainder(reader)?
-        }
-        operation_tags::WRAPPING_INTEGER_DIVIDE => {
-            scalar_operations::decode_wrapping_integer_divide(reader)?
-        }
-        operation_tags::WRAPPING_INTEGER_REMAINDER => {
-            scalar_operations::decode_wrapping_integer_remainder(reader)?
-        }
-        operation_tags::SATURATING_INTEGER_DIVIDE => {
-            scalar_operations::decode_saturating_integer_divide(reader)?
-        }
-        operation_tags::SATURATING_INTEGER_REMAINDER => {
-            scalar_operations::decode_saturating_integer_remainder(reader)?
-        }
-        operation_tags::CALL => call_operations::decode_call(reader)?,
-        operation_tags::CALL_UNIT => call_operations::decode_call_unit(reader)?,
-        operation_tags::SELECT_IMPLEMENTATION => {
-            call_operations::decode_select_implementation(reader)?
-        }
-        operation_tags::CALL_DYNAMIC => call_operations::decode_call_dynamic(reader)?,
-        operation_tags::BOUNDARY_CALL => call_operations::decode_boundary_call(reader)?,
-        operation_tags::PORT_WRITE => call_operations::decode_port_write(reader)?,
-        operation_tags::REGISTER_ACCESS => call_operations::decode_register_access(reader, true)?,
-        operation_tags::REGISTER_OBSERVATION => {
-            call_operations::decode_register_access(reader, false)?
-        }
-        operation_tags::ESTABLISH_ZEROED_STRUCTURAL => {
-            value_operations::decode_establish_zeroed_structural(reader)?
-        }
-        operation_tags::ESTABLISH_STRUCTURAL_LOCAL => {
-            value_operations::decode_establish_structural_local(reader)?
-        }
-        operation_tags::ESTABLISH_TRIVIAL_AFFINE_LOCAL => {
-            value_operations::decode_establish_trivial_affine_local(reader)?
-        }
-        operation_tags::ESTABLISH_STRUCTURAL_ARRAY => {
-            value_operations::decode_establish_structural_array(reader)?
-        }
-        operation_tags::ESTABLISH_RECORD => value_operations::decode_establish_record(reader)?,
-        operation_tags::ESTABLISH_STRUCTURAL_CASE => {
-            value_operations::decode_establish_structural_case(reader)?
-        }
-        operation_tags::CALL_STRUCTURAL_SCALAR => {
-            call_operations::decode_call_structural_scalar(reader)?
-        }
-        operation_tags::CALL_STRUCTURAL => call_operations::decode_call_structural(reader)?,
-        operation_tags::CALL_STRUCTURAL_WITH_SCALAR_ARGUMENTS => {
+        BOOLEAN_STRUCTURAL_FIELD => decode_boolean_structural_field(reader)?,
+        SCALAR_STRUCTURAL_FIELD => decode_scalar_structural_field(reader)?,
+        WRAPPING_INTEGER_ADD => decode_wrapping_integer_add(reader)?,
+        SATURATING_INTEGER_ADD => decode_saturating_integer_add(reader)?,
+        WRAPPING_INTEGER_SUBTRACT => decode_wrapping_integer_subtract(reader)?,
+        SATURATING_INTEGER_SUBTRACT => decode_saturating_integer_subtract(reader)?,
+        WRAPPING_INTEGER_MULTIPLY => decode_wrapping_integer_multiply(reader)?,
+        SATURATING_INTEGER_MULTIPLY => decode_saturating_integer_multiply(reader)?,
+        BOOLEAN_NOT => decode_boolean_not(reader)?,
+        BOOLEAN_EQUAL => decode_boolean_equal(reader)?,
+        INTEGER_EQUAL => decode_integer_equal(reader)?,
+        INTEGER_LESS_THAN => decode_integer_less_than(reader)?,
+        INTEGER_LESS_OR_EQUAL => decode_integer_less_or_equal(reader)?,
+        INTEGER_BITWISE_AND => decode_integer_bitwise_and(reader)?,
+        INTEGER_BITWISE_OR => decode_integer_bitwise_or(reader)?,
+        INTEGER_BITWISE_XOR => decode_integer_bitwise_xor(reader)?,
+        WRAPPING_INTEGER_SHIFT_LEFT => decode_wrapping_integer_shift_left(reader)?,
+        WRAPPING_INTEGER_SHIFT_RIGHT => decode_wrapping_integer_shift_right(reader)?,
+        INTEGER_BITWISE_NOT => decode_integer_bitwise_not(reader)?,
+        INTEGER_WIDEN => decode_integer_widen(reader)?,
+        INTEGER_EXACT_CAST => decode_integer_exact_cast(reader)?,
+        EXACT_INTEGER_SHIFT_RIGHT => decode_exact_integer_shift_right(reader)?,
+        EXACT_INTEGER_SHIFT_LEFT => decode_exact_integer_shift_left(reader)?,
+        EXACT_INTEGER_ADD => decode_exact_integer_add(reader)?,
+        EXACT_INTEGER_SUBTRACT => decode_exact_integer_subtract(reader)?,
+        EXACT_INTEGER_MULTIPLY => decode_exact_integer_multiply(reader)?,
+        EXACT_INTEGER_DIVIDE => decode_exact_integer_divide(reader)?,
+        EXACT_INTEGER_REMAINDER => decode_exact_integer_remainder(reader)?,
+        WRAPPING_INTEGER_DIVIDE => decode_wrapping_integer_divide(reader)?,
+        WRAPPING_INTEGER_REMAINDER => decode_wrapping_integer_remainder(reader)?,
+        SATURATING_INTEGER_DIVIDE => decode_saturating_integer_divide(reader)?,
+        SATURATING_INTEGER_REMAINDER => decode_saturating_integer_remainder(reader)?,
+        CALL => call_operations::decode_call(reader)?,
+        CALL_UNIT => call_operations::decode_call_unit(reader)?,
+        SELECT_IMPLEMENTATION => call_operations::decode_select_implementation(reader)?,
+        CALL_DYNAMIC => call_operations::decode_call_dynamic(reader)?,
+        BOUNDARY_CALL => call_operations::decode_boundary_call(reader)?,
+        PORT_WRITE => call_operations::decode_port_write(reader)?,
+        REGISTER_ACCESS => call_operations::decode_register_access(reader, true)?,
+        REGISTER_OBSERVATION => call_operations::decode_register_access(reader, false)?,
+        ESTABLISH_ZEROED_STRUCTURAL => decode_establish_zeroed_structural(reader)?,
+        ESTABLISH_STRUCTURAL_LOCAL => decode_establish_structural_local(reader)?,
+        ESTABLISH_TRIVIAL_AFFINE_LOCAL => decode_establish_trivial_affine_local(reader)?,
+        ESTABLISH_STRUCTURAL_ARRAY => decode_establish_structural_array(reader)?,
+        ESTABLISH_RECORD => decode_establish_record(reader)?,
+        ESTABLISH_STRUCTURAL_CASE => decode_establish_structural_case(reader)?,
+        CALL_STRUCTURAL_SCALAR => call_operations::decode_call_structural_scalar(reader)?,
+        CALL_STRUCTURAL => call_operations::decode_call_structural(reader)?,
+        CALL_STRUCTURAL_WITH_SCALAR_ARGUMENTS => {
             call_operations::decode_call_structural_with_scalar_arguments(reader)?
         }
-        operation_tags::TRAPPING_INTEGER => scalar_operations::decode_trapping_integer(reader)?,
-        operation_tags::FLOAT_RESULT_POLICY => {
-            scalar_operations::decode_float_result_policy(reader)?
-        }
-        operation_tags::ATOMIC_FENCE => atomic_operations::decode_atomic_fence(reader)?,
-        operation_tags::ATOMIC_ACCESS => atomic_operations::decode_atomic_access(reader, false)?,
-        operation_tags::RESTRICTED_ATOMIC_ACCESS => {
-            atomic_operations::decode_atomic_access(reader, true)?
-        }
+        TRAPPING_INTEGER => decode_trapping_integer(reader)?,
+        FLOAT_RESULT_POLICY => decode_float_result_policy(reader)?,
+        ATOMIC_FENCE => decode_atomic_fence(reader)?,
+        ATOMIC_ACCESS => decode_atomic_access(reader, false)?,
+        RESTRICTED_ATOMIC_ACCESS => decode_atomic_access(reader, true)?,
         tag => return Err(CodecError::InvalidTag("OperationKind", tag)),
     };
     let suspension_crossing = if reader.boolean()? {

@@ -4,19 +4,38 @@
 
 use super::{declared_scalar_type, structural_place_type, validate_structural_path};
 use crate::codec_error::{CodecError, malformed};
-use semantic_vocabulary::{IntegerSign, ScalarType, StructuralPlaceKind};
+use semantic_vocabulary::{
+    BlockId, IntegerSign, IntegerType, PlaceId, ScalarType, StructuralFieldId, StructuralPlaceKind,
+    StructuralTypeId,
+};
 
 mod byte_sequences;
 mod element_views;
 mod structural_fields;
 mod structural_transfers;
+use self::structural_fields::declared_memberships;
+use super::scalar_fields::{
+    validate_primitive_reference_presentation, validate_storage_interpretation,
+};
 pub(super) use byte_sequences::*;
 pub(super) use element_views::*;
 pub(super) use structural_fields::*;
 pub(super) use structural_transfers::*;
 use terminal_psi::{
-    Operation, OperationKind, OperationResult, StructuralFieldType, StructuralMultiplicity,
-    StructuralTypeShape, TerminalMachine, TerminalModule, is_static_structural_scalar_store_path,
+    ByteSequenceCarrier, Operation, OperationKind, OperationResult, StructuralAccess,
+    StructuralFieldType, StructuralMultiplicity, StructuralPathQualification,
+    StructuralPathSegment, StructuralTypeShape, TerminalMachine, TerminalModule,
+    is_static_structural_scalar_store_path, is_structural_scalar_store_path,
+};
+use terminal_semantics::{
+    access_reference_correspondence, arrival_parameter, borrowed_primitive_projection_declaration,
+    projected_field_declaration, reference_byte_field_compatible, reference_carrier_memberships,
+    reference_preserves_ancestor_qualifications, reference_source_projection_accessible,
+    reference_source_projection_compatible, reference_source_storage_path,
+    reference_storage_source_compatible, resident_reference_plan, runtime_structural_field,
+    scalar_field_store_preserves_content, scalar_field_store_preserves_domain_content,
+    scalar_projection_entails_membership, store_preserves_content,
+    structural_memberships_disjoint_from_write,
 };
 
 /// Resolve only the reference shell's declared geometry. Origin, live loan
@@ -25,28 +44,21 @@ use terminal_psi::{
 fn reference_store_carrier<'path>(
     module: &TerminalModule,
     machine: &TerminalMachine,
-    destination: semantic_vocabulary::PlaceId,
-    path: &'path [terminal_psi::StructuralPathSegment],
-    field: semantic_vocabulary::StructuralFieldId,
-) -> Option<(
-    semantic_vocabulary::StructuralTypeId,
-    &'path [terminal_psi::StructuralPathSegment],
-)> {
+    destination: PlaceId,
+    path: &'path [StructuralPathSegment],
+    field: StructuralFieldId,
+) -> Option<(StructuralTypeId, &'path [StructuralPathSegment])> {
     let crossing = path
         .iter()
-        .rposition(|segment| *segment == terminal_psi::StructuralPathSegment::Referent)?;
+        .rposition(|segment| *segment == StructuralPathSegment::Referent)?;
     let suffix = &path[crossing + 1..];
     let structural_type = structural_place_type(machine, destination)?;
-    let member = terminal_semantics::projected_field_declaration(
-        module.structural_types.iter(),
-        structural_type,
-        path,
-        field,
-    )?;
+    let member =
+        projected_field_declaration(module.structural_types.iter(), structural_type, path, field)?;
     let mut written = path.to_vec();
-    written.push(terminal_psi::StructuralPathSegment::Field(member.identity));
+    written.push(StructuralPathSegment::Field(member.identity));
     let preserves = |whole: &[_], projected: &[_]| {
-        terminal_semantics::structural_memberships_disjoint_from_write(whole, projected, &written)
+        structural_memberships_disjoint_from_write(whole, projected, &written)
     };
     let (multiplicity, access) = if let Some(parameter) = machine.structural_parameter(destination)
     {
@@ -67,27 +79,25 @@ fn reference_store_carrier<'path>(
                     && preserves(&result.qualifications, &result.projected_qualifications)
                     && result.claims.is_empty()
             })?;
-        (result.multiplicity, terminal_psi::StructuralAccess::Owned)
+        (result.multiplicity, StructuralAccess::Owned)
     };
     // Descriptor ownership and referent access are different contracts. A
     // borrowed aggregate is unrestricted but can carry an exclusive reference.
     // Check the declared access along every crossing, not whether the root
     // happened to be produced as an affine owned reference value.
-    if !terminal_semantics::reference_source_projection_accessible(
+    if !reference_source_projection_accessible(
         module.structural_types.iter(),
         structural_type,
         multiplicity,
         access,
         path,
-        terminal_psi::StructuralAccess::WriteOnlyBorrow,
+        StructuralAccess::WriteOnlyBorrow,
     ) {
         return None;
     }
     let StructuralTypeShape::Reference {
         referent,
-        access:
-            terminal_psi::StructuralAccess::MutableBorrow
-            | terminal_psi::StructuralAccess::WriteOnlyBorrow,
+        access: StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow,
     } = module
         .structural_type(
             validate_structural_path(module, structural_type, &path[..crossing]).ok()?,
@@ -110,12 +120,12 @@ fn reference_store_carrier<'path>(
 fn owned_store_carrier(
     module: &TerminalModule,
     machine: &TerminalMachine,
-    destination: semantic_vocabulary::PlaceId,
-    path: &[terminal_psi::StructuralPathSegment],
-) -> Option<semantic_vocabulary::StructuralTypeId> {
+    destination: PlaceId,
+    path: &[StructuralPathSegment],
+) -> Option<StructuralTypeId> {
     let (structural_type, multiplicity) =
-        if let Some(parameter) = terminal_semantics::arrival_parameter(machine, destination) {
-            if parameter.access != terminal_psi::StructuralAccess::Owned
+        if let Some(parameter) = arrival_parameter(machine, destination) {
+            if parameter.access != StructuralAccess::Owned
                 || !parameter.qualifications.is_empty()
                 || !parameter.projected_qualifications.is_empty()
             {
@@ -145,13 +155,13 @@ fn owned_store_carrier(
     // This authenticates the home and declared access, not copy/disposal
     // permission. Field replacement preserves its owner's custody and
     // predicates; receiving verification checks the selected write.
-    terminal_semantics::reference_source_projection_accessible(
+    reference_source_projection_accessible(
         module.structural_types.iter(),
         structural_type,
         multiplicity,
-        terminal_psi::StructuralAccess::Owned,
+        StructuralAccess::Owned,
         path,
-        terminal_psi::StructuralAccess::WriteOnlyBorrow,
+        StructuralAccess::WriteOnlyBorrow,
     )
     .then_some(structural_type)
 }
@@ -163,9 +173,8 @@ pub(super) fn validate_u64_length_result(
     operation: &Operation,
     malformed_label: &'static str,
 ) -> Result<(), CodecError> {
-    let expected = ScalarType::Integer(
-        semantic_vocabulary::IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is valid"),
-    );
+    let expected =
+        ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is valid"));
     if operation
         .result
         .scalar()
@@ -199,7 +208,7 @@ pub(super) fn validate_establish_access_reference(
         return malformed("placed establishment cannot introduce owned content or qualifications");
     }
     if let Some(resident) = resident {
-        return terminal_semantics::resident_reference_plan(
+        return resident_reference_plan(
             module,
             source_type,
             result.structural_type,
@@ -209,12 +218,9 @@ pub(super) fn validate_establish_access_reference(
         .map(|_| ())
         .map_err(CodecError::MalformedStructuralFoundation);
     }
-    if let Err(reason) = terminal_semantics::access_reference_correspondence(
-        module,
-        source_type,
-        result.structural_type,
-        source.access,
-    ) {
+    if let Err(reason) =
+        access_reference_correspondence(module, source_type, result.structural_type, source.access)
+    {
         return Err(CodecError::AccessRamCorrespondence(reason));
     }
     Ok(())
@@ -240,23 +246,14 @@ pub(super) fn validate_establish_reference(
     let Some(source_type) = structural_place_type(machine, source.place) else {
         return malformed("reference establishment source is unknown");
     };
-    let source_path = terminal_semantics::reference_source_storage_path(
-        module.structural_types.iter(),
-        source_type,
-        &source.path,
-    );
-    super::scalar_fields::validate_primitive_reference_presentation(
-        module,
-        machine,
-        source.place,
-        source_path,
-        *access,
-    )?;
+    let source_path =
+        reference_source_storage_path(module.structural_types.iter(), source_type, &source.path);
+    validate_primitive_reference_presentation(module, machine, source.place, source_path, *access)?;
     if let Some(storage) = storage {
         let offset_type = declared_scalar_type(machine, storage.byte_offset);
-        let offset_is_u64 = matches!(offset_type, Some(semantic_vocabulary::ScalarType::Integer(integer))
+        let offset_is_u64 = matches!(offset_type, Some(ScalarType::Integer(integer))
             if !integer.is_address() && integer.bits() == 64
-                && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned);
+                && integer.sign() == IntegerSign::Unsigned);
         if !offset_is_u64 {
             return malformed("reference storage offset is not a u64 scalar");
         }
@@ -266,9 +263,9 @@ pub(super) fn validate_establish_reference(
             // An explicit storage interpretation still observes a shared
             // restricted scalar through its read carrier. The stored codec,
             // offset and receiving interpretation remain independent checks.
-            let observed = (*access == terminal_psi::StructuralAccess::SharedBorrow)
+            let observed = (*access == StructuralAccess::SharedBorrow)
                 .then(|| {
-                    terminal_semantics::borrowed_primitive_projection_declaration(
+                    borrowed_primitive_projection_declaration(
                         module.structural_types.iter(),
                         source_type,
                         source_path,
@@ -280,20 +277,15 @@ pub(super) fn validate_establish_reference(
                 Some(observed) => observed,
                 None => validate_structural_path(module, source_type, source_path)?,
             };
-            super::scalar_fields::validate_storage_interpretation(
-                module,
-                source_type,
-                result.structural_type,
-                *access,
-            )?;
-            terminal_semantics::reference_storage_source_compatible(
+            validate_storage_interpretation(module, source_type, result.structural_type, *access)?;
+            reference_storage_source_compatible(
                 module.structural_types.iter(),
                 source_type,
                 result.structural_type,
                 storage.stored_scalar,
             )
         }
-        None => terminal_semantics::reference_source_projection_compatible(
+        None => reference_source_projection_compatible(
             module.structural_types.iter(),
             source_type,
             source_path,
@@ -303,37 +295,35 @@ pub(super) fn validate_establish_reference(
     // Inline owner predicates belong to the field, not the root's nominal
     // membership roster. Carrier compatibility cannot replace their handback
     // obligation, including when the result advertises no qualifications.
-    let ancestors_preserved = *access == terminal_psi::StructuralAccess::SharedBorrow
-        || structural_fields::declared_memberships(machine, source.place).is_some_and(
-            |(whole, projected)| {
-                terminal_semantics::reference_preserves_ancestor_qualifications(
-                    module.structural_types.iter(),
-                    module.structural_domains.iter(),
-                    &module.identities,
-                    whole,
-                    projected,
-                    source_path,
-                    *access,
-                ) && terminal_semantics::store_preserves_content(
-                    module.structural_types.iter(),
-                    module.structural_domains.iter(),
-                    &module.identities,
-                    source_type,
-                    source.place,
-                    machine
-                        .content_entry_claims
-                        .iter()
-                        .filter(|claim| claim.input.segments.len() < source_path.len()),
-                    source_path,
-                )
-            },
-        );
+    let ancestors_preserved = *access == StructuralAccess::SharedBorrow
+        || declared_memberships(machine, source.place).is_some_and(|(whole, projected)| {
+            reference_preserves_ancestor_qualifications(
+                module.structural_types.iter(),
+                module.structural_domains.iter(),
+                &module.identities,
+                whole,
+                projected,
+                source_path,
+                *access,
+            ) && store_preserves_content(
+                module.structural_types.iter(),
+                module.structural_domains.iter(),
+                &module.identities,
+                source_type,
+                source.place,
+                machine
+                    .content_entry_claims
+                    .iter()
+                    .filter(|claim| claim.input.segments.len() < source_path.len()),
+                source_path,
+            )
+        });
     if !ancestors_preserved
         || result.multiplicity != StructuralMultiplicity::Affine
         || !result.qualifications.is_empty()
         || !result.claims.is_empty()
         || *access != source.access
-        || source.access == terminal_psi::StructuralAccess::Owned
+        || source.access == StructuralAccess::Owned
         || !compatible
     {
         return malformed("reference establishment has inconsistent custody");
@@ -394,7 +384,7 @@ fn validate_reference_membership(
     module: &TerminalModule,
     machine: &TerminalMachine,
     operation: &Operation,
-    position: (semantic_vocabulary::BlockId, u32),
+    position: (BlockId, u32),
     reference_graph: &[terminal_semantics::descriptor_results::DescriptorMachine],
     reference_analysis: &mut terminal_semantics::descriptor_results::DescriptorAnalysis<'_>,
 ) -> Result<(), CodecError> {
@@ -413,25 +403,18 @@ fn validate_reference_membership(
     let Some(source_type) = structural_place_type(machine, source.place) else {
         return malformed("reference membership admission has no source declaration");
     };
-    let source_path = terminal_semantics::reference_source_storage_path(
-        module.structural_types.iter(),
-        source_type,
-        &source.path,
-    );
+    let source_path =
+        reference_source_storage_path(module.structural_types.iter(), source_type, &source.path);
     let inline_owner = storage.is_none()
-        && terminal_semantics::runtime_structural_field(
-            module.structural_types.iter(),
-            source_type,
-            source_path,
-        )
-        .is_some_and(|field| {
-            matches!(
-                field.field_type.byte_sequence_carrier(),
-                Some(terminal_psi::ByteSequenceCarrier::BoundedOwned { .. })
-            )
-        });
+        && runtime_structural_field(module.structural_types.iter(), source_type, source_path)
+            .is_some_and(|field| {
+                matches!(
+                    field.field_type.byte_sequence_carrier(),
+                    Some(ByteSequenceCarrier::BoundedOwned { .. })
+                )
+            });
     let field_compatible = inline_owner
-        && terminal_semantics::reference_byte_field_compatible(
+        && reference_byte_field_compatible(
             module.structural_types.iter(),
             module.structural_domains.iter(),
             source_type,
@@ -442,9 +425,9 @@ fn validate_reference_membership(
     let memberships_match = if inline_owner {
         field_compatible
     } else {
-        structural_fields::declared_memberships(machine, source.place).is_some_and(
+        declared_memberships(machine, source.place).is_some_and(
             |(whole, projected)| {
-                let Ok(mut captured) = terminal_semantics::reference_carrier_memberships(
+                let Ok(mut captured) = reference_carrier_memberships(
                     module.structural_types.iter(),
                     source_type,
                     whole,
@@ -476,7 +459,7 @@ fn validate_reference_membership(
                 {
                     captured.extend(backing);
                 }
-                if *access == terminal_psi::StructuralAccess::SharedBorrow
+                if *access == StructuralAccess::SharedBorrow
                     && result
                         .projected_qualifications
                         .iter()
@@ -500,19 +483,19 @@ fn validate_reference_membership(
                     else {
                         return false;
                     };
-                    terminal_psi::StructuralPathQualification::append_under(
+                    StructuralPathQualification::append_under(
                         &current.qualifications,
                         &current.projected_qualifications,
-                        &[terminal_psi::StructuralPathSegment::Referent],
+                        &[StructuralPathSegment::Referent],
                         &mut captured,
                     );
                 }
                 result.projected_qualifications.iter().all(|row| {
-                    captured.contains(row) || row.path.strip_prefix(&[terminal_psi::StructuralPathSegment::Referent])
+                    captured.contains(row) || row.path.strip_prefix(&[StructuralPathSegment::Referent])
                         .is_some_and(|relative| {
                             let mut path = source_path.to_vec();
                             path.extend_from_slice(relative);
-                            terminal_semantics::scalar_projection_entails_membership(
+                            scalar_projection_entails_membership(
                                 module.structural_types.iter(), module.structural_domains.iter(),
                                 source_type, &path, row.domain,
                             )
@@ -520,14 +503,14 @@ fn validate_reference_membership(
                 })
                 // Mutable formation retains preservation obligations, not just
                 // optional observations. Erasing a row cannot erase a debt.
-                && (*access == terminal_psi::StructuralAccess::SharedBorrow
+                && (*access == StructuralAccess::SharedBorrow
                     || captured.iter().all(|row| result.projected_qualifications.contains(row)))
             },
         )
     };
     if (inline_owner
         || !result.projected_qualifications.is_empty()
-        || *access != terminal_psi::StructuralAccess::SharedBorrow)
+        || *access != StructuralAccess::SharedBorrow)
         && !memberships_match
     {
         return malformed("reference establishment has inconsistent custody");
@@ -550,8 +533,7 @@ pub(super) fn validate_release_reference(
         || path.iter().any(|segment| {
             !matches!(
                 segment,
-                terminal_psi::StructuralPathSegment::Field(_)
-                    | terminal_psi::StructuralPathSegment::FixedIndex(_)
+                StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_)
             )
         })
     {
@@ -572,18 +554,12 @@ pub(super) fn validate_release_reference(
 fn field_store_carrier<'path>(
     module: &TerminalModule,
     machine: &TerminalMachine,
-    destination: semantic_vocabulary::PlaceId,
-    path: &'path [terminal_psi::StructuralPathSegment],
-    field: semantic_vocabulary::StructuralFieldId,
-) -> Result<
-    (
-        semantic_vocabulary::StructuralTypeId,
-        &'path [terminal_psi::StructuralPathSegment],
-    ),
-    CodecError,
-> {
+    destination: PlaceId,
+    path: &'path [StructuralPathSegment],
+    field: StructuralFieldId,
+) -> Result<(StructuralTypeId, &'path [StructuralPathSegment]), CodecError> {
     let preserves = |root, whole: &[_], projected: &[_]| {
-        terminal_semantics::scalar_field_store_preserves_domain_content(
+        scalar_field_store_preserves_domain_content(
             module.structural_types.iter(),
             module.structural_domains.iter(),
             &module.identities,
@@ -600,9 +576,9 @@ fn field_store_carrier<'path>(
     } else if let Some(parameter) = machine.structural_parameter(destination) {
         if !matches!(
             parameter.access,
-            terminal_psi::StructuralAccess::Owned
-                | terminal_psi::StructuralAccess::MutableBorrow
-                | terminal_psi::StructuralAccess::WriteOnlyBorrow
+            StructuralAccess::Owned
+                | StructuralAccess::MutableBorrow
+                | StructuralAccess::WriteOnlyBorrow
         ) || !preserves(
             parameter.structural_type,
             &parameter.qualifications,
@@ -638,7 +614,7 @@ fn field_store_carrier<'path>(
     let Some(content_root) = structural_place_type(machine, destination) else {
         return malformed("structural field store has no declared content root");
     };
-    if !terminal_semantics::scalar_field_store_preserves_content(
+    if !scalar_field_store_preserves_content(
         module.structural_types.iter(),
         module.structural_domains.iter(),
         &module.identities,
@@ -651,7 +627,7 @@ fn field_store_carrier<'path>(
         return malformed("structural scalar field store changes conserved content");
     }
     let carrier_path = reference.map_or(path, |(_, suffix)| suffix);
-    if !terminal_psi::is_structural_scalar_store_path(carrier_path) {
+    if !is_structural_scalar_store_path(carrier_path) {
         return malformed("structural field store has invalid destination custody");
     }
     // The leaf resolver validates this complete path. A final Case is the
@@ -661,10 +637,7 @@ fn field_store_carrier<'path>(
 
 /// The structural type one place carries, read through the machine's declared
 /// parameter rows and produced-place table.
-fn place_structural_type(
-    machine: &TerminalMachine,
-    place: semantic_vocabulary::PlaceId,
-) -> Option<semantic_vocabulary::StructuralTypeId> {
+fn place_structural_type(machine: &TerminalMachine, place: PlaceId) -> Option<StructuralTypeId> {
     if let Some(parameter) = machine.signature_structural_parameter(place) {
         return Some(parameter.structural_type);
     }

@@ -1,3 +1,7 @@
+use super::operation_tags::ESTABLISH_ACCESS_REFERENCE;
+use super::storage_operations::{
+    decode_establish_access_reference, encode_establish_access_reference,
+};
 use super::{Reader, Writer, decode_operation, encode_operation};
 use semantic_vocabulary::{ClaimId, OperationId, PlaceId, StructuralDomainId, StructuralTypeId};
 use terminal_psi::{
@@ -30,20 +34,12 @@ fn placed_reference_wire_preserves_owner_roles_and_backing_kind() {
         }),
     ] {
         let mut writer = Writer::default();
-        super::storage_operations::encode_establish_access_reference(
-            &mut writer,
-            source.clone(),
-            roles,
-        )
-        .unwrap();
+        encode_establish_access_reference(&mut writer, source.clone(), roles).unwrap();
         let bytes = writer.finish();
         let mut reader = Reader::new(&bytes);
+        assert_eq!(reader.u8().unwrap(), ESTABLISH_ACCESS_REFERENCE);
         assert_eq!(
-            reader.u8().unwrap(),
-            super::operation_tags::ESTABLISH_ACCESS_REFERENCE
-        );
-        assert_eq!(
-            super::storage_operations::decode_establish_access_reference(&mut reader).unwrap(),
+            decode_establish_access_reference(&mut reader).unwrap(),
             OperationKind::EstablishAccessReference {
                 source: source.clone(),
                 resident: roles

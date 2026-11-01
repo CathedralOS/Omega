@@ -11,6 +11,7 @@
 //! An owned projection instead carries exactly its typed subtree into an affine
 //! or linear arrival. Geometry supplies no claim: current-ownership replay must
 //! relocate the selected claims before cleanup and leave sibling custody intact.
+use super::super::operation_contracts::structural_source_contract;
 use crate::OptimizationUnitValidationError;
 use crate::unit_validation::structural_catalog::shared_view_declaration;
 use abstract_operations::AbstractOperation as O;
@@ -20,6 +21,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
     StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration, StructuralTypeShape,
 };
+use terminal_semantics::view_descriptor_parameter;
 
 pub(super) fn validate(
     function: &PsiOptimizationFunction,
@@ -43,10 +45,7 @@ pub(super) fn validate(
                     && !qualified_owned_arrival(parameter, types, domains)
                     && !address_join(parameter, types)
                     && !(parameter.qualifications.is_empty()
-                        && terminal_semantics::view_descriptor_parameter(
-                            parameter,
-                            types.values().copied(),
-                        ))
+                        && view_descriptor_parameter(parameter, types.values().copied()))
                     && !owner_loan(parameter, types)
                     && !qualified_owned_bytes(parameter, types)
                     && !qualified_shared_view(parameter, types)
@@ -125,7 +124,7 @@ pub(super) fn validate(
                     // roster. Geometry is not issuance: operation validation
                     // checks the producer and ownership replay transfers the
                     // live occurrence before selected-edge cleanup.
-                    super::super::operation_contracts::structural_source_contract(
+                    structural_source_contract(
                         function, binding.argument.place,
                     ).is_some_and(|source| {
                         source.access == StructuralAccess::Owned
@@ -217,11 +216,7 @@ pub(super) fn validate(
                     // contract as a call argument. Current predicates, exact
                     // access and exclusive restoration are not properties of
                     // the syntax that introduced the receiving parameter.
-                    let owned_result =
-                        super::super::operation_contracts::structural_source_contract(
-                            function,
-                            binding.argument.place,
-                        )
+                    let owned_result = structural_source_contract(function, binding.argument.place)
                         .is_some_and(|source| {
                             super::super::operation_contracts::owned_bounded_owner_loan(
                                 function,
@@ -242,7 +237,7 @@ pub(super) fn validate(
                     // the root stays with the caller.
                     abstract_operations::control_flow::address_joins::is_address_projection(
                         &binding.argument.path,
-                    ) && super::super::operation_contracts::structural_source_contract(
+                    ) && structural_source_contract(
                         function, binding.argument.place,
                     ).is_some_and(|source| {
                         let Some(access) = source.backing_access(types.values().copied()) else { return false; };
@@ -273,7 +268,7 @@ pub(super) fn validate(
                                 &binding.argument.path,
                                 parameter.access,
                             ) == Some(parameter.structural_type)
-                    }) && super::super::operation_contracts::structural_source_contract(function, binding.argument.place)
+                    }) && structural_source_contract(function, binding.argument.place)
                         .is_some_and(|source| source.supplies_qualifications(
                             &binding.argument.path,
                             &parameter.qualifications,
@@ -291,10 +286,8 @@ pub(super) fn validate(
                             root_type == parameter.structural_type
                                 && multiplicity != StructuralMultiplicity::Linear
                         })
-                } else if terminal_semantics::view_descriptor_parameter(
-                    parameter,
-                    types.values().copied(),
-                ) && parameter.qualifications.is_empty()
+                } else if view_descriptor_parameter(parameter, types.values().copied())
+                    && parameter.qualifications.is_empty()
                     && !binding.argument.path.is_empty()
                 {
                     source.is_some_and(|(root_type, access, multiplicity)| {
@@ -321,7 +314,7 @@ pub(super) fn validate(
                                 root_type,
                                 &binding.argument.path,
                             ) == Some(parameter.structural_type)
-                                && super::super::operation_contracts::structural_source_contract(
+                                && structural_source_contract(
                                     function, binding.argument.place,
                                 ).is_some_and(|source| {
                                     let (whole, projected) = source.selected_qualifications(&binding.argument.path);
@@ -585,10 +578,7 @@ fn source_contract(
     {
         return (plain(parameter)
             || parameter.qualifications.is_empty()
-                && terminal_semantics::view_descriptor_parameter(
-                    parameter,
-                    types.values().copied(),
-                ))
+                && view_descriptor_parameter(parameter, types.values().copied()))
         .then_some((
             parameter.structural_type,
             parameter.access,

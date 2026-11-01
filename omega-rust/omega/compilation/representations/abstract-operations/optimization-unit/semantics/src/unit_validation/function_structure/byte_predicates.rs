@@ -5,15 +5,27 @@
 //! accepted goal carrying the stored byte's class legs (checked beside the
 //! unit's obligation catalog) and, for `valid_utf8`, an all-ASCII carrier on
 //! every path of the current graph, checked here.
+use super::byte_field_freshness::byte_field_root;
+use super::byte_field_freshness::field_path;
+use super::structural_freshness::established_on_every_path;
+use super::structural_freshness::structural_metadata_may_change;
 use crate::{OperationSite, OptimizationUnitValidationError};
 use abstract_operations::AbstractOperation as Operation;
 use optimization_unit::{PsiOptimizationFunction, PsiOptimizationUnit};
+use semantic_vocabulary::StructuralFieldId;
 use semantic_vocabulary::{BlockId, PlaceId, StructuralPlaceKind, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
+use terminal_psi::StructuralDomainDeclaration;
+use terminal_psi::StructuralPathSegment;
+use terminal_psi::control_flow::ByteSequenceOperand;
 use terminal_psi::{
     ByteSequencePredicate, ByteSequencePredicateSet, StructuralAccess, StructuralTypeDeclaration,
     StructuralTypeShape, live_field_by_id,
 };
+use terminal_semantics::byte_parameter_predicates_in;
+use terminal_semantics::byte_qualification_predicates_in;
+use terminal_semantics::runtime_structural_path_tip;
+use terminal_semantics::shared_byte_field_copy_predicates;
 
 /// Indexed writes preserve the same declared invariants through a caller loan
 /// as through owned local backing. Do not use incidental initializer predicates:
@@ -24,7 +36,7 @@ pub(crate) fn byte_write_predicates(
     place: PlaceId,
 ) -> Option<ByteSequencePredicateSet> {
     if let Some(parameter) = function.arrival_parameter(place) {
-        terminal_semantics::byte_parameter_predicates_in(unit.structural_domains.iter(), parameter)
+        byte_parameter_predicates_in(unit.structural_domains.iter(), parameter)
     } else {
         owned_byte_predicates(unit, function, place)
     }
@@ -85,7 +97,7 @@ pub(super) fn validate_indexed_byte_stores(
                         .any(|predicate| predicate == ByteSequencePredicate::ValidUtf8)
                         && !predicates.implies(ascii);
                     if splits_scalars
-                        && !super::structural_freshness::established_on_every_path(
+                        && !established_on_every_path(
                             function,
                             predecessors,
                             (block_position, node_position),
@@ -98,7 +110,7 @@ pub(super) fn validate_indexed_byte_stores(
                                         .is_some_and(|initial| initial.implies(ascii)))
                             },
                             |operation, root| {
-                                super::structural_freshness::structural_metadata_may_change(
+                                structural_metadata_may_change(
                                     function,
                                     types,
                                     root,
@@ -144,14 +156,8 @@ pub(super) fn validate_indexed_byte_stores(
             if !splits_scalars {
                 continue;
             }
-            let exact_path = super::byte_field_freshness::field_path(
-                function,
-                types,
-                *destination,
-                path,
-                *field,
-            )
-            .ok_or_else(invalid)?;
+            let exact_path =
+                field_path(function, types, *destination, path, *field).ok_or_else(invalid)?;
             let establishes = |_, operation: &Operation, root: PlaceId| {
                 matches!(operation,
                     Operation::StructuralByteSequenceFieldStore {
@@ -173,26 +179,13 @@ pub(super) fn validate_indexed_byte_stores(
                     ..
                 } if *written_root == root => {
                     !(written == path && written_field == field)
-                        && super::byte_field_freshness::field_path(
-                            function,
-                            types,
-                            root,
-                            written,
-                            *written_field,
+                        && field_path(function, types, root, written, *written_field).is_none_or(
+                            |written| super::byte_field_freshness::overlaps(&exact_path, &written),
                         )
-                        .is_none_or(|written| {
-                            super::byte_field_freshness::overlaps(&exact_path, &written)
-                        })
                 }
-                _ => super::structural_freshness::structural_metadata_may_change(
-                    function,
-                    types,
-                    root,
-                    &exact_path,
-                    operation,
-                ),
+                _ => structural_metadata_may_change(function, types, root, &exact_path, operation),
             };
-            if !super::structural_freshness::established_on_every_path(
+            if !established_on_every_path(
                 function,
                 predecessors,
                 (block_position, node_position),
@@ -241,7 +234,7 @@ pub(crate) fn owned_byte_predicates(
     {
         return None;
     }
-    terminal_semantics::byte_qualification_predicates_in(
+    byte_qualification_predicates_in(
         unit.structural_domains.iter(),
         structural_type,
         &result.qualifications,
@@ -256,20 +249,18 @@ fn concatenation_predicates(
     let Operation::EstablishByteSequenceConcatenation { left, right, .. } = operation else {
         return None;
     };
-    let operand = |operand: &terminal_psi::control_flow::ByteSequenceOperand| match operand {
-        terminal_psi::control_flow::ByteSequenceOperand::Whole { source, .. } => {
-            descriptor_source_predicates(
-                &Catalogs {
-                    types: unit.structural_types.iter(),
-                    domains: unit.structural_domains.iter(),
-                },
-                function,
-                source,
-                function.structural_places.len().saturating_add(1),
-                &mut Vec::new(),
-            )
-        }
-        terminal_psi::control_flow::ByteSequenceOperand::Field { source, field, .. }
+    let operand = |operand: &ByteSequenceOperand| match operand {
+        ByteSequenceOperand::Whole { source, .. } => descriptor_source_predicates(
+            &Catalogs {
+                types: unit.structural_types.iter(),
+                domains: unit.structural_domains.iter(),
+            },
+            function,
+            source,
+            function.structural_places.len().saturating_add(1),
+            &mut Vec::new(),
+        ),
+        ByteSequenceOperand::Field { source, field, .. }
             if source.access == StructuralAccess::SharedBorrow =>
         {
             byte_field_predicates(unit, function, source.place, &source.path, *field)
@@ -347,7 +338,7 @@ pub(crate) fn replacement_preserves_predicates(
 /// identity maps shares the one derivation.
 pub(crate) fn whole_source_predicates<'t, 'd>(
     types: impl Iterator<Item = &'t StructuralTypeDeclaration> + Clone,
-    domains: impl Iterator<Item = &'d terminal_psi::StructuralDomainDeclaration> + Clone,
+    domains: impl Iterator<Item = &'d StructuralDomainDeclaration> + Clone,
     function: &PsiOptimizationFunction,
     source: PlaceId,
 ) -> Option<ByteSequencePredicateSet> {
@@ -423,24 +414,18 @@ pub(crate) fn copied_field_predicates_at_invocation<'t>(
     ) {
         return None;
     }
-    let (terminal_psi::StructuralPathSegment::Field(identity), parent_path) = path.split_last()?
-    else {
+    let (StructuralPathSegment::Field(identity), parent_path) = path.split_last()? else {
         return None;
     };
     if parent_path.iter().any(|segment| {
         !matches!(
             segment,
-            terminal_psi::StructuralPathSegment::Field(_)
-                | terminal_psi::StructuralPathSegment::FixedIndex(_)
+            StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_)
         )
     }) {
         return None;
     }
-    let parent = terminal_semantics::runtime_structural_path_tip(
-        types,
-        parameter.structural_type,
-        parent_path,
-    )?;
+    let parent = runtime_structural_path_tip(types, parameter.structural_type, parent_path)?;
     let Some(fields) = parent.shape.record_fields() else {
         return None;
     };
@@ -519,8 +504,8 @@ pub(crate) fn byte_field_predicates(
     unit: &PsiOptimizationUnit,
     function: &PsiOptimizationFunction,
     root: PlaceId,
-    path: &[terminal_psi::StructuralPathSegment],
-    field: semantic_vocabulary::StructuralFieldId,
+    path: &[StructuralPathSegment],
+    field: StructuralFieldId,
 ) -> Option<ByteSequencePredicateSet> {
     byte_field_predicates_in(unit.structural_types.iter(), function, root, path, field)
 }
@@ -529,16 +514,13 @@ fn byte_field_predicates_in<'t>(
     types: impl Iterator<Item = &'t StructuralTypeDeclaration> + Clone,
     function: &PsiOptimizationFunction,
     root: PlaceId,
-    path: &[terminal_psi::StructuralPathSegment],
-    field: semantic_vocabulary::StructuralFieldId,
+    path: &[StructuralPathSegment],
+    field: StructuralFieldId,
 ) -> Option<ByteSequencePredicateSet> {
-    let (structural_type, _) = super::byte_field_freshness::byte_field_root(function, root)?;
+    let (structural_type, _) = byte_field_root(function, root)?;
     // The carrier's affine permission and referent shape are reconstructed
     // before traversing storage. Keep the explicit path on the operation.
-    let (structural_type, path) = if matches!(
-        path.first(),
-        Some(terminal_psi::StructuralPathSegment::Referent)
-    ) {
+    let (structural_type, path) = if matches!(path.first(), Some(StructuralPathSegment::Referent)) {
         let catalog = types
             .clone()
             .map(|declaration| (declaration.id, declaration))
@@ -553,8 +535,7 @@ fn byte_field_predicates_in<'t>(
     } else {
         (structural_type, path)
     };
-    let declaration =
-        terminal_semantics::runtime_structural_path_tip(types, structural_type, path)?;
+    let declaration = runtime_structural_path_tip(types, structural_type, path)?;
     let Some(fields) = declaration.shape.record_fields() else {
         return None;
     };
@@ -572,7 +553,7 @@ fn source_predicates<'t, 'd, Types, Domains>(
 ) -> Option<ByteSequencePredicateSet>
 where
     Types: Iterator<Item = &'t StructuralTypeDeclaration> + Clone,
-    Domains: Iterator<Item = &'d terminal_psi::StructuralDomainDeclaration> + Clone,
+    Domains: Iterator<Item = &'d StructuralDomainDeclaration> + Clone,
 {
     if let Some((_, predicates)) = memo.iter().find(|(place, _)| *place == source) {
         return *predicates;
@@ -600,20 +581,16 @@ fn descriptor_source_predicates<'t, 'd, Types, Domains>(
 ) -> Option<ByteSequencePredicateSet>
 where
     Types: Iterator<Item = &'t StructuralTypeDeclaration> + Clone,
-    Domains: Iterator<Item = &'d terminal_psi::StructuralDomainDeclaration> + Clone,
+    Domains: Iterator<Item = &'d StructuralDomainDeclaration> + Clone,
 {
     if source.path.is_empty() {
         return source_predicates(catalogs, function, source.place, remaining, memo);
     }
-    let (root, access) = super::byte_field_freshness::byte_field_root(function, source.place)?;
+    let (root, access) = byte_field_root(function, source.place)?;
     if access == StructuralAccess::WriteOnlyBorrow {
         return None;
     }
-    let selected = terminal_semantics::runtime_structural_path_tip(
-        catalogs.types.clone(),
-        root,
-        &source.path,
-    )?;
+    let selected = runtime_structural_path_tip(catalogs.types.clone(), root, &source.path)?;
     if !matches!(
         selected.shape,
         terminal_psi::StructuralTypeShape::ByteSequence(_)
@@ -637,7 +614,7 @@ fn derive_source_predicates<'t, 'd, Types, Domains>(
 ) -> Option<ByteSequencePredicateSet>
 where
     Types: Iterator<Item = &'t StructuralTypeDeclaration> + Clone,
-    Domains: Iterator<Item = &'d terminal_psi::StructuralDomainDeclaration> + Clone,
+    Domains: Iterator<Item = &'d StructuralDomainDeclaration> + Clone,
 {
     let declaration = function.structural_place(source)?;
     match declaration.kind {
@@ -657,7 +634,7 @@ where
             ) {
                 return None;
             }
-            terminal_semantics::byte_parameter_predicates_in(catalogs.domains.clone(), parameter)
+            byte_parameter_predicates_in(catalogs.domains.clone(), parameter)
         }
         StructuralPlaceKind::ByteSequenceLiteral { .. } => {
             let mut producers = function
@@ -706,16 +683,11 @@ where
                 let captured = if backing.path.is_empty() {
                     source_predicates(catalogs, function, backing.place, remaining, memo)?
                 } else {
-                    let (root, access) =
-                        super::byte_field_freshness::byte_field_root(function, backing.place)?;
+                    let (root, access) = byte_field_root(function, backing.place)?;
                     if access == StructuralAccess::WriteOnlyBorrow {
                         return None;
                     }
-                    terminal_semantics::shared_byte_field_copy_predicates(
-                        catalogs.types.clone(),
-                        root,
-                        &backing.path,
-                    )?
+                    shared_byte_field_copy_predicates(catalogs.types.clone(), root, &backing.path)?
                 };
                 return Some(captured.subslice());
             }
@@ -733,7 +705,7 @@ where
             {
                 return None;
             }
-            let declared = terminal_semantics::byte_qualification_predicates_in(
+            let declared = byte_qualification_predicates_in(
                 catalogs.domains.clone(),
                 structural_type,
                 &result.qualifications,
@@ -752,16 +724,11 @@ where
                 let captured = if path.is_empty() {
                     source_predicates(catalogs, function, *backing, remaining, memo)?
                 } else {
-                    let (root, access) =
-                        super::byte_field_freshness::byte_field_root(function, *backing)?;
+                    let (root, access) = byte_field_root(function, *backing)?;
                     if access == StructuralAccess::WriteOnlyBorrow {
                         return None;
                     }
-                    terminal_semantics::shared_byte_field_copy_predicates(
-                        catalogs.types.clone(),
-                        root,
-                        path,
-                    )?
+                    shared_byte_field_copy_predicates(catalogs.types.clone(), root, path)?
                 };
                 let mut predicates = declared;
                 for predicate in captured.predicates() {
@@ -788,28 +755,23 @@ where
                 // re-derive; later writes are checked against the same roster.
                 return Some(declared);
             };
-            let mut operand =
-                |operand: &terminal_psi::control_flow::ByteSequenceOperand| match operand {
-                    terminal_psi::control_flow::ByteSequenceOperand::Whole { source, .. } => {
-                        descriptor_source_predicates(catalogs, function, source, remaining, memo)
+            let mut operand = |operand: &ByteSequenceOperand| match operand {
+                ByteSequenceOperand::Whole { source, .. } => {
+                    descriptor_source_predicates(catalogs, function, source, remaining, memo)
+                }
+                ByteSequenceOperand::Field { source, field, .. } => {
+                    if source.access != StructuralAccess::SharedBorrow {
+                        return None;
                     }
-                    terminal_psi::control_flow::ByteSequenceOperand::Field {
-                        source,
-                        field,
-                        ..
-                    } => {
-                        if source.access != StructuralAccess::SharedBorrow {
-                            return None;
-                        }
-                        byte_field_predicates_in(
-                            catalogs.types.clone(),
-                            function,
-                            source.place,
-                            &source.path,
-                            *field,
-                        )
-                    }
-                };
+                    byte_field_predicates_in(
+                        catalogs.types.clone(),
+                        function,
+                        source.place,
+                        &source.path,
+                        *field,
+                    )
+                }
+            };
             Some(operand(left)?.concatenation(operand(right)?))
         }
         _ => None,

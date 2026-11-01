@@ -22,16 +22,26 @@ use terminal_semantics::descriptor_results::{
 
 pub mod access_results;
 mod scalar_expressions;
+use crate::unit_validation::operation_contracts::structural_source_contract;
+use abstract_operations::AbstractFunction;
+use optimization_unit::OptimizationNode;
+use optimization_unit::reconstruct_psi_optimization_function_seed;
 use scalar_expressions::ScalarExpressions;
+use semantic_vocabulary::BlockId;
+use semantic_vocabulary::StructuralTypeId;
+use semantic_vocabulary::ValueId;
+use terminal_psi::TerminalDynamicDispatchCatalog;
+use terminal_semantics::descriptor_lifetimes::canonical_descriptor_location;
+use terminal_semantics::runtime_structural_path_tip;
 
 /// Adapt current flat abstract bodies through the same block reconstruction
 /// and descriptor flow used by optimization-unit consumers. No retained source
 /// summary supplies origin authority after transformations.
 pub fn abstract_catalog_graph<'function, 'boundary>(
-    functions: impl IntoIterator<Item = &'function abstract_operations::AbstractFunction>,
+    functions: impl IntoIterator<Item = &'function AbstractFunction>,
     boundaries: impl IntoIterator<Item = &'boundary BoundaryMachineDeclaration>,
     types: &[StructuralTypeDeclaration],
-    dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
+    dynamic_dispatch: &TerminalDynamicDispatchCatalog,
 ) -> Option<Vec<DescriptorMachine>> {
     abstract_graph_with_slots(
         functions,
@@ -44,10 +54,10 @@ pub fn abstract_catalog_graph<'function, 'boundary>(
 
 /// Ordinary reference-pointer contents reconstructed from current flat bodies.
 pub fn abstract_reference_catalog_graph<'function, 'boundary>(
-    functions: impl IntoIterator<Item = &'function abstract_operations::AbstractFunction>,
+    functions: impl IntoIterator<Item = &'function AbstractFunction>,
     boundaries: impl IntoIterator<Item = &'boundary BoundaryMachineDeclaration>,
     types: &[StructuralTypeDeclaration],
-    dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
+    dynamic_dispatch: &TerminalDynamicDispatchCatalog,
 ) -> Option<Vec<DescriptorMachine>> {
     abstract_graph_with_slots(
         functions,
@@ -63,7 +73,7 @@ pub fn optimized_borrowed_storage_catalog_graph<'function, 'boundary>(
     functions: impl IntoIterator<Item = &'function PsiOptimizationFunction>,
     boundaries: impl IntoIterator<Item = &'boundary BoundaryMachineDeclaration>,
     types: &[StructuralTypeDeclaration],
-    dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
+    dynamic_dispatch: &TerminalDynamicDispatchCatalog,
 ) -> Option<Vec<DescriptorMachine>> {
     catalog_graph(
         functions,
@@ -77,15 +87,15 @@ pub fn optimized_borrowed_storage_catalog_graph<'function, 'boundary>(
 }
 
 fn abstract_graph_with_slots<'function, 'boundary>(
-    functions: impl IntoIterator<Item = &'function abstract_operations::AbstractFunction>,
+    functions: impl IntoIterator<Item = &'function AbstractFunction>,
     boundaries: impl IntoIterator<Item = &'boundary BoundaryMachineDeclaration>,
     types: &[StructuralTypeDeclaration],
-    dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
+    dynamic_dispatch: &TerminalDynamicDispatchCatalog,
     slot_kind: kernel::DescriptorSlotKind,
 ) -> Option<Vec<DescriptorMachine>> {
     let functions = functions
         .into_iter()
-        .map(optimization_unit::reconstruct_psi_optimization_function_seed)
+        .map(reconstruct_psi_optimization_function_seed)
         .collect::<Result<Vec<_>, _>>()
         .ok()?;
     catalog_graph(
@@ -102,19 +112,19 @@ fn abstract_graph_with_slots<'function, 'boundary>(
 /// Adapt flat current bodies with their independently selected execution and
 /// explicit guarded-boundary obligations. Portable callers use the default API.
 pub fn abstract_reference_catalog_graph_with_boundary_preservation<'function, 'boundary>(
-    functions: impl IntoIterator<Item = &'function abstract_operations::AbstractFunction>,
+    functions: impl IntoIterator<Item = &'function AbstractFunction>,
     boundaries: impl IntoIterator<Item = &'boundary BoundaryMachineDeclaration>,
     types: &[StructuralTypeDeclaration],
-    dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
+    dynamic_dispatch: &TerminalDynamicDispatchCatalog,
     operation: impl for<'node> Fn(
         &PsiOptimizationFunction,
-        &'node optimization_unit::OptimizationNode,
+        &'node OptimizationNode,
     ) -> Option<Cow<'node, O>>,
-    preserves_boundary: impl Fn(&PsiOptimizationFunction, &optimization_unit::OptimizationNode) -> bool,
+    preserves_boundary: impl Fn(&PsiOptimizationFunction, &OptimizationNode) -> bool,
 ) -> Option<Vec<DescriptorMachine>> {
     let functions = functions
         .into_iter()
-        .map(optimization_unit::reconstruct_psi_optimization_function_seed)
+        .map(reconstruct_psi_optimization_function_seed)
         .collect::<Result<Vec<_>, _>>()
         .ok()?;
     optimized_reference_catalog_graph_with_boundary_preservation(
@@ -147,10 +157,10 @@ pub fn optimized_catalog_graph<'function, 'boundary>(
     functions: impl IntoIterator<Item = &'function PsiOptimizationFunction>,
     boundaries: impl IntoIterator<Item = &'boundary BoundaryMachineDeclaration>,
     types: &[StructuralTypeDeclaration],
-    dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
+    dynamic_dispatch: &TerminalDynamicDispatchCatalog,
     operation: impl for<'node> Fn(
         &PsiOptimizationFunction,
-        &'node optimization_unit::OptimizationNode,
+        &'node OptimizationNode,
     ) -> Option<Cow<'node, O>>,
 ) -> Option<Vec<DescriptorMachine>> {
     catalog_graph(
@@ -170,10 +180,10 @@ pub fn optimized_reference_catalog_graph<'function, 'boundary>(
     functions: impl IntoIterator<Item = &'function PsiOptimizationFunction>,
     boundaries: impl IntoIterator<Item = &'boundary BoundaryMachineDeclaration>,
     types: &[StructuralTypeDeclaration],
-    dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
+    dynamic_dispatch: &TerminalDynamicDispatchCatalog,
     operation: impl for<'node> Fn(
         &PsiOptimizationFunction,
-        &'node optimization_unit::OptimizationNode,
+        &'node OptimizationNode,
     ) -> Option<Cow<'node, O>>,
 ) -> Option<Vec<DescriptorMachine>> {
     optimized_reference_catalog_graph_with_boundary_preservation(
@@ -196,12 +206,12 @@ pub fn optimized_reference_catalog_graph_with_boundary_preservation<'function, '
     functions: impl IntoIterator<Item = &'function PsiOptimizationFunction>,
     boundaries: impl IntoIterator<Item = &'boundary BoundaryMachineDeclaration>,
     types: &[StructuralTypeDeclaration],
-    dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
+    dynamic_dispatch: &TerminalDynamicDispatchCatalog,
     operation: impl for<'node> Fn(
         &PsiOptimizationFunction,
-        &'node optimization_unit::OptimizationNode,
+        &'node OptimizationNode,
     ) -> Option<Cow<'node, O>>,
-    preserves_boundary: impl Fn(&PsiOptimizationFunction, &optimization_unit::OptimizationNode) -> bool,
+    preserves_boundary: impl Fn(&PsiOptimizationFunction, &OptimizationNode) -> bool,
 ) -> Option<Vec<DescriptorMachine>> {
     catalog_graph(
         functions,
@@ -218,13 +228,13 @@ fn catalog_graph<'function, 'boundary>(
     functions: impl IntoIterator<Item = &'function PsiOptimizationFunction>,
     boundaries: impl IntoIterator<Item = &'boundary BoundaryMachineDeclaration>,
     types: &[StructuralTypeDeclaration],
-    dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
+    dynamic_dispatch: &TerminalDynamicDispatchCatalog,
     operation: impl for<'node> Fn(
         &PsiOptimizationFunction,
-        &'node optimization_unit::OptimizationNode,
+        &'node OptimizationNode,
     ) -> Option<Cow<'node, O>>,
     slot_kind: kernel::DescriptorSlotKind,
-    preserves_boundary: impl Fn(&PsiOptimizationFunction, &optimization_unit::OptimizationNode) -> bool,
+    preserves_boundary: impl Fn(&PsiOptimizationFunction, &OptimizationNode) -> bool,
 ) -> Option<Vec<DescriptorMachine>> {
     let functions = functions.into_iter().collect::<Vec<_>>();
     let boundaries = boundaries.into_iter().collect::<Vec<_>>();
@@ -304,11 +314,8 @@ pub(crate) fn owned_aggregate_descriptor_returns_with_graph(
     !returns.is_empty()
         && returns.iter().all(|(position, location)| {
             location.path.is_empty()
-                && crate::unit_validation::operation_contracts::structural_source_contract(
-                    function,
-                    location.root,
-                )
-                .is_some_and(|source| source.access == StructuralAccess::Owned)
+                && structural_source_contract(function, location.root)
+                    .is_some_and(|source| source.access == StructuralAccess::Owned)
                 && kernel::reconstruct_return_slots_external(
                     types,
                     graph,
@@ -325,13 +332,13 @@ pub(crate) fn owned_aggregate_descriptor_returns_with_graph(
 /// defined. Unknown replacement invalidates contained slots; it never invents
 /// a source for their later reads.
 fn record_escaped_invocation(
-    place_types: &BTreeMap<semantic_vocabulary::PlaceId, semantic_vocabulary::StructuralTypeId>,
-    unresolved_contents_writes: &mut BTreeSet<(semantic_vocabulary::BlockId, u32)>,
+    place_types: &BTreeMap<PlaceId, StructuralTypeId>,
+    unresolved_contents_writes: &mut BTreeSet<(BlockId, u32)>,
     step: &mut DescriptorFlowStep,
     types: &[StructuralTypeDeclaration],
     structural_arguments: &[StructuralArgument],
     slot_kind: kernel::DescriptorSlotKind,
-    position: (semantic_vocabulary::BlockId, u32),
+    position: (BlockId, u32),
 ) -> Option<()> {
     if structural_arguments.iter().any(|actual| {
         place_types.get(&actual.place).is_none_or(|root_type| {
@@ -357,15 +364,15 @@ fn record_escaped_invocation(
 fn adapt(
     types: &[StructuralTypeDeclaration],
     boundaries: &[&BoundaryMachineDeclaration],
-    dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
+    dynamic_dispatch: &TerminalDynamicDispatchCatalog,
     functions: &[&PsiOptimizationFunction],
     function: &PsiOptimizationFunction,
     operation_projection: &impl for<'node> Fn(
         &PsiOptimizationFunction,
-        &'node optimization_unit::OptimizationNode,
+        &'node OptimizationNode,
     ) -> Option<Cow<'node, O>>,
     slot_kind: kernel::DescriptorSlotKind,
-    preserves_boundary: &impl Fn(&PsiOptimizationFunction, &optimization_unit::OptimizationNode) -> bool,
+    preserves_boundary: &impl Fn(&PsiOptimizationFunction, &OptimizationNode) -> bool,
     selector_graph: Option<&[DescriptorMachine]>,
 ) -> Option<DescriptorMachine> {
     let scalar_expressions = ScalarExpressions::new(function);
@@ -612,14 +619,12 @@ fn adapt(
                 path.push(semantic_vocabulary::CanonicalStructuralPathSegment::Field(
                     *field,
                 ));
-                if let Some(location) =
-                    terminal_semantics::descriptor_lifetimes::canonical_descriptor_location(
-                        types,
-                        *source,
-                        *graph.place_types.get(source)?,
-                        &path,
-                    )
-                {
+                if let Some(location) = canonical_descriptor_location(
+                    types,
+                    *source,
+                    *graph.place_types.get(source)?,
+                    &path,
+                ) {
                     graph
                         .scalar_payload_reads
                         .entry(position)
@@ -670,7 +675,7 @@ fn adapt(
                     field,
                 )?;
                 if field.is_none() {
-                    let selected = terminal_semantics::runtime_structural_path_tip(
+                    let selected = runtime_structural_path_tip(
                         types.iter(),
                         *graph.place_types.get(&root)?,
                         path,
@@ -755,7 +760,7 @@ fn adapt(
                     ..
                 } => {
                     for argument in arguments {
-                        let selected = terminal_semantics::runtime_structural_path_tip(
+                        let selected = runtime_structural_path_tip(
                             types.iter(),
                             *graph.place_types.get(&argument.place)?,
                             &argument.path,
@@ -976,14 +981,12 @@ fn adapt(
                     let destination = DescriptorLocation::whole(result.place);
                     let source = match path {
                         StructuralCopyPath::Ordinary(path) => location(*source, path, None),
-                        StructuralCopyPath::Case(path) => {
-                            terminal_semantics::descriptor_lifetimes::canonical_descriptor_location(
-                                types,
-                                *source,
-                                *graph.place_types.get(source)?,
-                                path,
-                            )
-                        }
+                        StructuralCopyPath::Case(path) => canonical_descriptor_location(
+                            types,
+                            *source,
+                            *graph.place_types.get(source)?,
+                            path,
+                        ),
                     };
                     if let Some(source) = source {
                         step.inputs = vec![source.clone()];
@@ -1054,7 +1057,7 @@ fn adapt(
                     value,
                     ..
                 } => {
-                    let value_type = terminal_semantics::runtime_structural_path_tip(
+                    let value_type = runtime_structural_path_tip(
                         types.iter(),
                         *graph.place_types.get(&value.place)?,
                         &value.path,
@@ -1817,14 +1820,11 @@ fn adapt(
 pub(crate) fn element_coordinates_preserved<'a>(
     function: &PsiOptimizationFunction,
     types: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
-    source: &terminal_psi::StructuralArgument,
-    element: semantic_vocabulary::StructuralTypeId,
+    source: &StructuralArgument,
+    element: StructuralTypeId,
     region: terminal_psi::ElementViewRegion,
 ) -> bool {
-    let Some(root) = crate::unit_validation::operation_contracts::structural_source_contract(
-        function,
-        source.place,
-    ) else {
+    let Some(root) = structural_source_contract(function, source.place) else {
         return false;
     };
     // A fixed byte window changes extent, not the backing's element type.
@@ -1845,8 +1845,7 @@ pub(crate) fn element_coordinates_preserved<'a>(
         }
         _ => source.path.as_slice(),
     };
-    let Some(collection) =
-        terminal_semantics::runtime_structural_path_tip(types.clone(), root.structural_type, path)
+    let Some(collection) = runtime_structural_path_tip(types.clone(), root.structural_type, path)
     else {
         return false;
     };
@@ -1857,7 +1856,7 @@ pub(crate) fn element_coordinates_preserved<'a>(
 /// This returns analysis scratch, never a producer-provided coordinate fact.
 pub fn captured_scalar_ordering(
     function: &PsiOptimizationFunction,
-    functions: &BTreeMap<semantic_vocabulary::MachineId, &PsiOptimizationFunction>,
+    functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
 ) -> terminal_semantics::scalar_ordering::ScalarOrdering {
     crate::current_ownership::address_joins::range_relations::RangeRelations::new(
         function, functions,
@@ -1870,7 +1869,7 @@ pub fn captured_scalar_ordering(
 pub(crate) fn scalar_call_guarantees<'function>(
     operation: &O,
     callee: &impl Fn(MachineId) -> Option<&'function PsiOptimizationFunction>,
-    scalar_type: &impl Fn(semantic_vocabulary::ValueId) -> Option<semantic_vocabulary::ScalarType>,
+    scalar_type: &impl Fn(ValueId) -> Option<semantic_vocabulary::ScalarType>,
 ) -> Option<Vec<semantic_vocabulary::Proposition>> {
     let (identity, arguments, result) = match operation {
         O::Call {
@@ -1927,22 +1926,22 @@ pub(crate) fn scalar_call_guarantees<'function>(
 
 pub(crate) fn scalar_expression(
     function: &PsiOptimizationFunction,
-    value: semantic_vocabulary::ValueId,
+    value: ValueId,
 ) -> Option<semantic_vocabulary::ScalarTerm> {
     ScalarExpressions::new(function).expression(value)
 }
 
 fn selected_effects_machine(
-    catalog: &terminal_psi::TerminalDynamicDispatchCatalog,
+    catalog: &TerminalDynamicDispatchCatalog,
     functions: &[&PsiOptimizationFunction],
     function: &PsiOptimizationFunction,
     types: &[StructuralTypeDeclaration],
     selector_graph: Option<&[DescriptorMachine]>,
     operation: &impl for<'node> Fn(
         &PsiOptimizationFunction,
-        &'node optimization_unit::OptimizationNode,
+        &'node OptimizationNode,
     ) -> Option<Cow<'node, O>>,
-    selector: semantic_vocabulary::ValueId,
+    selector: ValueId,
     interface: u32,
     slot: u32,
 ) -> Option<MachineId> {

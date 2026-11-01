@@ -1,6 +1,7 @@
 use semantic_vocabulary::{ContentTerm, IntegerMathTerm, Proposition, ScalarTerm};
 
 use super::PredicateDenotationError;
+use semantic_vocabulary::scalar_term_predicate_quint_pattern;
 
 pub(super) struct Budget {
     remaining: usize,
@@ -127,9 +128,7 @@ impl Budget {
                     self.scalar(operand, depth + 1)?;
                 }
             }
-            semantic_vocabulary::scalar_term_predicate_quint_pattern!(path, ..) => {
-                self.count(path.len())?
-            }
+            scalar_term_predicate_quint_pattern!(path, ..) => self.count(path.len())?,
             super::scalar_term_unary_operand!(operand) => self.scalar(operand, depth + 1)?,
             super::scalar_term_binary_operands!(left, right) => {
                 self.scalar(left, depth + 1)?;

@@ -12,7 +12,12 @@ use crate::codec_error::{CodecError, malformed};
 use crate::sections::semantic_module::structural_result_wire;
 use semantic_vocabulary::StructuralPlaceKind;
 use terminal_psi::Block;
-use terminal_psi::{StructuralMultiplicity, TerminalMachine, TerminalModule, Terminator};
+use terminal_psi::{
+    ByteSequenceCarrier, EntryClaim, StructuralAccess, StructuralMultiplicity,
+    StructuralPathSegment, StructuralTypeShape, TerminalAffineCleanupAction, TerminalMachine,
+    TerminalModule, Terminator, call_structural_argument_variants,
+};
+use terminal_semantics::runtime_structural_path_tip;
 
 /// One machine's structural foundation: its attachment, parameters and
 /// reference sources, then each block's parameters, the places those
@@ -171,20 +176,17 @@ fn validate_entry_claims(
         else {
             return malformed("block entry claim is not bound to a block parameter");
         };
-        if parameter.access != terminal_psi::StructuralAccess::Owned
+        if parameter.access != StructuralAccess::Owned
             || parameter.multiplicity == StructuralMultiplicity::Unrestricted
         {
             return malformed("block entry claim requires an owned affine or linear parameter");
         }
         validate_structural_path(module, parameter.structural_type, &claim.path)?;
-        if block_claim_inputs
-            .iter()
-            .any(|previous: &&terminal_psi::EntryClaim| {
-                previous.input == claim.input
-                    && (previous.path.starts_with(&claim.path)
-                        || claim.path.starts_with(&previous.path))
-            })
-        {
+        if block_claim_inputs.iter().any(|previous: &&EntryClaim| {
+            previous.input == claim.input
+                && (previous.path.starts_with(&claim.path)
+                    || claim.path.starts_with(&previous.path))
+        }) {
             return malformed("block entry claims overlap a parameter path");
         }
         block_claim_inputs.push(claim);
@@ -207,7 +209,7 @@ fn validate_loan_completions(
         )?;
         if !matches!(
             &operation.kind,
-            terminal_psi::call_structural_argument_variants!(_arguments)
+            call_structural_argument_variants!(_arguments)
         ) {
             return malformed("loan completion is not a structural call");
         }
@@ -216,7 +218,7 @@ fn validate_loan_completions(
         )?;
         if machine
             .structural_parameter(completion.place)
-            .is_some_and(|parameter| parameter.access != terminal_psi::StructuralAccess::Owned)
+            .is_some_and(|parameter| parameter.access != StructuralAccess::Owned)
         {
             return malformed("loan completion cannot own borrowed ingress");
         }
@@ -238,14 +240,14 @@ fn validate_loan_completions(
 fn validate_owned_completion_path(
     module: &TerminalModule,
     root: semantic_vocabulary::StructuralTypeId,
-    path: &[terminal_psi::StructuralPathSegment],
+    path: &[StructuralPathSegment],
 ) -> Result<(), CodecError> {
     if path.iter().any(|segment| {
         !matches!(
             segment,
-            terminal_psi::StructuralPathSegment::Case(_)
-                | terminal_psi::StructuralPathSegment::Field(_)
-                | terminal_psi::StructuralPathSegment::FixedIndex(_)
+            StructuralPathSegment::Case(_)
+                | StructuralPathSegment::Field(_)
+                | StructuralPathSegment::FixedIndex(_)
         )
     }) {
         return malformed("loan completion path must retain a static owned subtree");
@@ -254,21 +256,16 @@ fn validate_owned_completion_path(
     // borrowed backing. Resolve each indexed parent before admitting its hop;
     // only fixed arrays and inline owned bytes retain storage in this home.
     for (position, segment) in path.iter().enumerate() {
-        if !matches!(segment, terminal_psi::StructuralPathSegment::FixedIndex(_)) {
+        if !matches!(segment, StructuralPathSegment::FixedIndex(_)) {
             continue;
         }
-        let parent = terminal_semantics::runtime_structural_path_tip(
-            module.structural_types.iter(),
-            root,
-            &path[..position],
-        );
+        let parent =
+            runtime_structural_path_tip(module.structural_types.iter(), root, &path[..position]);
         if parent.is_none_or(|declaration| {
             !matches!(
                 declaration.shape,
-                terminal_psi::StructuralTypeShape::FixedArray { .. }
-                    | terminal_psi::StructuralTypeShape::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                    )
+                StructuralTypeShape::FixedArray { .. }
+                    | StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. })
             )
         }) {
             return malformed("loan completion index must select inline owned storage");
@@ -338,7 +335,7 @@ fn validate_partial_affine_discards(
     };
     for actions in rosters {
         for discard in actions.iter().filter_map(|action| match action {
-            terminal_psi::TerminalAffineCleanupAction::DiscardResidual(discard) => Some(discard),
+            TerminalAffineCleanupAction::DiscardResidual(discard) => Some(discard),
             _ => None,
         }) {
             let parameter = machine.signature_structural_parameter(discard.place);
@@ -363,20 +360,20 @@ fn validate_partial_affine_discards(
                             matches!(
                                 parameter.multiplicity,
                                 StructuralMultiplicity::Affine | StructuralMultiplicity::Linear
-                            ) && parameter.access == terminal_psi::StructuralAccess::Owned
+                            ) && parameter.access == StructuralAccess::Owned
                         })
                 },
                 |parameter| {
                     matches!(
                         parameter.multiplicity,
                         StructuralMultiplicity::Affine | StructuralMultiplicity::Linear
-                    ) && parameter.access == terminal_psi::StructuralAccess::Owned
+                    ) && parameter.access == StructuralAccess::Owned
                 },
             );
             if !supported_root {
                 return malformed("affine region cleanup does not name an owned custody root");
             }
-            if actions.iter().any(|action| matches!(action, terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place) if *place == discard.place)) {
+            if actions.iter().any(|action| matches!(action, TerminalAffineCleanupAction::DiscardRoot(place) if *place == discard.place)) {
                 return malformed("affine region cleanup overlaps a whole-root discard");
             }
             let Some(root_type) = structural_place_type(machine, discard.place) else {

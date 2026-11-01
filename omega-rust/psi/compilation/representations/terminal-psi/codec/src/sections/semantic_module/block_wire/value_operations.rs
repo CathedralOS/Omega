@@ -6,6 +6,7 @@ use super::super::CodecError;
 use super::super::scalar_wire::{
     decode_ieee_float_value, decode_integer_value, encode_ieee_float_value, encode_integer_value,
 };
+use super::super::structural_signature_wire::{decode_structural_access, encode_structural_access};
 use super::super::wire::{Reader, Writer};
 use super::operation_tags;
 use crate::sections::semantic_module::structural_place_wire::{
@@ -198,10 +199,7 @@ fn encode_record_field_initializers(
             terminal_psi::RecordFieldValue::Structural(argument) => {
                 writer.u8(2);
                 writer.id(argument.place);
-                super::super::structural_signature_wire::encode_structural_access(
-                    writer,
-                    argument.access,
-                );
+                encode_structural_access(writer, argument.access);
                 encode_structural_path(writer, "record child path", &argument.path)?;
             }
         }
@@ -229,7 +227,7 @@ fn decode_record_field_initializers(
             },
             2 => terminal_psi::RecordFieldValue::Structural(terminal_psi::StructuralArgument {
                 place: reader.id("PlaceId")?,
-                access: super::super::structural_signature_wire::decode_structural_access(reader)?,
+                access: decode_structural_access(reader)?,
                 path: decode_structural_path(reader)?,
             }),
             tag => return Err(CodecError::InvalidTag("RecordFieldValue", tag)),
@@ -318,10 +316,7 @@ fn encode_byte_sequence_operand(
         ByteSequenceOperand::Whole { source, length } => {
             writer.u8(2);
             writer.id(source.place);
-            super::super::structural_signature_wire::encode_structural_access(
-                writer,
-                source.access,
-            );
+            encode_structural_access(writer, source.access);
             encode_structural_path(writer, "byte sequence operand path", &source.path)?;
             writer.id(length);
         }
@@ -332,10 +327,7 @@ fn encode_byte_sequence_operand(
         } => {
             writer.u8(1);
             writer.id(source.place);
-            super::super::structural_signature_wire::encode_structural_access(
-                writer,
-                source.access,
-            );
+            encode_structural_access(writer, source.access);
             encode_structural_path(writer, "byte sequence operand path", &source.path)?;
             writer.id(field);
             writer.id(length);
@@ -352,7 +344,7 @@ fn decode_byte_sequence_operand(
         2 => Ok(ByteSequenceOperand::Whole {
             source: terminal_psi::StructuralArgument {
                 place: reader.id("PlaceId")?,
-                access: super::super::structural_signature_wire::decode_structural_access(reader)?,
+                access: decode_structural_access(reader)?,
                 path: decode_structural_path(reader)?,
             },
             length: reader.id("ValueId")?,
@@ -360,7 +352,7 @@ fn decode_byte_sequence_operand(
         1 => Ok(ByteSequenceOperand::Field {
             source: terminal_psi::StructuralArgument {
                 place: reader.id("PlaceId")?,
-                access: super::super::structural_signature_wire::decode_structural_access(reader)?,
+                access: decode_structural_access(reader)?,
                 path: decode_structural_path(reader)?,
             },
             field: reader.id("StructuralFieldId")?,
@@ -424,7 +416,7 @@ pub(super) fn encode_establish_structural_array(
     writer.len("structural array elements", elements.len())?;
     for argument in elements {
         writer.id(argument.place);
-        super::super::structural_signature_wire::encode_structural_access(writer, argument.access);
+        encode_structural_access(writer, argument.access);
         encode_structural_path(writer, "array element path", &argument.path)?;
     }
     Ok(())
@@ -437,7 +429,7 @@ pub(super) fn decode_establish_structural_array(
         elements: decode_counted(reader, |reader| {
             Ok(terminal_psi::StructuralArgument {
                 place: reader.id("PlaceId")?,
-                access: super::super::structural_signature_wire::decode_structural_access(reader)?,
+                access: decode_structural_access(reader)?,
                 path: decode_structural_path(reader)?,
             })
         })?,

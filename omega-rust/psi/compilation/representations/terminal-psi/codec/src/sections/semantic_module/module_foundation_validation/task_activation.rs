@@ -1,7 +1,8 @@
 //! Task demand structure is checked at external ingress, independently of the
 //! source projection. Runtime/provider admission separately closes the actual
 //! selected stack geometry and carry obligations.
-use super::{structural_type_foundations, validate_structural_type_graph};
+use super::structural_type_foundations::{StructuralCatalog, validate_catalog_type_shape};
+use super::validate_structural_type_graph;
 use crate::codec_error::{CodecError, malformed};
 use std::collections::BTreeSet;
 use terminal_psi::*;
@@ -24,7 +25,7 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
     };
     // Borrow the independent catalog; validation never clones executable
     // bodies or invents a fake callable merely to inspect type storage.
-    let catalog = structural_type_foundations::StructuralCatalog {
+    let catalog = StructuralCatalog {
         structural_types: &bundle.structural_types,
         structural_referents: &bundle.structural_referents,
     };
@@ -47,11 +48,7 @@ pub(super) fn validate(module: &TerminalModule) -> Result<(), CodecError> {
         }
     }
     for declaration in catalog.structural_types {
-        structural_type_foundations::validate_catalog_type_shape(
-            &catalog,
-            declaration,
-            &BTreeSet::new(),
-        )?;
+        validate_catalog_type_shape(&catalog, declaration, &BTreeSet::new())?;
     }
     validate_structural_type_graph(catalog.structural_types)?;
     let value = |value_type| match value_type {

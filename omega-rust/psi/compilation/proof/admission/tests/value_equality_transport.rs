@@ -1,6 +1,7 @@
 use crate::common::*;
 use proof_admission::{PrimitiveJudgment, ProofNode, ProofRule, accept_certificate};
 use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm, ScalarType, ValueId};
+use std::iter::repeat;
 
 fn context() -> PropositionContext {
     PropositionContext::from_value_types(
@@ -198,11 +199,7 @@ fn borrowed_equations_are_bounded_before_cloning_or_traversing_the_whole_roster(
     // An unbounded borrowed iterator must terminate at the shared input limit,
     // without first materializing a roster or cloning all of its terms.
     assert_eq!(
-        check_value_equality_denotation(
-            &context(),
-            &Proposition::Truth,
-            std::iter::repeat(&equation)
-        ),
+        check_value_equality_denotation(&context(), &Proposition::Truth, repeat(&equation)),
         Err(PredicateDenotationError::ResourceLimitExceeded),
     );
     let mut deep = value(2);
