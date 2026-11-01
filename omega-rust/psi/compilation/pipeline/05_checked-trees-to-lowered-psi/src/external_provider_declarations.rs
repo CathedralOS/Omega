@@ -54,7 +54,7 @@ impl ExternalProviderDeclarations {
     }
 }
 
-/// Project supplied external declarations without selecting or lowering a body.
+/// Project supplied Product external declarations without selecting or lowering a body.
 /// Closed generic requirements come from checking; this operation instantiates
 /// nothing and requires no ProgramEntry. The executable producer shares the
 /// same append operation, retaining only declarations demanded by its module.
@@ -71,7 +71,17 @@ pub fn project_external_provider_declarations(
         &mut identities,
         checked,
         sources,
-        |_, _| true,
+        |_, realization, requirement, _| {
+            // Equal source can have separate Build and Product instances. A
+            // host declaration neither supplies nor competes for a Product
+            // satisfaction. Keep distinct Product candidates intact so exact
+            // selection still diagnoses genuine ambiguity.
+            [realization, requirement].into_iter().all(|symbol| {
+                checked
+                    .symbols
+                    .symbol_is_in_dependency_scope(symbol, source::DependencyScope::Product)
+            })
+        },
         |symbol, identity| declarations.push((symbol, identity)),
     )?;
     declarations.sort_by_key(|(symbol, declaration)| {
