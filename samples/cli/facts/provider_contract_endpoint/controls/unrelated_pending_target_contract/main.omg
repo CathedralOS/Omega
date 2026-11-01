@@ -13,22 +13,50 @@ machine bounded(value: u64) -> u64
 requires value <= limit()
 ensures result <= limit()
 { value }
-linux_x86_64 machine transfer(input: u64) -> u64
-requires input <= limit()
-ensures result <= limit()
-{ input }
-linux_arm64 machine transfer(input: u64) -> u64
-requires input <= limit()
-ensures result <= limit()
-{ input }
-windows_x86_64 machine transfer(input: u64) -> u64
-requires input <= limit()
-ensures result <= limit()
-{ input }
-macos_arm64 machine transfer(input: u64) -> u64
-requires input <= limit()
-ensures result <= limit()
-{ input }
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
+}
+
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+
+boundary trait SelectedTransfer {
+    machine transfer(input: u64) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires input <= limit() ensures result <= limit();
+}
+
+X86Transfer satisfies SelectedTransfer {
+    machine transfer(input: u64) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires input <= limit() ensures result <= limit()
+    {
+        SelectedBodyCheck::require_tag(17u64);
+     input 
+    }
+}
+
+ArmTransfer satisfies SelectedTransfer {
+    machine transfer(input: u64) -> u64
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires input <= limit() ensures result <= limit()
+    {
+        SelectedBodyCheck::require_tag(29u64);
+     input 
+    }
+}
+
+
 public machine main() crashes Trap {
     let value: u64 = bounded(7);
     let difference: u64 = 7u64 - value;
@@ -38,4 +66,12 @@ public machine main() crashes Trap {
     }
     machine done() {}
     machine bad() crashes Trap { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

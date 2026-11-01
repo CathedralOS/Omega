@@ -2,72 +2,71 @@
 // Place: another target body. Each of four target-scoped machine bodies masks the bounded 32-bit operand and performs exact subtractions.
 // Expected exit: 0
 
-linux_x86_64 machine mask_target(raw: i8, mask: i8) -> i32
-requires raw >= 116i8 && raw <= 116i8 && mask == 63i8
-{
-    let masked: i8 = raw & mask;
-    let headroom: i8 = 63i8 - masked;
-    let margin: i8 = masked - 40i8;
-    let check_h: u8 = headroom as u8;
-    let check_m: u8 = margin as u8;
-    transition masked == 52i8 && headroom + margin == 23i8 && check_h + check_m == 23u8 {
-        true -> pass()
-        _ -> fail()
-    }
-    machine pass() -> i32 { 0 }
-    machine fail() -> i32 { 1 }
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
 
-linux_arm64 machine mask_target(raw: i8, mask: i8) -> i32
-requires raw >= 116i8 && raw <= 116i8 && mask == 63i8
-{
-    let masked: i8 = raw & mask;
-    let headroom: i8 = 63i8 - masked;
-    let margin: i8 = masked - 40i8;
-    let check_h: u8 = headroom as u8;
-    let check_m: u8 = margin as u8;
-    transition masked == 52i8 && headroom + margin == 23i8 && check_h + check_m == 23u8 {
-        true -> pass()
-        _ -> fail()
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
     }
-    machine pass() -> i32 { 0 }
-    machine fail() -> i32 { 1 }
 }
 
-macos_arm64 machine mask_target(raw: i8, mask: i8) -> i32
-requires raw >= 116i8 && raw <= 116i8 && mask == 63i8
-{
-    let masked: i8 = raw & mask;
-    let headroom: i8 = 63i8 - masked;
-    let margin: i8 = masked - 40i8;
-    let check_h: u8 = headroom as u8;
-    let check_m: u8 = margin as u8;
-    transition masked == 52i8 && headroom + margin == 23i8 && check_h + check_m == 23u8 {
-        true -> pass()
-        _ -> fail()
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
     }
-    machine pass() -> i32 { 0 }
-    machine fail() -> i32 { 1 }
 }
 
-windows_x86_64 machine mask_target(raw: i8, mask: i8) -> i32
-requires raw >= 116i8 && raw <= 116i8 && mask == 63i8
-{
-    let masked: i8 = raw & mask;
-    let headroom: i8 = 63i8 - masked;
-    let margin: i8 = masked - 40i8;
-    let check_h: u8 = headroom as u8;
-    let check_m: u8 = margin as u8;
-    transition masked == 52i8 && headroom + margin == 23i8 && check_h + check_m == 23u8 {
-        true -> pass()
-        _ -> fail()
+boundary trait SelectedMaskTarget {
+    machine mask_target(raw: i8, mask: i8) -> i32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires raw >= 116i8 && raw <= 116i8 && mask == 63i8;
+}
+
+X86MaskTarget satisfies SelectedMaskTarget {
+    machine mask_target(raw: i8, mask: i8) -> i32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires raw >= 116i8 && raw <= 116i8 && mask == 63i8
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let masked: i8 = raw & mask;
+        let headroom: i8 = 63i8 - masked;
+        let margin: i8 = masked - 40i8;
+        let check_h: u8 = headroom as u8;
+        let check_m: u8 = margin as u8;
+        transition masked == 52i8 && headroom + margin == 23i8 && check_h + check_m == 23u8 {
+            true -> pass()
+            _ -> fail()
+        }
+        machine pass() -> i32 { 0 }
+        machine fail() -> i32 { 1 }
     }
-    machine pass() -> i32 { 0 }
-    machine fail() -> i32 { 1 }
+}
+
+ArmMaskTarget satisfies SelectedMaskTarget {
+    machine mask_target(raw: i8, mask: i8) -> i32
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires raw >= 116i8 && raw <= 116i8 && mask == 63i8
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let masked: i8 = raw & mask;
+        let headroom: i8 = 63i8 - masked;
+        let margin: i8 = masked - 40i8;
+        let check_h: u8 = headroom as u8;
+        let check_m: u8 = margin as u8;
+        transition masked == 52i8 && headroom + margin == 23i8 && check_h + check_m == 23u8 {
+            true -> pass()
+            _ -> fail()
+        }
+        machine pass() -> i32 { 0 }
+        machine fail() -> i32 { 1 }
+    }
 }
 
 machine probe() -> i32 {
-    mask_target(116i8, 63i8)
+    SelectedMaskTarget::mask_target(116i8, 63i8)
 }
 
 machine main() crashes Trap {
@@ -77,4 +76,12 @@ machine main() crashes Trap {
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

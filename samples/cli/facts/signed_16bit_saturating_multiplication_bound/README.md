@@ -122,3 +122,15 @@ directly in `u32`-domain comparisons are not covered by this row. This row
 closes the 16-bit signed saturating multiplication bound across the nine places
 on the facts above; the parent item's remaining acceptance (mixed comparisons and
 conversion surface on `source/library/core/numeric_conversion.omg`) is unchanged.
+
+## Build-owned target-body migration
+
+The `target_body` place and its twin carry no source target prefix.
+`BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named
+implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected
+by explicit target-keyed Build rows. The operation, inputs, contracts and exit
+oracle are unchanged. The entry wrapper and each implementation check a tag
+(17 for x86-64, 29 for AArch64), so a wrong Build row traps. Observed evidence is
+Linux x86-64 native and Terminal Psi agreement for the positive and source
+rejection for the twin; the other hosted targets keep their authored rows,
+unexecuted here.
