@@ -641,7 +641,7 @@ impl Captures<'_> {
                     return None;
                 }
                 let references =
-                    super::super::declared_carrier_references(self.program, incoming.carrier_type)?;
+                    super::declared_carrier_references(self.program, incoming.carrier_type)?;
                 let [reference] = references.as_slice() else {
                     return None;
                 };
