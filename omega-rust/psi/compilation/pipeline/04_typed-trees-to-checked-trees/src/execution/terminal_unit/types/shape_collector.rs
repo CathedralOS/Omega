@@ -1788,7 +1788,7 @@ impl<'program> ShapeCollector<'program> {
             native_identity: self
                 .program
                 .typed_program()
-                .normalized_hermetic_symbol_identity(field.symbol)
+                .native_data_field_declaration_identity(field.symbol)
                 .ok(),
             type_reference: field_type_reference,
             receiving_type_identity,
