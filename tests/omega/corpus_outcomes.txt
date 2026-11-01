@@ -5765,15 +5765,15 @@ pass/facts/foreign_borrowed_array_view_other_machine checked 6091ms check-target
 pass/facts/foreign_borrowed_array_view_other_state checked 5171ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/foreign_borrowed_array_view_parameter checked 5679ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/foreign_borrowed_array_view_target_body checked 4052ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/foreign_indirect_float_record_result_through_call_result_exit checked 6188ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/foreign_indirect_float_record_result_through_const_name_exit checked 6997ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/foreign_indirect_float_record_result_through_field_exit checked 6534ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/foreign_indirect_float_record_result_through_local_exit checked 6513ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/foreign_indirect_float_record_result_through_match_join_exit checked 8672ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/foreign_indirect_float_record_result_through_other_machine_exit checked 7043ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/foreign_indirect_float_record_result_through_other_state_exit checked 7446ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/foreign_indirect_float_record_result_through_parameter_exit checked 6628ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/foreign_indirect_float_record_result_through_target_body_exit checked 7046ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/foreign_indirect_float_record_result_through_call_result_exit checked 4814ms check-target:macos_arm64 @fc2e109d93cc
+pass/facts/foreign_indirect_float_record_result_through_const_name_exit checked 4861ms check-target:macos_arm64 @fc2e109d93cc
+pass/facts/foreign_indirect_float_record_result_through_field_exit checked 5076ms check-target:macos_arm64 @fc2e109d93cc
+pass/facts/foreign_indirect_float_record_result_through_local_exit checked 4744ms check-target:macos_arm64 @fc2e109d93cc
+pass/facts/foreign_indirect_float_record_result_through_match_join_exit checked 4790ms check-target:macos_arm64 @fc2e109d93cc
+pass/facts/foreign_indirect_float_record_result_through_other_machine_exit checked 4762ms check-target:macos_arm64 @fc2e109d93cc
+pass/facts/foreign_indirect_float_record_result_through_other_state_exit checked 4966ms check-target:macos_arm64 @fc2e109d93cc
+pass/facts/foreign_indirect_float_record_result_through_parameter_exit checked 4927ms check-target:macos_arm64 @fc2e109d93cc
+pass/facts/foreign_indirect_float_record_result_through_target_body_exit checked 5021ms check-target:macos_arm64 @fc2e109d93cc
 pass/facts/foreign_nested_array_backing_call_result checked 4497ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/foreign_nested_array_backing_computed_completions checked 5368ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/foreign_nested_array_backing_const_name checked 4238ms check-target:macos_arm64 @ccdb99ca2214
@@ -22299,23 +22299,23 @@ fail/facts/foreign_borrowed_array_view_target_body rejected 2220ms expected @ccd
 	statement 6 reads `buffer.cells[1].value` while local borrow `routed` is still active (borrowed at statement 5; its last use is at statement 8)
 fail/facts/foreign_borrowed_array_view_unissued rejected 2386ms expected @ccdb99ca2214
 	cannot prove requires contract for call observe_cell from entry_start: bare in Cell::Issued in state `entry`
-fail/facts/foreign_indirect_float_record_result_through_call_result_rejected rejected 4206ms expected @ccdb99ca2214
+fail/facts/foreign_indirect_float_record_result_through_call_result_rejected rejected 2563ms expected @fc2e109d93cc
 	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
-fail/facts/foreign_indirect_float_record_result_through_const_name_rejected rejected 4854ms expected @ccdb99ca2214
+fail/facts/foreign_indirect_float_record_result_through_const_name_rejected rejected 2551ms expected @fc2e109d93cc
 	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
-fail/facts/foreign_indirect_float_record_result_through_field_rejected rejected 4520ms expected @ccdb99ca2214
+fail/facts/foreign_indirect_float_record_result_through_field_rejected rejected 2694ms expected @fc2e109d93cc
 	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
-fail/facts/foreign_indirect_float_record_result_through_local_rejected rejected 4193ms expected @ccdb99ca2214
+fail/facts/foreign_indirect_float_record_result_through_local_rejected rejected 2522ms expected @fc2e109d93cc
 	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
-fail/facts/foreign_indirect_float_record_result_through_match_join_rejected rejected 3840ms expected @ccdb99ca2214
+fail/facts/foreign_indirect_float_record_result_through_match_join_rejected rejected 2503ms expected @fc2e109d93cc
 	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
-fail/facts/foreign_indirect_float_record_result_through_other_machine_rejected rejected 4255ms expected @ccdb99ca2214
+fail/facts/foreign_indirect_float_record_result_through_other_machine_rejected rejected 2221ms expected @fc2e109d93cc
 	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
-fail/facts/foreign_indirect_float_record_result_through_other_state_rejected rejected 3947ms expected @ccdb99ca2214
+fail/facts/foreign_indirect_float_record_result_through_other_state_rejected rejected 2439ms expected @fc2e109d93cc
 	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
-fail/facts/foreign_indirect_float_record_result_through_parameter_rejected rejected 3760ms expected @ccdb99ca2214
+fail/facts/foreign_indirect_float_record_result_through_parameter_rejected rejected 2817ms expected @fc2e109d93cc
 	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
-fail/facts/foreign_indirect_float_record_result_through_target_body_rejected rejected 4099ms expected @ccdb99ca2214
+fail/facts/foreign_indirect_float_record_result_through_target_body_rejected rejected 2223ms expected @fc2e109d93cc
 	cannot use `value` in machine `receive` state `entry` (statement 0) after `value` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
 fail/facts/foreign_nested_array_backing_call_result rejected 3288ms expected @ccdb99ca2214
 	statement 5 reads `buffer.cells[1].value` while local borrow `routed` is still active (borrowed at statement 4; its last use is at statement 7)
