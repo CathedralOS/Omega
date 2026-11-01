@@ -8,7 +8,7 @@
 use omega_language_std::console;
 
 data Main
-where
+requires
     start <= end,
 {
     start: i32;

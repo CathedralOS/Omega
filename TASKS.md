@@ -394,30 +394,26 @@ retired-syntax deletions to completion.
   affected realization; no `via` compatibility path or mandatory per-symbol
   forwarding declaration remains.
 
-- **TOP-LEVEL-BOUNDARY-REQUIREMENTS.** Retire standalone `boundary requirement
-  Owner::name(...);` declarations and automatic containing-trait reach across
-  `source/library/`, `samples/`, `tests/omega/`, `omega-rust/`, and
-  `source/{psi,omega}/` under the
+- **TOP-LEVEL-BOUNDARY-REQUIREMENTS.** Finish the retirement of standalone
+  `boundary requirement Owner::name(...);` declarations under the
   [machine-supply rule](wiki/spec/language/machines.md#supply) and
   [explicit boundary reach](wiki/spec/language/effects.md#implementation-boundaries-and-capability-identities).
-  - Migrate the remaining 66 std raw platform rows
-    (`std/posix_filesystem_adapter.omg`,
-    `std/targets/{linux_x86_64,macos_arm64}/posix_filesystem_impl.omg`,
-    `std/targets/windows_x86_64/{console_impl,windows_gui_impl}.omg`) to
-    boundary traits. A trait slot is selected whole, so the per-member
-    `select_provider<Owner::member, ...>` rows collapse to one trait row or
-    callers call the leaf satisfier directly (the `*ByteViews` precedent); a
-    call to a trait member adds that trait to the caller's `invokes` edges, so
-    the public portable requirements must not silently gain platform edges.
-  - Preserve source-selected trait tokens
-    (`samples/cli/probes/operator_requires_effects`).
-  - Delete the standalone declaration kind from parsing, AST/IR representations,
-    checking, Terminal codec, provider planning, and both compilers, keeping one
-    parser fail fixture for the retired spelling.
-  Acceptance: no accepted source or IR contains standalone `boundary requirement`
-  declarations; migrated customers execute through `omega run --both` under
-  boundary-trait selection; and unselected, ambiguous, or reach-exceeding
-  providers reject.
+  The parser refuses the spelling (`fail/parse/retired_standalone_boundary_requirement`)
+  and every std row is a boundary-trait member.
+  - Run the migrated POSIX filesystem customers (`tests/omega/pass/filesystem/`
+    native and `runtime_posix_*` fixtures over `PosixFilesystemLinux`,
+    `PosixFilesystemDarwin` and `PosixCanonicalLibc`) through
+    `omega run --both` on linux_x86_64, linux_arm64 and macos_arm64 hosts.
+  - Run the Windows GUI customers (`tests/omega/pass/host/runtime_gui_*`,
+    `runtime_windows_*`, `samples/gui/window_demo`) through `omega run --both`
+    on windows_x86_64. Native runs exit 70 as authored; the Terminal leg stops
+    at the private native sponsor for `WindowsGuiImports::create_window`
+    (**TERMINAL-RUNTIME-DRIVERS**).
+  - Add a fail control for ambiguous whole-trait provider supply of a migrated
+    raw trait.
+  Acceptance: migrated customers execute through `omega run --both` under
+  boundary-trait selection on their matching hosts; unselected, ambiguous, or
+  reach-exceeding providers reject.
 
 - **OPERATOR-MACHINE-SUPPLY.** Run calls to declared operations and their
   premises end to end (`Psi 00–07` and `Omega 00–09`) under
@@ -475,9 +471,11 @@ narrows realization only.
     package occurrences while completing provider readiness/resumption and
     dependency input settlement; each occurrence keeps its Build receipts and
     exact Product admission.
+  - Remove the debt rows of `FIREWALL_ALLOWANCES` in
+    `tools/check_native_boundary.py`: Omega compilation crates that depend on
+    source-side Psi, and Omega stages that depend on other stages.
   - Enforce via `cargo metadata` and source guards that Psi never depends on
-    Omega, Omega pipeline/realization never depends on source/typed/checked Psi
-    or interpreters, numbered stages are called only inside the Psi/Omega
+    Omega, numbered stages are called only inside the Psi/Omega
     coordinators and stage tests, `name.as_str() == "string"` spelling checks
     are replaced by representation classes, and 256 MiB thread stacks are
     replaced by arena-handle worklists on platform default stacks.
@@ -561,9 +559,14 @@ decision (`SourceChecked`) into stage 05 and stage 00.
   `omega-rust/psi/compilation/representations/terminal-psi/{semantics,codec}`,
   `omega-rust/psi/interpreter/terminal-interpreter` and
   `omega-rust/omega/application/terminal-runtime`.
-  - Stage 05 has 3,379 fail-closed shape gates (`unsupported`, `unpinned`)
-    that re-check checked custody. Retire only gates shown to be unreachable,
-    after reject twins cover the custody facts they guard.
+  - Stage 05's fail-closed shape gates (`unsupported`, `unpinned`), counted
+    per file in `tools/stage05_shape_gates.txt`, re-check checked custody.
+    Retire only gates shown to be unreachable, after reject twins cover the
+    custody facts they guard.
+  - Stage 05's reads of source context (`TypedTrees`,
+    `typed_trees::expression`, `.typed`), counted per file in
+    `tools/stage05_source_context.txt`, rebuild facts stage 04 does not
+    publish. Read each from the stage 04 plan instead.
   Acceptance: each retired gate's custody fact has a reject twin under
   `tests/omega/fail/facts/` that still rejects in checking, and the affected
   `samples/cli/facts` places still pass `omega run --both`.
@@ -732,9 +735,10 @@ helper that passes does not close an item.
   [unified requirement clauses](wiki/spec/language/state_contracts.md#requirement-clauses)
   end to end and retire `where` from Omega source syntax, without a permanent
   compatibility spelling or weaker proof obligations.
-  - Implement `requires` for data/default-domain predicates, generic predicates
-    and type equations, and structural/nominal `requires machine` contracts in
-    both Rust and Omega producers. Preserve logical `self`, binder-kind
+  - Implement `requires` for generic predicates and type equations on machines
+    and traits, quotient equivalence selection (`where equivalent satisfies`),
+    `where proposition` premises, and structural/nominal `requires machine`
+    contracts in both Rust and Omega producers. Preserve logical `self`, binder-kind
     inference, static/runtime distinctions, specialization and exact subjects;
     repeated predicates conjoin only within their owning scope. Keep a nested
     callable's complete contract and terminating semicolon distinct from its
@@ -751,6 +755,9 @@ helper that passes does not close an item.
     tests where it implements the retired surface; other bootstrap languages
     keep their own syntax. Delete the old keyword, grammar, recommending
     diagnostics and compatibility paths, not just their documentation.
+  - Reword checker diagnostics that still name a data declaration's `where`
+    facts (such as ``stores a value not provably within its data's `where`
+    facts``) together with their expected fragments and corpus rows.
   Acceptance: both producers accept the new data, generic, callable and assembly
   forms; all affected authored sources migrate without changing their result or
   refusal obligation. Existing applicable fact rows and their sensitive reject
@@ -829,10 +836,11 @@ helper that passes does not close an item.
     exposure, acyclic expansion and canonical type/ABI identity through both
     compiler producers and retained artifacts.
     The complete alias row, remaining binder/case/pattern cases, alias-RHS
-    expression operands beyond the [Const-formal](samples/cli/facts/transparent_generic_aliases/rhs_const_expression/README.md)
-    and [declaration-scope](samples/cli/facts/transparent_generic_aliases/rhs_const_scope/README.md) places,
-    including owner-preserving mixed-scope transport, and captured Product/Build
-    alias transport remain open.
+    expression operands beyond the [Const-formal](samples/cli/facts/transparent_generic_aliases/rhs_const_expression/README.md),
+    [declaration-scope](samples/cli/facts/transparent_generic_aliases/rhs_const_scope/README.md),
+    and [captured-supplier default-member](samples/cli/facts/transparent_generic_aliases/rhs_captured_supplier/README.md)
+    places, including remaining mixed/open scope compositions, and captured
+    Product/Build alias transport remain open.
   - Implement named `FixedLayout<T>` policies and `LayoutStorage<T, Policy>`
     through authorized schema reflection, explicit target facts, pure terminating
     compile-time evaluation, complete plan validation, field/case projection,
@@ -1132,12 +1140,31 @@ defines the complete product bar.
   oracles; invalid arrivals, unclosed invariant windows, stale aliases, and
   wrong UTF-8/ASCII writes reject.
 
-- **DOMAIN-ACCESS-AUTHORITY.** (also covers **DOMAIN-ISSUER-ROUTES**)
-  Implement the settled
-  [domain read/write policy](wiki/spec/language/domains.md#domain-owned-read-and-write-authority)
-  (`read by` and `written by`, independent of `established by`) and
+- **DOMAIN-ACCESS-AUTHORITY.** (also covers **DOMAIN-ISSUER-ROUTES** and
+  **DOMAIN-ACCESS-UNIFICATION**)
+  Migrate to the ratified
+  [domain access policy](wiki/spec/resources/access.md) and
   [requirement, exact-machine and boundary establishment](wiki/spec/resources/authority.md#requirement-and-exact-machine-routes)
   end to end through `samples/cli/facts/` witnesses and `omega run --both`.
+  - Replace `established by`, `read by`, `written by` and the `Access<P,T>`
+    source wrapper with domain `access Policy`; migrate core/library, product
+    source, samples and fixtures together and remove the retired parser,
+    synthesis and checking paths, not retain compatibility modes. Keep source
+    polarity, resident custody and initialization/validation/retirement outcomes.
+  - Implement typed `reflect::field` / `reflect::callable` selectors and their
+    homogeneous descriptor lists, exact generic/owner/member identity, requirement
+    versus concrete invocation semantics, private route metadata and rejection
+    of field-as-caller, wrong owner/application, ambiguity and forged descriptors.
+  - Make `AccessPlan::new` default-unrestricted for caller authorization;
+    `establish`, `allow_readers` and `allow_writers` narrow it. Normalize empty
+    denial, whole-object/field/inherited intersections and invocation-scoped
+    helper delegation without order-dependent overrides or runtime permission bits.
+  - Separate the semantic access plan from `LayoutPlan` across compile-time
+    policy evaluation, Terminal occurrences, interpreter and native realization.
+    Establishment must join exact schema/field identities to independent layouts
+    and admitted supply, retaining transfer widths/alignment, required reach,
+    External/destructive/Atomic observations and schema correspondence. Carry one
+    field restriction across two valid layouts and fragmented-field storage.
   - Carry normalized exact route identities and subject-bound access restrictions
     through the common permission/loan model without extra runtime permission
     fields or a changed carrier layout, starting with the guide's
@@ -1158,14 +1185,22 @@ defines the complete product bar.
     `tests/omega/pass/domains/bodyless_owner_establishment`, and exercise
     admitted provider issuance for core's protected `Vacant`/`Resident` routes
     with **BUMP-ALLOCATOR-CANARY**.
-  Acceptance: the controlled cell, `bodyless_owner_establishment` (issuer →
+  Acceptance: the controlled cell and whole-object/field controller examples,
+  `bodyless_owner_establishment` (issuer →
   forwarder → consumer), and the nine-place fact rows execute via
   `omega run --both` across nested fields, whole-place replacement, requirement
   dispatch, helper calls, reflection, and codecs; unauthorized reads/writes,
   missing/forged/rebound issuer evidence, same-spelled issuer substitution,
   writer-only routes reading through `&mut`, wrong-subject or escaped helper
   grants, and bypass through bare helper parameters, explicit domain erasure,
-  byte views, or atomic recasts reject.
+  byte views, or atomic recasts reject. Existing access-view executable positives
+  run `--both` after migration; existing reject twins (`placed_shared_write_rejected`,
+  `placed_helper_exclusive_alias_rejected`, `placed_atomic_load_denied`,
+  `placed_atomic_store_denied`, `placed_external_array_denied_read` and the
+  `placed_factory_*` family) retain their exact rejection obligations. Update
+  fixture paths and golden rows if moved; renamed diagnostics alone are not
+  acceptance. No old source clauses/wrapper or layout-containing AccessPlan
+  remains, and no missing caller row fabricates backing/observation authority.
 
 - **TERMINATION-RANKING-CHECKS.** (also covers **GENERAL-CYCLIC-EXECUTION** and
   **TPR6**)

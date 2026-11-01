@@ -1,7 +1,7 @@
 public boundary trait Console {}
 // A `data where` constrains a record's scalar field beside a service
 // requirement: the facts don't hide the required slot from establishment.
-data Session where retries <= 3 {
+data Session requires retries <= 3 {
     retries: u64;
 }
 data Main {

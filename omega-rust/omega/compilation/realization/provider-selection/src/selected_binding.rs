@@ -57,7 +57,7 @@ pub fn bind_selected_provider_plan_facts(
         &facts,
         &provider_grants,
     )?;
-    boundary_admission.admit(candidates, &facts)?;
+    boundary_admission.admit(&facts)?;
     let declarations = declarations.map_err(|error| vec![error])?;
     let selected = enrich_selected_plans(facts, &declarations)?;
     Ok(SelectedProviderPlanBinding { selected, grants })

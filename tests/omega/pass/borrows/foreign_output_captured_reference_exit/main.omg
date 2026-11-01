@@ -3,7 +3,7 @@
 use omega::language::core::external_binding;
 
 public data Output<'source> { value: &'source u8; }
-public data TerminatedInput where terminator == 0, {
+public data TerminatedInput requires terminator == 0, {
     digit: u8;
     marker: u8;
     terminator: u8;

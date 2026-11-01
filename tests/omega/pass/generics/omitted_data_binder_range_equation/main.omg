@@ -6,7 +6,7 @@ use omega_language_std::console;
 // separate: `upper_bound<512>` remains ordinary range compatibility, not an
 // exact type equation.
 data TinyBytes<Length, const Capacity: u64>
-where
+requires
     Length == [u8; Capacity]
 {
     storage: [u8; Capacity];
@@ -24,7 +24,7 @@ domain<const Bound: u64> u64::AtMost<Bound>
     requires self <= Bound;
 
 data Bytes<const Capacity: u64, Length [copy]> [copy]
-where
+requires
     Length == u64::AtMost<Capacity>
 {
     storage: [u8; Capacity];
@@ -33,7 +33,7 @@ where
 
 // The specification's domain-index equation selects a fixed 256-byte backing.
 data DomainBytes<Length, const Capacity: u64>
-where
+requires
     Length == u64::AtMost<Capacity>
 {
     storage: [u8; Capacity];

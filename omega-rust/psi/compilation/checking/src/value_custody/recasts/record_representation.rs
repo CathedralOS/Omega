@@ -666,6 +666,53 @@ pub(super) fn type_representation(
     Some(representation)
 }
 
+/// Restrict a normalized declared array to complete elements. Normalizing the
+/// declaration first retains the existing graph/work budgets and every leaf's
+/// validity/protocol; a window cannot mint a larger unbounded inventory.
+pub(super) fn array_region_representation(
+    program: &dyn crate::CheckingInput,
+    array: TypeReferenceHandle,
+    start: usize,
+    end: usize,
+) -> Option<MutableRecordRepresentation> {
+    let TypeReferenceNode::FixedArray {
+        length: FixedArrayLength::Literal(extent),
+        ..
+    } = program.type_reference_table.type_reference(array)
+    else {
+        return None;
+    };
+    if start > end || end > *extent {
+        return None;
+    }
+    let mut representation = type_representation(program, array)?;
+    let stride = if *extent == 0 {
+        0
+    } else {
+        representation.size.checked_div(*extent)?
+    };
+    let offset = start.checked_mul(stride)?;
+    let limit = end.checked_mul(stride)?;
+    if representation.align == 0 || !offset.is_multiple_of(representation.align) {
+        return None;
+    }
+    for leaf in &representation.leaves {
+        let leaf_end = leaf.offset.checked_add(leaf.size)?;
+        if leaf.offset < limit && offset < leaf_end && (leaf.offset < offset || leaf_end > limit) {
+            return None;
+        }
+    }
+    representation.leaves.retain_mut(|leaf| {
+        if leaf.offset < offset || leaf.offset >= limit {
+            return false;
+        }
+        leaf.offset -= offset;
+        true
+    });
+    representation.size = limit.checked_sub(offset)?;
+    Some(representation)
+}
+
 /// Normalize one established record into the byte geometry and scalar
 /// representation facts a mutable alias may expose. Leaves may carry scalar
 /// domains/ranges (and bool's exact `{0,1}` set), because both alias

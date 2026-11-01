@@ -29,7 +29,7 @@ ensures result == left + right
 
 // Place: field (invalid twin). Bounded record fields omit the right bound, violating the combine precondition.
 // Expected exit: 0
-data Operands where 0 <= left && left <= 50 {
+data Operands requires 0 <= left && left <= 50 {
     left: i32;
     right: i32;
 }

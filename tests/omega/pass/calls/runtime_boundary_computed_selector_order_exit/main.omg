@@ -23,7 +23,7 @@ satisfies CText::length via binding();
 
 linux_x86_64 machine c_strnlen(text: &u8, limit: u64) -> u64
 satisfies CText::length via linux_x86_64_binding();
-data Cursor where position < 4 { position: u64; calls: u64 in Wrapping; }
+data Cursor requires position < 4 { position: u64; calls: u64 in Wrapping; }
 machine choose(cursor: &mut Cursor) -> u64 ensures result < 4 {
     cursor.calls = cursor.calls + 1;
     cursor.position

@@ -2,7 +2,7 @@
 // the second restores it, and the next call closes the derived window.
 use omega_language_std::console;
 data Main
-where
+requires
     start <= end,
 {
     start: i32;

@@ -72,6 +72,8 @@ pub(in crate::symbols) fn assign_declaration_type_value_expression_symbols(
             prior_statements: &[],
             data_definitions: &program.roots.data_definitions,
             type_aliases: &program.roots.type_aliases,
+            conformances: &program.roots.conformances,
+            operand_owners: &program.tables.types.operand_lifetime_owners,
             data_members: &declarations.data_members,
             data_type_parameters: &declarations.data_type_parameters,
             data_payload_fields: &declarations.data_payload_fields,
@@ -86,6 +88,45 @@ pub(in crate::symbols) fn assign_declaration_type_value_expression_symbols(
             &mut declarations.child_type_references,
             std::slice::from_ref(&selection),
         );
+    }
+    // A conformance's trait arguments are source-owned types too. In
+    // particular, a computed alias extent must bind this declaration's Const
+    // before a default member is copied into a separate invocation telescope.
+    for conformance in program.roots.conformances.iter() {
+        let scope = MachineScope {
+            symbol: conformance.symbol,
+            lexical_requirements: crate::symbols::scope::LexicalRequirements::none(),
+            attached_machines: &attached_machines,
+            resolution_indexes: &program.resolution_indexes,
+            type_parameters: declarations
+                .data_type_parameters
+                .span_or_empty(conformance.type_parameters),
+            attached_data_symbol: SymbolHandle::invalid(),
+            inherited_data_members: None,
+            owned_data: &[],
+            prior_statements: &[],
+            data_definitions: &program.roots.data_definitions,
+            type_aliases: &program.roots.type_aliases,
+            conformances: &program.roots.conformances,
+            operand_owners: &program.tables.types.operand_lifetime_owners,
+            data_members: &declarations.data_members,
+            data_type_parameters: &declarations.data_type_parameters,
+            data_payload_fields: &declarations.data_payload_fields,
+            type_constraints: &program.tables.types.constraints,
+        };
+        for argument in conformance.arguments.handles() {
+            let mut reference = declarations.child_type_references.get(argument).clone();
+            assign_type_value_expression_symbols(
+                symbols,
+                &scope,
+                &[],
+                SymbolHandle::invalid(),
+                &mut program.tables.bodies.expressions,
+                &mut declarations.child_type_references,
+                &mut reference,
+            );
+            *declarations.child_type_references.get_mut(argument) = reference;
+        }
     }
     // Constants own type-bound expressions too, including unused declarations.
     // Resolve under their exact source/module owner before typed endpoint
@@ -106,6 +147,8 @@ pub(in crate::symbols) fn assign_declaration_type_value_expression_symbols(
                 prior_statements: &[],
                 data_definitions: &program.roots.data_definitions,
                 type_aliases: &program.roots.type_aliases,
+                conformances: &program.roots.conformances,
+                operand_owners: &program.tables.types.operand_lifetime_owners,
                 data_members: &declarations.data_members,
                 data_type_parameters: &declarations.data_type_parameters,
                 data_payload_fields: &declarations.data_payload_fields,
@@ -141,6 +184,8 @@ pub(in crate::symbols) fn assign_declaration_type_value_expression_symbols(
             prior_statements: &[],
             data_definitions: &program.roots.data_definitions,
             type_aliases: &program.roots.type_aliases,
+            conformances: &program.roots.conformances,
+            operand_owners: &program.tables.types.operand_lifetime_owners,
             data_members: &declarations.data_members,
             data_type_parameters: &declarations.data_type_parameters,
             data_payload_fields: &declarations.data_payload_fields,
@@ -180,6 +225,8 @@ pub(in crate::symbols) fn assign_declaration_type_value_expression_symbols(
             prior_statements: &[],
             data_definitions: &program.roots.data_definitions,
             type_aliases: &program.roots.type_aliases,
+            conformances: &program.roots.conformances,
+            operand_owners: &program.tables.types.operand_lifetime_owners,
             data_members: &declarations.data_members,
             data_type_parameters: &declarations.data_type_parameters,
             data_payload_fields: &declarations.data_payload_fields,
@@ -271,6 +318,34 @@ fn assign_type_value_expressions_with_declarations(
     type_reference: &mut TypeReference,
     declaration_references: &[source::SourceSpan],
 ) {
+    let owner = type_reference.supplied_operand_owner();
+    let supplied_scope = owner
+        .is_valid()
+        .then(|| machine.supplied_scope(owner))
+        .flatten();
+    // Lost/omitted custody supplies no receiving-name fallback. The ordinary
+    // owner/header checks retain their refusal; do not bind this subtree in a
+    // same-spelled caller telescope in the meantime.
+    if owner.is_valid() && supplied_scope.is_none() {
+        return;
+    }
+    let (machine, parameters, state_symbol) = supplied_scope
+        .as_ref()
+        .map_or((machine, parameters, state_symbol), |scope| {
+            (scope, &[][..], SymbolHandle::invalid())
+        });
+    if supplied_scope.is_some() {
+        // Types and value leaves share their exact supplying telescope.
+        // Definition-owned alias references retain their independent lookup.
+        super::assignment::assign_type_reference_with_definitions(
+            symbols,
+            child_types,
+            machine.type_constraints,
+            machine.type_parameters,
+            type_reference,
+            declaration_references,
+        );
+    }
     let mut child = |handle: Handle<TypeReference>| {
         let mut reference = child_types.get(handle).clone();
         assign_type_value_expressions_with_declarations(

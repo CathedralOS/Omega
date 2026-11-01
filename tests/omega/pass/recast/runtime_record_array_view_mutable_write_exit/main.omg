@@ -18,7 +18,7 @@ data Packet {
 }
 
 data Main
-where k <= 4 && i <= 1,
+requires k <= 4 && i <= 1,
 {
     bytes: [u8; 14];
     k: u32;

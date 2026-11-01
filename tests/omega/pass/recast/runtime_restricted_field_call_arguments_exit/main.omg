@@ -1,5 +1,5 @@
 // Shared field loans into calls preserve the owner's standing invariant.
-data Byte where value >= 0 && value <= 1 { value: u8; }
+data Byte requires value >= 0 && value <= 1 { value: u8; }
 data Wrapped { byte: Byte; }
 
 machine take(value: &u8) -> u8 { value }

@@ -1,6 +1,6 @@
 // Expected exit: 0
 domain [u8]::Utf8 requires valid_utf8(self);
-data TextBuffer [copy] where used <= 8 {
+data TextBuffer [copy] requires used <= 8 {
     storage: [u8; 8];
     used: u64;
 }

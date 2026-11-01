@@ -10,13 +10,21 @@ import unittest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import check_rules
 from check_rules import (
+    RATCHETS, SHAPE_GATES, SOURCE_CONTEXT_READS, SOURCE_READS, STAGE05_ROOT, STATUS_PHRASES,
     board_task_ids, changed_golden_rows, citing_documents, count_source_reads,
     count_status_phrases, dangling_task_ids, dangling_task_violations, fact_row_violations,
     golden_rows, golden_violations, lanes, measurement_violations, nearest_rows,
-    program_shingles, read_baseline, read_dangling_baseline, source_read_counts,
-    source_read_violations, status_phrase_counts, status_phrase_violations,
-    subject_violations, write_baseline, write_dangling_baseline, write_status_baseline,
+    program_shingles, ratchet_counts, ratchet_violations, read_baseline,
+    read_dangling_baseline, subject_violations, write_dangling_baseline, write_ratchet,
 )
+
+
+def source_read_violations(counts, baseline):
+    return ratchet_violations(SOURCE_READS, counts, baseline)
+
+
+def status_phrase_violations(counts, baseline):
+    return ratchet_violations(STATUS_PHRASES, counts, baseline)
 
 
 class SourceReadTests(unittest.TestCase):
@@ -45,11 +53,8 @@ class SourceReadTests(unittest.TestCase):
     def test_a_removed_read_lowers_the_baseline(self):
         violations = source_read_violations({"a.rs": 2}, {"a.rs": 3})
         self.assertIn("--update-source-reads", violations[0])
-        self.assertEqual(source_read_violations({"a.rs": 2}, read_baseline(write_baseline({"a.rs": 2}))), [])
-
-    def test_the_tree_matches_its_baseline(self):
-        baseline = read_baseline((check_rules.ROOT / check_rules.READS_BASELINE).read_text())
-        self.assertEqual(source_read_violations(source_read_counts(), baseline), [])
+        rewritten = read_baseline(write_ratchet(SOURCE_READS, {"a.rs": 2}))
+        self.assertEqual(source_read_violations({"a.rs": 2}, rewritten), [])
 
 
 class StatusPhraseTests(unittest.TestCase):
@@ -99,7 +104,7 @@ A detached editable document is not an instance of its described type.
         violations = status_phrase_violations({"omega-rust/pipeline.md": 1},
                                               {"omega-rust/pipeline.md": 31})
         self.assertIn("--update-status-phrases", violations[0])
-        rewritten = read_baseline(write_status_baseline({"omega-rust/pipeline.md": 1}))
+        rewritten = read_baseline(write_ratchet(STATUS_PHRASES, {"omega-rust/pipeline.md": 1}))
         self.assertEqual(status_phrase_violations({"omega-rust/pipeline.md": 1}, rewritten), [])
 
     def test_contracts_are_pipeline_and_spec_only(self):
@@ -112,12 +117,93 @@ A detached editable document is not an instance of its described type.
             (root / "wiki/drafts").mkdir()
             (root / "wiki/drafts/b.md").write_text("Not yet closed:\n")
             (root / "TASKS.md").write_text("now passes; not yet\n")
-            self.assertEqual(status_phrase_counts(root),
+            self.assertEqual(ratchet_counts(STATUS_PHRASES, root),
                              {"omega-rust/pipeline.md": 1, "wiki/spec/build/a.md": 1})
 
-    def test_the_tree_matches_its_baseline(self):
-        baseline = read_baseline((check_rules.ROOT / check_rules.STATUS_BASELINE).read_text())
-        self.assertEqual(status_phrase_violations(status_phrase_counts(), baseline), [])
+
+class Stage05RatchetTests(unittest.TestCase):
+    """Stage 05 lowers stage 04's plans; it neither re-gates their shapes nor
+    reads the typed source trees to rebuild a fact stage 04 did not publish."""
+
+    UNIT = STAGE05_ROOT + "/src/unit/lowering.rs"
+    TEST = STAGE05_ROOT + "/src/unit/lowering/tests.rs"
+
+    def tree(self, files):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        root = Path(directory.name)
+        for path, text in files.items():
+            (root / path).parent.mkdir(parents=True, exist_ok=True)
+            (root / path).write_text(text)
+        return root
+
+    def test_shape_gates_count(self):
+        text = """
+            return Err(unsupported(expression, "dyn copy"));
+            Err(LoweringError::Unsupported { reason })
+            ContentPartitionResultRewriteUnsupported => unpinned(site),
+            let supported = plan.supported(); // a lowering, not a gate
+        """
+        self.assertEqual(SHAPE_GATES.count(text), 4)
+
+    def test_source_context_reads_count(self):
+        text = """
+            use typed_trees::expression::ExpressionHandle;
+            fn reaches(typed: &TypedTrees, frozen: &FrozenTypedTrees) {}
+            let machine = checked.typed.machine_by_symbol(symbol);
+            let identity = typed_trees::type_identity::TypeIdentity::of(plan);
+            let typed_value = plan.typed_value; // a plan field, not the source trees
+        """
+        self.assertEqual(SOURCE_CONTEXT_READS.count(text), 4)
+
+    def test_only_stage_05_counts(self):
+        root = self.tree({
+            self.UNIT: "Err(unsupported(site)); checked.typed.machines",
+            "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/a.rs":
+                "Err(unsupported(site)); checked.typed.machines",
+        })
+        self.assertEqual(ratchet_counts(SHAPE_GATES, root), {self.UNIT: 1})
+        self.assertEqual(ratchet_counts(SOURCE_CONTEXT_READS, root), {self.UNIT: 1})
+
+    def test_a_planted_gate_fails(self):
+        before = self.tree({self.UNIT: "Err(unsupported(site))"})
+        baseline = read_baseline(write_ratchet(SHAPE_GATES, ratchet_counts(SHAPE_GATES, before)))
+        after = self.tree({self.UNIT: "Err(unsupported(site)); Err(unpinned(other))",
+                           self.TEST: "LoweringError::Unsupported"})
+        violations = ratchet_violations(SHAPE_GATES, ratchet_counts(SHAPE_GATES, after), baseline)
+        self.assertEqual(len(violations), 2)
+        self.assertIn("lowering.rs: 2 stage-05 shape gates, baseline 1", violations[0])
+        self.assertIn("stage 04 plan", violations[0])
+        self.assertIn("tests.rs: 1 stage-05 shape gates, baseline 0", violations[1])
+
+    def test_a_planted_source_read_fails(self):
+        violations = ratchet_violations(SOURCE_CONTEXT_READS, {self.UNIT: 3}, {self.UNIT: 2})
+        self.assertEqual(len(violations), 1)
+        self.assertIn("3 stage-05 source-context reads, baseline 2", violations[0])
+        self.assertIn("Public contracts", violations[0])
+
+    def test_a_retired_site_lowers_the_baseline(self):
+        for ratchet in (SHAPE_GATES, SOURCE_CONTEXT_READS):
+            with self.subTest(ratchet=ratchet.noun):
+                violations = ratchet_violations(ratchet, {self.UNIT: 1}, {self.UNIT: 2})
+                self.assertIn(f"--{ratchet.flag}", violations[0])
+                rewritten = read_baseline(write_ratchet(ratchet, {self.UNIT: 1}))
+                self.assertEqual(ratchet_violations(ratchet, {self.UNIT: 1}, rewritten), [])
+
+
+class RatchetBaselineTests(unittest.TestCase):
+    def test_the_tree_matches_every_baseline(self):
+        for ratchet in RATCHETS:
+            with self.subTest(baseline=ratchet.baseline):
+                baseline = read_baseline((check_rules.ROOT / ratchet.baseline).read_text())
+                self.assertEqual(ratchet_violations(ratchet, ratchet_counts(ratchet), baseline), [])
+
+    def test_update_flags_rewrite_their_baselines(self):
+        for ratchet in RATCHETS:
+            with self.subTest(flag=ratchet.flag):
+                text = write_ratchet(ratchet, {"a.rs": 1})
+                self.assertIn(f"--{ratchet.flag}", text)
+                self.assertEqual(read_baseline(text), {"a.rs": 1})
 
 
 class GoldenTests(unittest.TestCase):

@@ -2,6 +2,6 @@
   "role": "intended-invalid",
   "entry": "main.omg",
   "rejection_contains": [
-    "match arms produce incompatible values"
+    "cannot prove requires contract for call width_range"
   ]
 }

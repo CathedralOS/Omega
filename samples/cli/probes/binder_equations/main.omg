@@ -13,7 +13,7 @@
 domain<const Bound: u64> u64::AtMost<Bound> requires self <= Bound;
 
 data TinyBytes<Length, const Capacity: u64>
-where
+requires
     Length == u64::AtMost<Capacity>
 {
     storage: [u8; Capacity];
@@ -21,7 +21,7 @@ where
 }
 
 data Domained<Length, const Capacity: u64>
-where
+requires
     Length == u64::AtMost<Capacity>
 {
     storage: [u8; Capacity];

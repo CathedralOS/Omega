@@ -1,0 +1,22 @@
+// A direct call to an opaque `via` leaf carries its governing boundary
+// requirement's admitted contract. The leaf repeats neither `reaches Wait` nor
+// `blocks`, yet the call acknowledges `block` and its caller's ceiling must
+// name `Wait`, exactly as a call to `Wait::pause` itself would.
+boundary trait Wait {
+    machine pause(timeout: i32) -> i64
+    reaches Wait
+    blocks;
+}
+
+data WaitSyscalls { }
+
+linux_x86_64 machine WaitSyscalls::pause(timeout: i32) -> i64
+    satisfies Wait::pause
+    via ForeignBinding::Syscall(7);
+
+linux_x86_64 machine pause_once()
+reaches Wait
+blocks
+{
+    let status: i64 = block WaitSyscalls::pause(0);
+}

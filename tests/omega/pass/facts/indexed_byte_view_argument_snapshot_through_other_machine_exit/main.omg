@@ -3,7 +3,7 @@
 // Expected exit: 0
 data View<'storage> [copy] { bytes: &'storage [u8]; sibling: &'storage [u8]; }
 data Counted<'storage, Count: u64> [copy]
-where view.bytes.len == Count
+requires view.bytes.len == Count
 { view: View<'storage>; }
 machine snapshot<'storage>(source: View<'storage>) -> Counted<'storage, (source.bytes.len)>
 { Counted { view: source } }

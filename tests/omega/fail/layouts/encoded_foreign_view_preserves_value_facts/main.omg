@@ -21,7 +21,7 @@ SignedByte satisfies FixedLayout<PortableByte> {
     }
 }
 }
-data PortableByte [copy] where value >= -1 && value <= 1 { value: i64; }
+data PortableByte [copy] requires value >= -1 && value <= 1 { value: i64; }
 data RawView { value: LayoutStorage<PortableByte, SignedByte>; }
 data ForeignByte { value: i8; }
 data Main { value: RawView; }

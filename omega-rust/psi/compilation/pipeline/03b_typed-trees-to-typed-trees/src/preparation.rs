@@ -4,6 +4,7 @@
 //! an open typed program. Retained tables are preparation evidence, not a
 //! second program representation or permission to skip checking.
 
+mod array_extents;
 mod constant_entries;
 mod data_applications;
 mod product_operands;
@@ -173,6 +174,7 @@ pub fn prepare_typed_trees(
     mut program: TypedTrees,
     request: &PreparationRequest<'_>,
 ) -> Result<(typed_trees::FrozenTypedTrees, TypedPreparation), Vec<Diagnostic>> {
+    let type_frontier = program.type_reference_table.type_reference_count();
     let pre_loop_guard = phase_profile::guard("05.c.1.pre_specialization");
     crate::assembly_control::validate_primitive_meanings(&program)?;
     // Declaration descriptions may retain pending implementations, but the
@@ -346,6 +348,10 @@ pub fn prepare_typed_trees(
     // The public signatures above own newly instantiated carrier occurrences.
     // Complete their field views just as for source types, without revisiting
     // the unchanged source roster or electing a private realization's fields.
+    // Late callable applications can close computed array extents after the
+    // original source cohort was typed. Form their exact applied RHS before
+    // publishing canonical carriers or completing their enclosing field views.
+    array_extents::normalize(&mut program, type_frontier);
     phase_profile::scope("05.c.3.j.elaborate_new_types", || {
         data_applications::elaborate_new_types(&mut program, signature_type_start)
     })?;
@@ -446,6 +452,7 @@ fn normalize_open_index_identities(program: &mut TypedTrees) -> Result<(), Vec<D
 /// underivable tuple is interim evidence, not a rejected program. The
 /// authoritative checking pass enforces the complete-tuple gate itself.
 pub fn prepare_execution_applications(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
+    let type_frontier = program.type_reference_table.type_reference_count();
     selections::retain_static_argument_contexts(program);
     loop {
         let signatures = program.closed_requirement_applications().count();
@@ -463,6 +470,7 @@ pub fn prepare_execution_applications(program: &mut TypedTrees) -> Result<(), Ve
             break;
         }
     }
+    array_extents::normalize(program, type_frontier);
     // This private preparation can execute before ordinary source checking.
     // Admit its completed static edges once at that execution boundary, never
     // inside the executable derivation loop.
@@ -480,6 +488,7 @@ pub fn prepare_execution_applications(program: &mut TypedTrees) -> Result<(), Ve
 /// this is not full source checking or permission to execute them. The semantic
 /// evaluation owner still admits each demanded invocation before execution.
 pub fn prepare_constant_execution(mut program: TypedTrees) -> Result<TypedTrees, Vec<Diagnostic>> {
+    let type_frontier = program.type_reference_table.type_reference_count();
     elaborate(&mut program)?;
     validation::resolve_dynamic_call_targets(&mut program)?;
     selections::retain_static_argument_contexts(&mut program);
@@ -489,6 +498,7 @@ pub fn prepare_constant_execution(mut program: TypedTrees) -> Result<TypedTrees,
     settle_value_destinations(&mut program)?;
     crate::constructed_results::retain_constructed_result_types(&mut program)?;
     crate::assignment_destinations::prepare(&mut program);
+    array_extents::normalize(&mut program, type_frontier);
     crate::monomorphization::require_complete_dispatch_subjects(&program)?;
     Ok(program)
 }

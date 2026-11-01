@@ -345,114 +345,118 @@ and the [calling-plan](../spec/build/calling_plans.md) and
 
 ## Access Policies And Externally Mutable Memory
 
-Ordinary values remain ordinary. A local `Point`, an owned array and `&mut T`
-use normal field access, not policy-generated accessors. An `Access<P, T>` view
-adds field-specific operation and observation rules. MMIO, DMA-visible memory,
-and other access outside ordinary loan discipline need explicit backing contracts;
-another cooperating Omega thread alone does not require this mechanism.
-
-Starting with `&mut [u8]` already grants ordinary byte access. A later cast cannot
-retract that grant or turn it into device-safe access. Ordinary `&write T` lets a
-checked callee overwrite an existing valid value without observing it; it does
-not describe device access or uninitialized storage.
+Access belongs to domains. Ordinary RAM can use ordinary field expressions under
+the domain's reader/writer restrictions. Device or atomic-backed views retain
+restricted operation accessors where an ordinary reference would promise the
+wrong behavior. Another Omega thread alone does not require a device policy.
 
 ### Geometry, demand, and supply
 
-Keep three questions separate:
+Keep three descriptions separate:
 
-- `LayoutPlan`: where are the fields and bits?
-- `AccessPlan`: which layout, field operations, and required reach does this view use?
-- `ResourceProfile`: what can the admitted backing actually support?
+- `LayoutPlan`: how the type's semantic fields are represented.
+- `AccessPlan`: who may establish/access the qualified subject and its fields,
+  required observation/operation behavior, exposure and reach.
+- `ResourceProfile`: what the actual backing supports, bound by admitted evidence.
 
-A selected `AccessPolicy` implementation returns the combined plan. `LayoutPlan`
-is reusable geometry without access rights. This schematic example assumes an
-ordinary package helper `uart_layout_plan(&Schema) -> LayoutPlan` and an ordinary
-`device_io_reach()` helper; neither helper grants backing authority:
+An access plan contains no layout. It uses `reflect::TypeSchema` and symbolic
+field identities. Establishment joins that plan to an independently validated
+layout and the actual supply; neither policy construction nor layout compatibility
+supplies authority. Field names below are declaration selectors, not strings.
 
 ```omega
-public UartMmio satisfies AccessPolicy {
-    machine plan(schema: Schema) -> AccessPlan
+public data UartRegisters {
+    status: u32;
+    transmit: u32;
+}
+
+public domain UartRegisters::DeviceRegisters
+    access UartAccess;
+
+public UartAccess satisfies AccessPolicy {
+    machine plan(schema: reflect::TypeSchema) -> AccessPlan
     reaches
     terminates
     {
-        let layout: LayoutPlan = uart_layout_plan(&schema);
-        let denied: AccessPlan = AccessPlan::inaccessible(layout);
-        let readable: AccessPlan = AccessPlan::with(
-            denied, schema.fields[0].key,
+        let mut plan: AccessPlan = AccessPlan::new(&schema);
+        AccessPlan::establish(&mut plan, [reflect::callable(UartProvider::open)]);
+
+        AccessPlan::allow_writers(&mut plan, reflect::field(UartRegisters::status), []);
+        AccessPlan::allow_readers(&mut plan, reflect::field(UartRegisters::transmit), []);
+
+        AccessPlan::observe(
+            &mut plan, reflect::field(UartRegisters::status),
             FieldAccess::External {
                 read: ExternalRead::Read,
                 write: false,
-                exposure: Exposure::Exported,
+                exposure: Exposure::Exported
             }
         );
-        let mut plan: AccessPlan = AccessPlan::with(
-            readable, schema.fields[1].key,
+        AccessPlan::observe(
+            &mut plan, reflect::field(UartRegisters::transmit),
             FieldAccess::External {
                 read: ExternalRead::None,
                 write: true,
-                exposure: Exposure::Exported,
+                exposure: Exposure::Exported
             }
         );
         plan.reach = device_io_reach();
         plan
     }
 }
-
-public data UartRegisters {
-    status: u32;
-    transmit: u32;
-}
 ```
 
-`Access<UartMmio, UartRegisters>` interprets qualified backing; it is not a newly
-allocated record. Constructing the plan values above supplies no backing or
-access authority; establishment still checks the exact policy and admitted supply.
-The whole view can be passed to an ordinary machine. Projection is pure and
-returns an `Accessor<T>` for the field:
+The platform supplies the exact admitted `UartProvider::open` contract, layout,
+resource profile and device correspondence; they are not manufactured by the
+policy above. The ordinary helper `device_io_reach` returns required reach data.
+Constructing it grants no reach.
+
+A boundary-established `UartRegisters in DeviceRegisters` view interprets that
+backing; it is not a newly allocated record. A whole qualified view can be passed
+to an ordinary machine, while projection produces an operation-governed accessor:
 
 ```omega
-machine send(uart: &mut Access<UartMmio, UartRegisters>, byte: u32) -> u32 {
+machine send(uart: &mut (UartRegisters in DeviceRegisters), byte: u32) -> u32 {
     write(&mut uart.transmit, byte);
     read(&uart.status)
 }
 ```
 
-Only the explicit operation performs the event. Its accessor stays tied to the
-view's exact field, plan, range, lifetime and authorization. Nominal policies
-remain distinct even if their geometry matches: each owns its binding and
-private projection surface.
-
-The mutable view does not permit writing `status` or reading `transmit`:
-both operations are denied by this policy. There is no unwrap to an unrestricted
-`&mut UartRegisters`. `Accessor<T>` is a core type, not a keyword; its value type
-alone does not confer operations. Ordinary name-resolution rules apply to user
-declarations with the same name as any core declaration.
+Only the explicit operation performs the event. The accessor retains its exact
+field, domain policy, independent layout, range, lifetime and authorization.
+A mutable loan of the view does not exclude hardware mutation or turn the
+underlying device into ordinary exclusive RAM. Writing `status`, reading
+`transmit`, or obtaining an unrestricted ordinary field loan rejects.
 
 ### Where the view comes from
 
-For ordinary RAM, `Access::view<P, T>(&value)` or
-`Access::view_mut<P, T>(&mut value)` retains the caller's loan and narrows access
-under a compatible policy. When that loan ends, the owner can resume ordinary
-access to the original value. No provider is needed for this attenuation.
+For ordinary RAM, introducing a domain on a checked borrowed view retains the
+lender's original loan and narrows its access. Any establishment restriction still
+needs exact provenance. Ending the complete loan cohort restores the lender's
+prior access; erasing the displayed domain does not. No provider admission is
+needed to attenuate ordinary RAM.
 
-For firmware, an OS, or device backing, an admitted boundary contract supplies
-the qualified backing or established view. `Access::view_resident_mut` borrows
-existing `Extent in Granted & Resident<P, T>` custody. Build owns acceptance and
-provider selection, not the access-policy author. Issuance supplies `Granted`,
-the provider supplies the exact `ResourceProfile`, and a device interpretation
-additionally requires schema correspondence to that device. Content validity,
-resident custody and lifetime obligations remain independently required.
+For firmware, an OS or device backing, an admitted boundary contract supplies
+qualified backing or an established view. Borrowing existing resident content
+retains its exact `Extent in Granted & Resident<P, T>` custody. Build owns
+acceptance and provider selection, not the policy author. Issuance supplies
+`Granted`, the provider supplies `ResourceProfile`, and a device interpretation
+requires separate schema correspondence. Content validity, custody and lifetime
+remain required. `P` identifies the normalized domain policy, not a layout shell.
 
 ### Access plans
 
-Access decisions use opaque schema-field keys, not integer positions. Starting
-from inaccessible defaults makes omission deny access; reordering a declaration
-cannot transfer permission to another field. Access policy selects operations,
-not a second copy of the geometry. `AccessPlan::inaccessible(layout)` seeds one
-decision per distinct field key in the layout, not per fragment, and starts with
-empty required reach. The final validator independently checks the returned layout
-and decisions against the schema: omitting a field from both is not permission to
-forget it. An ordinary layout-policy call returns data, not validated evidence.
+`AccessPlan::new(&schema)` adds no caller restrictions. A list narrows the relevant
+axis, and an empty list denies everyone. Whole-object, field and independently
+inherited lists intersect. This default does not admit new observation modes:
+actual backing and the selected operation contracts still decide which transfers
+are possible. There is no implicit grant of stable, external or atomic access.
+
+A symbolic field descriptor joins to the selected layout by exact identity.
+Several layout fragments of one field share its semantic rule. Wrong-owner,
+wrong-application or forged descriptors reject; omitted caller restrictions never
+license incomplete geometry or dropped custody. An authorized atomic reader/writer
+still owes the atomic operation's ordering and backing contract.
 
 | Observation | How to think about it |
 | --- | --- |
@@ -589,7 +593,7 @@ This schematic transition handles both outcomes; the caller supplies its policy,
 schema, exact custody conformance and validator:
 
 ```omega
-transition Access::validate_owned<
+transition validate_owned_access<
     Native, Packet, PacketCustody, PacketNativeCustody, Validator
 >(move source, move custody, move revision_ticket) {
     AccessOutcome::Ready { view } ->
@@ -716,7 +720,7 @@ layout, established validity or the deferred-establishment rules, and outstandin
 obligations permit them. Casting
 through bytes does not bypass these checks.
 
-The same rule applies to domain `read by` / `written by` policies. Omitting the
+The same rule applies to domain reader/writer policies. Omitting the
 domain in a cast cannot unlock the governed storage, even with exclusive access
 or an atomic-to-atomic target. The view retains its restrictions or the broader
 use rejects. See [domain access](chapter_8_domains.md#read-and-write-authority).
@@ -731,9 +735,11 @@ only the selected byte. A slice must exactly tile the source region: length is
 byte extent divided by element stride, with no ignored remainder. Bounds alone
 do not establish alignment or the congruence needed for multi-byte elements.
 
-Recasts exclude `Access<P, T>` and its accessors: another shape could expose a
-field denied by the access plan. Recast a detached ordinary snapshot, or request
-another access view through the underlying qualified extent. See the
+Recasts cannot re-plan an operation-governed access view or discard its policy:
+another shape could expose a denied field or bypass required observations.
+Ordinary Stable recasts retain restrictions on the same storage. Recast a detached
+snapshot under its own contract, or establish another operation-governed view
+through legitimate underlying authority. See the
 [recast judgment](../spec/layouts/recasts.md) and
 [implementation limits](../../omega-rust/psi/compilation/checking/recasts.md).
 
@@ -761,7 +767,8 @@ No unrestricted byte alias remains usable beside the pending typed view. Failed
 initial establishment creates no whole header and invokes no whole-header cleanup,
 but any initialized resource fields and original source obligations must be settled
 before returning the backing. Restricted domain minting and atomic/access policies
-still apply. Existing `Access` view-to-view prohibitions are unchanged.
+still apply. A cast cannot replace explicit establishment of a new
+operation-governed interpretation.
 
 See [deferred establishment](../spec/layouts/recasts.md#deferred-establishment-on-exclusive-storage-casts)
 and [invariant windows](chapter_11_invariant_windows.md). This is accepted semantics,

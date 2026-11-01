@@ -5,7 +5,7 @@
 // Expected exit: 70.
 use omega_language_std::console;
 
-data Ring [copy] where head < 8, tail < 8 {
+data Ring [copy] requires head < 8, tail < 8 {
     slots: [i32 in Saturating; 8];
     head: u64;
     tail: u64;

@@ -4,7 +4,7 @@
 data Counter { value: bool; }
 data View<'storage> [copy] { bytes: &'storage [u8]; sibling: &'storage [u8]; }
 data Counted<'storage, Count: u64> [copy]
-where view.bytes.len == Count
+requires view.bytes.len == Count
 { view: View<'storage>; }
 machine retain_counted<'storage, Count: u64>(selected: Counted<'storage, Count>, remaining: u64) -> Counted<'storage, Count>
 requires remaining <= 2

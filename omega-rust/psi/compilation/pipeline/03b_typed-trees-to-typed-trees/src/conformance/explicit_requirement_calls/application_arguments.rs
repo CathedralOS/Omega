@@ -58,7 +58,7 @@ pub(super) fn matches_declaring_application(
     declaring_trait: SymbolHandle,
     supplied: &[TypeReferenceHandle],
     initial: ApplicationArguments,
-) -> Option<bool> {
+) -> Option<Result<(), String>> {
     let supplied = argument_identities(program, lexical_owner, declaring_trait, supplied, &[])?;
     let mut pending = vec![(initial, Vec::new())];
     let mut matched = false;
@@ -72,7 +72,18 @@ pub(super) fn matches_declaring_application(
                 &application.scopes,
             )?;
             if expected != supplied {
-                return Some(false);
+                let render = |identities: &[NormalizedTypeIdentity]| {
+                    identities
+                        .iter()
+                        .map(|identity| program.type_identity_text(*identity).unwrap_or_default())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                };
+                return Some(Err(format!(
+                    "expected [{}], supplied [{}]",
+                    render(&expected),
+                    render(&supplied),
+                )));
             }
             matched = true;
             continue;
@@ -121,7 +132,7 @@ pub(super) fn matches_declaring_application(
             ));
         }
     }
-    matched.then_some(true)
+    matched.then_some(Ok(()))
 }
 
 fn argument_identities(

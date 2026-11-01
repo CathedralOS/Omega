@@ -14,7 +14,7 @@
 use omega::language::core::float_operations;
 
 data Main
-where
+requires
     meter_value >= 0.0 && meter_value <= 1.0,
 {
     meter_value: f32;

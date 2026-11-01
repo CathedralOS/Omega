@@ -51,7 +51,7 @@ machine Main::main(main: &mut Main) reaches Console {
 }
 
 // The fixed array has eight bytes; the explicit owner lends only two live bytes.
-data Buffer [copy] where used <= 8 { storage: [u8; 8] in Ascii; used: u64; }
+data Buffer [copy] requires used <= 8 { storage: [u8; 8] in Ascii; used: u64; }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches Console {

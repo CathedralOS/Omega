@@ -11,7 +11,7 @@
 
 use omega_language_std::console;
 
-data Fighter where -100 <= hp, hp <= 100, 0 <= attack, attack <= 10 {
+data Fighter requires -100 <= hp, hp <= 100, 0 <= attack, attack <= 10 {
     hp: i32;
     attack: i32;
 }

@@ -1,5 +1,5 @@
 // The established selector is read at formation, after its preceding assignment.
-data Cell where value <= 1 { prefix: u64; value: u8; suffix: u32; }
+data Cell requires value <= 1 { prefix: u64; value: u8; suffix: u32; }
 data Main { cells: [Cell; 2]; }
 machine read(value: &u8) -> u8 { value }
 machine verify(value: &u8) crashes Trap {

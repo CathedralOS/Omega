@@ -344,10 +344,10 @@ fn require_parameter_count(
     Ok(())
 }
 
-/// Resolve the exact checked adapter realizing a top-level `boundary
-/// requirement`. A public requirement carrying no static generic binders
-/// (`public boundary requirement Owner::name(...);`, optionally with an erased
-/// lifetime telescope `Owner::name<'a>(...)`) settles through a checked-body
+/// Resolve the exact checked adapter realizing a top-level token-bearing
+/// boundary signature. A public requirement carrying no static generic binders
+/// (`boundary machine + Owner::name(...);`, optionally with an erased
+/// lifetime telescope) settles through a checked-body
 /// adapter with no static generic binders whose exact `satisfies` edge rejoins
 /// that requirement symbol with the same explicit arity. Unlike the trait
 /// rows above, top-level machine requirements are not slots in named trait

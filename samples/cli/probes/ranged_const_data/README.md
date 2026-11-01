@@ -2,7 +2,7 @@
 
 Compile-scope probe. No standard-library dependency.
 
-- `data Buffer<const Capacity: u64> where Capacity >= 1 && Capacity
+- `data Buffer<const Capacity: u64> requires Capacity >= 1 && Capacity
   <= 64` — where-gates constrain const data parameters at each
   instantiation (`Buffer<2>`, `Buffer<64>`).
 

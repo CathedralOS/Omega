@@ -1,7 +1,7 @@
 // Retire one fixed-array reference leaf while the other leaf and scalar sibling remain.
 use omega_language_std::console;
 
-data Cell where value >= 0, value <= 100 { stamp: i32; value: i32; ready: bool; }
+data Cell requires value >= 0, value <= 100 { stamp: i32; value: i32; ready: bool; }
 data Pack { prefix: i32; cells: [&Cell; 2]; }
 data Main { first: Cell; second: Cell; }
 

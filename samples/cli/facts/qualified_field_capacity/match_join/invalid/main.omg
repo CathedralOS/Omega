@@ -4,7 +4,7 @@
 data Tail { length: u64; }
 domain Tail::Tracked;
 domain Tail::Partitionable;
-data Strategy where remaining == tail.length {
+data Strategy requires remaining == tail.length {
     tail: Tail in Tracked & Partitionable;
     remaining: u64;
 }

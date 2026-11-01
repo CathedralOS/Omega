@@ -2,7 +2,7 @@
 // leaf alone, so the leaf-wise representation comparison cannot preserve it.
 // Such records stay outside the typed aggregate recast judgment.
 data Ordered
-where
+requires
     low <= high,
 {
     low: i32;

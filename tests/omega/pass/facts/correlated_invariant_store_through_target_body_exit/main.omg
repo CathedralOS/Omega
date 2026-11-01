@@ -1,7 +1,7 @@
 // amount <= 320 - counter.total makes exact counter.total + amount preserve counter.total <= 320.
 // Place: target_body.
 // Expected exit: 0
-data Counter where total <= 320 { total: u64; }
+data Counter requires total <= 320 { total: u64; }
 boundary trait SelectedBodyCheck {
     machine require_tag(tag: u64) reaches crashes Trap;
 }

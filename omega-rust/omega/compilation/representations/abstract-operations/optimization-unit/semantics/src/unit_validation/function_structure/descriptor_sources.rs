@@ -278,7 +278,7 @@ fn source_shape(
             }
             Some(StructuralTypeShape::ByteSequence(carrier))
         }
-        StructuralStorageProjection::ByteWindow { .. } => None,
+        StructuralStorageProjection::CollectionWindow { .. } => None,
     }
 }
 

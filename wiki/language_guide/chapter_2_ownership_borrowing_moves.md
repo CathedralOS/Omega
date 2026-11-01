@@ -336,14 +336,14 @@ Those limitations are not permission to forget unresolved borrows.
 
 ## Storage Carried By Access Views
 
-A borrowed `Access<P, T>` retains its source borrow. An owned access view instead
+A borrowed domain-qualified access view retains its source borrow. An owned access view instead
 carries an extent claim that needs an authorized return or release:
 
 ```omega
-machine inspect(uart: &Access<UartMmio, UartRegisters>) {
+machine inspect(uart: &(UartRegisters in DeviceRegisters)) {
 }
 
-machine configure(uart: &mut Access<UartMmio, UartRegisters>) {
+machine configure(uart: &mut (UartRegisters in DeviceRegisters)) {
 }
 ```
 

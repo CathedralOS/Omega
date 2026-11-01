@@ -10,6 +10,7 @@ use calling_conventions::callback_nominal_report_fingerprint;
 use calling_conventions::{CallingPolicy, evaluate_ordinary_boundary_entry_plan};
 use diagnostics::Diagnostic;
 use representation_planning::OpaqueRepresentationSelection;
+use std::sync::{Arc, Weak};
 
 pub(crate) fn evaluate_default_calling_applications(
     program: &super::CallingProgram,
@@ -86,14 +87,14 @@ pub(crate) fn evaluate_default_calling_applications(
 }
 /// Prepare Source invocation admission and exact review coordinates only.
 /// Canonical publication owns declaration storage; target activation reads it.
-pub fn prepare_boundary_calling_plans<'checked>(
-    checked: &'checked checked_trees::CheckedTrees,
+pub fn prepare_boundary_calling_plans(
+    checked: &Arc<checked_trees::CheckedTrees>,
     services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'_>,
     target_profile: target::TargetProfile,
     opaque_representation_selections: &[OpaqueRepresentationSelection],
     package_inputs: Option<&package_compilation::PackageCompilationInputs>,
     provider_inputs: super::CallingPolicyProviderInputs<'_>,
-) -> Result<PreparedBoundaryCallingPlans<'checked>, Vec<Diagnostic>> {
+) -> Result<PreparedBoundaryCallingPlans, Vec<Diagnostic>> {
     if !std::ptr::eq(&*checked.typed, services.context().typed)
         || services.context().scope != source::DependencyScope::Product
     {
@@ -109,8 +110,10 @@ pub fn prepare_boundary_calling_plans<'checked>(
         )]);
     }
     let calling = signatures.calling();
+    let mut opaque_reviews = None;
     let mut pending = Vec::new();
     for (request_ordinal, request) in calling.requests().enumerate() {
+        let request_owner = typed.normalized_hermetic_symbol_identity(request.boundary);
         for (instance_ordinal, instance) in calling.instances(request)?.iter().enumerate() {
             let policy = instance.policy.as_ref().map_err(|reason| {
                 vec![
@@ -147,12 +150,22 @@ pub fn prepare_boundary_calling_plans<'checked>(
                         instance_ordinal,
                         signature,
                         boundary_trait: request.boundary,
+                        request_owner: request_owner.clone(),
                         boundary_arguments: calling.arguments(instance).to_vec(),
                         argument_owner: instance.argument_owner,
                         requirement_machine: declaration.symbol,
                         policy_machine: policy_machine.name.as_str().to_owned(),
                         policy_symbol: policy_machine.symbol,
                         relationship_span: request.span,
+                        review: super::signature_review::PreparedCallingReview::prepare(
+                            declaration,
+                            Arc::clone(opaque_reviews.get_or_insert_with(|| {
+                                super::signature_review::prepare_opaque_reviews(
+                                    typed,
+                                    opaque_representation_selections,
+                                )
+                            })),
+                        ),
                     });
                 }
             }
@@ -215,23 +228,19 @@ pub fn prepare_boundary_calling_plans<'checked>(
         provider_declarations = providers.declarations;
     }
     Ok(PreparedBoundaryCallingPlans {
-        checked,
-        signatures,
+        source_owner: Arc::downgrade(checked),
         pending,
         target: target_profile,
-        representations: opaque_representation_selections.to_vec(),
         providers: provider_declarations,
     })
 }
 
-pub struct PreparedBoundaryCallingPlans<'checked> {
-    checked: &'checked checked_trees::CheckedTrees,
-    signatures: std::sync::Arc<
-        checked_trees::typed_trees::service_declarations::signatures::PreparedBoundarySignatures,
-    >,
+/// Source admission and review addresses are complete before activation. This
+/// recipe keeps no checked trees alive and can run after their owner is dropped.
+pub struct PreparedBoundaryCallingPlans {
+    source_owner: Weak<checked_trees::CheckedTrees>,
     pending: Vec<PreparedCallingPolicy>,
     target: target::TargetProfile,
-    representations: Vec<OpaqueRepresentationSelection>,
     providers: Vec<backend_plan::TerminalTargetProviderPlan>,
 }
 
@@ -240,15 +249,17 @@ struct PreparedCallingPolicy {
     instance_ordinal: usize,
     signature: semantic_vocabulary::CallingSignatureId,
     boundary_trait: symbols::SymbolHandle,
+    request_owner: Result<String, String>,
     boundary_arguments: Vec<checked_trees::typed_trees::types::TypeReferenceHandle>,
     argument_owner: symbols::SymbolHandle,
     requirement_machine: symbols::SymbolHandle,
     policy_machine: String,
     policy_symbol: symbols::SymbolHandle,
     relationship_span: source::SourceSpan,
+    review: Result<super::signature_review::PreparedCallingReview, String>,
 }
 
-impl PreparedBoundaryCallingPlans<'_> {
+impl PreparedBoundaryCallingPlans {
     pub fn evaluate(
         self,
         code: &super::CallingProgram,
@@ -258,7 +269,8 @@ impl PreparedBoundaryCallingPlans<'_> {
             let diagnostic = |reason: String| {
                 vec![Diagnostic::error(reason).with_source_span(policy.relationship_span)]
             };
-            code.require_owner(self.checked).map_err(&diagnostic)?;
+            code.require_owner(&self.source_owner)
+                .map_err(&diagnostic)?;
             let module = code.artifact.semantic_module();
             let request = module
                 .calling_policy_requests
@@ -270,14 +282,11 @@ impl PreparedBoundaryCallingPlans<'_> {
                 .declaration
                 .as_ref()
                 .map_err(|reason| diagnostic(reason.clone()))?;
-            if module.identities.text(owner)
-                != self
-                    .checked
-                    .typed
-                    .normalized_hermetic_symbol_identity(policy.boundary_trait)
-                    .ok()
-                    .as_deref()
-            {
+            let request_owner = policy
+                .request_owner
+                .as_ref()
+                .map_err(|reason| diagnostic(reason.clone()))?;
+            if module.identities.text(owner) != Some(request_owner.as_str()) {
                 return Err(diagnostic(
                     "calling policy request differs from its original source owner".into(),
                 ));
@@ -314,23 +323,13 @@ impl PreparedBoundaryCallingPlans<'_> {
                 .map_err(&diagnostic)?;
             let callback_context_closed = !canonical.policy.callbacks.binders.is_empty()
                 || !canonical.policy.callbacks.demands.is_empty();
-            let declaration = self
-                .signatures
-                .declarations()
-                .find(|row| row.symbol == policy.requirement_machine)
-                .ok_or_else(|| {
-                    diagnostic("calling review lost its original requirement declaration".into())
-                })?;
-            let signature = super::signature_source::attach(
-                canonical,
-                module,
-                declaration,
-                &self.checked.typed,
-                &code.source_records,
-                &self.representations,
-                self.target,
-            )
-            .map_err(&diagnostic)?;
+            let review = policy
+                .review
+                .as_ref()
+                .map_err(|reason| diagnostic(reason.clone()))?;
+            let signature = review
+                .attach(canonical, module, &code.source_records, self.target)
+                .map_err(&diagnostic)?;
             let (report_fingerprint, commitment) =
                 boundary_plan_application_identity(&signature, &validated).map_err(&diagnostic)?;
             evaluated.push(BoundaryCallingPlanRealization {

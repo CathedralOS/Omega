@@ -13,7 +13,7 @@
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
 data Main
-where
+requires
     rows <= 2,
     cols <= 3,
 { cells: [u8; 12]; rows: u32; cols: u32; j: u32; k: u32; out: i32; }

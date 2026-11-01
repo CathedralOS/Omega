@@ -1,5 +1,5 @@
 // An open Gate<Open> application cannot establish Number == 0 from its zero image.
-data Gate<const Number: u64> where Number == 0 { code: u8; }
+data Gate<const Number: u64> requires Number == 0 { code: u8; }
 machine Gate::read<const Selected: u64>(gate: &Gate<Selected>) -> u8 { gate.code }
 machine make<const Open: u64>() -> u8 {
     let value: Gate<Open>;

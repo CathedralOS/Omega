@@ -206,7 +206,7 @@ impl TerminalExecution<'_> {
                     referent.path = array.referent.path.clone();
                     referent
                         .path
-                        .push(terminal_psi::StructuralPathSegment::FixedByteRange { start, end });
+                        .push(terminal_psi::StructuralPathSegment::FixedRange { start, end });
                     let narrowed = ByteSequenceBinding::MutableArray {
                         array: array.clone(),
                         array_type: *array_type,

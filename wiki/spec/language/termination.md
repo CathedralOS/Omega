@@ -164,7 +164,7 @@ tracks that bounded entrance.
 
 A progress profile is a named opaque semantic domain over a boundary-provider
 capability, explicitly classified by its owner with `satisfies ProgressProfile`
-and exact `established by` routes. Classification cannot be inferred from an
+and exact establishment routes in its access policy. Classification cannot be inferred from an
 empty predicate, provider route, or terminating use. One atomic domain has at
 most one such classification; downstream packages cannot append it or its routes.
 

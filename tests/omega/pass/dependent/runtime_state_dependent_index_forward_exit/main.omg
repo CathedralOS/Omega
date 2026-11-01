@@ -3,7 +3,7 @@
 // the final indexed read must consume it through ordinary operand normalization.
 use omega_language_std::console;
 
-data Main where count <= 11 {
+data Main requires count <= 11 {
     items: [u8; 12];
     count: u32;
     cursor: u32;

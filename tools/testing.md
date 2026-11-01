@@ -1279,7 +1279,12 @@ including optional, build and target-specific edges. It rejects source/compiler,
 package and interpreter owners anywhere behind `native-production`. Its seeded
 negative controls run with `python tools/tests/test_native_boundary.py -v`.
 This is a check of the native facade, not a claim that all workspace topology
-has converged to the two-driver contract.
+has converged to the two-driver contract. The same script's
+`FORBIDDEN_DEPENDENCIES` include the Omega firewall: Omega compilation crates
+do not depend on source-side Psi, and no Omega stage depends on another. Edges
+that predate those rules sit in `FIREWALL_ALLOWANCES` with a reason each; a
+removed edge's row must be deleted, so the list only shrinks. `compiler-check`
+runs the script on every pull request.
 
 `mbx nextest run --workspace --lib --no-fail-fast` is the platform-portable
 subset: all library tests, no target-specific executable/runtime legs.

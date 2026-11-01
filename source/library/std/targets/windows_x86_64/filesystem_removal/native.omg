@@ -11,7 +11,7 @@ use targets::windows_x86_64::windows_filesystem_native;
 use targets::windows_x86_64::windows_filesystem_private_handles;
 
 data WindowsNativeUnicodeString<'scope>
-where length > 0 && length <= 8190 && length % 2 == 0 && capacity == 8192
+requires length > 0 && length <= 8190 && length % 2 == 0 && capacity == 8192
 {
     length: u16;
     capacity: u16;
@@ -19,7 +19,7 @@ where length > 0 && length <= 8190 && length % 2 == 0 && capacity == 8192
     buffer: &'scope [u16; 4096] in WindowsNativePath;
 }
 data WindowsNativeObjectAttributes<'scope>
-where length == 48 && root != 0 && attributes == 4096 && security == 0 && quality == 0
+requires length == 48 && root != 0 && attributes == 4096 && security == 0 && quality == 0
 {
     length: u32;
     padding: u32;

@@ -1,7 +1,7 @@
 const COUNT: u64 = 4;
 
 data Template<Payload [copy]> [copy]
-where Payload == COUNT
+requires Payload == COUNT
 { value: Payload; }
 
 data Main { value: u64; }

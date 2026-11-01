@@ -7,7 +7,7 @@ use request::outcome;
 // that could not be staged and reporting the full observed length, so the
 // entry keeps counting after the buffer fills.
 public data Request
-where
+requires
     length <= 65536,
 {
     bytes: [u8; 65536] in Trapping;

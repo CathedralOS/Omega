@@ -90,7 +90,7 @@ by itself show that the *projection* carries the bound rather than the constant
 surviving folding. The halves below separate those.
 
 - **Static half (licensing).** Breaking the construct's own contract — widening
-  the record's declared domain to `data Window where used <= 91` while leaving
+  the record's declared domain to `data Window requires used <= 91` while leaving
   the shared borrow, the projection, and the consumer untouched — is refused
   *before native production*:
 
@@ -133,7 +133,7 @@ surviving folding. The halves below separate those.
 - **Requirement established:** End-to-end nine-place fact preservation and native realization for shared borrow `&` structural field projection and read-only loan authority. Specifically, projecting a bounded field (`view.used <= 90u64`) through a shared borrow (`&Window`) preserves its exact static upper bound without moving or consuming the backing record, discharging exact subtraction `90u64 - used` across all nine places without post-hoc caller equality guards, with exact agreement between Terminal Psi and native execution across hosted targets (`omega run --both` exit 0).
 
 - **Obligations accounted for across the 8 specification and lowering layers:**
-  - **Establishment:** Bounded record definition (`data Window where used <= 90, { used: u64; }`) establishes the invariant on valid instances. Creating a shared borrow `&window` introduces a shared reference whose projected field access `view.used` directly carries the field invariant bound (`used <= 90`) without requiring any post-hoc caller equality guard (`transition x == 50`) to justify forming the exact subtraction `90u64 - used`.
+  - **Establishment:** Bounded record definition (`data Window requires used <= 90, { used: u64; }`) establishes the invariant on valid instances. Creating a shared borrow `&window` introduces a shared reference whose projected field access `view.used` directly carries the field invariant bound (`used <= 90`) without requiring any post-hoc caller equality guard (`transition x == 50`) to justify forming the exact subtraction `90u64 - used`.
   - **Identity and lifetime:** The backing record `window` retains its identity and storage throughout the loan window. The shared borrow `&Window` provides non-exclusive, read-only loan authority without consuming, moving, or invalidating the backing record or its other fields.
   - **Composition:** The projected field bound composes through all 9 fact places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`, `other_machine`, `target_body`) into the consuming exact subtraction (`90u64 - used`). In every place, `<place>/main.omg` vs. `<place>/invalid/main.omg` differ strictly in the field bound on the record (`used <= 90` vs `used <= 91`), leaving exact subtraction unproved without any caller guard difference.
   - **Soundness boundaries:** All 9 `<place>/invalid/main.omg` reject twins fail closed at compile time when `used <= 91` is specified: exact subtraction `90u64 - used` underflows below zero if `used == 91`, strictly rejecting with `exact arithmetic in machine ... may overflow \`u64\``. No unproved underflow or invalid loan reaches native execution.

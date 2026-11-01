@@ -1,9 +1,9 @@
 // A helper cannot return two exclusive loans of the same field.
 use omega_language_std::console;
 
-data Cell where value >= 0 && value <= 100 { stamp: i32; value: i32; ready: bool; }
+data Cell requires value >= 0 && value <= 100 { stamp: i32; value: i32; ready: bool; }
 data Pair { first: Cell; second: Cell; }
-data Main where index <= 1 {
+data Main requires index <= 1 {
     cells: Pair;
     index: u64;
 }

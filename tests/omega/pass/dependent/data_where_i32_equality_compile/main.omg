@@ -2,7 +2,7 @@
 // valid only while `start == end` — the same-point interval on signed
 // members, mirroring the corpus's own shape.
 data Span
-where
+requires
     start == end,
 {
     start: i32;

@@ -147,7 +147,6 @@ fn collects_bounded_type_sites() {
         attached_data: None,
         spelling: None,
         is_public: false,
-        is_top_level_boundary_requirement: false,
         target: None,
         authored_target: None,
         boundary: false,

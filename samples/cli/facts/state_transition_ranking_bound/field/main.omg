@@ -29,7 +29,7 @@ ensures result <= 60
     }
 }
 
-data LoopResult [copy] where remaining <= 60 {
+data LoopResult [copy] requires remaining <= 60 {
     remaining: u64;
 }
 

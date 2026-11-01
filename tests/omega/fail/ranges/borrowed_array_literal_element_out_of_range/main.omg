@@ -1,5 +1,5 @@
 // Lending a temporary array does not prove its elements' receiving bounds.
-data Bounded [copy] where value <= 2 {
+data Bounded [copy] requires value <= 2 {
     value: u64;
 }
 

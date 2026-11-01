@@ -1,6 +1,6 @@
 // A zeroed Floor<0> establishes used >= Minimum from its zero field and its exact static actual before its field is read.
 // Expected exit: 0
-data Floor<const Minimum: u64> where used >= Minimum { used: u64; }
+data Floor<const Minimum: u64> requires used >= Minimum { used: u64; }
 machine Floor::read<const Selected: u64>(value: &Floor<Selected>) -> u64 { value.used }
 machine start() crashes Trap {
     let value: Floor<0>;

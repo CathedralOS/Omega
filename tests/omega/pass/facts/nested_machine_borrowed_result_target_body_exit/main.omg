@@ -1,7 +1,7 @@
 // The borrowed result retains its checked UTF-8 domain and exact live prefix, so inspection observes that prefix.
 // Expected exit: 0
 public domain [u8]::Utf8 requires valid_utf8(self);
-public data Buffer where used <= 4 { storage: [u8; 4]; used: u64; }
+public data Buffer requires used <= 4 { storage: [u8; 4]; used: u64; }
 public machine qualify(buffer: &Buffer) -> &[u8] in Utf8 crashes Trap {
     let bytes: &[u8] = &buffer.storage[..buffer.used];
     transition valid_utf8(bytes) { true -> finish(bytes) false -> invalid() }

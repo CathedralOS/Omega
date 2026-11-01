@@ -3,7 +3,7 @@
 // Expected exit: 0
 public data View<'storage> [copy] { bytes: &'storage [u8]; }
 data Counter { value: bool; }
-data Counted<Count: u64> [copy] where value == Count { value: u64; }
+data Counted<Count: u64> [copy] requires value == Count { value: u64; }
 public trait Installing {
     machine install<'storage>(slot: &mut View<'storage>, replacement: &'storage [u8]) -> u64 ensures slot.bytes.len == replacement.len;
 }

@@ -20,7 +20,7 @@
 // ProcessExit provider.
 
 data Narrow
-where
+requires
     signed_value >= 0 && signed_value <= 100,
 {
     signed_value: i16;
@@ -28,7 +28,7 @@ where
 }
 
 data Wide
-where
+requires
     unsigned_value <= 200,
 {
     unsigned_value: u16;
@@ -36,7 +36,7 @@ where
 }
 
 data Exact
-where
+requires
     unsigned_value <= 100,
 {
     unsigned_value: u16;

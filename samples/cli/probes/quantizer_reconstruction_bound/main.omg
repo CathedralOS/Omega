@@ -5,7 +5,7 @@
 // rounded sample is within tolerance of the observation.
 data Main { }
 
-data Reading where value >= 0 && value <= 20 {
+data Reading requires value >= 0 && value <= 20 {
     value: i32;
 }
 

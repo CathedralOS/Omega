@@ -711,13 +711,13 @@ impl ExplicitApplication<'_> {
             &self.trait_references,
             expected,
         );
-        match matched {
-            Some(true) => return Ok(()),
+        let mismatch = match matched {
+            Some(Ok(())) => return Ok(()),
             None => return Err(self.wrong_trait(implemented)),
-            Some(false) => {}
-        }
+            Some(Err(mismatch)) => mismatch,
+        };
         Err(format!(
-            "`{}` {} `{implemented}`, not the `{}<{}>` this call of `{}` names",
+            "`{}` {} `{implemented}`, not the `{}<{}>` this call of `{}` names; {mismatch}",
             self.implementation.display_name(),
             self.relation(),
             self.program

@@ -2,17 +2,17 @@
 
 Fact: an exact permitted Stable field operation writes its original storage.
 
-Owning task: **PLAN-LAID-VIEWS** in [TASKS.md](../../../../TASKS.md).
-This row establishes subordinate placed-input transport. A borrowed arrival
-retains its original backing, storage projection, access and established placed
+Owning migration: **DOMAIN-ACCESS-AUTHORITY** in [TASKS.md](../../../../TASKS.md).
+This row exercises qualified access-view transport. A borrowed arrival
+retains its original backing, storage projection, access and established domain
 interpretation together. Every incoming path must justify the same interpretation
 before a call can consume it; the carrier type alone establishes none of these.
 Externally installed entry lending and its retirement remain separate acceptance
 of that task, exercised by `installed_entry_storage` and the source-access customer.
 
 This is a prerequisite of BUMP-ALLOCATOR-CANARY, not allocator completion.
-Each program starts with initialized ordinary RAM, obtains an exclusive placed
-view, and writes 29 through its field accessor while a second, disjoint placed
+Each program starts with initialized ordinary RAM, obtains an exclusive qualified
+view, and writes 29 through its field accessor while a second, disjoint qualified
 view is held by the same invocation. The original RAM must contain 29 and
 the companion must retain 43 after the loans end. The runtime comparison is the observable oracle, not a
 post-hoc proof granting access to the write. Each reject twin changes only the
@@ -35,7 +35,7 @@ are bound; actual execution evidence currently covers macOS ARM64 only.
 
 ## Requirements and evidence
 
-- Establishment: `Access::view_mut` borrows already initialized storage. This
+- Establishment: a domain-qualified view borrows already initialized storage. This
   does not establish Vacant or Resident extent claims.
 - Identity and lifetime: the selected field target retains its plan, exact
   accessor/value tuple, exclusive source loan and original backing.

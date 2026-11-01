@@ -2,7 +2,7 @@
 // Invalid: upper bound is 3.5 which exceeds downstream requires bound 3.0. Place: other_machine.
 // Expected diagnostic: cannot prove requires contract for call verify_window
 
-data Reading [copy] where value >= 1.5 && value <= 3.5 {
+data Reading [copy] requires value >= 1.5 && value <= 3.5 {
     value: f64;
 }
 

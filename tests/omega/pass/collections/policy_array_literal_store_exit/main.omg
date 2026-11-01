@@ -6,7 +6,7 @@
 // stored values, never their storage. One element of each reads back: exit 52.
 use omega_language_std::console;
 data Main
-where
+requires
     i <= 1,
 {
     bare: [u8; 3];

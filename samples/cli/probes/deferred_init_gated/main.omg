@@ -11,7 +11,7 @@
 //
 // Compile-checked only: no standard-library dependency, no ProcessExit
 // provider.
-data Session where retries <= 3 {
+data Session requires retries <= 3 {
     retries: u64;
     score: i32;
 }

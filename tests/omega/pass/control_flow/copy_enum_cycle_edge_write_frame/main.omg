@@ -13,7 +13,7 @@ data Kind [copy] {
     case Stop;
 }
 
-data Output where limit <= 8 {
+data Output requires limit <= 8 {
     count: u64 in Trapping;
     limit: u64;
 }

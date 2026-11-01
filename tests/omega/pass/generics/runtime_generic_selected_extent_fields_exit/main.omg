@@ -3,7 +3,7 @@ const Counts::FOUR: u64 = 4;
 const Count: u64 = 4;
 
 data Fixed<Payload [copy], Element [copy]> [copy]
-where Payload == [Element; 4] {
+requires Payload == [Element; 4] {
     values: [Element; Counts::FOUR];
     bare: [Element; Count];
 }

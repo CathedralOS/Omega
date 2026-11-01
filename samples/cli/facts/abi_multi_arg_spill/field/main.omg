@@ -2,7 +2,7 @@
 // Place: field. The ten arguments are stored in and read from record fields.
 // Expected exit: 0
 
-data TenArgs where
+data TenArgs requires
     f1 == 1u64, f2 == 2u64, f3 == 3u64, f4 == 4u64, f5 == 5u64,
     f6 == 6u64, f7 == 7u64, f8 == 8u64, f9 == 24u64, f10 == 40u64
 {

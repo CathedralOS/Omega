@@ -144,7 +144,7 @@ pub(crate) fn collection_view(
     }
     let root = read_root_type(optimized, source.place).ok_or(LegalizationError::custody())?;
     let path = match source.path.last() {
-        Some(terminal_psi::StructuralPathSegment::FixedByteRange { .. }) => {
+        Some(terminal_psi::StructuralPathSegment::FixedRange { .. }) => {
             &source.path[..source.path.len() - 1]
         }
         _ => &source.path,

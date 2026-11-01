@@ -51,10 +51,11 @@ pub enum StructuralPathSegment {
     Case(StructuralCaseId),
     Field(TerminalIdentityIndex),
     FixedIndex(u64),
-    /// A call-scoped borrowed window into fixed byte-array backing. It must
-    /// end the path; consumers independently check `start <= end <= extent`.
-    /// The window is not an owned subtree or an escaping reference result.
-    FixedByteRange {
+    /// A borrowed window in the original collection's element ordinals.
+    /// It must end the path; consumers independently check its extent,
+    /// storage interpretation, access, custody and lifetime. The window has
+    /// no standalone value type and grants no owned subtree.
+    FixedRange {
         start: u64,
         end: u64,
     },
@@ -159,7 +160,7 @@ impl StructuralPathSegment {
             | Self::Case(_)
             | Self::Field(_)
             | Self::FixedIndex(_)
-            | Self::FixedByteRange { .. }
+            | Self::FixedRange { .. }
             | Self::RepresentationView { .. }
             | Self::Referent => None,
         }
@@ -189,7 +190,7 @@ pub fn is_structural_scalar_store_path(path: &[StructuralPathSegment]) -> bool {
         StructuralPathSegment::Case(_) => true,
         StructuralPathSegment::FixedIndex(_) | StructuralPathSegment::RuntimeIndex { .. } => true,
         StructuralPathSegment::AllElements
-        | StructuralPathSegment::FixedByteRange { .. }
+        | StructuralPathSegment::FixedRange { .. }
         | StructuralPathSegment::RepresentationView { .. }
         | StructuralPathSegment::Referent => false,
     })
@@ -1012,7 +1013,7 @@ mod tests {
         for path in [
             vec![StructuralPathSegment::Referent],
             vec![field(1), StructuralPathSegment::Referent],
-            vec![StructuralPathSegment::FixedByteRange { start: 0, end: 1 }],
+            vec![StructuralPathSegment::FixedRange { start: 0, end: 1 }],
             vec![StructuralPathSegment::Field(crate::TerminalIdentityIndex(
                 0,
             ))],

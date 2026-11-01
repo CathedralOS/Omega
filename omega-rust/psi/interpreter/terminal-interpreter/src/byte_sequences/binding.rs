@@ -230,7 +230,7 @@ impl ByteSequenceBinding {
         } = self
         {
             let (backing_path, exact_window) = match referent.path.split_last() {
-                Some((StructuralPathSegment::FixedByteRange { start, end }, backing)) => (
+                Some((StructuralPathSegment::FixedRange { start, end }, backing)) => (
                     backing,
                     *start == *offset && start.checked_add(*length) == Some(*end),
                 ),

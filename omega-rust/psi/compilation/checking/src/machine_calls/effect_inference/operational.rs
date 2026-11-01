@@ -490,6 +490,10 @@ pub(crate) fn machine_operational(
         may_suspend: machine.suspends,
         may_block: machine.blocks,
     };
+    for governing in super::opaque_governing_ceilings(program, machine) {
+        operational.may_suspend |= governing.suspends;
+        operational.may_block |= governing.blocks;
+    }
     if machine.supply_mode.is_boundary_declaration() && machine.has_bodyless_signature() {
         super::callback_requirements::visit(
             program,

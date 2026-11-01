@@ -1,7 +1,7 @@
 // A fixed-extent array [u64; 2] preserves its in-bounds index contract index < 2 and independent element values across all nine places.
 // Invalid: the record constraint is weakened to index <= 2, so the field index may exceed length 2.
 // Expected exit: 0
-data Container where index <= 2 {
+data Container requires index <= 2 {
     values: [u64; 2];
     index: u64;
 }
