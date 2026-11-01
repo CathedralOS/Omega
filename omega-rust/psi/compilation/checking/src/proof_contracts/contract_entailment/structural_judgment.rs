@@ -2821,7 +2821,7 @@ impl<'program> StructuralJudge<'program> {
             ExpressionNode::Cast(cast) => {
                 let (machine, state, _) = scope?;
                 let source =
-                    crate::expression_result_type_reference(program, machine, state, cast.value)?;
+                    crate::expression_result_type_reference(program, machine, state, cast.value);
                 let value = child_term!(cast.value)?;
                 super::structural_terms::conversion_term(program, cast, source, value)
             }
