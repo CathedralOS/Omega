@@ -244,7 +244,8 @@ The same selected-tuple mechanism also has positive compositions for an unused
 an unused [copy bound](constant_initializer/applied_callback/type_bound/main.omg),
 [opposite results from two applications of one provider](constant_initializer/applied_callback/opposite_instances/main.omg),
 [a repeated recipe](constant_initializer/applied_callback/repeated_recipe/main.omg)
-and [forwarding through another binder](constant_initializer/applied_callback/forwarded_applied/main.omg),
+[forwarding through another binder](constant_initializer/applied_callback/forwarded_applied/main.omg)
+and [forwarding an unused type argument](constant_initializer/applied_callback/forwarded_type_argument/main.omg),
 plus an unused [structural array type](constant_initializer/applied_callback/structural_type_argument/main.omg).
 Each has a premise-false twin. Additional controls pin an unused type-bound
 violation, an out-of-range const argument, a stronger callback premise, a wider
@@ -372,12 +373,19 @@ records it. The instance entry stays the executable selection. An occurrence tha
 still carries its authored tuple, and a record holding a runtime operand, keep the
 previous path.
 
+[`forwarded_type_argument`](constant_initializer/applied_callback/forwarded_type_argument/main.omg)
+is the same chain with `witness<T>` applied as `witness<u64>`, so the recorded
+tuple carries a type binding instead of a const. The producer without the change
+refuses it and its twin with the same text; it is the second production of this
+row and covers the other binding kind of the recorded tuple. Machine and evidence
+bindings use the same mapping, but no place here forwards one yet.
+
 The producer with sha256
-`c5c08ddc920f1addf597ada005002879935f2f65d6151ac8318c6a7cec12b6f0` runs the
-positive with native exit 0 and Terminal exit 0 and rejects its twin for
-`structurally false` and `premise(kept)`. All 109 pinned `abstract_signature_call`
-fixtures then behave as authored: 51 positives run with native 0 and Terminal 0,
-and 58 controls reject their expected fragments.
+`c5c08ddc920f1addf597ada005002879935f2f65d6151ac8318c6a7cec12b6f0` runs both
+positives with native exit 0 and Terminal exit 0 and rejects both twins for
+`structurally false` and `premise(kept)`. All 111 pinned `abstract_signature_call`
+fixtures then behave as authored: 52 positives run with native 0 and Terminal 0,
+and 59 controls reject their expected fragments.
 
 ## Execution
 
