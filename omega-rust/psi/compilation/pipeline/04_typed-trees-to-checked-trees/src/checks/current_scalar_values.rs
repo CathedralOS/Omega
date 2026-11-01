@@ -473,6 +473,8 @@ impl<'program> CurrentScalarValues<'program> {
                     }
                     let alternatives =
                         values.capture_alternatives(program, machine, state, assignment.value);
+                    let preserved_fields =
+                        values.disjoint_scalar_fields_for_store(statement, frames);
                     if stored_value.is_some() {
                         values.invalidate_operand_writes(
                             frames.map(|frames| frames.assignment_write_frame(machine, statement)),
@@ -553,6 +555,7 @@ impl<'program> CurrentScalarValues<'program> {
                             frames.map(|frames| frames.assignment_write_frame(machine, statement)),
                         );
                     }
+                    values.restore_disjoint_scalar_fields(preserved_fields);
                     // The store uses the address captured before operand effects.
                     // A rebound selector can no longer name that home; publishing
                     // through its old spelling would manufacture a current rank.

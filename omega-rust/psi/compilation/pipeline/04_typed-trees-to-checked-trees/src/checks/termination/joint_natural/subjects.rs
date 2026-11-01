@@ -15,6 +15,7 @@ pub(super) enum Subject {
         root: RankSubjectCoordinate,
         position: usize,
         input_type: TypeReferenceHandle,
+        entry_indexes: Vec<checked_trees::CheckedEntryIndexBound>,
         reads: Vec<Coordinate>,
     },
 }
@@ -79,6 +80,7 @@ impl Subject {
             root: root.clone(),
             position,
             input_type,
+            entry_indexes: values.entry_projection_indexes(root.parameter, &root.path)?,
             reads,
         })
     }
@@ -104,6 +106,13 @@ impl Subject {
         match self {
             Self::Scalar(coordinate) => Some(coordinate),
             Self::Record { .. } => None,
+        }
+    }
+
+    pub(super) fn entry_indexes(&self) -> &[checked_trees::CheckedEntryIndexBound] {
+        match self {
+            Self::Scalar(coordinate) => &coordinate.entry_indexes,
+            Self::Record { entry_indexes, .. } => entry_indexes,
         }
     }
 
