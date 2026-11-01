@@ -252,6 +252,24 @@ fail/facts/domain_predicate_call_through_target_body_rejected rejected 1643ms ex
 	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
 	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
 	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
+fail/facts/dynamic_float_input_alias_through_call_result_weakened_input rejected 5468ms expected @da76dcbec7ab
+	cannot prove requires contract for call dyn Fraction::get from probe: public_interval(input, 0.0, 0.5) (needs fact `public_interval(input, 0.0, 0.5)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/dynamic_float_input_alias_through_const_name_weakened_input rejected 5685ms expected @da76dcbec7ab
+	cannot prove requires contract for call dyn Fraction::get from probe: public_interval(input, 0.0, 0.5) (needs fact `public_interval(input, 0.0, 0.5)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/dynamic_float_input_alias_through_field_weakened_input rejected 5247ms expected @da76dcbec7ab
+	cannot prove requires contract for call dyn Fraction::get from probe: public_interval(input, 0.0, 0.5) (needs fact `public_interval(input, 0.0, 0.5)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/dynamic_float_input_alias_through_local_weakened_input rejected 5445ms expected @da76dcbec7ab
+	cannot prove requires contract for call dyn Fraction::get from probe: public_interval(input, 0.0, 0.5) (needs fact `public_interval(input, 0.0, 0.5)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/dynamic_float_input_alias_through_match_join_weakened_input rejected 5547ms expected @da76dcbec7ab
+	cannot prove requires contract for call dyn Fraction::get from probe: public_interval(input, 0.0, 0.5) (needs fact `public_interval(input, 0.0, 0.5)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/dynamic_float_input_alias_through_other_machine_weakened_input rejected 5462ms expected @da76dcbec7ab
+	cannot prove requires contract for call dyn Fraction::get from probe: public_interval(input, 0.0, 0.5) (needs fact `public_interval(input, 0.0, 0.5)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/dynamic_float_input_alias_through_other_state_weakened_input rejected 7308ms expected @da76dcbec7ab
+	cannot prove requires contract for call dyn Fraction::get from probe: public_interval(input, 0.0, 0.5) (needs fact `public_interval(input, 0.0, 0.5)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/dynamic_float_input_alias_through_parameter_weakened_input rejected 5365ms expected @da76dcbec7ab
+	cannot prove requires contract for call dyn Fraction::get from probe: public_interval(input, 0.0, 0.5) (needs fact `public_interval(input, 0.0, 0.5)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/dynamic_float_input_alias_through_target_body_weakened_input rejected 5124ms expected @da76dcbec7ab
+	cannot prove requires contract for call dyn Fraction::get from probe: public_interval(input, 0.0, 0.5) (needs fact `public_interval(input, 0.0, 0.5)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/generic_nonempty_array_changed_to_zero rejected 619ms expected @a889c2d8b84c
 	machine `step` state `entry` value call to `step` violates required fact `Count > 0`: the instantiated fact is structurally false (`0 > 0`)
 	machine `step$specialized$47e79a86f727bf08$0` state `entry` value call to `step` violates required fact `Count > 0`: the instantiated fact is structurally false (`0 > 0`)
@@ -5440,6 +5458,15 @@ pass/facts/dynamic_float_alias_through_other_machine_exit checked 6958ms check-t
 pass/facts/dynamic_float_alias_through_other_state_exit checked 6473ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/dynamic_float_alias_through_parameter_exit checked 5988ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/dynamic_float_alias_through_target_body_exit checked 6114ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/dynamic_float_input_alias_through_call_result_exit checked 8818ms check-target:macos_arm64 @da76dcbec7ab
+pass/facts/dynamic_float_input_alias_through_const_name_exit checked 8817ms check-target:macos_arm64 @da76dcbec7ab
+pass/facts/dynamic_float_input_alias_through_field_exit checked 8859ms check-target:macos_arm64 @da76dcbec7ab
+pass/facts/dynamic_float_input_alias_through_local_exit checked 8845ms check-target:macos_arm64 @da76dcbec7ab
+pass/facts/dynamic_float_input_alias_through_match_join_exit checked 8961ms check-target:macos_arm64 @da76dcbec7ab
+pass/facts/dynamic_float_input_alias_through_other_machine_exit checked 8963ms check-target:macos_arm64 @da76dcbec7ab
+pass/facts/dynamic_float_input_alias_through_other_state_exit checked 8858ms check-target:macos_arm64 @da76dcbec7ab
+pass/facts/dynamic_float_input_alias_through_parameter_exit checked 9841ms check-target:macos_arm64 @da76dcbec7ab
+pass/facts/dynamic_float_input_alias_through_target_body_exit checked 8580ms check-target:macos_arm64 @da76dcbec7ab
 pass/facts/dynamic_float_refinement_through_call_result_exit checked 6194ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/dynamic_float_refinement_through_const_name_exit checked 7198ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/dynamic_float_refinement_through_field_exit checked 7123ms check-target:macos_arm64 @ccdb99ca2214
@@ -11330,6 +11357,8 @@ pass/proofs/domain_mathematical_selection_exit checked 4222ms check-target:macos
 pass/proofs/dyn_requirement_float_alias_rounding_exit checked 5757ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/dyn_requirement_float_provider_alias_exit checked 6306ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/dyn_requirement_float_raw_use_exit checked 5784ms check-target:macos_arm64 @ccdb99ca2214
+pass/proofs/dynamic_float_input_boolean_disjunction_exit checked 8482ms check-target:macos_arm64 @da76dcbec7ab
+pass/proofs/dynamic_float_input_single_relations_exit checked 8482ms check-target:macos_arm64 @da76dcbec7ab
 pass/proofs/embed_collection_length checked 2465ms @ccdb99ca2214
 pass/proofs/embed_returned_length checked 2389ms @ccdb99ca2214
 pass/proofs/embedded_address_bounds_exit rejected 12259ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214

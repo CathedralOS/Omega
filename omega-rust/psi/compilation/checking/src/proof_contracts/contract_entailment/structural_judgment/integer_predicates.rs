@@ -689,6 +689,27 @@ impl<'program> StructuralJudge<'program> {
         predicate: StructuralTerm,
         depth: usize,
     ) -> StructuralJudgment {
+        // A reduced mathematical conjunction can contain integer or IEEE
+        // leaves. Compose their independent judgments instead of sending the
+        // entire proposition to integer projection.
+        if let StructuralTerm::MathematicalBinary {
+            operator,
+            left,
+            right,
+        } = predicate.semantic_value()
+            && matches!(operator, BinaryOperator::And | BinaryOperator::Or)
+            && left.is_checked_predicate()
+            && right.is_checked_predicate()
+        {
+            if depth >= 32 {
+                return StructuralJudgment::Unknown;
+            }
+            return StructuralJudgment::connective(
+                *operator,
+                self.judge_observed_predicate(*left.clone(), depth + 1),
+                self.judge_observed_predicate(*right.clone(), depth + 1),
+            );
+        }
         let resolved = self.resolve_at(predicate.clone(), depth + 1);
         match self.judge_equation(
             resolved.clone(),
@@ -1671,79 +1692,6 @@ impl<'program> StructuralJudge<'program> {
         ProjectedIntegerPremises {
             comparisons,
             complete,
-        }
-    }
-
-    /// Prepared calculus captures are rebound to completed values in the same
-    /// integer namespace as runtime predicates. Source syntax supplies identity
-    /// and carrier only; it cannot reread the caller's storage.
-    pub(in crate::proof_contracts::contract_entailment) fn instantiated_mathematical_predicate(
-        &self,
-        owner: symbols::SymbolHandle,
-        parameters: &[typed_trees::signature::StateParameter],
-        expression: typed_trees::expression::ExpressionHandle,
-        bindings: &[(String, StructuralTerm)],
-        machine_bindings: &[(
-            symbols::SymbolHandle,
-            typed_trees::types::TypeReferenceHandle,
-            typed_trees::expression::StaticMachineArgument,
-        )],
-    ) -> StructuralJudgment {
-        if !self.runtime_body_values || self.case_facts_only {
-            return StructuralJudgment::Unknown;
-        }
-        let Some(view) = self.program.prepared_mathematics() else {
-            return StructuralJudgment::Unknown;
-        };
-        let Some(application) = view.application(expression) else {
-            return StructuralJudgment::Unknown;
-        };
-        let mut observations = IntegerObservations::empty(self.program);
-        for capture in view
-            .applications
-            .captures
-            .span_or_empty(application.captures)
-        {
-            let Some(value) = super::super::structural_terms::structural_term(
-                self.program,
-                None,
-                Some((owner, parameters)),
-                capture.expression,
-                None,
-            ) else {
-                return StructuralJudgment::Unknown;
-            };
-            let value = StructuralJudge::substitute_call_term(&value, bindings, machine_bindings);
-            let value = StructuralTerm::IntegerEmbedding {
-                reference: capture.source_type,
-                value: Box::new(value),
-            };
-            let Some(polynomial) = self.mathematical_value(&value, &mut observations, 0) else {
-                return StructuralJudgment::Unknown;
-            };
-            if !observations
-                .engine
-                .bind_strict_occurrence(capture.expression, polynomial)
-            {
-                return StructuralJudgment::Unknown;
-            }
-        }
-        let goal_operations = 0..observations.operations.len();
-        let mut premises = self.observed_integer_premises(&mut observations);
-        if !observations.install_premises(&mut premises) || !observations.admitted(goal_operations)
-        {
-            return StructuralJudgment::Unknown;
-        }
-        match observations
-            .engine
-            .judge_mathematical_application(expression)
-        {
-            super::super::arithmetic_judgment::Judgment::Proven => StructuralJudgment::Proven,
-            super::super::arithmetic_judgment::Judgment::ConstantFalse
-            | super::super::arithmetic_judgment::Judgment::Refuted => StructuralJudgment::Refuted,
-            super::super::arithmetic_judgment::Judgment::Unknown { .. } => {
-                StructuralJudgment::Unknown
-            }
         }
     }
 
