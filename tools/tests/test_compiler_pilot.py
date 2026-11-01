@@ -90,7 +90,7 @@ class CompilerPilotTests(unittest.TestCase):
         accepted = [dict(sample=sample, state="pass"),
                     dict(sample=sample + "/invalid", state="rejected", role="intended-invalid")]
         producer = Mock(revision="a" * 40, target="linux_x86_64", cli=Path("/retained/omega"),
-                        runner_profile={"sha256": "b" * 64})
+                        runner=None, runner_profile=None)
         for rows, code in ((accepted, 0), ([], 0), (accepted[:1], 0),
                            ([accepted[0], accepted[0]], 0), (accepted, 1),
                            ([dict(sample=sample, state="no-oracle"), accepted[1]], 0),
@@ -122,6 +122,48 @@ class CompilerPilotTests(unittest.TestCase):
                             pilot.execute(output, {}, **arguments)
                     run.assert_called_once()
                     build.assert_not_called()
+
+    def test_consumer_selection_prepares_only_required_executables(self):
+        sample = "samples/cli/facts/layout/local"
+        fixture = "fail/example/intended_rejection"
+        for samples, negatives in (((sample,), ()), ((sample,), (fixture,)), ((), (fixture,))):
+            with self.subTest(samples=samples, negatives=negatives), tempfile.TemporaryDirectory() as temporary:
+                output = Path(temporary)
+                producer = Mock(revision="a" * 40, target="linux_x86_64", cli=output / "omega",
+                                runner=output / "runner" if negatives else None,
+                                runner_profile={"sha256": "b" * 64} if negatives else None)
+                def consume(arguments, **kwargs):
+                    if "--write-results" in arguments:
+                        Path(arguments[arguments.index("--write-results") + 1]).write_text(
+                            json.dumps([dict(sample=sample, state="pass")]))
+                    else:
+                        report = self.report()
+                        report["observations"] = [dict(fixture=fixture, status="rejected", expected_satisfied=True)]
+                        Path(arguments[arguments.index("--json") + 1]).write_text(json.dumps(report))
+                    return Mock(returncode=0)
+                with patch.object(pilot, "command", side_effect=lambda argv: "" if "status" in argv else "a" * 40), \
+                        patch.dict(os.environ, {"GITHUB_SHA": "a" * 40}), \
+                        patch.object(pilot.corpus_gate, "host_target", return_value=producer.target), \
+                        patch.object(pilot, "observation_golden", return_value=output / "golden"), \
+                        patch.object(pilot.subprocess, "run", side_effect=consume) as run, \
+                        patch.object(pilot, "prepare_producer", return_value=producer) as build:
+                    summary = {}
+                    pilot.execute(output, summary, positives=(), negatives=negatives, samples=samples)
+                build.assert_called_once_with(output, need_runner=bool(negatives))
+                self.assertEqual(run.call_count, bool(samples) + bool(negatives))
+                self.assertEqual(producer.verify.call_count, 2)
+                self.assertEqual("runner_sha256" in summary, bool(negatives))
+
+    def test_cli_only_producer_cannot_execute_corpus_fixtures(self):
+        producer = Mock(revision="a" * 40, target="linux_x86_64", runner=None, runner_profile=None)
+        with tempfile.TemporaryDirectory() as temporary, \
+                patch.object(pilot, "command", side_effect=lambda argv: "" if "status" in argv else "a" * 40), \
+                patch.dict(os.environ, {"GITHUB_SHA": "a" * 40}), \
+                patch.object(pilot.corpus_gate, "host_target", return_value=producer.target), \
+                patch.object(pilot.subprocess, "run") as run:
+            with self.assertRaisesRegex(ValueError, "requires a retained optimized corpus runner"):
+                pilot.execute(Path(temporary), {}, positives=(), negatives=("fail/example/reject",), producer=producer)
+            run.assert_not_called()
 
     def test_exact_fixture_ids_split_runtime_and_rejection_rosters(self):
         positive = "pass/float/named_conversion"

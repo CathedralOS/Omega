@@ -116,7 +116,11 @@ gh workflow run compiler-pilot.yml --ref work/NAME \
 ```
 
 Sample-only selection replaces the default smoke. Explicit `fixtures` and
-`samples` can share one producer when both are relevant. Selection validates
+`samples` can share one producer when both are relevant. Sample-only runs prepare
+and authenticate the optimized CLI; they do not build, copy or authenticate an
+unused corpus runner. Fixture-bearing runs still require the retained optimized
+runner. The producer record uses `null` for an unprepared runner and its profile.
+Selection validates
 before building; empty, unscored or check-only positives cannot pass. The
 artifact includes `samples.json` beside the corpus reports.
 

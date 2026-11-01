@@ -18,6 +18,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from typing import Optional
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools"))
@@ -156,7 +157,7 @@ def observation_golden(output, *, both, target):
 
 @dataclass(frozen=True)
 class CompilerProducer:
-    """One retained optimized CLI/runner pair shared by independent cohorts.
+    """Retained optimized executables required by independent consumers.
 
     Source and executable identities are checked before and after consumers;
     selecting another cohort never starts another Cargo build or overwrites a
@@ -167,24 +168,30 @@ class CompilerProducer:
     target: str
     toolchain: str
     cli: Path
-    runner: Path
+    runner: Optional[Path]
     cli_profile: dict
-    runner_profile: dict
+    runner_profile: Optional[dict]
+
+    def _artifacts(self):
+        if (self.runner is None) != (self.runner_profile is None):
+            raise ValueError("retained corpus runner has incomplete profile custody")
+        cli = ((self.cli, self.cli_profile),)
+        return cli if self.runner is None else cli + ((self.runner, self.runner_profile),)
 
     def verify(self):
         if command(["git", "rev-parse", "HEAD"]) != self.revision or command(["git", "status", "--porcelain"]):
             raise ValueError("producer source revision or working inputs changed")
-        for binary, expected in ((self.cli, self.cli_profile), (self.runner, self.runner_profile)):
+        for binary, expected in self._artifacts():
             if corpus_gate.require_optimized(binary) != expected:
                 raise ValueError(f"retained producer identity/profile changed: {binary}")
 
     def record(self):
         return dict(revision=self.revision, tree=self.tree, target=self.target, toolchain=self.toolchain,
-                    cli=str(self.cli), runner=str(self.runner),
+                    cli=str(self.cli), runner=None if self.runner is None else str(self.runner),
                     cli_profile=self.cli_profile, runner_profile=self.runner_profile)
 
 
-def prepare_producer(output):
+def prepare_producer(output, *, need_runner=True):
     """Build and retain the ordinary producer once for validated consumers."""
     output = Path(output).resolve()
     revision = command(["git", "rev-parse", "HEAD"])
@@ -213,21 +220,25 @@ def prepare_producer(output):
     # reconstruction belongs to historical binaries without that protocol;
     # an internal Cargo output layout is not the CLI's profile authority.
     cli_profile = corpus_gate.require_optimized(cli)
-    runner = corpus_gate.build_runner()
     name = "omega.exe" if os.name == "nt" else "omega"
     copied_cli = retained / name
-    copied_runner = retained / ("corpus_runner.exe" if runner.suffix == ".exe" else "corpus_runner")
     shutil.copy2(cli, copied_cli)
-    shutil.copy2(runner, copied_runner)
-    shutil.copy2(str(runner) + ".compiler-profile.json", str(copied_runner) + ".compiler-profile.json")
+    copied_runner = None
+    runner_profile = None
+    if need_runner:
+        runner = corpus_gate.build_runner()
+        copied_runner = retained / ("corpus_runner.exe" if runner.suffix == ".exe" else "corpus_runner")
+        shutil.copy2(runner, copied_runner)
+        shutil.copy2(str(runner) + ".compiler-profile.json", str(copied_runner) + ".compiler-profile.json")
+        runner_profile = corpus_gate.require_optimized(copied_runner)
     producer = CompilerProducer(revision, command(["git", "rev-parse", "HEAD^{tree}"]),
                                 corpus_gate.host_target(), command(["rustc", "-Vv"]), copied_cli.resolve(),
-                                copied_runner.resolve(), corpus_gate.require_optimized(copied_cli),
-                                corpus_gate.require_optimized(copied_runner))
+                                copied_runner.resolve() if copied_runner is not None else None,
+                                corpus_gate.require_optimized(copied_cli), runner_profile)
     if producer.cli_profile["sha256"] != cli_profile["sha256"] or corpus_gate.require_optimized(cli) != cli_profile:
         raise ValueError("CLI changed between its completed build and retained producer")
     producer.verify()
-    for binary, profile in ((producer.cli, producer.cli_profile), (producer.runner, producer.runner_profile)):
+    for binary, profile in producer._artifacts():
         Path(str(binary) + ".verified-profile.json").write_text(json.dumps(dict(
             source_revision=revision, source_tree=producer.tree, toolchain=producer.toolchain,
             observation=profile), indent=2) + "\n", encoding="utf-8")
@@ -262,14 +273,18 @@ def execute(output, summary, *, positives=POSITIVES, negatives=NEGATIVES, checki
         finally:
             result["seconds"] = round(time.monotonic() - started, 3)
 
+    need_runner = bool(positives or negatives or checking_only)
     if producer is None:
-        producer = stage("prepare optimized compiler", lambda: prepare_producer(output))
+        producer = stage("prepare optimized compiler", lambda: prepare_producer(output, need_runner=need_runner))
     stage("authenticate optimized producer", producer.verify)
     if producer.revision != revision or producer.target != summary["target"]:
         raise ValueError("producer belongs to another source or host")
     summary["producer"] = producer.record()
-    summary["runner_sha256"] = producer.runner_profile["sha256"]
-    summary["runner_profile"] = producer.runner_profile
+    if need_runner and (producer.runner is None or producer.runner_profile is None):
+        raise ValueError("fixture execution requires a retained optimized corpus runner")
+    if producer.runner_profile is not None:
+        summary["runner_sha256"] = producer.runner_profile["sha256"]
+        summary["runner_profile"] = producer.runner_profile
     retained = producer.runner
     captures = Path(tempfile.mkdtemp(prefix="artifacts-", dir=output))
     summary["artifact_directory"] = str(captures)
