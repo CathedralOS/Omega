@@ -82,10 +82,10 @@ machine Main::main(main: &mut Main) reaches Console, TokenFlow {
 }
 
 TokenProviderTokenFlowImplementation satisfies TokenFlow {
-    TokenFlow::choose = TokenProvider::choose;
-    TokenFlow::forward = TokenProvider::forward;
-    TokenFlow::pair = TokenProvider::pair;
-    TokenFlow::replace = TokenProvider::replace;
+    machine choose(held: bool) -> Choice { TokenProvider::choose(held) }
+    machine forward(token: Token) -> Token ensures result in Token::SuspensionSafe { TokenProvider::forward(token) }
+    machine pair() -> Envelope { TokenProvider::pair() }
+    machine replace(token: Token) -> Token { TokenProvider::replace(token) }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

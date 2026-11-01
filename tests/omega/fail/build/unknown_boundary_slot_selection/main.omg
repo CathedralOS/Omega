@@ -8,8 +8,8 @@ use omega_language_std::console;
 
 public boundary trait Gate { machine open() -> i32 reaches; }
 public boundary trait Latch { machine hold() -> i32 reaches; }
-LatchProvider satisfies Latch { Latch::hold = hold; }
-machine hold() -> i32 { 1 }
+LatchProvider satisfies Latch { machine hold() -> i32 { hold_realization() } }
+machine hold_realization() -> i32 { 1 }
 
 data Main { held: i32; }
 machine Main::main(main: &mut Main) reaches Latch + Console {

@@ -5,8 +5,8 @@ public boundary trait Service {
     reaches
     where Count == 4 || Count == 8;
 }
-Provider satisfies Service { Service::echo = echo; }
-machine echo<const Count: u64>(value: i32) -> i32 { value }
+Provider satisfies Service { machine echo<const Count: u64>(value: i32) -> i32 reaches where Count == 4 || Count == 8 { echo_realization<Count>(value) } }
+machine echo_realization<const Count: u64>(value: i32) -> i32 { value }
 machine relay<const Count: u64>(value: i32) -> i32 reaches Service {
     Service::echo<Count>(value)
 }

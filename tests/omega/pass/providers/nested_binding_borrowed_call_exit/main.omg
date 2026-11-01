@@ -5,7 +5,7 @@ public boundary trait Reading {
     machine read() -> u64 reaches;
 }
 
-ReadingMap satisfies Reading { Reading::read = reading_provider_read; }
+ReadingMap satisfies Reading { machine read() -> u64 { reading_provider_read() } }
 machine reading_provider_read() -> u64 { 42 }
 
 // Merely checking a helper's application must not demand an unrelated selection.

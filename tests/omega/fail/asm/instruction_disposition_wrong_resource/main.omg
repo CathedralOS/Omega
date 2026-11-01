@@ -6,9 +6,9 @@ data Token [linear] { identity: u64; }
 boundary trait Finish {
     machine finish(token: Token) reaches MachineControl;
 }
-Finisher satisfies Finish { Finish::finish = finish; }
+Finisher satisfies Finish { machine finish(token: Token) reaches MachineControl { finish_realization(token) } }
 proposition finished(token: Token) = model_specific_written(2059, 0);
-machine finish(token: Token)
+machine finish_realization(token: Token)
 satisfies Finish::finish
 reaches MachineControl
 ensures model_specific_written(2059, 0)

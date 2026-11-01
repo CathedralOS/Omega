@@ -10,13 +10,13 @@ public boundary trait Parent<Value> {
 public boundary trait Child: Parent<u64> { machine choose() -> i32 reaches; }
 
 ChildMap satisfies Child {
-    Parent::read = read;
-    Parent::note = note;
-    Child::choose = choose;
+    machine read() -> i32 { read_realization() }
+    machine note(value: &mut i32) { note_realization(value) }
+    machine choose() -> i32 { choose_realization() }
 }
-machine read() -> i32 { 37 }
-machine note(value: &mut i32) { value = 5; }
-machine choose() -> i32 { 19 }
+machine read_realization() -> i32 { 37 }
+machine note_realization(value: &mut i32) { value = 5; }
+machine choose_realization() -> i32 { 19 }
 
 data TargetProviders {}
 macos_arm64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {

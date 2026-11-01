@@ -223,11 +223,6 @@ pub enum ConformanceMemberSnapshot {
         requirement_ordinal: usize,
         declaration: Box<ItemSnapshot>,
     },
-    Reference {
-        declaring_trait: IdentifierSnapshot,
-        requirement: IdentifierSnapshot,
-        target: Vec<IdentifierSnapshot>,
-    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -441,18 +436,6 @@ pub(crate) fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnap
                             syntax_trees,
                             &Item::Machine(machine.clone()),
                         )),
-                    },
-                    ConformanceMember::Reference {
-                        declaring_trait,
-                        requirement,
-                        target,
-                    } => ConformanceMemberSnapshot::Reference {
-                        declaring_trait: snapshot_identifier(syntax_trees, declaring_trait),
-                        requirement: snapshot_identifier(syntax_trees, requirement),
-                        target: snapshot_identifier_slice(
-                            syntax_trees,
-                            syntax_trees.items.identifier_path_members(*target),
-                        ),
                     },
                 })
                 .collect(),

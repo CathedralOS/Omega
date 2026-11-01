@@ -11,14 +11,14 @@ data Yes {}
 machine Yes::holds(value: bool) -> bool terminates { true }
 
 YesKept satisfies Kept {
-    Kept::holds = Yes::holds;
+    machine holds(value: bool) -> bool terminates { Yes::holds(value) }
 }
 
 data No {}
 machine No::holds(value: bool) -> bool terminates { false }
 
 NoKept satisfies Kept {
-    Kept::holds = No::holds;
+    machine holds(value: bool) -> bool terminates { No::holds(value) }
 }
 
 machine project<Proof satisfies Kept>(kept: bool) -> bool

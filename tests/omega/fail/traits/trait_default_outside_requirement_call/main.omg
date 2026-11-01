@@ -2,7 +2,7 @@
 // declares no `set`; the child trait `Counter` adds one and both
 // implementations below supply it, yet the default authored in `Resettable`
 // cannot name it: the trait's author cannot see what an implementation adds.
-// A reference row (`Counter::set = Value::set`) and an inline `set` row reject
+// An inline `set` row forwarding to `Value::set` and an authored `set` row reject
 // the same call.
 trait Resettable<T> {
     machine reset(subject: &mut T) {
@@ -19,7 +19,7 @@ data Value {
 }
 
 ValueCounter satisfies Counter<Value> {
-    Counter::set = Value::set;
+    machine set(value: &mut Value, next: i32) { Value::set(value, next) }
 }
 
 machine Value::set(value: &mut Value, next: i32) {

@@ -19,15 +19,12 @@ satisfies Tally::add
     amount
 }
 
-// Named implementation map: an inline row and an exact reference row.
-machine stateful_reset(state: &mut TallyState) -> u32 {
-    0
-}
+// Named implementation map: an inline member.
 MappedTally satisfies Tally {
     machine add(state: &mut TallyState, amount: u32) -> u32 {
         amount
     }
-    Tally::reset = stateful_reset;
+    machine reset() -> u32 { 0 }
 }
 
 // Foreign-bound external leaf.

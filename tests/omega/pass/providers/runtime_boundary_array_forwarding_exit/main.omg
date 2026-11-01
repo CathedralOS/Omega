@@ -39,7 +39,7 @@ machine Main::main(main: &mut Main) reaches Console + ArrayReader {
 }
 
 ArrayReaderProviderArrayReaderImplementation satisfies ArrayReader {
-    ArrayReader::inspect = ArrayReaderProvider::inspect;
+    machine inspect(prefix: i32, values: [u8; 4], suffix: i32) -> i32 { ArrayReaderProvider::inspect(prefix, values, suffix) }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

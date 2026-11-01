@@ -12,7 +12,7 @@ data SystemTableHeader {
 SystemTableRepresentation satisfies OpaqueRepresentation<EfiSystemTable, SystemTableHeader> { }
 
 FirmwareBootstrap satisfies UefiPhysicalEntry {
-    UefiPhysicalEntry::enter = firmware_entry;
+    machine enter( image_handle: EfiImageHandle, system_table: &EfiSystemTable ) -> EfiStatus reaches ProgramImage invokes ProgramImage { firmware_entry(image_handle, system_table) }
 }
 
 // A real source frame larger than the 128 KiB arrival guarantee. Both ends

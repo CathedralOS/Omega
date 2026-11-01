@@ -16,7 +16,7 @@
 //! Pre-resolution synthesis gives the implementation an ordinary `equals`
 //! member row whose body is `left == right`; a call through that row
 //! (`PointEquality::equals(&a, &b)`) expands in the caller's storage scope
-//! exactly like `==`. An authored `equals` member or reference row replaces
+//! exactly like `==`. An authored `equals` member replaces
 //! the synthesized row, and `==` then calls it.
 //!
 //! The operator route selects at most one implementation per operand type:

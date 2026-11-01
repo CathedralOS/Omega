@@ -37188,8 +37188,6 @@ fail/modules/boundary_signature_selects_private_data rejected 1238ms expected @c
 	public interface selects private data `Payload`
 fail/modules/bundled_core_name_collision_rejected rejected 3ms expected @ccdb99ca2214
 	import `omega::language::core::marker` in tests/omega/fail/modules/bundled_core_name_collision_rejected/main.omg collides with a requester-local source; `omega::language` names are claimed by the bundled toolchain namespace, so the local source is unreachable -- rename or remove it
-fail/modules/conformance_reference_ambiguous rejected 52ms expected @ccdb99ca2214
-	closed conformance `Ambiguous satisfies Value` member `read` does not identify one exact inherited overload; qualify the declaring trait and match the complete parameter/result-domain signature
 fail/modules/constant_argument_wrong_nominal_carrier rejected 53ms expected @ccdb99ca2214
 	const argument for `Indexed::Choice` is invalid at this index site: const `SELECTED` declares type `Token`, but the parameter requires `Token`
 fail/modules/continued_domain_membership rejected 2981ms expected @ccdb99ca2214

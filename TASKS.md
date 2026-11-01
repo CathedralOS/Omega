@@ -235,10 +235,9 @@ retired-syntax deletions to completion.
   - Qualify matching-host execution for
     `samples/cli/facts/{positional_implementation_binder,open_const_implementation,open_record_const_implementation,named_conformance_dispatch,generic_calling_policy}`
     across remaining hosted targets.
-  - Retire authored `Trait::member = Existing::machine;` reference rows in both
-    producers, bundled policies/providers, boundary roots
-    (`interrupt_table_canary`, `secondary_processor_canary`), application ports,
-    and fixtures in favor of inline member declarations calling shared helpers.
+  - Retire authored `Trait::member = Existing::machine;` reference rows in the
+    Omega-written producer (`source/psi/parse/conformance.omg`, the syntax rows
+    and resolver binding they feed, and the `tests/psi` harnesses).
   - **STATELESS-PROVIDERS:** take `ForeignBinding::VtableField` vtable addresses
     from its foreign binding plan rather than provider data, and ensure no
     installation or interpretation route supplies an unauthored provider value

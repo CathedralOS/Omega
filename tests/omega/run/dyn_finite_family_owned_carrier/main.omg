@@ -42,13 +42,13 @@ machine Item::lifted_code<Width: u32>(item: &mut Item, packet: Packet) satisfies
 }
 
 Primary satisfies Shape<Item> {
-    Shape::code = Item::code;
-    Shape::poke = Item::poke;
+    machine code<Width: u32>(subject: &mut Item, packet: Packet) where Width == 16 || Width == 32 || Width == 64 { Item::code<Width>(subject, packet) }
+    machine poke(subject: &mut Item, packet: Packet) { Item::poke(subject, packet) }
 }
 
 Bumped satisfies Shape<Item> {
-    Shape::code = Item::lifted_code;
-    Shape::poke = Item::poke;
+    machine code<Width: u32>(subject: &mut Item, packet: Packet) where Width == 16 || Width == 32 || Width == 64 { Item::lifted_code<Width>(subject, packet) }
+    machine poke(subject: &mut Item, packet: Packet) { Item::poke(subject, packet) }
 }
 
 machine Item::poke(item: &mut Item, packet: Packet) satisfies Shape<Item>::poke {

@@ -7,13 +7,13 @@ public boundary trait Parent {
 }
 public boundary trait Child: Parent { machine choose() -> i32 reaches; }
 ChildMap satisfies Child {
-    Parent::borrow = borrow;
-    Parent::borrow_mut = borrow_mut;
-    Child::choose = choose;
+    machine borrow<'source>(value: &'source i32) -> &'source i32 { borrow_realization(value) }
+    machine borrow_mut<'source>(value: &'source mut i32) -> &'source mut i32 { borrow_mut_realization(value) }
+    machine choose() -> i32 { choose_realization() }
 }
-machine borrow<'source>(value: &'source i32) -> &'source i32 { value }
-machine borrow_mut<'source>(value: &'source mut i32) -> &'source mut i32 { value }
-machine choose() -> i32 { 19 }
+machine borrow_realization<'source>(value: &'source i32) -> &'source i32 { value }
+machine borrow_mut_realization<'source>(value: &'source mut i32) -> &'source mut i32 { value }
+machine choose_realization() -> i32 { 19 }
 data TargetProviders {}
 macos_arm64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
     TargetProviders::select_provider<Child, ChildMap>(defaults);
