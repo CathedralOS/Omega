@@ -2,7 +2,7 @@
 
 use crate::record::{
     PackagePolicyConformanceShape, PackagePolicyPublicApi, PackagePolicyTypeParameter,
-    PackageReviewNominalIdentity, PackageReviewNominalOwner,
+    PackageReviewConstMeaning, PackageReviewNominalIdentity, PackageReviewNominalOwner,
 };
 mod behavior;
 mod data;
@@ -49,7 +49,12 @@ impl PackagePolicyPublicApi {
         }
         for value in &self.consts {
             value_type(&value.declared_type)?;
-            text(&value.canonical_value_encoding)?;
+            match &value.meaning {
+                PackageReviewConstMeaning::Evaluated(encoding) => text(encoding)?,
+                PackageReviewConstMeaning::TargetDependent(initializer) => {
+                    expressions::expression(initializer, &scope(&[], 0), 0)?;
+                }
+            }
         }
         for value in &self.data {
             data::validate(value)?;

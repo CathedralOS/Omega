@@ -86,6 +86,12 @@ pub enum PackageReviewCastForm {
     Recast(PackageReviewReferenceAccess),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) enum PackageReviewLayoutQueryKind {
+    Size,
+    Alignment,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewContractStaticArgument {
     /// One exact concrete type identity.
@@ -238,6 +244,12 @@ impl PackageReviewContractCallTarget {}
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewContractExpression {
+    /// An authenticated semantic observation, not an ordinary callable or a
+    /// chosen target's already-folded byte count.
+    LayoutQuery {
+        kind: PackageReviewLayoutQueryKind,
+        operand: PackageReviewTypeIdentity,
+    },
     /// Static equality over complete normalized types in the signature's
     /// generic telescope. This is neither RTTI nor a scalar comparison.
     TypeEquality {

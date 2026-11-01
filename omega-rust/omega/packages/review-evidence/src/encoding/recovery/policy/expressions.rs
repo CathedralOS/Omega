@@ -196,6 +196,13 @@ pub(in crate::encoding::recovery) fn expression(
                 0 => symbols::BuiltinTypeMember::AddressBound,
             })),
             26 => Expression::TypeEquality { left: type_identity(reader)?, right: type_identity(reader)?, negated: reader.boolean()? },
+            27 => Expression::LayoutQuery {
+                kind: super::tag!(reader => {
+                    0 => crate::record::PackageReviewLayoutQueryKind::Size,
+                    1 => crate::record::PackageReviewLayoutQueryKind::Alignment,
+                }),
+                operand: type_identity(reader)?,
+            },
         }))
     })
 }

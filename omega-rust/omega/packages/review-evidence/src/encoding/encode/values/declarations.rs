@@ -2,9 +2,10 @@ use super::super::declarations::{encode_data_properties, encode_type_identity};
 use super::super::encoder::Encoder;
 use crate::encoding::PackageReviewEncodingError;
 use crate::record::{
-    PackageReviewConstShape, PackageReviewEvidenceInterface, PackageReviewOperatorCoordinate,
-    PackageReviewPropositionBinder, PackageReviewPropositionBinderKind,
-    PackageReviewPropositionShape, PackageReviewPublicPropositionBody,
+    PackageReviewConstMeaning, PackageReviewConstShape, PackageReviewEvidenceInterface,
+    PackageReviewOperatorCoordinate, PackageReviewPropositionBinder,
+    PackageReviewPropositionBinderKind, PackageReviewPropositionShape,
+    PackageReviewPublicPropositionBody,
 };
 
 use super::contracts::encode_contract_fact;
@@ -43,7 +44,20 @@ pub(crate) fn encode_const_shape(
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.field_by("identity", &shape.identity, encode_nominal)?;
     encoder.field_by("declared_type", &shape.declared_type, encode_type_identity)?;
-    encoder.string_field("canonical_value_encoding", &shape.canonical_value_encoding)
+    encoder.field("meaning", |encoder| match &shape.meaning {
+        PackageReviewConstMeaning::Evaluated(value) => {
+            encoder.tag("evaluated", 0);
+            encoder.string_field("canonical_value_encoding", value)
+        }
+        PackageReviewConstMeaning::TargetDependent(initializer) => {
+            encoder.tag("target_dependent", 1);
+            encoder.field_by(
+                "initializer",
+                initializer,
+                super::expressions::encode_contract_expression,
+            )
+        }
+    })
 }
 
 pub(crate) fn encode_operator_coordinate(

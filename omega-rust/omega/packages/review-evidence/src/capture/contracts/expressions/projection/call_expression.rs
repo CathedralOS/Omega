@@ -26,6 +26,45 @@ pub(super) fn project_call_expression(
     checked_fact: Option<arena::Handle<typed_trees::domain::ProofFact>>,
     child: &impl Fn(ExpressionHandle) -> Result<PackageReviewContractExpression, Vec<Diagnostic>>,
 ) -> Result<PackageReviewContractExpression, Vec<Diagnostic>> {
+    if let Some(query) = &call.layout_query {
+        let original_query = compilation
+            .custody
+            .typed
+            .expression_table
+            .call_node(expression)
+            .and_then(|call| call.layout_query.as_ref())
+            .ok_or_else(|| context.rejected("layout query has no immutable authored occurrence"))?;
+        if original_query.kind != query.kind {
+            return Err(context.rejected("layout-query kind differs from immutable source custody"));
+        }
+        if call.receiver.is_valid()
+            || call.target_symbol.is_valid()
+            || !call.arguments.is_empty()
+            || call.machine_arguments.len() != 1
+            || !call.evidence_arguments.is_empty()
+            || call.quotient_operation.is_some()
+            || !query.operand.type_reference.is_valid()
+        {
+            return Err(context.rejected("has a malformed checked layout-query application"));
+        }
+        let kind = match query.kind {
+            language_core::data_layout_queries::DataLayoutQueryKind::Size => {
+                crate::record::PackageReviewLayoutQueryKind::Size
+            }
+            language_core::data_layout_queries::DataLayoutQueryKind::Alignment => {
+                crate::record::PackageReviewLayoutQueryKind::Alignment
+            }
+        };
+        let operand = crate::capture::semantics::types::review_signature_type_identity_with_binders_and_substitutions_and_lifetimes(
+            compilation,
+            query.operand.type_reference,
+            binders,
+            context.lifetime_binders,
+            &[],
+            context.lifetime_substitutions,
+        )?;
+        return Ok(PackageReviewContractExpression::LayoutQuery { kind, operand });
+    }
     let target = exact_checked_contract_call_target(compilation, context, expression, call)?;
     let resolved_symbol = resolved_contract_call_symbol(compilation, call)
         .or_else(|| compilation.derive_checked_nominal_call_target(expression));

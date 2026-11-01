@@ -5,7 +5,8 @@ use super::super::{
     reader::Reader,
 };
 use crate::record::{
-    PackageReviewConstShape, PackageReviewPropositionShape, PackageReviewPublicPropositionBody,
+    PackageReviewConstMeaning, PackageReviewConstShape, PackageReviewPropositionShape,
+    PackageReviewPublicPropositionBody,
 };
 
 pub(in crate::encoding::recovery) fn proposition_shape(
@@ -29,7 +30,10 @@ pub(in crate::encoding::recovery) fn const_shape(
     Ok(PackageReviewConstShape {
         identity: nominal(reader)?,
         declared_type: type_identity(reader)?,
-        canonical_value_encoding: reader.string()?,
+        meaning: super::super::tag!(reader => {
+            0 => PackageReviewConstMeaning::Evaluated(reader.string()?),
+            1 => PackageReviewConstMeaning::TargetDependent(super::super::expressions::expression(reader)?),
+        }),
     })
 }
 
