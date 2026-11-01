@@ -150,6 +150,15 @@ pub(super) enum StoredOriginKind {
 }
 
 impl StoredOriginKind {
+    /// Physical descriptors and opaque possible pointers participate in alias
+    /// expansion. A logical debt has no address that can redirect a write.
+    pub(super) fn may_indirect_storage(self) -> bool {
+        match self {
+            Self::Reference(_) | Self::OpaqueRegion => true,
+            Self::LifetimeDependency => false,
+        }
+    }
+
     /// Normal-exit equations describe these slots' complete current contents.
     /// A possible hidden pointer remains outside that modeled relation.
     pub(super) fn is_modeled_slot(self) -> bool {
@@ -543,7 +552,7 @@ fn overlapping_origins(
         // A retained token's debt keeps its backing live; it is not an address
         // stored in the token. Writing the token cannot write that backing.
         // Its own slot replacement is transported by the normal-exit relation.
-        if leaf.kind == StoredOriginKind::LifetimeDependency {
+        if !leaf.kind.may_indirect_storage() {
             continue;
         }
         if !include_shared

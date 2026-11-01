@@ -653,6 +653,9 @@ pub(super) fn prefix_reference_origins(
     let mut origins = stored
         .iter()
         .flat_map(|local| &local.references)
+        // This roster supplies physical alias invalidation. Logical token
+        // debt is transported separately, never as an unknown pointer alias.
+        .filter(|leaf| leaf.kind.may_indirect_storage())
         .map(|leaf| LocalWriteOrigin {
             local_symbol: leaf.local_symbol,
             local_segments: leaf.local_segments.clone(),
@@ -969,6 +972,7 @@ fn close_over_origins(
                 stored
                     .iter()
                     .flat_map(|local| &local.references)
+                    .filter(|leaf| leaf.kind.may_indirect_storage())
                     .map(|leaf| {
                         (
                             &leaf.local_path,

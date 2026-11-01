@@ -31,6 +31,7 @@ pub(super) fn effects(
             parameter,
             &arguments[parameter_index],
             &segments,
+            stored_origins::StoredOriginKind::Reference(output.access),
             context,
             symbols,
         )?;
