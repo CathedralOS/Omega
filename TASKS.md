@@ -475,9 +475,11 @@ narrows realization only.
     package occurrences while completing provider readiness/resumption and
     dependency input settlement; each occurrence keeps its Build receipts and
     exact Product admission.
+  - Remove the debt rows of `FIREWALL_ALLOWANCES` in
+    `tools/check_native_boundary.py`: Omega compilation crates that depend on
+    source-side Psi, and Omega stages that depend on other stages.
   - Enforce via `cargo metadata` and source guards that Psi never depends on
-    Omega, Omega pipeline/realization never depends on source/typed/checked Psi
-    or interpreters, numbered stages are called only inside the Psi/Omega
+    Omega, numbered stages are called only inside the Psi/Omega
     coordinators and stage tests, `name.as_str() == "string"` spelling checks
     are replaced by representation classes, and 256 MiB thread stacks are
     replaced by arena-handle worklists on platform default stacks.
@@ -561,9 +563,14 @@ decision (`SourceChecked`) into stage 05 and stage 00.
   `omega-rust/psi/compilation/representations/terminal-psi/{semantics,codec}`,
   `omega-rust/psi/interpreter/terminal-interpreter` and
   `omega-rust/omega/application/terminal-runtime`.
-  - Stage 05 has 3,379 fail-closed shape gates (`unsupported`, `unpinned`)
-    that re-check checked custody. Retire only gates shown to be unreachable,
-    after reject twins cover the custody facts they guard.
+  - Stage 05's fail-closed shape gates (`unsupported`, `unpinned`), counted
+    per file in `tools/stage05_shape_gates.txt`, re-check checked custody.
+    Retire only gates shown to be unreachable, after reject twins cover the
+    custody facts they guard.
+  - Stage 05's reads of source context (`TypedTrees`,
+    `typed_trees::expression`, `.typed`), counted per file in
+    `tools/stage05_source_context.txt`, rebuild facts stage 04 does not
+    publish. Read each from the stage 04 plan instead.
   Acceptance: each retired gate's custody fact has a reject twin under
   `tests/omega/fail/facts/` that still rejects in checking, and the affected
   `samples/cli/facts` places still pass `omega run --both`.

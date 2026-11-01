@@ -10,6 +10,9 @@ from check_native_boundary import NATIVE_ROOT, RUNTIME_ROOT, RUNTIME_OWNERS, NAT
 from check_native_boundary import PROVIDER_SELECTION_ROOT, PROVIDER_SELECTION_OWNERS
 from check_native_boundary import TRUST_ROOT, TRUST_OWNERS, representation_spelling_violations, psi_omega_dependency_violations, realization_checker_entry_violations
 from check_native_boundary import FORBIDDEN_DEPENDENCIES, PSI_FACADE, TERMINAL_PRODUCTION, forbidden_dependency_violations
+from check_native_boundary import FIREWALL_ALLOWANCES, OMEGA_STAGES, Allowance, stale_allowance_violations
+import json
+import subprocess
 
 
 class NativeBoundaryTests(unittest.TestCase):
@@ -292,6 +295,85 @@ class ForbiddenDependencyTests(unittest.TestCase):
         failures = forbidden_dependency_violations(self.metadata)
         self.assertEqual(len(failures), 1)
         self.assertIn("psi-compiler -> 07_lowered-psi-to-terminal-psi", failures[0])
+
+    def test_omega_crate_cannot_import_source_side_psi(self):
+        dispatch = self.package("selected-dispatch", "omega-rust/omega/compilation/realization/selected-dispatch")
+        typed = self.package("typed-trees", "omega-rust/psi/compilation/representations/typed-trees")
+        self.edge(dispatch, typed)
+        self.assertEqual(forbidden_dependency_violations(self.metadata), [])
+        for owner, dependency in (
+            ("omega-rust/omega/compilation/backend/target", "omega-rust/psi/compilation/representations/checked-trees"),
+            ("omega-rust/omega/compilation/representations/target-operations", "omega-rust/psi/interpreter/checked-interpreter"),
+            ("omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations",
+             "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi"),
+            ("omega-rust/omega/compilation/backend/layout", "omega-rust/psi/compilation/checking/representation-planning"),
+        ):
+            with self.subTest(owner=owner):
+                self.metadata["packages"] = [dispatch, typed]
+                source = self.package(Path(owner).name, owner)
+                self.edge(source, self.package(Path(dependency).name, dependency), kind="build", optional=True)
+                failures = forbidden_dependency_violations(self.metadata)
+                self.assertEqual(len(failures), 1)
+                self.assertIn("Omega cannot depend on source IRs", failures[0])
+
+    def test_omega_crate_keeps_terminal_psi_and_foundations(self):
+        layout = self.package("layout", "omega-rust/omega/compilation/backend/layout")
+        for dependency in ("omega-rust/psi/compilation/representations/terminal-psi",
+                           "omega-rust/psi/compilation/checking/terminal-installation",
+                           "omega-rust/psi/foundation/layout-plans"):
+            self.edge(layout, self.package(Path(dependency).name, dependency))
+        self.assertEqual(forbidden_dependency_violations(self.metadata), [])
+
+    def test_omega_stage_cannot_import_another_stage(self):
+        later = self.package("register-homes", OMEGA_STAGES[5])
+        earlier = self.package("selected-instructions", OMEGA_STAGES[4])
+        self.edge(later, earlier)
+        self.assertEqual(forbidden_dependency_violations(self.metadata), [])
+        first = self.package("abstract-operations", OMEGA_STAGES[0])
+        self.edge(later, first)
+        self.edge(first, later, kind="dev")
+        failures = forbidden_dependency_violations(self.metadata)
+        self.assertEqual(len(failures), 1)
+        self.assertIn("register-homes -> 00_terminal-psi-to-abstract-operations: stages cannot call", failures[0])
+
+    def test_removed_edge_must_leave_the_allowlist(self):
+        rows = [allowed for allowed in FIREWALL_ALLOWANCES if allowed.owner == OMEGA_STAGES[1]]
+        self.assertEqual(len(rows), 1)
+        later = self.package("abstract-operations", rows[0].owner)
+        earlier = self.package("terminal-psi-to-abstract-operations", rows[0].dependency)
+        self.edge(later, earlier, kind="dev")
+        failures = [failure for failure in stale_allowance_violations(self.metadata)
+                    if failure.startswith(f"{rows[0].owner} ->")]
+        self.assertEqual(len(failures), 1)
+        self.assertIn("edge removed", failures[0])
+        later["dependencies"].clear()
+        self.edge(later, earlier)
+        self.assertEqual([failure for failure in stale_allowance_violations(self.metadata)
+                          if failure.startswith(f"{rows[0].owner} ->")], [])
+
+    def test_allowance_outside_every_rule_fails(self):
+        misplaced = Allowance("omega-rust/omega/compilation/driver",
+                              "omega-rust/psi/compilation/representations/typed-trees", "Debt: test")
+        rules = [rule._replace(allowed=(misplaced,)) for rule in FORBIDDEN_DEPENDENCIES if rule.allowed]
+        failures = stale_allowance_violations(self.metadata, rules)
+        self.assertEqual(len(failures), 1)
+        self.assertIn("no rule forbids", failures[0])
+
+    def test_allowlist_rows_name_existing_crates_and_a_reason(self):
+        self.assertEqual(len(OMEGA_STAGES), 10)
+        self.assertEqual(len(FIREWALL_ALLOWANCES), len(set(FIREWALL_ALLOWANCES)))
+        for allowed in FIREWALL_ALLOWANCES:
+            with self.subTest(edge=allowed[:2]):
+                self.assertTrue((self.root / allowed.owner / "Cargo.toml").is_file())
+                self.assertTrue((self.root / allowed.dependency / "Cargo.toml").is_file())
+                self.assertRegex(allowed.reason, r"^(Sanctioned: pipeline\.md:\d|Debt: )")
+
+    def test_the_workspace_matches_its_allowlist(self):
+        result = subprocess.run(["cargo", "metadata", "--no-deps", "--format-version", "1"],
+                                cwd=self.root, capture_output=True, text=True, check=True)
+        metadata = json.loads(result.stdout)
+        self.assertEqual(forbidden_dependency_violations(metadata), [])
+        self.assertEqual(stale_allowance_violations(metadata), [])
 
     def test_sibling_with_owner_prefix_is_not_the_owner(self):
         counterfeit = self.package("counterfeit", "omega-rust/psi-extra/driver")

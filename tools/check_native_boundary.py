@@ -10,6 +10,12 @@ owners behind one facade. `FORBIDDEN_DEPENDENCIES` names single edges that the
 ownership contract in omega-rust/pipeline.md forbids between owners that
 otherwise legitimately coexist, so a wrong import stops resolving instead of
 relying on a source-text search.
+
+The Omega firewall rules carry the edges that existed when they landed
+(2026-11-01) as `FIREWALL_ALLOWANCES`: 11 from Omega compilation crates into
+source-side Psi and 21 between Omega stages. Each row names the imports that
+hold it. A row whose edge is gone fails until it is deleted, so the list only
+shrinks; two rows are sanctioned by pipeline.md and the rest are debt.
 """
 
 import json
@@ -84,13 +90,111 @@ TERMINAL_STAGES = tuple(
     )
 )
 
+OMEGA_COMPILATION = tuple(
+    f"{OMEGA}/compilation/{owner}" for owner in ("pipeline", "backend", "representations", "realization")
+)
+SOURCE_SIDE_PSI = (
+    *(f"{PSI}/compilation/representations/{trees}-trees"
+      for trees in ("syntax", "symbol-resolved", "typed", "checked")),
+    PSI_PIPELINE,
+    PSI_FACADE,
+    f"{PSI}/compilation/compile-time",
+    f"{PSI}/compilation/checking/representation-planning",
+    f"{PSI}/interpreter",
+)
+OMEGA_STAGES = tuple(
+    f"{OMEGA_PIPELINE}/{stage.name}"
+    for stage in sorted((Path(__file__).resolve().parent.parent / OMEGA_PIPELINE).iterdir())
+    if (stage / "Cargo.toml").is_file()
+)
+
+
+class Allowance(NamedTuple):
+    """One production edge a rule forbids that existed when the rule landed."""
+
+    owner: str
+    dependency: str
+    reason: str
+
+
+def stage(number):
+    return next(path for path in OMEGA_STAGES if path.rsplit("/", 1)[1].startswith(f"{number}_"))
+
+
+SELECTED_DISPATCH = f"{OMEGA}/compilation/realization/selected-dispatch"
+PROVIDER_PLANNING = f"{OMEGA}/compilation/realization/provider-planning"
+LAYOUT = f"{OMEGA}/compilation/backend/layout"
+REPRESENTATION_PLANNING = f"{PSI}/compilation/checking/representation-planning"
+STAGE_DEBT = "Debt: stage output type lives in the producing stage crate instead of compilation/representations"
+
+# Frozen on 2026-11-01. Delete a row with the edge; never add one.
+FIREWALL_ALLOWANCES = (
+    Allowance(PROVIDER_PLANNING, f"{PSI}/compilation/representations/checked-trees",
+              "Sanctioned: pipeline.md:1097-1099, provider-planning \"owns source provider "
+              "derivation, declaration preparation\" (TypedTrees, Machine, ServiceCatalog)"),
+    Allowance(LAYOUT, f"{REPRESENTATION_PLANNING}/selections",
+              "Sanctioned: pipeline.md:1301-1303, the selections package \"keeps consumers free "
+              "of a dependency on admission\" (OpaqueRepresentationSelection)"),
+    Allowance(LAYOUT, f"{PSI}/compilation/representations/typed-trees",
+              "Debt: builder reads TypedTrees and PlanLaidLayout from source trees"),
+    Allowance(SELECTED_DISPATCH, f"{PSI}/compilation/representations/typed-trees",
+              "Debt: reads TypedTrees, DeclarationSelection and TraitDefinition; pipeline.md:1113 "
+              "\"imports no Psi transform\""),
+    Allowance(SELECTED_DISPATCH, f"{PSI}/compilation/representations/checked-trees",
+              "Debt: reads CheckedTrees and boundary adapter dispatch from checked source"),
+    Allowance(SELECTED_DISPATCH, TERMINAL_PRODUCTION,
+              "Debt: prepares PreparedProviderInventory and ExternalProviderDeclarations itself"),
+    Allowance(SELECTED_DISPATCH, f"{PSI}/compilation/compile-time",
+              "Debt: validates selected provider bodies and operators through compile-time evaluation"),
+    Allowance(SELECTED_DISPATCH, REPRESENTATION_PLANNING,
+              "Debt: OpaqueRepresentationSelection only, which the selections package carries"),
+    Allowance(PROVIDER_PLANNING, f"{PSI}/compilation/compile-time",
+              "Debt: provider declarations and BuildTimeValue from compile-time evaluation"),
+    Allowance(PROVIDER_PLANNING, REPRESENTATION_PLANNING,
+              "Debt: opaque representation dispositions from the admission checker"),
+    Allowance(PROVIDER_PLANNING, f"{PSI}/interpreter/terminal-interpreter",
+              "Debt: runs calling-policy plans in the Terminal interpreter (TerminalProgram)"),
+    Allowance(stage("01"), stage("00"),
+              "Debt: calls build_verified_psi_optimization_unit; VerifiedPsiOptimizationInput"),
+    Allowance(stage("02"), stage("00"), f"{STAGE_DEBT} (VerifiedPsiOptimizationInput)"),
+    Allowance(stage("02"), stage("01"), f"{STAGE_DEBT} (ValidatedOptimizedAbstractPlan)"),
+    Allowance(stage("03"), stage("00"), f"{STAGE_DEBT} (VerifiedPsiOptimizationInput)"),
+    Allowance(stage("03"), stage("01"), f"{STAGE_DEBT} (ValidatedOptimizedAbstractPlan)"),
+    Allowance(stage("03"), stage("02"),
+              "Debt: calls classified_boundary_shape and descriptor_input_guard instead of "
+              "reading them from stage 02 output"),
+    Allowance(stage("04"), stage("02"), "Debt: no reference in src; delete the dependency"),
+    Allowance(stage("04"), stage("03"),
+              "Debt: calls staging_custody_core_accessors and selected_instruction_plan_identity; "
+              "ValidatedSelectedInstructions"),
+    Allowance(stage("05"), stage("02"), f"{STAGE_DEBT} (ValidatedOptimizedTargetOperations)"),
+    Allowance(stage("05"), stage("03"),
+              "Debt: calls staging_custody_core_accessors; StagedOptimizedCustodyCore"),
+    Allowance(stage("05"), stage("04"),
+              f"{STAGE_DEBT} (SelectedProgramRef, ValidatedSelectedAnalysis, allocation legality)"),
+    Allowance(stage("06"), stage("05"),
+              f"{STAGE_DEBT} (ValidatedRegisterHomes, ValidatedPreAllocationMachineEffects)"),
+    Allowance(stage("07"), stage("05"), f"{STAGE_DEBT} (ValidatedSelectedAnalysis)"),
+    Allowance(stage("07"), stage("06"), f"{STAGE_DEBT} (StagedOptimizedPostAllocationMachinePlan)"),
+    Allowance(stage("08"), stage("05"), f"{STAGE_DEBT} (ValidatedSelectedAnalysis)"),
+    Allowance(stage("08"), stage("06"), f"{STAGE_DEBT} (StagedOptimizedPostAllocationMachinePlan)"),
+    Allowance(stage("08"), stage("07"), f"{STAGE_DEBT} (StagedOptimizedSelectedFormEncoding)"),
+    Allowance(stage("09"), stage("05"), f"{STAGE_DEBT} (ValidatedSelectedAnalysis)"),
+    Allowance(stage("09"), stage("06"), f"{STAGE_DEBT} (StagedOptimizedPostAllocationMachinePlan)"),
+    Allowance(stage("09"), stage("07"), f"{STAGE_DEBT} (StagedOptimizedSelectedFormEncoding)"),
+    Allowance(stage("09"), stage("08"), f"{STAGE_DEBT} (StagedOptimizedResolvedSelectedFormLayout)"),
+)
+
+
 class Rule(NamedTuple):
-    """Owners and targets are workspace paths; a path covers its sub-tree."""
+    """Owners and targets are workspace paths; a path covers its sub-tree.
+    `allowed` holds frozen exact edges the rule tolerates until they are removed."""
 
     owners: tuple
     forbidden: tuple
     reason: str
     except_owners: tuple = ()
+    allowed: tuple = ()
 
 
 # Only production edges count (see `dev` above).
@@ -168,6 +272,25 @@ FORBIDDEN_DEPENDENCIES = tuple(Rule(*rule) for rule in (
         (f"{PSI}/compilation/compile-time",),
         "Terminal production sits below compile-time evaluation, which calls it",
     ),
+    (
+        OMEGA_COMPILATION,
+        SOURCE_SIDE_PSI,
+        "Omega cannot depend on source IRs, source checkers or interpreters (pipeline.md "
+        "\"Public contracts\"); consume Terminal Psi and Build rows",
+        (),
+        FIREWALL_ALLOWANCES,
+    ),
+    *(
+        (
+            (owner,),
+            tuple(other for other in OMEGA_STAGES if other != owner),
+            "stages cannot call adjacent stages to reconstruct missing input facts (pipeline.md "
+            "\"Public contracts\"); put the shared representation in compilation/representations",
+            (),
+            FIREWALL_ALLOWANCES,
+        )
+        for owner in OMEGA_STAGES
+    ),
 ))
 
 
@@ -175,23 +298,44 @@ def under(relative, owners):
     return any(relative == owner or relative.startswith(owner + "/") for owner in owners)
 
 
-def forbidden_dependency_violations(metadata, rules=FORBIDDEN_DEPENDENCIES):
-    """Return `owner -> dependency: reason` for every forbidden production edge."""
+def production_edges(metadata):
+    """Yield `(package, owner, dependency)` workspace paths for each production edge."""
     root = Path(metadata["workspace_root"]).resolve()
-    violations = []
     for package in metadata["packages"]:
         owner = Path(package["manifest_path"]).resolve().parent.relative_to(root).as_posix()
         for dependency in package["dependencies"]:
             if dependency.get("kind") == "dev" or not dependency.get("path"):
                 continue
-            relative = Path(dependency["path"]).resolve().relative_to(root).as_posix()
-            for rule in rules:
-                if (
-                    under(owner, rule.owners)
-                    and not under(owner, rule.except_owners)
-                    and under(relative, rule.forbidden)
-                ):
-                    violations.append(f"{package['name']} -> {Path(relative).name}: {rule.reason}")
+            yield package, owner, Path(dependency["path"]).resolve().relative_to(root).as_posix()
+
+
+def forbidden_dependency_violations(metadata, rules=FORBIDDEN_DEPENDENCIES):
+    """Return `owner -> dependency: reason` for every forbidden production edge."""
+    violations = []
+    for package, owner, relative in production_edges(metadata):
+        for rule in rules:
+            if (
+                under(owner, rule.owners)
+                and not under(owner, rule.except_owners)
+                and under(relative, rule.forbidden)
+                and not any((owner, relative) == allowed[:2] for allowed in rule.allowed)
+            ):
+                violations.append(f"{package['name']} -> {Path(relative).name}: {rule.reason}")
+    return violations
+
+
+def stale_allowance_violations(metadata, rules=FORBIDDEN_DEPENDENCIES):
+    """An allowance whose edge is gone, or that its rule would not forbid, must be deleted."""
+    edges = {(owner, relative) for _, owner, relative in production_edges(metadata)}
+    violations = []
+    for allowed in dict.fromkeys(allowed for rule in rules for allowed in rule.allowed):
+        if not any(under(allowed.owner, rule.owners) and under(allowed.dependency, rule.forbidden)
+                   for rule in rules if allowed in rule.allowed):
+            violations.append(f"{allowed.owner} -> {allowed.dependency}: allowance names an "
+                              "edge no rule forbids; delete the row")
+        elif (allowed.owner, allowed.dependency) not in edges:
+            violations.append(f"{allowed.owner} -> {allowed.dependency}: edge removed; delete "
+                              "its row from FIREWALL_ALLOWANCES so it cannot return")
     return violations
 
 
@@ -324,6 +468,7 @@ def main():
         violations += dependency_violations(metadata, RUNTIME_ROOT, RUNTIME_OWNERS)
         violations += dependency_violations(metadata, NATIVE_PROVIDER_RUNTIME_ROOT, NATIVE_PROVIDER_RUNTIME_OWNERS)
         violations += forbidden_dependency_violations(metadata)
+        violations += stale_allowance_violations(metadata)
     except (OSError, ValueError, subprocess.CalledProcessError) as error:
         print(f"native boundary could not be checked: {error}", file=sys.stderr)
         return 2
