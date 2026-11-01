@@ -406,3 +406,108 @@ fn an_implication_domain_derives_contravariantly() {
         "the crossing stays inside the function body",
     );
 }
+
+#[test]
+fn wide_connective_denotation_uses_default_stack_and_preserves_order() {
+    std::thread::spawn(|| {
+        use super::super::Denotation;
+        use crate::mathematical_core::{Context, infer_sort};
+        for disjunctive in [false, true] {
+            let mut parts = vec![Proposition::Truth; 16_384];
+            parts.push(Proposition::Falsehood);
+            let proposition = if disjunctive {
+                Proposition::Disjunction(parts)
+            } else {
+                Proposition::Conjunction(parts)
+            };
+            PropositionContext::default().validate(&proposition)
+                .expect("every ordered member is a valid proposition");
+            let parts = match &proposition {
+                Proposition::Conjunction(parts) | Proposition::Disjunction(parts) => parts,
+                _ => unreachable!(),
+            };
+            eprintln!("ordered proposition members admitted; begin disjunctive={disjunctive} denotation");
+            let mut denotation = Denotation::new();
+            let term = if disjunctive {
+                denotation.disjunction(parts)
+            } else {
+                denotation.conjunction(parts)
+            }.expect("every ordered member denotes");
+            eprintln!("denotation complete; begin independent kernel formation");
+            let Term::Sort(expected_sort) = denotation.arena.get(denotation.type_zero) else {
+                panic!("the denotation owns Type 0");
+            };
+            let actual = infer_sort(&mut denotation.arena, &Context::empty(), term, &mut Budget::new(2_000_000))
+                .expect("the complete connective denotes a type under its exact binders");
+            assert!(crate::mathematical_core::term::sorts_equal(&actual, &expected_sort));
+            let mut tail = term;
+            for _ in 0..16_384 {
+                let Term::Sigma { domain, codomain } = denotation.arena.get(tail) else {
+                    panic!("one connective member remains before the final statement");
+                };
+                let first = if disjunctive {
+                    assert!(matches!(denotation.arena.get(domain), Term::Two));
+                    let Term::CaseTwo { zero_branch, one_branch, scrutinee, .. } = denotation.arena.get(codomain) else {
+                        panic!("the tagged sum retains its exact branch family");
+                    };
+                    assert!(matches!(denotation.arena.get(scrutinee), Term::Variable(0)));
+                    tail = one_branch;
+                    zero_branch
+                } else {
+                    tail = codomain;
+                    domain
+                };
+                let Term::Id { left, right, .. } = denotation.arena.get(first) else {
+                    panic!("every preceding member is Truth");
+                };
+                assert!(denotation.arena.structurally_equal(left, right));
+            }
+            let Term::Id { left, right, .. } = denotation.arena.get(tail) else {
+                panic!("the final member is Falsehood");
+            };
+            assert!(!denotation.arena.structurally_equal(left, right));
+            let before = denotation.arena.len();
+            let declarations = denotation.declarations.len();
+            let fresh = Proposition::Atom(PropositionId::new(9_991).expect("fresh atom"));
+            let invalid = if disjunctive {
+                denotation.disjunction(&[fresh])
+            } else {
+                denotation.conjunction(&[fresh])
+            };
+            let expected = if disjunctive { "disjunction arity" } else { "conjunction arity" };
+            assert!(matches!(invalid, Err(BoundedDenotationError::Certificate(ProofError::RuleConclusionMismatch(actual))) if actual == expected));
+            assert_eq!(denotation.arena.len(), before, "invalid arity refuses before allocating a member");
+            assert_eq!(denotation.declarations.len(), declarations);
+        }
+    }).join().expect("connective denotation and kernel formation use the default stack");
+}
+
+#[test]
+fn connective_denotation_preserves_member_failure_and_declaration_order() {
+    use super::super::Denotation;
+    for disjunctive in [false, true] {
+        let first = Proposition::Atom(PropositionId::new(10_001).expect("first atom"));
+        let last = Proposition::Atom(PropositionId::new(10_002).expect("later atom"));
+        let malformed = Proposition::Conjunction(vec![Proposition::Truth]);
+        let members = [first.clone(), malformed, last.clone()];
+        let mut denotation = Denotation::new();
+        let observed = if disjunctive {
+            denotation.disjunction(&members)
+        } else {
+            denotation.conjunction(&members)
+        };
+        assert!(matches!(
+            observed,
+            Err(BoundedDenotationError::Certificate(
+                ProofError::RuleConclusionMismatch("conjunction arity")
+            ))
+        ));
+        assert!(denotation.denotations.contains_key(&first));
+        assert!(!denotation.denotations.contains_key(&last));
+        assert_eq!(
+            denotation.declarations.len(),
+            1,
+            "the earlier declaration remains and the later declaration is never admitted"
+        );
+    }
+}
