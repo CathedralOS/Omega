@@ -90,7 +90,11 @@ impl<'a> TerminalApplicationCustody<'a> {
     /// the final artifact. Root failures remain ordered ahead of receipt failure.
     pub(crate) fn attach(
         &self,
-        program: &terminal_codec::TerminalProgramProduct,
+        view: terminal_codec::TerminalExecutionView<'_>,
+        artifact: Result<
+            &terminal_codec::CanonicalTerminalArtifact,
+            terminal_codec::CanonicalTerminalArtifactError,
+        >,
         provenance: &TerminalMachineProvenance,
         observer: &mut impl PsiCompilationObserver,
     ) -> Result<ProducedTerminalApplication, Vec<Diagnostic>> {
@@ -101,7 +105,7 @@ impl<'a> TerminalApplicationCustody<'a> {
             });
         };
         let entry = entry.as_ref().map_err(Clone::clone)?;
-        let module = program.view().module();
+        let module = view.module();
         let mut roots = Vec::new();
         if let Some(composition) = &self.composition {
             roots.push(project_root(module, provenance, entry));
@@ -131,9 +135,8 @@ impl<'a> TerminalApplicationCustody<'a> {
         }
         let receipt = match self.entry_identity {
             Some(identity) => observer.record_result(PsiCompilationStage::EntryReceipt, || {
-                let artifact = program
-                    .portable()
-                    .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
+                let artifact =
+                    artifact.map_err(|error| vec![Diagnostic::error(error.to_string())])?;
                 prepare_program_entry_receipt(entry, identity, artifact)
                     .map(Some)
                     .map_err(|error| {

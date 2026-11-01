@@ -806,8 +806,24 @@ fn terminal_composition_admission_follows_canonical_publication() {
     assert_in_order(
         product,
         "terminal product",
-        &[".into_parts()", "policy.admit("],
+        &[
+            ".into_shared_portable()",
+            ".attach_application(",
+            "policy.admit(",
+        ],
     );
+    let custody =
+        include_str!("../../../../psi/compilation/driver/terminal-production/src/custody.rs");
+    let portable = custody
+        .split("impl PortableTerminalProgram {")
+        .nth(1)
+        .unwrap();
+    assert_absent(
+        &[portable],
+        "late application attachment reopens source:",
+        &["CheckedTrees", "SymbolHandle", "TerminalProductionRequest"],
+    );
+    assert!(portable.contains("&self.provenance"));
     let policy = include_str!("terminal/behavior_exclusions.rs");
     assert_eq!(
         policy

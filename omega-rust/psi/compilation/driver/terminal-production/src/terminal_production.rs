@@ -99,11 +99,7 @@ impl<'a> TerminalProductionRequest<'a> {
             .collect();
         // Attribution is captured once while lowering owns source joins.
         // Requested roots attach to the sealed artifact after publication.
-        let provenance = if applications.is_empty() {
-            terminal_psi::TerminalMachineProvenance::default()
-        } else {
-            checked_trees_to_lowered_psi::lowered_module_provenance(checked, &lowered)
-        };
+        let provenance = checked_trees_to_lowered_psi::lowered_module_provenance(checked, &lowered);
         let optimized = observer
             .record_result(PsiCompilationStage::Optimization, || {
                 run_psi_optimization(lowered, self.optimization_selections)
@@ -124,7 +120,9 @@ impl<'a> TerminalProductionRequest<'a> {
             .map_err(TerminalArtifactProductionError::Artifact)?;
         let applications = applications
             .iter()
-            .map(|application| application.attach(&program, &provenance, observer))
+            .map(|application| {
+                application.attach(program.view(), program.portable(), &provenance, observer)
+            })
             .collect();
         let build_bindings = crate::TerminalBuildBindings::new(
             program.view(),
@@ -142,6 +140,7 @@ impl<'a> TerminalProductionRequest<'a> {
             build_requests,
             build_filesystem,
             applications,
+            provenance,
         })
     }
 }
