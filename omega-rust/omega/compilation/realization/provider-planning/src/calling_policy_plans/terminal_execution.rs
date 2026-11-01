@@ -3,7 +3,7 @@
 use super::CallingPolicySignature;
 use super::build_time_decoding::decode_boundary_plan_result;
 use super::policy_signature::{encode_calling_policy_signature, validate_calling_policy_result};
-use super::scalar_completion::complete_policy_scalar_inputs;
+use super::scalar_completion::{CallingScalarScope, complete_calling_scalar_inputs};
 use super::terminal_values::{input_contents, result_value};
 use calling_conventions::ValidatedBoundaryEntryPlan;
 use evaluation_accounting::EvaluationInvocationAccount;
@@ -84,8 +84,25 @@ pub fn evaluate_terminal_calling_policy(
     }
     let mut meter = TerminalFuelMeter::with_invocation(account.clone(), None)
         .map_err(|error| format!("calling policy fuel: {error:?}"))?;
-    let scalars =
-        complete_policy_scalar_inputs(artifact, target, entry, &demanded, &providers, &mut meter)?;
+    let selected_entry = selected
+        .entry(selected.terminal_psi(), artifact.semantic_module(), entry)
+        .map_err(|error| format!("calling policy scalar entry: {error}"))?;
+    let declaration = artifact
+        .semantic_module()
+        .scalar_applications
+        .proof_scope
+        .callable_declaration(TargetMachineCallable::Machine(selected_entry))
+        .ok_or("calling policy entry has no exact checked proof declaration")?;
+    let scalars = complete_calling_scalar_inputs(
+        artifact,
+        target,
+        CallingScalarScope::Invocation {
+            declaration,
+            applications: &demanded,
+        },
+        &providers,
+        &mut meter,
+    )?;
     let installation = program
         .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
             x86_flags: None,

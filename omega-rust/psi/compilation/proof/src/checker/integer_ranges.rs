@@ -148,15 +148,13 @@ pub(crate) fn apply_handle_condition_complement(
                 range.maximum = range.maximum.sub(&one);
             }
         }
-        // NOT (place < K)  ==  place >= K
-        BinaryOperator::Less => range.minimum = range.minimum.max(value),
-        // NOT (place <= K)  ==  place >= K + 1
-        BinaryOperator::LessOrEqual => range.minimum = range.minimum.max(value.add(&one)),
-        // NOT (place > K)  ==  place <= K
-        BinaryOperator::Greater => range.maximum = range.maximum.min(value),
-        // NOT (place >= K)  ==  place <= K - 1
-        BinaryOperator::GreaterOrEqual => range.maximum = range.maximum.min(value.sub(&one)),
-        _ => {}
+        operator => {
+            if let Some(interval) =
+                validation::BigIntInterval::from_refuted_comparison(operator, true, value)
+            {
+                range = interval.refine_closed(range);
+            }
+        }
     }
     range
 }

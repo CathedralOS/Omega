@@ -1488,6 +1488,28 @@ impl StructuralJudge<'_> {
         bindings: &[(String, StructuralTerm)],
         type_bindings: &[(SymbolHandle, TypeReferenceHandle)],
     ) {
+        self.intake_judged_instantiated_predicate(
+            owner,
+            parameters,
+            expression,
+            bindings,
+            type_bindings,
+            &mut super::super::refuted_requires::OperandJudgments::default(),
+        );
+    }
+
+    /// `judgments` were reached against this judge as it stands. A surviving
+    /// disjunct is taken before any of its premises, so it reuses them; a
+    /// conjunct's later operands follow intake of the earlier ones and start over.
+    fn intake_judged_instantiated_predicate(
+        &mut self,
+        owner: SymbolHandle,
+        parameters: &[StateParameter],
+        expression: ExpressionHandle,
+        bindings: &[(String, StructuralTerm)],
+        type_bindings: &[(SymbolHandle, TypeReferenceHandle)],
+        judgments: &mut super::super::refuted_requires::OperandJudgments,
+    ) {
         let program = self.program;
         if super::super::structural_terms::is_case_observation(program, expression) {
             if let Some(guarantee) =
@@ -1523,36 +1545,38 @@ impl StructuralJudge<'_> {
                 return;
             }
             if binary.operator == BinaryOperator::Or {
-                let judgment = |operand| {
-                    super::super::refuted_requires::instantiated_selected_fact_judgment(
-                        program,
-                        self,
-                        owner,
-                        parameters,
-                        operand,
-                        bindings,
-                        &[],
-                        type_bindings,
-                        None,
+                let refuted = |operand, judgments: &mut _| {
+                    matches!(
+                        super::super::refuted_requires::remembered_instantiated_fact_judgment(
+                            program,
+                            self,
+                            owner,
+                            parameters,
+                            operand,
+                            bindings,
+                            &[],
+                            type_bindings,
+                            None,
+                            judgments,
+                        ),
+                        super::StructuralJudgment::Refuted
                     )
                 };
-                if matches!(judgment(binary.left), super::StructuralJudgment::Refuted) {
-                    self.intake_instantiated_predicate(
-                        owner,
-                        parameters,
-                        binary.right,
-                        bindings,
-                        type_bindings,
-                    );
-                } else if matches!(judgment(binary.right), super::StructuralJudgment::Refuted) {
-                    self.intake_instantiated_predicate(
-                        owner,
-                        parameters,
-                        binary.left,
-                        bindings,
-                        type_bindings,
-                    );
-                }
+                let surviving = if refuted(binary.left, judgments) {
+                    binary.right
+                } else if refuted(binary.right, judgments) {
+                    binary.left
+                } else {
+                    return;
+                };
+                self.intake_judged_instantiated_predicate(
+                    owner,
+                    parameters,
+                    surviving,
+                    bindings,
+                    type_bindings,
+                    judgments,
+                );
                 return;
             }
             if super::super::structural_terms::has_identity_equality_meaning(

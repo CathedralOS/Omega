@@ -1,0 +1,11 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "dynamic_trait_input_arithmetic");
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, macos_arm64::ProgramEntry, arm_main);
+    Build::bind(builder, linux_arm64::ProgramEntry, arm_main);
+    Build::select_provider<Hosted, X86>(builder, windows_x86_64);
+    Build::select_provider<Hosted, X86>(builder, linux_x86_64);
+    Build::select_provider<Hosted, Arm>(builder, macos_arm64);
+    Build::select_provider<Hosted, Arm>(builder, linux_arm64);
+}

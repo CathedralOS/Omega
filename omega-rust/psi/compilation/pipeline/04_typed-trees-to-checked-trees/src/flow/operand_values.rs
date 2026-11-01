@@ -434,10 +434,35 @@ pub(crate) fn captured_operand_values<'capture>(
             values.extend(selected);
             continue;
         }
+        // An owned constructor field has two real cuts: the earlier child
+        // producer and the completed parent's installed value. Keep both.
+        // Contextual field formation publishes its result on the parent, while
+        // the construction obligation must still read only the child's capture.
+        // Views keep their own geometry and live referent namespace instead.
+        let installed_child = matches!(
+            operand.completion,
+            checked_trees::FlowOperandCompletion::Constructed(_)
+        ) && !projection.destination.is_empty()
+            && !operand_binds_live_view(program, selected_type);
+        let observation_projection = if installed_child {
+            let mut remaining = projection.destination.clone();
+            remaining.extend_from_slice(&projection.remaining);
+            super::LiteralExpressionProjection {
+                expression: operand.expression,
+                remaining,
+                destination: Vec::new(),
+            }
+        } else {
+            projection.clone()
+        };
         let value = CapturedValue {
-            observation: captured,
-            observation_type: selected_type,
-            observation_projection: projection.clone(),
+            observation: if installed_child { operand } else { captured },
+            observation_type: if installed_child {
+                type_reference
+            } else {
+                selected_type
+            },
+            observation_projection,
             operand: captured,
             type_reference: selected_type,
             projection,

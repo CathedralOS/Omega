@@ -96,8 +96,8 @@ pub use machine_calls::structural_call_custody::{
     zeroed_byte_projected_qualifications,
 };
 pub use proof_contracts::arithmetic_domains::domain_intervals::{
-    closed_interval_from_comparison, declared_domain_predicate_bounds,
-    exact_declared_domain_carrier_interval, exact_declared_domain_interval,
+    declared_domain_predicate_bounds, exact_declared_domain_carrier_interval,
+    exact_declared_domain_interval,
 };
 pub use proof_contracts::arithmetic_domains::float_return_postcondition;
 pub use proof_contracts::arithmetic_domains::normal_return_float_predicates;
@@ -584,12 +584,12 @@ pub use frozen_program::{
 pub use machine_calls::effect_inference::PreparedEffectPlans;
 pub use machine_calls::reference_result_custody;
 pub use program_validation::{
-    DependencyBodyJudgment, ExactIntegerCastFact, FrozenDependencyBody, OpaquePropertyValidation,
-    ProgramValidation, ProgramValidationFacts, ProvenContractExpressions,
-    admit_prepared_program_effects, checking_thread_pool, dependency_body_read_totals,
-    dependency_entailment_totals, prepare_specialized_program,
-    validate_checked_operator_realization_contract, validate_generic_machine_contract_entailment,
-    validate_program,
+    ContractEntailment, DeferredEntailment, DependencyBodyJudgment, ExactIntegerCastFact,
+    FrozenDependencyBody, OpaquePropertyValidation, ProgramValidation, ProgramValidationFacts,
+    ProvenContractExpressions, admit_prepared_program_effects, checking_thread_pool,
+    dependency_body_read_totals, dependency_entailment_totals, judge_contract_entailment,
+    prepare_specialized_program, validate_checked_operator_realization_contract,
+    validate_generic_machine_contract_entailment, validate_program,
 };
 pub(crate) use program_validation::{DependencyBodyRead, note_dependency_body_read};
 

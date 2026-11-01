@@ -295,7 +295,7 @@ fn check_program(
         )
     })?;
     phase_profile::checkpoint("after typed preparation", "05.d.2.prepare_typed_program");
-    let dependency_body_judgments = std::mem::take(&mut validated.dependency_body_judgments);
+    let deferred_entailment = validated.deferred_entailment;
     let frozen_dependency_bodies = std::mem::take(&mut validated.frozen_dependency_bodies);
     // Caller-visible mutation summaries depend only on the immutable typed
     // program and the borrow facts assembled once here. Fact construction, the
@@ -307,11 +307,6 @@ fn check_program(
     // resolver presence; certificate construction and the check replay share
     // one lazily-filled table instead of rebuilding it per entry.
     let incoming_guard_index = checks::IncomingGuardIndexCache::default();
-    // Validation judges each checked body's contract entailment once; the
-    // stage-04 prover reads those proved postconditions at its own
-    // decision point — nobody rejudges them.
-    let proven_machine_contracts =
-        std::mem::take(&mut validated.validation_facts.proven_machine_contracts);
     // Retain the arithmetic walk's occurrence intervals for value publication
     // and the later range/contract checks. The analysis already hulled every
     // clean evaluation of a shared expression; no initializer is replayed.
@@ -319,7 +314,7 @@ fn check_program(
     let proof_recipe_obligations = std::mem::take(&mut validated.constant_recipe_obligations);
     let integer_range_obligations =
         std::mem::take(&mut validated.validation_facts.integer_range_obligations);
-    let (mut facts, prepared_effects) = phase_profile::scope("05.d.3.build_check_facts", || {
+    let built = phase_profile::scope("05.d.3.build_check_facts", || {
         build_check_facts(
             &program,
             &validated.proof_plan,
@@ -331,8 +326,29 @@ fn check_program(
             &expression_intervals,
             &mutation_summaries,
         )
-    })?;
+    });
+    let (mut facts, prepared_effects) = match built {
+        Ok(built) => built,
+        Err(errors) => {
+            return Err(
+                crate::checking::program_validation::entailment_errors_first(
+                    &program,
+                    deferred_entailment,
+                    errors,
+                ),
+            );
+        }
+    };
     phase_profile::checkpoint("after check-fact construction", "05.d.3.build_check_facts");
+    // Contract entailment judges each checked body once, after the flow facts
+    // it may read exist. The stage-04 prover reads those proved postconditions
+    // at its own decision point; nobody rejudges them.
+    let validation::ContractEntailment {
+        proven_machine_contracts,
+        dependency_body_judgments,
+    } = phase_profile::scope("05.d.3b.contract_entailment", || {
+        validation::judge_contract_entailment(&program, deferred_entailment)
+    })?;
     let program = program.with_prepared_effect_plans(&prepared_effects);
     facts.deferred_layout_applications = deferred_layout_applications.to_vec();
     facts.integer_range_obligations = integer_range_obligations;

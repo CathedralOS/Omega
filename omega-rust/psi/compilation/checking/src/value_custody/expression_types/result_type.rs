@@ -58,40 +58,53 @@ pub fn parameter_expression_result_type_reference(
         // that identity does not admit its fields or use the receiving formal.
         return constructor_result_type_reference(program, expression);
     }
-    declaration_expression_result_type_reference(
+    let telescope = crate::frozen_program::frozen_program_memos(program).and_then(|memos| {
+        let roster = parameters
+            .iter()
+            .map(|parameter| (parameter.symbol, parameter.type_reference))
+            .collect::<Vec<_>>();
+        let mut telescopes = memos.parameter_telescopes.lock().ok()?;
+        let next = u32::try_from(telescopes.len()).ok()?;
+        Some(*telescopes.entry((owner_symbol, roster)).or_insert(next))
+    });
+    let place_type = |expression| {
+        crate::reserved_result_place(program, expression)
+            .filter(|place| place.machine_symbol == owner_symbol)
+            .map(|place| place.type_reference)
+            .or_else(|| {
+                crate::value_custody::places::parameter_scoped_type_reference(
+                    program, parameters, expression,
+                )
+            })
+            .or_else(|| {
+                // Static value binders retain their declaration's carrier;
+                // supplied values must not guess the operand's meaning.
+                let symbol =
+                    crate::expression_traversal::single_segment_name_symbol(program, expression)?;
+                if let Some(reference) =
+                    crate::value_custody::places::declaration_type_reference(program, symbol)
+                {
+                    return Some(reference);
+                }
+                let parameter = program.data_type_parameter_by_symbol(symbol)?;
+                match parameter.kind {
+                    typed_trees::data::TypeParameterKind::Const { type_reference }
+                    | typed_trees::data::TypeParameterKind::Value { type_reference } => {
+                        Some(type_reference)
+                    }
+                    _ => None,
+                }
+            })
+    };
+    result_type(
         program,
-        owner_symbol,
-        &|expression| {
-            crate::reserved_result_place(program, expression)
-                .filter(|place| place.machine_symbol == owner_symbol)
-                .map(|place| place.type_reference)
-                .or_else(|| {
-                    crate::value_custody::places::parameter_scoped_type_reference(
-                        program, parameters, expression,
-                    )
-                })
-                .or_else(|| {
-                    // Static value binders retain their declaration's carrier;
-                    // supplied values must not guess the operand's meaning.
-                    let symbol = crate::expression_traversal::single_segment_name_symbol(
-                        program, expression,
-                    )?;
-                    if let Some(reference) =
-                        crate::value_custody::places::declaration_type_reference(program, symbol)
-                    {
-                        return Some(reference);
-                    }
-                    let parameter = program.data_type_parameter_by_symbol(symbol)?;
-                    match parameter.kind {
-                        typed_trees::data::TypeParameterKind::Const { type_reference }
-                        | typed_trees::data::TypeParameterKind::Value { type_reference } => {
-                            Some(type_reference)
-                        }
-                        _ => None,
-                    }
-                })
+        ExpressionOwner::Declaration {
+            owner_symbol,
+            place_type: &place_type,
+            telescope,
         },
         expression,
+        &mut Vec::new(),
     )
 }
 
@@ -142,6 +155,7 @@ pub(crate) fn declaration_expression_result_type_reference(
         ExpressionOwner::Declaration {
             owner_symbol,
             place_type,
+            telescope: None,
         },
         expression,
         &mut Vec::new(),
@@ -174,7 +188,17 @@ enum ExpressionOwner<'program> {
     Declaration {
         owner_symbol: symbols::SymbolHandle,
         place_type: &'program dyn Fn(ExpressionHandle) -> Option<TypeReferenceHandle>,
+        /// The interned parameter telescope `place_type` reads, when the
+        /// callback is that pure function of it; other callbacks stay unkeyed.
+        telescope: Option<u32>,
     },
+}
+
+/// One memo slot per result query: state occurrences by position, parameter
+/// telescopes by interned roster.
+enum ResultTypeMemoKey {
+    State((u32, u32, ExpressionHandle)),
+    Telescope((u32, ExpressionHandle)),
 }
 
 impl ExpressionOwner<'_> {
@@ -196,24 +220,33 @@ fn result_type(
     if !program.expression_table.expression_is_valid(expression) || active.contains(&expression) {
         return None;
     }
-    let memo = match owner {
-        ExpressionOwner::State { machine, state } => {
-            crate::frozen_program::frozen_program_memos(program).and_then(|memos| {
+    let memo = crate::frozen_program::frozen_program_memos(program).and_then(|memos| {
+        let key = match owner {
+            ExpressionOwner::State { machine, state } => ResultTypeMemoKey::State(
                 crate::proof_contracts::bound_expression_meaning::meaning_key(
                     program,
                     machine,
                     Some(state),
                     expression,
-                )
-                .map(|key| (memos, key))
-            })
+                )?,
+            ),
+            ExpressionOwner::Declaration {
+                telescope: Some(telescope),
+                ..
+            } => ResultTypeMemoKey::Telescope((telescope, expression)),
+            _ => return None,
+        };
+        Some((memos, key))
+    });
+    let cached = memo.as_ref().and_then(|(memos, key)| match key {
+        ResultTypeMemoKey::State(key) => {
+            memos.expression_result_types.lock().ok()?.get(key).copied()
         }
-        _ => None,
-    };
-    if let Some((memos, key)) = memo
-        && let Ok(types) = memos.expression_result_types.lock()
-        && let Some(&cached) = types.get(&key)
-    {
+        ResultTypeMemoKey::Telescope(key) => {
+            memos.parameter_result_types.lock().ok()?.get(key).copied()
+        }
+    });
+    if let Some(cached) = cached {
         return cached;
     }
     // Const substitution erases value storage, not the declaration's checked
@@ -678,9 +711,19 @@ fn result_type(
     });
     if let Some((memos, key)) = memo
         && (result.is_some() || active.is_empty())
-        && let Ok(mut types) = memos.expression_result_types.lock()
     {
-        types.insert(key, result);
+        match key {
+            ResultTypeMemoKey::State(key) => {
+                if let Ok(mut types) = memos.expression_result_types.lock() {
+                    types.insert(key, result);
+                }
+            }
+            ResultTypeMemoKey::Telescope(key) => {
+                if let Ok(mut types) = memos.parameter_result_types.lock() {
+                    types.insert(key, result);
+                }
+            }
+        }
     }
     result
 }

@@ -9,9 +9,9 @@ satisfies Content<Capacity, CountedQuantity<Slot>>::project {
 }
 machine Capacity::drop(capacity: &mut Capacity) { }
 machine acquire() -> Capacity in Capacity::Held { Capacity { } }
-machine main() {
- let capacity: Capacity in Capacity::Held = acquire();
- let erased: Capacity = capacity as Capacity;
- let forged: Capacity in Capacity::Held = erased as Capacity in Capacity::Held;
- drop(forged);
+// No authorized origin for Held is in this parameter's contract. Unlike
+// weakening and requalifying an already-held claim, this would mint authority.
+machine forge(capacity: Capacity) -> Capacity in Capacity::Held {
+ capacity as Capacity in Capacity::Held
 }
+machine main() {}

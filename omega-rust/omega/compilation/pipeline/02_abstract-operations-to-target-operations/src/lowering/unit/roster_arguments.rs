@@ -3,8 +3,7 @@
 
 use super::super::scalar::byte_views::{block_source, is_immutable_byte_carrier_parameter};
 use super::super::structural_layout::{
-    checked_align_up_u32, resolve_structural_projection_path, structural_parameter_shape,
-    structural_shape,
+    checked_align_up_u32, resolve_structural_projection_path, structural_shape,
 };
 use crate::LoweringError;
 use crate::lowering::control_flow::scalar_sources::{ScalarSources, runtime_indices};
@@ -69,7 +68,15 @@ pub(in crate::lowering) fn lower_structural_argument(
             },
         )?;
         let owner = home.layout.shape();
-        if shape != structural_parameter_shape(owner, argument.access) {
+        if shape
+            != crate::lowering::structural_signature::StructuralCallSignature::parameter_shape(
+                crate::lowering::structural_signature::ParameterLane::Internal,
+                callee_parameter.structural_type,
+                owner,
+                argument.access,
+                structural_types,
+            )
+        {
             return Err(argument_type_mismatch(callee, argument.place));
         }
         return Ok(TargetStructuralArgument {
@@ -284,7 +291,13 @@ pub(in crate::lowering) fn lower_structural_argument(
                     )
             });
         let expected_shape = if presented_is_owner {
-            structural_parameter_shape(projected_shape, callee_parameter.access)
+            crate::lowering::structural_signature::StructuralCallSignature::parameter_shape(
+                crate::lowering::structural_signature::ParameterLane::Internal,
+                callee_parameter.structural_type,
+                projected_shape,
+                callee_parameter.access,
+                structural_types,
+            )
         } else {
             ValueShape::borrowed_reference(16, 8)
         };
@@ -311,12 +324,14 @@ pub(in crate::lowering) fn lower_structural_argument(
         }
         return Ok(projected_argument());
     }
-    let projected_parameter_shape = crate::lowering::structural_layout::internal_parameter_shape(
-        projected_type,
-        projected_shape,
-        callee_parameter.access,
-        structural_types,
-    );
+    let projected_parameter_shape =
+        crate::lowering::structural_signature::StructuralCallSignature::parameter_shape(
+            crate::lowering::structural_signature::ParameterLane::Internal,
+            projected_type,
+            projected_shape,
+            callee_parameter.access,
+            structural_types,
+        );
     // A stored descriptor and a borrowed formal may retain different access
     // identities for the same element declaration. Transport the existing
     // carrier only when the shared presentation relation proves it unchanged;

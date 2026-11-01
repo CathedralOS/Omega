@@ -69,7 +69,11 @@ impl<'artifact> TerminalExecution<'artifact> {
                     operation.id,
                     arguments,
                     structural_arguments,
-                    &prepared.values,
+                    crate::TerminalStructuralInputs {
+                        arguments: &prepared.values,
+                        contents: &prepared.contents,
+                        ..crate::TerminalStructuralInputs::default()
+                    },
                     self.account.as_ref(),
                 )
                 .map_err(&reject)?;

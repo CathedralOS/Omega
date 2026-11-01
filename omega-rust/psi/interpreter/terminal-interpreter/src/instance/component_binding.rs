@@ -204,7 +204,7 @@ impl<'host, 'artifact> TerminalComponentBinding<'host, 'artifact> {
         operation: OperationId,
         arguments: &[TerminalScalarValue],
         structural_operands: &[terminal_psi::StructuralArgument],
-        structural_arguments: &[crate::TerminalStructuralValue],
+        structural_inputs: TerminalStructuralInputs<'_>,
         account: Option<&EvaluationInvocationAccount>,
     ) -> Result<(), String> {
         self.require_ready()?;
@@ -212,10 +212,7 @@ impl<'host, 'artifact> TerminalComponentBinding<'host, 'artifact> {
             .program
             .instantiate(crate::TerminalInstantiation {
                 scalar_arguments: arguments,
-                structural_inputs: TerminalStructuralInputs {
-                    arguments: structural_arguments,
-                    ..TerminalStructuralInputs::default()
-                },
+                structural_inputs,
                 installation: Some(&self.supplies),
                 account,
                 entry_results: None,
@@ -232,7 +229,7 @@ impl<'host, 'artifact> TerminalComponentBinding<'host, 'artifact> {
             operation,
             arguments: arguments.to_vec(),
             structural_operands: structural_operands.to_vec(),
-            structural_arguments: structural_arguments.to_vec(),
+            structural_arguments: structural_inputs.arguments.to_vec(),
             instance: Some(Box::new(instance)),
             completed: None,
         });

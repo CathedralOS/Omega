@@ -189,13 +189,16 @@ fn prepare(
     };
     // Retain unfurled recipes before canonical closure replaces expressions.
     // Checking, rather than the folded tuple, owns arithmetic formation.
-    let parameters = match role {
+    let (declaration_parameters, declaration_lifetime_count) = match role {
         ProductOperandRole::BoundarySubject => {
             let definition = lower
                 .program
                 .trait_definition_by_symbol(declaration)
                 .ok_or_else(|| refuse("an applied boundary lost its trait declaration"))?;
-            lower.program.trait_type_parameters(definition).to_vec()
+            (
+                definition.type_parameters,
+                definition.lifetime_parameters.len(),
+            )
         }
         ProductOperandRole::Provider => {
             let definition = lower
@@ -204,13 +207,21 @@ fn prepare(
                 .ok_or_else(|| {
                     refuse("an applied provider must name an ordinary named implementation")
                 })?;
-            lower
-                .program
-                .conformance_type_parameters(definition)
-                .to_vec()
+            (
+                definition.type_parameters,
+                definition.lifetime_parameters.len(),
+            )
         }
         _ => unreachable!("nominal roles checked above"),
     };
+    let declaration_lifetime_count = u32::try_from(declaration_lifetime_count)
+        .map_err(|_| refuse("Product declaration lifetime telescope exceeds u32"))?;
+    let parameters = lower
+        .program
+        .data_type_parameters
+        .span(declaration_parameters)
+        .ok_or_else(|| refuse("Product declaration has a stale formal table"))?
+        .to_vec();
     let arguments = &source_argument
         .application
         .as_ref()
@@ -331,6 +342,8 @@ fn prepare(
         owner: author,
         role: Some(role),
         declaration,
+        declaration_parameters,
+        declaration_lifetime_count,
         demand,
         argument: source_argument,
         scope,

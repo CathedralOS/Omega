@@ -5,6 +5,5 @@
 
 pub(crate) mod graph_structural;
 mod installation_errors;
-pub(crate) mod record_shape;
 
 pub use installation_errors::InstallationError;

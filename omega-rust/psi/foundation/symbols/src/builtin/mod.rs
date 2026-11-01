@@ -1,8 +1,9 @@
 use super::{SymbolKind, SymbolNameRef};
 
-pub const BUILTIN_TYPE_COUNT: usize = 22;
+pub const BUILTIN_TYPE_COUNT: usize = 21;
 
 /// Closed semantic identity for every compiler-installed source-free type.
+/// Result is ordinary core-library data, not a source-free type.
 /// Ordinals are the exact root-child slots installed by
 /// [`builtin_type_symbols`]; names are diagnostic only.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
@@ -21,7 +22,6 @@ pub enum BuiltinTypeAtom {
     F32,
     F64,
     Slice,
-    Result,
     SyscallResult,
     Terminal,
     Never,
@@ -49,7 +49,6 @@ impl BuiltinTypeAtom {
         Self::F32,
         Self::F64,
         Self::Slice,
-        Self::Result,
         Self::SyscallResult,
         Self::Terminal,
         Self::Never,
@@ -127,7 +126,6 @@ impl BuiltinTypeAtom {
         (Self::F32, "f32", "f32"),
         (Self::F64, "f64", "f64"),
         (Self::Slice, "slice", "Slice"),
-        (Self::Result, "result", "Result"),
         (Self::SyscallResult, "syscall-result", "SyscallResult"),
         (Self::Terminal, "terminal", "Terminal"),
         (Self::Never, "never", "Never"),

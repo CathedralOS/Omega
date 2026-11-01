@@ -163,6 +163,10 @@ impl TargetProviderPreparationRequest<'_> {
                 choice: provider_selection::ProviderCandidate {
                     plan: candidate.plan.clone(),
                     declarations: provider_selection::CandidateDeclarations {
+                        selecting_declaration: closed_declarations
+                            .as_ref()
+                            .map(|closed| closed.provider_declaration.clone())
+                            .map_err(Clone::clone),
                         schema: self.canonical_declaration(schema),
                         provider: candidate
                             .provenance

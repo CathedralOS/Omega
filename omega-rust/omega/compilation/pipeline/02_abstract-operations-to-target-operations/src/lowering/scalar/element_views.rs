@@ -645,12 +645,14 @@ pub(in crate::lowering) fn resolve_element_view(
             &mut BTreeMap::new(),
             &mut BTreeSet::new(),
         )?;
-        let expected_shape = crate::lowering::structural_layout::internal_parameter_shape(
-            semantic.structural_type,
-            referent,
-            semantic.access,
-            structural_types,
-        );
+        let expected_shape =
+            crate::lowering::structural_signature::StructuralCallSignature::parameter_shape(
+                crate::lowering::structural_signature::ParameterLane::Internal,
+                semantic.structural_type,
+                referent,
+                semantic.access,
+                structural_types,
+            );
         if !structural_types
             .get(&semantic.structural_type)
             .is_some_and(|row| matches!(row.shape, StructuralTypeShape::ElementView { .. }))

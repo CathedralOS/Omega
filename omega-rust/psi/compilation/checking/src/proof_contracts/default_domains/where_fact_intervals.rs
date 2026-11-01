@@ -14,7 +14,7 @@ use typed_trees::state::State;
 
 use super::place_queries::data_definition_for_expression;
 use super::symbolic_values::integer_literal_value;
-use crate::proof_contracts::arithmetic_domains::Interval;
+use crate::proof_contracts::arithmetic_domains::{BigIntInterval, Interval};
 
 /// Necessary interval consequences of an established data predicate. These
 /// are not standing read hypotheses: a restoration window may falsify the
@@ -288,15 +288,12 @@ fn conjunct_field_intervals(
                 // never replaced by an integer interval.
                 let value = expression_table(program).integer_node(bound.literal)?;
                 let bound_value = i64::try_from(value.decimal_value_i128()?).ok()?;
-                let (low, high) = match bound.operator {
-                    BinaryOperator::LessOrEqual => (None, Some(bound_value)),
-                    BinaryOperator::Less => (None, Some(bound_value.checked_sub(1)?)),
-                    BinaryOperator::GreaterOrEqual => (Some(bound_value), None),
-                    BinaryOperator::Greater => (Some(bound_value.checked_add(1)?), None),
-                    BinaryOperator::Equal => (Some(bound_value), Some(bound_value)),
-                    _ => return None,
-                };
-                Some((bound.field, Interval { low, high }))
+                let interval = BigIntInterval::from_comparison(
+                    bound.operator,
+                    true,
+                    numerics::bignum::BigInt::from_i64(bound_value),
+                )?;
+                Some((bound.field, interval.to_interval()?))
             })
             .collect()
     } else {

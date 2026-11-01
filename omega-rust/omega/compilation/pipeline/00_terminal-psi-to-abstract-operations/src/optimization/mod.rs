@@ -314,6 +314,21 @@ impl VerifiedPsiOptimizationInput {
         self.target_layout_selections.as_ref()
     }
 
+    /// The physical calling declaration selected for one unchanged portable
+    /// boundary occurrence. Family selection supplies only the exact canonical
+    /// member coordinate; the declaration still owns every ABI operand.
+    pub fn selected_calling_abi_identity(
+        &self,
+        boundary: semantic_vocabulary::BoundaryMachineId,
+    ) -> Result<semantic_vocabulary::CallingAbiIdentity, String> {
+        let declaration = selected_calling_boundary(
+            self.context.module(),
+            self.target_machine_selections(),
+            boundary,
+        )?;
+        self.context.module().calling_abi_identity(declaration)
+    }
+
     /// Resolve a portable family head to its exact execution coordinate. A missing
     /// selected member refuses only when reached; retained, unused families
     /// impose no deployment requirement. Opaque members still require their
@@ -331,6 +346,22 @@ impl VerifiedPsiOptimizationInput {
 }
 
 pub(crate) use terminal_installation::admitted_boundary_member as target_family_member;
+
+/// Family membership is admitted independently of native planning. Proposal
+/// construction and later native admission use this same declaration join.
+pub(crate) fn selected_calling_boundary(
+    module: &terminal_psi::TerminalModule,
+    targets: Option<&terminal_installation::AdmittedTargetMachineSelections>,
+    boundary: semantic_vocabulary::BoundaryMachineId,
+) -> Result<semantic_vocabulary::BoundaryMachineId, String> {
+    match target_family_member(module, targets, boundary)? {
+        Some(terminal_psi::TargetMachineCallable::Boundary(member)) => Ok(member),
+        Some(terminal_psi::TargetMachineCallable::Machine(_)) => {
+            Err("checked target-family member has no external calling declaration".into())
+        }
+        None => Ok(boundary),
+    }
+}
 
 /// Verifier-owned proof context retained beside the reconstructible Omega plan.
 /// The complete immutable Terminal module remains for proof-question and cycle
