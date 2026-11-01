@@ -4,7 +4,7 @@ data Pair [copy]
 requires (self in Pair::Ready) || (self in Pair::Empty)
 { lower: u64; case Ready(upper: u64); case Empty; }
 domain Pair::Equal requires (self in Pair::Ready) || (self in Pair::Empty && self.lower == 0);
-machine produce(value: u64) -> Pair in Equal { Pair::Ready { lower: value, upper: value } }
+machine produce(value: u64) -> Pair in Equal { match value == 0 { true -> Pair::Empty { lower: 0 } false -> Pair::Ready { lower: value, upper: value } } }
 trait Reader { machine read(pair: Pair in Equal, expected: u64) -> bool; }
 LinuxReader satisfies Reader {
     machine read(pair: Pair in Equal, expected: u64) -> bool {
@@ -43,7 +43,7 @@ WindowsReader satisfies Reader {
     }
 }
 machine journey<Chosen satisfies Reader>() crashes Trap {
-    transition Chosen::read(produce(17), 17) && Chosen::read(produce(23), 23) && !Chosen::read(Pair::Empty { lower: 0 }, 0) { true -> done() _ -> bad() }
+    transition Chosen::read(produce(17), 17) && Chosen::read(produce(23), 23) && !Chosen::read(produce(0), 0) { true -> done() _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }
