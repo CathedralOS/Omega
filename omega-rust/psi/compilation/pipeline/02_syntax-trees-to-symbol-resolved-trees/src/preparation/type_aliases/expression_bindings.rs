@@ -3,20 +3,29 @@
 //! carrier/formation admission, and ordinary checking admits the copied RHS.
 
 use super::{Diagnostic, SyntaxTrees, TypeAliasDefinition, TypeParameterKind, TypeReferenceHandle};
+use crate::preparation::declaration_selection::ConstantSelection;
 use crate::preparation::generic_data::{collect_expression_handles, visit_expression_type_inputs};
 use arena::HandleSpan;
+use source::SourceSpan;
 use std::collections::{HashMap, HashSet};
 use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 use syntax_trees::identifier::Identifier;
 use syntax_trees::types::TypeReferenceNode;
 
+#[derive(Default)]
+pub(super) struct ExpressionBindings {
+    pub(super) uses: Vec<(ExpressionHandle, TypeReferenceHandle)>,
+    pub(super) declaration_references: Vec<SourceSpan>,
+    pub(super) unresolved: Vec<ExpressionHandle>,
+}
+
 pub(super) fn bind_const_expression(
     templates: &SyntaxTrees,
+    selection: &ConstantSelection<'_>,
     root: ExpressionHandle,
     alias: &TypeAliasDefinition,
     arguments: &[TypeReferenceHandle],
-    uses: &mut Vec<(ExpressionHandle, TypeReferenceHandle)>,
-    unresolved: &mut Vec<ExpressionHandle>,
+    bindings: &mut ExpressionBindings,
 ) -> Vec<TypeReferenceHandle> {
     let mut expressions = HashSet::new();
     collect_expression_handles(templates, root, &mut expressions);
@@ -32,7 +41,7 @@ pub(super) fn bind_const_expression(
         match templates.expressions.expression(expression) {
             ExpressionNode::Name(path) => {
                 let [name] = templates.expressions.identifier_path_members(*path) else {
-                    unresolved.push(expression);
+                    bindings.unresolved.push(expression);
                     continue;
                 };
                 let shadowed = proofs.get(&expression).is_some_and(|bindings| {
@@ -49,18 +58,46 @@ pub(super) fn bind_const_expression(
                     })
                     .flatten();
                 if let Some(position) = parameter {
-                    uses.push((expression, arguments[position]));
+                    bindings.uses.push((expression, arguments[position]));
+                } else if !shadowed && declaration_constant(templates, selection, expression) {
+                    // This occurrence belongs to the selected alias's authored
+                    // RHS. It resolves in source declaration scope, independently
+                    // from substituted operands which keep their own occurrences.
+                    bindings
+                        .declaration_references
+                        .push(templates.expressions.source_span(expression));
                 } else {
-                    unresolved.push(expression);
+                    bindings.unresolved.push(expression);
                 }
             }
-            // A declaration-global name or call needs its own retained scope;
-            // a caller's same-spelled declaration is never a substitute.
-            ExpressionNode::Call(_) => unresolved.push(expression),
+            // Calls still need their complete declaration/supplying operand
+            // closure; selecting an alias grants no invocation authority.
+            ExpressionNode::Call(_) => bindings.unresolved.push(expression),
             _ => {}
         }
     }
     children
+}
+
+fn declaration_constant(
+    syntax: &SyntaxTrees,
+    selection: &ConstantSelection<'_>,
+    expression: ExpressionHandle,
+) -> bool {
+    let ExpressionNode::Name(path) = syntax.expressions.expression(expression) else {
+        return false;
+    };
+    let name = syntax
+        .expressions
+        .identifier_path_members(*path)
+        .iter()
+        .map(|member| member.as_str(syntax))
+        .collect::<Vec<_>>()
+        .join("::");
+    selection.selects_const(
+        syntax,
+        &Identifier::new(name, syntax.expressions.source_span(expression)),
+    )
 }
 
 pub(super) fn supplied_expressions(
