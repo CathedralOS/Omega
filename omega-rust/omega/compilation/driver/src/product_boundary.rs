@@ -969,6 +969,36 @@ fn calling_materialization_consumes_prepared_psi_telescopes() {
 }
 
 #[test]
+fn terminal_calling_activation_uses_only_canonical_geometry() {
+    let execution = include_str!(
+        "../../realization/provider-planning/src/calling_policy_plans/terminal_execution.rs"
+    );
+    let protocol = include_str!(
+        "../../realization/provider-planning/src/calling_policy_plans/policy_signature.rs"
+    );
+    assert_absent(
+        &[execution, protocol],
+        "calling activation retains source correspondence",
+        &[
+            "MaterializedBoundarySignature",
+            "TypedTrees",
+            "SymbolHandle",
+            "TypeReference",
+            "checked_trees",
+            "layout_data_symbol",
+        ],
+    );
+    assert!(protocol.contains("BoundarySignatureGeometry"));
+    assert!(protocol.contains("CallbackMaterializationContext"));
+    let publication = include_str!(
+        "../../realization/provider-planning/src/calling_policy_plans/callback_bindings.rs"
+    );
+    assert!(publication.contains("let policy = signature.policy_signature()?;"));
+    assert!(publication.contains("signature: policy.geometry"));
+    assert!(publication.contains("callback_context: policy.callbacks"));
+}
+
+#[test]
 fn calling_policy_selection_consumes_prepared_psi_applications() {
     let computation = include_str!(
         "../../realization/provider-planning/src/calling_policy_plans/plan_computation.rs"

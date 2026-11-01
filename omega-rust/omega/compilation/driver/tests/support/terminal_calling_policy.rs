@@ -147,6 +147,7 @@ pub(super) fn observe(
         let account = sponsor
             .begin_invocation(measurement, 1_000_000)
             .map_err(|error| error.to_string())?;
+        let signature = signature.policy_signature()?;
         let (plan, usage) = evaluate_terminal_calling_policy(TerminalCallingPolicyInvocation {
             artifact,
             entry: module.entry.ok_or("calling fixture has no policy entry")?,
@@ -179,13 +180,45 @@ pub(super) fn observe(
         if usage.total_units() == 0 {
             return Err("calling fixture recorded no execution fuel".into());
         }
+        // Change only the detached canonical graph. The authored policy still
+        // returns an integer placement, which cannot classify a float input.
+        let mut wrong_class = signature.geometry.clone();
+        let root = *wrong_class
+            .parameters
+            .first()
+            .ok_or("missing policy formal")?;
+        wrong_class.shapes[usize::from(root)].class =
+            calling_conventions::BoundaryValueClass::Float;
+        let wrong_class = provider_planning::calling_policy_plans::CallingPolicySignature {
+            target: signature.target,
+            geometry: wrong_class,
+            callbacks: signature.callbacks.clone(),
+        };
+        let account = sponsor
+            .begin_invocation(measurement, 1_000_000)
+            .map_err(|error| error.to_string())?;
+        let error = evaluate_terminal_calling_policy(TerminalCallingPolicyInvocation {
+            artifact,
+            entry: module.entry.ok_or("calling fixture has no policy entry")?,
+            target,
+            signature: &wrong_class,
+            account,
+        })
+        .err()
+        .ok_or("calling policy accepted an integer placement for a float input")?;
+        if !error.contains("parameter 0 classification is invalid") {
+            return Err(format!(
+                "calling shape control reached an unrelated refusal: {error}"
+            ));
+        }
         for (control, description, fuel) in [
             ("rejection", rejected, 1_000_000),
             ("fuel", description, 1),
             ("target", description, 1_000_000),
         ] {
             let signature =
-                MaterializedBoundarySignature::from_terminal(module, description, target)?;
+                MaterializedBoundarySignature::from_terminal(module, description, target)?
+                    .policy_signature()?;
             let selected_target = if control == "target" {
                 target::TargetProfile::from_canonical_target_name("linux_x86_64")
                     .map_err(|error| error.message)?
