@@ -31,6 +31,13 @@ pub(super) fn index_structural_types(
     let mut types = BTreeMap::new();
     let mut type_names = BTreeSet::new();
     for declaration in &unit.structural_types {
+        terminal_semantics::validate_inline_carriers(&unit.structural_types, declaration).map_err(
+            |error| OptimizationUnitValidationError::InvalidInlineCarrier {
+                structural_type: declaration.id,
+                field: error.field,
+                reason: error.reason,
+            },
+        )?;
         if types.insert(declaration.id, declaration).is_some() {
             return Err(OptimizationUnitValidationError::DuplicateStructuralType(
                 declaration.id,

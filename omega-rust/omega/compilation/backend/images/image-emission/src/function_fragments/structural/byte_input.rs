@@ -361,6 +361,7 @@ mod tests {
                                 id: StructuralCaseId::new(2).unwrap(),
                                 identity: terminal_psi::TerminalIdentityIndex(3),
                                 fields: vec![terminal_psi::StructuralFieldDeclaration {
+                                    inline_carrier: None,
                                     storage: None,
                                     id: StructuralFieldId::new(1).unwrap(),
                                     identity: terminal_psi::TerminalIdentityIndex(4),

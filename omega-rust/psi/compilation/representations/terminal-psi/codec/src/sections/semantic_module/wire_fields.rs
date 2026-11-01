@@ -39,6 +39,27 @@ pub(super) trait Field<T> {
     fn read(reader: &mut Reader<'_>) -> Result<T, CodecError>;
 }
 
+pub(super) struct ResultField<Success, Failure>(std::marker::PhantomData<(Success, Failure)>);
+impl<Success, Failure, SuccessField: Field<Success>, FailureField: Field<Failure>>
+    Field<Result<Success, Failure>> for ResultField<SuccessField, FailureField>
+{
+    fn write(writer: &mut Writer, value: &Result<Success, Failure>) -> Result<(), CodecError> {
+        writer.boolean(value.is_ok());
+        match value {
+            Ok(value) => SuccessField::write(writer, value),
+            Err(reason) => FailureField::write(writer, reason),
+        }
+    }
+
+    fn read(reader: &mut Reader<'_>) -> Result<Result<Success, Failure>, CodecError> {
+        Ok(if reader.boolean()? {
+            Ok(SuccessField::read(reader)?)
+        } else {
+            Err(FailureField::read(reader)?)
+        })
+    }
+}
+
 fn label<T>() -> &'static str {
     let name = std::any::type_name::<T>();
     name.rsplit("::").next().unwrap_or(name)

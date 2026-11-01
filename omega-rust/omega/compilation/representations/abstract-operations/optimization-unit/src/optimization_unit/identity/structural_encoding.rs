@@ -667,6 +667,10 @@ pub(super) fn encode_structural_field(
 ) {
     bytes.id(field.id);
     bytes.u32(field.identity.0);
+    bytes.u8(u8::from(field.inline_carrier.is_some()));
+    if let Some(carrier) = field.inline_carrier {
+        bytes.id(carrier);
+    }
     bytes.u8(match field.relevance {
         BindingRelevance::Relevant => 1,
         BindingRelevance::Erased => 2,
@@ -832,6 +836,28 @@ mod tests {
     use super::*;
     use semantic_vocabulary::{MachineId, PlaceId, StructuralTypeId};
     use terminal_psi::{NominalAffineCleanup, StructuralPathSegment, TerminalAffineCleanupAction};
+
+    #[test]
+    fn exact_inline_carrier_changes_field_identity() {
+        let encodings = [None, Some(2), Some(3)].map(|identity| {
+            let field = terminal_psi::StructuralFieldDeclaration {
+                id: semantic_vocabulary::StructuralFieldId::new(1).unwrap(),
+                identity: terminal_psi::TerminalIdentityIndex(1),
+                relevance: terminal_psi::BindingRelevance::Relevant,
+                storage: None,
+                field_type: terminal_psi::StructuralFieldType::Scalar(
+                    semantic_vocabulary::ScalarType::Boolean,
+                ),
+                inline_carrier: identity.map(|identity| StructuralTypeId::new(identity).unwrap()),
+            };
+            let mut encoder = CanonicalBytes::collect();
+            encode_structural_field(&mut encoder, &field);
+            encoder.finish()
+        });
+        for (position, encoding) in encodings.iter().enumerate() {
+            assert!(!encodings[..position].contains(encoding));
+        }
+    }
 
     #[test]
     fn logical_copy_permission_changes_encoded_identity() {

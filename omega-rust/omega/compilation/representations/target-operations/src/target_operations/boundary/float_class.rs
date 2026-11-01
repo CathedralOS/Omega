@@ -60,6 +60,7 @@ mod tests {
                             vec![]
                         } else {
                             vec![StructuralFieldDeclaration {
+                                inline_carrier: None,
                                 id: StructuralFieldId::new(index).unwrap(),
                                 identity: terminal_psi::TerminalIdentityIndex(2),
                                 relevance: BindingRelevance::Relevant,

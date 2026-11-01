@@ -121,6 +121,7 @@ fn scalar_refinement_round_trip_retains_full_predicate_and_rejects_foreign_subje
         shape: StructuralTypeShape::Record {
             storage: terminal_psi::StructuralRecordStorage::Packed,
             fields: vec![StructuralFieldDeclaration {
+                inline_carrier: Some(StructuralTypeId::new(8).unwrap()),
                 storage: None,
                 id: semantic_vocabulary::StructuralFieldId::new(1).unwrap(),
                 identity: terminal_psi::TerminalIdentityIndex(2),

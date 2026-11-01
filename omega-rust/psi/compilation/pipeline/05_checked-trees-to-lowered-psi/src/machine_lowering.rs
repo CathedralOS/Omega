@@ -482,6 +482,7 @@ fn lower_terminal_selection(
         lower_and_install_evidence_artifacts(identities, checked, &source_machine_ids, &mut lowered)
     })?;
     lowered.source_boundary_declarations = source_boundary_ids;
+    lowered.source_machine_declarations = source_machine_ids;
     Ok((lowered, completion))
 }
 

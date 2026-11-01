@@ -147,6 +147,7 @@ pub(super) fn validate(
                     || (!numbered && position != ordinal)
                     || input.schema_field != source.id
                     || field.field_type != source.field_type
+                    || field.inline_carrier != source.inline_carrier
                     || input.key == 0
                     || !keys.insert(input.key)
                     || input

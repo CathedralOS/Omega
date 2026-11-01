@@ -77,6 +77,8 @@ pub(super) fn validate_catalog_type_shape(
     declaration: &StructuralTypeDeclaration,
     attachment_storage: &BTreeSet<StructuralTypeId>,
 ) -> Result<(), CodecError> {
+    terminal_semantics::validate_inline_carriers(module.structural_types, declaration)
+        .map_err(|error| CodecError::MalformedStructuralFoundation(error.reason))?;
     if declaration.copyable && declaration.owns_linear_claim {
         return malformed("a copyable type cannot own a conserved linear claim");
     }
@@ -628,6 +630,7 @@ mod authored_storage_envelope_tests {
     #[test]
     fn field_geometry_requires_the_record_envelope_in_every_field_roster() {
         let field = StructuralFieldDeclaration {
+            inline_carrier: None,
             id: StructuralFieldId::new(1).expect("field identity"),
             identity: TerminalIdentityIndex(291),
             relevance: BindingRelevance::Relevant,
@@ -694,6 +697,7 @@ mod authored_storage_envelope_tests {
             shape: StructuralTypeShape::PrimitiveScalar(integer),
         });
         let field = StructuralFieldDeclaration {
+            inline_carrier: None,
             id: StructuralFieldId::new(1).expect("field"),
             identity: TerminalIdentityIndex(291),
             relevance: BindingRelevance::Relevant,
@@ -758,6 +762,7 @@ mod authored_storage_envelope_tests {
             },
         });
         let field = StructuralFieldDeclaration {
+            inline_carrier: None,
             id: StructuralFieldId::new(1).expect("field"),
             identity: TerminalIdentityIndex(535),
             relevance: BindingRelevance::Relevant,

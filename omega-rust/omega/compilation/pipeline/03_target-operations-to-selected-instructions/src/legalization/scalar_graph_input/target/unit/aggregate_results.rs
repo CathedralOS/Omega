@@ -265,7 +265,7 @@ pub(super) fn validate(
                                     optimized,
                                     result.place,
                                     argument,
-                                    &declaration.field_type,
+                                    declaration,
                                     &unit.structural_types,
                                 )
                                 .is_err()
@@ -459,7 +459,7 @@ pub(super) fn validate(
                             optimized,
                             result.place,
                             argument,
-                            &declared.field_type,
+                            declared,
                             &unit.structural_types,
                         )?;
                     }
@@ -478,9 +478,10 @@ fn validate_owned_field_operand(
     function: &PsiOptimizationFunction,
     destination: semantic_vocabulary::PlaceId,
     argument: &terminal_psi::StructuralArgument,
-    field: &terminal_psi::StructuralFieldType,
+    declaration: &terminal_psi::StructuralFieldDeclaration,
     types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<(), LegalizationError> {
+    let field = &declaration.field_type;
     if argument.access != terminal_psi::StructuralAccess::Owned || argument.place == destination {
         return Err(LegalizationError::custody());
     }
@@ -504,7 +505,7 @@ fn validate_owned_field_operand(
         // child. Rejoin its exact canonical carrier and ordinary value source;
         // readable versus exclusive backing never changes descriptor geometry.
         // Copy/transfer and permission remain the retained source judgments.
-        let expected = terminal_semantics::byte_carrier_field_declaration(types.iter(), carrier)
+        let expected = terminal_semantics::inline_carrier_declaration(types.iter(), declaration)
             .ok_or(LegalizationError::custody())?;
         return if terminal_semantics::borrowed_referent_presentation(
             types.iter(),

@@ -11,29 +11,36 @@ use calling_conventions::{
 };
 use layout::BoundaryValueLayout;
 
-impl CallingPolicySignature {
-    /// Materialize one exact published signature directly from canonical storage.
-    /// This projection constructs no source correspondence and grants no provider or
-    /// representation authority. Private callback geometry consumes the selected
-    /// canonical record storage, not a second source-side layout traversal.
-    pub fn from_terminal(
+pub struct CanonicalCallingSignature {
+    pub declaration: semantic_vocabulary::CallingSignatureId,
+    pub requirement_identity: String,
+    pub policy: CallingPolicySignature,
+    pub opaque_uses: Vec<CanonicalOpaqueUse>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CanonicalOpaqueUse {
+    pub shape_root: u16,
+    pub application: language_semantics::opaque_representations::SelectedOpaqueApplication,
+}
+
+impl CanonicalCallingSignature {
+    /// Project an exact declaration application, including dormant declarations
+    /// requested by a policy that have no emitted boundary invocation.
+    pub fn materialize(
         module: &terminal_psi::TerminalModule,
-        boundary: semantic_vocabulary::BoundaryMachineId,
+        declaration: semantic_vocabulary::CallingSignatureId,
         target: target::TargetProfile,
         extents: &dyn Fn(
             semantic_vocabulary::ScalarApplicationId,
         ) -> Result<u64, terminal_semantics::StorageGeometryError>,
     ) -> Result<Self, String> {
         let signature = module
-            .calling_signatures
-            .iter()
-            .find(|signature| signature.boundary == boundary)
-            .ok_or("boundary has no retained calling signature declaration")?;
-        let declaration = module
-            .boundary_machine(boundary)
-            .ok_or("calling signature lost its exact boundary declaration")?;
-        let telescope = signature.telescope.as_ref().map_err(Clone::clone)?;
-        if declaration.parameter_order.len() != telescope.parameters.len() {
+            .calling_abi_signature(declaration)
+            .ok_or("calling signature lost its exact declaration application")?;
+        let storage = signature.storage.as_ref().map_err(Clone::clone)?;
+        let telescope = &storage.telescope;
+        if storage.parameters.len() != telescope.parameters.len() {
             return Err(
                 "calling telescope differs from its exact boundary parameter roster".into(),
             );
@@ -45,62 +52,45 @@ impl CallingPolicySignature {
         let mut parameters = Vec::with_capacity(telescope.parameters.len());
         let mut native_formals =
             Vec::<BoundaryNativeParameterGeometry>::with_capacity(telescope.parameters.len());
-        let mut scalars = declaration.scalar_parameters.iter();
-        let mut structural = declaration.structural_parameters.iter();
         let mut callback_storage = layout::TerminalCallbackLayouts::new(module, target, extents);
         let mut private_layouts = Vec::new();
-        for (formal_ordinal, (kind, formal)) in declaration
-            .parameter_order
+        for (formal_ordinal, (parameter, formal)) in storage
+            .parameters
             .iter()
             .zip(&telescope.parameters)
             .enumerate()
         {
-            let recipe = match kind {
-                terminal_psi::BoundaryParameterKind::Scalar => recipes.scalar(
-                    *scalars
-                        .next()
-                        .ok_or("calling scalar parameter is outside its exact lane")?,
-                )?,
-                terminal_psi::BoundaryParameterKind::Structural => {
-                    let parameter = structural
-                        .next()
-                        .ok_or("calling structural parameter is outside its exact lane")?;
-                    // Parameter storage already names the referent for an
-                    // ordinary borrowed formal. An owned reference carrier
-                    // names it explicitly; references inside records remain
-                    // leaves rather than recursively expanding pointees.
-                    let mut storage_root = parameter.structural_type;
-                    let mut reference_shells = Vec::new();
-                    while let Some(terminal_psi::StructuralTypeShape::Reference {
-                        referent, ..
-                    }) = module.structural_type(storage_root).map(|row| &row.shape)
-                    {
-                        if reference_shells.contains(&storage_root) || reference_shells.len() >= 128
-                        {
-                            return Err(
-                                "callback formal has a recursive or excessive reference shell"
-                                    .into(),
-                            );
-                        }
-                        reference_shells.push(storage_root);
-                        storage_root = *referent;
-                    }
-                    private_layouts.extend(
-                        callback_storage.for_parameter(layout::CallbackStorageRoot {
-                            record: storage_root,
-                            parameter: formal.identity,
-                            formal_ordinal: u32::try_from(formal_ordinal)
-                                .map_err(|_| "calling signature has too many formals")?,
-                            native_ordinal: formal.native_ordinal,
-                        })?,
+            // Parameter storage already names the referent for an
+            // ordinary borrowed formal. An owned reference carrier
+            // names it explicitly; references inside records remain
+            // leaves rather than recursively expanding pointees.
+            let mut storage_root = parameter.structural_type;
+            let mut reference_shells = Vec::new();
+            while let Some(terminal_psi::StructuralTypeShape::Reference { referent, .. }) =
+                module.structural_type(storage_root).map(|row| &row.shape)
+            {
+                if reference_shells.contains(&storage_root) || reference_shells.len() >= 128 {
+                    return Err(
+                        "callback formal has a recursive or excessive reference shell".into(),
                     );
-                    match parameter.access {
-                        terminal_psi::StructuralAccess::Owned => {
-                            recipes.value(parameter.structural_type)?
-                        }
-                        _ => recipes.reference(parameter.structural_type)?,
-                    }
                 }
+                reference_shells.push(storage_root);
+                storage_root = *referent;
+            }
+            private_layouts.extend(
+                callback_storage.for_parameter(layout::CallbackStorageRoot {
+                    record: storage_root,
+                    parameter: formal.identity,
+                    formal_ordinal: u32::try_from(formal_ordinal)
+                        .map_err(|_| "calling signature has too many formals")?,
+                    native_ordinal: formal.native_ordinal,
+                })?,
+            );
+            let recipe = match parameter.access {
+                terminal_psi::StructuralAccess::Owned => {
+                    recipes.value(parameter.structural_type)?
+                }
+                _ => recipes.reference(parameter.structural_type)?,
             };
             let (_, root) = values.value_type(recipes.recipes(), recipe)?;
             validate_fresh_native_parameter_identity(
@@ -119,30 +109,35 @@ impl CallingPolicySignature {
                 },
             });
         }
-        if scalars.next().is_some() || structural.next().is_some() {
-            return Err("calling telescope omitted a declared parameter lane".into());
-        }
-        let result = match &declaration.result {
-            terminal_psi::BoundaryMachineResult::Unit => None,
-            terminal_psi::BoundaryMachineResult::Scalar(scalar) => {
-                Some(recipes.scalar(scalar.scalar_type)?)
-            }
-            terminal_psi::BoundaryMachineResult::Structural(result) => {
-                Some(recipes.value(result.structural_type)?)
-            }
-        }
-        .map(|recipe| {
-            values
-                .value_type(recipes.recipes(), recipe)
-                .map(|(_, root)| root)
-        })
-        .transpose()?;
+        let result = storage
+            .result
+            .map(|result| recipes.value(result))
+            .transpose()?
+            .map(|recipe| {
+                values
+                    .value_type(recipes.recipes(), recipe)
+                    .map(|(_, root)| root)
+            })
+            .transpose()?;
         module
             .identities
             .text(signature.requirement_identity)
             .filter(|identity| !identity.is_empty())
             .ok_or("calling signature has no exact requirement identity")?;
-        let (shapes, fields, _) = values.into_parts();
+        let (shapes, fields, occurrences) = values.into_parts();
+        let opaque_uses = occurrences
+            .into_iter()
+            .map(|occurrence| {
+                let selection = module
+                    .opaque_representations
+                    .get(occurrence.selection_ordinal)
+                    .ok_or("boundary opaque occurrence lost its exact canonical selection")?;
+                Ok(CanonicalOpaqueUse {
+                    shape_root: occurrence.shape_root,
+                    application: selection.application.clone(),
+                })
+            })
+            .collect::<Result<Vec<_>, String>>()?;
         let closed = calling_conventions::NativeParameterTelescope::close(
             native_formals,
             telescope.direct_callbacks.iter().cloned(),
@@ -202,20 +197,29 @@ impl CallingPolicySignature {
         let mut native_parameters = arena::Arena::with_capacity(closed.parameters.len());
         let native_parameter_rows = native_parameters.insert_many(closed.parameters);
         Ok(Self {
-            target: target.native_target(),
-            geometry: calling_conventions::BoundarySignatureGeometry {
-                shapes,
-                fields,
-                parameters,
-                result,
-                native_parameters,
-                native_parameter_rows,
-                callback_bindings,
-                callback_binding_rows,
-                callback_layouts,
-                callback_layout_rows,
+            declaration,
+            requirement_identity: module
+                .identities
+                .text(signature.requirement_identity)
+                .ok_or("canonical signature lost its exact requirement identity")?
+                .to_owned(),
+            opaque_uses,
+            policy: CallingPolicySignature {
+                target: target.native_target(),
+                geometry: calling_conventions::BoundarySignatureGeometry {
+                    shapes,
+                    fields,
+                    parameters,
+                    result,
+                    native_parameters,
+                    native_parameter_rows,
+                    callback_bindings,
+                    callback_binding_rows,
+                    callback_layouts,
+                    callback_layout_rows,
+                },
+                callbacks,
             },
-            callbacks,
         })
     }
 }

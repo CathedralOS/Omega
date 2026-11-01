@@ -169,6 +169,7 @@ mod storage_transfers;
 mod structural_scalar_store;
 mod structural_value_calls;
 pub(crate) use structural_value_calls::retain as retain_structural_value_calls;
+mod calling_signatures;
 pub(crate) mod types;
 
 pub(crate) use calls::structural_computation_argument;
@@ -184,6 +185,7 @@ pub(crate) struct ScalarCalleeClosure;
 pub(crate) fn build_checked_unit_effect_plans(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
+    calling_declarations: &typed_trees::service_declarations::signatures::PreparedBoundarySignatures,
     boundary_signature_reaches: &[(symbols::SymbolHandle, language_semantics::ServiceReachRowId)],
     scalar_callees: ScalarCalleeClosure,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
@@ -193,6 +195,8 @@ pub(crate) fn build_checked_unit_effect_plans(
     structural_value_calls::PreparedCalls,
 ) {
     let mut shapes = ShapeCollector::new(program);
+    let calling_signatures =
+        calling_signatures::collect(program, calling_declarations, &mut shapes);
     let mut prepared_calls = structural_value_calls::PreparedCalls::default();
     let retained_records = state_graph::RetainedBorrowRecords::new(facts);
     let mut boundary_gaps = Vec::new();
@@ -659,6 +663,7 @@ pub(crate) fn build_checked_unit_effect_plans(
                 )
                 .chain(plan.result.structural_identity())
         })
+        .chain(calling_signatures.iter().filter_map(|row| row.storage.as_ref().ok()).flat_map(|storage| storage.type_roots()))
         .chain(dynamic_slots.iter().flat_map(|plan| {
             plan.structural_parameters
                 .iter()
@@ -1172,6 +1177,11 @@ pub(crate) fn build_checked_unit_effect_plans(
             }))
     }));
     shapes.retain_transitive(&retained_type_identities);
+    let opaque_representations = shapes
+        .opaque_representations
+        .into_iter()
+        .filter(|row| shapes.types.contains_key(&row.opaque))
+        .collect();
     types::retain_domain_predicates(program, &facts.operators, &mut shapes.domains);
 
     let partial_affine_plans = CheckedPartialAffineUnitCleanupPlans {
@@ -1187,6 +1197,8 @@ pub(crate) fn build_checked_unit_effect_plans(
                 shapes.domains
             },
             boundary_machines,
+            calling_signatures,
+            opaque_representations,
             dynamic_slots,
             machines: candidates,
             composed_machines,

@@ -522,6 +522,10 @@ pub(super) fn encode_structural_fields(bytes: &mut Vec<u8>, fields: &[Structural
     for field in fields {
         crate::codec_bytes::push_encoded(bytes, field.id.get().to_le_bytes());
         bytes.extend_from_slice(&field.identity.0.to_le_bytes());
+        bytes.push(u8::from(field.inline_carrier.is_some()));
+        if let Some(carrier) = field.inline_carrier {
+            bytes.extend_from_slice(&carrier.get().to_le_bytes());
+        }
         bytes.push(match field.relevance {
             BindingRelevance::Relevant => 1,
             BindingRelevance::Erased => 2,

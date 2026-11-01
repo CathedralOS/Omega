@@ -190,9 +190,9 @@ pub(in crate::lowering) fn lower_structural_argument(
     let mut byte_field_capacity = None;
     let (projected_type, projected_shape) = match selected {
         super::super::structural_layout::ProjectedStorage::Field(field)
-            if field.byte_sequence_carrier().is_some() =>
+            if field.field_type.byte_sequence_carrier().is_some() =>
         {
-            match field.byte_sequence_carrier() {
+            match field.field_type.byte_sequence_carrier() {
                 Some(terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity }) => {
                     byte_field_capacity = Some(capacity);
                 }
@@ -217,6 +217,7 @@ pub(in crate::lowering) fn lower_structural_argument(
         selected => (
             selected.declaration(
                 source_structural_type,
+                None,
                 structural_types,
                 terminal_psi::StructuralFieldType::canonical_leaf_type,
             )?,

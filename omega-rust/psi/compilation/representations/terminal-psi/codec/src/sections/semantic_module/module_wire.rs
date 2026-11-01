@@ -17,6 +17,7 @@ mod boundary_application_wire;
 mod callback_application_wire;
 mod calling_signature_wire;
 mod carry_and_suspension_wire;
+mod opaque_representation_wire;
 pub(crate) mod quotient_wire;
 mod recursive_component_wire;
 mod unoptimized_behavior_wire;
@@ -106,6 +107,9 @@ wire_record! {
         reborrow_restored_call_uses: List<borrow_wire::RestoredCallUse>,
         boundary_machines: List<super::structural_signature_wire::BoundaryMachine>,
         calling_signatures: List<calling_signature_wire::Declaration>,
+        calling_abi_signatures: List<calling_signature_wire::AbiDeclaration>,
+        calling_policy_requests: List<calling_signature_wire::PolicyRequest>,
+        opaque_representations: List<opaque_representation_wire::Representation>,
         unoptimized_behavior: List<unoptimized_behavior_wire::Behavior>,
         external_providers: List<ExternalProvider>,
         provider_candidates: List<ProviderCandidate>,
