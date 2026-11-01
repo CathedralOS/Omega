@@ -11856,6 +11856,7 @@ pass/providers/occurrence_region_binding_forwarding_exit rejected 2737ms check-t
 pass/providers/occurrence_region_binding_projected_type_exit rejected 3125ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	executed provider choice lost its complete static application
 pass/providers/owned_array_operand_epochs_exit checked 3906ms check-target:macos_arm64 @ccdb99ca2214
+pass/providers/phantom_local_calling_applications checked 29670ms check-target:macos_arm64 @629aa98267a7
 pass/providers/portable_contract checked 4462ms @ccdb99ca2214
 pass/providers/provider_const_endpoint checked 12686ms @ccdb99ca2214
 pass/providers/provider_type_target_default_override checked 3297ms check-target:macos_arm64 @ccdb99ca2214
