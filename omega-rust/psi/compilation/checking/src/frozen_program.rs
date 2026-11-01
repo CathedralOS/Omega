@@ -821,6 +821,8 @@ pub struct CheckingMemos {
     >,
     pub(crate) state_prefix_reachability_edges:
         Mutex<symbols::SymbolKeyMap<symbols::SymbolHandle, Option<Vec<symbols::SymbolHandle>>>>,
+    pub(crate) state_prefix_cycle_membership:
+        Mutex<symbols::SymbolKeyMap<symbols::SymbolHandle, bool>>,
     pub(crate) normal_completion_possible:
         Mutex<symbols::SymbolKeyMap<symbols::SymbolHandle, Option<bool>>>,
 }
@@ -867,6 +869,7 @@ impl CheckingMemos {
             private_arrival_index: self.private_arrival_index,
             private_closed_arrivals: self.private_closed_arrivals,
             state_prefix_reachability_edges: self.state_prefix_reachability_edges,
+            state_prefix_cycle_membership: self.state_prefix_cycle_membership,
             normal_completion_possible: self.normal_completion_possible,
             admitted_dependency_bodies: self.admitted_dependency_bodies,
             ..Self::default()
@@ -914,6 +917,12 @@ impl CheckingMemos {
             ),
             state_prefix_reachability_edges: Mutex::new(
                 self.state_prefix_reachability_edges
+                    .lock()
+                    .map(|guard| guard.clone())
+                    .unwrap_or_default(),
+            ),
+            state_prefix_cycle_membership: Mutex::new(
+                self.state_prefix_cycle_membership
                     .lock()
                     .map(|guard| guard.clone())
                     .unwrap_or_default(),
