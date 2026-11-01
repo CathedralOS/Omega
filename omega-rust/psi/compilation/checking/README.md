@@ -179,6 +179,12 @@ exclusive reference as an opaque descriptor, then records later stores at their
 captured source coordinates. Value-preserving views retain the scalar value;
 other full-primitive views use the shared bit-interpretation term. Geometry
 alone cannot decode stored-width layouts or publish a source value.
+Builtin projections through owned homes identify their destination cells
+independently of captured reference history. Missing or exposed history withholds
+the reference inventory; a destination footprint supplies neither a current-value
+equality nor authority across a reference or representation view. Runtime-indexed
+footprints retain their coarse selectors and still need the receiving consumer's
+address-stability proof before establishing an exact scalar observation.
 Readable nominal inputs retain separately authenticated entry scalar fields,
 so disjoint writes preserve a sibling's original facts while overlapping writes
 retire its current observation. These are entry premises, not executed reads,

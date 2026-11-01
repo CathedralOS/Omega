@@ -361,11 +361,16 @@ pub(super) fn assignment_storage_origins(
     let (state, _, index) =
         caller_statement_owner(program, machine, CallerWriteSite::Statement(statement))?;
     let assignments = state_assignments(state);
-    let (_, evidence) = assignments.iter().find(|(ordinal, _)| *ordinal == index)?;
-    if matches!(
-        evidence.target,
-        AssignmentWriteTarget::LocalBindingReplacement { .. }
-    ) {
+    let evidence = assignments
+        .iter()
+        .find(|(ordinal, _)| *ordinal == index)
+        .map(|(_, evidence)| evidence);
+    if evidence.is_some_and(|evidence| {
+        matches!(
+            evidence.target,
+            AssignmentWriteTarget::LocalBindingReplacement { .. }
+        )
+    }) {
         return Some(AssignmentStorageOrigins {
             destinations: Vec::new(),
             references: Some(Vec::new()),
@@ -373,39 +378,41 @@ pub(super) fn assignment_storage_origins(
     }
     let assignment = statement.as_assignment()?;
     let mut inference = FrameInference::for_state(state.symbol);
-    for local in &evidence.stored {
-        inference.record_local(local);
-    }
-    // Destination provenance and operand exposure belong to this same write
-    // prefix. Reconstructing a shared-reference transport prefix here rejects
+    // Recorded reference origins and operand exposure share this write prefix.
+    // Reconstructing a shared-reference transport prefix here rejects
     // an earlier established exclusive reborrow, even when it cannot replace
     // the destination binding. Current operand effects must still preserve the
     // captured slots: neither a complete write frame nor a scalar result alone
-    // proves that the address remains the one recorded before evaluation.
-    if super::stored_origins::expression_exposes_frozen_binding(
-        program,
-        machine,
-        state,
-        assignment.value,
-        &evidence.stored,
-        &evidence.aliases,
-        symbols,
-        &mut inference,
-    ) || super::local_aliases::expression_reborrows_unresolved_reference_binding(
-        program,
-        machine,
-        assignment.value,
-        program.state_parameters(state),
-        &evidence.isolated_locals,
-        &evidence.aliases,
-        &evidence.divergent,
-    ) {
-        return None;
-    }
+    // proves that a descriptor still denotes its recorded pre-evaluation address.
+    let retained = evidence.filter(|evidence| {
+        for local in &evidence.stored {
+            inference.record_local(local);
+        }
+        !super::stored_origins::expression_exposes_frozen_binding(
+            program,
+            machine,
+            state,
+            assignment.value,
+            &evidence.stored,
+            &evidence.aliases,
+            symbols,
+            &mut inference,
+        ) && !super::local_aliases::expression_reborrows_unresolved_reference_binding(
+            program,
+            machine,
+            assignment.value,
+            program.state_parameters(state),
+            &evidence.isolated_locals,
+            &evidence.aliases,
+            &evidence.divergent,
+        )
+    });
     // A place reached entirely through owned cells names those cells even
     // when the installed value is a reference. The initializer-origin query
     // deliberately follows the last descriptor to its referent and therefore
-    // cannot identify a descriptor replacement's destination.
+    // cannot identify a descriptor replacement's destination. Its owned home
+    // does not depend on the reference history. Missing or exposed history
+    // withholds reference inventory, not these independently formed cells.
     let receiving = super::reference_subjects::assignment_stored_value_type(
         program, machine, state, assignment,
     )?;
@@ -429,15 +436,20 @@ pub(super) fn assignment_storage_origins(
                 root,
                 segments: place.segments,
             }],
-            references: prefix_reference_origins(
-                program,
-                Some((state, index)),
-                &evidence.stored,
-                &evidence.aliases,
-                &evidence.divergent,
-            ),
+            references: retained.and_then(|evidence| {
+                prefix_reference_origins(
+                    program,
+                    Some((state, index)),
+                    &evidence.stored,
+                    &evidence.aliases,
+                    &evidence.divergent,
+                )
+            }),
         });
     }
+    // A reference crossing or representation view still needs its exact
+    // captured backing and a prefix that operand evaluation preserves.
+    let evidence = retained?;
     if crate::reference_shell(program, receiving).is_some() {
         let source =
             super::stored_origins::binding_source(program, assignment.target, &evidence.aliases)?;
