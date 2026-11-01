@@ -87,7 +87,7 @@ def fixtures(root, fact, prefix, *, additional_projects=(), places=PLACES, inval
     return tuple(positive), tuple(negative)
 
 
-def prepare(output, fact, producer, *, additional_projects=(), places=PLACES, replay_resources=(), root_entry=True):
+def prepare(output, fact, producer, *, additional_projects=(), places=PLACES, replay_resources=(), root_entry=True, review_timeout=180):
     """Retain successful and failed preparation separately from frozen runs."""
     producer.verify()
     records = []
@@ -119,7 +119,7 @@ def prepare(output, fact, producer, *, additional_projects=(), places=PLACES, re
             shutil.copy2(source, project / source.name)
             sources[str(source)] = digest(source)
         failure, text = sample_native_gate.accept_review(
-            str(producer.cli), str(project), producer.target, 180)
+            str(producer.cli), str(project), producer.target, review_timeout)
         # Admission owns the complete replay source inventory. Logs and
         # products are evidence, so adding them inside that inventory would
         # invalidate the lock immediately after approving it.

@@ -10,7 +10,7 @@ device identifiers and the reserved tail through byte 143. Both std and these
 consumers import [the same ABI definitions](../../../../source/library/std/targets/macos_arm64/filesystem_abi.omg).
 No sample duplicates the Omega struct and no test-only public accessor is added.
 
-The C fixture fills and verifies all 23 scalar field component. Each guard
+The C fixture fills and verifies all 23 scalar field components. Each guard
 also reads those components in Omega, including all nanoseconds, high unsigned
 bits, negative signed values and both reserved array elements. C sizeof and
 alignment must agree with 144/8. Every C checker field has a self-test mutation.
@@ -31,10 +31,13 @@ calls so any wrong offset, signed carrier, omitted timestamp half, wrong branch
 or lost array element traps in native/Terminal execution. The source metadata
 does not grant storage or field access rights.
 
-Source inputs and the fixture are being qualified. No Omega runtime success is
-claimed yet. The other six transports, broader SDK integration and other-host
-observations remain open; the complete parent also retains conversions and
-Product parity.
+The exact `1a31aa120cdd` Mac producer passed all eight checking controls and all
+four corpus native/Terminal programs at exit 0 against the actual SDK fixture.
+The [focused run](https://github.com/CathedralOS/Omega/actions/runs/41335219379)
+remained red because ordinary public package review exceeded its 180-second
+budget; the public projects and filesystem runtime control are still being
+qualified separately. The other six transports and other-host observations
+remain open; the complete parent also retains conversions and Product parity.
 
 `file_times` checks the same shared two-element C timestamp array
 through the C ABI with UTIME_OMIT/NOW values -2/-1. Its twin

@@ -201,6 +201,7 @@ class OwnedFactRow:
     invalid_prefix: Optional[str] = None
     replay_resources: tuple = ()
     root_entry: bool = True
+    review_timeout: int = 180
 
 
 OWNED_ROWS = {
@@ -208,7 +209,9 @@ OWNED_ROWS = {
                                 additional_projects=(("file_times", "darwin_file_times_array"),),
                                 places=("local", "field", "parameter"),
                                 invalid_prefix="darwin_stat_abi/record",
-                                replay_resources=("source/library/std",), root_entry=False),
+                                replay_resources=("source/library/std",), root_entry=False,
+                                # Measured ordinary Std update/resume takes 450-507s.
+                                review_timeout=600),
     "nested": OwnedFactRow("foreign_scalar_record_result/nested", "foreign_nested_scalar_record_result"),
     "arrays": OwnedFactRow("foreign_scalar_record_result/arrays", "foreign_owned_array_record"),
     "zero-leaf": OwnedFactRow("nested_zero_leaf_array_storage", "nested_zero_leaf_array_storage",
@@ -322,7 +325,8 @@ def owned_row(output, fact, specification, library, producer):
         status = compiler_pilot.run_suite(str(output.relative_to(compiler_pilot.ROOT / "build")),
                                          positives, negatives, producer=producer)
         inventory = compiler_fact_rows.prepare(output, fact, producer, additional_projects=projects,
-                                                places=specification.places, replay_resources=specification.replay_resources, root_entry=specification.root_entry)
+                                                places=specification.places, replay_resources=specification.replay_resources, root_entry=specification.root_entry,
+                                                review_timeout=specification.review_timeout)
         try:
             compiler_fact_rows.measure(output, inventory, producer, additional_projects=projects, places=specification.places, root_entry=specification.root_entry)
         finally:
