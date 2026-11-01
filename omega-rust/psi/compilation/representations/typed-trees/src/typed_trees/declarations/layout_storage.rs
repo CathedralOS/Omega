@@ -32,7 +32,14 @@ impl TypedTrees {
                 .type_reference_table
                 .unconstrained_type_reference(reference);
             if self.layout_storage_arguments(reference).is_some()
-                && self.plan_laid_layout_for_type(reference).is_some()
+                && self
+                    .plan_laid_layout_for_type(reference)
+                    .is_some_and(|plan| {
+                        matches!(
+                            plan.realizations,
+                            crate::PlanLaidRealizations::TargetInputs(_)
+                        )
+                    })
             {
                 return crate::PlanLaidFieldLayoutSource::Explicit;
             }
