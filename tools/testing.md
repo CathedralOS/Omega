@@ -126,7 +126,7 @@ artifact includes `samples.json` beside the corpus reports.
 
 Select `linux_arm64`, `windows_x86_64` or `macos_arm64` for a separate
 matching-host run. Linux ARM64 uses `ubuntu-24.04-arm`; macOS ARM64 uses
-`macos-14`, matching the existing post-merge runners. These execute on the native
+`macos-15`, matching the existing post-merge runners. These execute on the native
 host, without cross-compilation or emulation. Host-specific caches,
 concurrency groups and artifact names keep their observations distinct; Windows
 uses the short `D:/ot` target directory. The artifact retains the actual producer

@@ -14,7 +14,7 @@ import package
 
 MATRIX = [
     {"runner": "windows-2022", "host": "x86_64-pc-windows-msvc", "suffix": ".zip"},
-    {"runner": "macos-14", "host": "aarch64-apple-darwin", "suffix": ".tar.gz"},
+    {"runner": "macos-15", "host": "aarch64-apple-darwin", "suffix": ".tar.gz"},
     {"runner": "ubuntu-22.04", "host": "x86_64-unknown-linux-gnu", "suffix": ".tar.gz"},
     {"runner": "ubuntu-22.04-arm", "host": "aarch64-unknown-linux-gnu", "suffix": ".tar.gz"},
 ]

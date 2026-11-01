@@ -80,10 +80,3 @@ controls live beside the executable fact fixtures.
 This is macOS ARM64 execution evidence, not a four-host runtime claim. Windows
 runtime acceptance and the full portable provider remain unfinished under the
 parent task; the owner will arrange a later Windows agent for execution.
-
-The `BUILD-OWNED-TARGET-SELECTION` continuation retains this exact nine-place
-row and the concrete `established by issue` authority. Baseline observation of
-the current compiler precedes Source migration; the four identical issuer
-bodies can share one ordinary machine without changing that route. The distinct
-target-body transport will use explicit ordinary provider selection. The bound,
-qualification, exact subtraction and 99-input controls remain the acceptance.
