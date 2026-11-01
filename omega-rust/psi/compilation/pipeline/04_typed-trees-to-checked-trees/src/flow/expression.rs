@@ -41,7 +41,6 @@ mod call_storage;
 mod dispatch;
 mod dispatch_copies;
 mod live_memberships;
-mod primitive_reads;
 mod reference_projection;
 mod result_facts;
 mod result_memberships;
@@ -803,7 +802,8 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         // A contextual value observation detaches the loaded value, while
         // its read still needs the descriptor evaluated at this occurrence.
         // Retain that producer before discarding the value's live referents;
-        // no child expression or selector is evaluated again.
+        // no child expression or selector is evaluated again. Facts about the
+        // read value come from that producer epoch, not from facts copied here.
         let observed_descriptor = if source_is_view && !binds_view && produces_view {
             let descriptor = self.capture_place_operand(
                 expression,
@@ -812,9 +812,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 *contexts,
                 *constraints,
             );
-            let descriptor = self.context.control.operands.append(descriptor);
-            self.retain_primitive_read(expression, descriptor, destination, contexts, constraints);
-            descriptor
+            self.context.control.operands.append(descriptor)
         } else {
             Handle::invalid()
         };
