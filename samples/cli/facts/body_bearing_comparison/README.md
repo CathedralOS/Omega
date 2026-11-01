@@ -132,7 +132,11 @@ computations); a carrier disagreement, a boundary or dynamic route, or a formal
 that adds predicate or issuer evidence keeps its refusal.
 
 Hosted exact-fixture runs of the 18 pinned `body_bearing_comparison_through_*`
-fixtures at `2e0cddf2a61` observed, on both `linux_x86_64` and `windows_x86_64`
-runners, nine `checked` positives and nine twins rejected with their expected
-fragments (0 wrong-reason rejections), `parameter` and `const_name` moving from
-`rejected` to `checked`, and all nine positives built and executed with exit 0.
+fixtures on the head of CathedralOS/Omega#1063 observed, on both `linux_x86_64`
+and `windows_x86_64` runners, nine `checked` positives and nine twins rejected
+with their expected fragments (0 wrong-reason rejections), `parameter` and
+`const_name` moving from `rejected` to `checked`, and all nine positives built
+and executed with exit 0. A scratch copy of the vacuous-tag probes, including
+the `tests/omega/run/domains/vacuous_tag_call_arguments` source, observed eight
+of eight built with exit 0 on both runners; a tagged local passed to a bare
+formal from the entry machine runs as well.
