@@ -103,7 +103,7 @@ pub fn admit_selected_checked_providers(
     selected: &effects::SelectedProviderPlanFacts,
     declarations: &[TerminalTargetProviderPlan],
 ) -> Result<terminal_installation::AdmittedProviderSelections, String> {
-    require_selected_declarations(selected, declarations)?;
+    require_selected_provider_declarations(selected, declarations)?;
     let mut supplied = Vec::new();
     for matched in selected_checked_candidates(declarations, artifact.module())? {
         supplied.extend(matched.installations());
@@ -292,7 +292,7 @@ pub fn close_checked_provider_specializations(
     declarations: &[TerminalTargetProviderPlan],
     module: &terminal_psi::TerminalModule,
 ) -> Result<effects::SelectedProviderPlanFacts, String> {
-    require_selected_declarations(&selected, declarations)?;
+    require_selected_provider_declarations(&selected, declarations)?;
     let selected = selected.without_checked_specializations();
     let mut rows = selected.specialized_requirement_rows().to_vec();
     let mut identities = selected.identities().clone().into_builder();
@@ -329,7 +329,9 @@ pub fn close_checked_provider_specializations(
     selected.with_specialized_requirement_rows(rows, &identities.build())
 }
 
-fn require_selected_declarations(
+/// Join whole selected plans to their exact declaration roster.
+/// Display names in diagnostics never participate in this comparison.
+pub fn require_selected_provider_declarations(
     selected: &effects::SelectedProviderPlanFacts,
     declarations: &[TerminalTargetProviderPlan],
 ) -> Result<(), String> {
@@ -342,9 +344,28 @@ fn require_selected_declarations(
                 != 1
         })
     {
-        return Err(
-            "native provider declaration roster differs from the complete selected plans".into(),
-        );
+        let unmatched = selected
+            .plans()
+            .iter()
+            .filter(|plan| {
+                declarations
+                    .iter()
+                    .filter(|declaration| &declaration.plan == *plan)
+                    .count()
+                    != 1
+            })
+            .map(|plan| plan.name.as_str())
+            .collect::<Vec<_>>();
+        let extra = declarations
+            .iter()
+            .filter(|declaration| !selected.plans().contains(&declaration.plan))
+            .map(|declaration| declaration.plan.name.as_str())
+            .collect::<Vec<_>>();
+        return Err(format!(
+            "native provider declaration roster differs from the complete selected plans: {} plans, {} declarations; without unique exact declaration: {unmatched:?}; unselected declarations: {extra:?}",
+            selected.plans().len(),
+            declarations.len(),
+        ));
     }
     Ok(())
 }

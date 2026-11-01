@@ -18,3 +18,12 @@ runtime observation is not execution evidence.
 The native callback fixture `pass/calls/callback_mixed_formal_entry` separately
 checks the same canonical reference-geometry consumer on a real foreign call;
 its retained/decoded controls also reject a substituted pointer/descriptor size.
+
+The policy's result lane uses an executable helper over `PolicyStorage`, whose
+count is produced by a scalar evaluation entry calling another ordinary helper.
+Those invocation-local debts must complete under the policy's empty provider
+authority. The same shared Product also contains `VALUE = bounded(7)`, which
+needs the separately selected `Endpoint` provider. That constant belongs to
+whole-source admission, and `main` observes its value. The reject twin changes
+only `Actual::upper` from seven to six: full-source checking must still reject
+its false bound even though policy execution does not demand that constant.

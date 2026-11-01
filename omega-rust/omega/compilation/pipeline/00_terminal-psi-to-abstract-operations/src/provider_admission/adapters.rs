@@ -13,19 +13,7 @@ pub(crate) fn retain_selected_provider_adapters(
     selected: &effects::SelectedProviderPlanFacts,
     declarations: &[backend_plan::TerminalTargetProviderPlan],
 ) -> Result<Vec<SelectedProviderAdapter>, String> {
-    if selected.plans().len() != declarations.len()
-        || selected.plans().iter().any(|plan| {
-            declarations
-                .iter()
-                .filter(|declaration| &declaration.plan == plan)
-                .count()
-                != 1
-        })
-    {
-        return Err(
-            "native provider declaration roster differs from the complete selected plans".into(),
-        );
-    }
+    backend_plan::require_selected_provider_declarations(selected, declarations)?;
     project_complete_adapters(selected, |plan| {
         let mut matches = declarations
             .iter()
