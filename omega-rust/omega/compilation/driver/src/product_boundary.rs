@@ -808,7 +808,7 @@ fn terminal_composition_admission_follows_canonical_publication() {
         "terminal product",
         &[
             ".into_shared_portable()",
-            "program.attach_application(",
+            ".attach_application(",
             "policy.admit(",
         ],
     );
