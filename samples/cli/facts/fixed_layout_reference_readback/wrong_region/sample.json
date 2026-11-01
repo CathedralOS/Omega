@@ -1,0 +1,8 @@
+{
+  "role": "intended-invalid",
+  "entry": "main.omg",
+  "rejection_contains": [
+    "machine `update` returns a view borrowing input `pointer`",
+    "which is not permitted by the declared result lifetime relation"
+  ]
+}

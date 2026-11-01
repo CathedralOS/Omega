@@ -875,8 +875,12 @@ helper that passes does not close an item.
     The basic [nested-reference descriptor composition](samples/cli/facts/fixed_layout_storage/compositions/reference_descriptor/main.omg)
     now preserves value 7 and pointee 43 in Mac ARM64 native/Terminal execution,
     with the original 256-width and mismatched-policy-argument rejects.
-    Stored-descriptor reads/roundtrips, other-host execution and broader
-    reference composition remain outstanding; see its [evidence scope](samples/cli/facts/fixed_layout_storage/compositions/README.md).
+    A [typed stored-reference readback](samples/cli/facts/fixed_layout_reference_readback/README.md)
+    now returns the loaded reference/scalar from a temporary holder and observes
+    pointee 43/value 7 in Mac ARM64 native/Terminal execution. Same-geometry
+    policy mismatch and unrelated returned-region controls reject. Its full
+    transport row, byte roundtrips, other-host execution and broader reference
+    composition remain outstanding; see the [composition scope](samples/cli/facts/fixed_layout_storage/compositions/README.md).
     [Phantom-region forwarding through implementation arguments](samples/cli/facts/implementation_region_forwarding/README.md)
     now executes the original call with both independent environment/storage
     binders and the same const index, preserving value 42 in Mac ARM64
