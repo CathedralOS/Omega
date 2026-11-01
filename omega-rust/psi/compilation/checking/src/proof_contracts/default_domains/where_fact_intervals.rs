@@ -626,10 +626,19 @@ fn side_selects_field(
     expression: ExpressionHandle,
     field: symbols::SymbolHandle,
 ) -> bool {
-    field.is_valid()
-        && expression_table(program)
-            .name_path_node(expression)
-            .is_some_and(|path| path.symbol == field)
+    if !field.is_valid() {
+        return false;
+    }
+    if let Some(path) = expression_table(program).name_path_node(expression) {
+        return path.symbol == field;
+    }
+    // The authored predicate subject may select its field explicitly. Reuse
+    // the declaration-owned membership resolver: another value's same-named
+    // member is not a fact about this declaration's own field.
+    program.any_field_owner(field).is_some_and(|(owner, _)| {
+        super::place_queries::membership_field(program, owner, expression)
+            .is_some_and(|selected| selected.symbol == field)
+    })
 }
 
 /// The bound-supplying side's SOUND interval: a literal is itself; a
