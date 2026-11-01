@@ -33,6 +33,7 @@ mod analysis;
 mod case_flow;
 mod contents_queries;
 mod dispatch;
+mod origin_maps;
 mod provider;
 mod replay;
 mod summary_interface;
