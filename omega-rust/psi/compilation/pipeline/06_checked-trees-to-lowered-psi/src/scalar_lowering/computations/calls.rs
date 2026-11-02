@@ -37,7 +37,10 @@ enum Operand {
     },
     /// Exact byte materialization at the operand, before subsequent arguments.
     ByteLiteral(literals::Slot),
-    Scalar(Argument),
+    Scalar {
+        argument: Argument,
+        ordinal: usize,
+    },
     /// A copy projection's saved coordinate, never a callee argument.
     Snapshot(Argument),
     /// A selector call's dispatch operand: evaluated first, then named by the
@@ -266,7 +269,31 @@ impl Expansion<'_> {
                 ))?;
             operands.push(Operand::Produced(slot.clone()));
         }
-        for (position, source_parameter) in signature.parameters.iter().enumerate() {
+        // Classify physical lanes once; authored evaluation can visit those
+        // lanes in another order without changing ABI argument positions.
+        let mut lanes = Vec::with_capacity(signature.parameters.len());
+        for (position, formal) in signature.parameters.iter().enumerate() {
+            if formal.relevance.is_erased() || position == 0 && callee.selector().is_some() {
+                lanes.push((None, None));
+            } else if parameters
+                .get(structural_ordinal)
+                .is_some_and(|parameter| parameter.position as usize == position)
+            {
+                lanes.push((None, Some(structural_ordinal)));
+                structural_ordinal += 1;
+            } else {
+                lanes.push((Some(scalar_ordinal), None));
+                scalar_ordinal += 1;
+            }
+        }
+        if scalar_ordinal != scalars.len() || structural_ordinal != structural.len() {
+            return unsupported("computed call formal roster is incomplete");
+        }
+        if source.evaluation_order.len() != signature.parameters.len() {
+            return unsupported("call operand order differs from its exact formal roster");
+        }
+        for position in source.evaluation_order.iter().copied() {
+            let source_parameter = &signature.parameters[position];
             // An `[erased]` formal position has no operand of either kind
             // (contracts.md#explicit-erased-bindings); the typed relevance
             // decides that, not the operand roster being validated.
@@ -280,9 +307,8 @@ impl Expansion<'_> {
                 operands.push(Operand::DispatchSelector(Argument::Computation(selector)));
                 continue;
             }
-            if let Some(parameter) = parameters.get(structural_ordinal)
-                && parameter.position as usize == position
-            {
+            if let Some(structural_ordinal) = lanes[position].1 {
+                let parameter = &parameters[structural_ordinal];
                 let argument =
                     structural
                         .get(structural_ordinal)
@@ -403,7 +429,7 @@ impl Expansion<'_> {
                                             .filter(|operand| {
                                                 matches!(
                                                     operand,
-                                                    Operand::Scalar(_)
+                                                    Operand::Scalar { .. }
                                                         | Operand::DispatchSelector(_)
                                                         | Operand::Snapshot(_)
                                                 )
@@ -481,15 +507,19 @@ impl Expansion<'_> {
                         }
                     }
                 }
-                structural_ordinal += 1;
             } else {
+                let scalar_ordinal = lanes[position].0.ok_or(LoweringError::Unsupported(
+                    "call operand has no physical lane",
+                ))?;
                 let scalar = scalars
                     .get(scalar_ordinal)
                     .ok_or(LoweringError::Unsupported(
                         "computed call has no scalar actual at its formal position",
                     ))?;
-                operands.push(Operand::Scalar(Argument::Computation(*scalar)));
-                scalar_ordinal += 1;
+                operands.push(Operand::Scalar {
+                    argument: Argument::Computation(*scalar),
+                    ordinal: scalar_ordinal,
+                });
             }
         }
         if scalar_ordinal != scalars.len() || structural_ordinal != structural.len() {
@@ -506,7 +536,7 @@ impl Expansion<'_> {
             _ => None,
         };
         let mut prefixes = vec![input_types.to_vec()];
-        let mut scalar_actuals = Vec::new();
+        let mut scalar_actuals = vec![None; scalars.len()];
         let mut arrivals = Vec::with_capacity(operands.len());
         let mut selector_actual = None;
         for operand in &operands {
@@ -518,19 +548,19 @@ impl Expansion<'_> {
                 ))?
                 .clone();
             match operand {
-                Operand::Scalar(argument) => {
+                Operand::Scalar { argument, ordinal } => {
                     let value_type = self.argument_type(identities, argument, site, input_types)?;
                     let arrival_type = received_scalar_type(
                         arrival_types
                             .as_ref()
-                            .and_then(|types| types.get(scalar_actuals.len()))
+                            .and_then(|types| types.get(*ordinal))
                             .copied(),
                         value_type,
                     );
                     if arrival_type != value_type {
                         arrival = Some(value_type);
                     }
-                    scalar_actuals.push(parameter(prefix.len(), arrival_type));
+                    scalar_actuals[*ordinal] = Some(parameter(prefix.len(), arrival_type));
                     prefix.push(arrival_type);
                 }
                 Operand::Snapshot(argument) => {
@@ -546,6 +576,12 @@ impl Expansion<'_> {
             arrivals.push(arrival);
             prefixes.push(prefix);
         }
+        let scalar_actuals = scalar_actuals
+            .into_iter()
+            .collect::<Option<Vec<_>>>()
+            .ok_or(LoweringError::Unsupported(
+                "call scalar argument lane is incomplete",
+            ))?;
         let call_types = prefixes.last().ok_or(LoweringError::Unsupported(
             "computed call lost its completed prefix",
         ))?;
@@ -754,7 +790,10 @@ impl Expansion<'_> {
                         .enumerate()
                         .filter_map(|(earlier, operand)| match operand {
                             Operand::Snapshot(Argument::Computation(computation))
-                            | Operand::Scalar(Argument::Computation(computation))
+                            | Operand::Scalar {
+                                argument: Argument::Computation(computation),
+                                ..
+                            }
                             | Operand::DispatchSelector(Argument::Computation(computation)) => {
                                 Some((*computation, prefixes[earlier].len()))
                             }
@@ -774,7 +813,7 @@ impl Expansion<'_> {
                         }),
                 );
             continuation = match operand {
-                Operand::Scalar(argument) => {
+                Operand::Scalar { argument, .. } => {
                     let arrival = match arrivals[ordinal] {
                         Some(value_type) => {
                             self.qualification_edge(prefix, value_type, continuation)

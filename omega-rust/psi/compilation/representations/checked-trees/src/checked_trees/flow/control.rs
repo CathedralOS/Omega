@@ -47,6 +47,9 @@ pub struct FlowCallFact {
     /// Explicit arguments in source order, without a receiver spelled before
     /// the call. Rows live in [`super::FlowControlFacts::call_arguments`].
     pub authored_arguments: HandleSpan<typed_trees::expression::ExpressionHandle>,
+    /// Executable argument positions in authored evaluation order. Empty means
+    /// natural order; ABI/formal positions remain on authored_arguments.
+    pub argument_evaluation_order: HandleSpan<u32>,
     /// The receiver a call expression spells before its name
     /// (`self.samples.element(2)`); the zero handle for every other site.
     pub authored_receiver: typed_trees::expression::ExpressionHandle,

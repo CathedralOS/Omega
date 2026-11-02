@@ -351,7 +351,10 @@ pub(super) fn emit_call_operations(
         argument_schedule::build_operations(checked, machine, state.state, planned_operations)?;
     let mut schedule = schedule.iter().peekable();
     let mut retained_source_count = None;
-    let mut staged_scalar_slots = vec![Vec::new(); planned_operations.len()];
+    let mut staged_scalar_slots = vec![
+            super::super::argument_evaluation::ScalarArgumentCaptures::default();
+            planned_operations.len()
+        ];
     let mut staged_ranges = vec![Vec::new(); planned_operations.len()];
     let mut staged_selector_slots = vec![Vec::new(); planned_operations.len()];
     let mut staged_structural_arguments = vec![Vec::new(); planned_operations.len()];
@@ -389,9 +392,6 @@ pub(super) fn emit_call_operations(
                 let source_value_count = retained_source_count.ok_or(
                     LoweringError::Unsupported("composed scalar operand has no source prefix"),
                 )?;
-                if staged_scalar_slots[operation].len() != ordinal {
-                    return unsupported("composed scalar operand ordinals are not dense");
-                }
                 let value = evaluate_frame!(source_value_count, |frame| {
                     let (mut environment, emission) = frame.split();
                     emission.evaluation.argument_at(
@@ -411,7 +411,7 @@ pub(super) fn emit_call_operations(
                         &mut environment,
                     )
                 })?;
-                staged_scalar_slots[operation].push(values.len());
+                staged_scalar_slots[operation].record(ordinal, values.len())?;
                 values.push(value);
                 continue;
             }
@@ -564,14 +564,7 @@ pub(super) fn emit_call_operations(
         // Keep private argument values across constructor evaluation and any
         // split blocks. Read their rebound identities only at the consuming
         // call, never from the values they held before a later operand ran.
-        let staged_scalars = staged_scalar_slots[operation_index]
-            .iter()
-            .map(|slot| {
-                values.get(*slot).copied().ok_or(LoweringError::Unsupported(
-                    "composed scalar operand lost its retained value",
-                ))
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+        let staged_scalars = staged_scalar_slots[operation_index].values(&values)?;
         let staged_selectors = staged_selector_slots[operation_index]
             .iter()
             .map(|slot| {

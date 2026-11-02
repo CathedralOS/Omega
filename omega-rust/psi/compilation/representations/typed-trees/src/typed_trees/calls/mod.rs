@@ -4,11 +4,13 @@ pub mod application_graph;
 pub mod boundary;
 pub mod dynamic_traits;
 pub mod finite_family;
+mod operand_order;
 pub mod service;
 pub mod signature;
 pub mod static_applications;
 use crate::expression::ExpressionNode::Name;
 use crate::expression::TableCallExpression;
+pub use operand_order::CallArgumentEvaluationOrder;
 
 impl super::TypedTrees {
     /// Rejoin the source qualifier to its exact selected callable declaration.

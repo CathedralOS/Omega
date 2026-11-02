@@ -220,6 +220,7 @@ pub struct FlowControlFacts {
     pub calls: Arena<FlowCallFact>,
     /// Authored argument expressions, spanned by [`FlowCallFact::authored_arguments`].
     pub call_arguments: Arena<typed_trees::expression::ExpressionHandle>,
+    pub call_argument_positions: Arena<u32>,
     pub exits: Arena<FlowExitFact>,
     pub outgoing: Arena<super::FlowStateOutgoingFact>,
     pub exit_parameter_origins: Arena<super::FlowExitParameterOrigin>,
@@ -303,12 +304,44 @@ impl FlowControlFacts {
             operand_retained_paths: Arena::default(),
             calls,
             call_arguments: Arena::default(),
+            call_argument_positions: Arena::default(),
             exits,
             outgoing: Arena::default(),
             exit_parameter_origins: Arena::default(),
             states: states.into(),
             retired_calls: Vec::new(),
         }
+    }
+
+    /// Validate the source permutation retained beside one checked invocation.
+    pub fn call_argument_evaluation_order(
+        &self,
+        call: &FlowCallFact,
+    ) -> Result<Vec<usize>, &'static str> {
+        let count = call.authored_arguments.len() as usize;
+        let positions = self
+            .call_argument_positions
+            .span(call.argument_evaluation_order)
+            .ok_or("call operand order has a stale span")?;
+        if positions.is_empty() {
+            return Ok((0..count).collect());
+        }
+        if positions.len() != count {
+            return Err("call operand order has an incomplete argument roster");
+        }
+        let mut seen = vec![false; count];
+        let mut result = Vec::with_capacity(count);
+        for position in positions {
+            let position = *position as usize;
+            let visited = seen
+                .get_mut(position)
+                .ok_or("call operand order names an unavailable argument")?;
+            if std::mem::replace(visited, true) {
+                return Err("call operand order repeats an argument");
+            }
+            result.push(position);
+        }
+        Ok(result)
     }
 
     /// The call row of `state` at an authored statement and call ordinal.

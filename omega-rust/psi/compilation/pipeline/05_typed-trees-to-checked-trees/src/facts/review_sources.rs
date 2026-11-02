@@ -156,6 +156,27 @@ pub(crate) fn bind_checked_body_call_source_spans(
             checked_call.authored_arguments = control
                 .call_arguments
                 .insert_many(arguments.iter().copied());
+            let order = call_site
+                .argument_evaluation_order(program)
+                .map_err(|reason| {
+                    vec![Diagnostic::error(format!(
+                        "call operand scheduling: {reason}"
+                    ))]
+                })?;
+            checked_call.argument_evaluation_order = if order.is_natural() {
+                Default::default()
+            } else {
+                let positions = order
+                    .map(|position| {
+                        u32::try_from(position).map_err(|_| {
+                            vec![Diagnostic::error(
+                                "call operand position exceeds the supported range",
+                            )]
+                        })
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                control.call_argument_positions.insert_many(positions)
+            };
             match authored_call_span(program, &call_site) {
                 Ok(source_span) => {
                     checked_call.authored_source_span = source_span;

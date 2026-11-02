@@ -311,20 +311,20 @@ pub(super) fn append_statement_calls<'plans>(
             }
         }
         StatementNode::Call(call) => {
-            let mut captured = Vec::new();
-            for (position, argument) in program
-                .statement_table
-                .expression_handles(call.arguments)
-                .iter()
-                .enumerate()
+            let arguments = program.statement_table.expression_handles(call.arguments);
+            let mut captured = vec![checked_trees::FlowOperandFact::default(); arguments.len()];
+            // Source-custody publication reports an incoherent schedule. It
+            // contributes no operand facts during this preliminary flow walk.
+            for position in validation::CallSite::Statement(call)
+                .argument_evaluation_order(program)
+                .into_iter()
+                .flatten()
             {
                 let destination =
                     execution.invocation_parameter_type(InvocationSite::Statement, position);
-                captured.push(
-                    execution
-                        .evaluated_operand_as(*argument, destination, contexts, constraints)
-                        .capture,
-                );
+                captured[position] = execution
+                    .evaluated_operand_as(arguments[position], destination, contexts, constraints)
+                    .capture;
             }
             let completed = execution.invoke(
                 InvocationSite::Statement,
@@ -539,33 +539,37 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         invocation.visited = true;
         let captured_operands = inputs.operands;
         let borrowed_call = invocation.call;
-        let writes = phase_profile::scope("psi.05.build_check_facts.flow.invoke.storage_writes", || {
-            super::call_phases::call_storage_writes(
-                self.program,
-                self.borrow,
-                self.context,
-                self.machine,
-                self.state,
-                borrowed_call,
-            )
-        });
-        let mut call = phase_profile::scope("psi.05.build_check_facts.flow.invoke.build_call", || {
-            build_call_flow_fact(
-                self.program,
-                self.borrow,
-                self.proof,
-                self.semantic,
-                self.domains,
-                self.context,
-                self.machine,
-                self.state,
-                contexts,
-                constraints,
-                borrowed_call,
-                captured_operands,
-                writes.as_deref(),
-            )
-        });
+        let writes = phase_profile::scope(
+            "psi.05.build_check_facts.flow.invoke.storage_writes",
+            || {
+                super::call_phases::call_storage_writes(
+                    self.program,
+                    self.borrow,
+                    self.context,
+                    self.machine,
+                    self.state,
+                    borrowed_call,
+                )
+            },
+        );
+        let mut call =
+            phase_profile::scope("psi.05.build_check_facts.flow.invoke.build_call", || {
+                build_call_flow_fact(
+                    self.program,
+                    self.borrow,
+                    self.proof,
+                    self.semantic,
+                    self.domains,
+                    self.context,
+                    self.machine,
+                    self.state,
+                    contexts,
+                    constraints,
+                    borrowed_call,
+                    captured_operands,
+                    writes.as_deref(),
+                )
+            });
         // Evaluation consumers need this occurrence before the later package
         // source-custody binding pass. The authored ordinal identifies a call;
         // this coordinate places it after its evaluated operands.
@@ -579,28 +583,34 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         let binding_writes = writes
             .as_deref()
             .and_then(|writes| writes.descriptor_stores());
-        let stores = phase_profile::scope("psi.05.build_check_facts.flow.invoke.capture_stores", || {
-            self.capture_call_stores(
-                site,
-                borrowed_call,
-                inputs.arguments,
-                binding_writes.as_deref(),
-            )
-        });
+        let stores = phase_profile::scope(
+            "psi.05.build_check_facts.flow.invoke.capture_stores",
+            || {
+                self.capture_call_stores(
+                    site,
+                    borrowed_call,
+                    inputs.arguments,
+                    binding_writes.as_deref(),
+                )
+            },
+        );
         // Exact binding writes retire replaced reference resources independently
         // of value-history association and pointee observation invalidation.
-        phase_profile::scope("psi.05.build_check_facts.flow.invoke.reference_custody", || {
-            super::call_phases::install_returned_reference_custody(
-                self.program,
-                self.borrow,
-                self.context,
-                self.machine.symbol,
-                self.state.symbol,
-                borrowed_call,
-                binding_writes.as_deref(),
-                constraints,
-            )
-        });
+        phase_profile::scope(
+            "psi.05.build_check_facts.flow.invoke.reference_custody",
+            || {
+                super::call_phases::install_returned_reference_custody(
+                    self.program,
+                    self.borrow,
+                    self.context,
+                    self.machine.symbol,
+                    self.state.symbol,
+                    borrowed_call,
+                    binding_writes.as_deref(),
+                    constraints,
+                )
+            },
+        );
         let observations = call
             .normal_return_writes_complete
             .then(|| {
@@ -1754,22 +1764,32 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     let receiver = self.evaluated_operand(call.receiver, contexts, constraints);
                     captured.push((call.receiver, receiver.capture));
                 }
-                for (position, argument) in self
+                let prefix = captured.len();
+                let arguments = self
                     .program
                     .expression_table
-                    .expression_handles(call.arguments)
-                    .iter()
-                    .enumerate()
+                    .expression_handles(call.arguments);
+                captured.resize(
+                    prefix + arguments.len(),
+                    (
+                        ExpressionHandle::invalid(),
+                        checked_trees::FlowOperandFact::default(),
+                    ),
+                );
+                for position in (validation::CallSite::Expression { expression, call })
+                    .argument_evaluation_order(self.program)
+                    .ok()?
                 {
+                    let argument = arguments[position];
                     let destination = self.invocation_parameter_type(
                         InvocationSite::Expression(expression),
                         position,
                     );
-                    captured.push((
-                        *argument,
-                        self.evaluated_operand_as(*argument, destination, contexts, constraints)
+                    captured[prefix + position] = (
+                        argument,
+                        self.evaluated_operand_as(argument, destination, contexts, constraints)
                             .capture,
-                    ));
+                    );
                 }
                 self.record_named_operator_invocations(call, &named_uses, &captured, *constraints);
                 // Formation metadata belongs to the exact actuals before

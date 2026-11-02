@@ -45,6 +45,41 @@ use checked_trees::CheckedCallScalarArgument;
 use state_emission::emit_state;
 
 pub(crate) mod cleanup_control;
+
+/// Evaluation records a snapshot at its own time; the receiving call reads
+/// those snapshots in its independent dense scalar-parameter order.
+#[derive(Clone, Default)]
+pub(crate) struct ScalarArgumentCaptures {
+    slots: Vec<Option<usize>>,
+}
+
+impl ScalarArgumentCaptures {
+    pub(crate) fn record(&mut self, ordinal: usize, slot: usize) -> Result<(), LoweringError> {
+        if self.slots.len() <= ordinal {
+            self.slots.resize(ordinal + 1, None);
+        }
+        if self.slots[ordinal].replace(slot).is_some() {
+            return unsupported("scalar argument was evaluated more than once");
+        }
+        Ok(())
+    }
+
+    pub(crate) fn values(
+        &self,
+        values: &[ValueDeclaration],
+    ) -> Result<Vec<ValueDeclaration>, LoweringError> {
+        self.slots
+            .iter()
+            .map(|slot| {
+                slot.and_then(|slot| values.get(slot))
+                    .copied()
+                    .ok_or(LoweringError::Unsupported(
+                        "scalar argument has no completed retained value",
+                    ))
+            })
+            .collect()
+    }
+}
 mod qualification_edge;
 mod record_captures;
 mod scalar_control;

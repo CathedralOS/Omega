@@ -68,6 +68,7 @@ pub(super) fn runtime_value_operands(
         machine_arguments
             .iter()
             .filter_map(|argument| match argument {
+                super::RuntimeValueBinding::Carrier => None,
                 super::RuntimeValueBinding::Authored(argument) => {
                     plan_runtime_operand(program, state, argument)
                 }
