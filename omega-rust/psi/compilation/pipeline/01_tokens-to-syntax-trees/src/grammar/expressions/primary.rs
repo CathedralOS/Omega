@@ -407,7 +407,6 @@ fn try_generic_type_operand<'tokens, 'source>(
                 "blocks",
                 "crashes",
                 "boundary",
-                "where",
                 "satisfies",
             ]
             .into_iter()

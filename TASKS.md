@@ -738,6 +738,12 @@ helper that passes does not close an item.
     tests where it implements the retired surface; other bootstrap languages
     keep their own syntax. Delete the old keyword, grammar, recommending
     diagnostics and compatibility paths, not just their documentation.
+  - Delete `ClauseKind::Where`, `RetiredWhereMachineRequirement` and the dead
+    case-fact readers in `source/psi` (checking, resolution, typing), and move the
+    multi-line data `where` literals in the `tests/psi` resolver, checking and
+    typing harnesses to `requires`. Verifying it needs the product gate, whose
+    `omega update` step ran over 30 minutes at 19 GB without finishing on
+    d83ddecd769.
   Acceptance: both producers accept the new data, generic, callable and assembly
   forms; all affected authored sources migrate without changing their result or
   refusal obligation. Existing applicable fact rows and their sensitive reject
