@@ -105,7 +105,9 @@ the reconstructed length and must reject the unchanged conservation contract.
 The [runtime-growth customer](runtime_growth/README.md) uses the Bump package
 to copy live elements into larger backing and append another element. The
 recursive descriptor guarantees directly establish the grown vector's invariant;
-its twin swaps the recursive backing arguments and must reject.
+its twin swaps the recursive backing arguments and must reject. It then releases
+both allocations, resets from their recomposed backing, and reuses the whole
+48-byte allocation with readback before releasing and resetting again.
 
 The field place captures its qualified extent through an ordinary call both
 before reconstructing `Held` and while restoring a borrowed `Held`. Its default
