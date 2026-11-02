@@ -199,7 +199,7 @@ machine short_output<'buffer>(output: &'buffer mut [u8]) -> bool {
     }
     machine inspect(failure: Failure<'buffer>) -> bool {
         transition failure.output.len == 2u64 && failure.reason in Reason::Exhausted {
-            true -> failure.output[0u64] == 61u8 && failure.output[1u64] == 62u8
+            true -> (failure.output[0u64] == 61u8 && failure.output[1u64] == 62u8)
             false -> false
         }
     }
@@ -209,7 +209,7 @@ machine malformed<'buffer>(output: &'buffer mut [u8]) -> bool {
     let answer: Result<Pair, Reason> = convert<&Frame<'buffer>, Pair, Reason, ReadFrame>( &frame );
     transition answer {
         Result::Ok { value as unexpected } -> false
-        Result::Err { error as reason } -> reason in Reason::InvalidTag
+        Result::Err { error as reason } -> (reason in Reason::InvalidTag)
     }
 }
 
