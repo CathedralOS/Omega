@@ -7,6 +7,31 @@ use semantic_vocabulary::{
     BoundaryMachineId, MachineId, ServiceId, StructuralDomainId, StructuralTypeId,
 };
 
+/// The checked closed requirements of one provider declaration,
+/// independently of retained candidates or executable reach. Selecting that
+/// template owes one realization for every entry, including uncalled entries.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProviderInstanceRequirements {
+    pub template: TerminalIdentityIndex,
+    pub package: Option<semantic_vocabulary::PackageKeyIdentity>,
+    /// None is an obligation of the requirement itself, independently of the
+    /// selected implementation. Some scopes checked satisfaction to its exact
+    /// choosing owner and immediate realization template.
+    pub selecting_declaration: Option<crate::NominalDeclarationIdentity>,
+    pub source_candidate_identity: TerminalIdentityIndex,
+    pub required_instances: Vec<RequiredProviderInstance>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct RequiredProviderInstance {
+    pub requirement_identity: TerminalIdentityIndex,
+    /// Zero is a requirement-only obligation. Otherwise the checked
+    /// satisfaction also records the exact closed realization it requires.
+    pub candidate_identity: TerminalIdentityIndex,
+    pub receiving_application: TerminalIdentityIndex,
+    pub receiving_region_arguments: Vec<TerminalIdentityIndex>,
+}
+
 /// One exact checked provider candidate for a boundary requirement.
 ///
 /// The candidate body is an ordinary terminal machine. The extra row binds it

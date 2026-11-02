@@ -474,7 +474,7 @@ pub fn selected_provider_candidate_rows<'plan>(
                             == Some(requirement)
                         && module.identities.text(candidate.source_candidate_identity)
                             == Some(realization)
-                        && receiving_application_matches(plan, row, module, candidate)
+                        && receiving_application_matches(plan, row, module, candidate.receiving_application)
                         // The portable catalog retains every member of the
                         // remaining legacy families. A target-keyed plan joins
                         // only its exact member before checking uniqueness;
@@ -523,6 +523,80 @@ pub fn selected_provider_candidate_rows<'plan>(
             candidate_positions: matching,
         });
     }
+    // The obligation roster is issued independently of candidates. Checking
+    // only the candidate list cannot notice one missing uncalled instance.
+    for selected in &selections {
+        let requirement_template = plan.identity_text(selected.row.requirement_identity);
+        let method = plan
+            .schema
+            .declaration
+            .methods
+            .iter()
+            .find(|method| {
+                plan.schema.identity_text(method.requirement_identity) == requirement_template
+            })
+            .ok_or("selected provider row lost its exact requirement declaration")?;
+        for obligations in module
+            .provider_instance_requirements
+            .iter()
+            .filter(|obligations| {
+                obligations.package == method.requirement_owner_package_identity
+                    && module.identities.text(obligations.template) == Some(requirement_template)
+                    && obligations
+                        .selecting_declaration
+                        .as_ref()
+                        .is_none_or(|declaration| {
+                            module.identities.text(declaration.identity()) == Some(owner)
+                                && match selected.row.binding {
+                                    effects::provider_plan::ProviderBinding::CheckedAdapter {
+                                        machine_identity,
+                                        ..
+                                    } => {
+                                        module
+                                            .identities
+                                            .text(obligations.source_candidate_identity)
+                                            == Some(plan.identity_text(machine_identity))
+                                    }
+                                    _ => false,
+                                }
+                        })
+            })
+        {
+            for required in &obligations.required_instances {
+                if !receiving_application_matches(
+                    plan,
+                    selected.row,
+                    module,
+                    required.receiving_application,
+                ) {
+                    continue;
+                }
+                let count = selected
+                    .candidate_positions
+                    .iter()
+                    .filter(|position| {
+                        let candidate = &module.provider_candidates[**position];
+                        candidate.requirement_identity == required.requirement_identity
+                            && (required.candidate_identity.is_absent()
+                                || candidate.candidate_identity == required.candidate_identity)
+                            && candidate.receiving_application == required.receiving_application
+                            && candidate.receiving_region_arguments
+                                == required.receiving_region_arguments
+                    })
+                    .count();
+                if count != 1 {
+                    return Err(format!(
+                        "selected provider plan `{}` resolves retained closed requirement `{}` to {count} canonical provider instances; exactly one must serve it",
+                        plan.name,
+                        module
+                            .identities
+                            .text(required.requirement_identity)
+                            .unwrap_or("<unknown requirement>"),
+                    ));
+                }
+            }
+        }
+    }
     Ok(selections)
 }
 
@@ -530,7 +604,7 @@ fn receiving_application_matches(
     plan: &effects::provider_plan::ProviderPlan,
     row: &effects::provider_plan::ProviderPlanRow,
     module: &terminal_psi::TerminalModule,
-    candidate: &terminal_psi::ProviderCandidateConformance,
+    receiving_application: terminal_psi::TerminalIdentityIndex,
 ) -> bool {
     let requirement = plan.identity_text(row.requirement_identity);
     let surface = &plan.schema.declaration;
@@ -554,7 +628,7 @@ fn receiving_application_matches(
     if !surface.receiver_applications.is_empty() && views().next().is_none() {
         return false;
     }
-    if candidate.receiving_application == terminal_psi::TerminalIdentityIndex::default() {
+    if receiving_application == terminal_psi::TerminalIdentityIndex::default() {
         // Non-applied declarations have no closed receiver coordinate. They
         // cannot supply a parameterized or region-applied receiver selection.
         return views().all(|application| {
@@ -564,7 +638,7 @@ fn receiving_application_matches(
     }
     let Some(receiving) = module
         .identities
-        .text(candidate.receiving_application)
+        .text(receiving_application)
         .filter(|text| !text.is_empty())
     else {
         return false;

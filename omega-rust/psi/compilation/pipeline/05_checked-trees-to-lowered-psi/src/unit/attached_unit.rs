@@ -624,6 +624,12 @@ pub(crate) fn lower_unit_closure(
             &machines,
         )
     })?;
+    let provider_instance_requirements = providers::instance_requirements(
+        identities,
+        checked,
+        exact_toolchain_sources,
+        &lowered_boundary_parameters,
+    )?;
 
     let folded_constants = folded_constants::lower(
         checked,
@@ -750,6 +756,7 @@ pub(crate) fn lower_unit_closure(
             unoptimized_behavior: Vec::new(),
             external_providers: Vec::new(),
             provider_candidates,
+            provider_instance_requirements,
             dynamic_dispatch: Default::default(),
             quotients: quotient_catalog,
             float_meaning_projections: Vec::new(),

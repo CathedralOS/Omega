@@ -288,6 +288,72 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
     for candidate in &module.provider_candidates {
         declaration_foundations::validate_provider_candidate(module, candidate)?;
     }
+    for row in &module.provider_instance_requirements {
+        if std::iter::once(row.template)
+            .chain(
+                row.required_instances
+                    .iter()
+                    .map(|instance| instance.requirement_identity),
+            )
+            .any(|identity| module.identities.text(identity).is_none_or(str::is_empty))
+        {
+            return malformed(
+                "provider instance requirement has an empty or unknown callable identity",
+            );
+        }
+        if let Some(owner) = &row.selecting_declaration {
+            if module
+                .identities
+                .text(owner.identity())
+                .is_none_or(str::is_empty)
+                || module
+                    .identities
+                    .text(row.source_candidate_identity)
+                    .is_none_or(str::is_empty)
+            {
+                return malformed(
+                    "provider instance obligation lost its choosing declaration or realization template",
+                );
+            }
+        } else if !row.source_candidate_identity.is_absent() {
+            return malformed(
+                "requirement-only provider obligation has a realization template without a choosing owner",
+            );
+        }
+        for instance in &row.required_instances {
+            if row.selecting_declaration.is_some() {
+                if module
+                    .identities
+                    .text(instance.candidate_identity)
+                    .is_none_or(str::is_empty)
+                {
+                    return malformed(
+                        "checked provider obligation lost its closed realization identity",
+                    );
+                }
+            } else if !instance.candidate_identity.is_absent() {
+                return malformed(
+                    "requirement-only provider obligation carries a closed realization",
+                );
+            }
+            if (!instance.receiving_application.is_absent()
+                && module
+                    .identities
+                    .text(instance.receiving_application)
+                    .is_none_or(str::is_empty))
+                || instance
+                    .receiving_region_arguments
+                    .iter()
+                    .any(|identity| module.identities.text(*identity).is_none_or(str::is_empty))
+                || (instance.receiving_application.is_absent()
+                    && !instance.receiving_region_arguments.is_empty())
+            {
+                return malformed(
+                    "provider instance obligation has an invalid receiving application or region tuple",
+                );
+            }
+        }
+    }
     for machine in &module.machines {
         machine_foundations::validate_machine(module, machine)?;
     }

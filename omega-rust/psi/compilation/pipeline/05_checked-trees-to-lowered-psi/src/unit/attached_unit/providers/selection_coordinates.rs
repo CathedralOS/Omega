@@ -48,6 +48,27 @@ pub(super) fn intern_receiving_application(
             "provider candidate has multiple checked receiving associations",
         ));
     }
+    intern_checked_receiving_application(identities, checked, row)
+}
+
+/// Both an emitted candidate and the independent obligation roster consume
+/// the checker's original receiving association, never an erased signature.
+pub(super) fn intern_checked_receiving_application(
+    identities: &mut TerminalIdentityTableBuilder,
+    checked: &CheckedTrees,
+    row: &checked_trees::CheckedProviderClosedRequirement,
+) -> Result<(TerminalIdentityIndex, Vec<TerminalIdentityIndex>), LoweringError> {
+    let typed = &checked.typed;
+    let Some(application) = typed.closed_requirement_application(row.closed_requirement) else {
+        return Ok((TerminalIdentityIndex::default(), Vec::new()));
+    };
+    if row.template != application.template
+        || row.receiving_application != application.trait_application_identity
+    {
+        return Err(LoweringError::Unsupported(
+            "checked provider obligation has a different receiving application",
+        ));
+    }
     let regions = checked
         .facts
         .provider_closed_requirements
@@ -56,7 +77,7 @@ pub(super) fn intern_receiving_application(
             "provider candidate lost its checked receiving region span",
         ))?;
     let expected_regions = typed
-        .conformance_by_symbol(selecting_declaration)
+        .conformance_by_symbol(row.selecting_declaration)
         .map_or(0, |implementation| implementation.lifetime_parameters.len());
     if regions.len() != expected_regions {
         return Err(LoweringError::Unsupported(
@@ -147,7 +168,7 @@ pub(super) fn intern(
     ))
 }
 
-fn immediate_template(
+pub(super) fn immediate_template(
     checked: &CheckedTrees,
     instance: symbols::SymbolHandle,
 ) -> Result<symbols::SymbolHandle, LoweringError> {

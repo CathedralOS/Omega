@@ -234,6 +234,9 @@ pub struct ProviderSettlement<Rows = crate::PreparedProviderRows> {
     pub selected_provider_publication:
         std::sync::Arc<provider_selection::SelectedTargetProviderPublication>,
     pub boundary_provider_demands: Vec<ProviderPlan>,
+    /// Complete execution declarations, including compiler-settled leaf plans.
+    /// Callback projection and native handoff share this same closed roster.
+    pub provider_declarations: std::sync::Arc<[backend_plan::TerminalTargetProviderPlan]>,
     /// Original authored candidates and their defaults, before native Build
     /// supplies and compiler-minted plans enter the execution inventory.
     pub(crate) authored_providers: std::sync::Arc<crate::target_machines::AuthoredTargetProviders>,
@@ -285,6 +288,7 @@ impl ProviderSettlement<crate::UnpreparedProviderRows> {
             calling_program,
             selected_provider_publication,
             boundary_provider_demands,
+            provider_declarations,
             authored_providers,
             planning_target_profile,
             boundary_calling_plan_realizations,
@@ -308,6 +312,7 @@ impl ProviderSettlement<crate::UnpreparedProviderRows> {
             calling_program,
             selected_provider_publication,
             boundary_provider_demands,
+            provider_declarations,
             authored_providers,
             planning_target_profile,
             boundary_calling_plan_realizations,
@@ -466,6 +471,7 @@ pub fn settle_checked_providers(
         demanded_plans: boundary_provider_demands,
         choices,
     } = prepared.select(artifact, canonical_roots.as_deref(), &assumptions)?;
+    let mut provider_declarations = canonical_selection.plans.clone();
     let selected_provider_plans = choices
         .into_iter()
         .map(
@@ -586,6 +592,14 @@ pub fn settle_checked_providers(
                 selected_by: crate::ProviderSelectionProvenance::UniqueCoveringCandidate,
                 row_compiler_intrinsic_executions: Vec::new(),
                 row_external_completion_leaves: vec![Vec::new(); minted.plan.rows.len()],
+            },
+        );
+        provider_declarations.insert(
+            index,
+            backend_plan::TerminalTargetProviderPlan {
+                plan: minted.plan.clone(),
+                provider_declaration: None,
+                row_numeric_realizations: vec![None; minted.plan.rows.len()],
             },
         );
         // The trust report replays every selected plan against exactly one
@@ -763,6 +777,7 @@ pub fn settle_checked_providers(
             calling_program,
             selected_provider_publication,
             boundary_provider_demands,
+            provider_declarations: provider_declarations.into(),
             authored_providers,
             planning_target_profile: planning_target,
             boundary_calling_plan_realizations,

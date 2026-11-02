@@ -7,7 +7,7 @@
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeProviderSources {
-    pub declarations: Vec<crate::TerminalTargetProviderPlan>,
+    pub declarations: std::sync::Arc<[crate::TerminalTargetProviderPlan]>,
     pub family_realizations: Vec<SelectedFamilyRealizationSource>,
 }
 

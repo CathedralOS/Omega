@@ -38,6 +38,183 @@ use checked_trees::machine::Machine;
 mod named;
 mod selection_coordinates;
 
+/// Publish the obligation side independently of body/candidate discovery.
+/// A required specialization remains an obligation even when no Unit body
+/// or boundary for it was retained by the executable closure.
+pub(super) fn instance_requirements(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    checked: &CheckedTrees,
+    exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
+    boundary_parameters: &[BoundaryParameters],
+) -> Result<Vec<terminal_psi::ProviderInstanceRequirements>, LoweringError> {
+    let typed = &checked.typed;
+    // Interface retention, not candidate presence, scopes this publication.
+    // A missing uncalled candidate cannot remove its declared obligation;
+    // unrelated source-only interfaces need no portable realization here.
+    let mut templates = Vec::new();
+    for boundary in boundary_parameters {
+        let template = match typed.closed_requirement_application(boundary.source) {
+            Some(application) => application.template,
+            None => {
+                let template = selection_coordinates::immediate_template(checked, boundary.source)?;
+                if template.is_valid() {
+                    template
+                } else {
+                    boundary.source
+                }
+            }
+        };
+        if !templates.contains(&template) {
+            templates.push(template);
+        }
+    }
+    let mut requirements = Vec::new();
+    for template in typed.machines().iter().filter(|machine| {
+        machine.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
+            && !typed.machine_type_parameters(machine).is_empty()
+            && templates.contains(&machine.symbol)
+    }) {
+        let template_identity =
+            typed
+                .machine_callable_identity_text(template)
+                .ok_or(LoweringError::Unsupported(
+                    "generic provider requirement has no template callable identity",
+                ))?;
+        let mut required = checked_trees::provider_instances::closed_requirements(typed, template)
+            .into_iter()
+            .map(|identity| typed.callable_identity_text(identity))
+            .collect::<Vec<_>>();
+        required.sort();
+        required.dedup();
+        requirements.push(terminal_psi::ProviderInstanceRequirements {
+            template: identities.intern(&template_identity),
+            package: typed.symbols.symbol_package_identity(template.symbol),
+            selecting_declaration: None,
+            source_candidate_identity: Default::default(),
+            required_instances: required
+                .iter()
+                .map(|identity| terminal_psi::RequiredProviderInstance {
+                    requirement_identity: identities.intern(identity),
+                    candidate_identity: Default::default(),
+                    receiving_application: Default::default(),
+                    receiving_region_arguments: Vec::new(),
+                })
+                .collect(),
+        });
+    }
+    // Checked satisfaction is an obligation independently of candidate/body
+    // retention. Named implementations scope it to the exact choosing owner,
+    // immediate body template, receiving application and public region tuple.
+    for fact in checked.facts.provider_closed_requirements.iter() {
+        if !templates.contains(&fact.template) {
+            continue;
+        }
+        if typed
+            .conformance_by_symbol(fact.selecting_declaration)
+            .is_none()
+        {
+            continue;
+        }
+        let Some((owner, signature)) = typed.trait_machine_signature(fact.template) else {
+            continue;
+        };
+        let Some(application) = typed.closed_requirement_application(fact.closed_requirement)
+        else {
+            continue;
+        };
+        let declaring = typed
+            .trait_definition_by_symbol(application.declaring_trait)
+            .ok_or(LoweringError::Unsupported(
+                "provider obligation lost its declaring trait",
+            ))?;
+        let closed_requirement =
+            typed.trait_requirement_callable_identity(declaring, application.signature);
+        let provider = typed
+            .machine(fact.provider)
+            .ok_or(LoweringError::Unsupported(
+                "provider obligation lost its checked realization",
+            ))?;
+        let immediate = selection_coordinates::immediate_template(checked, fact.provider)?;
+        let template_machine = if immediate.is_valid() {
+            typed.machine(immediate).ok_or(LoweringError::Unsupported(
+                "provider obligation lost its immediate template",
+            ))?
+        } else {
+            provider
+        };
+        let template_body = typed
+            .machine_callable_identity_text(template_machine)
+            .ok_or(LoweringError::Unsupported(
+                "provider obligation has no realization template identity",
+            ))?;
+        let closed_body =
+            typed
+                .machine_callable_identity_text(provider)
+                .ok_or(LoweringError::Unsupported(
+                    "provider obligation has no closed realization identity",
+                ))?;
+        if !closed_requirement.is_valid() {
+            return unsupported("provider obligation has no closed requirement identity");
+        }
+        let template =
+            identities.intern(&typed.trait_requirement_callable_identity_text(owner, signature));
+        let package = typed.symbols.symbol_package_identity(fact.template);
+        let selecting_declaration = Some(
+            crate::machine_lowering::declarations::nominal(
+                identities,
+                checked,
+                exact_toolchain_sources,
+                fact.selecting_declaration,
+            )
+            .map_err(LoweringError::Unsupported)?,
+        );
+        let source_candidate_identity = identities.intern(&template_body);
+        let (receiving_application, receiving_region_arguments) =
+            selection_coordinates::intern_checked_receiving_application(identities, checked, fact)?;
+        let required = terminal_psi::RequiredProviderInstance {
+            requirement_identity: identities
+                .intern(&typed.callable_identity_text(closed_requirement)),
+            candidate_identity: identities.intern(&closed_body),
+            receiving_application,
+            receiving_region_arguments,
+        };
+        match requirements.iter_mut().find(|row| {
+            row.template == template
+                && row.package == package
+                && row.selecting_declaration == selecting_declaration
+                && row.source_candidate_identity == source_candidate_identity
+        }) {
+            Some(row) => row.required_instances.push(required),
+            None => requirements.push(terminal_psi::ProviderInstanceRequirements {
+                template,
+                package,
+                selecting_declaration,
+                source_candidate_identity,
+                required_instances: vec![required],
+            }),
+        }
+    }
+    for row in &mut requirements {
+        row.required_instances.sort();
+        row.required_instances.dedup();
+    }
+    requirements.sort_by(|left, right| {
+        (
+            left.template,
+            left.package,
+            &left.selecting_declaration,
+            left.source_candidate_identity,
+        )
+            .cmp(&(
+                right.template,
+                right.package,
+                &right.selecting_declaration,
+                right.source_candidate_identity,
+            ))
+    });
+    Ok(requirements)
+}
+
 /// Report the exact checked provider whose ordinary body is missing, including
 /// the checker-owned omission. Result shape must not hide that source frontier.
 fn callable_candidate<'program>(

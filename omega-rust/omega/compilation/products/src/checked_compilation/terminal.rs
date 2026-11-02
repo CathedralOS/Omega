@@ -57,7 +57,7 @@ impl CheckedCompilation {
             )]);
         }
         let selected_provider_provenance = execution.selected_provider_provenance.iter()
-            .zip(&native_sources.declarations)
+            .zip(native_sources.declarations.iter())
             .map(|(retained, declarations)| {
                 if retained.plan != declarations.plan {
                     return Err(vec![Diagnostic::error(

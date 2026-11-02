@@ -5,19 +5,32 @@
 //! outside the codec.
 
 use terminal_psi::{
-    ProviderCandidateConformance, ProviderParameterRefinement, ProviderRefinement,
-    ProviderSignature, ProviderSignatureParameter,
+    ProviderCandidateConformance, ProviderInstanceRequirements, ProviderParameterRefinement,
+    ProviderRefinement, ProviderSignature, ProviderSignatureParameter, RequiredProviderInstance,
 };
 
 use super::CodecError;
 use super::structural_signature_wire::DomainRequirement;
 use super::wire::{Reader, Writer};
 use super::wire_fields::{
-    Access, Field, Id, Ids, Index, List, Multiplicity, Nominal, PathQualification, ProviderPackage,
-    U32, wire_record,
+    Access, Field, Id, Ids, Index, List, Multiplicity, Nominal, Optional, PathQualification,
+    ProviderPackage, U32, wire_record,
 };
 
 wire_record! {
+    InstanceRequirements: ProviderInstanceRequirements {
+        template: Index,
+        package: ProviderPackage,
+        selecting_declaration: Optional<Nominal>,
+        source_candidate_identity: Index,
+        required_instances: List<RequiredInstance>,
+    }
+    RequiredInstance: RequiredProviderInstance {
+        requirement_identity: Index,
+        candidate_identity: Index,
+        receiving_application: Index,
+        receiving_region_arguments: List<Index>,
+    }
     Candidate: ProviderCandidateConformance {
         boundary: Id,
         requirement_identity: Index,

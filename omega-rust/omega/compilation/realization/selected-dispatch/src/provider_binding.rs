@@ -23,6 +23,8 @@ pub struct ProviderBindingRequest<'a> {
         &'a [provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
     pub provider_candidates: &'a [provider_planning::ProviderPlanCandidate],
     pub boundary_provider_demands: &'a [effects::provider_plan::ProviderPlan],
+    pub provider_declarations: &'a Arc<[backend_plan::TerminalTargetProviderPlan]>,
+    pub terminal_module: &'a terminal_psi::TerminalModule,
     pub selected_provider_plan_facts: effects::SelectedProviderPlanFacts,
     pub root_grants: &'a [String],
     pub selected_provider_provenance: Vec<provider_planning::SelectedProviderReviewProvenance>,
@@ -130,8 +132,11 @@ pub fn prepare_selected_execution(
             .map(|realization| (realization.boundary_trait, realization.requirement_machine)),
     );
     let callback_roots = {
-        let providers =
-            provider_source.callback_providers(&external_providers.callbacks.declarations)?;
+        let providers = provider_source.callback_providers(
+            &external_providers.callbacks.declarations,
+            settlement.provider_declarations,
+            settlement.terminal_module,
+        )?;
         let selected = provider_selection::select_callback_declarations(
             &external_providers.callbacks.declarations,
             &calling_requirements,
@@ -149,8 +154,8 @@ pub fn prepare_selected_execution(
     ));
     let native_provider_sources = provider_planning::prepare_native_provider_sources(
         ProviderPlanningContext::new(&program.typed, source::DependencyScope::Product),
-        settlement.exact_toolchain_sources,
         &settlement.selected_provider_provenance,
+        Arc::clone(settlement.provider_declarations),
     )
     .map(Arc::new);
 
