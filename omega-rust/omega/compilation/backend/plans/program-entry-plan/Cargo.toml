@@ -24,7 +24,7 @@ semantic-vocabulary = { path = "../../../../../psi/foundation/semantic-vocabular
 calling-conventions = { path = "../../calling-conventions" }
 executable-installation = { path = "../../runtime/executable-installation", optional = true }
 post-handoff-writer-plan = { path = "../post-handoff-writer-plan", optional = true }
-effects = { path = "../provider-evidence" }
+effects = { path = "../effects" }
 function-identity = { path = "../../../../foundation/function-identity" }
 isa-aarch64 = { path = "../../instruction-set-architectures/isa-aarch64", optional = true }
 isa-x86_64 = { path = "../../instruction-set-architectures/isa-x86_64" }

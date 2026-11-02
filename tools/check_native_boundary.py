@@ -98,7 +98,7 @@ SOURCE_SIDE_PSI = (
       for trees in ("syntax", "symbol-resolved", "typed", "checked")),
     PSI_PIPELINE,
     PSI_FACADE,
-    f"{PSI}/compilation/compile-time",
+    f"{PSI}/compilation/build-time-evaluation",
     f"{PSI}/compilation/checking/representation-planning",
     f"{PSI}/interpreter",
 )
@@ -138,11 +138,11 @@ FIREWALL_ALLOWANCES = (
               "Debt: reads CheckedTrees and boundary adapter dispatch from checked source"),
     Allowance(SELECTED_DISPATCH, TERMINAL_PRODUCTION,
               "Debt: prepares PreparedProviderInventory and ExternalProviderDeclarations itself"),
-    Allowance(SELECTED_DISPATCH, f"{PSI}/compilation/compile-time",
+    Allowance(SELECTED_DISPATCH, f"{PSI}/compilation/build-time-evaluation",
               "Debt: validates selected provider bodies and operators through compile-time evaluation"),
     Allowance(SELECTED_DISPATCH, REPRESENTATION_PLANNING,
               "Debt: OpaqueRepresentationSelection only, which the selections package carries"),
-    Allowance(PROVIDER_PLANNING, f"{PSI}/compilation/compile-time",
+    Allowance(PROVIDER_PLANNING, f"{PSI}/compilation/build-time-evaluation",
               "Debt: provider declarations and BuildTimeValue from compile-time evaluation"),
     Allowance(PROVIDER_PLANNING, REPRESENTATION_PLANNING,
               "Debt: opaque representation dispositions from the admission checker"),
@@ -235,7 +235,7 @@ FORBIDDEN_DEPENDENCIES = tuple(Rule(*rule) for rule in (
     (
         (TRUST_MODEL,),
         (
-            f"{PSI}/compilation/compile-time",
+            f"{PSI}/compilation/build-time-evaluation",
             f"{PSI}/interpreter/checked-interpreter",
             f"{PSI_PIPELINE}/05_typed-trees-to-checked-trees",
             f"{PSI}/compilation/checking/terminal-installation",
@@ -253,7 +253,7 @@ FORBIDDEN_DEPENDENCIES = tuple(Rule(*rule) for rule in (
     ),
     (
         (TERMINAL_PRODUCTION,),
-        (f"{PSI}/compilation/compile-time",),
+        (f"{PSI}/compilation/build-time-evaluation",),
         "Terminal production sits below compile-time evaluation, which calls it",
     ),
     (
