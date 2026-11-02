@@ -496,7 +496,7 @@ fail/facts/data_where_standing_nested_borrowed_field_suspended_descriptor_slot r
 	state `read` receives `holder.counter.value` while local borrow `held` is still active (borrowed at statement 0; its last use is at statement 2)
 	statement 1 creates local borrow `entry` while local borrow `held` is still active (borrowed at statement 0; its last use is at statement 2)
 	statement 1 reads `holder.counter.value` while local borrow `held` is still active (borrowed at statement 0; its last use is at statement 2)
-fail/facts/data_where_standing_nested_borrowed_field_target_body rejected 2965ms expected @23449831b6d0
+fail/facts/data_where_standing_nested_borrowed_field_target_body rejected 2264ms expected @a99603db76d7
 	exact arithmetic in machine `X86Compute::compute` state `compute` local `total` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `ArmCompute::compute` state `compute` local `total` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/default_domain_mathematical_coupling_rejected rejected 4046ms expected @2cfbda3635e2+wt
@@ -6555,7 +6555,7 @@ pass/facts/data_where_standing_nested_borrowed_field_match_join checked 11895ms 
 pass/facts/data_where_standing_nested_borrowed_field_other_machine checked 11921ms check-target:macos_arm64 @23449831b6d0
 pass/facts/data_where_standing_nested_borrowed_field_other_state checked 10328ms check-target:macos_arm64 @23449831b6d0
 pass/facts/data_where_standing_nested_borrowed_field_parameter checked 11894ms check-target:macos_arm64 @23449831b6d0
-pass/facts/data_where_standing_nested_borrowed_field_target_body checked 10424ms check-target:macos_arm64 @23449831b6d0
+pass/facts/data_where_standing_nested_borrowed_field_target_body checked 4710ms check-target:macos_arm64 @a99603db76d7
 pass/facts/data_where_standing_predicate_helper_alias_exit checked 5396ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/data_where_standing_predicate_helper_literal_exit checked 5347ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/data_where_standing_predicate_helper_through_call_result_exit checked 5256ms check-target:macos_arm64 @911f6617ba9e
