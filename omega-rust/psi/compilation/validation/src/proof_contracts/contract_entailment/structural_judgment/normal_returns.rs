@@ -50,10 +50,10 @@ use typed_trees::signature::SignatureContractKind;
 use typed_trees::types::TypeReferenceHandle;
 
 impl StructuralJudge<'_> {
-    /// Both value equations and nominal tag judgments name this exact return.
-    /// The case ledger deliberately ignores general value rewrites, so bind
-    /// the observed result here rather than teaching tag lookup to unfold them.
-    /// Callers establish that `result` is the reserved completion binder.
+    /// A postcondition's `result` names the value this path actually returns.
+    /// Bind it in both proof stores: case facts deliberately do not follow
+    /// general value substitutions. Callers have checked that an input
+    /// parameter does not shadow the reserved `result` name.
     pub(in crate::proof_contracts::contract_entailment) fn bind_returned_value(
         &mut self,
         value: &StructuralTerm,

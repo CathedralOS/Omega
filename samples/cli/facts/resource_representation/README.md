@@ -1,78 +1,74 @@
-# Buffered representation contracts
+# Conversions that use a caller's buffer
+
+These examples encode a pair of bytes in two formats using storage supplied by
+the caller. They check that enough space guarantees success and that failure
+returns the buffer without exposing an invalid result.
 
 Fact: **Selected buffered conversions preserve caller output custody and establish a destination only with sufficient capacity.**
 
-This advances the explicit-resource and failure-contract requirement of
-**LIBRARY-REPRESENTATION-FAMILIES** under [codecs](../../../../wiki/spec/layouts/codecs.md).
-The nearest completed row is [representation_agreement](../representation_agreement/README.md):
-its pure maps return fixed owned frames. This row instead transfers an exclusive
-caller-supplied byte slice through ordinary requests, successful frame carriers,
-and rejected outcomes. No allocator or hidden resource is available.
+This is part of **LIBRARY-REPRESENTATION-FAMILIES** under the
+[conversion contract](../../../../wiki/spec/layouts/codecs.md).
+The nearest completed row is [representation_agreement](../representation_agreement/README.md),
+whose conversions return fixed owned frames. This row instead passes an exclusive
+borrow of the caller's byte buffer through requests, successful results and
+failures. It has no hidden allocator or service.
 
-The ordinary `BufferedEncoding` contract names its explicit `Request` resource
-carrier, semantic value type, result/error carriers and required capacity. It
-inherits the exact `TryFrom` application and adds a sufficient-output operation.
-The public precondition reads the request's output length. That operation promises
-success for every semantic value under the declared capacity bound and delegates
-to the same fallible map. It does not impose purity or totality on base `TryFrom`.
-The two authored formats use different tags and field orders. Core `compose`
-decodes the first through `Pair` and reuses the supplied output for the second.
+`BufferedEncoding` adds a sufficient-space operation to the ordinary fallible
+`TryFrom` interface. The operation requires an output length of at least three
+bytes and promises an `Ok` result for every `Pair`. It calls the same conversion
+implementation; it does not make all `TryFrom` operations pure or infallible.
 
-[Local](local/main.omg) observes unequal fields and byte endpoints, both output
-formats, insufficient capacity, malformed input, unchanged failure storage, and
-nonzero neighboring canaries. Its [twin](local/invalid/main.omg) changes only the
-first encoder's capacity guard from three bytes to two. The body and its exact
-write precondition remain unchanged.
+The two formats use different tags and field orders. `compose` decodes the first
+into a `Pair`, then writes the second using the same buffer. Failure returns
+that buffer and prevents the second conversion from running. A matching byte
+sequence supplies no new permission to access storage.
 
-The sufficient-output guarantee is the static coverage obligation. Ordinary
-loans retain the source identity, lifetime, exclusive access, and returned
-resource; matching bytes create no new authority. Failure returns the original
-slice, exposes no destination, and does not invoke the second conversion.
-The unrestricted semantic Pair may be discarded; this does not promise to
-return it as owned failure payload.
-Runtime observation receives the actual selected maps, not a post-hoc theorem
-that could make a corrupt result pass.
+The [local program](local/main.omg) checks unequal field values, byte endpoints,
+both formats, short output, malformed input and unchanged failure storage. It
+also checks nonzero canaries around each buffer. Its
+[invalid twin](local/invalid/main.omg) changes only the first encoder's capacity
+guard from three bytes to two. The write helper still requires three bytes, so
+the twin must reject at that call.
 
-This is the first place, not a completed resource-backed Representation row or
-the general reflection-specialized standard. Allocator resources, external
-services, work sponsorship, arbitrary schemas, full round-trip agreement laws,
-optional total forwarding beyond this declared capacity contract, remaining
-places, other hosts, arbitrary-source resource metrics, and Product remain open.
+The public capacity requirement establishes the success fact before conversion.
+Calls carry the exact buffer, its lifetime and its exclusive access. The result
+checks use the actual selected implementations. No caller guard supplies a
+missing success proof after the conversion has finished.
 
-## Current evidence
+## Current result
 
-Development diagnostics and failed producers are retained separately. The first
-prototype used an abstract borrowed `Capacity(&Source)` in a specification. Its
-signature promised termination, but no stable observation-free denotation;
-selecting one stronger private body could not establish that public promise.
-The request-specific contract is the spec-permitted explicit-resource form,
-with the same Pair values, capacity three, exclusive slice, maps, failure
-custody and runtime oracle. Its twin still changes only guard three to two.
-The broader arbitrary-source metric abstraction remains open.
+The first place is unfinished. The compiler now proves the five success
+postconditions that previously failed, and it can put the incoming slice into
+the inline `Request`. It still stops while planning cleanup for an encoder
+branch: it cannot determine which part of the original request remains after
+its fields are moved. Native and Terminal execution have not run.
 
-The frozen request-specific program and its sole guard-change twin are retained
-from `10fba736d8eb1ed0de892a360d8fb6dba4882599`. The latest scoped run,
-[41489778010](https://github.com/CathedralOS/Omega/actions/runs/41489778010), used
-`e467dbd4fb81fa33a0f79e88cf1e5e3f548dd464` and an authenticated opt1 Linux
-producer (CLI SHA256 `71afc763adfaf70b3a5b45a8f83675f157443e3418c37b2186ab8fdfd87592c9`).
-Preparation took539.390s, authentication1.340s, and checking19.484s.
+[Run 41505955288](https://github.com/CathedralOS/Omega/actions/runs/41505955288)
+used source `1a9062c50669d96745270ae0f77f35fd7a5caec3` and an authenticated,
+optimized Linux x86-64 compiler. The original positive reached this error:
 
-The lifetime-bound parsing and inherited loan/source correspondence now pass.
-The positive still refuses five `ensures result in Result::Ok` obligations:
-the two authored sufficient-output wrappers, the generic forwarding wrapper,
-and two prepared specializations. The conditional case-tag repair leaves these
-same five refusals as run41483610800; it has not established acceptance. The
-capacity-two twin reaches its intended `emit` precondition refusal. The focused
-borrowed-refinement positive checks and its wrong-region twin rejects as authored.
-Native and Terminal execution were not attempted because the positive did not
-check. No canonical success rows or completed place are claimed.
+```text
+cleanup cannot reconstruct its remaining region partition
+```
 
-[PR1461](https://github.com/CathedralOS/Omega/pull/1461) remains a draft at the
-requested session wind-down. The next source investigation is the existing
-normal-call entry/result guarantee path: distinguish preparation/entry refusal
-from exact result-case classification under preserved Request observations.
-Complete binding, source custody and region checks remain mandatory; the frozen
-program, capacity-three obligation and capacity-two twin are unchanged.
+The two supporting positive controls checked. All five invalid controls rejected
+for their expected reasons: the short-buffer guard, wrong lifetime arguments,
+shared-to-mutable access, and two cases where an input parameter named `result`
+must keep its own meaning. The mutable-to-shared control checked. This is source
+checking evidence, not a runtime result.
 
-Raw observations, patches and the concise continuation note are retained outside
-scratch under `/Users/zcanann/Omega-build/representation-resource-20261102/`.
+The frozen program, Build files and guard-only twin remain unchanged from
+`10fba736d8eb1ed0de892a360d8fb6dba4882599`. The earlier baseline
+[41489778010](https://github.com/CathedralOS/Omega/actions/runs/41489778010)
+rejected the five success proofs; the subsequent return-binding repair removed
+those refusals. Raw reports and compiler identities are retained outside git in
+`/Users/zcanann/Omega-build/representation-resource-20261102/`.
+
+[PR #1461](https://github.com/CathedralOS/Omega/pull/1461) remains a draft. Its
+next step is to finish cleanup for the unchanged encoder and run the local
+program with both engines, then complete the nine-place row and invalid twins.
+No completed place or canonical success record is claimed.
+
+The broader resource-backed `Representation` interface remains open, including
+its agreement laws, reflection-based adapters, other resources and formats,
+other hosts and the Omega-written compiler.

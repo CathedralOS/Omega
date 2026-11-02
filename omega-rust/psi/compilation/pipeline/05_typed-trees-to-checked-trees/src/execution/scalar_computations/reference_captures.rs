@@ -1,7 +1,8 @@
-//! Reference production consumes the borrow owner's exact occurrence captures.
-//! A current descriptor keeps its own runtime coordinate even when several
-//! historical suppliers provided it. Those suppliers and their lineage remain
-//! independent BorrowFacts; geometry never invents a new resource or owning move.
+//! Construct reference values from their recorded source and permitted access.
+//! A reference parameter supplies that information on entry. Locals, field
+//! projections and new borrows use their own borrow records. Keep the current
+//! pointer and slice length; rebuilding them from an earlier allocation could
+//! select the wrong storage or widen the view.
 use super::{Builder, ExpressionHandle};
 use crate::flow::state_statements;
 use checked_trees::{BorrowAccessKind, CheckedStructuralAccess};
@@ -25,10 +26,10 @@ impl Builder<'_, '_> {
             })
             .and_then(|statement| statement.as_local_data())
             .filter(|local| local.initial_value == expression);
-        // An incoming reference already owns its descriptor and declared
-        // access. Transport that current value without requiring a new loan
-        // birth; sized references and slice descriptors share this receipt.
-        // Locals and projected leaves still need their occurrence captures.
+        // A reference parameter already supplies its pointer, slice length
+        // and permitted access. Reuse that value when putting it in another
+        // value; this does not form a new borrow. Plain references and slices
+        // use the same check. Locals and fields still need their borrow records.
         let incoming = descriptor.as_ref().and_then(|place| {
             if !place.segments.is_empty()
                 || self.canonical_place(expression).as_ref() != Some(place)
@@ -66,7 +67,11 @@ impl Builder<'_, '_> {
             Some(())
         };
         if let Some(parameter) = incoming {
-            retain_capture(facts::PlaceRoot::Symbol(parameter), Default::default(), &kind)?;
+            retain_capture(
+                facts::PlaceRoot::Symbol(parameter),
+                Default::default(),
+                &kind,
+            )?;
         }
         for loan in self.borrow.loans.span(state.loans)?.iter().filter(|loan| {
             loan.statement_index == self.statement_index
