@@ -51,8 +51,8 @@ pub use facts::{
     CheckedCaptureArgument, CheckedCaptureArgumentValue, CheckedCaptureInputs,
     CheckedDeclarationCall, CheckedExecutableBindings, CheckedExpressionSource,
     CheckedMachineRankCorrespondence, CheckedRankApplicationFacts, CheckedRankApplicationFormation,
-    CheckedRankApplicationFormationHandle, CheckedRankApplicationOwnedInput,
-    CheckedRankArrivalEdge, CheckedRankArrivalPlan, CheckedRankBodyJudgment, CheckedRankCoordinate,
+    CheckedRankApplicationFormationHandle, CheckedRankApplicationInputHome, CheckedRankArrivalEdge,
+    CheckedRankArrivalPlan, CheckedRankBodyJudgment, CheckedRankCoordinate,
     CheckedRankCoordinateBinding, CheckedRankCoordinateHandle, CheckedRankCoordinateTransport,
     CheckedRankLocalCapture, CheckedRankObservation, CheckedRankOperand, CheckedRankPremiseRegime,
     CheckedRankReceivingCoordinate, CheckedRankValueDerivation, CheckedRequirementMachines,
@@ -63,8 +63,10 @@ pub use facts::{
     CheckedStateRankCorrespondence,
 };
 pub use facts::{
-    CheckedDeclarationCapture, CheckedDeclarationDescription, CheckedDeclarationDescriptions,
-    CheckedDeclarationParameter, CheckedDeclarationSpecialization, CheckedMachineDescription,
+    CheckedCompilerEvaluationCall, CheckedCompilerEvaluationComponent,
+    CheckedCompilerEvaluationDependencies, CheckedDeclarationCapture,
+    CheckedDeclarationDescription, CheckedDeclarationDescriptions, CheckedDeclarationParameter,
+    CheckedDeclarationSpecialization, CheckedMachineDescription, CheckedSelectionRequirement,
 };
 pub use facts::{
     ProofApplicationMachine, ProofApplicationPlan, ProofApplicationTargetMember, ProofApplications,
@@ -212,7 +214,7 @@ impl CheckedTrees {
 
     /// The `u64` literal the selected target's fold landed at a retained
     /// constant's root (`CheckedScalarComputationKind::RetainedConstant`).
-    /// Stage 05 mints the row while the root is still a `size_of`/`align_of`
+    /// Psi 05 mints the row while the root is still a `size_of`/`align_of`
     /// query; execution settlement folds every such query into a literal in
     /// the one checked program before lowering runs. This is the checked
     /// product's view of that fold, not an authored expression: `None` means

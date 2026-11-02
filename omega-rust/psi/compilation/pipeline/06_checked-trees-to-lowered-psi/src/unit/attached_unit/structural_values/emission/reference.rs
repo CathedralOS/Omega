@@ -11,7 +11,6 @@
 
 use super::{Emission, LoweringError, PlaceId, StructuralTypeShape, ValueContinuation};
 use super::{lookup_type_id, unsupported};
-use crate::checked_facts::value_facts;
 use crate::expression_preparation::bindings::LoanAccess;
 use crate::expression_preparation::bindings::StructuralLocalBinding;
 use crate::expression_preparation::bindings::structural_paths::structural_access_can_supply;
@@ -19,7 +18,8 @@ use crate::expression_preparation::bindings::structural_paths::terminal_access;
 use crate::expression_preparation::bindings::structural_paths::{
     PreparedStructuralPathSegment, prepare_structural_argument_path,
 };
-use crate::terminal_identities::stored_structural_identity;
+use crate::shared::checked_facts::value_facts;
+use crate::shared::terminal_identities::stored_structural_identity;
 use crate::unit::attached_unit::structural_values::ValueOutcome;
 use checked_trees::CheckedUnitStructuralArgumentPlan;
 
@@ -50,7 +50,7 @@ impl Emission<'_, '_, '_> {
             self.operations,
             self.environment.private_places,
         )?;
-        let (_, state) = crate::declarations::state_declaration(self.checked, self.state)?;
+        let (_, state) = crate::shared::declarations::state_declaration(self.checked, self.state)?;
         let referent_type = lookup_type_id(self.type_ids, &source.type_identity)?;
         let referent = terminal_psi::find_structural_type(self.structural_types, referent_type)
             .ok_or(LoweringError::Unsupported(

@@ -331,7 +331,7 @@ fn append_dependency(
             "suspension loan dependency has no retained state-owned occurrence".to_owned(),
         ));
     }
-    crate::collections::push_unique(&mut *closure, loan);
+    crate::shared::collections::push_unique(&mut *closure, loan);
     Ok(())
 }
 
@@ -517,6 +517,11 @@ pub(super) fn retained_lifetime_demand(
                     .ok_or("the immediate parent resource is not retained")?;
                 pending.push(parent);
             }
+            // A descriptor transfer is in neither resource roster. Its own
+            // backing was joined above; its lifetime and access come from
+            // exact suppliers, which the walk below retains and checks.
+            _ if crate::checks::borrows::transport_suppliers(borrow, state, loan_handle)
+                .is_some() => {}
             _ => return Err("the loan lifetime resource is unavailable"),
         }
         for supplying in borrow.loan_suppliers.span_or_empty(loan.supplying_loans) {
@@ -565,7 +570,7 @@ pub(super) fn retain_backing_values(
             let resource = borrow.call_loan_resources.get(resource);
             match resource.source {
                 checked_trees::CheckedCallBorrowLoanSource::StoredLoan { loan } => {
-                    crate::collections::push_unique(&mut retained_loans, loan);
+                    crate::shared::collections::push_unique(&mut retained_loans, loan);
                 }
                 checked_trees::CheckedCallBorrowLoanSource::CallAccess { parents, .. } => {
                     for loan in borrow.call_loan_parents.span_or_empty(parents) {
@@ -581,7 +586,7 @@ pub(super) fn retain_backing_values(
                     | checked_trees::SuspensionCrossingValueOrigin::Local { symbol, .. } => symbol,
                     checked_trees::SuspensionCrossingValueOrigin::CallArgument { .. } => continue,
                 };
-                crate::collections::push_unique(&mut *live_symbols, root);
+                crate::shared::collections::push_unique(&mut *live_symbols, root);
             }
         }
     }
@@ -606,7 +611,7 @@ pub(super) fn retain_backing_values(
                     && entry.stored_loan().is_valid()
                     && borrow.loans.get(entry.stored_loan()).owner_symbol == symbol
             }) {
-                crate::collections::push_unique(&mut retained_loans, entry.stored_loan());
+                crate::shared::collections::push_unique(&mut retained_loans, entry.stored_loan());
             }
             continue;
         }
@@ -650,7 +655,7 @@ pub(super) fn retain_backing_values(
                 | checked_trees::SuspensionCrossingValueOrigin::Local { symbol, .. } => symbol,
                 checked_trees::SuspensionCrossingValueOrigin::CallArgument { .. } => continue,
             };
-            crate::collections::push_unique(&mut *live_symbols, symbol);
+            crate::shared::collections::push_unique(&mut *live_symbols, symbol);
         }
     }
 }

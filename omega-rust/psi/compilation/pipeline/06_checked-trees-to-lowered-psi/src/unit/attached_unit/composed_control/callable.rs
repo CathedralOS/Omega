@@ -8,7 +8,7 @@ use super::super::{
     lookup_machine_id,
 };
 use super::{CheckedTrees, LoweringError, catalogs, scalar_calls, state_graph};
-use crate::terminal_identities::StructuralDomainBinding;
+use crate::shared::terminal_identities::StructuralDomainBinding;
 use crate::unit::attached_unit::call_closure::BoundaryIdentity;
 use crate::unit::attached_unit::signatures::{self, MachineSignature};
 use std::borrow::Cow;

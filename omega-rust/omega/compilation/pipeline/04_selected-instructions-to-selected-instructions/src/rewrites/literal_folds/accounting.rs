@@ -69,7 +69,7 @@ pub(super) fn selected_lowering_custody_receipt(
             step.legality.receipt().identity(),
         ),
         None => (
-            source.selected().receipt().identity(),
+            source.selected().identity(),
             source.liveness().receipt().identity(),
             source.ranges().receipt().identity(),
             source.legality().receipt().identity(),

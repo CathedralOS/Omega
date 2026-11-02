@@ -37,15 +37,7 @@ pub(crate) fn validate_provider_attachment_specialization(
                         // Catalog indexing already rejects duplicate type ids.
                         // Pass its exact child to the shared shape join without
                         // copying the catalog or converting the marker to data.
-                        let declarations = match field.field_type {
-                            terminal_psi::StructuralFieldType::Structural(child) => types
-                                .get(&child)
-                                .map(|declaration| std::slice::from_ref(*declaration))
-                                .unwrap_or_default(),
-                            _ => &[],
-                        };
-                        terminal_semantics::fused_service_field_carrier(declarations, field)
-                            .is_some()
+                        terminal_semantics::fused_service_field_carrier(field).is_some()
                     })
                     .collect::<Vec<_>>(),
             ),

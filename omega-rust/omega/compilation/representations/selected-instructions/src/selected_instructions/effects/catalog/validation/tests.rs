@@ -1431,6 +1431,32 @@ fn normalized_foreign_call_declarations_bind_external_call_effects() {
     let row = foreign_row(3000, 2, true);
     let source = declaration(row.key, encoded(&row));
     validate_declaration(target::Architecture::X86_64, &row, &source).unwrap();
+    // A table load may fault before the external call. ARM links through LR,
+    // not a fabricated x86 return-address stack lifecycle.
+    let mut table = source.clone();
+    table.memory = crate::MachineMemoryEffect::ReadPointerV1;
+    table.trap = crate::MachineTrapBehavior::MayArchitecturalFaultV1;
+    table.alternatives[0].size = MachineSizeKnowledge::ExactBytes(20);
+    table.alternatives[0].encoded.memory = MachineEncodedMemoryEffect::ReadTableFieldV1 {
+        pointer_operand: 0,
+        byte_offset: 8,
+    };
+    table.alternatives[0].encoded.stack = MachineEncodedStackEffect::UnchangedV1;
+    table.alternatives[0].encoded.control = MachineEncodedControlEffect::IndirectExternalCallV1;
+    validate_declaration(target::Architecture::Aarch64, &row, &table).unwrap();
+    assert!(validate_declaration(target::Architecture::X86_64, &row, &table).is_err());
+    let mut wrong_stack = table.clone();
+    wrong_stack.alternatives[0].encoded.stack = source.alternatives[0].encoded.stack;
+    assert!(validate_declaration(target::Architecture::Aarch64, &row, &wrong_stack).is_err());
+    let mut wrong_pointer = table.clone();
+    wrong_pointer.alternatives[0].encoded.memory = MachineEncodedMemoryEffect::ReadTableFieldV1 {
+        pointer_operand: 2,
+        byte_offset: 8,
+    };
+    assert!(validate_declaration(target::Architecture::Aarch64, &row, &wrong_pointer).is_err());
+    let mut missing_fault = table;
+    missing_fault.trap = NeverV1;
+    assert!(validate_declaration(target::Architecture::Aarch64, &row, &missing_fault).is_err());
     // The Unit-result row admits the same surfaces with no Def operand.
     let unit_row = foreign_row(3010, 1, false);
     validate_declaration(

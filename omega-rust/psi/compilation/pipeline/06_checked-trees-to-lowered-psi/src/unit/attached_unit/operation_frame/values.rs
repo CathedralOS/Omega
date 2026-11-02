@@ -7,13 +7,13 @@
 use super::super::argument_evaluation::Evaluation;
 use super::super::structural_values;
 use super::{OperationEnvironment, OperationFrame, StructuralResults};
-use crate::checked_facts::{flow_facts, value_facts};
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::expression_preparation::bindings::StructuralLocalBinding;
 use crate::expression_preparation::bindings::structural_paths::terminal_access;
-use crate::reference_custody::result_multiplicity;
-use crate::terminal_identities::stored_structural_identity;
+use crate::shared::checked_facts::{flow_facts, value_facts};
+use crate::shared::reference_custody::result_multiplicity;
+use crate::shared::terminal_identities::stored_structural_identity;
 use crate::unit::{
     CheckedUnitEffectOperationPlan, LoweringError, StructuralTypeId, ValueDeclaration,
     lookup_type_id, unsupported,
@@ -387,7 +387,7 @@ fn prepare_value_observation(
     let result = (|| match &node.kind {
         CheckedStructuralValueKind::Place(source)
         | CheckedStructuralValueKind::CopiedStructuralPlace { source, .. } => {
-            let (_, state) = crate::declarations::state_declaration(checked, node.state)?;
+            let (_, state) = crate::shared::declarations::state_declaration(checked, node.state)?;
             let home =
                 bindings.borrowed_structural_home(source, checked.state_parameters(state))?;
             let root_type =

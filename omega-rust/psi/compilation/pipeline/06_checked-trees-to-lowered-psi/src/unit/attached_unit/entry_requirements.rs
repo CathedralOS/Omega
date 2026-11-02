@@ -1,7 +1,7 @@
 //! Publish the same checked invocation contract for every callable body.
 //! Structural entry predicates and closed scalar clauses share one namespace;
 //! bound generic cleanup prerequisites retain their distinct checked origin.
-use crate::lowering_error::LoweringError;
+use crate::shared::lowering_error::LoweringError;
 use crate::unit::runtime_requirements::lower_structural_runtime_requirement;
 use checked_trees::CheckedTrees;
 use semantic_vocabulary::Proposition;
@@ -58,7 +58,7 @@ pub(crate) fn lower(
                 )
             })
             .collect::<Result<Vec<_>, _>>()
-            .map_err(crate::lowering_error::unit_machine_plan_error(
+            .map_err(crate::shared::lowering_error::unit_machine_plan_error(
                 checked,
                 checked.symbols.name(source),
                 source,

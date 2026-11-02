@@ -783,7 +783,7 @@ impl LoanChains {
 
 /// End a lender home on each exit of its own state that does not lend it.
 ///
-/// Stage 05 records cleanup only for owners it tracks. A view or
+/// Psi 05 records cleanup only for owners it tracks. A view or
 /// reference carrier the lender forms has no checked cleanup row, and
 /// `affine_cleanup::complete` leaves it alone once the chain schedules its
 /// disposal at the members' exits. A lender that lends its view on one arm and
@@ -1413,7 +1413,8 @@ impl ChainExit<'_> {
             for action in &mut selected {
                 if let TerminalAffineCleanupAction::InvokeNominal(cleanup) = action {
                     for obligation in &mut cleanup.requirement_obligations {
-                        *obligation = crate::terminal_identities::obligation_id(*next_obligation);
+                        *obligation =
+                            crate::shared::terminal_identities::obligation_id(*next_obligation);
                         *next_obligation =
                             next_obligation
                                 .checked_add(1)

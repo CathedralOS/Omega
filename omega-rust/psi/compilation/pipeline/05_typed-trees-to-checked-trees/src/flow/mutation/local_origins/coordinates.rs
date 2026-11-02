@@ -38,9 +38,10 @@ fn source_place(
     statement_index: usize,
     source: &validation::LocalWriteSource,
 ) -> Option<(CanonicalPlace, OriginPrecision)> {
-    if source.invocation_output.is_some() {
-        // Opaque output identity is not a declaration-relative write region.
-        // Unknown physical aliasing must not fall back to its display label.
+    if source.invocation_output.is_some() || source.invocation_result.is_some() {
+        // Opaque output/result identity is not a declaration-relative write
+        // region. Unknown physical aliasing must not fall back to its display
+        // label.
         return None;
     }
     if let Some(first) = source.recasts.first() {
@@ -101,6 +102,9 @@ pub(in crate::flow::mutation) fn write_source_region(
 ) -> Option<StorageRegion> {
     if source.invocation_output.is_some() {
         return output_write_region(program, source, relative);
+    }
+    if let Some(home) = source.invocation_result {
+        return result_write_region(program, source, home, relative);
     }
     if !source.root.is_valid() {
         return None;
@@ -242,6 +246,41 @@ fn output_write_region(
     Some(StorageRegion::UnresolvedContent {
         carrier: CanonicalPlace {
             root: facts::PlaceRoot::InvocationOutput(identity),
+            segments: source.segments[..length].to_vec(),
+        },
+    })
+}
+
+/// A returned leaf's opaque referent carries the same unresolved-content
+/// answer as a performed output: the declared referee supplies projection
+/// geometry, but its physical backing may alias storage this frame cannot
+/// name.
+fn result_write_region(
+    program: &dyn validation::CheckingInput,
+    source: &validation::LocalWriteSource,
+    home: validation::InvocationResultHome,
+    relative: &[facts::PlaceSegment],
+) -> Option<StorageRegion> {
+    if source.is_image_storage || !source.recasts.is_empty() || source.representation.is_some() {
+        return None;
+    }
+    // The referent root is itself the reference boundary. The first nested
+    // reference below it selects another opaque slot, never caller storage.
+    let length = (0..=source.segments.len()).find(|length| {
+        validation::project_type_reference_from_segments(
+            program,
+            home.referent,
+            &source.segments[..*length],
+        )
+        .and_then(|reference| validation::reference_shell(program, reference))
+        .is_some()
+    })?;
+    let mut projected = source.segments.clone();
+    projected.extend_from_slice(relative);
+    validation::project_type_reference_from_segments(program, home.referent, &projected)?;
+    Some(StorageRegion::UnresolvedContent {
+        carrier: CanonicalPlace {
+            root: facts::PlaceRoot::TypeReference(home.referent),
             segments: source.segments[..length].to_vec(),
         },
     })

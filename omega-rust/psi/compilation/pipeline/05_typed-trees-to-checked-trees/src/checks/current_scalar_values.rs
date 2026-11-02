@@ -53,6 +53,7 @@ mod application_values;
 mod call_contracts;
 mod collections;
 mod conditions;
+mod declaration_reads;
 mod entry_fields;
 pub(crate) use entry_fields::parameter_projection_paths;
 mod joins;
@@ -789,7 +790,7 @@ impl<'program> CurrentScalarValues<'program> {
             for hypothesis in
                 self.capture_condition(program, machine, state, binary.right, holds, depth + 1)
             {
-                crate::collections::push_unique(&mut hypotheses, hypothesis);
+                crate::shared::collections::push_unique(&mut hypotheses, hypothesis);
             }
             return hypotheses;
         }
@@ -867,9 +868,14 @@ impl<'program> CurrentScalarValues<'program> {
                 numerics::bignum::BigInt::from_i64(value),
             ));
         }
-        // A completed call publishes all of its public result bounds. An
-        // exact interval is a constant; a proper interval belongs to this
-        // observed occurrence, not a replay of an effectful or dynamic call.
+        // A completed call retains its exact scalar actuals as well as its
+        // result interval. An interval alone loses relational guarantees such
+        // as result == input + 1. Capture only immutable owned integer formals:
+        // a reference denotes storage, and a mutable formal's post-state is not
+        // its incoming value. The existing contract importer owns those other
+        // observations, selected identity and contract independence.
+        // This is an executed value capture after the operand-write barrier,
+        // not admission or formation of an unevaluated specification call.
         if let Some(call) = program.expression_table.call_node(expression)
             && let Some((low, high)) =
                 validation::normal_return_integer_bounds(program, machine.symbol, expression, call)
@@ -884,11 +890,53 @@ impl<'program> CurrentScalarValues<'program> {
             let reference =
                 validation::expression_result_type_reference(program, machine, state, expression)?;
             let primitive = integer_carrier(program, reference)?;
-            return Some(ScopedArithmeticValue::BoundedInteger {
-                value: Box::new(ScopedArithmeticValue::Atom {
+            let arguments = program.expression_table.expression_handles(call.arguments);
+            let actuals = validation::call_target_parameters(
+                program,
+                validation::call_target_symbol(program, call),
+            )
+            .filter(|parameters| parameters.len() == arguments.len())
+            .map(|parameters| {
+                parameters
+                    .iter()
+                    .zip(arguments)
+                    .filter(|(parameter, _)| {
+                        !parameter.is_mutable
+                            && validation::reference_shell(program, parameter.type_reference)
+                                .is_none()
+                            && program
+                                .primitive_type_reference(parameter.type_reference)
+                                .is_some_and(PrimitiveType::is_fixed_integer)
+                    })
+                    .filter_map(|(_, argument)| {
+                        Some(ScopedArithmeticBinding {
+                            binder: ScopedArithmeticBinder::Occurrence(*argument),
+                            value: self.capture_at_depth(
+                                program,
+                                machine,
+                                state,
+                                *argument,
+                                depth + 1,
+                            )?,
+                        })
+                    })
+                    .collect()
+            });
+            let value = actuals.map_or_else(
+                || ScopedArithmeticValue::Atom {
                     identity: format!("state:{:?}:call-result:{expression:?}", state.symbol),
                     unsigned: unsigned(primitive),
-                }),
+                },
+                |bindings| {
+                    ScopedArithmeticValue::Term(ScopedArithmeticExpression {
+                        owner: state.symbol,
+                        expression,
+                        bindings,
+                    })
+                },
+            );
+            return Some(ScopedArithmeticValue::BoundedInteger {
+                value: Box::new(value),
                 interval: BigIntInterval {
                     low: low.map(numerics::bignum::BigInt::from_i64),
                     high: high.map(numerics::bignum::BigInt::from_i64),
@@ -1088,6 +1136,38 @@ impl<'program> CurrentScalarValues<'program> {
     /// preserve those rosters rather than reread the source predicates.
     pub(crate) fn captured_hypotheses(&self) -> &[ScopedArithmeticHypothesis] {
         &self.hypotheses
+    }
+
+    /// Bind a declaration recipe to current snapshots without treating its
+    /// unevaluated calls as completed runtime occurrences. The formation owner
+    /// must still discharge every operation before using the returned roster.
+    pub(crate) fn integer_expression(
+        &self,
+        expression: ExpressionHandle,
+    ) -> Option<ScopedArithmeticExpression> {
+        scoped_operations(
+            self.occurrence(),
+            expression,
+            &self.current,
+            &self.fields,
+            true,
+        )
+    }
+
+    pub(crate) fn integer_expression_formation(
+        &self,
+        machine: &Machine,
+        expression: &ScopedArithmeticExpression,
+    ) -> Option<(
+        validation::IntegerApplicationFormation,
+        ScopedArithmeticValue,
+    )> {
+        validation::scoped_integer_expression_formation(
+            self.program,
+            machine,
+            &self.hypotheses,
+            expression,
+        )
     }
 
     pub(crate) fn declared_integer_application_formation(
@@ -1786,6 +1866,19 @@ fn scoped(
     bindings: &[Binding],
     fields: &[ScalarField],
 ) -> Option<ScopedArithmeticExpression> {
+    scoped_operations(occurrence, expression, bindings, fields, false)
+}
+
+/// Bind the same exact read roster for proof consumers and declaration
+/// formation. Formation preserves operations for the child-first checker;
+/// completed proof consumers retain their prior preserving-cast projection.
+fn scoped_operations(
+    occurrence: ScopedOccurrence<'_, '_>,
+    expression: ExpressionHandle,
+    bindings: &[Binding],
+    fields: &[ScalarField],
+    form_operations: bool,
+) -> Option<ScopedArithmeticExpression> {
     let ScopedOccurrence {
         program,
         machine,
@@ -1806,9 +1899,27 @@ fn scoped(
             ExpressionNode::Name(_)
                 if program.expression_table.names_reserved_result(expression) => {}
             ExpressionNode::Name(name) if name.symbol == name.head_symbol => {
-                crate::collections::push_unique(&mut symbols, name.symbol);
+                crate::shared::collections::push_unique(&mut symbols, name.symbol);
             }
             ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) => {}
+            ExpressionNode::Atomic(atomic) if form_operations => {
+                pending.push((atomic.value, depth + 1));
+            }
+            ExpressionNode::Cast(cast) if form_operations => {
+                pending.push((cast.value, depth + 1));
+            }
+            ExpressionNode::Call(call) if form_operations => {
+                if call.receiver.is_valid() {
+                    pending.push((call.receiver, depth + 1));
+                }
+                pending.extend(
+                    program
+                        .expression_table
+                        .expression_handles(call.arguments)
+                        .iter()
+                        .map(|argument| (*argument, depth + 1)),
+                );
+            }
             ExpressionNode::Cast(_) => {
                 let operand =
                     preserving_integer_cast_operand(occurrence, expression, bindings, fields)?;

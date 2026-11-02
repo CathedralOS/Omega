@@ -119,6 +119,12 @@ pub enum StatementSnapshot {
         relevance: &'static str,
     },
     Transition {
+        #[serde(skip_serializing_if = "Vec::is_empty")]
+        patterns: Vec<(
+            bool,
+            ExpressionSnapshot,
+            super::expression_and_type_snapshots::MatchPatternSnapshot,
+        )>,
         target: TransitionTargetSnapshot,
         continuation: Option<TransitionTargetSnapshot>,
         guard: TransitionGuardSnapshot,
@@ -412,6 +418,21 @@ fn snapshot_statement(syntax_trees: &SyntaxTrees, statement: &StatementNode) -> 
             relevance: super::item_snapshots::snapshot_binding_relevance(value.relevance),
         },
         StatementNode::Transition(value) => StatementSnapshot::Transition {
+            patterns: syntax_trees
+                .statements
+                .transition_patterns(value.patterns)
+                .iter()
+                .map(|retained| {
+                    (
+                        retained.is_structural,
+                        snapshot_expression_handle(syntax_trees, retained.subject),
+                        super::expression_and_type_snapshots::snapshot_match_pattern(
+                            syntax_trees,
+                            crate::expression::MatchPattern::Destructure(retained.pattern),
+                        ),
+                    )
+                })
+                .collect(),
             target: snapshot_transition_target(
                 syntax_trees,
                 syntax_trees.statements.transition_target(value.target),

@@ -32,11 +32,13 @@ storage. The offscreen native regression checks all pixel bytes after the
 original storage is overwritten and its activation ends, alongside the C
 calling convention and neighboring canaries.
 
-The last Terminal comparison refused at runtime admission:
-`native-provider-adapter: private native sponsor supplies no additional service capability`.
-The AppKit and Objective-C requirements declare additional service reach that
-the private native sponsor does not supply. This is an unavailable comparison,
-not an observed program exit. Their declared ceilings remain intact.
+The Terminal comparison refuses at runtime admission. The AppKit and
+Objective-C requirements reach core services (`NativeCodeExecution`,
+`WindowManagement` and others), and the private native sponsor performs only
+reach declared by the import's own package. This is an unavailable
+comparison, not an observed program exit. The last observed refusal predates
+that package-local rule; macOS has not been re-run since. Their declared
+ceilings remain intact.
 
 The application has no exit oracle, so the sample gate builds it without
 launching it (`no-oracle`). Rendering, keyboard input and normal close require

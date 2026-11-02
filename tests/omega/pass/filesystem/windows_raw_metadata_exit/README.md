@@ -14,7 +14,10 @@ closing its private handle. A metadata-only path open asks for read attributes,
 not content or namespace mutation. Several queries are not an atomic snapshot
 against concurrent writers. No POSIX identity or permission is fabricated.
 
-Windows x86-64 execution now observes native exit 70, and the retained Terminal
-inspection oracle matches. Terminal execution still declines because no trusted
-host implementation matches the exact foreign bindings. The portable provider's
-full dual-engine acceptance remains open under **FILESYSTEM-PLATFORM-SERVICES**.
+Windows x86-64 qualification now observes native exit 70 and Terminal exit 70
+through ordinary review/resume and `run --both`. The authored `Main::main`
+Source inspection and canonical artifact reload also agree. Exact producer,
+profile, inputs and matching-host receipts are recorded in the
+[acceptance note](../../../../../wiki/drafts/measurements/windows_raw_metadata_2026_11_02/README.md).
+The portable provider's full dual-engine acceptance remains open under
+**FILESYSTEM-PLATFORM-SERVICES**.

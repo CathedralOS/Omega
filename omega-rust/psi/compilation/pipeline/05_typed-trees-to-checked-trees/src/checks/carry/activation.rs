@@ -181,7 +181,7 @@ impl ActivationCarryAccumulator<'_> {
         let policy =
             validation::effective_type_carry_policy(self.program, type_parameters, type_reference);
         self.effective = self.effective.intersect(policy);
-        crate::collections::push_unique(&mut self.contributing_types, type_reference);
+        crate::shared::collections::push_unique(&mut self.contributing_types, type_reference);
     }
 
     fn add_unnamed_policy(&mut self, policy: CarryPolicy) {

@@ -25,8 +25,6 @@
 //! `&Nest<[T; 2]>` would require an infinite catalog for one finite pointer.
 
 use super::*;
-use checked_trees::CheckedBindingFieldReceipt;
-use checked_trees::CheckedBindingParameterReceipt;
 use checked_trees::CheckedBooleanExpression;
 use checked_trees::CheckedByteSequenceCarrier;
 use checked_trees::CheckedMemberIdentity;
@@ -45,15 +43,10 @@ use typed_trees::domain::DomainDefinition;
 use typed_trees::domain::domain_by_symbol;
 use typed_trees::domain::required_subject_memberships;
 use typed_trees::operator::declared_domain_constraints;
-use typed_trees::service::ServiceCarrierOccurrence;
-use typed_trees::service::classify_exact_service_parameter_carrier;
-use typed_trees::service::inspect_service_carrier_contract;
-use typed_trees::service::service_requirement_declaration;
 use typed_trees::type_identity::TypeIdentityId;
 use typed_trees::types::DomainConstraint;
 use typed_trees::types::FixedArrayLength;
 use validation::ContentsRequirement;
-use validation::DeclaredPropertyRequirement;
 use validation::activation_claim_byte_carrier;
 use validation::case_where_field_intervals;
 use validation::data_has_contents;
@@ -68,7 +61,7 @@ use validation::stored_structural_type_identity;
 use validation::stores_reference_shape;
 use validation::structural_storage_type;
 use validation::structural_type_identity;
-use validation::type_satisfies_declared_property;
+use validation::substituted_type_satisfies_copy;
 use validation::unrestricted_builtin_primitive;
 
 /// Identity alone can join different source presentations. Memoize only an
@@ -823,13 +816,9 @@ impl<'program> ShapeCollector<'program> {
         let storage_properties = || {
             // Usage multiplicity permits repeated exclusive-reference access; it
             // does not permit copying that descriptor, including inside an array.
-            // Ask the same declared-property owner as stored-value copy planning.
-            let copyable = type_satisfies_declared_property(
-                program,
-                &[],
-                storage,
-                DeclaredPropertyRequirement::Copy,
-            );
+            // Ask the same declared-property owner as stored-value copy planning,
+            // through the same substitutions that named this shape's identity.
+            let copyable = substituted_type_satisfies_copy(program, storage, substitutions);
             let no_code_affine_cleanup = has_contents(
                 program,
                 storage,
@@ -938,16 +927,6 @@ impl<'program> ShapeCollector<'program> {
         // loan. Scalar receiving restrictions retain their own identity and
         // declaration; membership-only qualifications remain separate.
         let type_reference = storage;
-        // The same nonconstructible carrier can be a field, a parameter or
-        // reference backing. Storage collection must not depend on which
-        // owner first demanded its shape. Occurrence closure and established
-        // binding custody remain with their independent source judgments.
-        if inspect_service_carrier_contract(self.program, type_reference)
-            .ok()?
-            .is_some()
-        {
-            return self.add_binding_carrier_type(type_reference, binders, substitutions);
-        }
         if self.types.contains_key(&identity) {
             return Some(identity);
         }
@@ -1153,21 +1132,6 @@ impl<'program> ShapeCollector<'program> {
         )
     }
 
-    pub(in super::super) fn add_partial_affine_type(
-        &mut self,
-        type_reference: TypeReferenceHandle,
-        binders: &[(SymbolHandle, String)],
-    ) -> Option<TypeIdentityId> {
-        let identity = self.add_type(type_reference, binders, &[])?;
-        // Shape collection also serves borrowed carriers. Check authored
-        // ownership before a referent-oriented shape can erase that distinction.
-        if !partial_affine_source_contents_are_owned(self.program, type_reference, &mut Vec::new())
-        {
-            return None;
-        }
-        Some(identity)
-    }
-
     pub(in super::super) fn add_affine_array_construction_type(
         &mut self,
         type_reference: TypeReferenceHandle,
@@ -1182,10 +1146,7 @@ impl<'program> ShapeCollector<'program> {
     /// application view that borrows the authored declaration's symbol beside
     /// the generated carrier; an origin whose `base_symbol` is still the
     /// candidate's own symbol marks that borrowed view, never the carrier.
-    fn canonical_closed_carrier(
-        &mut self,
-        identity: TypeIdentityId,
-    ) -> Option<DataDefinition> {
+    fn canonical_closed_carrier(&mut self, identity: TypeIdentityId) -> Option<DataDefinition> {
         if self.canonical_carriers.is_none() {
             let typed = self.program.typed_program();
             let mut carriers = BTreeMap::new();
@@ -1600,10 +1561,19 @@ impl<'program> ShapeCollector<'program> {
                         plan.native_data_identity(program.typed_program(), &data, policy)
                             .ok()
                     }),
+                    // Application views may borrow the declaration's symbol
+                    // while carrying occurrence-local specialization metadata.
+                    // Native provenance belongs to the symbol-owning declaration,
+                    // just as it does when a field first demands this shape.
                     None => program
                         .typed_program()
-                        .native_data_declaration_identity(&data)
-                        .ok(),
+                        .unique_data_definition_by_symbol(data.symbol)
+                        .and_then(|declaration| {
+                            program
+                                .typed_program()
+                                .native_data_declaration_identity(declaration)
+                                .ok()
+                        }),
                 },
                 scalar_restriction: None,
                 owns_linear_claim,
@@ -1630,8 +1600,8 @@ impl<'program> ShapeCollector<'program> {
         stated_bounds: Option<(Option<i64>, Option<i64>)>,
     ) -> Option<CheckedUnitStructuralFieldPlan> {
         // Classify the actual member before choosing its storage route. A
-        // formal T instantiated with a reference or Binding must retain that
-        // shell, not reach add_type's referent-oriented fallback as plain T.
+        // formal T instantiated with a reference must retain that shell, not
+        // reach add_type's referent-oriented fallback as plain T.
         let field_type_reference =
             substituted_formal_type(self.program, field.type_reference, substitutions);
         let receiving_type_identity = self.program.type_identity(TypeIdentityRequest {
@@ -1647,25 +1617,15 @@ impl<'program> ShapeCollector<'program> {
             CheckedUnitStructuralFieldType::Erased {
                 type_identity: receiving_type_identity,
             }
-        } else if let Some((binding_carrier, provider_node)) =
+        } else if let Some(provider_node) =
             provider_backed_field(self.program, field_type_reference)
         {
-            let provider_type_identity = self.program.type_identity(TypeIdentityRequest {
-                binders,
-                substitutions,
-                ..TypeIdentityRequest::ordinary(provider_node)
-            });
-            match binding_carrier {
-                Some(receipt) => {
-                    self.add_type(provider_node, binders, &[])?;
-                    CheckedUnitStructuralFieldType::BindingBacked {
-                        provider_type_identity,
-                        receipt,
-                    }
-                }
-                None => CheckedUnitStructuralFieldType::ProviderBacked {
-                    provider_type_identity,
-                },
+            CheckedUnitStructuralFieldType::ProviderBacked {
+                provider_type_identity: self.program.type_identity(TypeIdentityRequest {
+                    binders,
+                    substitutions,
+                    ..TypeIdentityRequest::ordinary(provider_node)
+                }),
             }
         } else if let Some(carrier) =
             byte_sequence_carrier(self.program, field_type_reference, substitutions).filter(|_| {
@@ -1761,7 +1721,7 @@ impl<'program> ShapeCollector<'program> {
                 CheckedUnitStructuralFieldType::Structural { .. }
             ) {
                 for (_, carrier) in carriers {
-                    crate::collections::push_unique(&mut qualification_carriers, carrier);
+                    crate::shared::collections::push_unique(&mut qualification_carriers, carrier);
                 }
             }
         }
@@ -1782,81 +1742,6 @@ impl<'program> ShapeCollector<'program> {
             storage: None,
             qualification_carriers,
         })
-    }
-
-    /// Register the semantic binding independently from its occurrence receipt.
-    /// Keeping a nonconstructible type lets fields and parameters share ordinary
-    /// loan paths without turning zero-sized layout into establishment authority.
-    fn add_binding_carrier_type(
-        &mut self,
-        type_reference: TypeReferenceHandle,
-        binders: &[(SymbolHandle, String)],
-        substitutions: &[(SymbolHandle, TypeReferenceHandle)],
-    ) -> Option<TypeIdentityId> {
-        // Physical sharing requires the nominal core shell, not a proof that
-        // this occurrence's provider or regions have been established. The
-        // parameter/field receipt retains that separate semantic association.
-        inspect_service_carrier_contract(self.program, type_reference).ok()??;
-        let identity = self.program.type_identity(TypeIdentityRequest {
-            binders,
-            substitutions,
-            ..TypeIdentityRequest::ordinary(type_reference)
-        });
-        let plan = CheckedUnitStructuralTypePlan {
-            source_declaration: Default::default(),
-            source_application: Default::default(),
-            native_identity: None,
-            native_policy_identity: None,
-            native_semantic_identity: None,
-            scalar_restriction: None,
-            owns_linear_claim: self.program.type_multiplicity(type_reference)
-                == Multiplicity::Linear,
-            no_code_affine_cleanup: false,
-            copyable: false,
-            descriptor_cleanup: false,
-            identity: identity,
-            shape: CheckedUnitStructuralTypeShape::BindingCarrier,
-        };
-        self.register_type(identity, plan)?;
-        Some(identity)
-    }
-
-    /// Retain the exact source parameter, including any borrow shell, beside
-    /// its logical semantic carrier. The receipt grants no new binding.
-    pub(in super::super) fn add_binding_parameter_type(
-        &mut self,
-        type_reference: TypeReferenceHandle,
-        source_parameter: SymbolHandle,
-        binders: &[(SymbolHandle, String)],
-    ) -> Option<(TypeIdentityId, CheckedBindingParameterReceipt)> {
-        let parameter_carrier = classify_exact_service_parameter_carrier(
-            self.program,
-            ServiceCarrierOccurrence {
-                type_reference,
-                lexical_owner: source_parameter,
-                enclosing_data_applications: &[],
-            },
-        )
-        .ok()??;
-        let carrier = parameter_carrier.carrier;
-        if !source_parameter.is_valid() {
-            return None;
-        }
-
-        let type_identity =
-            self.add_binding_carrier_type(parameter_carrier.carrier_type, binders, &[])?;
-
-        Some((
-            type_identity,
-            CheckedBindingParameterReceipt {
-                source_parameter,
-                carrier_type_identity: self.program.type_identity(TypeIdentityRequest {
-                    binders,
-                    ..TypeIdentityRequest::ordinary(type_reference)
-                }),
-                requirement: carrier.requirement,
-            },
-        ))
     }
 
     pub(in super::super) fn retain_transitive(&mut self, roots: &BTreeSet<TypeIdentityId>) {
@@ -1887,8 +1772,7 @@ impl<'program> ShapeCollector<'program> {
                     CheckedUnitStructuralTypeShape::ByteSequence(_) => {
                         retained.extend(self.byte_view_elements.iter().cloned());
                     }
-                    CheckedUnitStructuralTypeShape::BindingCarrier
-                    | CheckedUnitStructuralTypeShape::PrimitiveScalar(_) => {}
+                    CheckedUnitStructuralTypeShape::PrimitiveScalar(_) => {}
                     CheckedUnitStructuralTypeShape::Record { fields, storage } => {
                         if let CheckedUnitRecordStorage::TargetLayout {
                             schema_type_identity,
@@ -1972,22 +1856,12 @@ fn authored_field_storage(
         .authored_field_storage(field_index, scalar_field)
 }
 
-/// A provider-backed field's logical receipt (when the carrier is an exact
-/// `Binding<R>` requirement) plus the type node whose identity names the
-/// provider — the carrier itself for a binding, the unwrapped
-/// boundary-trait referent for a `&'a mut <boundary trait>` field.
+/// The type node whose identity names a provider-backed field's provider:
+/// the unwrapped boundary-trait referent of a `&'a mut <boundary trait>` field.
 pub(super) fn provider_backed_field(
     program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
-) -> Option<(Option<CheckedBindingFieldReceipt>, TypeReferenceHandle)> {
-    if let Some(requirement) = service_requirement_declaration(program, type_reference) {
-        // Logical classification never consults target provider selection.
-        // Establishment joins this requirement to the selected provider later.
-        return Some((
-            Some(CheckedBindingFieldReceipt { requirement }),
-            type_reference,
-        ));
-    }
+) -> Option<TypeReferenceHandle> {
     // Attached data stores a provider as `&'a mut <boundary trait>`: look
     // through the reference (and any qualifications wrapped around it) to the
     // trait symbol before deciding the field is not a provider handle.
@@ -2011,5 +1885,5 @@ pub(super) fn provider_backed_field(
         .traits()
         .iter()
         .any(|definition| definition.symbol == provider_symbol && definition.is_boundary)
-        .then_some((None, unwrapped))
+        .then_some(unwrapped)
 }

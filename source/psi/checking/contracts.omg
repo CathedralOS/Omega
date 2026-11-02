@@ -1,4 +1,5 @@
 use psi::checking::checker;
+use psi::checking::call_bindings;
 use psi::checking::evaluation;
 use psi::checking::flow;
 use psi::checking::obligations;
@@ -27,6 +28,8 @@ public data CallClauses [copy] {
     clause_count: u64 in Trapping;
     first_parameter: u64 in Trapping;
     parameter_count: u64 in Trapping;
+    has_return_type: bool;
+    return_type: u64 in Trapping;
 }
 
 public machine Checker::call_clauses(syntax: &SyntaxTrees, resolution: &NameResolution, selection: Selection) -> CallClauses
@@ -40,7 +43,7 @@ crashes Trap
 
     machine declared(syntax: &SyntaxTrees, handle: u64 in Trapping) -> CallClauses {
         let item: MachineItem = SyntaxTrees::machine_item(syntax, handle);
-        CallClauses { first_clause: item.first_clause, clause_count: item.clause_count, first_parameter: item.first_parameter, parameter_count: item.parameter_count }
+        CallClauses { first_clause: item.first_clause, clause_count: item.clause_count, first_parameter: item.first_parameter, parameter_count: item.parameter_count, has_return_type: item.has_return_type, return_type: item.return_type }
     }
 
     machine bound(syntax: &SyntaxTrees, resolution: &NameResolution, parameter: u64 in Trapping) -> CallClauses {
@@ -53,11 +56,11 @@ crashes Trap
 
     machine contracted(syntax: &SyntaxTrees, handle: u64 in Trapping) -> CallClauses {
         let written: Contract = SyntaxTrees::contract(syntax, handle);
-        CallClauses { first_clause: written.first_clause, clause_count: written.clause_count, first_parameter: written.first_parameter, parameter_count: written.parameter_count }
+        CallClauses { first_clause: written.first_clause, clause_count: written.clause_count, first_parameter: written.first_parameter, parameter_count: written.parameter_count, has_return_type: written.has_return_type, return_type: written.return_type }
     }
 
     machine none() -> CallClauses {
-        CallClauses { first_clause: 0, clause_count: 0, first_parameter: 0, parameter_count: 0 }
+        CallClauses { first_clause: 0, clause_count: 0, first_parameter: 0, parameter_count: 0, has_return_type: false, return_type: 0 }
     }
 }
 
@@ -213,7 +216,7 @@ public machine Checker::assume_guarantees(
     syntax: &SyntaxTrees,
     resolution: &NameResolution,
     typing: &Typing,
-    item: MachineItem,
+    clauses: CallClauses,
     call: Expression,
     result: Value
 )
@@ -223,7 +226,7 @@ crashes Trap
     let previous: Value = checker.returned;
     checker.returning = true;
     checker.returned = result;
-    let assumed: bool = Checker::decide_call_facts(checker, syntax, resolution, typing, item.first_clause, item.clause_count, item.first_parameter, call, ClauseKind::Ensures, false);
+    let assumed: bool = Checker::decide_call_facts(checker, syntax, resolution, typing, clauses, call, ClauseKind::Ensures, false);
     checker.returning = returning;
     checker.returned = previous;
 }
@@ -231,83 +234,15 @@ crashes Trap
 // Decide a call's or jump's target facts of `kind`: while they are decided,
 // each target parameter stands for its argument's value at the call.
 public machine Checker::decide_call_facts(
-    checker: &mut Checker,
-    syntax: &SyntaxTrees,
-    resolution: &NameResolution,
-    typing: &Typing,
-    first_clause: u64 in Trapping,
-    clause_count: u64 in Trapping,
-    first_parameter: u64 in Trapping,
-    call: Expression,
-    kind: ClauseKind,
+    checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution,
+    typing: &Typing, clauses: CallClauses, call: Expression, kind: ClauseKind,
     proving: bool
 ) -> bool
 crashes Trap
 {
-    let substituting: bool = checker.substituting;
-    transition { _ -> capture(checker, syntax, resolution, typing, first_clause, clause_count, first_parameter, call, kind, proving, substituting, 0) }
-
-    machine capture(
-        checker: &mut Checker,
-        syntax: &SyntaxTrees,
-        resolution: &NameResolution,
-        typing: &Typing,
-        first_clause: u64 in Trapping,
-        clause_count: u64 in Trapping,
-        first_parameter: u64 in Trapping,
-        call: Expression,
-        kind: ClauseKind,
-        proving: bool,
-        substituting: bool,
-        offset: u64 in Trapping
-    ) -> bool {
-        let count: u64 in Trapping = Checker::operand_count(call);
-        transition offset < count && offset < 64 {
-            true -> argument(checker, syntax, resolution, typing, first_clause, clause_count, first_parameter, call, kind, proving, substituting, offset)
-            _ -> substituted(checker, syntax, resolution, typing, first_clause, clause_count, first_parameter, offset, kind, proving, substituting)
-        }
-    }
-
-    machine argument(
-        checker: &mut Checker,
-        syntax: &SyntaxTrees,
-        resolution: &NameResolution,
-        typing: &Typing,
-        first_clause: u64 in Trapping,
-        clause_count: u64 in Trapping,
-        first_parameter: u64 in Trapping,
-        call: Expression,
-        kind: ClauseKind,
-        proving: bool,
-        substituting: bool,
-        offset: u64 in Trapping
-    ) -> bool {
-        let handle: u64 in Trapping = Checker::operand(syntax, call, offset);
-        let value: Value = Checker::value_at(checker, handle);
-        Checker::set_argument(checker, offset, value);
-        transition { _ -> capture(checker, syntax, resolution, typing, first_clause, clause_count, first_parameter, call, kind, proving, substituting, offset + 1) }
-    }
-
-    machine substituted(
-        checker: &mut Checker,
-        syntax: &SyntaxTrees,
-        resolution: &NameResolution,
-        typing: &Typing,
-        first_clause: u64 in Trapping,
-        clause_count: u64 in Trapping,
-        first_parameter: u64 in Trapping,
-        count: u64 in Trapping,
-        kind: ClauseKind,
-        proving: bool,
-        substituting: bool
-    ) -> bool {
-        checker.substituting = true;
-        checker.argument_first = first_parameter;
-        checker.argument_count = count;
-        let held: bool = Checker::decide_facts(checker, syntax, resolution, typing, first_clause, clause_count, kind, proving);
-        checker.substituting = substituting;
-        held
-    }
+    let mut arguments: ArgumentValues;
+    Checker::capture_call_arguments(checker, syntax, call, &mut arguments);
+    Checker::decide_bound_facts(checker, syntax, resolution, typing, clauses, &arguments, kind, proving)
 }
 
 // The next fact clause of `kind` at or after `index` in a clause run ending

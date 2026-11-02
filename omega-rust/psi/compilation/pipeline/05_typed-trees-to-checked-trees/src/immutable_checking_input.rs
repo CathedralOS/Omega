@@ -46,15 +46,15 @@ fn checking_does_not_reopen_typed_preparation() {
         !specialization.contains("const_arguments::validate_authored("),
         "specialization restored authored argument admission inside its fixed point"
     );
-    let validation = include_str!("../../../checking/src/program_validation.rs");
+    let validation = include_str!("../../../validation/src/program_validation.rs");
     assert!(
         !validation.contains("GenericContracts"),
         "checking restored a preparation-granted contract exemption"
     );
     let effects =
-        include_str!("../../../checking/src/machine_calls/effect_inference/prepared_effects.rs");
+        include_str!("../../../validation/src/machine_calls/effect_inference/prepared_effects.rs");
     let operational =
-        include_str!("../../../checking/src/machine_calls/effect_inference/operational.rs");
+        include_str!("../../../validation/src/machine_calls/effect_inference/operational.rs");
     for source in [effects, operational] {
         for forbidden in ["structural_fingerprint", "ProgramKey"] {
             assert!(
@@ -117,7 +117,7 @@ fn checking_does_not_reopen_typed_preparation() {
 
     // Product pruning is a consuming transform, not permission to reopen the
     // embedded source in an already constructed checked result.
-    let pruning = include_str!("product_pruning/rewrite.rs");
+    let pruning = include_str!("products/product_pruning/rewrite.rs");
     for forbidden in [
         "&mut checked.typed",
         "checked.typed =",

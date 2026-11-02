@@ -23,8 +23,12 @@ use register_environment::baseline_target_register_environment;
 use register_homes_to_post_allocation_machine::stage_optimized_post_allocation_machine_plan;
 use resolved_layout_to_resolved_layout::execute_resolved_layout_optimization;
 use selected_form_encoding_to_resolved_layout::stage_optimized_resolved_selected_form_layout;
-use selected_instructions_to_register_homes::stage_register_allocation;
-use selected_instructions_to_selected_instructions::optimize_selected_instructions;
+use selected_instructions_to_register_homes::{
+    ValidatedSelectedAnalysis, stage_register_allocation,
+};
+use selected_instructions_to_selected_instructions::{
+    SelectedOptimizationInput, optimize_selected_instructions,
+};
 use target_operations_to_selected_instructions::stage_optimized_instruction_selection;
 
 /// Both application entries and separately emitted callables use these stages.
@@ -64,10 +68,19 @@ pub(crate) fn emit_target(
         stage_optimized_instruction_selection(optimized_target, register_environment)
             .map_err(OptimizedVerifiedPhysicalPipelineError::Selection)
     })?;
+    // Backend emission reads the optimized-target product directly; the
+    // selected-program stages after instruction selection do not carry it.
+    let target_input = std::sync::Arc::clone(selected.optimized_target_owner());
     let selected = phase_profile::scope("omega.04", || {
         observation.enter(NativePipelineStage::SelectedOptimization);
-        optimize_selected_instructions(selected)
-            .map_err(OptimizedVerifiedPhysicalPipelineError::SelectedOptimization)
+        optimize_selected_instructions(SelectedOptimizationInput {
+            program: selected.selected_program(),
+            custody: selected.custody().core(),
+            register_environment: selected.register_environment().clone(),
+            selections: selected.selections().clone(),
+            budget_per_pass: selected.budget_per_pass(),
+        })
+        .map_err(OptimizedVerifiedPhysicalPipelineError::SelectedOptimization)
     })?;
     let allocation = phase_profile::scope("omega.05", || {
         observation.enter(NativePipelineStage::RegisterAllocation);
@@ -77,8 +90,14 @@ pub(crate) fn emit_target(
     phase_profile::scope("omega.native.frame_realization", || {
         let machine = phase_profile::scope("omega.06", || {
             observation.enter(NativePipelineStage::PostAllocationMachine);
-            stage_optimized_post_allocation_machine_plan(&allocation.current())
-                .map_err(OptimizedVerifiedPhysicalPipelineError::PostAllocationMachine)
+            let current = allocation.current();
+            stage_optimized_post_allocation_machine_plan(
+                allocation.facts(),
+                current.register_environment(),
+                current.selections(),
+                current.budget_per_pass(),
+            )
+            .map_err(OptimizedVerifiedPhysicalPipelineError::PostAllocationMachine)
         })?;
         let current = allocation.current();
         let selected = current.selected();
@@ -94,8 +113,8 @@ pub(crate) fn emit_target(
         let encoding = phase_profile::scope("omega.07", || {
             observation.enter(NativePipelineStage::SelectedFormEncoding);
             stage_optimized_layout_independent_selected_form_encoding(
-                selected,
-                &machine,
+                selected.current_program(),
+                machine.machine().plan(),
                 registers,
                 Some(frame.layout().plan()),
             )
@@ -103,14 +122,19 @@ pub(crate) fn emit_target(
         })?;
         let layout = phase_profile::scope("omega.08", || {
             observation.enter(NativePipelineStage::ResolvedLayout);
-            stage_optimized_resolved_selected_form_layout(selected, &machine, registers, &encoding)
-                .map_err(FunctionRelativeOptimizationRealizationError::Layout)
+            stage_optimized_resolved_selected_form_layout(
+                selected.current_program(),
+                machine.machine().plan(),
+                registers,
+                encoding.program(),
+            )
+            .map_err(FunctionRelativeOptimizationRealizationError::Layout)
         })?;
         let optimized_layout = phase_profile::scope("omega.09", || {
             observation.enter(NativePipelineStage::LayoutOptimization);
             execute_resolved_layout_optimization(
                 registers,
-                &layout,
+                &layout.shared_program(),
                 &current
                     .selections()
                     .project_phase(OptimizationExecutionPhase::FunctionRelativeLayout),
@@ -121,6 +145,7 @@ pub(crate) fn emit_target(
         let realization = phase_profile::scope("omega.native.frame_realization.assemble_fixed_frame", || {
             machine_emission::assemble_fixed_frame_realization(
                 allocation,
+                target_input,
                 machine,
                 frame,
                 encoding,

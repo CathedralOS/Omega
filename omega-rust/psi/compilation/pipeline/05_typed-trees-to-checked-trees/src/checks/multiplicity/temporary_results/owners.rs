@@ -10,7 +10,7 @@ use super::CheckFacts;
 use crate::checks::multiplicity::linear_obligations::type_reference_is_reference;
 use crate::checks::type_carries_linear_obligation;
 use crate::flow::indexed_statements;
-use crate::places::place_at;
+use crate::published::places::place_at;
 use language_semantics::PermissionEventSource;
 
 /// How the consuming operation uses the anonymous owner.
@@ -209,11 +209,13 @@ pub(crate) fn temporary_owners(
                     );
                 let (borrowed, access) = if let Some(access) = descriptor_access {
                     (*argument, access)
-                } else if let Some((borrowed, _)) = crate::semantic::calls::shared_argument_referent(
-                    program,
-                    *argument,
-                    parameter.type_reference,
-                ) {
+                } else if let Some((borrowed, _)) =
+                    crate::published::semantic::calls::shared_argument_referent(
+                        program,
+                        *argument,
+                        parameter.type_reference,
+                    )
+                {
                     (borrowed, language_semantics::PermissionAccess::Shared)
                 } else {
                     continue;

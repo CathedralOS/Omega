@@ -1,6 +1,6 @@
 //! Inline realization of a selected compiler float builtin.
 //!
-//! Stage 00 admitted this boundary's settlement only after rejoining the
+//! Omega 00 admitted this boundary's settlement only after rejoining the
 //! selected provider row, the Terminal demand and the local target catalog.
 //! The boundary call itself becomes one nearest-even IEEE operation on its
 //! ordered scalar arguments (arithmetic, multiply-then-add, minimum/maximum, negation,

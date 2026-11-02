@@ -102,21 +102,39 @@ pub(super) fn encode(
         .map(|operand| operand.access)
         .collect::<Vec<_>>();
     if record.call.binding.table_dispatch().is_some() {
-        if target.architecture != Architecture::X86_64 {
-            return Err(Error::ArtifactMismatch);
-        }
-        let encoded = isa_x86_64::encode_x86_64_selected_table_call_form(
-            record,
-            machine.alternative.key,
-            &views,
-            &accesses,
-        )
-        .map_err(|_| Error::ArtifactMismatch)?;
+        let (bytes, effects) = match target.architecture {
+            Architecture::X86_64 => {
+                let encoded = isa_x86_64::encode_x86_64_selected_table_call_form(
+                    record,
+                    machine.alternative.key,
+                    &views,
+                    &accesses,
+                )
+                .map_err(Error::X86_64)?;
+                (
+                    encoded.bytes().to_vec(),
+                    encoded.footprint().encoded.clone(),
+                )
+            }
+            Architecture::Aarch64 => {
+                let encoded = isa_aarch64::encode_aarch64_selected_table_call_form(
+                    record,
+                    machine.alternative.key,
+                    &views,
+                    &accesses,
+                )
+                .map_err(Error::Aarch64)?;
+                (
+                    encoded.bytes().to_vec(),
+                    encoded.footprint().encoded.clone(),
+                )
+            }
+        };
         return super::validated_encoded_draft(
             instruction,
             machine,
-            &encoded.footprint().encoded,
-            encoded.bytes().to_vec(),
+            &effects,
+            bytes,
             SelectedFormEncodingState::Encoded,
         );
     }
@@ -314,7 +332,9 @@ pub(super) fn encode(
         machine,
         &effects,
         bytes,
-        SelectedFormEncodingState::UnresolvedNormalizedForeignCall { fixup },
+        SelectedFormEncodingState::UnresolvedNormalizedForeignCall {
+            fixup: Box::new(fixup),
+        },
     )
 }
 

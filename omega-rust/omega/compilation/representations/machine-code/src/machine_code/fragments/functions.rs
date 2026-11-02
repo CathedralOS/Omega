@@ -53,12 +53,30 @@ pub struct FunctionFragmentInstructionSpan {
     pub offset: u64,
     pub bytes: Vec<u8>,
     pub branch: Option<Box<super::FunctionFragmentBranchEvidence>>,
-    pub internal_machine_fixup: Option<FunctionFragmentInternalMachineFixup>,
+    // Forward the same sparse owned payloads through fragment realization.
+    // No fixup's maximum size belongs in every ordinary instruction stride.
+    pub internal_machine_fixup: Option<Box<FunctionFragmentInternalMachineFixup>>,
     /// Unresolved normalized-foreign-call field awaiting object-level import
     /// binding. Internal calls and foreign imports never share one fixup.
-    pub normalized_foreign_call_fixup: Option<FunctionFragmentNormalizedForeignCallFixup>,
+    pub normalized_foreign_call_fixup: Option<Box<FunctionFragmentNormalizedForeignCallFixup>>,
     /// Unresolved byte-literal image address awaiting its object relocation.
-    pub image_address_fixup: Option<crate::FunctionFragmentImageAddressFixup>,
+    pub image_address_fixup: Option<Box<crate::FunctionFragmentImageAddressFixup>>,
     pub provenance: SelectedInstructionProvenance,
     pub control: FunctionFragmentControlProvenance,
+}
+
+impl FunctionFragmentInstructionSpan {
+    pub fn internal_machine_fixup(&self) -> Option<FunctionFragmentInternalMachineFixup> {
+        self.internal_machine_fixup.as_deref().copied()
+    }
+
+    pub fn normalized_foreign_call_fixup(
+        &self,
+    ) -> Option<&FunctionFragmentNormalizedForeignCallFixup> {
+        self.normalized_foreign_call_fixup.as_deref()
+    }
+
+    pub fn image_address_fixup(&self) -> Option<crate::FunctionFragmentImageAddressFixup> {
+        self.image_address_fixup.as_deref().copied()
+    }
 }

@@ -64,8 +64,8 @@ pub(crate) fn attach(
         let error = |reason: &str| {
             vec![diagnostics::Diagnostic::error(format!(
                 "cannot retain content consumption in `{}`, state `{}` at statement {}: {reason}",
-                crate::labels::symbol_name(program, machine),
-                crate::labels::symbol_name(program, state),
+                crate::published::labels::symbol_name(program, machine),
+                crate::published::labels::symbol_name(program, state),
                 statement_index,
             ))]
         };
@@ -121,7 +121,7 @@ pub(crate) fn attach(
                     ),
                     access: CheckedStructuralAccess::Owned,
                 };
-                crate::collections::push_unique(&mut parents, argument);
+                crate::shared::collections::push_unique(&mut parents, argument);
             }
         }
         if parents.is_empty() {

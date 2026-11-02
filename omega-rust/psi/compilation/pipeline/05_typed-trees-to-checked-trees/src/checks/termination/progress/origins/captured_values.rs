@@ -6,7 +6,7 @@
 //! completion frontier. None of these relations grants a loan or membership.
 
 use crate::checks::termination::progress::fact_subjects::subject_from_place;
-use crate::collections::push_unique;
+use crate::shared::collections::push_unique;
 use arena::Handle;
 use checked_trees::{FlowCallFact, FlowFacts, FlowOperandFact, FlowStateFact};
 use facts::{FactPlan, PlaceSegment};

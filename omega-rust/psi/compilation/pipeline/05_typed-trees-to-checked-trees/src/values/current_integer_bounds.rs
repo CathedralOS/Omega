@@ -4,7 +4,7 @@
 //! These consequences do not grant initialization, index formation or access.
 
 use super::scalar::structural_fields::resolve_structural_path;
-use crate::facts::boolean_predicates::{self, BoundPredicate};
+use crate::published::facts::boolean_predicates::{self, BoundPredicate};
 use facts::{FactContextHandle, FactPlan, IntegerRange, PlaceSegment, ProgramPoint};
 use symbols::SymbolHandle;
 use typed_trees::types::PrimitiveType;

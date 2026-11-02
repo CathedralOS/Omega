@@ -146,6 +146,7 @@ fn rewrite_children(
                 lowerer,
                 expression,
                 ExpressionNode::Membership(TableMembershipExpression {
+                    is_pattern: membership.is_pattern,
                     value,
                     domain: membership.domain,
                     domain_symbol: membership.domain_symbol,

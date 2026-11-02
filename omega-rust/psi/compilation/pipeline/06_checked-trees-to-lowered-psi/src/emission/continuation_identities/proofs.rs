@@ -8,7 +8,7 @@ use semantic_vocabulary::{
 };
 use terminal_psi::{CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard};
 
-use crate::lowering_error::LoweringError;
+use crate::shared::lowering_error::LoweringError;
 
 impl super::IdentityMap {
     pub(super) fn scalar_term(&mut self, term: &mut ScalarTerm) {

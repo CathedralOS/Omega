@@ -56,7 +56,7 @@ fn retain_component(
                 .iter()
                 .find(|definition| definition.symbol == input.measure)
                 .ok_or("a formed rank application lost its supplying declaration")?;
-            if application.measure() != input.measure
+            if application.owner() != input.measure
                 || program
                     .expression_table
                     .expression_handles(declaration.body)
@@ -67,8 +67,8 @@ fn retain_component(
             let casts = admitted
                 .application_casts
                 .insert_many(application.casts().iter().cloned());
-            let owned_input = declaration.parameter.as_ref().and_then(|formal| {
-                super::super::application_inputs::owned_input(
+            let input_home = declaration.parameter.as_ref().and_then(|formal| {
+                super::super::application_inputs::input_home(
                     program,
                     admitted,
                     own_state,
@@ -83,7 +83,7 @@ fn retain_component(
                     machine_body: owner.states,
                     state,
                     application: checked_trees::CheckedRankApplicationFacts {
-                        measure: application.measure(),
+                        owner: application.owner(),
                         definition_body: application.body(),
                         casts,
                         calls: admitted
@@ -91,7 +91,7 @@ fn retain_component(
                             .insert_many(application.calls().iter().copied()),
                     },
                     bindings,
-                    owned_input,
+                    input_home,
                 })
         } else {
             Default::default()
@@ -129,7 +129,7 @@ fn retain_component(
                             primitive_type: *lower_primitive,
                             observation: *lower_observation,
                         });
-                let upper = upper.retain(admitted);
+                let upper = upper.retain(admitted, program);
                 checked_trees::CheckedNaturalRankMeasure::Distance { lower, upper }
             }
         }

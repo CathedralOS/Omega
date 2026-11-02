@@ -22,7 +22,7 @@ use crate::flow::canonical_place_segments_may_overlap;
 use crate::flow::filter_contexts_after_place_mutations;
 use crate::flow::project_constraint_refs_to_active_contexts;
 use crate::flow::reference_spans;
-use crate::places::place_at;
+use crate::published::places::place_at;
 
 use arena::{Handle, HandleSpan};
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -351,7 +351,7 @@ pub(super) fn append_statement_calls<'plans>(
                     observations: writes,
                 });
             }
-            execution.install_call_stores(completed.stores);
+            execution.install_call_stores(completed.call, completed.stores);
         }
         StatementNode::AssemblyFact(_) | StatementNode::Transition(_) => {}
     }
@@ -539,33 +539,37 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         invocation.visited = true;
         let captured_operands = inputs.operands;
         let borrowed_call = invocation.call;
-        let writes = phase_profile::scope("psi.05.build_check_facts.flow.invoke.storage_writes", || {
-            super::call_phases::call_storage_writes(
-                self.program,
-                self.borrow,
-                self.context,
-                self.machine,
-                self.state,
-                borrowed_call,
-            )
-        });
-        let mut call = phase_profile::scope("psi.05.build_check_facts.flow.invoke.build_call", || {
-            build_call_flow_fact(
-                self.program,
-                self.borrow,
-                self.proof,
-                self.semantic,
-                self.domains,
-                self.context,
-                self.machine,
-                self.state,
-                contexts,
-                constraints,
-                borrowed_call,
-                captured_operands,
-                writes.as_deref(),
-            )
-        });
+        let writes = phase_profile::scope(
+            "psi.05.build_check_facts.flow.invoke.storage_writes",
+            || {
+                super::call_phases::call_storage_writes(
+                    self.program,
+                    self.borrow,
+                    self.context,
+                    self.machine,
+                    self.state,
+                    borrowed_call,
+                )
+            },
+        );
+        let mut call =
+            phase_profile::scope("psi.05.build_check_facts.flow.invoke.build_call", || {
+                build_call_flow_fact(
+                    self.program,
+                    self.borrow,
+                    self.proof,
+                    self.semantic,
+                    self.domains,
+                    self.context,
+                    self.machine,
+                    self.state,
+                    contexts,
+                    constraints,
+                    borrowed_call,
+                    captured_operands,
+                    writes.as_deref(),
+                )
+            });
         // Evaluation consumers need this occurrence before the later package
         // source-custody binding pass. The authored ordinal identifies a call;
         // this coordinate places it after its evaluated operands.
@@ -579,28 +583,34 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         let binding_writes = writes
             .as_deref()
             .and_then(|writes| writes.descriptor_stores());
-        let stores = phase_profile::scope("psi.05.build_check_facts.flow.invoke.capture_stores", || {
-            self.capture_call_stores(
-                site,
-                borrowed_call,
-                inputs.arguments,
-                binding_writes.as_deref(),
-            )
-        });
+        let stores = phase_profile::scope(
+            "psi.05.build_check_facts.flow.invoke.capture_stores",
+            || {
+                self.capture_call_stores(
+                    site,
+                    borrowed_call,
+                    inputs.arguments,
+                    binding_writes.as_deref(),
+                )
+            },
+        );
         // Exact binding writes retire replaced reference resources independently
         // of value-history association and pointee observation invalidation.
-        phase_profile::scope("psi.05.build_check_facts.flow.invoke.reference_custody", || {
-            super::call_phases::install_returned_reference_custody(
-                self.program,
-                self.borrow,
-                self.context,
-                self.machine.symbol,
-                self.state.symbol,
-                borrowed_call,
-                binding_writes.as_deref(),
-                constraints,
-            )
-        });
+        phase_profile::scope(
+            "psi.05.build_check_facts.flow.invoke.reference_custody",
+            || {
+                super::call_phases::install_returned_reference_custody(
+                    self.program,
+                    self.borrow,
+                    self.context,
+                    self.machine.symbol,
+                    self.state.symbol,
+                    borrowed_call,
+                    binding_writes.as_deref(),
+                    constraints,
+                )
+            },
+        );
         let observations = call
             .normal_return_writes_complete
             .then(|| {
@@ -1493,7 +1503,11 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             };
             let parameters = self.program.operator_parameters(operator);
             let Some(named_operands) =
-                crate::facts::operator_crashes::named_call_operands(self.program, call, parameters)
+                crate::published::facts::operator_crashes::named_call_operands(
+                    self.program,
+                    call,
+                    parameters,
+                )
             else {
                 continue;
             };
@@ -1567,6 +1581,27 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             .expression_is_valid(expression)
         {
             return None;
+        }
+        if let Some(receiver) = validation::collection_length_receiver(
+            self.program,
+            self.machine,
+            Some(self.state),
+            expression,
+        ) {
+            // Both name-path and member spellings observe the same descriptor.
+            // Retain its completed occurrence cut before any later operand can
+            // replace that descriptor; metadata has no nominal field selector.
+            let receiver = self.evaluated_place(receiver, contexts, constraints);
+            *backing = self.context.control.operands.insert(receiver.capture);
+            *referents = Some(HandleSpan::empty());
+            self.retain_value_observation(
+                expression,
+                *backing,
+                HandleSpan::empty(),
+                *contexts,
+                *constraints,
+            );
+            return self.live_boolean(expression, *contexts);
         }
         match self.program.expression_table.expression(expression) {
             ExpressionNode::SavedSubject(saved) => {
@@ -1857,7 +1892,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                         observations: writes,
                     });
                 }
-                self.install_call_stores(completed.stores);
+                self.install_call_stores(completed.call, completed.stores);
                 self.capture_returned_retention(
                     expression,
                     destination,
@@ -2399,7 +2434,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                         } else {
                             place.clone()
                         };
-                        crate::collections::push_unique(&mut changed, affected);
+                        crate::shared::collections::push_unique(&mut changed, affected);
                     }
                 }
             }

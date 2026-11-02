@@ -15,7 +15,22 @@ pub(super) fn lower_transition_statement(
     transition: &resolved::statement::TableTransition,
     closes_run: bool,
 ) -> Result<typed::statement::TableTransition, Diagnostic> {
+    let patterns = resolved_statements(lowerer.source_trees)
+        .transition_patterns(transition.patterns)
+        .iter()
+        .map(|pattern| {
+            crate::expressions::expression::table::lower_transition_pattern(
+                lowerer.source_trees,
+                crate::tables::resolved_expressions(lowerer.source_trees),
+                &mut lowerer.typed_trees,
+                *pattern,
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let patterns =
+        statement_table_mut(&mut lowerer.typed_trees).insert_transition_patterns(patterns);
     Ok(typed::statement::TableTransition {
+        patterns,
         target: lower_transition_target(lowerer, transition.target)?,
         continuation: transition
             .continuation

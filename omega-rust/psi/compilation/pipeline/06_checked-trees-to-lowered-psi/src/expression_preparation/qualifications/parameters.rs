@@ -8,7 +8,7 @@ use super::{
     PreparedScalarQualifications, carries_scalar_qualifications, qualification_set, retain_domain,
     retained_domain_predicate, terminal_scalar_type, type_atoms,
 };
-use crate::lowering_error::{LoweringError, unsupported};
+use crate::shared::lowering_error::{LoweringError, unsupported};
 use checked_trees::CheckedTrees;
 use language_semantics::SemanticDomainId;
 use semantic_vocabulary::{QualifiedScalarType, ScalarType};

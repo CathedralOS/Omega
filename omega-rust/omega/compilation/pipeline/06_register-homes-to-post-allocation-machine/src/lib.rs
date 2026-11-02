@@ -3,11 +3,11 @@
 //! Register homes to the post-allocation machine plan.
 //!
 //! The stage operation is `stage_optimized_post_allocation_machine_plan`
-//! (`post_allocation_machine.rs`). It takes the current-program view the
-//! allocation phase supplies, analyzes current machine facts only, builds the
-//! baseline plan under the legality rule, executes the post-allocation
-//! optimization phase over it, and seals a plan that keeps allocation
-//! evidence separately. The `plan` folder owns deterministic plan
+//! (`post_allocation_machine.rs`). It reads the current program and the facts
+//! allocation admitted with it (`register_homes::AllocatedProgramFacts`,
+//! including the program's machine effects), builds the baseline plan under
+//! the legality rule, executes the post-allocation optimization phase over
+//! it, and seals a plan that keeps those effects beside it. The `plan` folder owns deterministic plan
 //! construction (`plan::compute_post_allocation_machine_plan`) and sealing;
 //! `optimization` owns the phase: its rule table, the shared declared-form
 //! rewrite, the unit-liveness guard, and the run evidence realization binds.

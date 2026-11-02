@@ -52,11 +52,11 @@ use super::{
     obligation_id, place_id, terminal_scalar_type, unsupported, validate_direct_parameter_types,
     value_id,
 };
-use crate::activation_storage::prepare_operation;
-use crate::checked_facts::flow_facts;
 use crate::emission::structural_byte_sequence_store::prepare_types;
 use crate::scalar_lowering::call_closure::callee::CheckedScalarCallee;
 use crate::scalar_lowering::contracts::indexed_theorems;
+use crate::shared::activation_storage::prepare_operation;
+use crate::shared::checked_facts::flow_facts;
 use crate::unit::attached_unit::call_closure::BoundaryIdentity;
 use crate::unit::dynamic_dispatch::DynamicDispatchIndex;
 
@@ -177,7 +177,7 @@ pub(crate) fn lower_unit_effect_closure(
     entry: symbols::SymbolHandle,
     program_roots: crate::TerminalProgramRoots<'_>,
     exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
-) -> Result<crate::producer_result::SourceMappedLowered, LoweringError> {
+) -> Result<crate::shared::producer_result::SourceMappedLowered, LoweringError> {
     lower_unit_closure(
         identities,
         checked,
@@ -200,7 +200,7 @@ pub(crate) fn lower_scalar_effect_closure(
     entry: symbols::SymbolHandle,
     program_roots: crate::TerminalProgramRoots<'_>,
     exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
-) -> Result<crate::producer_result::SourceMappedLowered, LoweringError> {
+) -> Result<crate::shared::producer_result::SourceMappedLowered, LoweringError> {
     lower_unit_closure(
         identities,
         checked,
@@ -218,7 +218,7 @@ pub(crate) fn lower_unit_closure(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
     request: &UnitClosureRequest<'_>,
-) -> Result<crate::producer_result::SourceMappedLowered, LoweringError> {
+) -> Result<crate::shared::producer_result::SourceMappedLowered, LoweringError> {
     let UnitClosureRequest {
         plans,
         entry,
@@ -721,24 +721,26 @@ pub(crate) fn lower_unit_closure(
         crate::scalar_lowering::contracts::mathematical_carriers(&checked, identities)?;
     let indexed_theorems =
         indexed_theorems(checked, identities, exact_toolchain_sources, &machine_ids)?;
+    let (scalar_applications, source_proof_declarations) = scalar_applications.publish(
+        &type_ids,
+        &machine_ids,
+        &lowered_boundary_parameters,
+        scalar_applications::EmittedScalars {
+            checked,
+            identities,
+            sources: exact_toolchain_sources,
+            calls: &occurrences.source_calls,
+            machines: &machines,
+        },
+    )?;
     let lowered = LoweredPsi {
+        source_proof_declarations,
         source_records,
         source_boundary_declarations: Vec::new(),
         source_machine_declarations: Vec::new(),
         build_provider_requirements: Vec::new(),
         semantic_module: TerminalModule {
-            scalar_applications: scalar_applications.publish(
-                &type_ids,
-                &machine_ids,
-                &lowered_boundary_parameters,
-                scalar_applications::EmittedScalars {
-                    checked,
-                    identities,
-                    sources: exact_toolchain_sources,
-                    calls: &occurrences.source_calls,
-                    machines: &machines,
-                },
-            )?,
+            scalar_applications,
             folded_constants,
             indexed_theorems,
             mathematical_carriers,
@@ -802,7 +804,7 @@ pub(crate) fn lower_unit_closure(
         selected_comparison_occurrences: occurrences.selected_comparisons,
         state_blocks: occurrences.state_blocks,
     };
-    crate::producer_result::SourceMappedLowered::new(
+    crate::shared::producer_result::SourceMappedLowered::new(
         lowered,
         machine_ids,
         lowered_boundary_parameters

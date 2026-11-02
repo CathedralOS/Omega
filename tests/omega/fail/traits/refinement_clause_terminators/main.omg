@@ -1,0 +1,6 @@
+// A semicolon closes the complete refinement member, not one axis.
+trait Operation { machine call() blocks; }
+trait Immediate = Operation {
+    machine * blocks false; terminates;
+}
+machine main() { }

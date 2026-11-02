@@ -37,7 +37,7 @@ its own contract symbols only. All nine re-expressed twins were **accepted** by 
 unrepaired producer. Only an implementation some Build row selects was left to
 provider planning's `selected providers realize a cyclic synchronous invokes graph`
 check, which never sees an unselected one. `requirement_backing_machines` in
-`omega-rust/psi/compilation/checking/src/machine_calls/call_cycles.rs` now adds every
+`omega-rust/psi/compilation/validation/src/machine_calls/call_cycles.rs` now adds every
 supplied satisfier (machine-level `satisfies` and named-implementation rows) to the
 requirement's dependencies, and the existing independence walk does the rest.
 

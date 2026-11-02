@@ -5,7 +5,7 @@ use register_environment::ValidatedTargetRegisterEnvironment;
 
 use super::model::StagedOptimizedSelectionCustodyReceipt;
 
-use crate::StagedOptimizedCustodyCore;
+use selected_instructions::StagedOptimizedCustodyCore;
 
 /// Record the identities this stage just produced. Legalization and selection
 /// each returned only after their own independent checker accepted the

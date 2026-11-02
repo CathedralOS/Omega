@@ -15,9 +15,8 @@ use crate::values::mutable_scalar_parameter_type;
 
 use crate::execution::terminal_unit::calls::argument_paths::{
     checked_call_erased_proof_arguments, checked_call_erased_scalar_arguments,
-    checked_call_scalar_arguments, projected_call_contracts_are_represented,
+    checked_call_scalar_arguments,
 };
-use crate::execution::terminal_unit::calls::service_forward;
 use crate::execution::terminal_unit::calls::structural_arguments::{
     call_claim_transfers, structural_call_arguments,
 };
@@ -389,56 +388,13 @@ pub(in crate::execution) fn build_call_operation(
             &erased_proof_parameters,
         )?
     };
-    if !boundary {
-        let carries_routed_service = caller_parameters
-            .iter()
-            .any(|parameter| parameter.binding_carrier.is_some())
-            || program
-                .state_parameters(target_state)
-                .iter()
-                .any(|parameter| {
-                    typed_trees::service::classify_exact_service_parameter_carrier(
-                        program,
-                        typed_trees::service::ServiceCarrierOccurrence {
-                            type_reference: parameter.type_reference,
-                            lexical_owner: parameter.symbol,
-                            enclosing_data_applications: &[],
-                        },
-                    )
-                    .ok()
-                    .flatten()
-                    .is_some()
-                });
-        phase(if carries_routed_service {
-            "call operation: routed service forward"
-        } else {
-            "call operation: projected operand support"
-        });
-        let supported = (!carries_routed_service
-            || service_forward::binding_arguments_match(
-                program,
-                state,
-                caller_parameters,
-                target_state,
-                call.statement_index,
-                &call_site,
-                &structural_arguments,
-                caller_structural_results,
-                &phase,
-            ))
-            && projected_call_contracts_are_represented(
-                program,
-                facts,
-                machine,
-                state,
-                target_machine,
-                target_state,
-                &structural_arguments,
-            );
-        if !supported {
-            return None;
-        }
-    }
+    // Argument formation retains the complete path, access and type.
+    // Content-qualified projections use the same call custody judgment as
+    // whole values: it rebases every consumed claim onto that exact argument
+    // path and rejects missing or unrelated claims. A second caller/callee
+    // content-presence gate would refuse that represented operation (for
+    // example merge(retired, strategy.tail)). Source contract checking owns
+    // membership and crash-route substitution.
     if let Some(contract) =
         validation::exact_toolchain_activation_storage_contract(program, target_machine)
     {

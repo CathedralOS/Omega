@@ -7,7 +7,7 @@ use super::scalar_lowering::storage_projection;
 use crate::execution::terminal_unit::types::borrowed_slice_view_element;
 use crate::execution::terminal_unit::types::parameter_is_root;
 use crate::flow::expressions;
-use crate::places::place_at;
+use crate::published::places::place_at;
 use checked_trees::CheckedOperatorFacts;
 use checked_trees::CheckedOperatorResolutionStatus;
 use checked_trees::CheckedScalarExpression;
@@ -1010,7 +1010,7 @@ pub(crate) fn structural_storage_place(
             return None;
         }
         // The resolved head symbol IS which authored binder this place roots
-        // at, and stage 02 mints one parameter symbol per authored binder, so
+        // at, and Psi 02 mints one parameter symbol per authored binder, so
         // one roster cannot hold two entries sharing it and the uniqueness
         // bail below cannot widen. The spelling beside it is the operand a
         // renamed binder or a same-spelled sibling can disagree with.

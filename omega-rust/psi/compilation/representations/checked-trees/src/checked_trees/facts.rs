@@ -32,9 +32,11 @@ mod contract_plans;
 mod declaration_descriptions;
 mod proof_applications;
 pub use declaration_descriptions::{
-    CheckedCallableHeader, CheckedDeclarationCapture, CheckedDeclarationDescription,
-    CheckedDeclarationDescriptions, CheckedDeclarationParameter, CheckedDeclarationSpecialization,
-    CheckedMachineDescription, CheckedSynchronousBoundaryTarget,
+    CheckedCallableHeader, CheckedCompilerEvaluationCall, CheckedCompilerEvaluationComponent,
+    CheckedCompilerEvaluationDependencies, CheckedDeclarationCapture,
+    CheckedDeclarationDescription, CheckedDeclarationDescriptions, CheckedDeclarationParameter,
+    CheckedDeclarationSpecialization, CheckedMachineDescription, CheckedSelectionRequirement,
+    CheckedSynchronousBoundaryTarget,
 };
 pub use proof_applications::{
     ProofApplicationMachine, ProofApplicationPlan, ProofApplicationTargetMember, ProofApplications,
@@ -178,7 +180,7 @@ pub use termination::{
     CheckedProofRecursiveCallSite, CheckedProofRecursiveComponent, CheckedProofRecursiveEdge,
     CheckedProofRecursiveMember, CheckedProofRecursiveTransitionLane, CheckedRankApplicationFacts,
     CheckedRankApplicationFormation, CheckedRankApplicationFormationHandle,
-    CheckedRankApplicationOwnedInput, CheckedRankArrivalEdge, CheckedRankArrivalPlan,
+    CheckedRankApplicationInputHome, CheckedRankArrivalEdge, CheckedRankArrivalPlan,
     CheckedRankBodyJudgment, CheckedRankCoordinate, CheckedRankCoordinateBinding,
     CheckedRankCoordinateHandle, CheckedRankCoordinateTransport, CheckedRankLocalCapture,
     CheckedRankObservation, CheckedRankOperand, CheckedRankPremiseRegime,

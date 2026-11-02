@@ -3,12 +3,12 @@
 //! alone consumes the live parent accounts and publishes the derived result;
 //! a later local binding or return never backdates authority to construction.
 
-use crate::terminal_identities::lookup_claim_id;
+use crate::shared::terminal_identities::lookup_claim_id;
 mod boundary_correspondence;
 
 use super::{Emission, LoweringError, StructuralArgument, unsupported};
-use crate::checked_facts::flow_facts;
 use crate::emission::operation_emission::place_declarations::operation_result_place;
+use crate::shared::checked_facts::flow_facts;
 use semantic_vocabulary::{ContentPlaceSegment, ContentPlaceVersion, ContentStructuralPlace};
 use terminal_psi::{
     ContentClaimProjection, ContentTransformationDerivation, StructuralPathQualification,
@@ -120,7 +120,8 @@ impl Emission<'_, '_, '_> {
         let mut projected_qualifications = projected.to_vec();
         let mut parents = Vec::new();
         let mut derivations = Vec::new();
-        let (_, authored) = crate::declarations::state_declaration(self.checked, self.state)?;
+        let (_, authored) =
+            crate::shared::declarations::state_declaration(self.checked, self.state)?;
         let source_parameters = self.checked.state_parameters(authored);
         for derived in content
             .body_derivations

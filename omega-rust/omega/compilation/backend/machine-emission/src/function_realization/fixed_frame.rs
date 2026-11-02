@@ -1,6 +1,6 @@
 //! Join produced encoding/layout artifacts with their exact fixed-frame custody.
 //!
-//! Native compilation sequences stages 07-09. This owner constructs the exit
+//! Native compilation sequences Omega 07-09. This owner constructs the exit
 //! contract and seals the realization; retained readers can replay its joins.
 
 use super::assembly::{expected_fixed_frame_manifest, fixed_frame_custody};
@@ -20,13 +20,18 @@ use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMach
 use resolved_layout_to_resolved_layout::{
     ResolvedLayoutOptimization, validate_resolved_layout_optimization,
 };
-use selected_form_encoding_to_resolved_layout::StagedOptimizedResolvedSelectedFormLayout;
-use selected_instructions_to_register_homes::RetainedAllocation;
+use selected_form_encoding_to_resolved_layout::{
+    StagedOptimizedResolvedSelectedFormLayout, validate_optimized_resolved_selected_form_layout,
+};
+use selected_instructions_to_register_homes::{RetainedAllocation, ValidatedSelectedAnalysis};
 
 /// Bind the pipeline's produced frame, encoding and layout to one allocation.
 /// This checks their joins and exit contract without running a compiler stage.
 pub fn assemble_fixed_frame_realization(
     allocation: RetainedAllocation,
+    target_input: std::sync::Arc<
+        abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations,
+    >,
     machine: StagedOptimizedPostAllocationMachinePlan,
     frame: super::FunctionRelativeFrame,
     encoding: StagedOptimizedSelectedFormEncoding,
@@ -53,6 +58,7 @@ pub fn assemble_fixed_frame_realization(
     .map_err(FunctionRelativeOptimizationRealizationError::ExitContract)?;
     let manifest = expected_fixed_frame_manifest(
         &current,
+        &target_input,
         &machine,
         &encoding,
         &baseline_layout,
@@ -73,6 +79,7 @@ pub fn assemble_fixed_frame_realization(
     );
     Ok(StagedFixedFrameFunctionRelativeRealization {
         allocation,
+        target_input,
         machine,
         encoding,
         baseline_layout,
@@ -100,19 +107,24 @@ pub(crate) fn validate_fixed_frame_function_relative_realization(
     let environment = current.register_environment();
     let physical = environment.physical();
     validate_optimized_layout_independent_selected_form_encoding(
-        selected,
-        &staged.machine,
+        selected.current_program(),
+        staged.machine.machine().plan(),
         physical,
         Some(staged.frame.layout().plan()),
         &staged.encoding,
     )
     .map_err(FunctionRelativeOptimizationRealizationError::Encoding)?;
-    validate_resolved_layout_optimization(
-        selected,
-        &staged.machine,
+    validate_optimized_resolved_selected_form_layout(
+        selected.current_program(),
+        staged.machine.machine().plan(),
         physical,
-        &staged.encoding,
+        staged.encoding.program(),
         &staged.baseline_layout,
+    )
+    .map_err(FunctionRelativeOptimizationRealizationError::Layout)?;
+    validate_resolved_layout_optimization(
+        physical,
+        staged.baseline_layout.program(),
         &current
             .selections()
             .project_phase(OptimizationExecutionPhase::FunctionRelativeLayout),
@@ -140,6 +152,7 @@ pub(crate) fn validate_fixed_frame_function_relative_realization(
     .map_err(FunctionRelativeOptimizationRealizationError::ExitContract)?;
     let manifest = expected_fixed_frame_manifest(
         &current,
+        &staged.target_input,
         &staged.machine,
         &staged.encoding,
         &staged.baseline_layout,

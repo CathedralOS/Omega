@@ -115,14 +115,14 @@ setup are not additional public program stages.
 ## Two drivers, one pass, per-target realization
 
 Independent stage crates remain directly testable, but production consumers do
-not assemble them. The Psi driver feeds stages 00 through 07 once per
+not assemble them. The Psi driver feeds Psi 00 through 08 once per
 compilation and never observes a realization target: every supplied ordinary
 implementation is checked, and the Build evaluates once into provider and entry
 rows keyed by target
 ([multi-target compilation](../wiki/spec/build/configuration.md#multi-target-compilation)).
 It returns one Terminal Psi artifact. The Omega driver realizes each target in
 the realization set from that artifact and the target's Build rows: provider
-selection and installation in stage 00, then stages 01 through 09 and image
+selection and installation in Omega 00, then Omega 01 through 09 and image
 emission.
 
 Native binding intent belongs to package-local Build rows:
@@ -369,7 +369,7 @@ Package-owned source preparation feeds the Psi source-parsing facade;
 Build evaluation does not own source discovery or assembly.
 The [pipeline route items](../TASKS.md#pipeline-route) finish convergence: source
 preparation supplies one source set, the Psi-owned work between stages
-moves inside stages 02 through 04, and provider settlement moves behind
+moves inside Psi 02 through 05, and provider settlement moves behind
 Terminal Psi. Source preparation remains package-owned input composition,
 not a new language stage.
 
@@ -1000,7 +1000,7 @@ library APIs; they do not introduce another compiler driver.
 | Responsibility | Owner |
 | --- | --- |
 | Current program forms and their attached records/codecs | Each half's `compilation/representations/`, grouped by program family |
-| Source-program judgments | Psi `compilation/checking/`; source proof planning/search in `compilation/proof/`, independent mathematical checking in `compilation/proof/admission/` |
+| Source-program judgments | Psi `compilation/validation/`; source proof planning/search in `compilation/proof/`, independent mathematical checking in `compilation/proof/admission/` |
 | Terminal encoding, semantic reconstruction and fuel | Independent packages beneath Psi `compilation/representations/terminal-psi/` |
 | Transformation, rewrite, private scratch and analyses | Each half's `compilation/pipeline/`, in the owning `X-to-Y` or `X-to-X` package |
 | ISA, ABI, runtime carriers, object/relocation/image mechanics | Omega `compilation/backend/` |
@@ -1008,13 +1008,13 @@ library APIs; they do not introduce another compiler driver.
 | Shared host primitives, native function identities and optimization vocabulary | Omega `foundation/` |
 | Application workflows and presentation | Omega `application/`, depending only on product facades and shared request/result contracts |
 | Source/package custody, lock updates and review decisions | Omega `packages/package-manager/`; no checking or product production |
-| Source → Terminal product sequencing | Psi compiler facade over stages 00–07 |
-| Terminal + target/Build inputs → realized product sequencing | Omega compiler facade over stages 00–09 and emission |
+| Source → Terminal product sequencing | Psi compiler facade over Psi 00–08 |
+| Terminal + target/Build inputs → realized product sequencing | Omega compiler facade over Omega 00–09 and emission |
 | Requested outputs, configuration admission, retained outcomes and publication | Omega `compilation/products/` |
 | Source acquisition and package storage primitives | Omega `packages/` behind package-manager requests |
 | Terminal Psi loading, supplied-binding installation and execution | Psi interpreter facade under `interpreter/` |
 | Target-aware interpreter host adapters | Omega-owned host integration outside Psi, reusing independent backend ABI/mechanism libraries; not a compiler driver |
-| Compile-time interpretation and result elaboration | Psi `compilation/compile-time/` |
+| Compile-time interpretation and result elaboration | Psi `compilation/build-time-evaluation/` |
 | Checked program → published Terminal artifact | `psi/compilation/driver/terminal-production/`, called directly with consumer-owned policy and observation |
 | Ordinary library reference implementations | `library/`, outside the compiler halves |
 
@@ -1024,7 +1024,7 @@ Psi exposes seven successive program forms: tokens, syntax trees, resolved
 trees, typed trees, checked trees, Lowered Psi and Terminal Psi. Checked fact
 contexts have their own package at `psi/compilation/representations/checked-trees/facts/`.
 Shared effect-summary records and pass-selection vocabulary live in
-`psi/foundation/flow-effects/` and `psi/foundation/optimization-selections/`.
+`psi/foundation/flow-effects/` and `psi/foundation/optimization/`.
 
 Omega exposes six top-level program families: abstract operations, target
 operations, selected instructions, register homes, post-allocation machine and
@@ -1037,7 +1037,7 @@ producer and consumer of each form.
 The independent `optimization-unit` package beneath `abstract-operations/`
 contains the derived CFG/SSA and replay form used during abstract optimization.
 The independent `legalized-operations` package beneath `target-operations/`
-contains the internal form between legalization and selection inside stage 03.
+contains the internal form between legalization and selection inside Omega 03.
 Nesting describes the family, not a new dependency on a producing stage. Preserve
 these distinct forms and manifests; do not manufacture extra pipeline steps to
 make folder counts match.
@@ -1047,7 +1047,7 @@ installation/task evidence belongs to backend runtime; boundary-application
 companions belong to backend artifacts; provider authority evidence belongs to
 backend plans. Target-independent opaque representation-selection records remain
 an independent package beside their Psi admission owner at
-`psi/compilation/checking/representation-planning/`. None of these is a pipeline program IR.
+`psi/compilation/validation/representation-planning/`. None of these is a pipeline program IR.
 
 ### Subsystem entrances and supporting packages
 
@@ -1161,7 +1161,7 @@ the exact immutable owner, without a second cache or portable-publication demand
 Unused declarations and dead concrete uses cannot be replaced by emitted demand.
 `provider-selection/boundary_applications.rs` owns the canonical executable
 application operation: exact selected-row/provenance joins, checked body choice
-and numeric execution admission. Stage 00 constructs operation-bound physical
+and numeric execution admission. Omega 00 constructs operation-bound physical
 coverage from that result. Source and canonical admission share numeric
 satisfaction and callable/package/target selection; source eligibility additionally
 checks Product, provider application and lifetime coordinates, while canonical
@@ -1222,7 +1222,7 @@ production and backing allocation, including in retained native images. Each
 target independently admits the retained pre-optimization composition and retains its own
 entry receipt and native proposal. Distinct roots and callbacks are retained
 in that same whole-program Terminal roster.
-Executable callback placement belongs to Omega stage 00: canonical
+Executable callback placement belongs to Omega 00: canonical
 callback applications name their registrar operation, exact body, requirement
 and checked entry admission; target calling applications retain exact static
 binder ordinals, requirement identities and synchronous invocation membership.
@@ -1240,11 +1240,11 @@ applications explicitly; package review joins the exact schema commitment to
 the retained realization. Callback materialization consumes only canonical
 Terminal uses and completed calling applications, without reopening source.
 
-Logical `Binding<R>` shapes and occurrence receipts are Psi data, independent
-of selected composition mode. Provider settlement does not mutate typed trees
-to authorize erasure. Omega joins the entry's exact carrier/requirement to its
-selected provider and establishes runtime custody; a logical Binding marker
-never grants zero-sized storage or authority. Native entry storage currently
+Boundary requirement applications and occurrence receipts are Psi data,
+independent of selected composition mode; source has no provider value or
+receiver to carry them. Provider settlement does not mutate typed trees to
+authorize erasure. Omega joins the entry's exact requirement to its selected
+provider and establishes runtime custody. Native entry storage currently
 supports Fused establishment and rejects other modes.
 
 Physical data-layout queries remain symbolic during shared Product checking.
@@ -1290,7 +1290,7 @@ compiler uses their exact permission-consent comparison before production.
 Shared process and filesystem utilities remain under `omega/foundation/`.
 
 `psi/interpreter/` contains the independent `checked-interpreter` and
-`terminal-interpreter` engines. `psi/compilation/compile-time/` admits execution
+`terminal-interpreter` engines. `psi/compilation/build-time-evaluation/` admits execution
 and elaborates results into source and typed trees. Checked fixed-array-length
 jobs use the Terminal program/instance lifecycle. Build activations use the
 Terminal Build host in `omega/compilation/build-evaluation/`; there is no
@@ -1299,16 +1299,16 @@ checked-tree Build execution entrypoint.
 lowering, optimization and publication sequence, below the source facade so
 early jobs do not depend back on their source coordinator. Product consumers
 call this operation directly with their policy and reporting observer; there
-is no Omega production wrapper. Stage 06 owns input-ledger validation;
-stage 08 owns entry receipts and source-correspondence judgments. This shared
+is no Omega production wrapper. Psi 06 owns input-ledger validation;
+Psi 08 owns entry receipts and source-correspondence judgments. This shared
 operation is neither another Psi stage nor a second complete compiler driver.
 Exact consumed-source and toolchain identities belong to the shared
 `psi/foundation/source/src/source_identity.rs` owner; package review and early
 Psi use the same byte protocol without importing each other's orchestration.
 
-`psi/compilation/checking/` owns reusable judgments, with source-program checking
+`psi/compilation/validation/` owns reusable judgments, with source-program checking
 separate from Terminal receiving-boundary admission. Its independent
-[`terminal-installation`](psi/compilation/checking/terminal-installation/src/lib.rs)
+[`terminal-installation`](psi/compilation/validation/terminal-installation/src/lib.rs)
 package admits provider selections and assumed links against an exact Terminal
 artifact and owns shared structural-entry backing descriptions. It consumes no
 source trees, target layout, compiler driver or execution engine. Native lowering
@@ -1317,7 +1317,7 @@ constructs host-import dispatch from it. This semantic library is not a source
 checker or an additional transform stage.
 
 Its independent
-[`representation-planning`](psi/compilation/checking/representation-planning/README.md)
+[`representation-planning`](psi/compilation/validation/representation-planning/README.md)
 package admits source-level opaque representation relationships and checks their
 transitive cleanup and copy properties. The caller supplies build authority;
 backend layout derives target shape from the admitted carrier. Its independent
@@ -1341,10 +1341,9 @@ turn checking into IR data or justify a general `verification/` bucket.
 The compiler owns component descriptions, candidates, emitted products and
 generic installation evidence. Live deployment, replacement, entry routing,
 era retirement and update policy belong to an ordinary runtime/library package
-or Cathedral; no compiler runtime crate models them. The package-defined
-topology implementation lives at `source/library/topology/`: its graph policies,
-plan codec, verifier and installer are ordinary Omega library responsibilities,
-not compiler primitives or backend realization plans.
+or Cathedral; no compiler runtime crate models them. A topology package's graph
+policies, plan codec, verifier and installer are ordinary Omega library
+responsibilities, not compiler primitives or backend realization plans.
 
 Omega `foundation/` owns shared host primitives and native compiler vocabulary:
 bounded process execution, filesystem custody, function identities and optimization
@@ -1533,19 +1532,19 @@ names (Psi's `semantic-vocabulary` and `flow-effects`, for example).
   the same representation; do not invent a `PreOptimized`/`PostOptimized` pair.
   The folders must expose the connected `X-to-Y`, `Y-to-Y`, `Y-to-Z` sequence,
   not merely name individually plausible calculations. See [optimization phases](../wiki/spec/build/optimizations.md#phase-and-product-boundaries).
-- Psi `compilation/checking/` — reusable source-program judgments.
+- Psi `compilation/validation/` — reusable source-program judgments.
 - Psi `compilation/proof/` — source obligation construction and proof search; independent
   `compilation/proof/admission/` owns the shared mathematical checker.
 - Terminal companion packages live beneath `compilation/representations/terminal-psi/`:
   `codec/`, `semantics/` and `fuel/`.
   Representation data and candidate production remain independent of checking.
-- Psi `compilation/driver/terminal-production/` — sequences stages 05–07 through
+- Psi `compilation/driver/terminal-production/` — sequences Psi 06–08 through
   publication. Omega consumers supply product policy and reporting directly;
   they do not assemble the stages or wrap this production entrance. Psi returns
   ordered composition roots and diagnostic payloads as data. Omega checks
   exclusions after publication against retained pre-optimization semantic
   operations, without exporting or cloning checked-source lowering.
-- Psi `compilation/compile-time/` — evaluation admission and result elaboration.
+- Psi `compilation/build-time-evaluation/` — evaluation admission and result elaboration.
 - Psi `interpreter/` — checked and Terminal execution engines.
 - `compiler/` — compilation coordination.
 - Omega `package-manager/` — package operations and independent acquisition,

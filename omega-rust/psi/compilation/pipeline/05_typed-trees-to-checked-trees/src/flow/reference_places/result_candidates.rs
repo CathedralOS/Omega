@@ -9,7 +9,7 @@
 //! the selection; recast presentations still require their own correspondence.
 
 use crate::flow::expressions;
-use crate::places::place_at;
+use crate::published::places::place_at;
 use validation::CanonicalPlace;
 
 use facts::{PlaceRoot, PlaceSegment};
@@ -51,6 +51,7 @@ pub(crate) fn reference_result_candidates_before_statement(
         program,
         state_symbol,
         binding_index,
+        local.initial_value,
         call,
         call_frames,
         false,
@@ -61,6 +62,7 @@ fn call_result_candidates(
     program: &dyn ::validation::CheckingInput,
     caller_state_symbol: SymbolHandle,
     statement_index: usize,
+    call_site: ExpressionHandle,
     call: &TableCallExpression,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     include_shared: bool,
@@ -71,23 +73,42 @@ fn call_result_candidates(
         // This query has no completed descriptor inventory. An owned formal's
         // field denotes a stored descriptor, not its pointee address; only the
         // evaluated Flow consumer can load that leaf from its captured value.
-        if !source.result_path.is_empty()
-            || source.collection_coarse
-            || !parameter_grants_readable_loan(program, source.parameter_type, include_shared)
-        {
+        if !source.result_path.is_empty() || source.collection_coarse {
             return None;
         }
-        let actual = *arguments.get(source.argument_index)?;
-        for mut storage in storage_places(
-            program,
-            caller_state_symbol,
-            statement_index,
-            actual,
-            call_frames,
-            include_shared,
-        )? {
-            storage.segments.extend_from_slice(&source.segments);
-            crate::collections::push_unique(&mut candidates, storage);
+        match source.backing {
+            ReferenceResultBacking::CallerArgument {
+                argument_index,
+                parameter_type,
+            } => {
+                if !parameter_grants_readable_loan(program, parameter_type, include_shared) {
+                    return None;
+                }
+                let actual = *arguments.get(argument_index)?;
+                for mut storage in storage_places(
+                    program,
+                    caller_state_symbol,
+                    statement_index,
+                    actual,
+                    call_frames,
+                    include_shared,
+                )? {
+                    storage.segments.extend_from_slice(&source.segments);
+                    crate::shared::collections::push_unique(&mut candidates, storage);
+                }
+            }
+            ReferenceResultBacking::InvocationResult(_) => {
+                // The referent's opaque backing names its producing call site
+                // — the same identity the performed write records — with the
+                // leaf's referent-relative projection beneath it.
+                crate::shared::collections::push_unique(
+                    &mut candidates,
+                    CanonicalPlace {
+                        root: PlaceRoot::Expression(call_site),
+                        segments: source.segments.clone(),
+                    },
+                );
+            }
         }
     }
     (!candidates.is_empty()).then_some(candidates)
@@ -129,6 +150,7 @@ fn storage_places(
                 program,
                 state,
                 statement_index,
+                expression,
                 call,
                 frames,
                 include_shared,
@@ -171,11 +193,23 @@ pub(in crate::flow) enum ReferenceResultSourceKind {
     },
 }
 
+/// What a returned leaf's completed origin names. A caller route projects
+/// an actual's storage through its formal's declared type; an opaque result
+/// referent names backing the completed invocation owns, typed by the
+/// declared referee. Neither kind supplies new loan authority.
+#[derive(Clone, Copy)]
+pub(in crate::flow) enum ReferenceResultBacking {
+    CallerArgument {
+        argument_index: usize,
+        parameter_type: typed_trees::types::TypeReferenceHandle,
+    },
+    InvocationResult(validation::InvocationResultHome),
+}
+
 pub(in crate::flow) struct ReferenceResultSource {
     pub(in crate::flow) kind: ReferenceResultSourceKind,
     pub(in crate::flow) result_path: Vec<checked_trees::CheckedUnitStructuralPathSegment>,
-    pub(in crate::flow) argument_index: usize,
-    pub(in crate::flow) parameter_type: typed_trees::types::TypeReferenceHandle,
+    pub(in crate::flow) backing: ReferenceResultBacking,
     /// Indexed frame spellings coarsen to the containing collection even when
     /// authenticated structural selectors retain an exact fixed slot. Raw
     /// storage adapters need this limit; completed values consume the selectors.
@@ -213,9 +247,23 @@ pub(in crate::flow) fn call_result_captured_sources(
         program,
         validation::call_target_symbol(program, call),
     );
-    let (callee, state) = validation::find_state(program, entered_target)?;
-    let parameters = program.state_parameters(state);
-    if call.receiver.is_valid() != callee.attached_data.is_some()
+    // Requirement members carry no stored machine state: their signature is
+    // the callee contract. A requirement call's receiver is the authored
+    // trait path, which binds no storage lane, so the attached-receiver
+    // topology check applies to stored callees only.
+    let (parameters, stored_attached_receiver) =
+        if let Some((callee, state)) = validation::find_state(program, entered_target) {
+            (
+                program.state_parameters(state),
+                Some(callee.attached_data.is_some()),
+            )
+        } else {
+            let (_, signature) =
+                validation::selected_requirement_signature(program, entered_target)?;
+            (program.state_signature_parameters(signature), None)
+        };
+    if stored_attached_receiver
+        .is_some_and(|attached| call.receiver.is_valid() != attached)
         || !call.carries_only_positional_arguments()
         || !call.selects_only_nominal_route()
         || expressions(program)
@@ -237,9 +285,9 @@ pub(in crate::flow) fn call_result_captured_sources(
     // consumers supply every formal lane, including unknown coordinates;
     // only the shared invocation owner may refine the symbolic source paths.
     let transports = if indices.is_empty() {
-        frames.reference_result_transports(state.symbol)?
+        frames.reference_result_transports(entered_target)?
     } else {
-        frames.reference_result_transports_for_indices(state.symbol, indices)?
+        frames.reference_result_transports_for_indices(entered_target, indices)?
     };
     let mut sources = Vec::with_capacity(transports.len());
     for transport in transports {
@@ -277,14 +325,32 @@ pub(in crate::flow) fn call_result_captured_sources(
         {
             return None;
         }
-        let (argument_index, parameter) = parameters
-            .iter()
-            .enumerate()
-            .find(|(_, parameter)| parameter.symbol == source.root)?;
         let result_path = crate::borrow::structural_owner_path(
             program,
             &crate::borrow::owner_path_from_place_segments(program, &result_path),
         )?;
+        if let Some(home) = source.invocation_result {
+            // A returned opaque referent's finite projection replays against
+            // its declared referee; no formal lane exists to enumerate.
+            for segments in validation::completed_storage::finite_projection_paths(
+                program,
+                home.referent,
+                &source.segments,
+            )? {
+                sources.push(ReferenceResultSource {
+                    kind,
+                    result_path: result_path.clone(),
+                    backing: ReferenceResultBacking::InvocationResult(home),
+                    collection_coarse: source.collection_coarse,
+                    segments,
+                });
+            }
+            continue;
+        }
+        let (argument_index, parameter) = parameters
+            .iter()
+            .enumerate()
+            .find(|(_, parameter)| parameter.symbol == source.root)?;
         // This is a complete alternative roster, not a claim that all slots
         // were selected. The descriptor observation owns the selected value;
         // every possible backing remains a loan/invalidation obligation.
@@ -296,8 +362,10 @@ pub(in crate::flow) fn call_result_captured_sources(
             sources.push(ReferenceResultSource {
                 kind,
                 result_path: result_path.clone(),
-                argument_index,
-                parameter_type: parameter.type_reference,
+                backing: ReferenceResultBacking::CallerArgument {
+                    argument_index,
+                    parameter_type: parameter.type_reference,
+                },
                 collection_coarse: source.collection_coarse,
                 segments,
             });

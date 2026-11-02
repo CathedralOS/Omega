@@ -10,4 +10,4 @@ path = "src/lib.rs"
 
 [dependencies]
 compiler-storage = { path = "../compiler-storage" }
-optimization = { path = "../optimization-selections" }
+optimization = { path = "../optimization" }

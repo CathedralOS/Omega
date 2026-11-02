@@ -24,7 +24,7 @@ fn signature_clause_boundary(input: Input<'_, '_>) -> bool {
         || input.tokens.is_empty()
 }
 
-/// The `reaches`/`invokes`/operational/contract/`where` rows parsed after a
+/// The `reaches`/`invokes`/operational/contract rows parsed after a
 /// bodyless machine signature, field-named so the two owners that fold them
 /// into a `StateSignature` never destructure an eleven-position tuple.
 pub(crate) struct SignatureClauses {
@@ -40,9 +40,6 @@ pub(crate) struct SignatureClauses {
     // TPR4 (decision 23): authored bare `terminates` -- the bodyless
     // requirement's PUBLIC guarantee.
     pub terminates_guarantee: bool,
-    // Signature-level `where` proof facts (the finite generic method family
-    // roster is authored here as explicit equality disjunctions).
-    pub where_facts: HandleSpan<syntax_trees::item::ProofFact>,
 }
 
 /// Parses the `reaches`/`requires`/`ensures` clauses that may follow a bodyless
@@ -64,7 +61,6 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
     let mut blocks = false;
     let mut contracts = Vec::new();
     let mut terminates_guarantee = false;
-    let mut where_facts = crate::storage::handle_spans::HandleSpanBuilder::new();
 
     while !input.at_punctuation(PunctuationKind::Semicolon)
         && !input.at_punctuation(PunctuationKind::LeftBrace)
@@ -79,36 +75,15 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
             input = rest;
             continue;
         }
-        if input.at_contextual("where") {
-            // Logical-evidence clauses still belong to the trait-parameter
-            // parser. Static callable requirements use the canonical clause
-            // intake above; the retired spelling supplies no alternate route.
-            // Other remaining `where`
-            // clause carries signature-level proof facts: a finite generic
-            // method family is authored here as explicit equality
-            // disjunctions such as `where Width == 16 || Width == 32`.
-            let after_where = input.restarted(input.tokens.get(1..).unwrap_or_default());
-            if after_where.at_keyword(KeywordKind::Machine) {
-                return Err(
-                    input.error_here("`where machine` is retired; write `requires machine`")
-                );
-            }
-            if after_where.at_contextual("proposition") {
-                break;
-            }
-            if where_facts.count() != 0 {
-                return Err(input.error_here(
-                    "a signature accepts one `where` clause; combine its facts in the \
-                     authored clause (a finite family is one explicit disjunction, not \
-                     independently listed binder values)",
-                ));
-            }
-            input = input.take_contextual("where")?;
-            let ((facts, _token_count), rest) =
-                parse_proof_facts_until(syntax_trees, input, signature_clause_boundary)?;
-            where_facts.push_span(facts);
-            input = rest;
-            continue;
+        // Logical-evidence `where proposition` premises still belong to the
+        // trait-parameter parser. Every other signature predicate, including a
+        // finite generic family, is a `requires` contract.
+        if input.at_contextual("where")
+            && input
+                .restarted(input.tokens.get(1..).unwrap_or_default())
+                .at_contextual("proposition")
+        {
+            break;
         }
         if input.at_punctuation(PunctuationKind::RightBrace) {
             return Err(input.expected_one_of_here(&["`;`", "`{`"]));
@@ -260,7 +235,6 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
             blocks,
             contracts: super::publish_capability_contracts(syntax_trees, contracts),
             terminates_guarantee,
-            where_facts: where_facts.finish(),
         },
         input,
     ))

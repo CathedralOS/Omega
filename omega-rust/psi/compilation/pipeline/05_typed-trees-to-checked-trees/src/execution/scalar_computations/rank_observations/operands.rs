@@ -38,9 +38,9 @@ pub(super) fn declaration_parameters(
     Some(parameters)
 }
 
-pub(super) fn difference(
-    builder: &mut Builder<'_, '_>,
-    admitted: &CheckedRankArrivalPlan,
+pub(super) fn difference<'program>(
+    builder: &mut Builder<'program, '_>,
+    admitted: &'program CheckedRankArrivalPlan,
     lower: arena::Handle<CheckedRankOperand>,
     upper: arena::Handle<CheckedRankOperand>,
 ) -> Option<CheckedScalarComputationHandle> {
@@ -71,9 +71,9 @@ pub(super) fn difference(
     ))
 }
 
-fn read(
-    builder: &mut Builder<'_, '_>,
-    admitted: &CheckedRankArrivalPlan,
+fn read<'program>(
+    builder: &mut Builder<'program, '_>,
+    admitted: &'program CheckedRankArrivalPlan,
     input: arena::Handle<CheckedRankOperand>,
 ) -> Option<CheckedScalarComputationHandle> {
     let input = admitted.rank_operands.get(input);
@@ -114,13 +114,39 @@ fn read(
             (value, *primitive_type)
         }
         CheckedRankOperand::Expression {
+            state,
             expression,
             primitive_type,
-            ..
-        } => (
-            builder.expression(*expression, *primitive_type)?,
-            *primitive_type,
-        ),
+            formation,
+        } => {
+            let previous_scope = builder.declaration_scope.take();
+            let previous_casts = builder.exact_integer_casts;
+            let value = (|| {
+                if formation.is_valid() {
+                    let application = admitted.application_formations.get(*formation);
+                    let (machine, _) = validation::find_state(builder.program, builder.state)?;
+                    if application.machine != builder.machine
+                        || application.machine_body != machine.states
+                        || application.state != builder.state
+                        || application.application.owner != *state
+                        || application.application.definition_body != *expression
+                    {
+                        return None;
+                    }
+                    builder.exact_integer_casts = admitted
+                        .application_casts
+                        .span(application.application.casts)?;
+                    builder.declaration_scope = Some(super::super::builder::DeclarationScope {
+                        plan: admitted,
+                        application: *formation,
+                    });
+                }
+                builder.expression(*expression, *primitive_type)
+            })();
+            builder.declaration_scope = previous_scope;
+            builder.exact_integer_casts = previous_casts;
+            (value?, *primitive_type)
+        }
         CheckedRankOperand::Literal(value) => {
             let value = builder.insert(
                 PrimitiveType::U64,

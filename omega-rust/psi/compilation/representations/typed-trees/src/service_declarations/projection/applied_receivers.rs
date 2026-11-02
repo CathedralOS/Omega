@@ -1,7 +1,7 @@
 //! Applied ancestor views stay beneath one whole provider schema.
 //!
 //! A declaration-only visited set loses applied diamonds and phantom arguments.
-//! Collect exact scopes first, then publish each boundary receiver's complete
+//! Collect exact scopes first, then publish each requirement owner's complete
 //! original requirement roster. Neither operation selects or constructs another
 //! provider plan. The source derivation and review replay establish these views;
 //! the digest commits to them without turning an annotation into authority.
@@ -37,7 +37,15 @@ pub(super) fn receiver_applications(
     identities: &mut ProviderIdentityTable,
 ) -> Option<Vec<ServiceReceiverApplication>> {
     let mut applications = Vec::new();
-    for scope in scopes.iter().filter(|scope| scope.declaration.is_boundary) {
+    // Ordinary ancestors can own methods of a selected boundary schema. Their
+    // exact application is correspondence, not service or physical ABI
+    // authority. Empty policy markers own no method coordinate to rejoin.
+    for scope in scopes.iter().filter(|scope| {
+        scope.declaration.is_boundary
+            || !program
+                .trait_machine_signatures(scope.declaration)
+                .is_empty()
+    }) {
         let mut argument_identities = Vec::new();
         for parameter in program.trait_type_parameters(scope.declaration) {
             let Some(identity) = scope.portable_parameter_identity(program, parameter.symbol)

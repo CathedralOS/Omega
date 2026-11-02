@@ -79,7 +79,7 @@ pub(super) fn establish(
                 statement_index,
             },
             origin: FactOrigin::StatementTransfer,
-            evidence: crate::facts::checked_validation_evidence(state_symbol),
+            evidence: crate::published::facts::checked_validation_evidence(state_symbol),
             payload: FactPayload::DomainMembership {
                 value: ExpressionHandle::invalid(),
                 domain: HandleSpan::empty(),
@@ -133,7 +133,8 @@ pub(super) fn establish(
                     }
                     let mut path = prefix.clone();
                     path.extend_from_slice(&row.path);
-                    let place = crate::semantic::places::append_place(semantic, root, &path);
+                    let place =
+                        crate::published::semantic::places::append_place(semantic, root, &path);
                     let fact = semantic.append_fact(membership_fact(
                         place,
                         row.domain_symbol,
@@ -203,13 +204,16 @@ pub(super) fn establish(
                     root: candidate.root,
                     segments: segments.to_vec(),
                 };
-                crate::collections::push_unique(&mut candidate_targets, candidate);
+                crate::shared::collections::push_unique(&mut candidate_targets, candidate);
             }
         }
     }
     for candidate in candidate_targets {
-        let candidate_place =
-            crate::semantic::places::append_place(semantic, candidate.root, &candidate.segments);
+        let candidate_place = crate::published::semantic::places::append_place(
+            semantic,
+            candidate.root,
+            &candidate.segments,
+        );
         for (domain_symbol, semantic_domain) in &declared_target_domains {
             let was_live = build
                 .contexts

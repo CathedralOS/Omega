@@ -3,7 +3,7 @@
 
 use crate::checks::multiplicity::linear_obligations::LinearPlace;
 use crate::flow::expressions;
-use crate::places::place_at;
+use crate::published::places::place_at;
 use language_semantics::Multiplicity;
 use symbols::SymbolHandle;
 use typed_trees::types::TypeReferenceHandle;

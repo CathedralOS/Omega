@@ -3,7 +3,7 @@
 
 Agents repair the case in front of them. 278 of 1,064 commits from 2026-10-25
 to 2026-11-01 were "preserve/carry" repairs, and the two checkers that model
-storage history separately (stage 05 FlowFacts and checking's program
+storage history separately (Psi 05 FlowFacts and checking's program
 validation) only showed up in the aggregate record, not in any one session.
 This tool prints that aggregate in one report so design work starts from
 measured hot spots instead of from whichever file a session happened to open.
@@ -494,7 +494,7 @@ def zone(directory: str) -> str:
 
 # Psi crates Omega realization may read: Terminal installation admission and
 # the shared mathematical checker (check_native_boundary.py's permitted owners).
-OMEGA_READABLE_PSI = ("omega-rust/psi/compilation/checking/terminal-installation",
+OMEGA_READABLE_PSI = ("omega-rust/psi/compilation/validation/terminal-installation",
                       "omega-rust/psi/compilation/proof/admission")
 
 

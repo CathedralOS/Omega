@@ -6,8 +6,8 @@ use validation::find_call_site;
 use validation::find_state_in_machine;
 
 use crate::flow::canonical_place_from_symbol;
-use crate::places::place_at;
-use crate::proof::contract_target_from_state_symbol;
+use crate::published::places::place_at;
+use crate::published::proof::contract_target_from_state_symbol;
 
 use checked_trees::{BorrowCallFact, BorrowFacts};
 use symbols::SymbolHandle;

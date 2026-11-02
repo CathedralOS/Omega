@@ -7,9 +7,11 @@ use crate::{
     ValidatedRuntimeSpill, ValidatedRuntimeSplit, ValidatedStoredLoadForwarding,
 };
 use optimization_core::OptimizationUnitIdentity;
-use selected_instructions::{SelectedInstructionPlan, SelectedInstructionPlanIdentity};
+use selected_instructions::{
+    CurrentSelectedProgram, SelectedInstructionPlan, SelectedInstructionPlanIdentity,
+    SelectedProgram,
+};
 use semantic_vocabulary::FuelScheduleIdentity;
-use target_operations_to_selected_instructions::ValidatedSelectedInstructions;
 
 mod sealed {
     pub trait Sealed {}
@@ -97,6 +99,16 @@ pub trait ValidatedSelectedAnalysis: sealed::Sealed {
     fn selected_identity(&self) -> SelectedInstructionPlanIdentity;
     fn optimization_unit_identity(&self) -> OptimizationUnitIdentity;
     fn fuel_schedule_identity(&self) -> FuelScheduleIdentity;
+
+    /// The plan and its identities as the stages after allocation read them.
+    fn current_program(&self) -> CurrentSelectedProgram<'_> {
+        CurrentSelectedProgram {
+            plan: self.selected_plan(),
+            identity: self.selected_identity(),
+            optimization_unit: self.optimization_unit_identity(),
+            fuel_schedule: self.fuel_schedule_identity(),
+        }
+    }
 }
 
 /// Borrow the current validated program without exposing which producer or
@@ -140,9 +152,10 @@ impl ValidatedSelectedAnalysis for SelectedProgramRef<'_> {
     }
 }
 
-impl sealed::Sealed for ValidatedSelectedInstructions {}
+impl sealed::Sealed for SelectedProgram {}
 
-impl ValidatedSelectedAnalysis for ValidatedSelectedInstructions {
+/// The program instruction selection handed to this stage.
+impl ValidatedSelectedAnalysis for SelectedProgram {
     fn shared_selected_plan(&self) -> std::sync::Arc<SelectedInstructionPlan> {
         self.shared_plan()
     }
@@ -152,15 +165,15 @@ impl ValidatedSelectedAnalysis for ValidatedSelectedInstructions {
     }
 
     fn selected_identity(&self) -> SelectedInstructionPlanIdentity {
-        self.receipt().identity()
+        self.identity()
     }
 
     fn optimization_unit_identity(&self) -> OptimizationUnitIdentity {
-        self.receipt().optimization_unit()
+        self.optimization_unit()
     }
 
     fn fuel_schedule_identity(&self) -> FuelScheduleIdentity {
-        self.receipt().fuel_schedule()
+        self.fuel_schedule()
     }
 }
 

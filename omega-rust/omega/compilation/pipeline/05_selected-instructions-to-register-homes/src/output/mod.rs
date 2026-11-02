@@ -22,7 +22,6 @@ macro_rules! allocation_output {
             homes: $self.homes(),
             manifest: $self.post_allocation_manifest(),
             environment: $self.register_environment(),
-            target_input: $self.optimized_target_owner(),
             selections: $self.selections(),
             budget: $self.budget_per_pass(),
             evidence: $evidence,
@@ -76,9 +75,6 @@ pub struct AllocationOutput<'program> {
     manifest: &'program ValidatedPostAllocationOptimizationManifest,
     environment: &'program ValidatedTargetRegisterEnvironment,
     evidence: AllocationEvidence,
-    target_input: &'program std::sync::Arc<
-        abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations,
-    >,
     selections: &'program OptimizationSelections,
     budget: OptimizationWorkBudget,
 }
@@ -91,23 +87,6 @@ impl<'program> AllocationOutput<'program> {
     /// The selected program's borrow remains tied to the retained input, not this view.
     pub fn selected_plan(&self) -> &'program selected_instructions::SelectedInstructionPlan {
         self.program.selected
-    }
-
-    /// Earlier target/proof input retained for independent downstream joins.
-    pub fn target_input(
-        &self,
-    ) -> &'program abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations
-    {
-        self.target_input
-    }
-
-    /// Share the exact proof input without retaining allocation history.
-    pub fn target_input_owner(
-        &self,
-    ) -> &'program std::sync::Arc<
-        abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations,
-    > {
-        self.target_input
     }
 
     receipt_accessor_rows!(ref AllocationOutput {
@@ -158,6 +137,8 @@ pub enum AllocationAdmissionError {
     /// The exercised recovery does not match the declared allocation-recovery
     /// selection: a declared rule did not run, or an undeclared one did.
     SelectionMismatch,
+    /// The current program's machine effects could not be analyzed.
+    MachineEffects(selected_instructions_to_selected_instructions::MachineEffectStageError),
 }
 
 stage_error_display!(AllocationAdmissionError, "allocation admission failed");

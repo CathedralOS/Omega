@@ -3,8 +3,8 @@
 #[path = "terminal_provision.rs"]
 mod terminal_provision;
 
-use build_evaluation::terminal_bindings::TerminalBuildBindingHost;
-use build_evaluation::terminal_requests::TerminalBuildRequestHost;
+use build_evaluation::host::bindings::TerminalBuildBindingHost;
+use build_evaluation::host::requests::TerminalBuildRequestHost;
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{
     TerminalEffectHandler, TerminalExecutionResult, TerminalExecutionStatus, TerminalProgram,

@@ -1,61 +1,108 @@
-//! Bind freshly acquired exact recorded Git content using ordinary declarations.
+//! Recover authenticated historical Git bytes under their accepted metadata.
+//! This issues no fresh Build declaration and never interprets old source text.
 
-use super::binding::{bind_git_root_package_source, bind_git_workspace_member_source};
-use super::request::GitPackageSourceRequest;
-use super::workspace::{ManagerGitWorkspacePlanner, git_workspace_declaration_limits};
-use crate::declarations::dependencies::read::PackageSelection;
-use crate::resolution::source::{ResolvePackageSourceError, ResolvedPackageSource, SourceRootRole};
+use crate::declarations::dependencies::read::DependencyProjections;
+use crate::declarations::{BuildDeclarationKind, PackageKey};
+use crate::resolution::source::{
+    PackageSourceCustody, PackageSourceMaterialization, PackageSourceNavigation,
+    PackageSourceSelectionEvidence, ResolvePackageSourceError,
+};
 use package_source::git::resolution::{
-    GitExactRevisionAcquisition, resolve_git_source_at_revision_in_lane,
-    resolve_git_workspace_member_at_revision_in_lanes,
+    GitExactRevisionAcquisition, GitWorkspaceSession, resolve_git_source_at_revision_in_lane,
 };
-use package_source::storage::RetainedStorageLane;
 use package_source::{
-    GitCommitId, GitTreeId, LocalSourceLimits, ResolvedGitSource, SourceResolver,
+    GitSourceRequest, ImmutableSourceResolution, LocalSourceLimits, SourceResolver,
 };
+use std::sync::Arc;
 
-pub(crate) fn resolve_selected_git_source_at_revision_in_lanes(
-    resolver: &SourceResolver,
-    request: &GitPackageSourceRequest,
-    commit: &GitCommitId,
-    tree: &GitTreeId,
+/// The accepted closure supplies these together at one immutable resolution.
+/// Names and ledgers are not rediscovered from historical code or today's Build.
+pub(crate) struct RecordedGitPackage<'record> {
+    pub key: &'record PackageKey,
+    pub resolution: &'record ImmutableSourceResolution,
+    pub navigation: &'record PackageSourceNavigation,
+    pub role: BuildDeclarationKind,
+    pub dependencies: &'record DependencyProjections,
+}
+
+pub(crate) fn recover_recorded_git_source(
+    storage: &SourceResolver,
+    request: &GitSourceRequest,
+    recorded: RecordedGitPackage<'_>,
     acquisition: GitExactRevisionAcquisition,
-    git_lane: &RetainedStorageLane,
-    member_lane: &RetainedStorageLane,
-    limits: LocalSourceLimits,
-    role: SourceRootRole,
-) -> Result<ResolvedPackageSource<ResolvedGitSource>, ResolvePackageSourceError> {
-    let limits = limits.compiler_bounded();
-    match request.selection() {
-        PackageSelection::Root => {
-            let source = resolve_git_source_at_revision_in_lane(
-                resolver.primary_git()?,
-                request.acquisition(),
+) -> Result<PackageSourceCustody, ResolvePackageSourceError> {
+    let refuse = |message: &str| ResolvePackageSourceError::RecordedGitPin {
+        locator: request.locator_identity().to_owned(),
+        revision: request.requested_revision().to_owned(),
+        message: message.to_owned(),
+    };
+    if request.lineage() != recorded.key.source_lineage() {
+        return Err(refuse(
+            "recorded Git request lineage differs from its accepted package",
+        ));
+    }
+    let ImmutableSourceResolution::Git { commit, tree, .. } = recorded.resolution else {
+        return Err(refuse(
+            "historical Git recovery requires its exact Git resolution",
+        ));
+    };
+    let limits = LocalSourceLimits::default().compiler_bounded();
+    storage.verify_path_identity()?;
+    let source = match recorded.navigation {
+        PackageSourceNavigation::Root => resolve_git_source_at_revision_in_lane(
+            storage.primary_git()?,
+            request,
+            commit,
+            tree,
+            acquisition,
+            storage.git_sources(),
+            limits,
+        )?,
+        PackageSourceNavigation::Member(path) => {
+            // The accepted subject already selected this exact path at this pin.
+            // SDK tree inspection authenticates it; no declaration parser or
+            // another Build invocation supplies historical selection semantics.
+            GitWorkspaceSession::open_at_revision(
+                storage,
+                request,
                 commit,
                 tree,
                 acquisition,
-                git_lane,
                 limits,
-            )?;
-            bind_git_root_package_source(source, role)
+                super::workspace::git_workspace_declaration_limits(),
+            )?
+            .open_members(storage, std::slice::from_ref(path))?
+            .materialize(storage, path)?
         }
-        PackageSelection::Named(package) => {
-            let mut planner = ManagerGitWorkspacePlanner::new(package);
-            bind_git_workspace_member_source(
-                resolve_git_workspace_member_at_revision_in_lanes(
-                    resolver.primary_git()?,
-                    request.acquisition(),
-                    commit,
-                    tree,
-                    acquisition,
-                    git_lane,
-                    member_lane,
-                    limits,
-                    git_workspace_declaration_limits(),
-                    &mut planner,
-                ),
-                role,
-            )
-        }
+    };
+    storage.verify_path_identity()?;
+    let navigation_agrees = match recorded.navigation {
+        PackageSourceNavigation::Root => source.selected_member().is_none(),
+        PackageSourceNavigation::Member(path) => source.selected_member() == Some(path),
+    };
+    if source.lineage() != recorded.key.source_lineage()
+        || source.commit() != commit.to_hex()
+        || source.tree() != tree.to_hex()
+        || !navigation_agrees
+    {
+        return Err(refuse(
+            "recovered Git custody differs from its accepted lineage, pin, or navigation",
+        ));
     }
+    let materialization = PackageSourceMaterialization::from_local(source.local());
+    let root = source.snapshot_root().to_path_buf();
+    let limits = source.source_limits();
+    Ok(PackageSourceCustody::from_resolved_parts(
+        recorded.key.clone(),
+        recorded.role,
+        recorded.resolution.clone(),
+        materialization,
+        root,
+        recorded.navigation.clone(),
+        PackageSourceSelectionEvidence::HistoricalGit {
+            _source: Arc::new(source),
+        },
+        limits,
+        recorded.dependencies.clone(),
+    ))
 }

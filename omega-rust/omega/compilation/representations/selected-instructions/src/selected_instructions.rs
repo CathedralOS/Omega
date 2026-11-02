@@ -139,3 +139,47 @@ pub struct SelectedInstructionPlan {
     pub entry: MachineId,
     pub functions: SelectedFunctions,
 }
+
+/// The selected program instruction selection hands to the stages after it:
+/// the shared plan and the identities it was admitted under.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SelectedProgram {
+    pub plan: std::sync::Arc<SelectedInstructionPlan>,
+    pub identity: SelectedInstructionPlanIdentity,
+    pub optimization_unit: optimization_core::OptimizationUnitIdentity,
+    pub fuel_schedule: FuelScheduleIdentity,
+}
+
+impl SelectedProgram {
+    pub fn plan(&self) -> &SelectedInstructionPlan {
+        &self.plan
+    }
+
+    pub fn shared_plan(&self) -> std::sync::Arc<SelectedInstructionPlan> {
+        std::sync::Arc::clone(&self.plan)
+    }
+
+    pub const fn identity(&self) -> SelectedInstructionPlanIdentity {
+        self.identity
+    }
+
+    pub const fn optimization_unit(&self) -> optimization_core::OptimizationUnitIdentity {
+        self.optimization_unit
+    }
+
+    pub const fn fuel_schedule(&self) -> FuelScheduleIdentity {
+        self.fuel_schedule
+    }
+}
+
+/// The current selected program as the stages after register allocation read
+/// it: the plan and the identities its producing stage admitted it under. The
+/// selected-optimization stage hands this out from its sealed analysis
+/// surface; later stages read this representation, not that surface.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CurrentSelectedProgram<'plan> {
+    pub plan: &'plan SelectedInstructionPlan,
+    pub identity: SelectedInstructionPlanIdentity,
+    pub optimization_unit: optimization_core::OptimizationUnitIdentity,
+    pub fuel_schedule: FuelScheduleIdentity,
+}

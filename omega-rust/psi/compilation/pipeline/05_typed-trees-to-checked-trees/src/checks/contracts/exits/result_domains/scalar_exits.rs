@@ -5,7 +5,7 @@ use validation::CanonicalPlace;
 use super::super::super::return_values::{exit_return_call, exit_return_expression};
 use super::proofs::*;
 use crate::flow::{active_context_handles, canonical_place_from_semantic_place};
-use crate::places::place_at;
+use crate::published::places::place_at;
 use checked_trees::{CheckFacts, FlowExitFact};
 use diagnostics::Diagnostic;
 use facts::FactContextHandle;
@@ -104,7 +104,7 @@ pub(in crate::checks::contracts) fn check_scalar_result_domains(
         // instances and aliases whose constituents are all empty theories.
         // Reuse the same rule as checked qualification casts; index identity
         // remains significant when transporting nonvacuous membership below.
-        if crate::facts::domain_is_vacuous(program, domain_symbol, &mut Vec::new()) {
+        if crate::published::facts::domain_is_vacuous(program, domain_symbol, &mut Vec::new()) {
             continue;
         }
         let transported = subject.as_ref().is_some_and(|subject| {
@@ -137,7 +137,7 @@ pub(in crate::checks::contracts) fn check_scalar_result_domains(
                         checked_trees::CheckedScalarReturnOrigin::Predicate
                     } else {
                         checked_trees::CheckedScalarReturnOrigin::Established(
-                        crate::facts::qualification_evidence::machine_domain_establishment_route(
+                        crate::published::facts::qualification_evidence::machine_domain_establishment_route(
                             program, machine, domain_symbol,
                         )?,
                     )
@@ -198,10 +198,10 @@ pub(in crate::checks::contracts) fn check_scalar_result_domains(
                 semantic_domain,
                 &constraint.arguments,
             ) == Some(validation::StrictArithmeticImplicationJudgment::Refuted))
-            && crate::labels::machine_name(program, exit.machine_symbol)
+            && crate::published::labels::machine_name(program, exit.machine_symbol)
                 .starts_with("@const-qualification-")
         {
-            let full = crate::labels::symbol_name(program, domain_symbol);
+            let full = crate::published::labels::symbol_name(program, domain_symbol);
             let short = full
                 .split_once("::")
                 .map(|(_, rest)| rest.to_owned())
@@ -212,9 +212,9 @@ pub(in crate::checks::contracts) fn check_scalar_result_domains(
         } else {
             diagnostics.push(Diagnostic::error(format!(
                 "cannot prove scalar result domain for return from {} at statement {}: {}",
-                crate::labels::machine_name(program, exit.machine_symbol),
+                crate::published::labels::machine_name(program, exit.machine_symbol),
                 exit.statement_index,
-                crate::labels::symbol_name(program, domain_symbol),
+                crate::published::labels::symbol_name(program, domain_symbol),
             )));
         }
     }
@@ -287,9 +287,11 @@ pub(in crate::checks::contracts) fn check_state_transfer_result_domains(
     ) else {
         return;
     };
-    let selected = crate::proof::contract_target_from_state_symbol(program, call.target_symbol);
+    let selected =
+        crate::published::proof::contract_target_from_state_symbol(program, call.target_symbol);
     let exact_invocation = selected.is_some()
-        && crate::proof::contract_target_from_state_symbol(program, path.symbol) == selected;
+        && crate::published::proof::contract_target_from_state_symbol(program, path.symbol)
+            == selected;
     let local_transfer =
         exact_invocation && selected.is_some_and(|(owner, _)| owner == machine.symbol);
     if !local_transfer {
@@ -306,7 +308,7 @@ pub(in crate::checks::contracts) fn check_state_transfer_result_domains(
         }) {
             continue;
         }
-        if crate::facts::domain_is_vacuous(program, required.symbol, &mut Vec::new()) {
+        if crate::published::facts::domain_is_vacuous(program, required.symbol, &mut Vec::new()) {
             continue;
         }
         if exact_invocation && call_result_has_domain(program, call.target_symbol, required) {
@@ -314,9 +316,9 @@ pub(in crate::checks::contracts) fn check_state_transfer_result_domains(
         }
         diagnostics.push(Diagnostic::error(format!(
             "cannot prove scalar result domain for tail return from {} at statement {}: {}",
-            crate::labels::machine_name(program, machine.symbol),
+            crate::published::labels::machine_name(program, machine.symbol),
             call.statement_index,
-            crate::labels::symbol_name(program, required.symbol),
+            crate::published::labels::symbol_name(program, required.symbol),
         )));
     }
 }
@@ -326,7 +328,7 @@ pub(super) fn call_result_has_domain(
     target: symbols::SymbolHandle,
     required: &typed_trees::types::DomainConstraint,
 ) -> bool {
-    let target = crate::proof::contract_target_from_state_symbol(program, target)
+    let target = crate::published::proof::contract_target_from_state_symbol(program, target)
         .map_or(target, |(_, state)| state);
     validation::call_target_return_type(program, target).is_some_and(|return_type| {
         required.semantic_id.is_valid()

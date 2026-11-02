@@ -23,7 +23,7 @@ use terminal_psi::{
     OperationKind, OutcomeSpecificGuard, TerminalMachine, TerminalModule, Terminator,
 };
 
-use crate::lowering_error::{LoweringError, unsupported};
+use crate::shared::lowering_error::{LoweringError, unsupported};
 
 /// The guards the machine's exact payloadless case returns establish, one
 /// per returning block, or `None` when any return is not a field-free case

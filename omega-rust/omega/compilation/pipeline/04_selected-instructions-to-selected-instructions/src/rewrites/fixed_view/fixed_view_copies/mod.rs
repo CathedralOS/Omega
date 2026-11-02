@@ -20,8 +20,8 @@ use optimization_core::{
 };
 use register_environment::ValidatedTargetRegisterEnvironment;
 use selected_instructions::SelectedInstructionPlanIdentity;
+use selected_instructions::StagedOptimizedCustodyCore;
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
-use target_operations_to_selected_instructions::StagedOptimizedCustodyCore;
 use terminal_psi::TerminalPsiIdentity;
 
 pub fn stage_optimized_fixed_view_copies(
@@ -85,7 +85,7 @@ pub struct StagedOptimizedFixedViewCopyCustodyReceipt {
 }
 
 impl StagedOptimizedFixedViewCopyCustodyReceipt {
-    target_operations_to_selected_instructions::staging_custody_core_accessors!();
+    selected_instructions::staging_custody_core_accessors!();
 
     receipt_accessor_rows!(StagedOptimizedFixedViewCopyCustodyReceipt {
         allocator_availability: register_homes::AllocatorAvailabilityIdentity,

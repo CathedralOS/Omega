@@ -28,9 +28,9 @@ use physical_instructions::{
     PostAllocationMachineIdentity, PostAllocationMachinePlan, post_allocation_machine_identity,
 };
 use selected_instructions::{
-    MachineAlternativeKey, SelectedInstructionId, SelectedInstructionPlan,
+    MachineAlternativeKey, PreAllocationMachineEffectPlan, SelectedInstructionId,
+    SelectedInstructionPlan,
 };
-use selected_instructions_to_register_homes::ValidatedPreAllocationMachineEffects;
 use target::Architecture;
 
 /// Execute the post-allocation phase projection of `selections` over `plan`.
@@ -39,7 +39,7 @@ use target::Architecture;
 pub(crate) fn execute_post_allocation_machine_optimizations(
     plan: &mut PostAllocationMachinePlan,
     selected: &SelectedInstructionPlan,
-    effects: &ValidatedPreAllocationMachineEffects,
+    effects: &PreAllocationMachineEffectPlan,
     selections: &OptimizationSelections,
     budget: OptimizationWorkBudget,
 ) -> Result<PostAllocationMachineOptimizationRun, PostAllocationMachineOptimizationError> {

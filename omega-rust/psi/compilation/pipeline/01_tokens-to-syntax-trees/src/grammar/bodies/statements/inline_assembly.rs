@@ -928,6 +928,7 @@ fn parse_asm_instruction_statement_handle<'tokens, 'source>(
             let (target, input) = parse_transition_block_target_handle(syntax_trees, input)?;
             ParsedAsmInstruction::ok(
                 stmts(syntax_trees).insert(StatementNode::Transition(TableTransition {
+                    patterns: HandleSpan::empty(),
                     target,
                     continuation: TransitionTargetHandle::invalid(),
                     guard: TransitionGuardNode::Always,

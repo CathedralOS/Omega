@@ -34,7 +34,7 @@ use validation::CanonicalPlace;
 use validation::expression_result_type_reference;
 use validation::find_machine_by_entry_state;
 
-use crate::places::place_at;
+use crate::published::places::place_at;
 use crate::values::float_predicates::{comparison, has_ieee_meaning, literal};
 
 pub(in crate::checks::contracts) fn expression_establishes_domain_predicate(

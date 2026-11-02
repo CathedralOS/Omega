@@ -10,6 +10,8 @@ use super::{
 use crate::{TypedTrees, expression::ExpressionHandle, types::TypeReferenceHandle};
 use symbols::{SymbolHandle, SymbolKind};
 
+mod call_applications;
+
 #[cfg(test)]
 use super::{ExpressionNode, TypeReferenceNode, conformance_occurrence_tests};
 
@@ -329,6 +331,7 @@ mod authored_type_occurrence_tests {
             algebra_alias: None,
             commutativity_licensed: false,
             associativity_licensed: false,
+            distributes_over: Vec::new(),
         });
         let cast = program
             .expression_table

@@ -33,7 +33,7 @@ use validation::{
 use crate::flow::indexed_statements;
 use crate::flow::jump_loans::{HeldAccesses, TargetRun, held_accesses, target_run};
 use crate::flow::mutation::{CallMutationWrite, StorageRegion, WritePlaceNamespace};
-use crate::places::place_at;
+use crate::published::places::place_at;
 
 use checked_trees::expression::ExpressionNode;
 use checked_trees::{BorrowCallFact, BorrowFacts, StateBorrowFact};
@@ -54,9 +54,10 @@ impl StateMutationSummaryCache {
         call_frames: Option<&CallFrameResolver<'_>>,
     ) {
         let _ = self.states.get_or_init(|| {
-            phase_profile::scope("psi.05.build_check_facts.flow.build_state_mutation_summaries", || {
-                build_state_mutation_summaries(program, borrow, call_frames)
-            })
+            phase_profile::scope(
+                "psi.05.build_check_facts.flow.build_state_mutation_summaries",
+                || build_state_mutation_summaries(program, borrow, call_frames),
+            )
         });
     }
 }
@@ -108,6 +109,7 @@ struct MutationWrite {
     region: StorageRegion,
     requires_exclusive_access: bool,
     destination: WriteDestination,
+    checked_write_type: TypeReferenceHandle,
 }
 
 pub(super) fn instantiate_known_call_mutation_summary_places(
@@ -148,8 +150,9 @@ pub(super) fn instantiate_known_call_mutation_summary_places(
             namespace,
             call_frames,
         )?;
-        for contribution in contributions {
-            crate::collections::push_unique(&mut instantiated, contribution);
+        for mut contribution in contributions {
+            contribution.checked_write_type = write.checked_write_type;
+            crate::shared::collections::push_unique(&mut instantiated, contribution);
         }
     }
 
@@ -208,7 +211,7 @@ pub(super) fn instantiate_known_call_receiver_summary_places(
             WritePlaceNamespace::AccessRoute,
             None,
         )? {
-            crate::collections::push_unique(&mut instantiated, place);
+            crate::shared::collections::push_unique(&mut instantiated, place);
         }
     }
 
@@ -223,9 +226,10 @@ fn state_mutation_summary<'cache>(
     call_frames: Option<&CallFrameResolver<'_>>,
 ) -> Option<&'cache StateMutationSummary> {
     let built = cache.states.get_or_init(|| {
-        phase_profile::scope("psi.05.build_check_facts.flow.build_state_mutation_summaries", || {
-            build_state_mutation_summaries(program, borrow, call_frames)
-        })
+        phase_profile::scope(
+            "psi.05.build_check_facts.flow.build_state_mutation_summaries",
+            || build_state_mutation_summaries(program, borrow, call_frames),
+        )
     });
     let &index = built.index_by_state.get(&state.symbol)?;
     built.summaries.get(index).filter(|entry| entry.complete)
@@ -344,65 +348,66 @@ fn propagate_state_mutation_summaries(
         .collect();
     // These are invocation-local dense summary positions, not durable symbol
     // identities. Resolve each dependency once while retaining authored call order.
-    let mut calls: Vec<_> = phase_profile::scope("psi.05.build_check_facts.flow.summaries.calls", || {
-        (0..states.len())
-            .into_par_iter()
-            .map(|caller_index| {
-                let state = &states[caller_index];
-                let borrow_state = borrow_states[caller_index];
-                let owner = &owners[caller_index];
-                borrow
-                    .calls
-                    .span_or_empty(borrow_state.calls)
-                    .iter()
-                    .map(|call| {
-                        let run = owner.map_or(TargetRun::Whole, |(_, machine_symbol)| {
-                            target_run(program, machine_symbol, state.state_symbol, call)
-                        });
-                        // A declaration can own a state identity without owning a body.
-                        // Its admitted frame belongs to the shared resolver, not
-                        // the (necessarily incomplete) structured body summary.
-                        let body_summary = find_state(program, call.target_symbol)
-                            .filter(|(machine, _)| machine.body_is_present)
-                            .and_then(|_| index_by_state.get(&call.target_symbol).copied());
-                        let call_site = owner.and_then(|(_, machine_symbol)| {
-                            find_call_site(
-                                program,
-                                machine_symbol,
-                                state.state_symbol,
-                                call.statement_index,
-                                call.call_ordinal,
-                            )
-                        });
-                        let has_builtin_coordinates = match (*owner, call_site.as_ref()) {
-                            (Some((_, machine_symbol)), Some(site)) => {
-                                call_operands_have_builtin_coordinates(
+    let mut calls: Vec<_> =
+        phase_profile::scope("psi.05.build_check_facts.flow.summaries.calls", || {
+            (0..states.len())
+                .into_par_iter()
+                .map(|caller_index| {
+                    let state = &states[caller_index];
+                    let borrow_state = borrow_states[caller_index];
+                    let owner = &owners[caller_index];
+                    borrow
+                        .calls
+                        .span_or_empty(borrow_state.calls)
+                        .iter()
+                        .map(|call| {
+                            let run = owner.map_or(TargetRun::Whole, |(_, machine_symbol)| {
+                                target_run(program, machine_symbol, state.state_symbol, call)
+                            });
+                            // A declaration can own a state identity without owning a body.
+                            // Its admitted frame belongs to the shared resolver, not
+                            // the (necessarily incomplete) structured body summary.
+                            let body_summary = find_state(program, call.target_symbol)
+                                .filter(|(machine, _)| machine.body_is_present)
+                                .and_then(|_| index_by_state.get(&call.target_symbol).copied());
+                            let call_site = owner.and_then(|(_, machine_symbol)| {
+                                find_call_site(
                                     program,
                                     machine_symbol,
                                     state.state_symbol,
-                                    site,
+                                    call.statement_index,
+                                    call.call_ordinal,
                                 )
-                            }
-                            _ => false,
-                        };
-                        (
-                            call,
-                            body_summary,
-                            run,
-                            call_site,
-                            has_builtin_coordinates,
-                            Vec::<(
-                                (StorageRegion, WriteDestination),
-                                Option<Vec<MutationWrite>>,
-                            )>::new(),
-                            0usize,
-                            Vec::<usize>::new(),
-                        )
-                    })
-                    .collect::<Vec<_>>()
-            })
-            .collect()
-    });
+                            });
+                            let has_builtin_coordinates = match (*owner, call_site.as_ref()) {
+                                (Some((_, machine_symbol)), Some(site)) => {
+                                    call_operands_have_builtin_coordinates(
+                                        program,
+                                        machine_symbol,
+                                        state.state_symbol,
+                                        site,
+                                    )
+                                }
+                                _ => false,
+                            };
+                            (
+                                call,
+                                body_summary,
+                                run,
+                                call_site,
+                                has_builtin_coordinates,
+                                Vec::<(
+                                    (StorageRegion, WriteDestination),
+                                    Option<Vec<MutationWrite>>,
+                                )>::new(),
+                                0usize,
+                                Vec::<usize>::new(),
+                            )
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .collect()
+        });
     let mut callers = vec![Vec::new(); states.len()];
     for (caller_index, dependencies) in calls.iter().enumerate() {
         for (_, target_index, _, _, _, _, _, _) in dependencies {
@@ -527,6 +532,7 @@ fn propagate_state_mutation_summaries(
                                 region,
                                 requires_exclusive_access: true,
                                 destination: WriteDestination::Referent,
+                                checked_write_type: Default::default(),
                             })
                             .collect();
                         let held = vec![writes.clone(); caller.held_writes.len()];
@@ -594,6 +600,7 @@ fn propagate_state_mutation_summaries(
                                         region: contribution.region,
                                         requires_exclusive_access: write.requires_exclusive_access,
                                         destination: write.destination,
+                                        checked_write_type: write.checked_write_type,
                                     });
                                 }
                                 continue;
@@ -625,6 +632,7 @@ fn propagate_state_mutation_summaries(
                                                 requires_exclusive_access: write
                                                     .requires_exclusive_access,
                                                 destination: write.destination,
+                                                checked_write_type: write.checked_write_type,
                                             })
                                             .collect::<Vec<_>>()
                                     });
@@ -640,6 +648,7 @@ fn propagate_state_mutation_summaries(
                                     region: item.region.clone(),
                                     requires_exclusive_access: write.requires_exclusive_access,
                                     destination: write.destination,
+                                    checked_write_type: write.checked_write_type,
                                 });
                             }
                         }
@@ -809,6 +818,7 @@ fn collect_state_mutation_summary_places(
                     region: StorageRegion::Declared(place),
                     requires_exclusive_access: false,
                     destination: WriteDestination::Referent,
+                    checked_write_type: Default::default(),
                 };
                 if state_summary_exposes_place(program, state, &write.region, call_frames)?
                     && !writes.contains(&write)
@@ -831,19 +841,22 @@ fn collect_state_mutation_summary_places(
             statement,
             call_frames,
         )?;
+        let checked_write_type = assignment_stored_value_type(program, machine, state, assignment)?;
         for region in regions {
-            let destination = assignment_stored_value_type(program, machine, state, assignment)
-                .map(|reference| {
-                    if reference_shell(program, reference).is_some() {
-                        WriteDestination::DescriptorSlot
-                    } else {
-                        WriteDestination::Referent
-                    }
-                })?;
+            let destination = if reference_shell(program, checked_write_type).is_some() {
+                WriteDestination::DescriptorSlot
+            } else {
+                WriteDestination::Referent
+            };
             let write = MutationWrite {
                 region,
                 requires_exclusive_access,
                 destination,
+                checked_write_type: if requires_exclusive_access {
+                    checked_write_type
+                } else {
+                    Default::default()
+                },
             };
             if state_summary_exposes_place(program, state, &write.region, call_frames)?
                 && !writes.contains(&write)
@@ -1027,6 +1040,7 @@ fn instantiate_call_relative_writes_pre_resolved(
             .map(|region| CallMutationWrite {
                 region,
                 source: Some(relative_region.clone()),
+                checked_write_type: Default::default(),
             })
             .collect()
     };
@@ -1236,7 +1250,7 @@ pub(super) fn captured_argument_write_regions(
                     references,
                     call_frames,
                 )? {
-                    crate::collections::push_unique(&mut regions, region);
+                    crate::shared::collections::push_unique(&mut regions, region);
                 }
             }
         }
@@ -1264,7 +1278,7 @@ pub(super) fn captured_argument_write_regions(
             call_frames,
         )?;
         for place in rebased {
-            crate::collections::push_unique(&mut places, place);
+            crate::shared::collections::push_unique(&mut places, place);
         }
     }
     Some(places)

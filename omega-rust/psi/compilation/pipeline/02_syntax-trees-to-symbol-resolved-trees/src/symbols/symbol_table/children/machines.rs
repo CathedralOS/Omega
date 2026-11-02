@@ -2,7 +2,9 @@ use symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::{SymbolHandle, SymbolKind, SymbolTableAppender, SymbolTableBuilder};
 
 use super::insert_machine_type_parameter_children;
-use crate::symbols::symbol_table::names::{parameter_seeds, symbol_seed, type_parameter_seeds};
+use crate::symbols::symbol_table::names::{
+    evidence_requirement_seed, parameter_seeds, symbol_seed, type_parameter_seeds,
+};
 
 pub(in crate::symbols::symbol_table) fn insert_machine_symbol_children(
     builder: &mut impl SymbolTableAppender,
@@ -64,9 +66,9 @@ pub(in crate::symbols::symbol_table) fn insert_machine_symbol_children(
             );
             builder.insert_children(
                 binder_symbol,
-                requirements.into_iter().map(|requirement| {
-                    symbol_seed(SymbolKind::State, &requirement.name, has_sources)
-                }),
+                requirements
+                    .into_iter()
+                    .map(|requirement| evidence_requirement_seed(&requirement.name)),
             );
         }
     }
@@ -84,7 +86,7 @@ pub(in crate::symbols::symbol_table) fn insert_machine_symbol_children(
     }
 }
 
-fn collect_evidence_requirement_closure<'program>(
+pub(super) fn collect_evidence_requirement_closure<'program>(
     program: &'program SymbolResolvedTrees,
     trait_definition: &'program symbol_resolved_trees::trait_definition::TraitDefinition,
     sources: Option<&source::SourceMap>,
@@ -132,7 +134,7 @@ fn reference_can_see_declaration(
     sources.is_none_or(|sources| sources.reference_can_see_declaration(reference, declaration))
 }
 
-fn select_visible_trait_definition<'program>(
+pub(super) fn select_visible_trait_definition<'program>(
     program: &'program SymbolResolvedTrees,
     reference_name: &symbol_resolved_trees::name::DiagnosticName,
     sources: Option<&source::SourceMap>,

@@ -2,7 +2,7 @@
 
 use super::operand_contexts::binding_origin_is_stable;
 use super::operand_contexts::entry_origin_is_stable;
-use crate::places::place_at;
+use crate::published::places::place_at;
 use validation::CanonicalPlace;
 
 use super::canonical_place_segments_may_overlap;
@@ -14,7 +14,8 @@ use typed_trees::{machine::Machine, statement::StatementNode};
 mod result_candidates;
 
 pub(in crate::flow) use result_candidates::{
-    ReferenceResultSourceKind, call_result_captured_sources, call_result_leaf_sources,
+    ReferenceResultBacking, ReferenceResultSourceKind, call_result_captured_sources,
+    call_result_leaf_sources,
 };
 
 pub(crate) use result_candidates::{

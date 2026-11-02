@@ -100,7 +100,7 @@ Its twin replaces the branch condition with `true`, so no equation reaches the
   extractors, so a mis-selected arm or payload traps; flipping one expected
   value makes the program trap.
 - **Open:** a `transition` over the same subject still owes the excluded case.
-  Its coverage pass (`exhaustiveness.rs` in stage 03) runs on resolved trees,
+  Its coverage pass (`exhaustiveness.rs` in Psi 03) runs on resolved trees,
   before any proof judgment exists, so it cannot see the contract
   (`match over Value does not cover Value::Boolean`). A dispatch inside a branch
   that a specialization makes unreachable keeps its refuted arm and is refused.

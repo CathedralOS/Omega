@@ -66,14 +66,33 @@ impl<Declaration: Copy + Eq + Default + 'static> ProofApplicationPlan<Declaratio
             .map(|row| row.machine)
     }
 
+    /// Describe authored target membership independently of Product selection
+    /// or executable availability. This adds no invocation or seed authority.
+    pub fn declared_callable_for_target(
+        &self,
+        symbol: Declaration,
+        target: &str,
+    ) -> Option<Declaration> {
+        self.target_machine_matching(self.matching_machine(symbol, |_| true)?, target, |_| true)
+            .map(|row| row.machine)
+    }
+
     fn called_machine(&self, symbol: Declaration) -> Option<&ProofApplicationMachine<Declaration>> {
+        self.matching_machine(symbol, |row| row.product_selected)
+    }
+
+    fn matching_machine(
+        &self,
+        symbol: Declaration,
+        accepts: fn(&ProofApplicationMachine<Declaration>) -> bool,
+    ) -> Option<&ProofApplicationMachine<Declaration>> {
         self.machines
             .iter()
             .map(|(_, row)| row)
-            .find(|row| row.product_selected && row.machine == symbol)
+            .find(|row| accepts(row) && row.machine == symbol)
             .or_else(|| {
                 self.machines.iter().map(|(_, row)| row).find(|row| {
-                    row.product_selected && self.symbols.span_or_empty(row.states).contains(&symbol)
+                    accepts(row) && self.symbols.span_or_empty(row.states).contains(&symbol)
                 })
             })
     }
@@ -83,13 +102,22 @@ impl<Declaration: Copy + Eq + Default + 'static> ProofApplicationPlan<Declaratio
         machine: &'a ProofApplicationMachine<Declaration>,
         target: &str,
     ) -> Option<&'a ProofApplicationMachine<Declaration>> {
+        self.target_machine_matching(machine, target, |row| row.product_selected)
+    }
+
+    fn target_machine_matching<'a>(
+        &'a self,
+        machine: &'a ProofApplicationMachine<Declaration>,
+        target: &str,
+        accepts: fn(&ProofApplicationMachine<Declaration>) -> bool,
+    ) -> Option<&'a ProofApplicationMachine<Declaration>> {
         if machine.family_interface {
             let member = self
                 .target_members
                 .span_or_empty(machine.family_members)
                 .iter()
                 .find(|member| member.target == target)?;
-            return self.called_machine(member.machine);
+            return self.matching_machine(member.machine, accepts);
         }
         machine
             .authored_target
@@ -151,9 +179,27 @@ struct Binding<Declaration> {
 }
 
 #[derive(Clone, PartialEq, Eq)]
-struct Application<Declaration> {
+pub struct Application<Declaration> {
     machine: Declaration,
     bindings: Vec<Binding<Declaration>>,
+}
+
+impl<Declaration: Copy> Application<Declaration> {
+    pub fn machine(&self) -> Declaration {
+        self.machine
+    }
+}
+
+/// Exact instantiated edge of the existing call/substitution walk. Static
+/// operands remain part of application equality rather than flattening into
+/// declaration membership. Provider substitution is explicit, not a direct
+/// authored call to the implementation.
+pub struct ProofInvocationEdge<Declaration> {
+    pub source: Application<Declaration>,
+    pub target: Application<Declaration>,
+    pub call_ordinal: Option<usize>,
+    pub provider: bool,
+    pub static_delegation: bool,
 }
 
 /// Borrowed application queries have no source tree or source-expression access.
@@ -167,6 +213,7 @@ pub struct ProofApplications<'a, Declaration: 'static, Calls> {
 pub struct ProofApplicationReachability<Declaration> {
     pub machines: Vec<Declaration>,
     pub calls: Vec<Declaration>,
+    pub invocations: Vec<ProofInvocationEdge<Declaration>>,
 }
 
 impl<'a, Declaration: Copy + Eq + Default + 'static, Calls: ProofApplicationCalls<Declaration>>
@@ -325,6 +372,7 @@ impl<'a, Declaration: Copy + Eq + Default + 'static, Calls: ProofApplicationCall
         let mut visited = Vec::new();
         let mut machines = Vec::new();
         let mut calls = Vec::new();
+        let mut invocations = Vec::new();
         while let Some(mut application) = pending.pop() {
             if application.machine != Declaration::default()
                 && !calls.contains(&application.machine)
@@ -359,6 +407,7 @@ impl<'a, Declaration: Copy + Eq + Default + 'static, Calls: ProofApplicationCall
             if !machines.contains(&machine.machine) {
                 machines.push(machine.machine);
             }
+            let mut call_ordinal = 0;
             let has_summary = self.operational.visit_calls(machine.machine, |call| {
                 for coordinate in [call.state, call.operator] {
                     if coordinate != Declaration::default() && !calls.contains(&coordinate) {
@@ -376,10 +425,18 @@ impl<'a, Declaration: Copy + Eq + Default + 'static, Calls: ProofApplicationCall
                         resolve_bindings(self.operational, call.arguments, &application.bindings),
                     ),
                 };
-                pending.push(Application {
+                let invoked = Application {
                     machine: callee,
                     bindings,
+                };
+                invocations.push(ProofInvocationEdge {
+                    source: application.clone(),
+                    target: invoked.clone(),
+                    call_ordinal: Some(call_ordinal),
+                    provider: false,
+                    static_delegation: selected.is_some(),
                 });
+                pending.push(invoked);
                 let requirement_machine = self.plan.called_machine(callee).map(|row| row.machine);
                 for (requirement, realization) in provider_edges {
                     if *requirement == callee
@@ -391,8 +448,19 @@ impl<'a, Declaration: Copy + Eq + Default + 'static, Calls: ProofApplicationCall
                             machine: *realization,
                             bindings: Vec::new(),
                         });
+                        invocations.push(ProofInvocationEdge {
+                            source: application.clone(),
+                            target: Application {
+                                machine: *realization,
+                                bindings: Vec::new(),
+                            },
+                            call_ordinal: Some(call_ordinal),
+                            provider: true,
+                            static_delegation: false,
+                        });
                     }
                 }
+                call_ordinal += 1;
             });
             // Missing operational facts are not an empty body. Match the
             // checked graph's stopping boundary before cleanup/dynamic edges.
@@ -400,11 +468,37 @@ impl<'a, Declaration: Copy + Eq + Default + 'static, Calls: ProofApplicationCall
                 continue;
             }
             self.operational.visit_cleanup(machine.machine, |target| {
+                invocations.push(ProofInvocationEdge {
+                    source: application.clone(),
+                    target: Application {
+                        machine: target,
+                        bindings: Vec::new(),
+                    },
+                    call_ordinal: None,
+                    provider: false,
+                    static_delegation: false,
+                });
                 pending.push(Application {
                     machine: target,
                     bindings: Vec::new(),
                 });
             });
+            for realization in self
+                .plan
+                .symbols
+                .span_or_empty(machine.dynamic_realizations)
+            {
+                invocations.push(ProofInvocationEdge {
+                    source: application.clone(),
+                    target: Application {
+                        machine: *realization,
+                        bindings: Vec::new(),
+                    },
+                    call_ordinal: None,
+                    provider: false,
+                    static_delegation: false,
+                });
+            }
             pending.extend(
                 self.plan
                     .symbols
@@ -416,7 +510,34 @@ impl<'a, Declaration: Copy + Eq + Default + 'static, Calls: ProofApplicationCall
                     }),
             );
         }
-        ProofApplicationReachability { machines, calls }
+        // Resolve state/family coordinates and their binders exactly as the
+        // visited application does; no display identity participates.
+        for edge in &mut invocations {
+            if let Some(declaration) = self.plan.called_machine(edge.target.machine)
+                && let Some(machine) = self.plan.target_machine(declaration, target)
+            {
+                if declaration.machine != machine.machine {
+                    for binding in &mut edge.target.bindings {
+                        if let Some((_, selected)) = self
+                            .plan
+                            .symbols
+                            .span_or_empty(declaration.binders)
+                            .iter()
+                            .zip(self.plan.symbols.span_or_empty(machine.binders))
+                            .find(|(declared, _)| **declared == binding.parameter)
+                        {
+                            binding.parameter = *selected;
+                        }
+                    }
+                }
+                edge.target.machine = machine.machine;
+            }
+        }
+        ProofApplicationReachability {
+            machines,
+            calls,
+            invocations,
+        }
     }
 }
 

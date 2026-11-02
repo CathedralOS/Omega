@@ -2,8 +2,8 @@
 //!
 //! Publication assigns fresh artifact-local ids. Distinct overloads, binders
 //! and specializations cannot alias just because their nominal names coincide.
-use crate::lowering_error::LoweringError;
 use crate::machine_lowering::declarations;
+use crate::shared::lowering_error::LoweringError;
 use checked_trees::CheckedTrees;
 use semantic_vocabulary::proof_applications::ProofCallGraph;
 use symbols::SymbolHandle;
@@ -46,11 +46,12 @@ pub(super) fn publish(
         Ok(identity)
     };
     let plan = source.try_map(&mut identity)?;
-    let calls = ProofCallGraph::capture(
+    let mut calls = ProofCallGraph::capture(
         &checked.facts.operational,
         source.machines.iter().map(|(_, row)| row.machine),
         &mut identity,
     )?;
+    retain_selected_algebra_calls(checked, &mut calls, &mut identity)?;
     let mut callables = arena::Arena::new();
     for &(source, body) in machines {
         callables.insert(terminal_psi::ProofCallableAssociation::Callable {
@@ -73,6 +74,18 @@ pub(super) fn publish(
         .iter()
         .map(|(_, header)| Ok((identity(header.machine)?, header)))
         .collect::<Result<Vec<_>, LoweringError>>()?;
+    let (recursive_components, recursive_members, recursive_calls) =
+        retain_recursive_components(checked, &mut identity)?;
+    let mut pending_evaluation_conditions = arena::Arena::new();
+    for (_, owner) in checked
+        .facts
+        .declaration_descriptions
+        .evaluation_dependencies
+        .pending_conditions
+        .iter()
+    {
+        pending_evaluation_conditions.insert(identity(*owner)?);
+    }
     drop(identity);
     headers.sort_by_key(|(declaration, _)| *declaration);
     let mut callable_headers = arena::Arena::new();
@@ -114,6 +127,7 @@ pub(super) fn publish(
             source_target: header.source_target.clone(),
             product_eligible: header.product_eligible,
             supplies_checked_body: header.supplies_checked_body,
+            compiler_evaluation: header.compiler_evaluation.clone(),
             synchronous_invocations,
         });
     }
@@ -124,9 +138,108 @@ pub(super) fn publish(
             callables,
             plan,
             calls,
+            recursive_components,
+            recursive_members,
+            recursive_calls,
+            pending_evaluation_conditions,
         },
         coordinates,
     })
+}
+
+/// Operator selection already owns the exact realization association. Preserve
+/// those execution edges after ordinary operational calls, just as compiler
+/// evaluation's Source adapter does; existing call-site ordinals stay stable.
+fn retain_selected_algebra_calls(
+    checked: &CheckedTrees,
+    graph: &mut ProofCallGraph<ProofDeclarationId>,
+    identity: &mut impl FnMut(SymbolHandle) -> Result<ProofDeclarationId, LoweringError>,
+) -> Result<(), LoweringError> {
+    let operators = &checked.facts.operators;
+    let mut selected = operators
+        .resolved_expression_selections()
+        .filter_map(|(expression, origin, _, _)| {
+            let owner = origin.machine_symbol()?;
+            let candidate = operators.selected_trait_candidate_in_machine(expression, owner)?;
+            (candidate.realization_machine_symbol.is_valid()
+                && candidate.realization_state_symbol.is_valid())
+            .then_some((owner, candidate))
+        })
+        .collect::<Vec<_>>();
+    selected.sort_by_key(|(owner, _)| (owner.arena_index(), owner.generation()));
+    let mut position = 0;
+    while position < selected.len() {
+        let owner = selected[position].0;
+        let end =
+            position + selected[position..].partition_point(|(candidate, _)| *candidate == owner);
+        let declaration = identity(owner)?;
+        if let Some((row, span)) = graph
+            .machines
+            .iter()
+            .find_map(|(handle, row)| (row.machine == declaration).then_some((handle, row.calls)))
+        {
+            let mut calls = graph.calls.span_or_empty(span).to_vec();
+            for (_, candidate) in &selected[position..end] {
+                calls.push(
+                    semantic_vocabulary::proof_applications::ProofApplicationCall {
+                        binder: ProofDeclarationId::default(),
+                        callee: identity(candidate.realization_machine_symbol)?,
+                        state: identity(candidate.realization_state_symbol)?,
+                        operator: identity(candidate.trait_requirement_symbol)?,
+                        arguments: arena::HandleSpan::empty(),
+                    },
+                );
+            }
+            graph.machines.get_mut(row).calls = graph.calls.insert_many(calls);
+        }
+        position = end;
+    }
+    Ok(())
+}
+
+fn retain_recursive_components(
+    checked: &CheckedTrees,
+    identity: &mut impl FnMut(SymbolHandle) -> Result<ProofDeclarationId, LoweringError>,
+) -> Result<
+    (
+        arena::Arena<terminal_psi::ProofCheckedRecursiveComponent>,
+        arena::Arena<ProofDeclarationId>,
+        arena::Arena<terminal_psi::ProofCheckedRecursiveCall>,
+    ),
+    LoweringError,
+> {
+    let source = &checked
+        .facts
+        .declaration_descriptions
+        .evaluation_dependencies;
+    let mut components = arena::Arena::new();
+    let mut members = arena::Arena::new();
+    let mut calls = arena::Arena::new();
+    for (_, component) in source.recursive_components.iter() {
+        let mapped_members = source
+            .recursive_members
+            .span_or_empty(component.members)
+            .iter()
+            .map(|body| identity(body.machine))
+            .collect::<Result<Vec<_>, _>>()?;
+        let mapped_calls = source
+            .recursive_calls
+            .span_or_empty(component.calls)
+            .iter()
+            .map(|call| {
+                Ok(terminal_psi::ProofCheckedRecursiveCall {
+                    caller: identity(call.caller)?,
+                    call_ordinal: call.call_ordinal,
+                    callee: identity(call.callee)?,
+                })
+            })
+            .collect::<Result<Vec<_>, LoweringError>>()?;
+        components.insert(terminal_psi::ProofCheckedRecursiveComponent {
+            members: members.insert_many(mapped_members),
+            calls: calls.insert_many(mapped_calls),
+        });
+    }
+    Ok((components, members, calls))
 }
 
 fn describe(

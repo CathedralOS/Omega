@@ -24,10 +24,10 @@ use terminal_psi::{
     TerminalModule,
 };
 
-use crate::direct_calls::direct_call_parts;
-use crate::lowering_error::LoweringError;
-use crate::lowering_error::unsupported;
-use crate::terminal_identities::hex_text;
+use crate::shared::direct_calls::direct_call_parts;
+use crate::shared::lowering_error::LoweringError;
+use crate::shared::lowering_error::unsupported;
+use crate::shared::terminal_identities::hex_text;
 
 /// Checked substitution scopes, retaining capture and invocation separately.
 struct ReachApplicationView<'a> {
@@ -897,7 +897,10 @@ fn retain_services(
                 "closed reach contract has an unknown service",
             ))?;
         let identity = identities.intern(
-            &crate::terminal_identities::service_declaration_identity(checked, definition.symbol)?,
+            &crate::shared::terminal_identities::service_declaration_identity(
+                checked,
+                definition.symbol,
+            )?,
         );
         let existing = module
             .services
@@ -921,7 +924,7 @@ fn retain_services(
                 .ok_or(LoweringError::Unsupported(
                     "closed reach service identities are exhausted",
                 ))?;
-            let id = crate::terminal_identities::service_id(next);
+            let id = crate::shared::terminal_identities::service_id(next);
             module.services.push(ServiceDeclaration {
                 id,
                 identity,

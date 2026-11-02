@@ -17,7 +17,7 @@ DIAGNOSTICS = (
     "DomainUnproven", "CrashNotDeclared", "GuaranteeUnproven", "RankUnproven",
     "ProgressUnproven", "UseAfterMove", "MoveOutOfBorrow", "LinearUnconsumed",
     "LinearOverwritten", "OverlappingArguments", "LoanConflict", "LoanEscapes",
-    "RepresentationUnproven", "WriteOnlyObservation", "RankRangeUnproven",
+    "RepresentationUnproven", "WriteOnlyObservation", "RankRangeUnproven", "RefinementUnproven",
 )
 
 
@@ -193,6 +193,34 @@ def nested_machine_cases(program: str) -> None:
     accepted(program, "terminal-existing-reference-captures-completed-observation", source)
     ordinary = source.replace(b"transition { _ -> update(cell, observe(cell)) }", b"let before: u64 = update(cell, observe(cell)); before")
     rejected(program, "returning-call-retains-ordinary-exclusive-window", ordinary, "OverlappingArguments", b"cell!7")
+
+
+def callable_contract_cases(program: str) -> None:
+    # Reuse executable fact witnesses: the product must prove the same public
+    # relation, without borrowing a concrete caller's value or supplier body.
+    root = Path(__file__).resolve().parents[3] / "samples/cli/facts/nested_machine_invocation/callable_context/contracts"
+    for path in ("main.omg", "controls/weaker_precondition/main.omg",
+                 "controls/preserves_poststate/main.omg", "controls/changes_poststate/main.omg",
+                 "owned_reference/main.omg", "forwarded/main.omg",
+                 "owned_reference/changes/main.omg", "owned_reference/eager_operands/main.omg",
+                 "returned_reference/main.omg"):
+        accepted(program, "callable-contract/" + path, (root / path).read_bytes())
+    for path, selection in (("invalid/main.omg", b"positive!2"),
+                            ("controls/weaker_guarantee/main.omg", b"positive!2"),
+                            ("controls/stale_entry/main.omg", b"provider!2"),
+                            ("owned_reference/invalid/main.omg", b"provider!2"),
+                            ("forwarded/invalid/main.omg", b"Candidate!3"),
+                            ("owned_reference/changes/invalid/main.omg", b"provider!2")):
+        rejected(program, "callable-contract/" + path, (root / path).read_bytes(),
+                 "RefinementUnproven", selection)
+    rejected(program, "callable-contract/eager-operand-stays-five",
+             (root / "owned_reference/eager_operands/invalid/main.omg").read_bytes(),
+             "RequirementUnproven", b"pair(value, setter(Holder { pointer: &mut value }))")
+    for path in ("returned_reference/invalid/main.omg",
+                 "returned_reference/controls/stale_call/main.omg",
+                 "returned_reference/controls/stale_store/main.omg"):
+        rejected(program, "callable-contract/" + path, (root / path).read_bytes(),
+                 "RequirementUnproven", b"require_five(value)")
 
 
 def invocation_component_cases(program: str) -> None:
@@ -1083,7 +1111,7 @@ def main() -> None:
     # facts and derives the crash causes the contract declares; whatever its
     # exclusive arguments reach may change. A static machine argument
     # refines the contract: its published crash causes lie within the
-    # contract's, and premises of its own reject as unsupported.
+    # contract's, and its premises must follow from the contract's.
     accepted(
         program,
         "binder-call-proves-its-contract",
@@ -1152,11 +1180,11 @@ def main() -> None:
     )
     rejected(
         program,
-        "static-machine-argument-premises-are-unsupported",
+        "static-machine-argument-premises-are-not-implied",
         b"machine positive(x: u64) -> u64\nrequires x > 0\n{ x }\n"
         b"machine apply<machine F>(x: u64) -> u64\nrequires machine F(value: u64) -> u64;\n{ F(x) }\n"
         b"machine outer(x: u64) -> u64 { apply<positive>(x) }",
-        "UnsupportedFact",
+        "RefinementUnproven",
         b"positive!2",
     )
 
@@ -1179,10 +1207,10 @@ def main() -> None:
     )
     rejected(
         program,
-        "requirement-facts-are-unsupported",
+        "requirement-guarantees-are-not-implied",
         b"trait Positive { machine get() -> u64 ensures result > 0; }\n"
         b"machine one() -> u64 satisfies Positive::get { 1 }",
-        "UnsupportedFact",
+        "RefinementUnproven",
         b"satisfies Positive::get",
     )
     # A declared domain's predicates hold of a qualified parameter and are
@@ -3487,6 +3515,7 @@ def main() -> None:
     phase_rejected(program, "resolution-rejection-has-no-observation", b"data A { x: Q; }", 248)
 
     nested_machine_cases(program)
+    callable_contract_cases(program)
     invocation_component_cases(program)
 
     slot = accepted(

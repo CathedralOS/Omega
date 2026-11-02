@@ -13,7 +13,6 @@ use super::{
     PreparedScalarQualifications, QualifiedScalarType, ScalarType, scalar_carriers, unsupported,
     validate_direct_parameter_types,
 };
-use crate::checked_facts::{flow_facts, value_facts};
 use crate::emission::operation_emission::LoweredScalarBinding;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::buffer::SourceInvocation;
@@ -26,6 +25,7 @@ use crate::scalar_lowering::branch_states::prepared::{
     LoweredScalarBranchState, LoweredScalarBranchTerminator, LoweredScalarEffect,
 };
 use crate::scalar_lowering::contracts::erased_proof_formal_declarations;
+use crate::shared::checked_facts::{flow_facts, value_facts};
 use arena::Handle;
 use checked_trees::{CheckedScalarComputation, CheckedScalarComputationKind};
 
@@ -701,7 +701,8 @@ impl<'a> Expansion<'a> {
         let target = completion_state.unwrap_or(target);
         let entry = match node.kind {
             CheckedScalarComputationKind::StorageAddress { subject, .. } => {
-                let (_, state) = crate::declarations::state_declaration(self.checked, site.state)?;
+                let (_, state) =
+                    crate::shared::declarations::state_declaration(self.checked, site.state)?;
                 let source = site
                     .bindings
                     .borrowed_structural_home(&subject, self.checked.state_parameters(state))?;

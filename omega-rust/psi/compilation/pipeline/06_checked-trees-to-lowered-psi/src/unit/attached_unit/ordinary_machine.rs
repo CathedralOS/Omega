@@ -39,14 +39,14 @@ use super::{
     CheckedUnitProviderCandidate, argument_evaluation, argument_schedule, byte_subslices,
     parameters, primitive_locals,
 };
-use crate::checked_facts::flow_facts;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::place_declarations::retain_block_parameters;
 use crate::emission::structural_byte_sequence_store::retain_literal_declarations;
 use crate::expression_preparation::qualifications::SourceScalarReturn;
 use crate::scalar_lowering::computations::produced_values::prepare;
-use crate::terminal_identities::{StructuralDomainBinding, lookup_domain_id_for_carrier};
+use crate::shared::checked_facts::flow_facts;
+use crate::shared::terminal_identities::{StructuralDomainBinding, lookup_domain_id_for_carrier};
 use crate::unit::{
     Block, CheckedTrees, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
     LoweringError, MachineContract, Operation, PlaceId, StructuralPlaceDeclaration,
@@ -239,7 +239,6 @@ pub(super) fn emit(
             checked,
             attachment,
             attachment_declaration,
-            structural_types,
             &plan.provider_attachment_requirements,
             &provider_boundaries,
             &mut next_place,
@@ -1144,7 +1143,7 @@ pub(super) fn emit(
             .typed
             .machine(plan.machine)
             .map(|machine| machine.assembly_target_requirement)
-            .ok_or(crate::lowering_error::LoweringError::Unsupported(
+            .ok_or(crate::shared::lowering_error::LoweringError::Unsupported(
                 "assembly target requirement has no checked machine",
             ))?,
         declaration: None,
@@ -1310,7 +1309,9 @@ fn lower_structural_result_declaration(
     Ok(terminal_psi::StructuralResultDeclaration {
         place,
         structural_type,
-        multiplicity: crate::terminal_identities::structural_multiplicity(result.multiplicity),
+        multiplicity: crate::shared::terminal_identities::structural_multiplicity(
+            result.multiplicity,
+        ),
         qualifications,
         projected_qualifications: parameters::lower_projected_qualifications(
             identities,

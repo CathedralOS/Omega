@@ -45,8 +45,7 @@ mod queries;
 
 pub use self::terminal::{
     CheckedAffineConstructionElementPlan, CheckedAtomicAccessPlan, CheckedAtomicEvent,
-    CheckedAtomicReadModifyWrite, CheckedBindingFieldReceipt, CheckedBindingParameterReceipt,
-    CheckedBoundaryLifetimeDependency, CheckedBoundaryMachinePlan,
+    CheckedAtomicReadModifyWrite, CheckedBoundaryLifetimeDependency, CheckedBoundaryMachinePlan,
     CheckedBoundaryMachineResultPlan, CheckedBoundaryReferenceDestination,
     CheckedBoundaryReferenceOutput, CheckedBoundaryScalarDomainRequirementPlan,
     CheckedBoundaryScalarGuarantee, CheckedByteSequenceCarrier, CheckedByteSequenceValue,
@@ -128,9 +127,9 @@ pub use ownership::{
     FlowClaimOutcomeEntryFact, FlowClaimOutcomeMapFact, FlowClaimOutcomeSource,
     FlowInstructionDispositionFact, FlowInstructionEffectReceiptFact, FlowLoanCompletionFact,
     FlowOwnedSelectionClaim, FlowOwnedSelectionReceipt, FlowOwnedSelectionSource,
-    FlowOwnedSelectionTransfer, FlowPermissionEvaluation, FlowPermissionEventFact,
-    FlowSelectionPlaceArrival, FlowSelectionPlaceBinding, FlowStorageTransferFact,
-    FlowStorageTransferSource,
+    FlowOwnedSelectionTransfer, FlowOwnedTransferPath, FlowOwnedTransferPlacement,
+    FlowPermissionEvaluation, FlowPermissionEventFact, FlowSelectionPlaceArrival,
+    FlowSelectionPlaceBinding, FlowStorageTransferFact, FlowStorageTransferSource,
 };
 pub use roots::{
     FlowBorrowLifetimeFacts, FlowBoundaryFacts, FlowContextFacts, FlowControlFacts, FlowFacts,

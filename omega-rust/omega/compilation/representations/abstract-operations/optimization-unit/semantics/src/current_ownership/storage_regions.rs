@@ -125,9 +125,7 @@ pub(crate) fn storage_cannot_retain_loan(
                     .iter()
                     .all(|case| fields_cannot_retain_loan(types, &case.fields, established))
         }
-        StructuralTypeShape::BindingCarrier
-        | StructuralTypeShape::Reference { .. }
-        | StructuralTypeShape::ElementView { .. } => false,
+        StructuralTypeShape::Reference { .. } | StructuralTypeShape::ElementView { .. } => false,
     };
     established.insert(structural_type, result);
     result

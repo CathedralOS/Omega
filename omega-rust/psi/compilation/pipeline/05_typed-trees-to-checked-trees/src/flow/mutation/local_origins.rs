@@ -10,8 +10,8 @@
 //! query must not discard unknown alternatives.
 
 use super::summary::WriteDestination;
-use crate::collections::push_unique;
 use crate::flow;
+use crate::shared::collections::push_unique;
 use facts::PlaceRoot;
 use facts::PlaceSegment;
 use typed_trees::state::State;
@@ -29,7 +29,7 @@ use crate::flow::canonical_place_segments_equal;
 use crate::flow::canonical_place_segments_may_overlap;
 use crate::flow::mutation::StorageRegion;
 use crate::flow::mutation::normalize_write_only_range_place;
-use crate::places::place_at;
+use crate::published::places::place_at;
 
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;

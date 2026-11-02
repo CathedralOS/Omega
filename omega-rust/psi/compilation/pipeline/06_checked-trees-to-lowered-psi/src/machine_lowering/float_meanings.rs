@@ -11,11 +11,11 @@ use lowered_psi::LoweredPsi;
 use semantic_vocabulary::MachineId;
 use symbols::SymbolHandle;
 
-use crate::lowering_error::LoweringError;
 use crate::proofs::float_meaning_projection::{
     lower_float_meaning_equality, lower_float_meaning_projection,
     rejoin_float_semantic_applications, resolve_direct_float_source_binding,
 };
+use crate::shared::lowering_error::LoweringError;
 
 /// Retain the checked float-meaning projections and equalities on the
 /// selected module, renumbering transitional fallback inputs densely.

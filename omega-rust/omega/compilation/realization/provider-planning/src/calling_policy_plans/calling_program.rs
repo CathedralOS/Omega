@@ -1,19 +1,17 @@
 //! Shared calling declarations, executable policies and original review coordinates.
 //!
 //! This catalog borrows the same artifact as the final Product. Publication is
-//! owned by the compiler's ordinary Psi production request. Source admission
+//! owned by the compiler's ordinary Psi production request. Canonical admission
 //! precedes each activation; retaining code
 //! grants neither invocation nor provider authority.
 
-use super::{CanonicalCallingSignature, TerminalCallingPolicyInvocation};
+use super::{CallingPolicyEvaluator, CanonicalCallingSignature, TerminalCallingPolicyInvocation};
 use calling_conventions::ValidatedBoundaryEntryPlan;
-use diagnostics::Diagnostic;
 use evaluation_accounting::{
     BuildEvaluationSponsor, BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity,
     TerminalStorageScheduleIdentity,
 };
 use semantic_vocabulary::MachineId;
-use symbols::SymbolHandle;
 use terminal_codec::CanonicalTerminalArtifact;
 
 const CALLING_EVALUATION_FUEL: u64 = 100_000;
@@ -22,6 +20,7 @@ enum CallingStorageScope<'account> {
     Policy {
         entry: MachineId,
         account: &'account evaluation_accounting::EvaluationInvocationAccount,
+        admission: &'account super::TerminalCallingPolicyAdmission,
     },
     Description,
 }
@@ -31,16 +30,21 @@ pub struct CallingProgram {
     /// Association only: this never keeps source alive or enters the interpreter.
     pub source_owner: std::sync::Weak<checked_trees::CheckedTrees>,
     pub artifact: std::sync::Arc<CanonicalTerminalArtifact>,
-    pub entries: Vec<(SymbolHandle, Result<MachineId, Vec<Diagnostic>>)>,
     pub source_records: std::sync::Arc<[checked_trees::typed_trees::SourceRecordCorrespondence]>,
+    /// Owned original review addresses and inert helper candidates. No Source
+    /// trees or service catalog are retained by this preparation.
+    pub source_preparation: std::sync::Arc<super::CallingSourcePreparation>,
+    /// Build evaluation's Terminal executor. Function identity is not part of
+    /// the catalog's equality.
+    pub evaluator: CallingPolicyEvaluator,
 }
 
 impl PartialEq for CallingProgram {
     fn eq(&self, other: &Self) -> bool {
         std::sync::Weak::ptr_eq(&self.source_owner, &other.source_owner)
             && self.artifact == other.artifact
-            && self.entries == other.entries
             && self.source_records == other.source_records
+            && self.source_preparation == other.source_preparation
     }
 }
 
@@ -59,20 +63,25 @@ impl CallingProgram {
 
     pub(crate) fn evaluate(
         &self,
-        source_policy: SymbolHandle,
-        policy: terminal_psi::TargetMachineCallable,
+        policy: &terminal_psi::CallingPolicyInstance,
         target: target::TargetProfile,
         declaration: semantic_vocabulary::CallingSignatureId,
         providers: &[backend_plan::TerminalTargetProviderPlan],
+        requester: semantic_vocabulary::compiler_evaluation::DeclarationCustody,
+        authority: Option<
+            &dyn semantic_vocabulary::compiler_evaluation::DeclarationSelectionAuthority,
+        >,
     ) -> Result<(CanonicalCallingSignature, ValidatedBoundaryEntryPlan), String> {
-        let entry = self
-            .entries
-            .iter()
-            .find(|(source, _)| *source == source_policy)
-            .ok_or("calling policy has no exact published entry")?
-            .1
-            .as_ref()
-            .map_err(|errors| format!("calling policy publication: {errors:?}"))?;
+        let declaration_root = *policy.policy_declaration.as_ref().map_err(Clone::clone)?;
+        let admission = super::admit_terminal_calling_policy(
+            &self.artifact,
+            declaration_root,
+            target,
+            providers,
+            requester,
+            authority,
+        )?;
+        let policy = *policy.policy.as_ref().map_err(Clone::clone)?;
         let measurement = EvaluationMeasurementIdentity::TerminalPsi {
             fuel_schedule: terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
             storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
@@ -108,11 +117,6 @@ impl CallingProgram {
                 policy,
             )
             .map_err(|error| format!("calling policy canonical selection: {error}"))?;
-        if selected_entry != *entry {
-            return Err(
-                "calling policy canonical body differs from its admitted source entry".into(),
-            );
-        }
         let abi = self
             .artifact
             .semantic_module()
@@ -125,16 +129,17 @@ impl CallingProgram {
             CallingStorageScope::Policy {
                 entry: selected_entry,
                 account: &account,
+                admission: &admission,
             },
             providers,
         )?;
-        let (plan, _) = super::evaluate_terminal_calling_policy(TerminalCallingPolicyInvocation {
+        let (plan, _) = (self.evaluator)(TerminalCallingPolicyInvocation {
             artifact: &self.artifact,
             entry: policy,
             target,
             signature: &canonical.policy,
             account,
-            providers,
+            admission,
         })?;
         Ok((canonical, plan))
     }
@@ -155,6 +160,7 @@ impl CallingProgram {
                 "default calling application is outside the Product declaration census".into(),
             );
         }
+        row.physical_owner.as_ref().map_err(Clone::clone)?;
         self.materialize_storage(declaration, target, CallingStorageScope::Description, &[])
     }
 
@@ -170,16 +176,73 @@ impl CallingProgram {
             target.target_name(),
             declaration,
         )?;
+        self.with_storage_extents(&demand, target, scope, providers, |extents| {
+            CanonicalCallingSignature::materialize(
+                self.artifact.semantic_module(),
+                demand.declaration().id(),
+                target,
+                extents,
+            )
+        })
+    }
+
+    /// Describe an actual borrowed formal's storage without invoking the
+    /// boundary. This uses the same scoped scalar completion as ABI geometry.
+    pub(crate) fn describe_borrowed_storage<Output>(
+        &self,
+        declaration: &semantic_vocabulary::CallingAbiIdentity,
+        target: target::TargetProfile,
+        ordinal: usize,
+        describe: impl FnOnce(
+            &dyn Fn(
+                semantic_vocabulary::ScalarApplicationId,
+            ) -> Result<u64, terminal_semantics::StorageGeometryError>,
+        ) -> Result<Output, String>,
+    ) -> Result<Output, String> {
+        let demand = terminal_installation::CallingAbiStorageDemand::new(
+            self.artifact.view(),
+            target.target_name(),
+            declaration,
+        )?
+        .with_borrowed_parameter(self.artifact.view(), ordinal)?;
+        self.with_storage_extents(
+            &demand,
+            target,
+            CallingStorageScope::Description,
+            &[],
+            describe,
+        )
+    }
+
+    fn with_storage_extents<Output>(
+        &self,
+        demand: &terminal_installation::CallingAbiStorageDemand,
+        target: target::TargetProfile,
+        scope: CallingStorageScope<'_>,
+        providers: &[backend_plan::TerminalTargetProviderPlan],
+        describe: impl FnOnce(
+            &dyn Fn(
+                semantic_vocabulary::ScalarApplicationId,
+            ) -> Result<u64, terminal_semantics::StorageGeometryError>,
+        ) -> Result<Output, String>,
+    ) -> Result<Output, String> {
         let mut extents = Vec::with_capacity(demand.applications().len());
         if !demand.applications().is_empty() {
-            let providers = backend_plan::TerminalTargetProviderSelection::from_plans(
-                providers.to_vec(),
-                self.artifact.view(),
-            )?
-            .admit(self.artifact.view(), target.target_name())
-            .map_err(|error| format!("calling ABI scalar providers: {error}"))?;
+            let default_providers;
+            let providers = match &scope {
+                CallingStorageScope::Policy { admission, .. } => admission.providers(),
+                CallingStorageScope::Description => {
+                    default_providers = backend_plan::TerminalTargetProviderSelection::from_plans(
+                        providers.to_vec(),
+                        self.artifact.view(),
+                    )?
+                    .admit(self.artifact.view(), target.target_name())
+                    .map_err(|error| format!("calling ABI scalar providers: {error}"))?;
+                    &default_providers
+                }
+            };
             let (request, mut meter) = match scope {
-                CallingStorageScope::Policy { entry, account } => {
+                CallingStorageScope::Policy { entry, account, .. } => {
                     let declaration = self
                         .artifact
                         .view()
@@ -198,7 +261,7 @@ impl CallingProgram {
                     )
                 }
                 CallingStorageScope::Description => (
-                    super::scalar_completion::CallingScalarScope::AbiStorage(&demand),
+                    super::scalar_completion::CallingScalarScope::AbiStorage(demand),
                     terminal_fuel::TerminalFuelMeter::with_allowance(CALLING_EVALUATION_FUEL),
                 ),
             };
@@ -206,7 +269,7 @@ impl CallingProgram {
                 &self.artifact,
                 target,
                 request,
-                &providers,
+                providers,
                 &mut meter,
             )?;
             for &application in demand.applications() {
@@ -225,19 +288,14 @@ impl CallingProgram {
                 extents.push((application, value));
             }
         }
-        CanonicalCallingSignature::materialize(
-            self.artifact.semantic_module(),
-            demand.declaration().id(),
-            target,
-            &|application| {
-                extents
-                    .iter()
-                    .find(|(identity, _)| *identity == application)
-                    .map(|(_, value)| *value)
-                    .ok_or(terminal_semantics::StorageGeometryError::UnresolvedExtent(
-                        application,
-                    ))
-            },
-        )
+        describe(&|application| {
+            extents
+                .iter()
+                .find(|(identity, _)| *identity == application)
+                .map(|(_, value)| *value)
+                .ok_or(terminal_semantics::StorageGeometryError::UnresolvedExtent(
+                    application,
+                ))
+        })
     }
 }

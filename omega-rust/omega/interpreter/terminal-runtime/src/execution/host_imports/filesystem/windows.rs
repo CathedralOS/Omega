@@ -1,0 +1,320 @@
+//! Exact synchronous Windows file operations in the explicit host namespace.
+//! Opaque HANDLEs belong to the private native worker. Guest identities select
+//! only resources acquired by this instance; process pseudo-handles, asynchronous
+//! requests and pointer-valued optional parameters cannot borrow its internals.
+
+use runtime_abi::NativeBorrowedStorageLayout;
+use semantic_vocabulary::IntegerValue;
+use std::collections::BTreeMap;
+use target_operations::NormalizedForeignCallBinding;
+use terminal_interpreter::{TerminalEffectRejection, TerminalProgram, TerminalScalarValue};
+use terminal_psi::BoundaryMachineDeclaration;
+
+use super::{FilesystemContext, Formal, TerminalRuntimeError, rejection};
+
+mod contracts;
+
+#[derive(Default)]
+pub(super) struct Handles {
+    entries: BTreeMap<i64, State>,
+}
+enum State {
+    Open(i64),
+    Uncertain,
+}
+
+impl Handles {
+    fn translate(&self, guest: i64) -> Result<i64, TerminalEffectRejection> {
+        match self.entries.get(&guest) {
+            Some(State::Open(native)) => Ok(*native),
+            Some(State::Uncertain) => {
+                Err(rejection("Windows handle is uncertain after failed close"))
+            }
+            // NULL is a known invalid file handle, not a private resource. The
+            // actual API produces its error. Unknown nonzero integers refuse.
+            None if guest == 0 => Ok(0),
+            None => Err(rejection(
+                "Windows file handle is outside the supplied guest namespace",
+            )),
+        }
+    }
+    fn acquire(&mut self, native: i64) -> Result<i64, TerminalEffectRejection> {
+        if native == 0 || native == -1 {
+            return Ok(native);
+        }
+        let guest = (3..=i64::MAX)
+            .find(|guest| !self.entries.contains_key(guest))
+            .ok_or_else(|| rejection("guest Windows handle namespace is exhausted"))?;
+        self.entries.insert(guest, State::Open(native));
+        Ok(guest)
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+enum Effect {
+    Acquire,
+    Use,
+    Close,
+    Duplicate,
+    Path { count: usize },
+    Pipe,
+    Query { class: u32, bytes: u32 },
+}
+
+pub(in super::super) struct Call {
+    context: FilesystemContext,
+    effect: Effect,
+    symbol: &'static [u8],
+    namespace: Result<(), &'static str>,
+}
+
+pub(super) fn admit(
+    context: &FilesystemContext,
+    program: &TerminalProgram,
+    declaration: &BoundaryMachineDeclaration,
+    binding: &NormalizedForeignCallBinding,
+    layouts: &[NativeBorrowedStorageLayout],
+) -> Result<Option<Call>, TerminalRuntimeError> {
+    if !binding
+        .import()
+        .is_some_and(|(locator, _)| locator.target() == target::TargetProfile::WindowsX64)
+        || !cfg!(all(target_os = "windows", target_arch = "x86_64"))
+    {
+        return Ok(None);
+    }
+    let Some(contract) = contracts::select(program, declaration, binding, layouts)? else {
+        return Ok(None);
+    };
+    let namespace = if context.supplied {
+        context.admit_services(program, declaration)
+    } else {
+        Err("no explicit host filesystem namespace was supplied")
+    };
+    Ok(Some(Call {
+        context: context.clone(),
+        effect: contract.effect,
+        symbol: contract.symbol,
+        namespace,
+    }))
+}
+
+fn signed(value: TerminalScalarValue) -> Result<i64, TerminalEffectRejection> {
+    match value {
+        TerminalScalarValue::Integer {
+            value: IntegerValue::Signed(value),
+            ..
+        } => {
+            i64::try_from(value).map_err(|_| rejection("Windows handle exceeds its signed carrier"))
+        }
+        _ => Err(rejection("Windows handle lost its signed scalar carrier")),
+    }
+}
+// Preserve opaque pointer bits before mapping to a small guest identity.
+fn handle_bits(value: TerminalScalarValue) -> Result<i64, TerminalEffectRejection> {
+    match value {
+        TerminalScalarValue::Integer {
+            value: IntegerValue::Unsigned(value),
+            ..
+        } => u64::try_from(value)
+            .map(|value| value as i64)
+            .map_err(|_| rejection("Windows output HANDLE exceeds its 64-bit carrier")),
+        _ => signed(value),
+    }
+}
+
+fn scalar(value: TerminalScalarValue, expected: i128) -> bool {
+    match value {
+        TerminalScalarValue::Integer {
+            value: IntegerValue::Signed(value),
+            ..
+        } => value == expected,
+        TerminalScalarValue::Integer {
+            value: IntegerValue::Unsigned(value),
+            ..
+        } => u128::try_from(expected).ok() == Some(value),
+        _ => false,
+    }
+}
+fn replace_handle(
+    mut value: TerminalScalarValue,
+    replacement: i64,
+) -> Result<TerminalScalarValue, TerminalEffectRejection> {
+    let TerminalScalarValue::Integer {
+        scalar_type,
+        value: contents,
+    } = &mut value
+    else {
+        return Err(rejection("Windows result is not a scalar handle"));
+    };
+    let replacement = match contents {
+        IntegerValue::Signed(_) => IntegerValue::Signed(i128::from(replacement)),
+        IntegerValue::Unsigned(_) => IntegerValue::Unsigned(u128::from(replacement as u64)),
+    };
+    if !scalar_type.admits(replacement) {
+        return Err(rejection(
+            "guest Windows handle exceeds its declared carrier",
+        ));
+    }
+    *contents = replacement;
+    Ok(value)
+}
+
+impl Call {
+    pub(super) fn path_argument(&self, index: usize) -> bool {
+        match self.effect {
+            Effect::Acquire => index == 0,
+            Effect::Path { count } => index < count,
+            _ => false,
+        }
+    }
+    pub(super) fn validate_path(
+        &self,
+        index: usize,
+        bytes: &[u8],
+    ) -> Result<(), TerminalEffectRejection> {
+        if self.path_argument(index)
+            && (bytes.len() != 8192 || !bytes.chunks_exact(2).any(|word| word == [0, 0]))
+        {
+            return Err(rejection(
+                "Windows path has no WCHAR terminator inside its complete captured array",
+            ));
+        }
+        Ok(())
+    }
+    pub(super) fn arguments(
+        &self,
+        arguments: &[TerminalScalarValue],
+    ) -> Result<Vec<TerminalScalarValue>, TerminalEffectRejection> {
+        self.namespace.map_err(rejection)?;
+        let invalid = || {
+            rejection(format!(
+                "Windows {} requires its exact synchronous/null/current-process inputs",
+                String::from_utf8_lossy(self.symbol)
+            ))
+        };
+        let safe = match self.symbol {
+            b"CreateFileW" => {
+                arguments.len() == 6
+                    && scalar(arguments[2], 0)
+                    && scalar(arguments[5], 0)
+                    && matches!(arguments[4], TerminalScalarValue::Integer { value: IntegerValue::Unsigned(flags), .. } if flags & 0x40000000 == 0)
+            }
+            b"DuplicateHandle" => {
+                arguments.len() == 6
+                    && scalar(arguments[0], -1)
+                    && scalar(arguments[2], -1)
+                    && scalar(arguments[3], 0)
+                    && scalar(arguments[4], 0)
+                    && scalar(arguments[5], 2)
+            }
+            b"ReadFile" | b"WriteFile" | b"SetFileTime" | b"GetFileTime" => {
+                arguments.len() == 2 && scalar(arguments[1], 0)
+            }
+            b"NtQueryInformationFile" => {
+                arguments.len() == 3 && scalar(arguments[1], 4) && scalar(arguments[2], 16)
+            }
+            b"CreatePipe" => {
+                arguments.len() == 2 && scalar(arguments[0], 0) && scalar(arguments[1], 0)
+            }
+            b"GetFileInformationByHandleEx" => matches!(self.effect, Effect::Query { class, bytes }
+                if arguments.len() == 3 && scalar(arguments[1], i128::from(class)) && scalar(arguments[2], i128::from(bytes))),
+            b"SetFilePointerEx" => {
+                arguments.len() == 3 && (0..=2).any(|method| scalar(arguments[2], method))
+            }
+            b"GetFinalPathNameByHandleW" => {
+                // Capacity counts UTF-16 code units, including room for NUL.
+                // The complete captured array is the destination; zero flags
+                // request the normalized DOS spelling. Query the owned object
+                // without replacing its handle or manufacturing a path.
+                arguments.len() == 3 && scalar(arguments[1], 4096) && scalar(arguments[2], 0)
+            }
+            b"CloseHandle" | b"GetFileType" | b"FlushFileBuffers" => arguments.len() == 1,
+            b"CreateDirectoryW" => arguments.len() == 1 && scalar(arguments[0], 0),
+            b"SetFileAttributesW" => arguments.len() == 1,
+            b"MoveFileExW" => {
+                // Replace/copy/write-through/tracking are synchronous file
+                // operations. Deferred reboot registration is a different
+                // effect; reserved/unknown flags have no admitted contract.
+                // https://learn.microsoft.com/windows/win32/api/winbase/nf-winbase-movefileexw
+                arguments.len() == 1
+                    && matches!(arguments[0], TerminalScalarValue::Integer {
+                    value: IntegerValue::Unsigned(flags), ..
+                } if flags & !0x2b == 0)
+            }
+            b"DeleteFileW" | b"RemoveDirectoryW" => arguments.is_empty(),
+            _ => false,
+        };
+        if !safe {
+            return Err(invalid());
+        }
+        let index = match self.effect {
+            Effect::Acquire | Effect::Path { .. } | Effect::Pipe => return Ok(arguments.to_vec()),
+            Effect::Duplicate => 1,
+            _ => 0,
+        };
+        let mut result = arguments.to_vec();
+        let native = self
+            .context
+            .windows
+            .borrow()
+            .translate(signed(result[index])?)?;
+        result[index] = replace_handle(result[index], native)?;
+        Ok(result)
+    }
+    pub(super) fn result(
+        &self,
+        arguments: &[TerminalScalarValue],
+        value: TerminalScalarValue,
+    ) -> Result<TerminalScalarValue, TerminalEffectRejection> {
+        match self.effect {
+            Effect::Acquire => replace_handle(
+                value,
+                self.context.windows.borrow_mut().acquire(signed(value)?)?,
+            ),
+            Effect::Close => {
+                let guest =
+                    signed(*arguments.first().ok_or_else(|| {
+                        rejection("closed Windows handle lost its guest identity")
+                    })?)?;
+                if guest != 0 {
+                    if signed(value)? != 0 {
+                        self.context.windows.borrow_mut().entries.remove(&guest);
+                    } else {
+                        self.context
+                            .windows
+                            .borrow_mut()
+                            .entries
+                            .insert(guest, State::Uncertain);
+                    }
+                }
+                Ok(value)
+            }
+            _ => Ok(value),
+        }
+    }
+    pub(super) fn output_scalar(
+        &self,
+        argument: usize,
+        value: TerminalScalarValue,
+        result: Option<TerminalScalarValue>,
+    ) -> Result<Option<TerminalScalarValue>, TerminalEffectRejection> {
+        if (matches!(self.effect, Effect::Duplicate) && argument == 0)
+            || (matches!(self.effect, Effect::Pipe) && argument < 2)
+        {
+            let status = signed(result.ok_or_else(|| {
+                rejection("HANDLE acquisition lost its native completion status")
+            })?)?;
+            if status != 0 {
+                let native = handle_bits(value)?;
+                if native == 0 || native == -1 {
+                    return Err(rejection(
+                        "successful acquisition returned no owned native HANDLE",
+                    ));
+                }
+                return replace_handle(value, self.context.windows.borrow_mut().acquire(native)?)
+                    .map(Some);
+            }
+        }
+        Ok(None)
+    }
+}

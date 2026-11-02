@@ -42,8 +42,8 @@ of `1.0`, `1065353216`.
 with `0.0f32 / 0.0f32`, the sealed `float_operations` call; `parameter` carries
 it into the entry's own argument; `call_result` returns it from `identity`;
 `match_join` joins two arms that agree on the value; `const_name` reads the
-`2143289344` bits; `target_body` repeats the forwarding machine for each of the
-four targets and `main` observes NaN through all four.
+`2143289344` bits; `target_body` calls the Build-selected `SelectedForward::forward`, and `main`
+observes NaN through it.
 
 Pinned corpus fixtures are `pass/facts/crash_entry_nan_equality_through_<place>_exit`
 and `fail/facts/crash_entry_nan_equality_through_<place>_rejected` for the nine
@@ -61,6 +61,10 @@ local with `1.0`, which makes `value == value` true, so the route stays uncovere
 (`call from `read_nan` to `maybe_ordered` at statement 3 call 0`).
 
 
+## Selected target body
+
+`target_body` selects its `forward` through Build. `SelectedForward` is a boundary trait whose one member publishes the same conditional `crashes Trap` route as the callee; `X86Forward` and `ArmForward` satisfy it, and `build.omg` picks one per target with `Build::select_provider`. The public reader therefore publishes `reaches SelectedForward invokes SelectedForward`, and the caller discharges the selected member's route from the entry fact without a crash ceiling of its own. Each entry first calls `SelectedBodyCheck::require_tag` with its target's tag, so a wrong selection traps in both engines: selecting `ArmBodyCheck` for `windows_x86_64` gave native exit `-1073741795` and `interp crash: Trap`. The reject twins differ from the positive only in the entry requirement and reject at the selected `forward` call.
+
 ## Requirements and Evidence
 
 - **Establishment:** the entry `f32` arrives NaN from the sealed
@@ -75,7 +79,7 @@ local with `1.0`, which makes `value == value` true, so the route stays uncovere
   (`parameter`), the `identity` return (`call_result`), two agreeing match arms
   (`match_join`), the const's bits (`const_name`), the successor machine's
   parameter (`other_state`), `forward`'s parameter (`other_machine`) and the
-  four target-qualified `forward` bodies (`target_body`). No storage holding
+  Build-selected `forward` implementation (`target_body`). No storage holding
   that record is written between entry and guard.
 - **Composition:** every place copies the one fact sentence, and the consuming
   operation is the guard plus `main`'s `observed != observed`. The nine twin
@@ -91,7 +95,8 @@ local with `1.0`, which makes `value == value` true, so the route stays uncovere
   (`interpreter exit: 0`, `native exit 0`).
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):**
   each place's `build.omg` binds `ProgramEntry` for the four hosted targets;
-  `target_body` carries a target-qualified `forward` machine per target; the
+  `target_body` selects `X86Forward` or `ArmForward` per target with
+  `Build::select_provider`; the
   `f32` entry scalar and the `Packet { value, marker }` field placement come
   from the layout plan.
 - **Instruction selection, register homes, and activation frame realization
@@ -103,6 +108,10 @@ local with `1.0`, which makes `value == value` true, so the route stays uncovere
   (`Omega 07–09` + emission):** direct images execute and agree with the
   interpreter across the four hosted targets; `macos_arm64` is measured on the
   recording host, `windows_x86_64` is retained from the row's own recording.
+
+## Repair record
+
+On base `05a6f6af37e` (Windows x86-64, opt-level 1) `const_name`, the place that reads the NaN through an `i32`-to-`f32` view, refused at checking with `` call from `read_nan` to `maybe_ordered` at statement 2 call 0 has an uncovered Trap crash route ``, as the corpus golden recorded (`regressed-from:checked` at `ccdb99ca2214`), and every place refused provider settlement for its float comparison. After both repairs all nine places exit 0 natively and in Terminal Psi on Windows x86-64, and all nine twins reject with `has an uncovered Trap crash route`.
 
 ## Recorded runs
 

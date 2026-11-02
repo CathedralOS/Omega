@@ -21,7 +21,7 @@ use crate::execution::terminal_unit::types::{
     structural_access_for_type_reference,
 };
 use crate::flow::expressions;
-use crate::places::place_at;
+use crate::published::places::place_at;
 use checked_trees::BorrowFacts;
 use checked_trees::CheckedOperatorFacts;
 use checked_trees::CheckedScalarComputationPlans;
@@ -128,7 +128,7 @@ pub(crate) fn structural_computation_argument(
         // Whole and projected operands name the same established home. The
         // typed path, not name-expression syntax, selects the transferred
         // subtree; ownership events separately supply its live claims.
-        return owned_argument(
+        return storage_argument(
             program,
             shapes,
             machine,
@@ -136,6 +136,7 @@ pub(crate) fn structural_computation_argument(
             call.statement_index,
             &place,
             target,
+            CheckedStructuralAccess::Owned,
             selectors,
         );
     }
@@ -689,10 +690,10 @@ pub(in crate::execution) fn borrowed_view_argument(
     })
 }
 
-/// Resolve the established home first, then apply one owned-storage contract.
-/// Copying snapshots contents; affine arguments move at the exact call occurrence.
-/// Neither operation acquires disposal authority from its storage classification.
-pub(crate) fn owned_argument(
+/// Preserve one established home for an owned transfer or shared observation.
+/// The selected access determines whether reference crossings are permitted;
+/// neither representation nor initialization grants copying or disposal authority.
+pub(crate) fn storage_argument(
     program: &dyn ::validation::CheckingInput,
     shapes: &mut crate::execution::terminal_unit::types::ShapeCollector<'_>,
     machine: SymbolHandle,
@@ -700,11 +701,17 @@ pub(crate) fn owned_argument(
     statement_index: usize,
     place: &CanonicalPlace,
     target: &StateParameter,
+    access: CheckedStructuralAccess,
     selectors: Option<&dyn Fn(ExpressionHandle) -> Option<CheckedUnitStructuralPathSegment>>,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
-    // `mut value: T` changes the callee's binding, not the transfer's access.
-    // Source admission and the exact call roster own the move; the owned
-    // storage/type/path checks below still exclude every borrowed referent.
+    // The caller chooses a move or a temporary shared observation. Source
+    // admission owns that authority; representation preserves its exact home.
+    if !matches!(
+        access,
+        CheckedStructuralAccess::Owned | CheckedStructuralAccess::SharedBorrow
+    ) {
+        return None;
+    }
     let parameters = program.state_parameters(state);
     let source_symbol = place.root.as_symbol()?;
     let (source, source_type) = if let Some(position) = parameters
@@ -737,13 +744,32 @@ pub(crate) fn owned_argument(
             local.type_reference,
         )
     };
-    // Owned projection cannot cross a reference to acquire someone else's
-    // referent. The root and endpoint both retain owned storage contracts.
-    if structural_access_for_type_reference(program, source_type)? != CheckedStructuralAccess::Owned
+    let source_access = structural_access_for_type_reference(program, source_type)?;
+    if source_access != CheckedStructuralAccess::Owned
+        && !(access == CheckedStructuralAccess::SharedBorrow
+            && matches!(
+                source_access,
+                CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow
+            ))
     {
         return None;
     }
-    let (selected_type, path) = projected_evaluated_path(
+    // Ownership cannot cross a reference. Shared observation may attenuate
+    // a readable input loan, but every crossed shell keeps its read authority.
+    for length in 0..=place.segments.len() {
+        let mut reference = validation::project_type_reference_from_segments(
+            program,
+            source_type,
+            &place.segments[..length],
+        )?;
+        while let Some(shell) = reference_shell(program, reference) {
+            if access == CheckedStructuralAccess::Owned || !shell.access.is_readable() {
+                return None;
+            }
+            reference = shell.referee;
+        }
+    }
+    let (mut selected_type, mut path) = projected_evaluated_path(
         program,
         machine,
         state.symbol,
@@ -751,9 +777,17 @@ pub(crate) fn owned_argument(
         place,
         selectors,
     )?;
-    if path
-        .iter()
-        .any(|segment| matches!(segment, CheckedUnitStructuralPathSegment::Referent))
+    while let Some(shell) = reference_shell(program, selected_type) {
+        if access == CheckedStructuralAccess::Owned || !shell.access.is_readable() {
+            return None;
+        }
+        path.push(CheckedUnitStructuralPathSegment::Referent);
+        selected_type = shell.referee;
+    }
+    if access == CheckedStructuralAccess::Owned
+        && path
+            .iter()
+            .any(|segment| matches!(segment, CheckedUnitStructuralPathSegment::Referent))
     {
         return None;
     }
@@ -787,7 +821,7 @@ pub(crate) fn owned_argument(
         source,
         path,
         type_identity,
-        access: CheckedStructuralAccess::Owned,
+        access,
     })
 }
 

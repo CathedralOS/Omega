@@ -17,8 +17,7 @@ mod work;
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 use register_model::ValidatedPhysicalRegisterModel;
 
-use machine_code::ResolvedSelectedFunctionLayout;
-use selected_form_encoding_to_resolved_layout::StagedOptimizedResolvedSelectedFormLayout;
+use machine_code::{ResolvedMachineLayout, ResolvedSelectedFunctionLayout};
 
 use super::{
     StagedOptimizedX86BranchRelaxation, X86BranchRelaxationAction, X86BranchRelaxationAttempt,
@@ -55,7 +54,7 @@ pub(super) fn malformed(
 /// The roots every revision and artifact identity is bound to. The producer
 /// takes them as data, so it needs no staged carrier and is exercisable on a
 /// bare function roster.
-fn revision_roots(source: &StagedOptimizedResolvedSelectedFormLayout) -> RevisionRoots {
+fn revision_roots(source: &ResolvedMachineLayout) -> RevisionRoots {
     RevisionRoots {
         source: source.identity(),
         selected: source.selected(),
@@ -66,7 +65,7 @@ fn revision_roots(source: &StagedOptimizedResolvedSelectedFormLayout) -> Revisio
 }
 
 pub(super) fn compute_relaxation(
-    source: &StagedOptimizedResolvedSelectedFormLayout,
+    source: &ResolvedMachineLayout,
     physical: &ValidatedPhysicalRegisterModel,
     budget: OptimizationWorkBudget,
 ) -> Result<StagedOptimizedX86BranchRelaxation, OptimizedX86BranchRelaxationError> {

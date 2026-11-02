@@ -11,7 +11,7 @@ use super::cleanup_dispositions::RemainingCustody;
 use super::linear_obligations::LinearPlace;
 use super::linear_obligations::type_reference_is_reference;
 use crate::checks::type_multiplicity;
-use crate::places::place_at;
+use crate::published::places::place_at;
 use checked_trees::{
     CheckFacts, ContextualCleanupDisposition, ContextualCleanupFacts, FlowPermissionEventFact,
 };

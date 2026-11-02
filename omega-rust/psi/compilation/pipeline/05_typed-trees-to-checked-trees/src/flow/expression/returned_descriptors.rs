@@ -279,7 +279,7 @@ impl Execution<'_, '_, '_> {
                 continue;
             }
             let path = self.returned_slot_path(returned, &source.result_path)?;
-            crate::collections::push_unique(&mut paths, path);
+            crate::shared::collections::push_unique(&mut paths, path);
         }
         Some(paths)
     }

@@ -2,7 +2,7 @@
 //! installed slots and returned descriptors use this operation; neither may
 //! replay an initializer or confuse a descriptor cell with its pointee.
 use super::Execution;
-use crate::places::place_at;
+use crate::published::places::place_at;
 use arena::Handle;
 use checked_trees::{FlowOperandFact, FlowStorageSnapshot};
 use facts::PlaceSegment;

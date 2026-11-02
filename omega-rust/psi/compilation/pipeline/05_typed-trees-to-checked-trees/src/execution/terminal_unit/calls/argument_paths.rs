@@ -1,10 +1,8 @@
 //! Checked scalar arguments and projected argument paths: field and index
-//! paths, projected call support, contract mentions and crash expressions.
+//! paths and exactly retained argument carriers.
 
 use super::super::types::parameter_is_root;
 use super::boundary_admission::fixed_byte_array_view_is_admitted;
-use super::view_subslice::is_view_subslice;
-use crate::execution::terminal_unit::cleanup::machine_has_content_evidence;
 use crate::execution::terminal_unit::types::byte_sequence_carrier;
 use crate::execution::terminal_unit::types::{
     base_type_identity, byte_sequence_type_identity, dense_scalar_parameter_index,
@@ -15,11 +13,9 @@ use crate::execution::terminal_unit::{
     CheckedStructuralAccess as StructuralAccess, CheckedStructuralScalarParameterPlan,
     CheckedUnitCallCoordinate as CallCoordinate, CheckedUnitStructuralArgumentPlan as ArgumentPlan,
     CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralPathSegment as PathSegment,
-    Multiplicity, SignatureContractKind, StateParameter, StatementNode, SymbolHandle,
-    TypeReferenceHandle, TypeReferenceNode,
+    Multiplicity, StatementNode, SymbolHandle, TypeReferenceHandle, TypeReferenceNode,
 };
 use crate::flow::{expressions, state_statements};
-use crate::places::place_at;
 use crate::values::lower_unit_scalar_argument;
 use crate::values::scalar_expression_type;
 use checked_trees::CheckedByteSequenceCarrier;
@@ -33,20 +29,16 @@ use checked_trees::CheckedRuntimeIndex;
 use checked_trees::CheckedScalarExpression;
 use checked_trees::CheckedStructuralParameterField;
 use checked_trees::CheckedStructuralPredicatePathSegment;
-use checked_trees::CrashRouteGuard;
 use facts::PlaceRoot;
 use facts::PlaceSegment;
 use language_semantics::ReferenceAccess;
 use typed_trees::data::DataMember;
-use typed_trees::domain::ProofMembershipFact;
 use typed_trees::expression::ExpressionHandle;
-use typed_trees::machine::Machine;
 use typed_trees::signature::state_parameter_position;
 use typed_trees::state::State;
 use typed_trees::type_identity::TypeIdentityId;
 use typed_trees::types::FixedArrayLength;
 use typed_trees::types::PrimitiveType;
-use typed_trees::types::TypeConstraintNode;
 use validation::CanonicalPlace;
 use validation::canonical_place_from_expression;
 use validation::canonical_place_type_reference;
@@ -1005,188 +997,6 @@ fn byte_array_range_path(
         end: u64::try_from(end).ok()?,
     });
     Some((backing_type, path))
-}
-
-/// Argument formation owns storage identity, path geometry, exact access and
-/// transfer/loan custody. Do not classify them again by the caller's state
-/// count, sibling arguments, or the callee's result/body shape here. This join
-/// retains the remaining content-contract limitation: executing a projection
-/// cannot invent the missing correspondence for a content-qualified contract.
-pub(crate) fn projected_call_contracts_are_represented(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
-    caller_machine: &Machine,
-    caller_state: &State,
-    target_machine: &Machine,
-    target_state: &State,
-    arguments: &[ArgumentPlan],
-) -> bool {
-    let projected =
-        |argument: &ArgumentPlan| !argument.path.is_empty() && !is_view_subslice(argument);
-    if !arguments.iter().any(projected) {
-        return true;
-    }
-    let parameters = program
-        .state_parameters(target_state)
-        .iter()
-        .filter(|parameter| {
-            !parameter.relevance.is_erased()
-                && program
-                    .primitive_type_reference(parameter.type_reference)
-                    .is_none()
-        })
-        .collect::<Vec<_>>();
-    if parameters.len() != arguments.len() || !target_machine.supplies_checked_body() {
-        return false;
-    }
-    let has_content_evidence = |machine, state| machine_has_content_evidence(facts, machine, state);
-    let content_evidence = has_content_evidence(caller_machine.symbol, caller_state.symbol)
-        || has_content_evidence(target_machine.symbol, target_state.symbol);
-    arguments
-        .iter()
-        .zip(parameters)
-        .all(|(argument, parameter)| {
-            if !projected(argument) {
-                return true;
-            }
-            // A retained result loan keeps its represented referent predicates;
-            // it does not transfer the content-qualified owner's value.
-            let retained_loan = argument
-                .source_structural_result_binding_ordinal()
-                .is_some()
-                && argument.access != StructuralAccess::Owned;
-            structural_access_for_type_reference(program, parameter.type_reference)
-                == Some(argument.access)
-                && (retained_loan
-                    || (!content_evidence
-                        && !target_contract_mentions_projected_parameter(
-                            program,
-                            facts,
-                            target_machine,
-                            target_state,
-                            parameter,
-                        )))
-        })
-}
-
-pub(crate) fn target_contract_mentions_projected_parameter(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
-    target_machine: &Machine,
-    target_state: &State,
-    parameter: &StateParameter,
-) -> bool {
-    let expected_root = parameter.symbol;
-    let runtime_arithmetic_requires_are_terminal = facts
-        .contract_plans
-        .for_machine(target_machine.symbol)
-        .is_some_and(|contract| {
-            contract.crash.uses_structural_proof_gated_arithmetic()
-                && contract.crash.structural_runtime_requirements().is_some()
-        });
-    let authored_contract_mentions_parameter = program
-        .state_contracts(target_state)
-        .iter()
-        .filter(|contract| match contract.kind {
-            SignatureContractKind::Crashes { .. } => false,
-            SignatureContractKind::Requires if runtime_arithmetic_requires_are_terminal => false,
-            SignatureContractKind::Requires
-            | SignatureContractKind::Ensures
-            | SignatureContractKind::EnsuresForResultCase { .. } => true,
-        })
-        .flat_map(|contract| {
-            program
-                .proof_facts
-                .span_or_empty(contract.facts)
-                .iter()
-                .map(move |fact| {
-                    (
-                        matches!(contract.kind, SignatureContractKind::Requires),
-                        fact,
-                    )
-                })
-        })
-        .any(|(requires, fact)| {
-            let Some(membership) = fact.as_membership() else {
-                return false;
-            };
-            place_at(program, target_state.symbol, 0, membership.value).is_some_and(|place| {
-                (place.root == PlaceRoot::Symbol(expected_root)
-                    || place.root == PlaceRoot::Symbol(parameter.symbol))
-                    && !(requires
-                        && place.segments.is_empty()
-                        && parameter_qualification_carries_membership(
-                            program, parameter, membership,
-                        ))
-            })
-        });
-    if authored_contract_mentions_parameter {
-        return true;
-    }
-
-    facts
-        .contract_plans
-        .for_machine(target_machine.symbol)
-        .is_some_and(|contract| {
-            contract.crash.published().iter().any(|bucket| {
-                bucket.alternative_guards().iter().any(|guard| match guard {
-                    CrashRouteGuard::Truth => false,
-                    CrashRouteGuard::Predicate(predicate) => {
-                        // Checked predicates retain every formal and typed
-                        // projection. Terminal substitution rebases those
-                        // roots onto the actuals; source member spelling and
-                        // a hard-coded first parameter supply no extra proof.
-                        predicate.scalar_expression().is_none()
-                    }
-                })
-            })
-        })
-}
-
-/// A declared root qualification also appears as a source requires fact.
-/// Argument formation already retains and checks that exact domain; projecting
-/// the actual does not create a second contract obligation or membership grant.
-/// Indexed families use their normalized instance identity, not the family's
-/// declaration identity or an empty-argument restriction.
-/// Extra authored memberships and all exit contracts still need their own
-/// represented correspondence. This is independent of the carrier's storage.
-fn parameter_qualification_carries_membership(
-    program: &dyn ::validation::CheckingInput,
-    parameter: &StateParameter,
-    membership: &ProofMembershipFact,
-) -> bool {
-    if !membership.semantic_domain.is_valid()
-        || program
-            .domain_definition(membership.domain_symbol)
-            .is_none()
-    {
-        return false;
-    }
-    let mut reference = parameter.type_reference;
-    loop {
-        match program.type_reference_table.type_reference(reference) {
-            TypeReferenceNode::Reference { referee, .. } => reference = *referee,
-            TypeReferenceNode::Constrained {
-                base_type,
-                constraints,
-            } => {
-                if program
-                    .type_reference_table
-                    .constraints(*constraints)
-                    .iter()
-                    .any(|constraint| {
-                        matches!(constraint, TypeConstraintNode::Domain(domain)
-                        if domain.symbol == membership.domain_symbol
-                            && domain.semantic_id == membership.semantic_domain)
-                    })
-                {
-                    return true;
-                }
-                reference = *base_type;
-            }
-            _ => return false,
-        }
-    }
 }
 
 pub(crate) fn byte_sequence_literal_argument(

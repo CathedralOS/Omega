@@ -155,11 +155,18 @@ pub struct CallTargetIndex {
 
 /// Write-frame isolation verdicts. The verdict keys are all program-owned
 /// handle types, so the memo lives on the program: `isolation` answers
-/// handle-plus-flag questions, `storage_match` handle pairs, and `reference_free` /
+/// handle-plus-flag-and-binding-frame questions, `storage_match` handle pairs, and `reference_free` /
 /// `carry_write` handle-plus-binding-frame questions.
 #[derive(Clone, Default)]
 pub struct IsolationVerdicts {
-    pub isolation: HashMap<(TypeReferenceHandle, bool), bool>,
+    pub isolation: HashMap<
+        (
+            TypeReferenceHandle,
+            bool,
+            Vec<(SymbolHandle, TypeReferenceHandle)>,
+        ),
+        bool,
+    >,
     pub storage_match: HashMap<(TypeReferenceHandle, TypeReferenceHandle), bool>,
     pub reference_free: HashMap<
         (

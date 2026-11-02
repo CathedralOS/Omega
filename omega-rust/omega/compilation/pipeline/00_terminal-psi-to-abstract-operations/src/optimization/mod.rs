@@ -1,6 +1,6 @@
 //! Optimizer module role: executable entrance. Optimizer-input entrance:
 //! reconstruct the complete unit seed, bind admitted proof facts and questions,
-//! then seal the unit beside the verifier-owned input context. Stage 01
+//! then seal the unit beside the verifier-owned input context. Omega 01
 //! reconstructs current ownership from this unit before running any pass.
 
 mod error;
@@ -35,7 +35,7 @@ pub fn build_verified_psi_optimization_unit(
 /// The canonical Terminal product carries executable obligations and relies
 /// on the source checker for logical discharge. Reconstruct every primitive
 /// obligation from its exact operation or successor owner here, including
-/// nested runtime paths and aggregate receiving sites. A private stage-05
+/// nested runtime paths and aggregate receiving sites. A private Psi 06
 /// marker roster is neither a portable input nor a second admission channel.
 /// Source checking establishes safety; this projection preserves its owner.
 fn source_checked_obligation_facts(

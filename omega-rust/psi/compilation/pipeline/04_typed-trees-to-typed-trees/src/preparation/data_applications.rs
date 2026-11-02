@@ -383,6 +383,15 @@ fn elaborate_application(program: &mut TypedTrees, reference: TypeReferenceHandl
         instantiated.push(member);
     }
     let mut application = template;
+    // The declaration's selection is open over its binders. Specialization
+    // closed this carrier's own application; the view reads that one.
+    if application.cleanup_selection.is_some()
+        && let Some(selection) = program
+            .applied_data_cleanup_selection(application.symbol, reference)
+            .copied()
+    {
+        application.cleanup_selection = Some(selection);
+    }
     if application.predicate_subject_type.is_valid() {
         application.predicate_subject_type = instantiate_type(
             program,

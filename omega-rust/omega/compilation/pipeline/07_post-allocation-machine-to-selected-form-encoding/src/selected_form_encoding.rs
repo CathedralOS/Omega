@@ -6,9 +6,9 @@
 //! it just produced (verification placement in `omega-rust/pipeline.md`).
 
 use register_model::ValidatedPhysicalRegisterModel;
-use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
+use selected_instructions::CurrentSelectedProgram;
 
-use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
+use physical_instructions::PostAllocationMachinePlan;
 
 mod compute;
 mod error;
@@ -25,9 +25,9 @@ use physical_instructions::{
 };
 
 /// Encode the current physical instructions.
-pub fn stage_optimized_layout_independent_selected_form_encoding<S: ValidatedSelectedAnalysis>(
-    selected: &S,
-    machine: &StagedOptimizedPostAllocationMachinePlan,
+pub fn stage_optimized_layout_independent_selected_form_encoding(
+    selected: CurrentSelectedProgram<'_>,
+    machine: &PostAllocationMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,
     frame: Option<&machine_code::TargetFrameLayoutPlan>,
 ) -> Result<StagedOptimizedSelectedFormEncoding, OptimizedSelectedFormEncodingError> {
@@ -39,11 +39,9 @@ pub fn stage_optimized_layout_independent_selected_form_encoding<S: ValidatedSel
 
 /// Replay the canonical selected-form encoding join against all retained
 /// selected, physical-machine, and exact frame roots.
-pub fn validate_optimized_layout_independent_selected_form_encoding<
-    S: ValidatedSelectedAnalysis,
->(
-    selected: &S,
-    machine: &StagedOptimizedPostAllocationMachinePlan,
+pub fn validate_optimized_layout_independent_selected_form_encoding(
+    selected: CurrentSelectedProgram<'_>,
+    machine: &PostAllocationMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,
     frame: Option<&machine_code::TargetFrameLayoutPlan>,
     artifact: &StagedOptimizedSelectedFormEncoding,

@@ -1,4 +1,4 @@
-use crate::places::place_at;
+use crate::published::places::place_at;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
 use super::super::expressions::ensured_call_result_bounds;

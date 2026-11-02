@@ -20,24 +20,68 @@ pub enum CanonicalProviderDeclaration {
     Operator { owner: String, callable: String },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PreparedProviderRealizations<Owner = ()> {
     pub provider_declaration: Option<String>,
     pub row_numeric_realizations: Vec<Option<String>>,
     pub owner: Owner,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PreparedProviderCandidate<Owner = ()> {
     pub choice: ProviderCandidate<
         CanonicalProviderDeclaration,
         Result<PreparedProviderRealizations<Owner>, Vec<Diagnostic>>,
     >,
     pub schema_owner: String,
+    /// Inherited coverage does not itself demand a descendant's root slot.
+    pub inherited_owners: Vec<String>,
     pub explicitly_selected: bool,
 }
 
-#[derive(Debug, Clone)]
+impl<Owner> PreparedProviderCandidate<Owner> {
+    fn accepts_choice<Origin>(
+        &self,
+        choice: &ProviderDeclaration<CanonicalProviderDeclaration, Origin>,
+    ) -> bool {
+        if choice
+            .subject
+            .selects_plan(&self.choice.declarations.schema, &self.choice.plan)
+        {
+            return true;
+        }
+        let crate::ProviderSubject::BoundaryTrait(identity) = &choice.subject else {
+            return false;
+        };
+        let Ok(CanonicalProviderDeclaration::Trait(owner)) = &identity.declaration else {
+            return false;
+        };
+        // Parent choice relevance uses the same complete receiver application
+        // the whole plan supplies. The exact nominal join precedes export-key
+        // comparison; a display path cannot invent another receiver owner.
+        self.inherited_owners.contains(owner)
+            && self
+                .choice
+                .plan
+                .schema
+                .declaration
+                .receiver_applications
+                .iter()
+                .any(|receiver| {
+                    let schema = &self.choice.plan.schema;
+                    receiver.trait_package_identity == identity.package
+                        && schema.identity_text(receiver.trait_name) == identity.canonical_path
+                        && identity
+                            .application_identity
+                            .as_deref()
+                            .is_none_or(|application| {
+                                schema.identity_text(receiver.application) == application
+                            })
+                })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PreparedTargetChoices<Owner = (), Origin = ()> {
     pub application_roots: Option<Vec<CanonicalProviderDeclaration>>,
     pub profile: target::TargetProfile,
@@ -45,6 +89,15 @@ pub struct PreparedTargetChoices<Owner = (), Origin = ()> {
     pub defaults: Vec<ProviderDeclaration<CanonicalProviderDeclaration, Origin>>,
     pub overrides: Vec<ProviderDeclaration<CanonicalProviderDeclaration, Origin>>,
     pub independent_components: Vec<std::sync::Arc<component_description::VerifiedComponent>>,
+}
+
+/// Product selection includes authored deployment roots and explicit choices.
+/// A compiler invocation demands only its executable call closure: unrelated
+/// Product bindings remain available choices, never extra invocation roots.
+#[derive(Clone, Copy)]
+pub enum ProviderApplicationDemand<'roots> {
+    Product(Option<&'roots [terminal_psi::ProofDeclarationId]>),
+    Invocation(&'roots [terminal_psi::ProofDeclarationId]),
 }
 
 /// The whole canonical choice and its exact original candidate/declaration
@@ -55,6 +108,9 @@ pub struct SelectedTargetProviders<Owner, Origin> {
     /// The fixed point's required candidate schemas, independently of which
     /// whole map wins. Later review must not demand dormant source uses.
     pub demanded_plans: Vec<effects::provider_plan::ProviderPlan>,
+    /// Exact calls reached by this demand after the provider fixed point.
+    /// These declaration coordinates describe demand, never invocation authority.
+    pub invoked_declarations: Vec<terminal_psi::ProofDeclarationId>,
     pub choices: Vec<crate::SelectedProvider<CanonicalProviderDeclaration, Owner, Origin>>,
 }
 
@@ -116,6 +172,7 @@ impl<Owner, Origin> PreparedTargetChoices<Owner, Origin> {
                             }),
                         },
                         schema_owner: candidate.schema_owner,
+                        inherited_owners: candidate.inherited_owners,
                         explicitly_selected: candidate.explicitly_selected,
                     }
                 })
@@ -205,7 +262,7 @@ impl PreparedTargetProviderPublication {
                         }
                         prepared.select(
                             artifact,
-                            application_roots.as_deref(),
+                            ProviderApplicationDemand::Product(application_roots.as_deref()),
                             &self.assumed_bindings,
                         ).map(|selected| selected.selection)
                     })
@@ -247,22 +304,54 @@ impl<Owner: Clone, Origin: Clone + Eq> PreparedTargetChoices<Owner, Origin> {
     pub fn select(
         self,
         artifact: terminal_codec::TerminalArtifactView<'_>,
-        roots: Option<&[terminal_psi::ProofDeclarationId]>,
+        demand: ProviderApplicationDemand<'_>,
         assumed_bindings: &[effects::AssumedBindingContractSelection],
     ) -> Result<SelectedTargetProviders<Owner, Origin>, Vec<Diagnostic>> {
         let mut demanded = vec![false; self.candidates.len()];
         let mut previous = describe_selection::<Owner, Origin>(&[], artifact, assumed_bindings)?;
         loop {
-            self.extend_application_demand(artifact, roots, &previous, &mut demanded)?;
-            let candidates = self
+            let invoked_declarations =
+                self.extend_application_demand(artifact, demand, &previous, &mut demanded)?;
+            let candidates: Vec<_> = self
                 .candidates
                 .iter()
                 .zip(&demanded)
                 .filter(|(_, demanded)| **demanded)
                 .map(|(candidate, _)| candidate.choice.clone())
                 .collect();
-            let selected =
-                crate::choose(candidates, self.profile, &self.defaults, &self.overrides)?;
+            let invocation_defaults;
+            let invocation_overrides;
+            let (defaults, overrides) = match demand {
+                ProviderApplicationDemand::Product(_) => (&self.defaults[..], &self.overrides[..]),
+                ProviderApplicationDemand::Invocation(_) => {
+                    // Keep invalid choices for every demanded schema too. A
+                    // missing requested provider is a refusal, not permission
+                    // to fall back to another available implementation.
+                    let relevant = |choice: &&ProviderDeclaration<
+                        CanonicalProviderDeclaration,
+                        Origin,
+                    >| {
+                        self.candidates
+                            .iter()
+                            .zip(&demanded)
+                            .any(|(candidate, needed)| *needed && candidate.accepts_choice(choice))
+                    };
+                    invocation_defaults = self
+                        .defaults
+                        .iter()
+                        .filter(relevant)
+                        .cloned()
+                        .collect::<Vec<_>>();
+                    invocation_overrides = self
+                        .overrides
+                        .iter()
+                        .filter(relevant)
+                        .cloned()
+                        .collect::<Vec<_>>();
+                    (&invocation_defaults[..], &invocation_overrides[..])
+                }
+            };
+            let selected = crate::choose(candidates, self.profile, defaults, overrides)?;
             let proposed = describe_selection(&selected, artifact, assumed_bindings)?;
             if proposed == previous {
                 // Intermediate choices discover calls, not evidence. Admit the
@@ -304,6 +393,7 @@ impl<Owner: Clone, Origin: Clone + Eq> PreparedTargetChoices<Owner, Origin> {
                         .map(|(candidate, _)| candidate.choice.plan.clone())
                         .collect(),
                     choices,
+                    invoked_declarations,
                 });
             }
             previous = proposed;
@@ -313,10 +403,10 @@ impl<Owner: Clone, Origin: Clone + Eq> PreparedTargetChoices<Owner, Origin> {
     fn extend_application_demand(
         &self,
         artifact: terminal_codec::TerminalArtifactView<'_>,
-        roots: Option<&[terminal_psi::ProofDeclarationId]>,
+        demand: ProviderApplicationDemand<'_>,
         selected: &backend_plan::TerminalTargetProviderSelection,
         demanded: &mut [bool],
-    ) -> Result<(), Vec<Diagnostic>> {
+    ) -> Result<Vec<terminal_psi::ProofDeclarationId>, Vec<Diagnostic>> {
         let module = artifact.module();
         let scope = &module.scalar_applications.proof_scope;
         let declaration = |callable| {
@@ -326,14 +416,18 @@ impl<Owner: Clone, Origin: Clone + Eq> PreparedTargetChoices<Owner, Origin> {
                 )]
             })
         };
-        let mut roots = roots.map(<[_]>::to_vec);
+        let mut roots = match demand {
+            ProviderApplicationDemand::Product(roots) => roots.map(<[_]>::to_vec),
+            ProviderApplicationDemand::Invocation(roots) => Some(roots.to_vec()),
+        };
         let mut edges = Vec::new();
         for row in &selected.checked_candidates {
             let requirement =
                 declaration(terminal_psi::TargetMachineCallable::Boundary(row.boundary))?;
             let body = declaration(terminal_psi::TargetMachineCallable::Machine(row.candidate))?;
             edges.push((requirement, body));
-            if let Some(roots) = &mut roots
+            if matches!(demand, ProviderApplicationDemand::Product(_))
+                && let Some(roots) = &mut roots
                 && !roots.contains(&body)
             {
                 roots.push(body);
@@ -356,10 +450,21 @@ impl<Owner: Clone, Origin: Clone + Eq> PreparedTargetChoices<Owner, Origin> {
                 declaration(terminal_psi::TargetMachineCallable::Boundary(supplied))?,
             ));
         }
-        let mut calls = scope
-            .applications()
-            .reachability(self.profile.target_name(), true, &edges, roots.as_deref())
-            .calls;
+        let applications = scope.applications();
+        let reachable = match demand {
+            ProviderApplicationDemand::Product(_) => applications.reachability(
+                self.profile.target_name(),
+                true,
+                &edges,
+                roots.as_deref(),
+            ),
+            ProviderApplicationDemand::Invocation(_) => applications.invocation_reachability(
+                self.profile.target_name(),
+                &edges,
+                roots.as_deref().unwrap_or_default(),
+            ),
+        };
+        let mut calls = reachable.calls;
         calls.sort_unstable();
         let mut invoked_owners = module
             .boundary_machines
@@ -374,15 +479,67 @@ impl<Owner: Clone, Origin: Clone + Eq> PreparedTargetChoices<Owner, Origin> {
             })
             .filter_map(|boundary| module.identities.text(boundary.owner.identity()))
             .collect::<Vec<_>>();
+        // A selected operation need not remain a BoundaryCall instruction:
+        // comparisons retain their exact application beside the emitted scalar
+        // operation. Consume that canonical roster in the same reachable body
+        // closure, rather than inferring provider demand from instruction shape.
+        // Merely retaining an application in a dormant target body grants no
+        // demand on this target. Provider bodies join this walk at the next
+        // fixed-point iteration, just as their ordinary calls do.
+        let mut applications = module
+            .boundary_application_demands
+            .iter()
+            .collect::<Vec<_>>();
+        applications.sort_unstable_by_key(|demand| demand.terminal_operation());
+        for machine in &module.machines {
+            let Some(body_owner) = scope
+                .callable_declaration(terminal_psi::TargetMachineCallable::Machine(machine.id))
+            else {
+                continue;
+            };
+            if !reachable.machines.contains(&body_owner) {
+                continue;
+            }
+            for operation in machine.operations() {
+                let Ok(index) = applications
+                    .binary_search_by_key(&operation.id, |demand| demand.terminal_operation())
+                else {
+                    continue;
+                };
+                let requirement = applications[index].requirement();
+                let owner = module
+                    .identities
+                    .text(requirement.declaration().identity())
+                    .ok_or_else(|| {
+                        vec![Diagnostic::error(
+                            "provider application demand lost its exact requirement owner",
+                        )]
+                    })?;
+                invoked_owners.push(owner);
+            }
+        }
         invoked_owners.sort_unstable();
         invoked_owners.dedup();
         for (candidate, demanded) in self.candidates.iter().zip(demanded) {
-            *demanded |= candidate.explicitly_selected
-                || invoked_owners
-                    .binary_search(&candidate.schema_owner.as_str())
-                    .is_ok();
+            let root_invoked = invoked_owners
+                .binary_search(&candidate.schema_owner.as_str())
+                .is_ok();
+            let authored_map_demanded = match demand {
+                ProviderApplicationDemand::Product(_) => candidate.explicitly_selected,
+                ProviderApplicationDemand::Invocation(_) => {
+                    candidate.explicitly_selected
+                        && candidate
+                            .inherited_owners
+                            .iter()
+                            .any(|owner| invoked_owners.binary_search(&owner.as_str()).is_ok())
+                }
+            };
+            // Merely declaring an unused descendant cannot create another
+            // demanded slot. Only an authored whole map may supply an invoked
+            // ancestor without an invocation of its own root requirement.
+            *demanded |= root_invoked || authored_map_demanded;
         }
-        Ok(())
+        Ok(calls)
     }
 }
 

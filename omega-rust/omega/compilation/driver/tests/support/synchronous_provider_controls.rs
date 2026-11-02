@@ -35,13 +35,8 @@ pub(super) fn inspect_declarations(
     }
     let module = loaded.semantic_module();
     let mut consumed = None;
-    for selected in &original.plans {
-        for row in &selected.plan.rows {
-            if !matches!(row.binding, ProviderBinding::CheckedAdapter { .. }) {
-                continue;
-            }
-            let header =
-                backend_plan::selected_checked_adapter_header(&selected.plan, row, module)?;
+    for selected in backend_plan::selected_checked_invocation_rows(&original.plans, module)? {
+        for header in selected.headers {
             if header
                 .synchronous_invocations
                 .as_ref()
@@ -91,7 +86,7 @@ fn validate_declarations(
     module: &terminal_psi::TerminalModule,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     backend_plan::synchronous_invocations::validate_declared_synchronous_invocation_cycles(
-        selection.plans.iter().map(|selected| &selected.plan),
+        &selection.plans,
         module,
     )
 }
@@ -231,6 +226,7 @@ pub(super) fn inspect(retained: &RetainedTerminalArtifact, target: &str) -> Resu
             row.binding = ProviderBinding::TableFunction {
                 table: "OpaqueTable".into(),
                 field: "read".into(),
+                storage: Err("this control observes only invocation cycles".into()),
             };
         }
     }

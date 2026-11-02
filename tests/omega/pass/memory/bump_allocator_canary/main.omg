@@ -1,410 +1,171 @@
-// Package consumer for the borrowed bump allocation API. Infallible calls
-// capture the exact available count, prove capacity, and preserve the decrement
-// through two live owned results. Fallible calls keep the strategy in place.
-// `exercise_release` consumes a release whose retired extent stays unavailable
-// until `reset` recomposes it: the monotonic cursor never moves on release.
-// `exercise_shrink` retires a truncation's freed suffix in the container, takes
-// the second truncation's rejection, folds the carrier back into the buffer a
-// growth replaces, and closes over every carrier.
-//
-// This remains a compile-only integration fixture: its entry acquires no
-// backing. The merge and resident declarations below do not establish an
-// executable allocator, physical storage or the unfinished multi-claim reset
-// contract.
+// Expected exit: 0
+// Real allocator backing survives two coexisting residents, exhaustion,
+// release, checked extent recomposition, full reset, and resident reuse.
 use omega::language::core::extent;
 use omega::language::core::content;
+use omega::language::core::layout;
+use omega::language::core::process_exit;
 use alloc::bump;
-machine exercise(whole: Extent in Granted & Vacant, capacity: u64) -> Extent
-requires
-    48 <= capacity,
-    capacity == whole.length
-reaches ExtentPartition
-{
-    let mut strategy: Bump = Bump { tail: whole, remaining: capacity };
-    let first: Extent in Granted & Vacant = allocate(&mut strategy, 16, capacity);
-    check_remaining(strategy.remaining, capacity, 16);
-    let available: u64 = strategy.remaining;
-    let second: Extent in Granted & Vacant = allocate(&mut strategy, 32, available);
-    check_remaining(strategy.remaining, available, 32);
-    let mut restored: Bump = reset(strategy, first, second);
-    let restored_capacity: u64 = restored.remaining;
-    let reused: Extent in Granted & Vacant = allocate(&mut restored, capacity, restored_capacity);
-    let recomposed: Extent in Granted & Vacant = ExtentPartition::merge(Split {
-        taken: reused,
-        rest: restored.tail,
-    });
-    recomposed as Extent
+
+data TestMemory {}
+public data Word { value: u64; }
+public data WordPlacement {}
+
+machine WordPlacement::plan(schema: Schema) -> AccessPlan {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };
+    let layout: LayoutPlan = LayoutPlan { entries: entries, entry_count: 1, size_fixed: 8, size_is_dynamic: false, align: 8 };
+    AccessPlan::with(AccessPlan::inaccessible(layout), schema.fields[0].key,
+        FieldAccess::Stable { read: true, write: true, exposure: Exposure::Exported })
 }
 
-// A second allocation epoch uses the real fallible request. `demand` is
-// unrelated to the original capacity, so both returned outcomes must work:
-// success recomposes its allocation and tail; rejection returns the strategy's
-// unchanged tail. No caller-side guard substitutes for the returned custody.
-machine exercise_fallible(whole: Extent in Granted & Vacant, capacity: u64, demand: u64) -> Extent
-requires
-    48 <= capacity,
-    capacity == whole.length
-reaches ExtentPartition
-{
-    let mut strategy: Bump = Bump { tail: whole, remaining: capacity };
-    let first: Extent in Granted & Vacant = allocate(&mut strategy, 16, capacity);
-    let second: Extent in Granted & Vacant = allocate(&mut strategy, 32, capacity - 16);
-    let mut restored: Bump = reset(strategy, first, second);
-    let attempt: Attempt = try_allocate(&mut restored, demand);
-    transition attempt {
-        Attempt::Allocated { allocation } -> reuse(restored, allocation)
-        Attempt::Exhausted -> rejected(restored)
+MemorySupply satisfies ResourceProfileSupply<TestMemory> {
+    machine profile(storage: &Extent in Granted) -> ResourceProfile {
+        let services: [u64; 32];
+        let mut regions: [ResourceRegion; 32];
+        regions[0] = ResourceRegion {
+            range: RelativeRange { offset: 0, length: storage.length },
+            peer: PeerWritability::Exclusive,
+            stable: StableCapability::ReadWrite,
+            external: ExternalCapability::None,
+            atomic: AtomicCapability::None,
+            reach: BoundaryReach { services: services, service_count: 0 },
+        };
+        ResourceProfile { regions: regions, region_count: 1 }
     }
+}
 
-    // Allocation already happened inside the request. This arm returns both
-    // selected claims to the partition boundary for exact recomposition.
-    machine reuse(strategy: Bump, allocation: Extent in Granted & Vacant) -> Extent
+boundary trait NativeAllocation {
+    machine allocate(count: u64, width: u64) -> addr reaches;
+}
+TestRoots satisfies ExtentRootProvider {
+    machine grant(root: Extent) -> Extent { root }
+}
+TestVacant satisfies VacantContentTransfer {
+    machine transfer(storage: Extent in Granted) -> Extent
+        ensures result in Granted,
+            Granted::content(old(&storage)) == Granted::content(&result)
+    { storage as Extent }
+}
+
+machine main() crashes Trap
+requires addr::Bound == 18446744073709551616 {
+    let address: addr = NativeAllocation::allocate(1, 32);
+    transition address != 0 { true -> allocated(address) false -> bad() }
+    machine allocated(address: addr) {
+        let granted: Extent in Granted = ExtentRootProvider::grant(Extent { base: address, length: 32 });
+        let vacant: Extent in Granted & Vacant = VacantContentTransfer::transfer(granted);
+        transition vacant.length == 32 { true -> partition(vacant) false -> bad() }
+    }
+    machine partition(vacant: Extent in Granted & Vacant)
+    requires vacant.length == 32
     {
-        let new_tail: Extent in Granted & Vacant = strategy.tail;
-        let recomposed: Extent in Granted & Vacant = ExtentPartition::merge(Split {
-            taken: allocation,
-            rest: new_tail,
-        });
-        recomposed as Extent
-    }
-
-    // The rejected arm returns the recomposed backing untouched — the
-    // request never happened, so the caller's custody is unchanged.
-    machine rejected(strategy: Bump) -> Extent {
-        strategy.tail as Extent
-    }
-}
-
-// Two coexisting allocations, then a partial cleanup: the newest region
-// returns through `release` as retired content while the oldest stays live.
-// The monotonic cursor does not move, so the strategy's residual stays at the
-// live issued total and the released bytes are unavailable until `reset` folds
-// them with the live allocation back into the original backing. That restored
-// capacity authorizes one unguarded reuse — the same residual law `allocate`
-// publishes, with the released claim carried as its own value instead of a
-// caller-invented floor.
-machine exercise_release(whole: Extent in Granted & Vacant, capacity: u64) -> Extent
-requires
-    48 <= capacity,
-    capacity == whole.length
-reaches ExtentPartition
-{
-    let mut strategy: Bump = Bump { tail: whole, remaining: capacity };
-    let first: Extent in Granted & Vacant = allocate(&mut strategy, 16, capacity);
-    check_remaining(strategy.remaining, capacity, 16);
-    let available: u64 = strategy.remaining;
-    let second: Extent in Granted & Vacant = allocate(&mut strategy, 32, available);
-    check_remaining(strategy.remaining, available, 32);
-    let released: Released = release(strategy, second);
-    // The release did not rewind the cursor: the residual is still the
-    // post-allocation value, not the value the returned thirty-two bytes would
-    // restore.
-    check_remaining(released.strategy.remaining, available, 32);
-    let mut restored: Bump = reset(released.strategy, first, released.retired_storage);
-    let restored_capacity: u64 = restored.remaining;
-    let reused: Extent in Granted & Vacant = allocate(&mut restored, capacity, restored_capacity);
-    let recomposed: Extent in Granted & Vacant = ExtentPartition::merge(Split {
-        taken: reused,
-        rest: restored.tail,
-    });
-    recomposed as Extent
-}
-
-// The reservation container over the chain: open a 16-byte buffer, then
-// close — the live buffer and the tail recompose into the backing's suffix.
-// The record fields retain their existing qualifications while this exercise
-// explicitly rebuilds the container before returning its backing.
-machine exercise_vec(whole: Extent in Granted & Vacant, capacity: u64) -> Extent
-requires
-    48 <= capacity,
-    capacity == whole.length
-reaches ExtentPartition
-{
-    let vec: BumpVec = open(whole, 16, capacity);
-    let strategy: Bump = vec.strategy;
-    let remaining: u64 = strategy.remaining;
-    let tail: Extent in Granted & Vacant = strategy.tail;
-    let buffer: Extent in Granted & Vacant = vec.buffer;
-    let recomposed: Recomposed = close(
-        BumpVec {
-            strategy: Bump { tail: tail, remaining: remaining },
-            buffer: buffer,
-            retained_buffer: vec.retained_buffer,
-            freed_suffix: vec.freed_suffix,
-        },
-    );
-    let backing: Extent in Granted & Vacant = recomposed.backing;
-    backing as Extent
-}
-
-// Reserve 16 bytes, request 32 more while retaining the old buffer, then
-// request another growth and close either returned outcome. The second
-// request exercises full-slot rejection without dropping retained custody.
-machine exercise_grow(whole: Extent in Granted & Vacant, capacity: u64) -> Extent
-requires
-    48 <= capacity,
-    capacity == whole.length
-reaches ExtentPartition
-{
-    let vec: BumpVec = open(whole, 16, capacity);
-    let strategy: Bump = vec.strategy;
-    let remaining: u64 = strategy.remaining;
-    let tail: Extent in Granted & Vacant = strategy.tail;
-    let buffer: Extent in Granted & Vacant = vec.buffer;
-    let growth: Growth = grow(
-        BumpVec {
-            strategy: Bump { tail: tail, remaining: remaining },
-            buffer: buffer,
-            retained_buffer: vec.retained_buffer,
-            freed_suffix: vec.freed_suffix,
-        },
-        32,
-    );
-    transition growth {
-        Growth::Grown { vec } -> retry(vec)
-        Growth::Rejected { vec } -> finish(vec)
-    }
-
-    machine retry(vec: BumpVec) -> Extent {
-        let second: Growth = grow(vec, 1);
-        transition second {
-            Growth::Grown { vec } -> finish(vec)
-            Growth::Rejected { vec } -> finish(vec)
+        let mut strategy: Bump = Bump::open(vacant);
+        let first: Extent in Granted & Vacant = allocate(&mut strategy, 16, 32);
+        let second: Extent in Granted & Vacant = allocate(&mut strategy, 16, 16);
+        transition try_allocate(&mut strategy, 1) {
+            Attempt::Exhausted -> exercise_two(strategy, first, second)
+            Attempt::Allocated { allocation } -> bad()
         }
     }
-
-    machine finish(vec: BumpVec) -> Extent {
-        let recomposed: Recomposed = close(vec);
-        recomposed.backing as Extent
-    }
+    machine bad() { crash Trap; }
 }
 
-// Grow past the tail: a demand larger than the whole remaining residual
-// exhausts `try_allocate` inside `grow`'s reserve step, so the container
-// returns `Growth::Rejected` with the retained slot still empty — a distinct
-// arm from `exercise_grow`'s full-slot rejection. The rejection preserves the
-// live buffer's custody and the container stays usable: a later request that
-// fits the residual still grows, and `close` folds every region back.
-machine exercise_grow_exhausted(whole: Extent in Granted & Vacant, capacity: u64) -> Extent
-requires
-    48 <= capacity,
-    capacity == whole.length
-reaches ExtentPartition
-{
-    let vec: BumpVec = open(whole, 16, capacity);
-    let strategy: Bump = vec.strategy;
-    let remaining: u64 = strategy.remaining;
-    let tail: Extent in Granted & Vacant = strategy.tail;
-    let buffer: Extent in Granted & Vacant = vec.buffer;
-    let growth: Growth = grow(
-        BumpVec {
-            strategy: Bump { tail: tail, remaining: remaining },
-            buffer: buffer,
-            retained_buffer: vec.retained_buffer,
-            freed_suffix: vec.freed_suffix,
-        },
-        capacity,
-    );
-    transition growth {
-        Growth::Grown { vec } -> finish(vec)
-        Growth::Rejected { vec } -> retry_within(vec)
+machine exercise_two(strategy: Bump, first: Extent in Granted & Vacant, second: Extent in Granted & Vacant) crashes Trap
+requires addr::Bound == 18446744073709551616 {
+    transition NativeAccess<WordPlacement, Word, TestMemory>::initialize(first, Word { value: 17 }) {
+        AccessOutcome::Ready { view } -> initialize_second(strategy, view, second)
+        AccessOutcome::Rejected { returned, reason } -> bad()
     }
-
-    // The rejected container kept its live buffer and its empty retained
-    // slot; a demand that fits the residual still grows it.
-    machine retry_within(vec: BumpVec) -> Extent {
-        let second: Growth = grow(vec, 8);
-        transition second {
-            Growth::Grown { vec } -> finish(vec)
-            Growth::Rejected { vec } -> finish(vec)
+    machine initialize_second(strategy: Bump, first: Extent in Granted & Resident<WordPlacement, Word>, second: Extent in Granted & Vacant) {
+        transition NativeAccess<WordPlacement, Word, TestMemory>::initialize(second, Word { value: 43 }) {
+            AccessOutcome::Ready { view } -> observe(strategy, first, view)
+            AccessOutcome::Rejected { returned, reason } -> bad()
         }
     }
-
-    machine finish(vec: BumpVec) -> Extent {
-        let recomposed: Recomposed = close(vec);
-        recomposed.backing as Extent
-    }
-}
-
-// Truncate, then grow: the truncation keeps the freed suffix as retired
-// content in the container, so the cursor does not move; a second truncation —
-// even one that frees nothing — rejects while that one carrier is held; `grow`
-// spends residual tail on a new buffer and folds the held suffix back into the
-// buffer it was cut from before retiring that allocation; and `close` folds
-// every region back in address order.
-machine exercise_shrink(whole: Extent in Granted & Vacant, capacity: u64) -> Extent
-requires
-    48 <= capacity,
-    capacity == whole.length
-reaches ExtentPartition
-{
-    let vec: BumpVec = open(whole, 32, capacity);
-    let truncation: Truncation = shrink(vec, 16);
-    transition truncation {
-        Truncation::Truncated { vec } -> again(vec)
-        Truncation::Rejected { vec } -> finish(vec)
-    }
-
-    machine again(vec: BumpVec) -> Extent {
-        let second: Truncation = shrink(vec, 0);
-        transition second {
-            Truncation::Truncated { vec } -> grown(vec)
-            Truncation::Rejected { vec } -> grown(vec)
+    machine observe(strategy: Bump, first: Extent in Granted & Resident<WordPlacement, Word>, second: Extent in Granted & Resident<WordPlacement, Word>) {
+        let mut left: Extent in Granted & Resident<WordPlacement, Word> = first;
+        let mut right: Extent in Granted & Resident<WordPlacement, Word> = second;
+        let left_view: &mut Access<WordPlacement, Word> = Access::view_resident_mut<WordPlacement, Word>(&mut left);
+        let before: u64 = read(&left_view.value);
+        write(&mut left_view.value, 29u64);
+        let right_view: &mut Access<WordPlacement, Word> = Access::view_resident_mut<WordPlacement, Word>(&mut right);
+        let neighbor: u64 = read(&right_view.value);
+        write(&mut right_view.value, 59u64);
+        transition before == 17 && neighbor == 43 {
+            true -> extract_left(strategy, left, right)
+            false -> bad()
         }
     }
-
-    machine grown(vec: BumpVec) -> Extent {
-        let growth: Growth = grow(vec, 8);
-        transition growth {
-            Growth::Grown { vec } -> finish(vec)
-            Growth::Rejected { vec } -> finish(vec)
+    machine extract_left(strategy: Bump, first: Extent in Granted & Resident<WordPlacement, Word>, second: Extent in Granted & Resident<WordPlacement, Word>) {
+        transition NativeAccess<WordPlacement, Word, TestMemory>::move_out(first) {
+            AccessExtraction::Moved { storage, value } -> extract_right(strategy, storage, value, second)
         }
     }
-
-    machine finish(vec: BumpVec) -> Extent {
-        let recomposed: Recomposed = close(vec);
-        recomposed.backing as Extent
+    machine extract_right(strategy: Bump, first: Extent in Granted & Vacant, first_value: Word, second: Extent in Granted & Resident<WordPlacement, Word>) {
+        transition NativeAccess<WordPlacement, Word, TestMemory>::move_out(second) {
+            AccessExtraction::Moved { storage, value } -> finish(strategy, first, storage, first_value, value)
+        }
     }
+    machine finish(strategy: Bump, first: Extent in Granted & Vacant, second: Extent in Granted & Vacant, first_value: Word, second_value: Word) {
+        transition first_value.value == 29 && second_value.value == 59 && first.length == 16 && second.length == 16 {
+            true -> done(strategy, first, second)
+            false -> bad()
+        }
+    }
+    machine done(strategy: Bump, first: Extent in Granted & Vacant, second: Extent in Granted & Vacant) {
+        transition first.length == 16 && second.length == 16 {
+            true -> adjacent(strategy, first, second)
+            false -> bad()
+        }
+    }
+    machine adjacent(strategy: Bump, first: Extent in Granted & Vacant, second: Extent in Granted & Vacant)
+    requires first.length == 16, second.length == 16 {
+        transition second.base >= first.base {
+            true -> distance(strategy, first, second)
+            false -> bad()
+        }
+    }
+    machine distance(strategy: Bump, first: Extent in Granted & Vacant, second: Extent in Granted & Vacant)
+    requires first.length == 16, second.length == 16, second.base >= first.base, addr::Bound == 18446744073709551616 {
+        transition second.base - first.base == 16 {
+            true -> reclaim(strategy, first, second)
+            false -> bad()
+        }
+    }
+    machine reclaim(strategy: Bump, first: Extent in Granted & Vacant, second: Extent in Granted & Vacant)
+    requires first.length == 16, second.length == 16, embed(second.base) == embed(first.base) + embed(first.length) {
+        let returned_first: Released = release(strategy, first);
+        let returned_second: Released = release(returned_first.strategy, second);
+        let whole: Extent in Granted & Vacant = merge_vacant_extents(returned_first.retired_storage, returned_second.retired_storage);
+        let released_strategy: Bump = returned_second.strategy;
+        transition whole.length == released_strategy.capacity && whole.base == released_strategy.base && released_strategy.remaining == 0 {
+            true -> reset_all(released_strategy, whole)
+            false -> bad()
+        }
+    }
+    machine reset_all(strategy: Bump, whole: Extent in Granted & Vacant)
+    requires whole.length == strategy.capacity, whole.base == strategy.base, strategy.remaining == 0 {
+        let restored: Bump = reset(strategy, whole);
+        reuse(restored.tail);
+    }
+    machine reuse(whole: Extent in Granted & Vacant) {
+        transition NativeAccess<WordPlacement, Word, TestMemory>::initialize(whole, Word { value: 97 }) {
+            AccessOutcome::Ready { view } -> read_again(view)
+            AccessOutcome::Rejected { returned, reason } -> bad()
+        }
+    }
+    machine read_again(whole: Extent in Granted & Resident<WordPlacement, Word>) {
+        transition NativeAccess<WordPlacement, Word, TestMemory>::move_out(whole) {
+            AccessExtraction::Moved { storage, value } -> verified(storage, value)
+        }
+    }
+    machine verified(whole: Extent in Granted & Vacant, value: Word) {
+        transition whole.length == 32 && value.value == 97 {
+            true -> exit(whole)
+            false -> bad()
+        }
+    }
+    machine exit(whole: Extent in Granted & Vacant) { ProcessExit::exit_process(0); }
+    machine bad() { crash Trap; }
 }
-
-// The same two-allocation plan spelled directly over the partition boundary,
-// kept as the control surface for restating `Split` fields from a boundary
-// result.
-machine exercise_boundary(whole: Extent in Granted & Vacant) -> Extent
-requires 48 <= whole.length
-reaches ExtentPartition
-{
-    let first: VacantExtentParts = split_vacant_extent(whole, 16);
-    let first_allocation: Extent in Granted & Vacant = first.taken;
-    let after_first: Extent in Granted & Vacant = first.rest;
-    let second: VacantExtentParts = split_vacant_extent(after_first, 32);
-    let second_allocation: Extent in Granted & Vacant = second.taken;
-    let tail: Extent in Granted & Vacant = second.rest;
-    let upper_and_tail: Extent in Granted & Vacant = ExtentPartition::merge(Split {
-        taken: second_allocation,
-        rest: tail,
-    });
-    let restored: Extent in Granted & Vacant = ExtentPartition::merge(Split {
-        taken: first_allocation,
-        rest: upper_and_tail,
-    });
-    restored as Extent
-}
-
-// Element type and the placement-policy index it is resident under. The
-// index is identity only: no plan is evaluated for it here.
-public data Slot [copy] {
-    value: u32;
-}
-
-public data SlotPlacement {}
-
-// Established custody: the allocation now carries one complete live `Slot`.
-// The record, not a bare extent, is what crosses machines (see the header's
-// restatement edge).
-public data Occupied {
-    storage: Extent in Granted & Resident<SlotPlacement, Slot>;
-}
-
-// The abstract retirement returns the grant and moved-out value. Only the
-// core-authorized vacancy provider may establish absence of live contents;
-// the retirement's Granted conservation law alone does not establish Vacant.
-public data Retired {
-    storage: Extent in Granted;
-    value: Slot;
-}
-
-// The provider-issuance route for one concrete `(SlotPlacement, Slot)`
-// application. `place` and `retire` conserve the extent's content; `read`
-// is a borrowed view returning a copy of the resident value.
-public boundary trait ResidentStorage {
-    machine place(storage: Extent in Granted & Vacant, value: Slot) -> Occupied
-    reaches
-    ensures
-        Granted::content(old(&storage)) == Granted::content(&result.storage);
-
-    machine read(placed: &Occupied) -> Slot reaches;
-
-    machine retire(placed: Occupied) -> Retired
-    reaches
-    ensures
-        Granted::content(old(&placed.storage)) == Granted::content(&result.storage);
-
-    // The same view and retirement over the restated qualified extent: the
-    // parameter domains are the exact indexed application, so a caller must
-    // prove `Resident<SlotPlacement, Slot>` on the argument it passes.
-    machine view(storage: &Extent in Granted & Resident<SlotPlacement, Slot>) -> Slot reaches;
-
-    machine retire_view(storage: Extent in Granted & Resident<SlotPlacement, Slot>) -> Retired
-    reaches
-    ensures
-        Granted::content(old(&storage)) == Granted::content(&result.storage);
-}
-
-// One allocation, established, read, retired, and recomposed with the tail.
-machine exercise_resident(whole: Extent in Granted & Vacant, capacity: u64) -> Extent
-requires
-    16 <= capacity,
-    capacity == whole.length
-reaches ExtentPartition, ResidentStorage, VacantContentTransfer
-{
-    let mut strategy: Bump = Bump { tail: whole, remaining: capacity };
-    let vacant: Extent in Granted & Vacant = allocate(&mut strategy, 16, capacity);
-    let tail: Extent in Granted & Vacant = strategy.tail;
-    let placed: Occupied = ResidentStorage::place(vacant, Slot { value: 7 });
-    let observed: Slot = ResidentStorage::read(&placed);
-    let retired: Retired = ResidentStorage::retire(placed);
-    let released: Extent in Granted & Vacant = VacantContentTransfer::transfer(retired.storage);
-    let recomposed: Extent in Granted & Vacant = ExtentPartition::merge(Split {
-        taken: released,
-        rest: tail,
-    });
-    recomposed as Extent
-}
-
-// The restated-local variant: `Occupied.storage` is restated through an
-// exactly typed `let` and the qualified extent itself crosses the view and
-// retirement calls.
-machine exercise_resident_restated(whole: Extent in Granted & Vacant, capacity: u64) -> Extent
-requires
-    16 <= capacity,
-    capacity == whole.length
-reaches ExtentPartition, ResidentStorage, VacantContentTransfer
-{
-    let mut strategy: Bump = Bump { tail: whole, remaining: capacity };
-    let vacant: Extent in Granted & Vacant = allocate(&mut strategy, 16, capacity);
-    let tail: Extent in Granted & Vacant = strategy.tail;
-    let placed: Occupied = ResidentStorage::place(vacant, Slot { value: 7 });
-    let resident: Extent in Granted & Resident<SlotPlacement, Slot> = placed.storage;
-    let observed: Slot = ResidentStorage::view(&resident);
-    let retired: Retired = ResidentStorage::retire_view(resident);
-    let released: Extent in Granted & Vacant = VacantContentTransfer::transfer(retired.storage);
-    let recomposed: Extent in Granted & Vacant = ExtentPartition::merge(Split {
-        taken: released,
-        rest: tail,
-    });
-    recomposed as Extent
-}
-machine exercise_retained(whole: Extent in Granted & Vacant, capacity: u64) -> Extent
-requires
-    16 <= capacity,
-    capacity == whole.length
-reaches ExtentPartition
-{
-    let mut strategy: Bump = Bump { tail: whole, remaining: capacity };
-    let allocation: Extent in Granted & Vacant = allocate(&mut strategy, 16, capacity);
-    let retired: RetiredSlot = retain_buffer(allocation);
-    let restored: Bump = reset_retired(strategy, retired);
-    let unchanged: Bump = reset_retired(restored, RetiredSlot::Empty);
-    unchanged.tail as Extent
-}
-
-data BumpRootProvider {}
-
-machine BumpRootProvider::grant_root(root: Extent) -> Extent
-satisfies ExtentRootProvider::grant
-{
-    root
-}
-
-machine main() {}

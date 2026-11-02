@@ -1,0 +1,2 @@
+Indexed<A * (B + C)>==Indexed<A * B + A * C>
+`multiply` of `IndexSemiring` licenses no law

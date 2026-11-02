@@ -111,9 +111,9 @@ pub(super) fn check<'program>(
     );
 }
 
-/// Produced descriptors can have no authored expression or source span. Keep their refusal
-/// locatable without pretending that zero identifies a source occurrence.
-fn refusal(
+/// Produced observations can have no authored expression or source span. Keep
+/// their refusal locatable without treating zero as a source occurrence.
+pub(super) fn refusal(
     program: &dyn CheckingInput,
     state: &FlowStateFact,
     statement: usize,
@@ -128,7 +128,7 @@ fn refusal(
     }
     Diagnostic::error(format!(
         "{message} in machine `{}`, state `{}`, statement {statement}",
-        crate::labels::symbol_name(program, state.machine_symbol),
-        crate::labels::symbol_name(program, state.state_symbol)
+        crate::published::labels::symbol_name(program, state.machine_symbol),
+        crate::published::labels::symbol_name(program, state.state_symbol)
     ))
 }

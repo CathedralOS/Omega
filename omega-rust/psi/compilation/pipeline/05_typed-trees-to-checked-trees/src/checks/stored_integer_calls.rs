@@ -6,7 +6,7 @@
 //! reaching a cycle does not invalidate caller-proven stores outside it, and
 //! acyclic helper substitution can establish a store within the cyclic body.
 use super::contracts::call_values;
-use crate::places::place_at;
+use crate::published::places::place_at;
 use checked_trees::{
     CheckFacts, CheckedBooleanExpression as Boolean, CheckedStoredIntegerWrite, FlowCallFact,
     FlowStateFact, PerformedIntegerWrite, StoredIntegerWriteSite,
@@ -206,6 +206,30 @@ impl<'a> Admission<'a> {
             None => return Err("invocation storage origins are unknown"),
         };
         if !self.call_may_require_fit(state, call, &origins)? {
+            return Ok(());
+        }
+        // A requirement publishes a contract without a body. Build selects one
+        // implementation per target, so each one performs these same captured
+        // operands; an opaque implementation refuses in `visit_target`. An
+        // open template body has no concrete write types to judge, and its
+        // specialization is not the row this query names, so it refuses too.
+        let implementations =
+            validation::requirement_backing_machines(self.program, call.target_symbol);
+        if !implementations.is_empty() {
+            for implementation in implementations {
+                let target = self
+                    .program
+                    .machine_by_symbol(implementation)
+                    .ok_or("requirement implementation body is absent")?;
+                if self
+                    .program
+                    .typed_program()
+                    .callable_body_has_open_parameters(target)
+                {
+                    return self.check_unknown_call(state, call, &origins);
+                }
+                self.visit_target(state, call, target, origins.clone())?;
+            }
             return Ok(());
         }
         let Some(symbol) = call_values::target_machine(self.program, call) else {
@@ -504,6 +528,7 @@ impl<'a> Admission<'a> {
         }
         Some(vec![LocalWriteSource {
             invocation_output: None,
+            invocation_result: None,
             is_image_storage: false,
             root,
             segments: place.segments,
@@ -747,7 +772,7 @@ impl<'a> Admission<'a> {
         let mut predicate = if established {
             Boolean::Constant(true)
         } else {
-            crate::facts::integer_write_obligation(write, stored)
+            crate::published::facts::integer_write_obligation(write, stored)
                 .ok_or("performed integer value has no fitting bounds or entry relation")?
         };
         for invocation in self.stack.iter_mut().rev() {
@@ -785,11 +810,13 @@ impl<'a> Admission<'a> {
                 predicate,
             )
             .ok_or("performed write cannot transport its actual value relation")?;
-            if let Some(condition) = crate::facts::boolean_predicates::entry_path_condition(
-                &self.facts.semantic,
-                &contexts,
-                invocation.state.machine_symbol,
-            ) && condition != Boolean::Constant(true)
+            if let Some(condition) =
+                crate::published::facts::boolean_predicates::entry_path_condition(
+                    &self.facts.semantic,
+                    &contexts,
+                    invocation.state.machine_symbol,
+                )
+                && condition != Boolean::Constant(true)
             {
                 predicate = Boolean::Or {
                     left: Box::new(Boolean::Not(Box::new(condition))),

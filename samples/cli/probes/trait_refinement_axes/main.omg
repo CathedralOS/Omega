@@ -1,13 +1,13 @@
 // Transparent trait refinement: `trait LocalLogger<T>
-// = Logger<T> { machine * suspends false; blocks
-// false; terminates; machine Logger::flush
+// = Logger<T> { machine * suspends false blocks
+// false terminates; machine Logger::flush
 // terminates; }` — a structural bound over an existing
 // conformance narrowed by operational axes only. A
 // refinement is never a `satisfies` target; evidence
 // binders (`B satisfies LocalLogger<Sink>`) consume
 // it.
 //
-//   * `machine * suspends false; blocks false;
+//   * `machine * suspends false blocks false
 //     terminates;` — wildcard axis row applying to
 //     every member.
 //   * `machine Logger::flush terminates;` — member-
@@ -22,7 +22,7 @@ trait Logger<T> {
 }
 
 trait LocalLogger<T> = Logger<T> {
-    machine * suspends false; blocks false; terminates;
+    machine * suspends false blocks false terminates;
     machine Logger::flush terminates;
 }
 

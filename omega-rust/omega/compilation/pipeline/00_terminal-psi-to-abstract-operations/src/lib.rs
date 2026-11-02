@@ -4,7 +4,7 @@
 //!
 //! Native production enters `admit_native_realization` (`native_admission`):
 //! canonical input preparation, deployment execution scope, provider settlement
-//! and installation, and authority review produce one input for stage 01.
+//! and installation, and authority review produce one input for Omega 01.
 //! `native_execution_scope` selects the actual call/cleanup/provider closure
 //! without erasing canonical storage. Private callback artifacts use the same
 //! selection before their physical stages; portable consumers stay complete.

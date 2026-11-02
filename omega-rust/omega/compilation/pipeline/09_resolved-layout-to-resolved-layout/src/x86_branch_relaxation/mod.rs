@@ -12,50 +12,39 @@ pub use error::OptimizedX86BranchRelaxationError;
 
 use optimization_core::OptimizationWorkBudget;
 use register_model::ValidatedPhysicalRegisterModel;
-use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
 use compute::compute_relaxation;
 pub use machine_code::layout::evidence::{
     X86BranchRelaxationAction, X86BranchRelaxationAttempt, X86BranchRelaxationAttemptOutcome,
     X86BranchRelaxationIdentity, X86BranchRelaxationPolicy, X86BranchRelaxationRevisionIdentity,
 };
-use machine_code::{ResolvedSelectedFormLayoutIdentity, ResolvedSelectedFunctionLayout};
-use optimization_core::OptimizationWorkUsage;
-use post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding;
-use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
-use selected_form_encoding_to_resolved_layout::{
-    StagedOptimizedResolvedSelectedFormLayout, validate_optimized_resolved_selected_form_layout,
+use machine_code::{
+    ResolvedMachineLayout, ResolvedSelectedFormLayoutIdentity, ResolvedSelectedFunctionLayout,
 };
+use optimization_core::OptimizationWorkUsage;
 use target::NativeTarget;
 use validation::validate_roots;
 
 pub(crate) fn stage_optimized_x86_branch_relaxation(
     physical: &ValidatedPhysicalRegisterModel,
-    source: &StagedOptimizedResolvedSelectedFormLayout,
+    source: &ResolvedMachineLayout,
     budget: OptimizationWorkBudget,
 ) -> Result<StagedOptimizedX86BranchRelaxation, OptimizedX86BranchRelaxationError> {
     validate_roots(source, physical)?;
     compute_relaxation(source, physical, budget)
 }
 
-/// Check the artifact against its retained roots: the source layout is
-/// re-admitted as the input its own owner produced, the target is x86-64, and
+/// Check the artifact against its retained roots: the target is x86-64, and
 /// the artifact's identity fields agree with the source layout, the policy and
-/// the work it consumed. The relaxation is not re-derived here — the producer
-/// is the mechanism, and the corpus and the stage's tests observe it
-/// (verification placement, `omega-rust/pipeline.md`).
-pub(crate) fn validate_optimized_x86_branch_relaxation<S: ValidatedSelectedAnalysis>(
-    selected: &S,
-    machine: &StagedOptimizedPostAllocationMachinePlan,
+/// the work it consumed. The source layout is its own owner's to admit; the
+/// reader that replays both calls that owner's validator first. The relaxation
+/// is not re-derived here — the producer is the mechanism, and the corpus and
+/// the stage's tests observe it (verification placement, `omega-rust/pipeline.md`).
+pub(crate) fn validate_optimized_x86_branch_relaxation(
     physical: &ValidatedPhysicalRegisterModel,
-    pre_layout: &StagedOptimizedSelectedFormEncoding,
-    source: &StagedOptimizedResolvedSelectedFormLayout,
+    source: &ResolvedMachineLayout,
     artifact: &StagedOptimizedX86BranchRelaxation,
 ) -> Result<(), OptimizedX86BranchRelaxationError> {
-    validate_optimized_resolved_selected_form_layout(
-        selected, machine, physical, pre_layout, source,
-    )
-    .map_err(OptimizedX86BranchRelaxationError::Source)?;
     validate_roots(source, physical)?;
     if artifact.source != source.identity()
         || artifact.selected != source.selected()

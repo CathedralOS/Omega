@@ -45,13 +45,7 @@ macro_rules! source_evidence_accessors {
         pub fn budget_per_pass(&self) -> optimization_core::OptimizationWorkBudget {
             self.$field.source_legality_stage().budget_per_pass()
         }
-        assignment_context_accessors!(
-            $field
-                .source_legality_stage()
-                .live_range_stage()
-                .liveness_stage()
-                .selected_stage()
-        );
+        assignment_context_accessors!();
     };
 }
 
@@ -86,13 +80,7 @@ impl StagedOptimizedRegisterHomesAfterLiteralFolds {
         self.folds.final_step().legality()
     }
     admitted_stage_accessors!(const pub, folds.source_legality_stage());
-    assignment_context_accessors!(
-        folds
-            .source_legality_stage()
-            .live_range_stage()
-            .liveness_stage()
-            .selected_stage()
-    );
+    assignment_context_accessors!();
     receipt_accessor_rows!(borrow StagedOptimizedRegisterHomesAfterLiteralFolds {
         custody: &StagedOptimizedPostLiteralFoldHomeCustodyReceipt,
     });

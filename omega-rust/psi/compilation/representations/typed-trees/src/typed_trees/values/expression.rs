@@ -1841,6 +1841,8 @@ impl TableNamePath {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TableStructLiteral {
+    /// Exact inferred source type use, including transparent-alias formation.
+    pub application_type: crate::types::TypeReferenceHandle,
     pub type_name: Identifier,
     pub type_symbol: SymbolHandle,
     /// `Some` when the literal constructs a CASE of `type_name`
@@ -2243,6 +2245,8 @@ pub enum MatchPattern {
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TableDestructurePattern {
+    /// Exact inferred source type use, including transparent-alias formation.
+    pub application_type: crate::types::TypeReferenceHandle,
     pub head: ExpressionHandle,
     pub fields: HandleSpan<TableMatchField>,
     pub has_rest: bool,

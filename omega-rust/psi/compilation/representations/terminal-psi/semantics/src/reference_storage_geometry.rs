@@ -246,6 +246,72 @@ where
         .ok_or(StorageGeometryError::UnresolvedLayout(root))
     }
 
+    /// Select a captured path under the same admitted record/extent context
+    /// as whole-type geometry. No declaration is copied or relabelled.
+    pub fn region(
+        &mut self,
+        root: StructuralTypeId,
+        path: &[StructuralPathSegment],
+    ) -> Option<ReferenceStorageRegion> {
+        storage_region(
+            self.types.clone(),
+            root,
+            path,
+            &self.records,
+            self.carriers,
+            &mut self.extents,
+        )
+    }
+
+    /// Fixed regions keep their original array identity. Geometry never grants
+    /// access, initialized contents, predicate membership or loan authority.
+    pub fn region_source_compatible(
+        &mut self,
+        source: StructuralTypeId,
+        path: &[StructuralPathSegment],
+        reference: StructuralTypeId,
+        stored: Option<ScalarType>,
+    ) -> bool {
+        if stored.is_some() {
+            return false;
+        }
+        let Some(region) = self.region(source, path) else {
+            return false;
+        };
+        let Some(array) = region.array else {
+            return false;
+        };
+        let Some(StructuralTypeShape::Reference { referent, .. }) =
+            crate::structural_shape(self.types.clone(), reference)
+        else {
+            return false;
+        };
+        if !crate::reference_views::plain_storage(
+            self.types.clone(),
+            array.declaration,
+            &mut Vec::new(),
+        ) || !crate::reference_views::plain_storage(
+            self.types.clone(),
+            *referent,
+            &mut Vec::new(),
+        ) {
+            return false;
+        }
+        let (Ok((source_size, source_align)), Ok((target_size, target_align))) =
+            (self.layout(source), self.layout(*referent))
+        else {
+            return false;
+        };
+        target_align != 0
+            && source_align.is_multiple_of(target_align)
+            && region.byte_offset.is_multiple_of(target_align)
+            && region.byte_length == target_size
+            && region
+                .byte_offset
+                .checked_add(region.byte_length)
+                .is_some_and(|end| end <= source_size)
+    }
+
     /// Borrow exact field recipes over the original declarations. Array counts
     /// come only from the supplied extent resolver; references remain leaves.
     pub fn record_fields<'storage>(
@@ -666,14 +732,30 @@ pub fn reference_storage_region<'types>(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
 ) -> Option<ReferenceStorageRegion> {
-    let projection = storage_path(types.clone(), root, path)?;
+    crate::ReferenceStorageGeometry::new(types, |application| {
+        Err(StorageGeometryError::UnresolvedExtent(application))
+    })
+    .region(root, path)
+}
+
+fn storage_region<'types>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    records: &impl RecordStorageResolver,
+    carriers: Option<TargetCarrierLayout>,
+    extents: &mut impl FnMut(ScalarApplicationId) -> Result<u64, StorageGeometryError>,
+) -> Option<ReferenceStorageRegion> {
+    let projection = storage_path(types.clone(), root, path, records, carriers, extents)?;
     if projection.fragments.is_some() {
         return None;
     }
     let size = match (projection.window, projection.scalar) {
         (Some(window), _) => window.byte_length,
         (None, Some((_, stored))) => scalar_geometry(stored)?.0,
-        (None, None) => reference_storage_size(types, projection.carrier)?,
+        (None, None) => {
+            selected_storage_layout(types, projection.carrier, records, carriers, extents)?.0
+        }
     };
     Some(ReferenceStorageRegion {
         byte_offset: projection.byte_offset,
@@ -689,6 +771,24 @@ pub fn reference_storage_region<'types>(
     })
 }
 
+fn selected_storage_layout<'types>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
+    records: &impl RecordStorageResolver,
+    carriers: Option<TargetCarrierLayout>,
+    extents: &mut impl FnMut(ScalarApplicationId) -> Result<u64, StorageGeometryError>,
+) -> Option<(u64, u64)> {
+    geometry(
+        types,
+        root,
+        &mut Vec::new(),
+        carriers,
+        records,
+        &mut |application| extents(application).map(Some),
+    )
+    .ok()?
+}
+
 /// Read scalar recipes through the same complete-path geometry as contiguous
 /// reference views. A fragment recipe describes bits, not a contiguous loan.
 pub fn reference_scalar_storage<'types>(
@@ -696,7 +796,14 @@ pub fn reference_scalar_storage<'types>(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
 ) -> Option<ReferenceScalarStorage<'types>> {
-    let projection = storage_path(types, root, path)?;
+    let projection = storage_path(
+        types,
+        root,
+        path,
+        &UnselectedRecordStorage,
+        None,
+        &mut |application| Err(StorageGeometryError::UnresolvedExtent(application)),
+    )?;
     let (logical_scalar, stored_scalar) = projection.scalar?;
     Some(match projection.fragments {
         Some(fragments) => ReferenceScalarStorage::Fragmented {
@@ -720,11 +827,17 @@ struct StoragePathProjection<'recipe> {
     window: Option<ReferenceArrayWindow>,
 }
 
-fn storage_path<'types>(
+fn storage_path<'types, 'storage>(
     types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
-) -> Option<StoragePathProjection<'types>> {
+    records: &'storage impl RecordStorageResolver,
+    carriers: Option<TargetCarrierLayout>,
+    extents: &mut impl FnMut(ScalarApplicationId) -> Result<u64, StorageGeometryError>,
+) -> Option<StoragePathProjection<'storage>>
+where
+    'types: 'storage,
+{
     let mut carrier = root;
     let mut byte_offset = 0_u64;
     let mut repeated_stride = None;
@@ -750,7 +863,16 @@ fn storage_path<'types>(
                         StructuralTypeShape::PrimitiveScalar(logical) => {
                             scalar_geometry(selected_storage.unwrap_or(logical))?.0
                         }
-                        _ => reference_storage_size(types.clone(), carrier)?,
+                        _ => {
+                            selected_storage_layout(
+                                types.clone(),
+                                carrier,
+                                records,
+                                carriers,
+                                extents,
+                            )?
+                            .0
+                        }
                     },
                 }
             };
@@ -761,7 +883,9 @@ fn storage_path<'types>(
             )?;
             let view_size = match stored_scalar {
                 Some(scalar) => scalar_geometry(*scalar)?.0,
-                None => reference_storage_size(types.clone(), view.id)?,
+                None => {
+                    selected_storage_layout(types.clone(), view.id, records, carriers, extents)?.0
+                }
             };
             if source_size != view_size {
                 return None;
@@ -790,11 +914,23 @@ fn storage_path<'types>(
                 let field = terminal_psi::live_field_by_identity(fields, *identity)?;
                 // A pending record's absent field recipe is not its logical
                 // scalar width or a declaration-order byte offset.
+                let recipe = match storage {
+                    StructuralRecordStorage::TargetLayout(application) => Some(
+                        &records
+                            .realization(carrier, *application)
+                            .ok()?
+                            .fields
+                            .iter()
+                            .find(|row| row.field == field.id)?
+                            .storage,
+                    ),
+                    _ => field.storage.as_ref(),
+                };
                 let offset = match storage {
                     terminal_psi::StructuralRecordStorage::AccessView(_)
                     | terminal_psi::StructuralRecordStorage::Accessor(_) => return None,
-                    StructuralRecordStorage::TargetLayout(_) => return None,
-                    StructuralRecordStorage::Authored(_) => match field.storage.as_ref()? {
+                    StructuralRecordStorage::TargetLayout(_)
+                    | StructuralRecordStorage::Authored(_) => match recipe? {
                         AuthoredFieldStorage::Fragmented(recipe) => {
                             fragments = Some(recipe);
                             0
@@ -810,11 +946,9 @@ fn storage_path<'types>(
                                 candidate,
                                 candidate.storage.as_ref(),
                                 &mut Vec::new(),
-                                None,
-                                &UnselectedRecordStorage,
-                                &mut |application| {
-                                    Err(StorageGeometryError::UnresolvedExtent(application))
-                                },
+                                carriers,
+                                records,
+                                &mut |application| extents(application).map(Some),
                             )
                             .ok()??;
                             offset = align(offset, alignment)?;
@@ -827,14 +961,8 @@ fn storage_path<'types>(
                     }
                 };
                 byte_offset = byte_offset.checked_add(offset)?;
-                selected_storage = field
-                    .storage
-                    .as_ref()
-                    .and_then(AuthoredFieldStorage::stored_scalar);
-                repeated_stride = field
-                    .storage
-                    .as_ref()
-                    .and_then(AuthoredFieldStorage::element_stride);
+                selected_storage = recipe.and_then(AuthoredFieldStorage::stored_scalar);
+                repeated_stride = recipe.and_then(AuthoredFieldStorage::element_stride);
                 if let Some(logical_scalar) = field.field_type.scalar_type() {
                     selected_scalar = Some(logical_scalar);
                     continue;
@@ -849,7 +977,8 @@ fn storage_path<'types>(
                 },
                 StructuralPathSegment::FixedIndex(index),
             ) if index < length => {
-                let (size, alignment) = reference_storage_layout(types.clone(), *element)?;
+                let (size, alignment) =
+                    selected_storage_layout(types.clone(), *element, records, carriers, extents)?;
                 let stride = repeated_stride.take().unwrap_or(align(size, alignment)?);
                 byte_offset = byte_offset.checked_add(index.checked_mul(stride)?)?;
                 carrier = *element;
@@ -862,7 +991,8 @@ fn storage_path<'types>(
                 },
                 StructuralPathSegment::FixedRange { start, end },
             ) if start <= end && end <= length => {
-                let (size, alignment) = reference_storage_layout(types.clone(), *element)?;
+                let (size, alignment) =
+                    selected_storage_layout(types.clone(), *element, records, carriers, extents)?;
                 let stride = repeated_stride.take().unwrap_or(align(size, alignment)?);
                 if stride < size {
                     return None;
@@ -1020,11 +1150,6 @@ mod tests {
         assert_eq!(
             reference_storage_dependencies(types.iter(), identity(2)),
             Ok(vec![application(2)])
-        );
-        types[2].shape = StructuralTypeShape::BindingCarrier;
-        assert_eq!(
-            reference_storage_dependencies(types.iter(), identity(2)),
-            Err(StorageGeometryError::UnsupportedType(identity(3)))
         );
         types[2].shape = StructuralTypeShape::FixedArray {
             element: identity(2),

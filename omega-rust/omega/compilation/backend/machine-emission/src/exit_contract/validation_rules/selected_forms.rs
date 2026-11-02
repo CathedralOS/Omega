@@ -184,11 +184,11 @@ pub(in crate::exit_contract) fn validated_aarch64_addressed_form_fixture(
         interned_footprint,
         encoded.bytes().to_vec(),
     );
-    encoding.address = Some(machine_code::ResolvedPhysicalAddress {
+    encoding.address = Some(Box::new(machine_code::ResolvedPhysicalAddress {
         symbolic,
         frame_alignment_bytes: 1,
         displacement: 16,
-    });
+    }));
     validate_non_return(
         target::Architecture::Aarch64,
         instruction,
@@ -461,7 +461,7 @@ pub(in crate::exit_contract) fn validate_non_return(
     if effects.stack != MachineEncodedStackEffect::UnchangedV1 && !temporary_stack {
         return Err(NonReturnStackEffect(instruction));
     }
-    let memory_matches = match (kind, effects.memory, encoding.address) {
+    let memory_matches = match (kind, effects.memory, encoding.address()) {
         (
             SelectedInstructionKind::RegisterAccess {
                 operation: selected_instructions::RegisterOperation::MemoryFence(_),

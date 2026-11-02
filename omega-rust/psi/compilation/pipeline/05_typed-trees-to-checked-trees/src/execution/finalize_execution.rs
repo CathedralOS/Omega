@@ -41,17 +41,14 @@ pub(crate) fn finalize_execution(
     let boundary_signature_reaches = program
         .traits()
         .iter()
-        .filter(|owner| owner.is_boundary)
         .flat_map(|owner| program.executable_trait_machine_instances(owner))
         .filter_map(|signature| {
-            validation::boundary_signature_service_reach(program, signature.symbol).map(
-                |services| {
-                    (
-                        signature.symbol,
-                        facts.service_reaches.rows.intern(services),
-                    )
-                },
-            )
+            validation::trait_signature_service_reach(program, signature.symbol).map(|services| {
+                (
+                    signature.symbol,
+                    facts.service_reaches.rows.intern(services),
+                )
+            })
         })
         .collect::<Vec<_>>();
     let (mut terminal_unit_effects, partial_cleanups, prepared_calls) = phase_profile::scope(

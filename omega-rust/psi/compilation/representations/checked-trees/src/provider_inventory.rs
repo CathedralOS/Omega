@@ -26,12 +26,16 @@ pub struct PreparedProviderInventory {
 }
 
 impl PreparedProviderInventory {
-    pub fn new(checked: Arc<CheckedTrees>) -> Self {
+    pub fn new(
+        checked: Arc<CheckedTrees>,
+        exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
+    ) -> Self {
         // The Product projection has reached its final immutable Arc before
         // source-owned service formation. No target can extend this census.
         let services = typed_trees::service_declarations::PreparedServiceCatalog::prepare_frozen(
             &checked.typed,
             Product,
+            exact_toolchain_sources,
         );
         Self {
             checked,
@@ -45,6 +49,13 @@ impl PreparedProviderInventory {
 
     pub fn program(&self) -> &Arc<CheckedTrees> {
         &self.checked
+    }
+
+    pub fn service_declarations(
+        &self,
+    ) -> impl Iterator<Item = typed_trees::service_declarations::PreparedServiceDeclaration<'_>>
+    {
+        self.services.declared_traits()
     }
 
     /// Complete immutable declaration facts shared by package admission and

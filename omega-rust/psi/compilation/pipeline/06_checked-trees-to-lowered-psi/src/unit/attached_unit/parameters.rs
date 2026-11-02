@@ -7,7 +7,7 @@ use super::super::{
     StructuralTypeDeclaration,
 };
 use super::{
-    CheckedBoundaryMachinePlan, CheckedTrees, LoweringError, Multiplicity, PlaceId, ScalarType,
+    CheckedBoundaryMachinePlan, CheckedTrees, LoweringError, PlaceId, ScalarType,
     ServiceReachSummary, StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId,
     ValueDeclaration, allocate_dense, lookup_service_id, lookup_type_id, place_id,
     require_valid_service_row, terminal_scalar_type, unsupported,
@@ -24,8 +24,8 @@ use crate::expression_preparation::bindings::structural_paths::{
 use crate::expression_preparation::bindings::{
     StructuralLocalBinding, StructuralScalarFieldBinding,
 };
-use crate::terminal_identities::structural_multiplicity;
-use crate::terminal_identities::{StructuralDomainBinding, lookup_domain_id_for_carrier};
+use crate::shared::terminal_identities::structural_multiplicity;
+use crate::shared::terminal_identities::{StructuralDomainBinding, lookup_domain_id_for_carrier};
 use semantic_vocabulary::ValueId;
 mod reference_sources;
 pub(crate) use reference_sources::ReferenceSourceEvaluation;
@@ -52,21 +52,6 @@ pub(crate) fn structural_carrier_type(
                 reference = *base_type
             }
             _ => return Ok(reference),
-        }
-    }
-}
-
-/// A borrowed Binding is an ordinary reference parameter, not an owned affine
-/// binding. Provider storage never changes source access or multiplicity.
-fn service_parameter_multiplicity(
-    access: checked_trees::CheckedStructuralAccess,
-) -> Result<Multiplicity, LoweringError> {
-    match access {
-        checked_trees::CheckedStructuralAccess::Owned => Ok(Multiplicity::Affine),
-        checked_trees::CheckedStructuralAccess::SharedBorrow
-        | checked_trees::CheckedStructuralAccess::MutableBorrow => Ok(Multiplicity::Unrestricted),
-        checked_trees::CheckedStructuralAccess::WriteOnlyBorrow => {
-            unsupported("Binding parameter cannot use write-only access")
         }
     }
 }
@@ -127,7 +112,7 @@ pub(crate) fn lower_unit_scalar_parameter_declarations(
     next_value: &mut u64,
 ) -> Result<Vec<ValueDeclaration>, LoweringError> {
     let carriers = lower_unit_scalar_parameter_types(parameters)?;
-    let (_, declaration) = crate::declarations::state_declaration(checked, state)?;
+    let (_, declaration) = crate::shared::declarations::state_declaration(checked, state)?;
     let authored = checked.state_parameters(declaration);
     parameters
         .iter()
@@ -149,7 +134,7 @@ pub(crate) fn lower_unit_scalar_parameter_declarations(
             }
             Ok(ValueDeclaration {
                 qualifications: declared.qualifications,
-                id: crate::terminal_identities::value_id(allocate_dense(next_value)?),
+                id: crate::shared::terminal_identities::value_id(allocate_dense(next_value)?),
                 scalar_type: carrier,
             })
         })
@@ -164,7 +149,7 @@ pub(crate) fn unit_scalar_result_type(
     carrier: ScalarType,
     qualifications: &crate::expression_preparation::qualifications::PreparedScalarQualifications,
 ) -> Result<semantic_vocabulary::QualifiedScalarType, LoweringError> {
-    let (_, declaration) = crate::declarations::state_declaration(checked, state)?;
+    let (_, declaration) = crate::shared::declarations::state_declaration(checked, state)?;
     let declared = qualifications.signature_value_type(checked, declaration.return_type)?;
     if declared.scalar_type != carrier {
         return unsupported("Unit scalar result has a different authored carrier");
@@ -220,15 +205,6 @@ pub(crate) fn lower_unit_parameters(
             if qualifications.len() != parameter.qualifications.len() {
                 return Err(LoweringError::Unsupported(
                     "Unit structural parameter repeats a qualification",
-                ));
-            }
-            if parameter.binding_carrier.is_some()
-                && (parameter.multiplicity != service_parameter_multiplicity(parameter.access)?
-                    || !parameter.qualifications.is_empty()
-                    || !parameter.projected_qualifications.is_empty())
-            {
-                return Err(LoweringError::Unsupported(
-                    "fused Service parameter has an invalid checked structural shape",
                 ));
             }
             Ok(StructuralParameterDeclaration {
@@ -315,7 +291,7 @@ pub(crate) fn lower_declared_service_reach(
         .typed
         .service_reach_rows
         .services(source.service_reach_row);
-    crate::terminal_identities::lower_service_reach_sorted(declared, service_ids)
+    crate::shared::terminal_identities::lower_service_reach_sorted(declared, service_ids)
 }
 
 pub(crate) fn lower_fixed_boundary_service_reach(
@@ -328,7 +304,7 @@ pub(crate) fn lower_fixed_boundary_service_reach(
             .ok_or(LoweringError::Unsupported(
                 "fixed boundary reach has no exact typed requirement",
             ))?;
-    crate::terminal_identities::lower_service_reach_sorted(&source, service_ids)
+    crate::shared::terminal_identities::lower_service_reach_sorted(&source, service_ids)
 }
 
 pub(crate) fn lower_published_service_ceiling(
@@ -1001,7 +977,7 @@ pub(crate) fn primitive_reference_storage(
     )>,
     LoweringError,
 > {
-    let (_, authored) = crate::declarations::state_declaration(checked, state)?;
+    let (_, authored) = crate::shared::declarations::state_declaration(checked, state)?;
     let formals = checked.state_parameters(authored);
     let mut storage = Vec::new();
     for (plan, (_, parameter)) in plans.iter().zip(parameters) {
