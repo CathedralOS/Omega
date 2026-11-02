@@ -54,14 +54,38 @@ impl HistoricalSource {
             "machine build(builder: &mut Build) { Build::package(builder, \"recorded\"); }\n",
         )
         .unwrap();
-        let current = crate::resolution::source::resolve_external_local_project_source(
-            &live,
-            &storage,
+        let current_source =
+            package_source::local::operations::resolve_local_source_snapshot_in_lane(
+                &live,
+                storage.external_local_sources(),
+                LocalSourceLimits::default(),
+            )
+            .unwrap();
+        // This custody fixture states its candidate metadata directly. Source
+        // Build semantics are exercised by the ordinary CLI fact workflow.
+        let lineage = package_source::SourceLineage::ExternalLocal(
+            package_source::ExternalLocalLineage::canonicalize(
+                &live,
+                ExternalSourceContext::derive(b"recorded-build-recovery-test"),
+            )
+            .unwrap(),
+        );
+        let current = PackageSourceCustody::from_resolved_parts(
+            crate::declarations::PackageKey::new(
+                crate::declarations::PackageName::parse("recorded").unwrap(),
+                lineage,
+            ),
+            BuildDeclarationKind::Package,
+            ImmutableSourceResolution::external_local(SourceContentDigest::derive(
+                current_source.normalized().content_identity.as_bytes(),
+            )),
+            PackageSourceMaterialization::from_local(current_source.normalized()),
+            current_source.snapshot_root().to_path_buf(),
+            PackageSourceNavigation::Root,
+            PackageSourceSelectionEvidence::Root,
             LocalSourceLimits::default(),
-            ExternalSourceContext::derive(b"recorded-build-recovery-test"),
-        )
-        .unwrap()
-        .into_custody();
+            DependencyProjections::new(Vec::new().into(), Vec::new().into()),
+        );
         Self {
             live,
             snapshot,

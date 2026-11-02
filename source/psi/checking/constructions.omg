@@ -5,6 +5,8 @@ use psi::checking::evaluation;
 use psi::checking::facts;
 use psi::checking::frames;
 use psi::checking::places;
+use psi::checking::reference_origins;
+use psi::checking::references;
 use psi::integers::integers;
 use psi::resolution::resolution;
 use psi::syntax::syntax;
@@ -162,7 +164,7 @@ crashes Trap
         source: u64 in Trapping
     ) {
         let written: u64 in Trapping = Checker::place(checker, typing, kind, field, place, field_type);
-        Checker::copy_fields(checker, typing, written, source);
+        Checker::initialize_place(checker, typing, written, Value::at_place(source));
         transition { _ -> next_field(checker, syntax, typing, handle, expression, place, offset + 1) }
     }
 
@@ -399,7 +401,11 @@ crashes Trap
     {
         let pending: PendingField = checker.pending[index];
         let path: ArrivalPath = Checker::path_below(checker, source, pending.parent, 0);
-        transition pending.parent == source || path.depth > 0 {
+        let parent: Place = Checker::place_at(checker, pending.parent - 1);
+        let row: TypeRow = TypeTable::row(&typing.types, parent.type_handle);
+        let owned: bool = Checker::owned_below(checker, typing, source, pending.parent)
+            && (pending.parent == source || row.kind != TypeKind::Reference);
+        transition owned && (pending.parent == source || path.depth > 0) {
             true -> copied(checker, typing, target, source, index, end, pending, path)
             _ -> next(checker, typing, target, source, index + 1, end)
         }

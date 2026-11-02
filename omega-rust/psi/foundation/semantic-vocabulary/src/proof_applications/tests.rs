@@ -1,6 +1,36 @@
 use super::*;
 
 #[test]
+fn declared_target_membership_is_not_product_membership() {
+    let mut plan = ProofApplicationPlan::<u32>::default();
+    let members = plan
+        .target_members
+        .insert_many([ProofApplicationTargetMember {
+            target: "macos_arm64".into(),
+            machine: 2,
+        }]);
+    let head = plan.machines.insert(ProofApplicationMachine {
+        machine: 1,
+        family_interface: true,
+        family_members: members,
+        ..Default::default()
+    });
+    let body = plan.machines.insert(ProofApplicationMachine {
+        machine: 2,
+        authored_target: Some("macos_arm64".into()),
+        ..Default::default()
+    });
+    assert_eq!(plan.declared_callable_for_target(1, "macos_arm64"), Some(2));
+    assert_eq!(plan.declared_callable_for_target(1, "linux_arm64"), None);
+    assert_eq!(plan.callable_for_target(1, "macos_arm64"), None);
+    plan.machines.get_mut(head).product_selected = true;
+    assert_eq!(plan.callable_for_target(1, "macos_arm64"), None);
+    plan.machines.get_mut(body).product_selected = true;
+    assert_eq!(plan.callable_for_target(1, "macos_arm64"), Some(2));
+    assert_eq!(plan.callable_for_target(1, "linux_arm64"), None);
+}
+
+#[test]
 fn family_binder_rebasing_keeps_distinct_static_applications() {
     let mut plan = ProofApplicationPlan::<u32>::default();
     machine(&mut plan, 1, Some("macos_arm64"));

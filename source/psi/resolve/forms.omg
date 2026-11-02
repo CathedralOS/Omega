@@ -167,9 +167,9 @@ crashes Trap
     }
 
     // A structural callable contract (`requires machine F(...) -> T` with
-    // `requires`, `crashes`, `suspends` and `blocks` clauses) binds; a
+    // `requires`, `ensures`, `crashes`, `suspends` and `blocks` clauses) binds; a
     // nominal one (`satisfies`), one with its own binders, a proposition
-    // contract, and `ensures`, `reaches` or `invokes` clauses reject as
+    // contract, and `reaches` or `invokes` clauses reject as
     // unsupported (wiki/spec/language/generics.md, Static machine binder
     // categories).
     machine contracts(resolver: &mut Resolver, syntax: &SyntaxTrees, item: MachineItem) {
@@ -216,7 +216,7 @@ crashes Trap
 }
 
 // Whether a structural contract's clauses are ones this resolver binds:
-// `requires` facts and the operational `crashes`, `suspends` and `blocks`.
+// `requires`/`ensures` facts and the operational `crashes`, `suspends` and `blocks`.
 machine Resolver::callable_contract_clauses(syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping) -> bool
 crashes Trap
 {
@@ -233,6 +233,7 @@ crashes Trap
         let written: Clause = SyntaxTrees::clause(syntax, index);
         transition written.kind {
             ClauseKind::Requires -> next(syntax, index + 1, end)
+            ClauseKind::Ensures -> next(syntax, index + 1, end)
             ClauseKind::Crashes -> next(syntax, index + 1, end)
             ClauseKind::Suspends -> next(syntax, index + 1, end)
             ClauseKind::Blocks -> next(syntax, index + 1, end)

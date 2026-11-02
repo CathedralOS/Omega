@@ -12,6 +12,8 @@ use psi::checking::obligations;
 use psi::checking::places;
 use psi::checking::patterns;
 use psi::checking::qualification;
+use psi::checking::reference_origins;
+use psi::checking::reference_writes;
 use psi::checking::references;
 use psi::checking::snapshots;
 use psi::checking::termination;
@@ -1117,7 +1119,7 @@ crashes Trap
     machine destination(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, statement: Statement, target: Value, origin: u64 in Trapping) {
         transition target.place > 0 {
             true -> located(checker, syntax, typing, statement, target.place)
-            _ -> containing(checker, typing, statement, origin)
+            _ -> containing(checker, syntax, typing, statement, origin)
         }
     }
 
@@ -1125,6 +1127,7 @@ crashes Trap
     // (wiki/spec/layouts/recasts.md) writes bits the storage's own carrier
     // does not read back as the stored value: the storage is forgotten.
     machine located(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, statement: Statement, place: u64 in Trapping) {
+        Checker::prepare_reference_store(checker, syntax, typing, statement, place);
         let storage: Place = Checker::place_at(checker, place - 1);
         let destination: u64 in Trapping = Typing::expression_type(typing, statement.target);
         let written: u64 in Trapping = Checker::read_type(typing, destination);
@@ -1137,16 +1140,20 @@ crashes Trap
     }
 
     machine bound(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, statement: Statement, place: u64 in Trapping) {
-        Checker::snapshot_assignment(checker, syntax, typing, statement.value, place);
         let captured: Value = Checker::value_at(checker, statement.value);
         Checker::bind_place(checker, typing, place, captured);
     }
 
-    machine containing(checker: &mut Checker, typing: &Typing, statement: Statement, origin: u64 in Trapping) {
+    machine containing(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, statement: Statement, origin: u64 in Trapping) {
         transition origin > 0 {
-            true -> forgotten(checker, typing, origin)
+            true -> prepared(checker, syntax, typing, statement, origin)
             _ -> unknown(checker, statement)
         }
+    }
+
+    machine prepared(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, statement: Statement, origin: u64 in Trapping) {
+        Checker::prepare_reference_store(checker, syntax, typing, statement, origin);
+        transition { _ -> forgotten(checker, typing, origin) }
     }
 
     machine forgotten(checker: &mut Checker, typing: &Typing, origin: u64 in Trapping) {
@@ -1195,12 +1202,20 @@ crashes Trap
         let inside: bool = Checker::within(checker, owner, place);
         let stale: bool = value.known && value.subject > 0 && (owner == 0 || inside);
         Checker::forget_place(checker, typing, place);
+        forget_origins(checker, typing, place, value.place);
         Checker::copy_fields(checker, typing, place, value.place);
         let entry: Place = Checker::place_at(checker, place - 1);
         transition entry.subject > 0 {
             true -> rebound(checker, entry.subject, value, stale)
             _ -> done()
         }
+    }
+
+    machine forget_origins(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, source: u64 in Trapping) {
+        transition place != source { true -> replaced(checker, typing, place) false -> {} }
+    }
+    machine replaced(checker: &mut Checker, typing: &Typing, place: u64 in Trapping) {
+        Checker::forget_reference_origins(checker, typing, place);
     }
 
     machine rebound(checker: &mut Checker, subject: u64 in Trapping, value: Value, stale: bool) {

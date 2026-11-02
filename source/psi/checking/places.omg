@@ -7,6 +7,7 @@ use psi::checking::domains;
 use psi::checking::evaluation;
 use psi::checking::facts;
 use psi::checking::obligations;
+use psi::checking::reference_origins;
 use psi::checking::references;
 use psi::checking::zone;
 use psi::checking::static_types;
@@ -43,6 +44,12 @@ public data PlaceKind [copy] {
     case Snapshot;
     // Immutable invocation-entry ranking coordinates and range endpoints.
     case RankEntry;
+    // The one arbitrary typed result in a fresh universal-refinement world.
+    // It is not an authored call or an executable/borrow authority.
+    case ContractResult;
+    // Each returned-view publication owns an immutable logical home. A
+    // later use of the same call expression cannot redirect an older alias.
+    case View;
     // Payload selectors have their own declaration table and identity.
     case Payload;
     case CaseTag;
@@ -596,6 +603,7 @@ crashes Trap
         ValueBinding::PatternBinder { field } -> rooted(checker, typing, PlaceKind::Binder, field, type_handle)
         ValueBinding::Field { field } -> field_name(checker, typing, field, type_handle)
         ValueBinding::ReturnedValue { machine } -> returned(checker)
+        ValueBinding::ContractReturnedValue { contract as _ } -> returned(checker)
         ValueBinding::DomainSubject { domain } -> subject(checker)
         ValueBinding::DataSubject { item as _ } -> subject(checker)
         _ -> unbounded()
@@ -892,9 +900,31 @@ crashes Trap
     machine candidate(checker: &mut Checker, typing: &Typing, target: u64 in Trapping, source: u64 in Trapping, index: u64 in Trapping, end: u64 in Trapping) {
         let entry: Place = Checker::place_at(checker, index);
         let path: ArrivalPath = Checker::path_below(checker, source, index + 1, 0);
-        transition entry.subject > 0 && path.depth > 0 {
-            true -> copied(checker, typing, target, source, index, end, entry.subject, path)
+        let owned: bool = Checker::owned_below(checker, typing, source, index + 1);
+        transition path.depth > 0 && owned {
+            true -> typed(checker, typing, target, source, index, end, entry, path)
             _ -> next(checker, typing, target, source, index + 1, end)
+        }
+    }
+
+    machine typed(checker: &mut Checker, typing: &Typing, target: u64 in Trapping, source: u64 in Trapping, index: u64 in Trapping, end: u64 in Trapping, entry: Place, path: ArrivalPath) {
+        let row: TypeRow = TypeTable::row(&typing.types, entry.type_handle);
+        transition row.kind == TypeKind::Reference {
+            true -> reference(checker, typing, target, source, index, end, path)
+            false -> scalar(checker, typing, target, source, index, end, entry, path)
+        }
+    }
+
+    machine reference(checker: &mut Checker, typing: &Typing, target: u64 in Trapping, source: u64 in Trapping, index: u64 in Trapping, end: u64 in Trapping, path: ArrivalPath) {
+        let copy: u64 in Trapping = Checker::enter_path(checker, typing, target, path);
+        Checker::copy_reference_origin(checker, typing, copy, index + 1);
+        transition { _ -> next(checker, typing, target, source, index + 1, end) }
+    }
+
+    machine scalar(checker: &mut Checker, typing: &Typing, target: u64 in Trapping, source: u64 in Trapping, index: u64 in Trapping, end: u64 in Trapping, entry: Place, path: ArrivalPath) {
+        transition entry.subject > 0 {
+            true -> copied(checker, typing, target, source, index, end, entry.subject, path)
+            false -> next(checker, typing, target, source, index + 1, end)
         }
     }
 

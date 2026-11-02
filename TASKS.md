@@ -164,7 +164,7 @@ retired-syntax deletions to completion.
     result/Unit postconditions, effects/markers, loans, invariant/hole
     restoration, cleanup, linear custody, and joint SCC measures using
     declaration calls needing exclusive-loan arguments or owned affine transfers,
-    borrowed outer input homes or repeated selector
+    owned copies from borrowed outer input homes or repeated selector
     occurrences, other remaining declared body forms, nonscalar orders beyond fixed-integer
     lexicographic products, or dependent distances with computed endpoints
     without ambient parent entry facts).
@@ -503,8 +503,7 @@ narrows realization only.
     declarations: host classification's catalog-local source join, typed
     constant/comparison evaluation (including Early Build's typed-only
     comparison path), general review call coordinates, source-dependent
-    direct-call preparation, calling-policy request
-    enumeration and checked target-body correspondence.
+    direct-call preparation.
   - Move review-only products' complete conformance evidence from checked
     source custody into Terminal Psi.
   - Publish portable dormant-use records and the trust-model accepted-machine
@@ -644,9 +643,9 @@ compile-time, Build, CLI/corpus, and embedded execution through the common core.
   - Connect admitted Build operations, remaining live-storage accounting,
     remaining host operations (including admitted carriers for reference results from
     opaque host providers), and the staged dependency preparation/provider
-    park/resume contract to the production Build scheduler, replacing checked-tree Build
-    evaluation and the live-source/Git static syntax projections in
-    `omega-rust/omega/packages/build-declarations`.
+    park/resume contract to the production Build scheduler, and replace the
+    Rust-supplied default declaration for a missing `build.omg` with ordinary
+    source Build execution.
   - **BUILD-PRODUCT-REFERENCES / TERMINAL-BUILD-QUERIES:** keep `bind`,
     `select_provider`, `assume_binding_contract`, test registration, and product
     description/schema queries inert during Build and resolve them at the final
@@ -1866,13 +1865,12 @@ defines the complete product bar.
     (anonymous SQOS on owned path opens, HANDLE storage, explicit permissions and
     data sync), run `file_journal` (exit 7) and `note_vault` (exit 14), and provide trusted
     Terminal adapters for the exact authored foreign bindings.
-  - Run `tests/omega/pass/filesystem/windows_canonicalize_exit` (exit 70 on
-    Windows) and wire the occurrence-bound close proof helpers in
+  - Wire the occurrence-bound close proof helpers in
     `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/provider_admission/terminal_authority_policy/filesystem.rs`
     so a proved close earns an empty authority classification (with
     `tests/omega/pass/filesystem/native_close` as the unconstrained control).
-  Acceptance: `file_journal`, `note_vault`, `windows_canonicalize_exit`, and the
-  remaining Windows filesystem fixtures pass `omega run --both` on their matching
+  Acceptance: `file_journal`, `note_vault`, and the remaining Windows filesystem
+  fixtures pass `omega run --both` on their matching
   hosts with nested raw-provider closure checks and occurrence-bound close
   classifications, while failed acquisition, handle escape, or unproved close
   retains conservative authority.

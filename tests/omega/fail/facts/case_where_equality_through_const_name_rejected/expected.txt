@@ -1,1 +1,2 @@
-state `take` assignment may overflow `u64`
+exact arithmetic
+may overflow `u64`

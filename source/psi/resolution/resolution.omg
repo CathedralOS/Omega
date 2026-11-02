@@ -109,6 +109,9 @@ public data ValueBinding [copy] {
     // `size_of` or `align_of`, the primitive layout queries
     // (wiki/spec/language/counts_and_addresses.md).
     case LayoutQuery(query: LayoutQuery);
+    // `result` in a callable binder contract belongs to that exact signature,
+    // independently of the enclosing machine's result type.
+    case ContractReturnedValue(contract: u64 in Trapping);
     // A type operand in a proof expression; it never denotes a runtime value.
     case TypeOperand(binding: TypeBinding);
 }

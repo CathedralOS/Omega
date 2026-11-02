@@ -257,6 +257,7 @@ crashes Trap
         ValueBinding::Constant { constant } -> constant_value(typer, syntax, constant)
         ValueBinding::Field { field } -> field(typer, syntax, field)
         ValueBinding::ReturnedValue { machine } -> returned(typer, syntax, machine)
+        ValueBinding::ContractReturnedValue { contract } -> contract_returned(typer, syntax, contract)
         ValueBinding::DomainSubject { domain } -> subject(typer, syntax, domain)
         ValueBinding::DataSubject { item } -> data_subject(typer, syntax, index, item)
         _ -> absent()
@@ -315,6 +316,11 @@ crashes Trap
         let item: MachineItem = SyntaxTrees::machine_item(syntax, machine);
         let handle: u64 in Trapping = Typer::declared_result(typer, item.has_return_type, item.return_type, typer.output.unit);
         handle
+    }
+
+    machine contract_returned(typer: &mut Typer, syntax: &SyntaxTrees, contract: u64 in Trapping) -> u64 in Trapping {
+        let written: Contract = SyntaxTrees::contract(syntax, contract);
+        Typer::declared_result(typer, written.has_return_type, written.return_type, typer.output.unit)
     }
 
     // A data fact's field name has the field's declared type.

@@ -104,6 +104,7 @@ crashes Trap
     let binding: ValueBinding = NameResolution::value_binding(resolution, node);
     transition binding {
         ValueBinding::ReturnedValue { machine as _ } -> answer(true)
+        ValueBinding::ContractReturnedValue { contract as _ } -> answer(true)
         _ -> answer(false)
     }
 

@@ -3,6 +3,8 @@ use psi::checking::holds;
 use psi::checking::owned_places;
 use psi::checking::ownership;
 use psi::checking::places;
+use psi::checking::reference_origins;
+use psi::checking::references;
 use psi::checks::checks;
 use psi::resolution::resolution;
 use psi::syntax::syntax;
@@ -516,7 +518,7 @@ crashes Trap
     machine captured(checker: &Checker, index: u64 in Trapping) -> u64 in Trapping
     requires index < 256
     {
-        checker.reference_origins[index] as u64 in Trapping
+        Checker::reference_origin_place(checker.reference_origins[index])
     }
 
     machine none() -> u64 in Trapping {

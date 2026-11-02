@@ -1,4 +1,5 @@
 use psi::checking::cases;
+use psi::checking::reference_backings;
 use psi::checking::arithmetic;
 use psi::checking::checker;
 use psi::checking::completions;
@@ -437,6 +438,7 @@ crashes Trap
     machine effects(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, node: u64 in Trapping, expression: Expression, row: TypeRow) {
         let selection: Selection = Typing::selection(typing, node);
         let called: bool = Checker::selects_machine(selection);
+        Checker::publish_reference_backings(checker, syntax, resolution, typing, node, expression);
         transition called {
             true -> released(checker, syntax, resolution, typing, node, expression, row)
             _ -> resulted(checker, syntax, typing, node, expression, row)
@@ -489,23 +491,32 @@ crashes Trap
         Checker::set_value(checker, node, referent);
     }
 
-    // A machine binder may be any machine meeting its contract, so whatever
-    // its exclusive arguments reach may change, and no guarantee follows.
+    // A binder may be any machine meeting its contract: its exclusive
+    // arguments are released before the same public postconditions used
+    // for declared calls are instantiated on the completed result.
     machine released(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, node: u64 in Trapping, expression: Expression, row: TypeRow) {
         let selection: Selection = Typing::selection(typing, node);
         Checker::release_exclusive_arguments(checker, syntax, typing, expression, selection);
         transition selection {
             Selection::Machine { handle } -> callee(checker, syntax, resolution, typing, node, expression, row, handle)
-            _ -> resulted(checker, syntax, typing, node, expression, row)
+            _ -> contracted(checker, syntax, resolution, typing, node, expression, row, false)
         }
     }
 
+    // Only a selected declaration has independently derived completion
+    // evidence. Binder calls use their public contract, never a visible
+    // current supplier body or the caller's particular instantiation.
     machine callee(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, node: u64 in Trapping, expression: Expression, row: TypeRow, machine: u64 in Trapping) {
-        let item: MachineItem = SyntaxTrees::machine_item(syntax, machine);
-        let guarantees: bool = Checker::declares(syntax, item.first_clause, item.clause_count, ClauseKind::Ensures);
         let completed: bool = Checker::completed_numeric_result(checker, typing, node, machine, row);
+        transition { _ -> contracted(checker, syntax, resolution, typing, node, expression, row, completed) }
+    }
+
+    machine contracted(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, node: u64 in Trapping, expression: Expression, row: TypeRow, completed: bool) {
+        let selection: Selection = Typing::selection(typing, node);
+        let clauses: CallClauses = Checker::call_clauses(syntax, resolution, selection);
+        let guarantees: bool = Checker::declares(syntax, clauses.first_clause, clauses.clause_count, ClauseKind::Ensures);
         transition guarantees {
-            true -> guaranteed(checker, syntax, resolution, typing, node, expression, item)
+            true -> guaranteed(checker, syntax, resolution, typing, node, expression, clauses)
             _ -> completed_or_typed(checker, syntax, typing, node, expression, row, completed)
         }
     }
@@ -514,12 +525,12 @@ crashes Trap
         transition completed { true -> {} false -> resulted(checker, syntax, typing, node, expression, row) }
     }
 
-    machine guaranteed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, node: u64 in Trapping, expression: Expression, item: MachineItem) {
+    machine guaranteed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, node: u64 in Trapping, expression: Expression, clauses: CallClauses) {
         let type_handle: u64 in Trapping = Typing::expression_type(typing, node);
         let place: u64 in Trapping = Checker::place(checker, typing, PlaceKind::Call, node, 0, type_handle);
         let value: Value = Checker::reference_value(checker, typing, place);
         Checker::set_value(checker, node, value);
-        Checker::assume_guarantees(checker, syntax, resolution, typing, item, expression, value);
+        Checker::assume_guarantees(checker, syntax, resolution, typing, clauses, expression, value);
     }
 
     // Every construction owes the data declaration's default predicates over
@@ -682,7 +693,7 @@ crashes Trap
     }
 
     machine owed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, clauses: CallClauses, expression: Expression) {
-        let held: bool = Checker::decide_call_facts(checker, syntax, resolution, typing, clauses.first_clause, clauses.clause_count, clauses.first_parameter, expression, ClauseKind::Requires, true);
+        let held: bool = Checker::decide_call_facts(checker, syntax, resolution, typing, clauses, expression, ClauseKind::Requires, true);
         transition held {
             true -> done()
             _ -> unproven(checker, expression)
