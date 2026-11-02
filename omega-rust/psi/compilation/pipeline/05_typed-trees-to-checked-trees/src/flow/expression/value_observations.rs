@@ -472,6 +472,19 @@ impl Execution<'_, '_, '_> {
             // evidence once for the whole member walk instead of rescanning
             // every captured fact for each member that crosses a case.
             let mut case_evidence: Option<Option<crate::flow::CaseEvidence<'_>>> = None;
+            // Every member is observed under these same captured facts. Reuse
+            // their Boolean predicates without caching any member's verdict.
+            let boolean_values = crate::checks::contracts::BooleanValueQueries::new(
+                self.program,
+                self.context.operators,
+                self.semantic,
+                &captured_contexts,
+                ProgramPoint::Statement {
+                    machine_symbol: self.machine.symbol,
+                    state_symbol: self.state.symbol,
+                    statement_index: self.statement_index,
+                },
+            );
             for context in &captured_contexts {
                 for fact in self
                     .semantic
@@ -564,29 +577,19 @@ impl Execution<'_, '_, '_> {
                         FactPayload::AssignedValueCapture { source, point } => {
                             Some(OwnedValueObservation::Capture { source, point })
                         }
-                        _ => (crate::checks::contracts::boolean_value_at_place(
-                            self.program,
-                            self.context.operators,
-                            self.semantic,
-                            &captured_contexts,
-                            ProgramPoint::Statement {
-                                machine_symbol: self.machine.symbol,
-                                state_symbol: self.state.symbol,
-                                statement_index: self.statement_index,
-                            },
-                            &place,
-                        )
-                        .map(ScalarValue::Boolean)
-                        .or_else(|| {
-                            crate::values::scalar_value_at_place(
-                                self.program,
-                                self.semantic,
-                                captured_contexts
-                                    .iter()
-                                    .map(|context| self.semantic.contexts.get(*context)),
-                                &place,
-                            )
-                        }))
+                        _ => (boolean_values
+                            .at_place(&place)
+                            .map(ScalarValue::Boolean)
+                            .or_else(|| {
+                                crate::values::scalar_value_at_place(
+                                    self.program,
+                                    self.semantic,
+                                    captured_contexts
+                                        .iter()
+                                        .map(|context| self.semantic.contexts.get(*context)),
+                                    &place,
+                                )
+                            }))
                         .map(OwnedValueObservation::Scalar),
                     };
                     let Some(value) = value else {

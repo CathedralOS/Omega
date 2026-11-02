@@ -5,95 +5,145 @@
 //! neither recovers an old initializer nor grants immutable entry identity.
 
 use crate::flow::canonical_place_from_semantic_place;
-use crate::published::facts::boolean_predicates::inferred_boolean_at_place;
+use crate::published::facts::boolean_predicates::{BoundPredicate, inferred_boolean_at_place};
 use crate::published::facts::contract_occurrences::append_expression_occurrences;
 use crate::published::places::place_at;
 use crate::published::semantic::places::call_contract_argument_projection;
+use std::cell::OnceCell;
 use validation::CanonicalPlace;
 
 use facts::{FactOrigin, FactPayload, FactPlan, ProgramPoint, ScalarValue};
 
+/// Answer several Boolean questions at one unchanged point in the program.
+/// Prepare their common predicates only if ordinary value facts do not answer
+/// a query. Each place still receives its own freshness and inference checks.
+pub(crate) struct BooleanValueQueries<'scope> {
+    program: &'scope dyn validation::CheckingInput,
+    operators: &'scope checked_trees::CheckedOperatorFacts,
+    semantic: &'scope FactPlan,
+    contexts: &'scope [facts::FactContextHandle],
+    point: ProgramPoint,
+    predicates: OnceCell<Vec<BoundPredicate>>,
+}
+
+impl<'scope> BooleanValueQueries<'scope> {
+    pub(crate) fn new(
+        program: &'scope dyn validation::CheckingInput,
+        operators: &'scope checked_trees::CheckedOperatorFacts,
+        semantic: &'scope FactPlan,
+        contexts: &'scope [facts::FactContextHandle],
+        point: ProgramPoint,
+    ) -> Self {
+        phase_profile::count("psi.05.boolean_value_queries.batches", 1);
+        Self {
+            program,
+            operators,
+            semantic,
+            contexts,
+            point,
+            predicates: OnceCell::new(),
+        }
+    }
+
+    pub(crate) fn at_place(&self, actual: &CanonicalPlace) -> Option<bool> {
+        phase_profile::count("psi.05.boolean_value_queries.queries", 1);
+        let program = self.program;
+        let semantic = self.semantic;
+        let contexts = self.contexts;
+        let point = self.point;
+        // This query observes a Boolean value, not the truth of an arbitrary
+        // predicate about a place. Whole aggregate transfers visit many numeric
+        // and authority fields; rebuilding every retained Boolean predicate for
+        // each non-Boolean field makes that transport quadratic in its fact set.
+        // Unknown types retain the full judgment; a known different carrier cannot
+        // have a Boolean value, regardless of which facts mention its storage.
+        let scope = match point {
+            ProgramPoint::State { state_symbol, .. } => Some((state_symbol, 0)),
+            ProgramPoint::Statement {
+                state_symbol,
+                statement_index,
+                ..
+            }
+            | ProgramPoint::Call {
+                state_symbol,
+                statement_index,
+                ..
+            }
+            | ProgramPoint::CallRequires {
+                state_symbol,
+                statement_index,
+                ..
+            }
+            | ProgramPoint::CallEnsures {
+                state_symbol,
+                statement_index,
+                ..
+            }
+            | ProgramPoint::TransitionArm {
+                state_symbol,
+                statement_index,
+                ..
+            }
+            | ProgramPoint::Exit {
+                state_symbol,
+                statement_index,
+                ..
+            } => Some((state_symbol, statement_index)),
+            _ => None,
+        };
+        if let Some(reference) = scope
+            .and_then(|(state, statement)| {
+                validation::canonical_place_type_reference(program, state, statement, actual)
+            })
+            .and_then(|reference| {
+                validation::field_domains::readable_type_reference(program, reference)
+            })
+            && program
+                .primitive_type_reference(reference)
+                .is_some_and(|primitive| primitive != typed_trees::types::PrimitiveType::Bool)
+        {
+            return None;
+        }
+        if let Some(value) = ordinary_boolean_value_at_place(program, semantic, contexts, actual) {
+            return Some(value);
+        }
+        let predicates = self.predicates.get_or_init(|| {
+            phase_profile::scope("psi.05.boolean_value_queries.prepare", || {
+                crate::published::facts::boolean_predicates::retained(
+                    program,
+                    self.operators,
+                    semantic,
+                    contexts,
+                    point,
+                )
+            })
+        });
+        inferred_boolean_at_place(predicates, actual, |place| {
+            ordinary_boolean_value_at_place(program, semantic, contexts, place)
+                .map(ScalarValue::Boolean)
+                .or_else(|| {
+                    crate::values::scalar_value_at_place(
+                        program,
+                        semantic,
+                        contexts
+                            .iter()
+                            .map(|context| semantic.contexts.get(*context)),
+                        place,
+                    )
+                })
+        })
+    }
+}
+
 pub(crate) fn boolean_value_at_place(
-    program: &dyn ::validation::CheckingInput,
+    program: &dyn validation::CheckingInput,
     operators: &checked_trees::CheckedOperatorFacts,
     semantic: &FactPlan,
     contexts: &[facts::FactContextHandle],
     point: ProgramPoint,
     actual: &CanonicalPlace,
 ) -> Option<bool> {
-    // This query observes a Boolean value, not the truth of an arbitrary
-    // predicate about a place. Whole aggregate transfers visit many numeric
-    // and authority fields; rebuilding every retained Boolean predicate for
-    // each non-Boolean field makes that transport quadratic in its fact set.
-    // Unknown types retain the full judgment; a known different carrier cannot
-    // have a Boolean value, regardless of which facts mention its storage.
-    let scope = match point {
-        ProgramPoint::State { state_symbol, .. } => Some((state_symbol, 0)),
-        ProgramPoint::Statement {
-            state_symbol,
-            statement_index,
-            ..
-        }
-        | ProgramPoint::Call {
-            state_symbol,
-            statement_index,
-            ..
-        }
-        | ProgramPoint::CallRequires {
-            state_symbol,
-            statement_index,
-            ..
-        }
-        | ProgramPoint::CallEnsures {
-            state_symbol,
-            statement_index,
-            ..
-        }
-        | ProgramPoint::TransitionArm {
-            state_symbol,
-            statement_index,
-            ..
-        }
-        | ProgramPoint::Exit {
-            state_symbol,
-            statement_index,
-            ..
-        } => Some((state_symbol, statement_index)),
-        _ => None,
-    };
-    if let Some(reference) = scope
-        .and_then(|(state, statement)| {
-            validation::canonical_place_type_reference(program, state, statement, actual)
-        })
-        .and_then(|reference| {
-            validation::field_domains::readable_type_reference(program, reference)
-        })
-        && program
-            .primitive_type_reference(reference)
-            .is_some_and(|primitive| primitive != typed_trees::types::PrimitiveType::Bool)
-    {
-        return None;
-    }
-    if let Some(value) = ordinary_boolean_value_at_place(program, semantic, contexts, actual) {
-        return Some(value);
-    }
-    let predicates = crate::published::facts::boolean_predicates::retained(
-        program, operators, semantic, contexts, point,
-    );
-    inferred_boolean_at_place(&predicates, actual, |place| {
-        ordinary_boolean_value_at_place(program, semantic, contexts, place)
-            .map(ScalarValue::Boolean)
-            .or_else(|| {
-                crate::values::scalar_value_at_place(
-                    program,
-                    semantic,
-                    contexts
-                        .iter()
-                        .map(|context| semantic.contexts.get(*context)),
-                    place,
-                )
-            })
-    })
+    BooleanValueQueries::new(program, operators, semantic, contexts, point).at_place(actual)
 }
 
 fn ordinary_boolean_value_at_place(
