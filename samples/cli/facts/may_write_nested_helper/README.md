@@ -4,7 +4,12 @@ An outer helper that calls an inner helper to pick one of two mutable inputs and
 
 `choose` returns either mutable `u64`. `relay` returns that result. `overwrite` writes `9` through the nested result while evaluating an operand of `add`. The other input starts at `1` and stays there. Indexing `[4, 7, 8, 9]` with that preserved bound reads `7`. Exit is `0` only when the marker stays `1`, the chosen slot becomes `9`, and the index reads `7`. Each reject twin changes only the Boolean passed to `relay` from `true` to `false`.
 
-This witnesses the nested-helper part of **R5** in `TASKS.md`: caller-visible may-write summaries under [invocation contracts](../../../../wiki/spec/language/state_contracts.md). It does not close nested-machine results, codec arguments, finite write cycles, parameter-permutation write sets, or parser convergence.
+This witnesses nested-helper mutation summaries under
+[invocation contracts](../../../../wiki/spec/language/state_contracts.md).
+`BUILD-OWNED-TARGET-SELECTION` in `TASKS.md` owns the remaining migration of
+its target-prefixed example to ordinary implementations selected by Build.
+That migration must preserve both input bounds and the same write/index operation;
+it does not close the wider mutation-summary requirements.
 
 | Place | Positive | Reject twin | Transport |
 | --- | --- | --- | --- |
@@ -35,11 +40,13 @@ Each `invalid/` project is `intended-invalid`. The source differs only by passin
 
 ## Pinned fixtures
 
-Positive places are byte-identical to `tests/omega/pass/facts/may_write_nested_helper_through_<place>_exit`. Reject twins are byte-identical to `tests/omega/fail/facts/may_write_nested_helper_through_<place>_overlapping`. Recorded rows: nine `checked` rows (with `check-target:macos_arm64`) and nine `rejected` rows carrying their own `cannot prove` fragment in `corpus_outcomes.txt`; nine `built ... exit:0` rows in `corpus_native_macos_arm64.txt`; nine `built ... exit:0 interpreter-exit:0 interpreter:agrees` rows in `corpus_both_macos_arm64.txt`.
+Positive places are byte-identical to `tests/omega/pass/facts/may_write_nested_helper_through_<place>_exit`. Reject twins are byte-identical to `tests/omega/fail/facts/may_write_nested_helper_through_<place>_overlapping`. Historical recorded rows: nine `checked` rows (with `check-target:macos_arm64`) and nine `rejected` rows carrying their own `cannot prove` fragment in `corpus_outcomes.txt`; nine `built ... exit:0` rows in `corpus_native_macos_arm64.txt`; nine `built ... exit:0 interpreter-exit:0 interpreter:agrees` rows in `corpus_both_macos_arm64.txt`.
 
 ## Requirements and evidence
 
-Parent outcome: **R5** (`TASKS.md`). This folder establishes nested-helper may-write summaries.
+Parent outcome: `BUILD-OWNED-TARGET-SELECTION` (`TASKS.md`). The remaining
+requirement is the target-body source migration with its full public input
+contract, while retaining this existing nine-place mutation-summary fact.
 
 1. **Establishment.** `other` is initialized to `1`, or a parameter requires `other < 4`, before the write. The index uses that bound. No later equality guard re-establishes it.
 2. **Identity and lifetime.** The bound names the other mutable input. Writing the chosen input invalidates only that input. The reject twin writes the other input and retires the bound.
@@ -49,3 +56,10 @@ Parent outcome: **R5** (`TASKS.md`). This folder establishes nested-helper may-w
 6. **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`).** Each positive binds `ProgramEntry` on all four hosted targets. The two `u64` inputs and the fixed byte array use ordinary value and reference lanes.
 7. **Instruction selection, register homes, and activation frame realization (`Omega 03–06`).** Native execution stores `9` through the chosen referent and reloads the other input as the index.
 8. **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission).** `omega run --both` agrees on exit `0` for every positive place.
+
+## Current migration status
+
+The existing programs and oracles are frozen against published main
+`04085b59f9c5227e69c5af03a29aa20e061e0e74`. Their current optimized baseline
+replay is pending. The target-body program still has its original prefixes;
+no compiler failure or completed migration is claimed by this documentation update.
