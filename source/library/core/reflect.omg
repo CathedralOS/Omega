@@ -45,12 +45,12 @@ machine schema_word(bytes: &[u8], start: u64) -> u64 crashes Trap {
 machine schema_span<'bytes>(bytes: &'bytes [u8], start: u64) -> &'bytes [u8] crashes Trap {
     transition bytes.len >= 16u64 {
         true -> extent(bytes, start)
-        false -> bad()
+        false -> bad(bytes)
     }
     machine extent(bytes: &'bytes [u8], start: u64) -> &'bytes [u8] {
         transition start <= bytes.len - 16u64 {
             true -> descriptor(bytes, start)
-            false -> bad()
+            false -> bad(bytes)
         }
     }
     machine descriptor(bytes: &'bytes [u8], start: u64) -> &'bytes [u8] {
@@ -59,20 +59,20 @@ machine schema_span<'bytes>(bytes: &'bytes [u8], start: u64) -> &'bytes [u8] cra
         let length: u64 = schema_word(bytes, next);
         transition offset <= bytes.len {
             true -> remaining(bytes, offset, length)
-            false -> bad()
+            false -> bad(bytes)
         }
     }
     machine remaining(bytes: &'bytes [u8], offset: u64, length: u64) -> &'bytes [u8] {
         transition length <= bytes.len - offset {
             true -> view(bytes, offset, length)
-            false -> bad()
+            false -> bad(bytes)
         }
     }
     machine view(bytes: &'bytes [u8], offset: u64, length: u64) -> &'bytes [u8] {
         let end: u64 = offset + length;
         &bytes[offset..end]
     }
-    machine bad() -> &'bytes [u8] { crash Trap; }
+    machine bad(bytes: &'bytes [u8]) -> &'bytes [u8] { crash Trap; }
 }
 
 public machine TypeSchema::node<'graph>(graph: &'graph TypeSchema, handle: u64) -> SchemaNode<'graph> crashes Trap {
@@ -80,12 +80,12 @@ public machine TypeSchema::node<'graph>(graph: &'graph TypeSchema, handle: u64) 
     let count: u64 = schema_word(graph.storage, 8u64);
     transition version == 1u64 && graph.storage.len >= 64u64 {
         true -> directory(graph, handle, count)
-        false -> bad()
+        false -> bad(graph)
     }
     machine directory(graph: &'graph TypeSchema, handle: u64, count: u64) -> SchemaNode<'graph> {
         transition count > 0u64 && count <= (graph.storage.len - 64u64) / 16u64 {
             true -> select(graph, handle, count)
-            false -> bad()
+            false -> bad(graph)
         }
     }
     machine select(graph: &'graph TypeSchema, handle: u64, count: u64) -> SchemaNode<'graph> {
@@ -99,7 +99,7 @@ public machine TypeSchema::node<'graph>(graph: &'graph TypeSchema, handle: u64) 
         let storage: &'graph [u8] = schema_span(graph.storage, offset);
         SchemaNode { graph: graph, storage: storage }
     }
-    machine bad() -> SchemaNode<'graph> { crash Trap; }
+    machine bad(graph: &'graph TypeSchema) -> SchemaNode<'graph> { crash Trap; }
 }
 
 public machine TypeSchema::root<'graph>(graph: &'graph TypeSchema) -> SchemaNode<'graph> crashes Trap {
