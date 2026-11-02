@@ -49,7 +49,9 @@ Only the available Linux x86-64 host supplies native execution evidence here.
   storage.
 - **Composition:** an identity call's `result == value` guarantee carries the
   input's nonnegative bound into a later call. Nested machines, match results,
-  and forwarding helpers must preserve the same bound.
+  and forwarding helpers must preserve the same bound. The match example runs
+  both branches with distinct returned values, so choosing the wrong branch
+  makes its runtime check fail.
 - **Soundness boundaries:** integer comparison rules apply to executable integer
   values; erased mathematical values and structural equality cannot stand in
   for them. A chosen implementation cannot narrow the public crash conditions.
