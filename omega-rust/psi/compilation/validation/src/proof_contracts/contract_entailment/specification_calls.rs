@@ -1436,6 +1436,20 @@ pub(super) fn owner_is_proof(
     }
 }
 
+/// A call whose selected public callable carries proof-only values cannot
+/// run: those values have no layout. Its invocation is fact-only and emits no
+/// runtime call or work, so it reads and writes no caller storage. A concrete
+/// machine classifies by its body's values; a static binder or requirement by
+/// its declared telescope, as `owner_is_proof` judges citation intake.
+pub fn invocation_is_fact_only(program: &dyn crate::CheckingInput, target: SymbolHandle) -> bool {
+    let classification = crate::proof_only_classification(program);
+    match crate::find_state(program, target) {
+        Some((callee, _)) => classification.is_proof_machine(program, callee),
+        None => signature_by_symbol(program, target)
+            .is_some_and(|signature| classification.is_proof_signature(program, signature)),
+    }
+}
+
 pub(super) fn owner_name(
     program: &dyn crate::CheckingInput,
     owner: &SelectedCallContract<'_>,

@@ -146,6 +146,8 @@ impl<'program> StructuralJudge<'program> {
                 let mut judge = arm
                     .normal_judge
                     .complete_invocation(caller, scope.1, &subjects, writes)?;
+                let version = judge.call_storage_version(scope.1, expression);
+                judge.advance_storage_version(version);
                 let completed = public_capture.and_then(|(prepared, guarantees)| {
                     judge.capture_prepared_normal_call(prepared, guarantees, Some(&result), scope)
                 });

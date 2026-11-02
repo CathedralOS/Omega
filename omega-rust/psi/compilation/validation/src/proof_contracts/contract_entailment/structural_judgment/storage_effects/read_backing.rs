@@ -19,12 +19,6 @@ pub(in crate::proof_contracts::contract_entailment::structural_judgment) struct 
     representation: Option<(CapturedStorageCoordinate, PrimitiveType, PrimitiveType)>,
 }
 
-impl CapturedScalarReadBacking {
-    pub(super) fn survives(&self, written: &[String]) -> bool {
-        self.dependencies.survives(written)
-    }
-}
-
 impl StructuralJudge<'_> {
     /// A completed call's public coordinate observes current contents through
     /// its independently retained result suppliers. It is a logical post-state
