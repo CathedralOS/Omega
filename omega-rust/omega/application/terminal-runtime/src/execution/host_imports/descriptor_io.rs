@@ -7,10 +7,12 @@
 //! and retained pointer/length ABI. Mutable views stage fixed-extent writes into
 //! the original backing. Neither protocol grants allocation tails or resizing.
 //! The host explicitly assumes equivalence of these offered implementations;
-//! checked library wrappers remain guest code, and no real host I/O occurs here.
-//! The same transfer serves retained or discarded counts. Linux kernel errors
-//! are not libc errno: unknown descriptors and host replay failures reject,
-//! rather than manufacturing a raw kernel status or touching OS descriptors.
+//! checked library wrappers remain guest code. Standard streams perform no real
+//! host I/O. Explicit matching-host filesystem delegation separately supplies
+//! kernel writes over the same captured bytes and an owned guest descriptor
+//! namespace. Its actual syscall status preserves errors and partial writes.
+//! The same transfer serves retained or discarded counts. Finite replay errors
+//! cannot manufacture Linux kernel statuses or touch arbitrary OS descriptors.
 //! Versioned Linux libc write uses the same private output and captured backing,
 //! with its own size_t/ssize_t ABI. Unsupported descriptors decline before output;
 //! this offer supplies neither libc read nor observable TLS errno state.
