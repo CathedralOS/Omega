@@ -41,9 +41,11 @@ pub fn trait_operator_matches_application(
         return false;
     };
 
+    // Closed applications retain normalized identity text, never display
+    // spellings; `u64` displays as `u64` but is identified as its normal form.
     let binding_identity = |symbol| {
         bindings.types.iter().find_map(|(bound, actual)| {
-            (*bound == symbol).then(|| program.display_type_reference(*actual))
+            (*bound == symbol).then(|| program.normalized_type_identity_text(*actual))
         })
     };
     application.trait_definition != trait_definition.symbol
