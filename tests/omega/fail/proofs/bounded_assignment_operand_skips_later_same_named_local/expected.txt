@@ -1,1 +1,0 @@
-cannot prove assignment value `N + 1` satisfies bounded target `total`

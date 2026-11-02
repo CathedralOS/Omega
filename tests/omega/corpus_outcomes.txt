@@ -33321,8 +33321,6 @@ fail/proofs/bag_view_false_twin rejected 848ms unexpected @ccdb99ca2214
 	machine `reverse_append` ensures contract proof fact `reverse(append(s, t)) == append(reverse(t), reverse(s))` speaks about proof-only `Seq`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
 fail/proofs/boolean_return_uses_executed_assembly_order rejected 2762ms expected @ccdb99ca2214
 	cannot prove requires contract for call demand from main: choose() == false (needs fact `value == false` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/proofs/bounded_assignment_operand_skips_later_same_named_local rejected 830ms expected @ccdb99ca2214
-	cannot prove assignment value `N + 1` satisfies bounded target `total` in `shadow.entry`; expected 0..=4
 fail/proofs/call_argument_snapshot_precedes_write rejected 1836ms expected @ccdb99ca2214
 	cannot prove requires contract for call demand from invalid: snapshot.value == 0 (needs fact `value == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/proofs/case_call_wrong_subject rejected 801ms expected @ccdb99ca2214
