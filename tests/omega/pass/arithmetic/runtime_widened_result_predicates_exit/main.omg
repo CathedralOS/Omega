@@ -4,7 +4,7 @@ use omega_language_std::console;
 // All historical widening-result bounds establish ordinary record predicates.
 // Keep the input runtime-dependent and transport the complete record through
 // a helper return and a named state before inspecting its exact endpoints.
-data Widened where byte_unsigned_16 <= 255, byte_unsigned_32 <= 255,
+data Widened requires byte_unsigned_16 <= 255, byte_unsigned_32 <= 255,
     byte_unsigned_64 <= 255, half_unsigned_32 <= 65535,
     half_unsigned_64 <= 65535, word_unsigned_64 <= 4294967295,
     byte_signed_16 >= 0, byte_signed_16 <= 255,

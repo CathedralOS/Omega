@@ -5,7 +5,7 @@
 // (before this rung the write bypassed the net entirely).
 use omega_language_std::console;
 data Tally
-where
+requires
     count <= len,
 {
     len: u32;

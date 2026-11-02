@@ -8,7 +8,7 @@ machine add50(a: u64, b: u64) -> u64
     a + b
 }
 
-data Pair where left <= 50, right <= 50, result <= 100 {
+data Pair requires left <= 50, right <= 50, result <= 100 {
     left: u64;
     right: u64;
     result: u64;

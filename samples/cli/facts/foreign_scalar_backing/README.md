@@ -53,7 +53,7 @@ a descriptor sibling does not relocate that field.
   width. Narrow and mixed backings, mutation through shared access and stores
   without fit proofs remain rejection controls. No `None` result establishes
   footprint, access or lifetime authority.
-- Psi 05–07: checked field loans, ordinary value transport and foreign demands
+- Psi 06–08: checked field loans, ordinary value transport and foreign demands
   become the same retained Terminal operation. Real Terminal execution, rather
   than source checking alone, must agree with the native program.
 - Omega 00–02: exact target bindings select their own calling plans and foreign

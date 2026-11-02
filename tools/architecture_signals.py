@@ -3,7 +3,7 @@
 
 Agents repair the case in front of them. 278 of 1,064 commits from 2026-10-25
 to 2026-11-01 were "preserve/carry" repairs, and the two checkers that model
-storage history separately (stage 04 FlowFacts and checking's program
+storage history separately (stage 05 FlowFacts and checking's program
 validation) only showed up in the aggregate record, not in any one session.
 This tool prints that aggregate in one report so design work starts from
 measured hot spots instead of from whichever file a session happened to open.
@@ -90,9 +90,9 @@ REPAIR = re.compile(r"\b(" + "|".join(REPAIR_VERBS) + r")\w*\b", re.IGNORECASE)
 STAGE = re.compile(r"(psi|omega)/compilation/pipeline/(\d+b?)_")
 TRACE_PREFIX = "OMEGA_ROUTE_TRACE\t"
 DEFAULT_ROUTE_SITES = (
-    "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/"
+    "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks/"
     "contracts/exits.rs::check_exit_ensures",
-    "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/"
+    "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks/"
     "contracts/exits.rs::live_contexts_prove_scalar_postcondition",
 )
 MAX_WITNESSES = 200

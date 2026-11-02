@@ -208,7 +208,7 @@ impl CheckedTrees {
 
     /// The `u64` literal the selected target's fold landed at a retained
     /// constant's root (`CheckedScalarComputationKind::RetainedConstant`).
-    /// Stage 04 mints the row while the root is still a `size_of`/`align_of`
+    /// Stage 05 mints the row while the root is still a `size_of`/`align_of`
     /// query; execution settlement folds every such query into a literal in
     /// the one checked program before lowering runs. This is the checked
     /// product's view of that fold, not an authored expression: `None` means

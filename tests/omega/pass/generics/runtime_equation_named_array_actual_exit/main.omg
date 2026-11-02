@@ -3,11 +3,11 @@ const Counts::FOUR: u64 = 4;
 const Count: u64 = 4;
 
 data Inferred<Payload [copy], Element [copy], const Count: u64> [copy]
-where Payload == [Element; Count]
+requires Payload == [Element; Count]
 { value: Payload; marker: Element; }
 
 data Verified<Payload [copy]> [copy]
-where Payload == [u64; 4]
+requires Payload == [u64; 4]
 { value: Payload; }
 
 machine capacity<Payload, const Count: u64>() -> u64

@@ -252,7 +252,7 @@ callable policy 8 and complete baseline 9. Other policy components, text grammar
 normalized-row framing and ledger versions are unchanged.
 
 This is the evidence vocabulary, not a claim that every authored requirement
-already reaches it. Stage 04's `EntryOperands::scalar` currently declines
+already reaches it. Stage 05's `EntryOperands::scalar` currently declines
 indexed reads, nonempty-path lengths, policy casts and representation views
 when normalizing ordinary expression requirements. Whole-view entry lengths
 cross that boundary; membership-derived requirements have a separate checked

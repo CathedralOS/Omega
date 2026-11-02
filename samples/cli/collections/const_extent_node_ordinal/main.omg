@@ -5,7 +5,7 @@
 // a plain integer index is not a proof against `N`.
 use omega_language_std::console;
 
-data Nodes<const N: u64> where N >= 1 && N <= 8 {
+data Nodes<const N: u64> requires N >= 1 && N <= 8 {
     x: [i64 in Wrapping; N];
 }
 

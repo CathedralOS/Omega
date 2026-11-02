@@ -60,6 +60,52 @@ declaration/schema revision and every referenced application. Fingerprints index
 these records; a digest, offset, numeric key, or matching bytes alone authorizes
 no operation. Display names and schema numbers are not alternative type identities.
 
+## Typed declaration selectors
+
+Named decision: `domain-access-unification`, settled 2026-11-01.
+
+`reflect::field(Type::field)` selects a semantic field declaration and returns
+`FieldInfo`. `reflect::callable(Path::machine)` selects either an exact concrete
+machine or an exact trait machine requirement and returns `CallableInfo`.
+These compiler-known core queries add no keyword and follow ordinary lexical
+resolution, dependency and visibility rules. They do not evaluate an instance,
+take a borrow, invoke a machine or acquire authority. A symbolic declaration
+operand is not an otherwise first-class executable value.
+
+```omega
+reflect::field(Controller::status)
+reflect::field(Buffer<u32>::used)
+reflect::callable(Controller::update)
+reflect::callable(ControllerWriter::write)
+```
+
+`FieldInfo` retains exact owner/application/member, complete field type, relevance,
+case ownership and schema revision, as does enumeration of that same member.
+It is neither an address nor an offset. Wrong-owner/application/revision or
+non-field selectors reject; physical placement still needs the checked layout
+correspondence below. A nested region retains its complete checked semantic path,
+not just the terminal field declaration shared by several containing instances.
+
+`CallableInfo` is one ordinary descriptive carrier with distinct concrete-machine
+and trait-requirement alternatives. It retains exact declaration/application and
+contract identity; it is not a function pointer, callable value, selected provider
+or conformance witness. A requirement descriptor authorizes only invocation
+through that requirement and its selected implementation when used in a domain
+policy. It does not authorize unrelated direct calls to a satisfying machine.
+A bare trait does not mean all of its current or future requirements.
+
+Mixed arrays of these callable descriptors are homogeneous. `FieldInfo` cannot
+enter such an array or a caller-list parameter. No universal untyped symbol handle
+or string comparison stands in for either category. An ambiguous overload rejects;
+a caller-list context does not choose one by guessed signature. Generic selectors
+retain exact applications/substitutions under ordinary generic identity rules.
+Unresolved applications cannot be relabeled as concrete identities.
+
+Constructing, copying or serializing descriptions supplies no authorization.
+Consumers validate their exact identities, scope and correspondence. Private
+issuer/reader/writer descriptors have only the existing domain route-metadata
+exception; reflection does not publish their declarations as callable APIs.
+
 ## Schema and layout
 
 `reflect::TypeSchema` describes semantic structure. `layout::Schema` is the
@@ -103,8 +149,8 @@ not a delegated accessor.
 
 Structural visibility does not override
 [domain-owned access policy](domains.md#domain-owned-read-and-write-authority).
-Enumerating field descriptions grants neither `read by` nor `written by`
-authority over a value. Runtime visitors and generated codecs must receive the
+Enumerating field descriptions grants neither domain reader nor writer
+authorization over a value. Runtime visitors and generated codecs must receive the
 same authorized, subject-bound access as handwritten operations; compile-time
 execution and reflective projection cannot bypass the policy.
 

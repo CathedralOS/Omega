@@ -2,7 +2,7 @@
 // Live length belongs to an explicit record; qualification does not store it.
 domain [u8; 8]::Ascii requires ascii_only(self);
 domain [u8]::Ascii requires ascii_only(self);
-data Buffer where used <= 8 { storage: [u8; 8] in Ascii; used: u64; }
+data Buffer requires used <= 8 { storage: [u8; 8] in Ascii; used: u64; }
 machine live(buffer: &Buffer) -> &[u8] in Ascii
 ensures result.len == buffer.used
 {

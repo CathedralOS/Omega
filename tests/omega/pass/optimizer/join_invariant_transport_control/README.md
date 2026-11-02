@@ -3,7 +3,7 @@
 `build.omg` authors the same `Optimization::CopyPropagation` and
 `Optimization::DeadPureScalarElimination` selection as the two
 `join_invariant_*_transport_selected` fixtures, but `main.omg` owns no
-runtime index obligation, so stage 05 retains no scalar join invariant for
+runtime index obligation, so stage 06 retains no scalar join invariant for
 the `joined` header.
 
 The passes behave identically through a different route: `probe` is still a

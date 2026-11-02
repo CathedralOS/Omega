@@ -1,4 +1,4 @@
-data Snapshot where before == after {
+data Snapshot requires before == after {
     before: u64;
     effect: u64;
     after: u64;

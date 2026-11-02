@@ -776,7 +776,7 @@ impl TerminalExecution<'_> {
         // used by a subsequent subslice.
         let formation_path = &source.path;
         let (backing_path, selected_window) = match source.path.split_last() {
-            Some((StructuralPathSegment::FixedByteRange { start, end }, backing)) => {
+            Some((StructuralPathSegment::FixedRange { start, end }, backing)) => {
                 if region != ElementViewRegion::WholeCollection || start > end {
                     return Err(malformed());
                 }
@@ -810,7 +810,7 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         let declared_backing_path = match declared_source.path.split_last() {
-            Some((StructuralPathSegment::FixedByteRange { .. }, prefix)) => prefix,
+            Some((StructuralPathSegment::FixedRange { .. }, prefix)) => prefix,
             _ => declared_source.path.as_slice(),
         };
         let collection_shape = crate::custody::resolve_structural_path_shape(

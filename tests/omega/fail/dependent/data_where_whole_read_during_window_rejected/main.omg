@@ -1,5 +1,5 @@
 data Map
-where
+requires
     start <= end,
 {
     start: i32;

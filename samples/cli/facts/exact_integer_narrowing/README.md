@@ -65,7 +65,7 @@ Requirement evidence:
   from its bounds. Existing escaping-selection, changed-subject, self-formation
   and cyclic-arrival controls in `nested_machine_invocation/private_arithmetic`
   retain their separate refusal obligations; this row adds no recursion rule.
-- **Psi 05–07:** cast inputs/results and selected tags execute through ordinary
+- **Psi 06–08:** cast inputs/results and selected tags execute through ordinary
   canonical Terminal Psi. The proof is erased; no runtime subject, guard
   insertion, duplicated input evaluation or result placeholder is introduced.
 - **Omega 00–02:** ordinary scalar result/argument placement realizes the same

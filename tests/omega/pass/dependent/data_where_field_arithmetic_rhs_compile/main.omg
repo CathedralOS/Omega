@@ -1,7 +1,7 @@
 // The arithmetic operand may sit on the bound's right side: `Step` is
 // valid only while `x >= y + 1` — x stays strictly above y.
 data Step
-where
+requires
     x >= y + 1,
 {
     x: u64;

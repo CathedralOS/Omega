@@ -172,7 +172,7 @@ impl Replay<'_> {
                     // Window coordinates may refine a captured region, but are
                     // unnecessary for a conservative union of its inline slots.
                     let path = match projection.path.split_last() {
-                        Some((StructuralPathSegment::FixedByteRange { .. }, prefix)) => prefix,
+                        Some((StructuralPathSegment::FixedRange { .. }, prefix)) => prefix,
                         _ => projection.path.as_slice(),
                     };
                     let mut backing =

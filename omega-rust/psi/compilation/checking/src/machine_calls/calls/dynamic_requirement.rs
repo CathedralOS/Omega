@@ -45,7 +45,7 @@ pub(crate) fn dynamic_selector_call<'program>(
     let Some(&selector) = arguments.first() else {
         return Ok(None);
     };
-    // Stage 04 retargets a selector call to its instantiated slot; the slot
+    // Stage 05 retargets a selector call to its instantiated slot; the slot
     // names the requirement the call was checked against.
     let target = program
         .dynamic_slot_by_symbol(target)

@@ -1,7 +1,7 @@
 // Counter.value <= 60 makes exact i32 70 + value representable without a per-call bound.
 // Expected exit: 0
 machine bounded(value: i32) -> bool { value <= 60 }
-data Counter [copy] where bounded(self.value) == true {
+data Counter [copy] requires bounded(self.value) == true {
     before: i32;
     value: i32;
     after: i32;

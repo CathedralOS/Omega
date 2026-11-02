@@ -2,7 +2,7 @@
 // valid only while `low <= mid` and `mid <= high` both hold. A literal with
 // ordered constants proves both conjuncts; the chain is one invariant.
 data Sorted
-where
+requires
     low <= mid,
     mid <= high,
 {

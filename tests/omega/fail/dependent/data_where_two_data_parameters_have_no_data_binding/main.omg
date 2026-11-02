@@ -10,7 +10,7 @@
 // coupling. Picking either parameter in `ambiguous` instead of refusing would
 // analyze one record's write against the other's valuation.
 data Main
-where
+requires
     low <= high,
 {
     low: i32;

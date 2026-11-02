@@ -138,7 +138,7 @@ public data LexDiagnostic [copy] {
 }
 
 public data TokenStream
-where
+requires
     token_count <= 65536,
     decoded_length <= 131072,
 {

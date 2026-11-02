@@ -2,7 +2,7 @@
 // valid only while `port > 0` and `port != 9` — a positive field with a
 // single excluded point inside its range.
 data Port
-where
+requires
     port > 0,
     port != 9,
 {

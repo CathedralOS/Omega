@@ -2,7 +2,7 @@
 // Place: match_join. Both match arms execute indirect aggregate returns and join into an aggregate.
 // Expected exit: 0
 
-data Triple [copy] where
+data Triple [copy] requires
     a >= 20u64 && a <= 20u64,
     b >= 30u64 && b <= 30u64,
     c <= 90u64 && c >= 40u64 && c <= 40u64

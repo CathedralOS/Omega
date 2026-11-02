@@ -1,7 +1,7 @@
 // A bounded snapshot may be returned after the live measure decreases, but
 // it cannot reset the cyclic measure on a recurrent edge. The finishing
 // state reenters s with the old snapshot instead of completing the walk.
-data Pair where 0 <= left, left <= 5 { left: u32; }
+data Pair requires 0 <= left, left <= 5 { left: u32; }
 
 machine walk(remaining: u32) -> u32
     requires 0 <= remaining && remaining <= 5

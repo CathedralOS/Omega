@@ -19,7 +19,7 @@ machine clamp(val: u64) -> u64
     }
 }
 
-data Payload where val >= 10u64 && val <= 100u64 {
+data Payload requires val >= 10u64 && val <= 100u64 {
     val: u64;
 }
 

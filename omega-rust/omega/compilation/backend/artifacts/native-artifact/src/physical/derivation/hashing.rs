@@ -37,7 +37,7 @@ pub(crate) fn hash_structural_path(
                 digest.raw(&case.get().to_le_bytes());
             }
             terminal_psi::StructuralPathSegment::Referent => digest.byte(3),
-            terminal_psi::StructuralPathSegment::FixedByteRange { start, end } => {
+            terminal_psi::StructuralPathSegment::FixedRange { start, end } => {
                 digest.byte(4);
                 digest.raw(&start.to_le_bytes());
                 digest.raw(&end.to_le_bytes());

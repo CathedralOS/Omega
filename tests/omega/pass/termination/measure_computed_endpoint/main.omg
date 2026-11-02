@@ -1,7 +1,7 @@
 // A measure rank endpoint computed from a sibling record member:
 // `in 0..(countdown.limit + 1)` — exclusive upper bound over the
 // member's declared range.
-data Countdown where 0 <= remaining, remaining <= 5, 0 <= limit, limit <= 5 {
+data Countdown requires 0 <= remaining, remaining <= 5, 0 <= limit, limit <= 5 {
     remaining: u64;
     limit: u64;
 }

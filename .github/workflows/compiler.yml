@@ -53,6 +53,8 @@ jobs:
           key: compiler-check-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-${{ github.sha }}
           restore-keys: |
             compiler-check-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-
+      - name: Check production dependency boundaries
+        run: python tools/check_native_boundary.py
       - name: Check the exact integration candidate
         run: cargo check --locked -p omega
 

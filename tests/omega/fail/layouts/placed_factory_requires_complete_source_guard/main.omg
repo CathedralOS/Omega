@@ -2,7 +2,7 @@
 // The embedding test establishes exact backings and checks external effects.
 use omega::language::core::layout;
 
-public data Registers where (transmit as u32) <= status {
+public data Registers requires (transmit as u32) <= status {
     status: u32;
     transmit: u8;
 }

@@ -2,7 +2,7 @@ use omega::language::core::float_operations;
 
 // One scalar consumes rdi. The following INTEGER/SSE record consumes rsi and
 // xmm0 atomically; the trailing scalar float independently advances to xmm1.
-public data MixedPair where integer <= 100 {
+public data MixedPair requires integer <= 100 {
     integer: u64;
     floating: f64;
 }

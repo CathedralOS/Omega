@@ -1,7 +1,7 @@
 // amount <= 320 - counter.total makes exact counter.total + amount preserve counter.total <= 320.
 // Place: match_join.
 // Expected exit: 0
-data Counter where total <= 320 { total: u64; }
+data Counter requires total <= 320 { total: u64; }
 machine advance(counter: &mut Counter, amount: u64, choose_first: bool)
 requires amount <= 1000 && amount <= 320 - counter.total
 {

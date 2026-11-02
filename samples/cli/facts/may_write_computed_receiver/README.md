@@ -42,7 +42,7 @@ Parent outcome: **R5** (`TASKS.md`), the computed-receiver row.
 2. **Identity and lifetime.** The bound names the other mutable input. The placed write stores through the receiver's chosen cell. The reject twin writes the other input and retires the bound.
 3. **Composition.** `choose` returns one input, and that result is the receiver of `held.write`. The preserved bound is then used by a local, field, parameter, call result, match join, const bound, state arrival, forwarding machine, or target body.
 4. **Soundness boundaries.** The summary is a may-write footprint. It does not grant a loan, a move, or a linear claim. The overlapping candidate cannot keep the stale index bound.
-5. **Checked-to-Terminal Psi lowering (`Psi 05–07`).** The choice, the placed write, and the proved index lower into Terminal Psi and execute with the interpreter on `omega run --both`.
+5. **Checked-to-Terminal Psi lowering (`Psi 06–08`).** The choice, the placed write, and the proved index lower into Terminal Psi and execute with the interpreter on `omega run --both`.
 6. **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`).** Each positive binds `ProgramEntry` on all four hosted targets. The selected view callee records the actual cell argument.
 7. **Instruction selection, register homes, and activation frame realization (`Omega 03–06`).** Native execution stores `9` through the chosen cell and reloads the other cell as the index.
 8. **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission).** `omega run --both` agrees on exit `0` for every positive place.

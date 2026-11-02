@@ -634,8 +634,18 @@ pub(crate) fn validate_call_arguments(
                     expression_type_name_handle(program, *argument)
                 );
             }
+            let declared_detail =
+                declared_place_type(program, current_machine, current_state, *argument)
+                    .map(|actual| {
+                        format!(
+                            "; expected carrier `{}`, declared place carrier `{}`",
+                            program.normalized_type_identity_text(parameter.type_reference),
+                            program.normalized_type_identity_text(actual),
+                        )
+                    })
+                    .unwrap_or_default();
             diagnostics.push(Diagnostic::error(format!(
-                "argument `{}` for state `{}` expects `{}`, got `{}`",
+                "argument `{}` for state `{}` expects `{}`, got `{}`{declared_detail}",
                 parameter.name,
                 target_name,
                 expected_type,
@@ -918,7 +928,9 @@ pub(crate) use argument_correspondence::{
     call_binding_correspondence, captured_argument_position, executable_parameters,
 };
 mod occurrences;
-pub use argument_correspondence::{SelectedCallArgument, selected_call_arguments};
+pub use argument_correspondence::{
+    SelectedCallArgument, SelectedCallArgumentError, selected_call_arguments,
+};
 pub use occurrences::{
     CallSite, call_is_unconditional, call_site_argument_expressions, call_site_evidence_arguments,
     collect_call_sites_in_statement, find_call_site, find_call_site_in_state,

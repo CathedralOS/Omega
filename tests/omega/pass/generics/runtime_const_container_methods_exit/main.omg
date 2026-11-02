@@ -4,7 +4,7 @@ use omega_language_std::console;
 
 // `items[0]` reads discharge against the symbolic extent: the template must
 // declare N >= 1 so index 0 is provably inside every admissible specialization.
-data FixedBuffer<const N: u64> where N >= 1 {
+data FixedBuffer<const N: u64> requires N >= 1 {
     items: [i32 in Wrapping; N];
 }
 

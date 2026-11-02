@@ -19,7 +19,7 @@ public data SourceSpan [copy] {
 }
 
 public data SourceUnit
-where
+requires
     length <= 131072,
 {
     id: SourceId;
@@ -86,7 +86,7 @@ machine SourceUnit::byte_or_nul(source_unit: &SourceUnit, index: u64 in Trapping
 // and `use` selects modules, or a one-segment package name or dependency
 // alias.
 public data ModulePath
-where
+requires
     length <= 256,
 {
     bytes: [u8; 256] in Trapping;
@@ -156,7 +156,7 @@ public data DependencyRow [copy] {
 // bounded arenas; the request's graph validation, not this set, rejects
 // duplicate aliases of one requester and scope.
 public data SourceSet
-where
+requires
     unit_count <= 128,
     byte_count <= 4194304,
     path_byte_count <= 16384,

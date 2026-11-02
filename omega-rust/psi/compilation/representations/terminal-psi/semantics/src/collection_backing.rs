@@ -78,7 +78,7 @@ pub fn collection_view_descriptor(
             && region == terminal_psi::ElementViewRegion::WholeCollection
             && !matches!(
                 source_path.last(),
-                Some(terminal_psi::StructuralPathSegment::FixedByteRange { .. })
+                Some(terminal_psi::StructuralPathSegment::FixedRange { .. })
             ) =>
         {
             Some(CollectionViewDescriptor::DeclaredLength(*capacity))

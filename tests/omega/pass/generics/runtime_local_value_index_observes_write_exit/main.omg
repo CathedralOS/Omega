@@ -1,7 +1,7 @@
 // Expected exit: 0
 // Local type formation consumes the current written scalar value.
 data View<'storage> [copy] { bytes: &'storage [u8]; }
-data Counted<'storage, Count: u64> [copy] where view.bytes.len == Count { view: View<'storage>; }
+data Counted<'storage, Count: u64> [copy] requires view.bytes.len == Count { view: View<'storage>; }
 machine invalid<'storage>(source: View<'storage>, mut start: u64, end: u64)
 requires start <= end && end == 7 && source.bytes.len == 7
 {

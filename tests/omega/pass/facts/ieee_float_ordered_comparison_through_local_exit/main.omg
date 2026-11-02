@@ -2,7 +2,7 @@
 // Place: local. The bounded reading is stored in a local variable before passing to verify_window.
 // Expected exit: 0
 
-data Reading [copy] where value >= 1.5 && value <= 2.5 {
+data Reading [copy] requires value >= 1.5 && value <= 2.5 {
     value: f64;
 }
 

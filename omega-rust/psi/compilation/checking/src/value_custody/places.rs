@@ -626,7 +626,7 @@ pub(crate) fn declared_indexed_projection_type_raw(
 }
 
 /// The legacy spelling of `TypedTrees::unwrapped_type_reference`, kept for the
-/// callers inside checking and stage 04 that still name it. Peeling a
+/// callers inside checking and stage 05 that still name it. Peeling a
 /// `Reference` or `Constrained` shell is a pure question about the type table,
 /// so the implementation lives with the table in `typed-trees`; this delegates
 /// rather than restating it, leaving one implementation to maintain.

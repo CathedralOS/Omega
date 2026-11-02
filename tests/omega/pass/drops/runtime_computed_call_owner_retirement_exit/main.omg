@@ -1,6 +1,6 @@
 use omega_language_std::console;
 
-data Token where value >= 0 && value <= 100 { value: i32; }
+data Token requires value >= 0 && value <= 100 { value: i32; }
 data Main { }
 
 machine consume(token: Token) -> bool { token.value == 42 }

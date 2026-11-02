@@ -5,7 +5,7 @@ domain [u8]::NonEmpty
 requires
     non_empty(self);
 data Message
-where
+requires
     text in NonEmpty,
 {
     text: &[u8];

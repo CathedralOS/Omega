@@ -92,11 +92,11 @@ setup are not additional public program stages.
 | Tokens → syntax trees | [tokens-to-syntax-trees](psi/compilation/pipeline/01_tokens-to-syntax-trees/src/lib.rs) |
 | Syntax → symbol-resolved trees | [syntax-trees-to-symbol-resolved-trees](psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/lib.rs) |
 | Resolved → typed trees | [symbol-resolved-trees-to-typed-trees](psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lib.rs) |
-| Typed → typed trees | [typed-trees-to-typed-trees](psi/compilation/pipeline/03b_typed-trees-to-typed-trees/README.md) |
-| Typed → checked trees | [typed-trees-to-checked-trees](psi/compilation/pipeline/04_typed-trees-to-checked-trees/README.md) |
-| Checked trees → lowered Psi | [checked-trees-to-lowered-psi](psi/compilation/pipeline/05_checked-trees-to-lowered-psi/README.md) |
-| Lowered Psi → lowered Psi | [lowered-psi-to-lowered-psi](psi/compilation/pipeline/06_lowered-psi-to-lowered-psi/src/lib.rs) |
-| Lowered Psi → Terminal Psi | [lowered-psi-to-terminal-psi](psi/compilation/pipeline/07_lowered-psi-to-terminal-psi/src/lib.rs) |
+| Typed → typed trees | [typed-trees-to-typed-trees](psi/compilation/pipeline/04_typed-trees-to-typed-trees/README.md) |
+| Typed → checked trees | [typed-trees-to-checked-trees](psi/compilation/pipeline/05_typed-trees-to-checked-trees/README.md) |
+| Checked trees → lowered Psi | [checked-trees-to-lowered-psi](psi/compilation/pipeline/06_checked-trees-to-lowered-psi/README.md) |
+| Lowered Psi → lowered Psi | [lowered-psi-to-lowered-psi](psi/compilation/pipeline/07_lowered-psi-to-lowered-psi/src/lib.rs) |
+| Lowered Psi → Terminal Psi | [lowered-psi-to-terminal-psi](psi/compilation/pipeline/08_lowered-psi-to-terminal-psi/src/lib.rs) |
 | Terminal Psi → abstract operations | [terminal-psi-to-abstract-operations](omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/README.md) |
 | Abstract → abstract operations | [abstract-operations-to-abstract-operations](omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/lib.rs) |
 | Abstract → target operations | [abstract-operations-to-target-operations](omega/compilation/pipeline/02_abstract-operations-to-target-operations/README.md) |
@@ -1280,8 +1280,8 @@ checked-tree Build execution entrypoint.
 lowering, optimization and publication sequence, below the source facade so
 early jobs do not depend back on their source coordinator. Product consumers
 call this operation directly with their policy and reporting observer; there
-is no Omega production wrapper. Stage 05 owns input-ledger validation;
-stage 07 owns entry receipts and source-correspondence judgments. This shared
+is no Omega production wrapper. Stage 06 owns input-ledger validation;
+stage 08 owns entry receipts and source-correspondence judgments. This shared
 operation is neither another Psi stage nor a second complete compiler driver.
 Exact consumed-source and toolchain identities belong to the shared
 `psi/foundation/source/src/source_identity.rs` owner; package review and early

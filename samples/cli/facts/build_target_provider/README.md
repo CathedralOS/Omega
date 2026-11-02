@@ -99,7 +99,7 @@ Repeated equal structural array types from distinct Build rows share capture cod
   joins preserve only the public fact, and subtraction consumes that bound directly.
 - **Soundness:** the controls must refuse even though each selected implementation
   happens to return a sufficient number. Selection grants no access or trust authority.
-- **Psi 05–07:** ordinary boundary calls and checked provider bodies lower to one
+- **Psi 06–08:** ordinary boundary calls and checked provider bodies lower to one
   target-neutral Terminal program. The Build companion retains target-keyed selection
   separately from source checking. Actual `run --both` observations require agreement.
 - **Omega 00–02:** whole-provider selection filters exact deployment profiles before

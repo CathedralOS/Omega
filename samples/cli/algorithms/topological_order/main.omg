@@ -18,13 +18,13 @@
 
 use omega_language_std::console;
 
-data Graph where node_count <= 8 {
+data Graph requires node_count <= 8 {
     node_count: u64;
     offsets: [u64; 9];
     targets: [u64; 16];
 }
 
-data Topo where emitted_count <= 8 {
+data Topo requires emitted_count <= 8 {
     indeg: [u64 in Wrapping; 8];
     emitted: [u64 in Wrapping; 8];
     order: [u64; 8];

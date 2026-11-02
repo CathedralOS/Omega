@@ -87,7 +87,7 @@ caller guards.
   `buckets[value % ...]` with `cannot prove index ... is within unknown slice length`,
   and non-Exact casts remain rejected by
   `tests/omega/fail/collections/contract_length_wrapping_result_cast_rejected`.
-- **Checked-to-Terminal Psi lowering (`Psi 05–07`):** Exact `u64` remainder
+- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Exact `u64` remainder
   arithmetic and borrowed slice indexing lower into canonical target-neutral
   Terminal Psi (`PSITERM\0`), preserving the borrowed `&[u8]` view descriptor
   `(ptr, len)`, borrow restoration windows, unsigned modulo operations, and

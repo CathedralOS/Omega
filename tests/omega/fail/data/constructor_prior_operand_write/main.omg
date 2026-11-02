@@ -1,5 +1,5 @@
 // A call in an earlier field invalidates a later read's old scalar bound.
-data Bounded where value <= 5 { stamp: u64; value: u64; }
+data Bounded requires value <= 5 { stamp: u64; value: u64; }
 machine overwrite(value: &mut u64) -> u64 {
     value = 7;
     0

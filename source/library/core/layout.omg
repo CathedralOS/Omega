@@ -26,7 +26,7 @@ use omega::language::core::extent;
 // allocation and placement consumers check their own geometry. The compiler
 // supplies established fields by value, including valid inactive-tail placeholders; zeroed storage
 // alone does not establish a SchemaField.
-public data SchemaField where align >= 1, align <= 16 {
+public data SchemaField requires align >= 1, align <= 16 {
     key: u64;
     size: u64;
     align: u64;
@@ -64,7 +64,7 @@ public data FieldKind {
 // One reflected sum case. Stable identity is schema metadata; declaration
 // position remains the independent home-layout discriminant. Payload fields
 // have their own numbered scope and tombstones.
-public data SchemaCase where payload_field_count <= 32, retired_payload_identity_count <= 32 {
+public data SchemaCase requires payload_field_count <= 32, retired_payload_identity_count <= 32 {
     key: u64;
     identity: Optional<u64>;
     payload_fields: [SchemaField; 32];
@@ -73,7 +73,7 @@ public data SchemaCase where payload_field_count <= 32, retired_payload_identity
     retired_payload_identity_count: u64;
 }
 
-public data Schema where field_count <= 32, retired_field_identity_count <= 32,
+public data Schema requires field_count <= 32, retired_field_identity_count <= 32,
     case_count <= 32, retired_case_identity_count <= 32 {
     fields: [SchemaField; 32];
     field_count: u64;
@@ -269,7 +269,7 @@ public data AccessFieldEntry {
 
 // A normalized static set of boundary-service keys. Suspension and blocking
 // are independent contract axes and never enter this record.
-public data BoundaryReach where service_count <= 32 {
+public data BoundaryReach requires service_count <= 32 {
     services: [u64; 32];
     service_count: u64;
 }
@@ -279,7 +279,7 @@ public data BoundaryReach where service_count <= 32 {
 // operations require. Fixed capacity is a bootstrap carrier only: the compiler
 // requires exactly `field_count` canonical schema decisions and ignores the
 // zero tail. Constructing this record grants no reach, backing or authority.
-public data AccessPlan where field_count <= 32 {
+public data AccessPlan requires field_count <= 32 {
     layout: LayoutPlan;
     fields: [AccessFieldEntry; 32];
     field_count: u64;
@@ -512,7 +512,7 @@ public data ExternalReadBehavior {
     case Destructive;
 }
 
-public data TransferRules where rule_count <= 16 {
+public data TransferRules requires rule_count <= 16 {
     entries: [TransferRule; 16];
     rule_count: u64;
 }
@@ -531,7 +531,7 @@ public data AtomicTransferRule {
     operations: AtomicOperations;
 }
 
-public data AtomicTransferRules where rule_count <= 16 {
+public data AtomicTransferRules requires rule_count <= 16 {
     entries: [AtomicTransferRule; 16];
     rule_count: u64;
 }
@@ -559,7 +559,7 @@ public data ResourceRegion {
     reach: BoundaryReach;
 }
 
-public data ResourceProfile where region_count <= 32 {
+public data ResourceProfile requires region_count <= 32 {
     regions: [ResourceRegion; 32];
     region_count: u64;
 }

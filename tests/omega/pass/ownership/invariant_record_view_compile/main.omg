@@ -2,7 +2,7 @@
 // lends read access to the constrained aggregate — the view sees the
 // record's members while the caller's invariant stays intact.
 data Band
-where
+requires
     a >= 1,
     b >= a,
     b <= 9,

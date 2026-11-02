@@ -2,7 +2,7 @@
 // Invalid: the record constraint is weakened to idx <= 256, so the field idx may exceed length 256.
 // Expected exit: 0
 
-data Container where idx <= 256 {
+data Container requires idx <= 256 {
     arr: [u64; 256];
     idx: u64;
 }

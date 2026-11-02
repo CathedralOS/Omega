@@ -145,18 +145,10 @@ impl StructuralJudge<'_> {
                 {
                     return Some(measure);
                 }
-                let carrier =
-                    crate::value_custody::places::unwrapped_type_reference(program, reference)?;
                 // The applied contract's fields belong to its selected data
                 // application, not a same-named field on the generic base.
-                let data =
-                    crate::value_custody::places::data_definition_for_type(program, carrier)?;
-                let field = crate::value_custody::places::exact_data_member_field(
-                    program,
-                    data,
-                    member.member_symbol,
-                    member.member.as_str(),
-                    member.case_variant.as_ref().map(|case| case.as_str()),
+                let field = crate::value_custody::places::applied_data_member_field(
+                    program, reference, member,
                 )?;
                 let value = self.bound_contract_term(
                     member.receiver,

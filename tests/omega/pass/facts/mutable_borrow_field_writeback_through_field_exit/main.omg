@@ -2,7 +2,7 @@
 // Place: field. The counter is a nested field of an outer aggregate and is projected through `&mut cont.counter`.
 // Expected exit: 0
 
-data Counter [copy] where used <= 80u64 {
+data Counter [copy] requires used <= 80u64 {
     used: u64;
     limit: u64;
 }

@@ -405,7 +405,7 @@ pub(crate) fn predicate_type_contexts(
                             .iter_mut()
                             .map(|(visitor, _)| visitor as &mut dyn StructuralPrefixVisitor)
                             .collect::<Vec<_>>();
-                        phase_profile::scope("05.overloads.4a_prefix_observation", || {
+                        phase_profile::scope("psi.05.overloads.prefix_observation", || {
                             observe_runtime_state_prefix_batched(
                                 program,
                                 machine,

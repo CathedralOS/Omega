@@ -195,7 +195,7 @@ fn captured_origins_definitely_overlap(
     let unknown_or_empty = |segment: &ReferenceOriginProjection| match segment {
         ReferenceOriginProjection::Element
         | ReferenceOriginProjection::Exact(StructuralPathSegment::AllElements) => true,
-        ReferenceOriginProjection::Exact(StructuralPathSegment::FixedByteRange { start, end }) => {
+        ReferenceOriginProjection::Exact(StructuralPathSegment::FixedRange { start, end }) => {
             start >= end
         }
         _ => false,
@@ -219,11 +219,11 @@ fn captured_origins_definitely_overlap(
                 StructuralPathSegment::RuntimeIndex { index: right, .. },
             ) if left == right => {}
             (
-                StructuralPathSegment::FixedByteRange {
+                StructuralPathSegment::FixedRange {
                     start: left_start,
                     end: left_end,
                 },
-                StructuralPathSegment::FixedByteRange {
+                StructuralPathSegment::FixedRange {
                     start: right_start,
                     end: right_end,
                 },
@@ -250,7 +250,7 @@ fn duplicate_argument_storage(left: &StructuralArgument, right: &StructuralArgum
         && left.path == right.path
         && !left.path.iter().any(|segment| {
             matches!(segment,
-            StructuralPathSegment::FixedByteRange { start, end } if start >= end)
+            StructuralPathSegment::FixedRange { start, end } if start >= end)
         })
 }
 
@@ -2462,6 +2462,22 @@ pub(in crate::legalization) fn apply(
                     .any(|(carrier, _)| *carrier == result.place)
                 || !reference_source_accessible(function, custody, types, source)
                 || !match storage {
+                    Some(storage)
+                        if matches!(
+                            source.path.last(),
+                            Some(StructuralPathSegment::FixedRange { .. })
+                        ) =>
+                    {
+                        source_contract(function, custody, source.place).is_some_and(|root| {
+                            terminal_semantics::reference_storage_region_source_compatible(
+                                types.iter(),
+                                root,
+                                &source.path,
+                                result.structural_type,
+                                storage.stored_scalar,
+                            )
+                        })
+                    }
                     Some(storage) => reference_source_type(function, custody, types, source)
                         .is_some_and(|actual| {
                             terminal_semantics::reference_storage_source_compatible(
@@ -3958,7 +3974,7 @@ mod call_origin_tests {
         let window = |start, end| {
             Root::Ingress(
                 PlaceId::new(1).unwrap(),
-                vec![StructuralPathSegment::FixedByteRange { start, end }],
+                vec![StructuralPathSegment::FixedRange { start, end }],
             )
         };
         assert!(!roots_definitely_overlap(
@@ -3967,7 +3983,7 @@ mod call_origin_tests {
         ));
         assert!(!roots_definitely_overlap(&window(0, 2), &window(2, 4)));
         assert!(roots_definitely_overlap(&window(0, 3), &window(2, 4)));
-        let mut child = vec![StructuralPathSegment::FixedByteRange { start: 0, end: 3 }];
+        let mut child = vec![StructuralPathSegment::FixedRange { start: 0, end: 3 }];
         child.push(StructuralPathSegment::FixedIndex(0));
         assert!(!roots_definitely_overlap(
             &Root::Ingress(PlaceId::new(1).unwrap(), child),
@@ -3981,7 +3997,7 @@ mod call_origin_tests {
             StructuralArgument::whole(PlaceId::new(1).unwrap(), StructuralAccess::MutableBorrow);
         assert!(duplicate_argument_storage(&whole, &whole));
         let empty = StructuralArgument {
-            path: vec![StructuralPathSegment::FixedByteRange { start: 2, end: 2 }],
+            path: vec![StructuralPathSegment::FixedRange { start: 2, end: 2 }],
             ..whole
         };
         assert!(!duplicate_argument_storage(&empty, &empty));

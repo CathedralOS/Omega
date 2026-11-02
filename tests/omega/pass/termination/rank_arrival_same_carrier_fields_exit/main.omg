@@ -1,4 +1,4 @@
-data Pair where left <= 5, right <= 5 { left: u32; right: u32; }
+data Pair requires left <= 5, right <= 5 { left: u32; right: u32; }
 
 machine walk(remaining: u32) -> u32
 requires remaining <= 5

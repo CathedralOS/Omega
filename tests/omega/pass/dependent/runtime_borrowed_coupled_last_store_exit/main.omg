@@ -1,6 +1,6 @@
 // Expected exit: 0. Established zero-excluding records retain their coupling.
 data Payload { value: u64; }
-data Coupled where count == payload.value && count >= 1 {
+data Coupled requires count == payload.value && count >= 1 {
     payload: Payload;
     count: u64;
 }

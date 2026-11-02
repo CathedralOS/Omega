@@ -12,7 +12,7 @@
 // ProcessExit provider.
 
 data Player
-where
+requires
     health >= 1,
 {
     health: i32;

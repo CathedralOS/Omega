@@ -1,5 +1,5 @@
 use omega_language_std::console;
-data Main where count <= 11, cursor <= count * 2 {
+data Main requires count <= 11, cursor <= count * 2 {
     count: u32;
     cursor: u32;
 }

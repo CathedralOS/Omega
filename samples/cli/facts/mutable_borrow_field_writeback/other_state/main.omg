@@ -1,6 +1,6 @@
 // Updating a record field through an exclusive mutable borrow (&mut Counter) and retiring the loan establishes the updated field bound (counter.used <= 80u64) while preserving unrelated fields, discharging exact subtraction 80u64 - counter.used.
 // Expected exit: 0.
-data Counter [copy] where used <= 80u64 {
+data Counter [copy] requires used <= 80u64 {
     used: u64;
     limit: u64;
 }

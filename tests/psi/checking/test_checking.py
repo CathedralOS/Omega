@@ -682,12 +682,12 @@ def main() -> None:
         b"    machine put(t: &mut T) { T::put(t); }\n"
         b"}",
     )
-    # An established value's `where` facts hold on every path, so a field
+    # An established value's `requires` facts hold on every path, so a field
     # first read in a `&&` right operand keeps them past the join.
     accepted(
         program,
         "domain-fact-entered-in-a-right-operand",
-        b"data Table where args <= 16, { args: u64; }\n"
+        b"data Table requires args <= 16, { args: u64; }\n"
         b"machine Table::rel(t: &mut Table, first: u64, count: u64) -> u64 {\n"
         b"    transition count > 0 && first <= t.args {\n"
         b"        true -> release(t, first)\n"
@@ -939,7 +939,7 @@ def main() -> None:
     )
 
     # Contract facts: `requires` facts hold in their body and are owed at
-    # each call and jump; `where` facts hold of an established value's
+    # each call and jump; `requires` facts hold of an established value's
     # fields and are owed again after a field store.
     accepted(
         program,
@@ -1548,24 +1548,24 @@ def main() -> None:
         "RankRangeUnproven",
         b"step(n - 1, limit - 1)",
     )
-    # A rank range is proved under the subject's data `where` facts, a
+    # A rank range is proved under the subject's data `requires` facts, a
     # distance view's rank lies within its limit by construction, and a
     # `Slice::Length` view ranks by the live length
     # (wiki/spec/language/termination.md#ranking).
     accepted(
         program,
-        "a-measured-rank-range-holds-by-the-data's-where-facts",
-        b'data Countdown where 0 <= remaining, remaining <= 5 { remaining: u64; }\nmeasure Countdown::Remaining(countdown: Countdown) -> u64\n{ countdown.remaining }\nmachine walk(countdown: Countdown) -> u64\nterminates by countdown -> Countdown::Remaining in 0..=5 {\n    transition countdown.remaining > 0 {\n        true -> walk(Countdown { remaining: countdown.remaining - 1 })\n        false -> countdown.remaining\n    }\n}',
+        "a-measured-rank-range-holds-by-the-data's-requires-facts",
+        b'data Countdown requires 0 <= remaining, remaining <= 5 { remaining: u64; }\nmeasure Countdown::Remaining(countdown: Countdown) -> u64\n{ countdown.remaining }\nmachine walk(countdown: Countdown) -> u64\nterminates by countdown -> Countdown::Remaining in 0..=5 {\n    transition countdown.remaining > 0 {\n        true -> walk(Countdown { remaining: countdown.remaining - 1 })\n        false -> countdown.remaining\n    }\n}',
     )
     accepted(
         program,
-        "a-field-rank-range-holds-by-the-data's-where-facts",
-        b'data Countdown where remaining <= 5 { remaining: u64; }\nmachine walk(countdown: Countdown) -> u64\nterminates by countdown.remaining in 0..=5 {\n    transition countdown.remaining > 0 {\n        true -> walk(Countdown { remaining: countdown.remaining - 1 })\n        false -> countdown.remaining\n    }\n}',
+        "a-field-rank-range-holds-by-the-data's-requires-facts",
+        b'data Countdown requires remaining <= 5 { remaining: u64; }\nmachine walk(countdown: Countdown) -> u64\nterminates by countdown.remaining in 0..=5 {\n    transition countdown.remaining > 0 {\n        true -> walk(Countdown { remaining: countdown.remaining - 1 })\n        false -> countdown.remaining\n    }\n}',
     )
     rejected(
         program,
-        "a-field-rank-range-beyond-the-data's-where-facts",
-        b'data Countdown where remaining <= 9 { remaining: u64; }\nmachine walk(countdown: Countdown) -> u64\nterminates by countdown.remaining in 0..=5 {\n    transition countdown.remaining > 0 {\n        true -> walk(Countdown { remaining: countdown.remaining - 1 })\n        false -> countdown.remaining\n    }\n}',
+        "a-field-rank-range-beyond-the-data's-requires-facts",
+        b'data Countdown requires remaining <= 9 { remaining: u64; }\nmachine walk(countdown: Countdown) -> u64\nterminates by countdown.remaining in 0..=5 {\n    transition countdown.remaining > 0 {\n        true -> walk(Countdown { remaining: countdown.remaining - 1 })\n        false -> countdown.remaining\n    }\n}',
         "RankRangeUnproven",
         b"0..=5",
     )
@@ -3386,7 +3386,7 @@ def main() -> None:
     accepted(
         program,
         "a-bounded-byte-field-views-as-a-boolean",
-        b"data Byte where value >= 0 && value <= 1 { value: u8; }\n"
+        b"data Byte requires value >= 0 && value <= 1 { value: u8; }\n"
         b"machine read(byte: &mut Byte) -> bool {\n"
         b"    let flag: &bool = &byte.value as &bool;\n    let writable: &mut bool = &mut byte.value as &mut bool;\n    true\n}",
     )

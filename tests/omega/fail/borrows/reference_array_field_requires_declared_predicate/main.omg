@@ -1,5 +1,5 @@
 // Matching member spelling is not evidence about the selected referent.
-data Bounded where value >= 0, value <= 100 { value: i32; }
+data Bounded requires value >= 0, value <= 100 { value: i32; }
 data Plain { value: i32; }
 
 machine require_cell_value(value: i32)

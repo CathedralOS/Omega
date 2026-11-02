@@ -7,14 +7,14 @@ use omega::language::core::float_operations;
 use omega_language_std::console;
 
 data NarrowReading
-where
+requires
     value >= 0.0 && value <= 1.0,
 {
     value: f32;
 }
 
 data WideReading
-where
+requires
     value >= 0.0 && value <= 2.0,
 {
     value: f32;

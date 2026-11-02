@@ -1,4 +1,4 @@
-data Wrapped [copy] where embed(left + right) >= 0 {
+data Wrapped [copy] requires embed(left + right) >= 0 {
     left: i8 in Wrapping;
     right: i8 in Wrapping;
 }
