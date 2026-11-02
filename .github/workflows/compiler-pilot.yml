@@ -119,6 +119,75 @@ jobs:
           OMEGA_COMPILER_PILOT_SAMPLES: ${{ inputs.samples }}
           OMEGA_COMPILER_PILOT_CLI_FIXTURES: ${{ inputs.cli_fixtures }}
         run: python tools/ci/compiler_pilot.py
+      - name: Retain strict selected sample engine observations
+        if: github.event_name == 'workflow_dispatch' && inputs.samples != ''
+        env:
+          OMEGA_COMPILER_PILOT_SAMPLES: ${{ inputs.samples }}
+        run: |
+          python - <<'PYTHON'
+          import hashlib, json, os, re, shutil, subprocess, sys
+          from pathlib import Path
+          from tools.ci.compiler_pilot import ROOT, select_samples
+          from tools.ci.ordinary_cli_fixture import validate_exits
+          from tools import qualification
+          from sample_projects import project_at, rejection_verdict
+          from sample_native_gate import oracle
+          output = ROOT / 'build/compiler-pilot/strict-samples'
+          output.mkdir()
+          summary = json.loads((output.parent / 'summary.json').read_text())
+          producer = summary['producer']
+          cli = Path(producer['cli'])
+          paths = select_samples(os.environ['OMEGA_COMPILER_PILOT_SAMPLES'])
+          inputs = qualification.source_inputs(ROOT, producer['revision'], ['Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml', 'omega-rust', 'source/library', *paths])
+          input_bytes = (json.dumps(inputs, sort_keys=True, indent=2) + '\n').encode()
+          (output / 'source-inputs.json').write_bytes(input_bytes)
+          rows = []
+          for relative in paths:
+              project = project_at(ROOT / relative, ROOT)
+              record = {'sample': relative, 'producer': producer, 'input_manifest_sha256': hashlib.sha256(input_bytes).hexdigest(), 'passed': False}
+              rows.append(record)
+              directory = output / relative
+              directory.mkdir(parents=True)
+              assert subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip() == producer['revision']
+              assert not subprocess.check_output(['git', 'status', '--porcelain'])
+              assert hashlib.sha256(cli.read_bytes()).hexdigest() == producer['cli_profile']['sha256']
+              if project.role == 'intended-invalid':
+                  command = [str(cli), '--check', str(project.entry)]
+              else:
+                  expected, contains = oracle(project.directory)
+                  assert expected is not None and contains is None and not (project.directory / 'input.txt').exists()
+                  command = [str(cli), 'run', '--both', '--keep', str(project.entry)]
+                  record['expected_exit'] = expected
+              completed = subprocess.run(command, cwd=directory, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=240)
+              (directory / 'command.stdout').write_bytes(completed.stdout)
+              (directory / 'command.stderr').write_bytes(completed.stderr)
+              record.update(command=command, exit_code=completed.returncode)
+              if project.role == 'intended-invalid':
+                  passed, reason = rejection_verdict(project, completed.returncode, (completed.stdout + completed.stderr).decode(errors='replace'))
+                  record.update(passed=passed, reason=reason)
+              else:
+                  try:
+                      validate_exits(completed.returncode, completed.stderr.decode(errors='replace'), expected)
+                      text = completed.stderr.decode(errors='replace')
+                      kept = re.search(r'^build dir kept: (.+)$', text, re.MULTILINE)
+                      assert kept, 'runtime products missing'
+                      shutil.copytree(Path(kept.group(1).strip()), directory / 'products')
+                      record['products'] = {path.relative_to(directory / 'products').as_posix(): hashlib.sha256(path.read_bytes()).hexdigest() for path in sorted((directory / 'products').rglob('*')) if path.is_file()}
+                      assert (directory / 'products/program.oterm').is_file()
+                      record.update(passed=True, native_exit=expected, terminal_exit=expected)
+                  except ValueError as error:
+                      record['error'] = str(error)
+                  lock = project.directory / 'omega.lock'
+                  if lock.exists():
+                      shutil.copyfile(lock, directory / 'accepted.omega.lock')
+              (directory / 'observation.json').write_text(json.dumps(record, indent=2) + '\n')
+              print(json.dumps({key: value for key, value in record.items() if key != 'producer'}), flush=True)
+          (output / 'observations.json').write_text(json.dumps(rows, indent=2) + '\n')
+          assert not subprocess.check_output(['git', 'status', '--porcelain'])
+          assert qualification.source_inputs(ROOT, producer['revision'], ['Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml', 'omega-rust', 'source/library', *paths]) == inputs
+          assert hashlib.sha256(cli.read_bytes()).hexdigest() == producer['cli_profile']['sha256']
+          assert all(row['passed'] for row in rows), 'strict native/Terminal or rejection observation failed'
+          PYTHON
       - name: Report actual producer and fixture observations
         if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
         run: python -c "from pathlib import Path; root = Path('build/compiler-pilot'); [print(name + '\n' + (root / name).read_text(encoding='utf-8')) for name in ('summary.json', 'checking.json', 'both.json', 'samples.json', 'cli.json') if (root / name).is_file()]"
