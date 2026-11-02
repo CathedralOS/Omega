@@ -12,8 +12,8 @@ pub(super) struct RequirementCrashContract<'proof> {
 }
 
 impl RequirementCrashContract<'_> {
-    fn location(&self) -> (SymbolHandle, SymbolHandle, usize, usize) {
-        (
+    fn location(&self) -> (u32, u32, u32, u32, usize, usize) {
+        call_location(
             self.source.caller_machine_symbol,
             self.source.caller_state_symbol,
             self.source.statement_index,
@@ -69,8 +69,26 @@ impl<'proof> RequirementCrashContracts<'proof> {
         call: usize,
     ) -> Option<&RequirementCrashContract<'proof>> {
         self.rows
-            .binary_search_by_key(&(machine, state, statement, call), |row| row.location())
+            .binary_search_by_key(&call_location(machine, state, statement, call), |row| {
+                row.location()
+            })
             .ok()
             .map(|position| &self.rows[position])
     }
+}
+
+fn call_location(
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    statement: usize,
+    call: usize,
+) -> (u32, u32, u32, u32, usize, usize) {
+    (
+        machine.arena_index(),
+        machine.generation(),
+        state.arena_index(),
+        state.generation(),
+        statement,
+        call,
+    )
 }
