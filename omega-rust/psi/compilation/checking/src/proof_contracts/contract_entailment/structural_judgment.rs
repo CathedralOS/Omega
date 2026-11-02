@@ -109,6 +109,14 @@ pub(super) struct CaseGuarantee {
     case: SymbolHandle,
 }
 
+impl CaseGuarantee {
+    pub(super) fn same_resolution_payload(&self, other: &Self) -> bool {
+        self.data == other.data
+            && self.case == other.case
+            && self.subject.same_resolution_payload(&other.subject)
+    }
+}
+
 pub(crate) mod owned_snapshots;
 
 #[derive(Clone, PartialEq)]
@@ -271,6 +279,7 @@ pub(crate) enum StructuralTerm {
 mod rewrite_table;
 #[path = "structural_judgment/term_identity.rs"]
 mod term_identity;
+pub(super) use term_identity::same_static_selection_payload;
 
 impl StructuralTerm {
     /// Every contributing completed value must carry a recipe. The result
@@ -1363,8 +1372,21 @@ impl<'program> StructuralJudge<'program> {
             if !self.is_case_membership(fact, binary) {
                 return;
             }
+            let reference = if self.runtime_body_values {
+                self.runtime_declaration_scope()
+                    .and_then(|(machine, state)| {
+                        crate::proof_contracts::bound_expression_meaning::operand_type(
+                            program,
+                            machine,
+                            Some(state),
+                            binary.left,
+                        )
+                    })
+            } else {
+                self.declaration_expression_type(binary.left)
+            };
             let Some((definition, variant)) =
-                super::structural_terms::case_classifier(program, binary.right)
+                cases::applied_case_classifier(program, binary.right, reference)
             else {
                 return;
             };
@@ -1510,19 +1532,26 @@ impl<'program> StructuralJudge<'program> {
             self.invalidate_resolution_observations();
             return self.resolve_uncached(term, depth, purpose);
         }
-        // General answers and numeric completed-leaf retention use distinct
-        // namespaces. Keep the shared completed-query owner General-only.
-        if purpose != ResolutionPurpose::General
-            || !matches!(
-                term,
-                StructuralTerm::Application { .. } | StructuralTerm::CallProjection { .. }
-            )
-        {
+        if !matches!(
+            term,
+            StructuralTerm::Application { .. } | StructuralTerm::CallProjection { .. }
+        ) {
             return self.resolve_uncached(term, depth, purpose);
         }
-        self.completed_resolution(term, depth, |judge, term| {
-            judge.resolve_uncached(term, depth, purpose)
-        })
+        // Both purposes normalize the exact same immutable input cut, but
+        // numeric projection can retain a completed scalar where General
+        // unfolds its description. The shared query owner keys those answers
+        // separately while retaining its full context and dependency checks.
+        match purpose {
+            ResolutionPurpose::General => self.completed_resolution(term, depth, |judge, term| {
+                judge.resolve_uncached(term, depth, purpose)
+            }),
+            ResolutionPurpose::IntegerProjection => {
+                self.completed_integer_projection(term, depth, |judge, term| {
+                    judge.resolve_uncached(term, depth, purpose)
+                })
+            }
+        }
     }
 
     fn resolve_uncached(
@@ -2812,7 +2841,7 @@ impl<'program> StructuralJudge<'program> {
             ExpressionNode::Cast(cast) => {
                 let (machine, state, _) = scope?;
                 let source =
-                    crate::expression_result_type_reference(program, machine, state, cast.value)?;
+                    crate::expression_result_type_reference(program, machine, state, cast.value);
                 let value = child_term!(cast.value)?;
                 super::structural_terms::conversion_term(program, cast, source, value)
             }

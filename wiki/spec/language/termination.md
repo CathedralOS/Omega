@@ -164,7 +164,7 @@ tracks that bounded entrance.
 
 A progress profile is a named opaque semantic domain over a boundary-provider
 capability, explicitly classified by its owner with `satisfies ProgressProfile`
-and exact `established by` routes. Classification cannot be inferred from an
+and exact establishment routes in its access policy. Classification cannot be inferred from an
 empty predicate, provider route, or terminating use. One atomic domain has at
 most one such classification; downstream packages cannot append it or its routes.
 
@@ -226,7 +226,7 @@ nesting neither supplies an induction hypothesis nor bypasses strict descent
 when a recursive contract is cited as proof.
 Reference identity may transport an existing live qualification, never establish
 a missing or invalidated one. Bounded source-certificate support remains beside
-[checked progress](../../../omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/README.md#flow-ranges-and-progress).
+[checked progress](../../../omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/README.md#flow-ranges-and-progress).
 
 ## Composition and limits
 

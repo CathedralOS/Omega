@@ -2,7 +2,7 @@
 // valid only while `step == 1` — a single-point domain. The literal `1`
 // constructs.
 data Unit
-where
+requires
     step == 1,
 {
     step: u64;

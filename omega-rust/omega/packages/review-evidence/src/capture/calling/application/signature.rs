@@ -41,11 +41,11 @@ pub(crate) struct CallingSignatureProjection {
 }
 
 pub(super) fn project(
-    compilation: &PackageReviewInput<'_>,
+    projection: &mut SignatureProjection<'_>,
     realization: &BoundaryCallingPlanRealization,
 ) -> Result<CallingSignatureProjection, Vec<Diagnostic>> {
     let projected = project_application(
-        &mut SignatureProjection::new(*compilation),
+        projection,
         realization.boundary_trait,
         &realization.boundary_arguments,
         realization.argument_owner(),

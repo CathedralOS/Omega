@@ -71,7 +71,7 @@ Their exact diagnostic assertions are in sample.json and matching pinned fixture
 - **Soundness boundaries:** explicit Capacity=3 conflicts with the fixed array;
   carrier, callback, evidence and lexical-kind failures retain distinct refusals.
   No package review or other external authority is granted by these programs.
-- **Psi 05-07:** complete selected arguments pass through ordinary checking and
+- **Psi 06-08:** complete selected arguments pass through ordinary checking and
   lowering. Actual Terminal Psi execution observes the same four values as native
   execution; no alternate source evaluator substitutes for that observation.
 - **Omega 00-02:** ordinary entry binding, array/record layout and aggregate-call

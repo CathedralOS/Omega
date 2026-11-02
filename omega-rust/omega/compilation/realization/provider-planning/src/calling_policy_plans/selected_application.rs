@@ -13,13 +13,13 @@ use diagnostics::Diagnostic;
 /// selection admitted. The public provider/schema identity carries the
 /// canonical fingerprint; source preparation retained the exact declaration
 /// and requirement correspondence, so selection never rediscovers source.
-pub(crate) fn selected_source_calling_applications(
-    services: ServiceCatalog<'_>,
+pub(crate) fn selected_source_calling_applications<'catalog>(
+    services: ServiceCatalog<'catalog>,
     boundary_calling_plan_realizations: &[super::BoundaryCallingPlanRealization],
     plan: &effects::provider_plan::ProviderPlan,
     provenance: &crate::ProviderPlanProvenance,
     row_index: usize,
-) -> Result<Vec<calling_conventions::BoundaryCallingApplication>, Diagnostic> {
+) -> Result<SelectedCallingApplications<'catalog>, Diagnostic> {
     if plan.name.is_empty() {
         return Err(Diagnostic::error(
             "selected source boundary entry plan has an empty ProviderPlan name",
@@ -110,7 +110,10 @@ pub(crate) fn selected_source_calling_applications(
             .calling_for_requirement(method.requirement_identity)
             .is_empty()
         {
-            Ok(Vec::new())
+            Ok(SelectedCallingApplications {
+                applications: Vec::new(),
+                default_abis: &source.default_abis,
+            })
         } else {
             Err(Diagnostic::error(
                 "selected source non-trait boundary retains a trait calling-plan fingerprint",
@@ -185,19 +188,33 @@ pub(crate) fn selected_source_calling_applications(
                 .map_err(Diagnostic::error)?,
         );
     }
-    Ok(applications)
+    Ok(SelectedCallingApplications {
+        applications,
+        default_abis: &source.default_abis,
+    })
 }
 
-/// Materialize this producer's own component-boundary applications while its
-/// typed signature and selected opaque representations are still available.
+/// Exact admitted row correspondence plus its deferred default requests.
+/// Neither the source witness nor the ABI keys grant provider execution.
+pub(crate) struct SelectedCallingApplications<'catalog> {
+    pub applications: Vec<calling_conventions::BoundaryCallingApplication>,
+    pub default_abis: &'catalog Result<Vec<semantic_vocabulary::CallingAbiIdentity>, Diagnostic>,
+}
+
+/// Materialize this producer's component applications from published storage.
 /// Fused internal calls need no compatibility ABI and never enter this route.
 pub fn component_calling_applications(
     services: ServiceCatalog<'_>,
-    native_target: target::NativeTarget,
+    profile: target::TargetProfile,
+    program: &super::CallingProgram,
     providers: &[&crate::SelectedProviderReviewProvenance],
     explicit: &[super::BoundaryCallingPlanRealization],
-    representations: &[representation_planning::OpaqueRepresentationSelection],
 ) -> Result<Vec<calling_conventions::BoundaryCallingApplication>, Vec<Diagnostic>> {
+    let native_target = profile.native_realization().ok_or_else(|| {
+        vec![Diagnostic::error(
+            "component calling application target has no native realization",
+        )]
+    })?;
     let mut applications = Vec::<calling_conventions::BoundaryCallingApplication>::new();
     for provider in providers {
         let plan = &provider.plan;
@@ -209,11 +226,11 @@ pub fn component_calling_applications(
         }) {
             continue;
         }
-        let profile = target::TargetProfile::from_canonical_target_name(&plan.target)
+        let plan_profile = target::TargetProfile::from_canonical_target_name(&plan.target)
             .map_err(|error| vec![error])?;
         let layout_target = layout::LayoutTarget::for_profile(profile)
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        if layout_target.native_target() != native_target {
+        if plan_profile != profile || layout_target.native_target() != native_target {
             return Err(vec![Diagnostic::error(
                 "component ABI request names another selected native target",
             )]);
@@ -227,7 +244,7 @@ pub fn component_calling_applications(
             }
             let trait_name = trait_name_text(&plan.schema);
             let requirement = plan.identities.text(row.requirement_identity);
-            let mut selected_applications = selected_source_calling_applications(
+            let selected = selected_source_calling_applications(
                 services,
                 explicit,
                 plan,
@@ -235,14 +252,20 @@ pub fn component_calling_applications(
                 row_index,
             )
             .map_err(|error| vec![error])?;
+            let mut selected_applications = selected.applications;
             if selected_applications.is_empty() {
-                selected_applications.push(super::plan_computation::evaluate_default_calling_application(
-                    services, layout_target, trait_name, plan.schema.declaration.trait_package_identity,
-                    &row.method, requirement,
+                selected_applications.extend(super::plan_computation::evaluate_default_calling_applications(
+                    program,
+                    selected.default_abis.as_ref().map_err(|error| vec![error.clone()])?,
+                    profile,
                     calling_conventions::CallingPolicy::native_for_target(native_target),
-                    0, representations,
-                ).map_err(|reason| vec![Diagnostic::error(format!("cannot materialize component calling application for `{trait_name}::{}`: {reason}", row.method))])?
-                    .ok_or_else(|| vec![Diagnostic::error(format!("component boundary `{requirement}` has no exact materializable source signature"))])?);
+                    0,
+                ).map_err(|reason| vec![Diagnostic::error(format!("cannot materialize component calling application for `{trait_name}::{}`: {reason}", row.method))])?);
+                if selected_applications.is_empty() {
+                    return Err(vec![Diagnostic::error(format!(
+                        "component boundary `{requirement}` has no exact materializable declaration application"
+                    ))]);
+                }
             }
             for application in selected_applications {
                 if std::env::var_os("OMEGA_TRACE_COMPONENT_CALLING").is_some() {

@@ -396,7 +396,9 @@ impl ReturnReader<'_, '_> {
             {
                 return None;
             }
-            expression = local.initial_value;
+            // An immutable destination reservation is not a saved value.
+            // Atomic priors come from their event, never the reserved zero.
+            expression = local.ordinary_value_initializer()?;
             before = definition;
         }
         Some((expression, before))
@@ -626,7 +628,10 @@ impl ReturnReader<'_, '_> {
                 let Some((ordinal, local)) = locals.next() else {
                     return true;
                 };
-                locals.next().is_none() && self.stable(local.initial_value, ordinal, depth + 1)
+                locals.next().is_none()
+                    && local
+                        .ordinary_value_initializer()
+                        .is_some_and(|initializer| self.stable(initializer, ordinal, depth + 1))
             }
             ExpressionNode::Member(member) => {
                 exact_self_field(self.program, self.machine, expression).is_some()
@@ -708,7 +713,7 @@ impl ReturnReader<'_, '_> {
                     _ => return None,
                 };
                 // Pristine typed trees retain a checked-operator selection
-                // request, before stage 04 publishes its intrinsic outcome.
+                // request, before stage 05 publishes its intrinsic outcome.
                 // Rejoin that one exact occurrence and independently resolve
                 // both ordinary/trait and implicit-borrow indexed meanings.
                 let mut occurrences =

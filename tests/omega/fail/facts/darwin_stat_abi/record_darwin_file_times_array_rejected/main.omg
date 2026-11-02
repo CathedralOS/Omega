@@ -1,0 +1,18 @@
+// Complete C timespec[2] storage preserves both timestamp halves and UTIME sentinels.
+// Expected exit: 0
+use omega::language::core::layout;
+use omega_language_std::targets::macos_arm64::filesystem_abi;
+public boundary trait FileTimesExchange {
+    machine check(value: &DarwinFileTimes) -> u64 reaches;
+}
+machine main() reaches FileTimesExchange crashes Trap {
+    let mut times: DarwinFileTimes;
+    times[0].seconds = -17i64;
+    times[0].nanoseconds = -2i64;
+    times[1].seconds = 42i64;
+    times[1].nanoseconds = -1i64;
+    let transported: [DarwinTimespec; 2] = times;
+    transition transported[0].seconds == -17i64 && transported[0].nanoseconds == -2i64 && transported[1].seconds == 42i64 && transported[1].nanoseconds == -1i64 && FileTimesExchange::check(&transported) == 0u64 && size_of<DarwinFileTimes>() == 32u64 && align_of<DarwinFileTimes>() == 8u64 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

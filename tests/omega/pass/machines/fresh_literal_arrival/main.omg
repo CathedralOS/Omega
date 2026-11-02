@@ -2,7 +2,7 @@
 // `iterate(Countdown { remaining: 3, limit: 5 })` constructs a new
 // ranked subject at the hop — the state's own descent continues from
 // the literal's proven coordinates.
-data Countdown where 0 <= remaining, remaining <= 5, 0 <= limit, limit <= 5 {
+data Countdown requires 0 <= remaining, remaining <= 5, 0 <= limit, limit <= 5 {
     remaining: u64;
     limit: u64;
 }

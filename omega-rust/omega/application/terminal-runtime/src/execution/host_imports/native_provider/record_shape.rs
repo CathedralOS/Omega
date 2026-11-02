@@ -161,11 +161,13 @@ pub(super) fn validate<'declaration>(
                             .push((semantic.id, identity, schema.nodes.len() - 1));
                     }
                     StructuralTypeShape::Record { fields, storage } => {
+                        // Selected placement is already authenticated by the
+                        // storage codec and public ABI graph. Keep comparing
+                        // the complete semantic tree without inventing geometry.
                         if matches!(
                             storage,
                             StructuralRecordStorage::AccessView(_)
                                 | StructuralRecordStorage::Accessor(_)
-                                | StructuralRecordStorage::TargetLayout(_)
                         ) {
                             return Err(rejection(
                                 "native value ABI needs resolved ordinary record storage",

@@ -694,7 +694,7 @@ fn decode_projection(
             cursor,
             semantic_vocabulary::StructuralCaseId::new,
         )?),
-        4 => StructuralPathSegment::FixedByteRange {
+        4 => StructuralPathSegment::FixedRange {
             start: cursor.u64()?,
             end: cursor.u64()?,
         },

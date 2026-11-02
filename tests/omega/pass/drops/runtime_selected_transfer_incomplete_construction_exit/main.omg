@@ -42,7 +42,7 @@ boundary trait WindowsConsoleIo {
 
 // Each selected transfer consumes its exact region. The skipped region stays
 // behind younger roots until normal death, including after condition mutation.
-data Token where value >= 1 && value <= 100 { value: u64; byte: i32; }
+data Token requires value >= 1 && value <= 100 { value: u64; byte: i32; }
 data Pair<Value> { first: Value; second: Value; }
 data Trio<Value> { first: Value; second: Value; third: Value; }
 machine Token::drop(token: &mut Token) reaches Console { Console::write_byte(token.byte); }

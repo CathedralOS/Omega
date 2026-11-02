@@ -1,0 +1,13 @@
+use omega::language::core::external_binding;
+machine build(builder: &mut Build) {
+    Build::application(builder, "darwin_file_times_array");
+    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+    Build::bind<FileTimesExchange::check>(builder, macos_arm64, ForeignBinding::DllImport { import: DllImport::MachODylibSymbol { install_name: "libomega_darwin_stat_fixture.dylib", symbol: "_darwin_stat_fixture_times" } });
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::bind<FileTimesExchange::check>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName { library: "omega_darwin_stat_fixture.dll", export: "darwin_stat_fixture_times" } });
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind<FileTimesExchange::check>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libomega_darwin_stat_fixture.so", symbol: "darwin_stat_fixture_times", version: "DARWIN_STAT_1.0" } });
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
+    Build::bind<FileTimesExchange::check>(builder, linux_arm64, ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libomega_darwin_stat_fixture.so", symbol: "darwin_stat_fixture_times", version: "DARWIN_STAT_1.0" } });
+}

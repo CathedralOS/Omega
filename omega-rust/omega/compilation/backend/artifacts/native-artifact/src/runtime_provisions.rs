@@ -86,11 +86,12 @@ impl TerminalRuntimeHostProvisions {
     pub fn capture_native_admission(
         installation: Option<&terminal_installation::AdmittedProviderSelections>,
         host: Vec<TerminalRuntimeHostProvision>,
-        boundaries: &[terminal_psi::BoundaryMachineDeclaration],
+        input: &terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput,
         selected: &effects::SelectedProviderPlanFacts,
-        module: &terminal_psi::TerminalModule,
         external_bindings: &[calling_conventions::ExternalBindingRow],
     ) -> Result<Self, &'static str> {
+        let boundaries = &input.plan().boundary_machines;
+        let module = input.module();
         let identities = &module.identities;
         let mut host_requirements = Vec::new();
         for provision in &host {
@@ -135,8 +136,9 @@ impl TerminalRuntimeHostProvisions {
             if rows.next().is_some() {
                 return Err("runtime foreign calling application is ambiguous");
             }
-            let abi = module
-                .calling_abi_identity(boundary.id)
+            let abi = input
+                .optimization_input()
+                .selected_calling_abi_identity(provision.boundary)
                 .map_err(|_| "runtime host provision lost its exact declaration ABI")?;
             let calling_application = row
                 .and_then(|row| row.calling_application(&abi))
@@ -544,7 +546,6 @@ impl TerminalRuntimeProvisions {
         input: &terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput,
         installation: Option<&terminal_installation::AdmittedProviderSelections>,
         host: Vec<TerminalRuntimeHostProvision>,
-        boundaries: &[terminal_psi::BoundaryMachineDeclaration],
         selected: &effects::SelectedProviderPlanFacts,
         external_bindings: &[calling_conventions::ExternalBindingRow],
     ) -> Result<Self, &'static str> {
@@ -572,9 +573,8 @@ impl TerminalRuntimeProvisions {
         let host_provisions = TerminalRuntimeHostProvisions::capture_native_admission(
             installation,
             host,
-            boundaries,
+            input,
             selected,
-            input.module(),
             external_bindings,
         )?;
         Ok(Self {

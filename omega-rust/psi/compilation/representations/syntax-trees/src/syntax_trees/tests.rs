@@ -224,7 +224,6 @@ fn single_state_machine(state: arena::Handle<StateHandle>) -> Machine {
         target: None,
         authored_target: None,
         boundary: false,
-        is_top_level_boundary_requirement: false,
         bodyless: false,
         target_family_interface: false,
         lifetime_parameters: Vec::new(),
@@ -1072,7 +1071,6 @@ fn syntax_trees_extend_from_preserves_root_payload_handles() {
         target: None,
         authored_target: None,
         boundary: false,
-        is_top_level_boundary_requirement: true,
         bodyless: true,
         target_family_interface: false,
         lifetime_parameters: Vec::new(),
@@ -1104,14 +1102,10 @@ fn syntax_trees_extend_from_preserves_root_payload_handles() {
         panic!("expected machine root item");
     };
     assert!(machine.is_public, "syntax assembly must retain visibility");
-    assert!(
-        machine.is_top_level_boundary_requirement,
-        "syntax assembly must retain the explicit top-level requirement kind"
-    );
     assert!(matches!(
         &assembled.snapshot().root_items[0],
         ItemSnapshot::Machine {
-            is_top_level_boundary_requirement: true,
+            is_public: true,
             ..
         }
     ));

@@ -1,7 +1,7 @@
 // A fixed-extent array [u64; 2] preserves its in-bounds index contract index < 2 and independent element values across all nine places.
 // Place: field. A record field carries the bounded index alongside the fixed-extent array.
 // Expected exit: 0
-data Container where index < 2 {
+data Container requires index < 2 {
     values: [u64; 2];
     index: u64;
 }

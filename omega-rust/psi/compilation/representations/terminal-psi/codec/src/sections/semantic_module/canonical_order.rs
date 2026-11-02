@@ -509,6 +509,23 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
         }),
         "provider candidates by exact conformance identity",
     )?;
+    require_increasing(
+        module.provider_instance_requirements.iter().map(|row| {
+            (
+                row.template,
+                row.package,
+                &row.selecting_declaration,
+                row.source_candidate_identity,
+            )
+        }),
+        "provider instance requirement templates by callable and package",
+    )?;
+    for row in &module.provider_instance_requirements {
+        require_increasing(
+            row.required_instances.iter(),
+            "closed provider requirement identities",
+        )?;
+    }
     let mut float_projection_sources = Vec::new();
     for (index, projection) in module.float_meaning_projections.iter().enumerate() {
         let Ok(index) = u32::try_from(index) else {

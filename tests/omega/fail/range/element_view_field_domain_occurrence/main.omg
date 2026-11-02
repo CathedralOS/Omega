@@ -1,4 +1,4 @@
-data Cell where first >= 0 && first <= 9, second >= 0 && second <= 5 {
+data Cell requires first >= 0 && first <= 9, second >= 0 && second <= 5 {
     first: i32;
     second: i32;
 }

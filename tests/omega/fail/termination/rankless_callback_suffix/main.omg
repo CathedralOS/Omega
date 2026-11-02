@@ -1,9 +1,12 @@
 // The selected requirement may call back even when the satisfier omits invokes.
+// A private ranking witness cannot establish the published termination promise
+// while an external callback has no termination guarantee.
 public boundary trait Callback { machine run() reaches; }
 public boundary trait Output { machine emit_byte(byte: i32) reaches Output invokes Callback; }
 public data Provider {}
 boundary machine Provider::emit_byte(byte: i32) satisfies Output::emit_byte;
 machine console_write_bytes(bytes: &[u8], newline: bool)
+terminates
 terminates by bytes -> Slice::Length
 reaches Output + Callback
 {

@@ -32,7 +32,7 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
 
 // A variable-fill value explicitly owns its fixed storage and live length.
 // Copies retain both; an accessor borrows and checks the selected copy's prefix.
-data TextBuffer [copy] where used <= 8 { storage: [u8; 8] in Utf8; used: u64; }
+data TextBuffer [copy] requires used <= 8 { storage: [u8; 8] in Utf8; used: u64; }
 machine TextBuffer::view(buffer: &TextBuffer) -> &[u8] in Utf8 crashes Trap {
     let bytes: &[u8] = &buffer.storage[..buffer.used];
     transition valid_utf8(bytes) {

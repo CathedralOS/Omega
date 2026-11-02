@@ -5,6 +5,7 @@
 //! opaque terms stay with the entailment engine.
 
 use numerics::bignum::BigInt;
+use typed_trees::expression::BinaryOperator;
 
 /// An interval with optional (= unbounded) ends; end arithmetic is exact.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -259,6 +260,77 @@ impl BigIntInterval {
         }
     }
 
+    /// The bounds `subject OP value` states on the subject, read mirrored
+    /// when the subject is on the right. `!=` and the non-comparison operators
+    /// bound nothing closed.
+    pub fn from_comparison(
+        operator: BinaryOperator,
+        subject_on_left: bool,
+        value: BigInt,
+    ) -> Option<Self> {
+        let operator = if subject_on_left {
+            operator
+        } else {
+            operator.mirrored()
+        };
+        let one = BigInt::from_i64(1);
+        let (low, high) = match operator {
+            BinaryOperator::LessOrEqual => (None, Some(value)),
+            BinaryOperator::Less => (None, Some(value.sub(&one))),
+            BinaryOperator::GreaterOrEqual => (Some(value), None),
+            BinaryOperator::Greater => (Some(value.add(&one)), None),
+            BinaryOperator::Equal => (Some(value.clone()), Some(value)),
+            _ => return None,
+        };
+        Some(Self { low, high })
+    }
+
+    /// The bounds a refuted ordering `!(subject OP value)` states. Only the
+    /// four orderings refute to an interval; the equality operators return
+    /// `None`.
+    pub fn from_refuted_comparison(
+        operator: BinaryOperator,
+        subject_on_left: bool,
+        value: BigInt,
+    ) -> Option<Self> {
+        let refuted = match operator {
+            BinaryOperator::Less => BinaryOperator::GreaterOrEqual,
+            BinaryOperator::LessOrEqual => BinaryOperator::Greater,
+            BinaryOperator::Greater => BinaryOperator::LessOrEqual,
+            BinaryOperator::GreaterOrEqual => BinaryOperator::Less,
+            _ => return None,
+        };
+        Self::from_comparison(refuted, subject_on_left, value)
+    }
+
+    /// `range` narrowed to this interval. An empty meet keeps its crossed
+    /// ends, so the caller still sees the contradiction.
+    pub fn refine_closed(&self, range: facts::IntegerRange) -> facts::IntegerRange {
+        facts::IntegerRange {
+            minimum: match &self.low {
+                Some(low) => range.minimum.max(low.clone()),
+                None => range.minimum,
+            },
+            maximum: match &self.high {
+                Some(high) => range.maximum.min(high.clone()),
+                None => range.maximum,
+            },
+        }
+    }
+
+    /// The same interval over `i64` ends; `None` when a finite end lies
+    /// outside `i64`.
+    pub fn to_interval(&self) -> Option<super::Interval> {
+        let end = |end: &Option<BigInt>| match end {
+            Some(value) => value.to_i64().map(Some),
+            None => Some(None),
+        };
+        Some(super::Interval {
+            low: end(&self.low)?,
+            high: end(&self.high)?,
+        })
+    }
+
     pub fn from_closed(range: facts::IntegerRange) -> Self {
         Self {
             low: Some(range.minimum),
@@ -410,5 +482,91 @@ pub fn bitwise_carrier_bounds(bits: u32, signed: bool) -> (BigInt, BigInt) {
                 .shl_bits(bits as usize)
                 .sub(&BigInt::from_i64(1)),
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::BigIntInterval;
+    use numerics::bignum::BigInt;
+    use typed_trees::expression::BinaryOperator;
+
+    fn ends(interval: Option<BigIntInterval>) -> Option<(Option<i64>, Option<i64>)> {
+        interval.map(|interval| {
+            (
+                interval.low.and_then(|low| low.to_i64()),
+                interval.high.and_then(|high| high.to_i64()),
+            )
+        })
+    }
+
+    #[test]
+    fn comparisons_bound_the_subject_on_either_side() {
+        let five = || BigInt::from_i64(5);
+        let read = |operator, left| ends(BigIntInterval::from_comparison(operator, left, five()));
+        assert_eq!(read(BinaryOperator::Less, true), Some((None, Some(4))));
+        assert_eq!(
+            read(BinaryOperator::LessOrEqual, true),
+            Some((None, Some(5)))
+        );
+        assert_eq!(read(BinaryOperator::Greater, true), Some((Some(6), None)));
+        assert_eq!(
+            read(BinaryOperator::GreaterOrEqual, true),
+            Some((Some(5), None))
+        );
+        assert_eq!(read(BinaryOperator::Equal, true), Some((Some(5), Some(5))));
+        // `5 < x` bounds x from below.
+        assert_eq!(read(BinaryOperator::Less, false), Some((Some(6), None)));
+        assert_eq!(read(BinaryOperator::NotEqual, true), None);
+        assert_eq!(read(BinaryOperator::Add, true), None);
+    }
+
+    #[test]
+    fn refuted_orderings_bound_the_complement_and_equality_does_not() {
+        let five = || BigInt::from_i64(5);
+        let read = |operator| {
+            ends(BigIntInterval::from_refuted_comparison(
+                operator,
+                true,
+                five(),
+            ))
+        };
+        assert_eq!(read(BinaryOperator::Less), Some((Some(5), None)));
+        assert_eq!(read(BinaryOperator::LessOrEqual), Some((Some(6), None)));
+        assert_eq!(read(BinaryOperator::Greater), Some((None, Some(5))));
+        assert_eq!(read(BinaryOperator::GreaterOrEqual), Some((None, Some(4))));
+        assert_eq!(read(BinaryOperator::Equal), None);
+        assert_eq!(read(BinaryOperator::NotEqual), None);
+    }
+
+    #[test]
+    fn closed_refinement_keeps_a_crossed_meet() {
+        let range = facts::IntegerRange {
+            minimum: BigInt::from_i64(0),
+            maximum: BigInt::from_i64(255),
+        };
+        let below =
+            BigIntInterval::from_comparison(BinaryOperator::Less, true, BigInt::from_i64(0))
+                .unwrap();
+        let refined = below.refine_closed(range);
+        assert_eq!(refined.minimum, BigInt::from_i64(0));
+        assert_eq!(refined.maximum, BigInt::from_i64(-1));
+    }
+
+    #[test]
+    fn machine_width_view_refuses_an_end_outside_i64() {
+        let past =
+            BigIntInterval::from_comparison(BinaryOperator::Less, true, BigInt::from_i64(i64::MIN))
+                .unwrap();
+        assert_eq!(past.to_interval(), None);
+        let inside = BigIntInterval::from_comparison(
+            BinaryOperator::GreaterOrEqual,
+            true,
+            BigInt::from_i64(3),
+        )
+        .unwrap()
+        .to_interval()
+        .unwrap();
+        assert_eq!((inside.low, inside.high), (Some(3), None));
     }
 }

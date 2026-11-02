@@ -1,6 +1,6 @@
-//! Prepare each target's complete selected execution against immutable checked
-//! source and Build rows. Terminal production borrows that result; converting
-//! it to a checked compilation assembles custody, not another compiler phase.
+//! Select each target's whole providers over the shared Terminal artifact, then
+//! prepare remaining source review and Build correspondence. Converting that
+//! result to a checked compilation assembles custody, not another compiler phase.
 //! Source-dependent selection remains migration work. Actual artifact demand,
 //! receiving permissions and native realization belong to the later native join.
 
@@ -23,8 +23,8 @@ fn one_refusal<T>(refused: Result<T, Diagnostic>) -> Result<T, Vec<Diagnostic>> 
     refused.map_err(|error| vec![error])
 }
 
-/// One target's complete provider selection beside the shared source custody.
-/// Terminal production borrows this record to mint the target-neutral artifact.
+/// One target's complete provider selection beside shared portable publication
+/// and remaining source correspondence.
 /// Selection and native declaration preparation are complete; no later
 /// installation phase reopens source or fills in this result. Source-only
 /// consumers request their checked-instance projection at their own boundary.
@@ -177,10 +177,36 @@ impl SelectedProductTarget {
             // Descriptive stops need not have an executable product. Retain a
             // native-only refusal, but still check every available producing
             // join now: a bad ABI is not hidden by another missing product.
+            let declarations =
+                match &execution.native_provider_sources {
+                    Ok(declarations) => declarations,
+                    Err(refused) => {
+                        unavailable.get_or_insert_with(|| format!(
+                        "component call has no prepared native declaration roster: {refused:?}"
+                    ));
+                        continue;
+                    }
+                };
             let selected_inputs = (|| {
-                let mut components = verified
+                let mut declarations = declarations
+                    .declarations
                     .iter()
-                    .filter(|component| component.realizes_selected_plan(&selected.plan).is_ok());
+                    .filter(|declaration| declaration.plan == selected.plan);
+                let declaration = declarations
+                    .next()
+                    .ok_or("component call lost its exact selecting declaration")?;
+                if declarations.next().is_some() {
+                    return Err("component call has competing exact selecting declarations");
+                }
+                let owner = declaration
+                    .provider_declaration
+                    .as_deref()
+                    .ok_or("component call has no selecting owner")?;
+                let mut components = verified.iter().filter(|component| {
+                    component
+                        .realizes_selected_plan(&selected.plan, owner)
+                        .is_ok()
+                });
                 let component = components
                     .next()
                     .ok_or("independent native production has no exact verified component")?;
@@ -208,9 +234,9 @@ impl SelectedProductTarget {
                 if plans.next().is_some() {
                     return Err("component call has competing complete provider plans");
                 }
-                Ok((component, product, plan))
+                Ok((component, product, plan, owner))
             })();
-            let (component, product, plan) = match selected_inputs {
+            let (component, product, plan, owner) = match selected_inputs {
                 Ok(inputs) => inputs,
                 Err(reason) => {
                     unavailable.get_or_insert_with(|| reason.to_owned());
@@ -221,6 +247,7 @@ impl SelectedProductTarget {
                 Arc::clone(component),
                 product,
                 plan.clone(),
+                owner,
                 Arc::clone(
                     receiving_identities
                         .get_or_insert_with(|| Arc::new(facts.identities().clone())),
@@ -254,7 +281,6 @@ impl SelectedProductTarget {
         // A source-only stop owes selected-instance coverage without native
         // realization. Executable products obtain it from Terminal instead.
         let execution = &self.custody.execution;
-        execution.provider_source.project_instances()?;
         match terminal {
             Some(module) => check_terminal_task_activations(
                 module,
@@ -391,6 +417,9 @@ fn select_checked_providers(
             package_inputs,
             boundary_calling_plan_realizations: &providers.boundary_calling_plan_realizations,
             provider_candidates: &providers.provider_candidates,
+            boundary_provider_demands: &providers.boundary_provider_demands,
+            provider_declarations: &providers.provider_declarations,
+            terminal_module: providers.calling_program.artifact.semantic_module(),
             selected_provider_plan_facts,
             selected_provider_provenance,
             root_grants: &root_grants,
@@ -421,37 +450,36 @@ fn prepare_target_provider_selection(
         &build_config.opaque_representation_selections,
         package_inputs,
     )?;
-    let code = if calling.is_empty() {
-        None
-    } else {
-        crate::terminal::retain_calling_policy_code(source, timings)?
-    };
-    let boundary_calling_plan_realizations = calling.evaluate(code.as_deref())?;
+    let code = crate::terminal::retain_calling_program(source, timings)?;
+    let boundary_calling_plan_realizations = calling.evaluate(&code)?;
     let settled_target_machines = provider_planning::target_machines::settle_provider_defaults(
         one_refusal(source.provider_inventory.origins_for(&source.program))?,
         &source.provider_defaults,
         selected_target_profile.unwrap_or_else(target::TargetProfile::host),
     );
+    let deployment = build_config.provider_deployment()?;
     provider_planning::settle_checked_providers(
         &source.program,
+        source.sources.exact_toolchain_sources(),
         one_refusal(source.provider_inventory.services_for(&source.program))?,
-        one_refusal(source.provider_inventory.uses_for(&source.program))?,
         one_refusal(source.provider_inventory.direct_calls_for(&source.program))?,
         settled_target_machines,
         selected_target_profile,
         package_inputs,
         &build_config.provider_selections,
+        deployment.roots.as_deref(),
         &build_config.native_bindings,
         &build_config.assumed_bindings,
         &build_config.accepted_component_assumption_digests(),
         boundary_calling_plan_realizations,
+        code,
         &build_config.opaque_representation_selections,
         &source.program.facts.synchronous_invocations,
     )
 }
 
-/// Prepare this target's complete source-side custody without producing an
-/// artifact or admitting its native execution.
+/// Select this target over shared portable code and prepare remaining source
+/// review inputs, without installing or admitting native execution.
 pub(crate) fn select_product_providers(
     source: &CheckedProductSource,
     selected_target_profile: Option<target::TargetProfile>,

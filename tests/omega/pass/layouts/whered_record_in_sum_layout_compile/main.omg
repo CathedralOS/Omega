@@ -2,7 +2,7 @@
 // `Span` (valid only while `lo <= hi`) — the invariant travels inside
 // the discriminant's layout like any other record payload.
 data Span
-where
+requires
     lo <= hi,
 {
     lo: u64;

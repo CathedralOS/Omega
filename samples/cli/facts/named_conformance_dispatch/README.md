@@ -56,7 +56,7 @@ call, or at the independent nested `step` boundary.
    contract. The selected member body does not replace that contract. An
    ensures of `result == left + right + 1` still refuses. A missing operand
    bound still refuses.
-5. **Checked-to-Terminal Psi lowering (Psi 05–07).** The evidence dispatch
+5. **Checked-to-Terminal Psi lowering (Psi 06–08).** The evidence dispatch
    lowers to the selected inline member. Proof obligations are checked and
    erased. `omega run --both` agrees on exit 0 for the root and all nine places.
 6. **Provider settlement, layout geometry, and ABI calling plans (Omega 00–02).**

@@ -21,7 +21,7 @@ data Event {
 }
 
 data Point
-where
+requires
     0 <= x,
     x <= 100,
     0 <= y,

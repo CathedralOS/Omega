@@ -19,6 +19,7 @@ pub(crate) fn extract_native_external_binding_rows(
         crate::calling_policy_plans::BoundaryCallingPlanRealization
     ],
     services: ServiceCatalog<'_>,
+    calling_program: &crate::calling_policy_plans::CallingProgram,
     opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
 ) -> Result<Vec<calling_conventions::ExternalBindingRow>, Vec<Diagnostic>> {
     let context = ExternalBindingContext {
@@ -26,6 +27,7 @@ pub(crate) fn extract_native_external_binding_rows(
         native_target,
         boundary_calling_plan_realizations,
         services,
+        calling_program,
         opaque_representation_selections,
     };
     let mut rows = Vec::new();
@@ -51,6 +53,7 @@ pub(crate) struct ExternalBindingContext<'a> {
     pub boundary_calling_plan_realizations:
         &'a [crate::calling_policy_plans::BoundaryCallingPlanRealization],
     pub services: ServiceCatalog<'a>,
+    pub calling_program: &'a crate::calling_policy_plans::CallingProgram,
     pub opaque_representation_selections:
         &'a [representation_planning::OpaqueRepresentationSelection],
 }
@@ -59,10 +62,10 @@ impl ExternalBindingContext<'_> {
     /// Portable plans inherit the selected scope; scoped plans must name it.
     /// Preparing an outside-scope candidate retains this refusal as review
     /// content, while selected row extraction requires a successful binding.
-    fn layout_target(
+    fn target_profile(
         &self,
         plan: &effects::provider_plan::ProviderPlan,
-    ) -> Result<layout::LayoutTarget, Vec<Diagnostic>> {
+    ) -> Result<target::TargetProfile, Vec<Diagnostic>> {
         let name = if plan.target.is_empty() {
             self.selected_target
         } else {
@@ -76,21 +79,21 @@ impl ExternalBindingContext<'_> {
             }
             Some(plan.target.as_str())
         };
-        let layout_target = match name {
-            Some(name) => {
-                let profile = target::TargetProfile::from_canonical_target_name(name)
-                    .map_err(|error| vec![error])?;
-                layout::LayoutTarget::for_profile(profile)
-                    .map_err(|reason| vec![Diagnostic::error(reason)])?
+        let profile = match name {
+            Some(name) => target::TargetProfile::from_canonical_target_name(name)
+                .map_err(|error| vec![error])?,
+            None => {
+                return Err(vec![Diagnostic::error(
+                    "external ABI requires an exact deployment profile",
+                )]);
             }
-            None => self.native_target.into(),
         };
-        if layout_target.native_target() != self.native_target {
+        if profile.native_target() != self.native_target {
             return Err(vec![Diagnostic::error(
                 "external ABI layout names another selected native target",
             )]);
         }
-        Ok(layout_target)
+        Ok(profile)
     }
 
     pub(crate) fn row(
@@ -107,6 +110,7 @@ impl ExternalBindingContext<'_> {
             native_target,
             boundary_calling_plan_realizations,
             services,
+            calling_program,
             opaque_representation_selections,
         } = *self;
         let typed = services.context().typed;
@@ -115,7 +119,7 @@ impl ExternalBindingContext<'_> {
                 "external binding lost its original provider row",
             )]
         })?;
-        let (binding, layout_target) = match &row.binding {
+        let (binding, target_profile) = match &row.binding {
             ProviderBinding::Import { evaluated } => (
                 ExternalBindingKind::Import {
                     // The selected plan already commits the atomic evaluation
@@ -123,15 +127,17 @@ impl ExternalBindingContext<'_> {
                     // coordinates.
                     locator: evaluated.locator().clone(),
                 },
-                self.layout_target(plan)?,
+                self.target_profile(plan)?,
             ),
             ProviderBinding::Syscall { number } => (
                 ExternalBindingKind::Syscall { number: *number },
-                self.layout_target(plan)?,
+                self.target_profile(plan)?,
             ),
             ProviderBinding::VtableField { field, .. }
             | ProviderBinding::TableFunction { field, .. } => {
-                let layout_target = self.layout_target(plan)?;
+                let target_profile = self.target_profile(plan)?;
+                let layout_target = layout::LayoutTarget::for_profile(target_profile)
+                    .map_err(|reason| vec![Diagnostic::error(reason)])?;
                 let byte_offset = table_dispatch::field_offset(
                     typed,
                     layout_target,
@@ -156,13 +162,13 @@ impl ExternalBindingContext<'_> {
                         byte_offset,
                     },
                 };
-                (binding, layout_target)
+                (binding, target_profile)
             }
             ProviderBinding::CompilerIntrinsic { .. }
             | ProviderBinding::VtableSlot { .. }
             | ProviderBinding::CheckedAdapter { .. } => return Ok(None),
         };
-        let mut calling_applications = selected_source_calling_applications(
+        let selected = selected_source_calling_applications(
             services,
             boundary_calling_plan_realizations,
             plan,
@@ -170,6 +176,7 @@ impl ExternalBindingContext<'_> {
             row_index,
         )
         .map_err(|diagnostic| vec![diagnostic])?;
+        let mut calling_applications = selected.applications;
         let compatibility_policy = match &binding {
             ExternalBindingKind::Syscall { .. } => {
                 CallingPolicy::native_syscall_for_target(native_target)
@@ -178,16 +185,12 @@ impl ExternalBindingContext<'_> {
         };
         if calling_applications.is_empty() {
             if let Some(policy) = compatibility_policy {
-                if let Some(application) = crate::calling_policy_plans::evaluate_default_calling_application(
-                    services,
-                    layout_target,
-                    trait_name_text(&plan.schema),
-                    plan.schema.declaration.trait_package_identity,
-                    &row.method,
-                    plan.identities.text(row.requirement_identity),
+                calling_applications.extend(crate::calling_policy_plans::evaluate_default_calling_applications(
+                    calling_program,
+                    selected.default_abis.as_ref().map_err(|error| vec![error.clone()])?,
+                    target_profile,
                     policy,
                     usize::from(matches!(binding, ExternalBindingKind::TableFunction { .. })),
-                    opaque_representation_selections,
                 )
                 .map_err(|reason| {
                     vec![Diagnostic::error(format!(
@@ -195,7 +198,7 @@ impl ExternalBindingContext<'_> {
                         trait_name_text(&plan.schema),
                         row.method
                     ))]
-                })? { calling_applications.push(application); }
+                })?);
             }
         }
         Ok(Some(ExternalBindingRow {

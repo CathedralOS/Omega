@@ -555,6 +555,7 @@ dependencies = [
 name = "component-description"
 version = "0.1.0"
 dependencies = [
+ "backend-plan",
  "effects",
  "optimization-core",
  "proof-admission",

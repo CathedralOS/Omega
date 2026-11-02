@@ -32,7 +32,14 @@ pub struct ScalarScopeInputs {
     layouts: AdmittedTargetLayouts,
     address_model: Option<ScalarAddressModel>,
     carrier_layout: Option<semantic_vocabulary::TargetCarrierLayout>,
-    application_machines: Option<Vec<terminal_psi::ProofDeclarationId>>,
+    entry_membership: ScalarEntryMembership,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum ScalarEntryMembership {
+    Source,
+    Selected(Vec<terminal_psi::ProofDeclarationId>),
+    None,
 }
 
 impl ScalarScopeInputs {
@@ -60,12 +67,14 @@ impl ScalarScopeInputs {
         module: &terminal_psi::TerminalModule,
         machine: semantic_vocabulary::MachineId,
     ) -> bool {
+        let members = match &self.entry_membership {
+            ScalarEntryMembership::Source => return true,
+            ScalarEntryMembership::None => return false,
+            ScalarEntryMembership::Selected(members) => members,
+        };
         if module.scalar_applications.conditions.is_empty() {
             return true;
         }
-        let Some(members) = &self.application_machines else {
-            return true;
-        };
         module
             .scalar_applications
             .proof_scope
@@ -137,6 +146,7 @@ enum ScalarClosureKind {
     Source,
     Deployment,
     Invocation(Vec<terminal_psi::ProofDeclarationId>),
+    AbiStorage(super::AbiStorageScope),
 }
 
 impl<'artifact> ScalarApplicationClosure<'artifact> {
@@ -224,11 +234,29 @@ impl<'artifact> ScalarApplicationClosure<'artifact> {
         )
     }
 
+    /// Complete exact ABI storage without certifying Source formation or
+    /// admitting an ordinary boundary/machine entry.
+    pub fn for_abi_storage(
+        artifact: TerminalArtifactView<'artifact>,
+        demand: &super::CallingAbiStorageDemand,
+    ) -> Result<Self, String> {
+        demand.require_artifact(artifact)?;
+        Ok(Self::with_scopes(
+            artifact,
+            &demand.target,
+            vec![(demand.target.clone(), false)],
+            ScalarClosureKind::AbiStorage(demand.scope.clone()),
+        ))
+    }
+
     /// Additional scopes belong to actual Build rows, never Source family tags.
     pub fn with_deployment_scopes(mut self, scopes: &[String]) -> Self {
         // A source deployment starts its own source judgment; an earlier
         // invocation cannot donate narrower coverage to it.
-        if matches!(self.kind, ScalarClosureKind::Invocation(_)) {
+        if matches!(
+            self.kind,
+            ScalarClosureKind::Invocation(_) | ScalarClosureKind::AbiStorage(_)
+        ) {
             self = Self::new(self.artifact, &self.primary);
         }
         self.kind = ScalarClosureKind::Deployment;
@@ -265,6 +293,10 @@ impl<'artifact> ScalarApplicationClosure<'artifact> {
             (
                 ScalarClosureKind::Invocation(expected),
                 super::ScalarConditionScope::Invocation(actual),
+            ) => expected == actual,
+            (
+                ScalarClosureKind::AbiStorage(expected),
+                super::ScalarConditionScope::AbiStorage(actual),
             ) => expected == actual,
             _ => false,
         };
@@ -384,7 +416,13 @@ impl<'artifact> ScalarApplicationClosure<'artifact> {
             layouts: observations.layouts().clone(),
             address_model,
             carrier_layout: observations.carrier_layout(),
-            application_machines: conditions.application_machines().map(<[_]>::to_vec),
+            entry_membership: match conditions.scope() {
+                super::ScalarConditionScope::AbiStorage(_) => ScalarEntryMembership::None,
+                _ => conditions
+                    .application_machines()
+                    .map(|machines| ScalarEntryMembership::Selected(machines.to_vec()))
+                    .unwrap_or(ScalarEntryMembership::Source),
+            },
         };
         if target == self.primary {
             self.primary_result = Some(CompletedScalarScope {
@@ -444,7 +482,10 @@ impl<'artifact> ScalarApplicationClosure<'artifact> {
             .ok_or("scalar closure has no primary value scope")?;
         Ok(AdmittedScalarApplications {
             terminal: self.artifact.identity(),
-            product_formation: !matches!(self.kind, ScalarClosureKind::Invocation(_)),
+            product_formation: !matches!(
+                self.kind,
+                ScalarClosureKind::Invocation(_) | ScalarClosureKind::AbiStorage(_)
+            ),
             primary,
             supplemental: self.supplemental,
         })

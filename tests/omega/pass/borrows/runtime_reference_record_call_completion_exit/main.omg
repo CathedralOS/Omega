@@ -1,7 +1,7 @@
 // Whole cleanup is accounted once on both Unit completion and named successors.
 use omega_language_std::console;
 
-data Cell where value >= 0, value <= 100 { value: i32; ready: bool; }
+data Cell requires value >= 0, value <= 100 { value: i32; ready: bool; }
 data Message { body: &mut Cell; stamp: i32; }
 data Main { cell: Cell; }
 

@@ -378,7 +378,7 @@ mod tests {
                             StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(13)),
                             StructuralPathSegment::Referent,
                             StructuralPathSegment::FixedIndex(2),
-                            StructuralPathSegment::FixedByteRange { start: 1, end: 4 },
+                            StructuralPathSegment::FixedRange { start: 1, end: 4 },
                             StructuralPathSegment::RuntimeIndex {
                                 index: selector,
                                 obligation: ObligationId::new(8).expect("nonzero obligation"),

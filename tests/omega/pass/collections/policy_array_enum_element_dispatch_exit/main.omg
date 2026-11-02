@@ -5,7 +5,7 @@ data Mode [copy] {
     case Busy;
 }
 
-data Table where count <= 4 {
+data Table requires count <= 4 {
     modes: [Mode; 4] in Trapping;
     count: u64;
 }

@@ -19,13 +19,21 @@ releases the drawing context and window, and prints
 path and releases the remaining resources. The Windows provider uses the native
 frame metrics instead of assuming a fixed titlebar and border size.
 
-Windows x86_64 native execution validates the 60-frame scanline oracle and
-successful device-context release and window destruction. A native observation
-also measures the visible client area and changing pixel colors. The GUI
-subsystem keeps Windows from attaching a separate console window.
+Build selects `WindowsGuiProvider` for Windows x86_64 and `MacosGuiProvider`
+for macOS ARM64. The implementations own ordinary inline machine bodies;
+selection does not create application state. Both supplied implementations are
+checked regardless of which host runs the program.
 
-The macOS route retains the existing Cocoa implementation and its resource
-ownership. Native macOS execution and LaunchServices were not rerun for this
-change. The CLI reports the retained build directory containing
-`window_demo.app` on macOS; launch that bundle separately with
+`Main` declares its counter predicates with `requires self`: pumped messages
+remain between 0 and 16, frames between 0 and 60, and the pixel index between
+0 and 4096. The original dominating guards establish each increment. Width
+conversions use `integer::max<i32>()`; packed header fields and Win32 flags use
+hex values. Windows uses its native frame metrics for the client area, and
+the GUI subsystem keeps it from attaching a separate console window.
+
+On macOS, `--keep` reports the retained build directory containing
+`window_demo.app`. Launch the same bundle with
 `open -n -W <reported-directory>/window_demo.app` to exercise LaunchServices.
+The PASS line establishes the program's frame and cleanup-result checks;
+observing the native window's dimensions, changing pixels and disappearance
+also checks visible presentation and closure.

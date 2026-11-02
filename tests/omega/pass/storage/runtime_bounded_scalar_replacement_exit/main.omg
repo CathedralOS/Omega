@@ -1,5 +1,5 @@
 // Expected exit: 0. Stores retain the bounded field's owning predicate.
-data Flags where first >= 0 && first <= 1, second >= 0 && second <= 1 {
+data Flags requires first >= 0 && first <= 1, second >= 0 && second <= 1 {
     first: i32;
     second: i32;
 }

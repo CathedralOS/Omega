@@ -98,11 +98,13 @@ impl Schema {
                         StructuralTypeShape::PrimitiveScalar(_)
                         | StructuralTypeShape::Reference { .. } => {}
                         StructuralTypeShape::Record { fields, storage } => {
+                            // A retained target selection changes placement, not
+                            // this semantic roster. StorageCodec separately
+                            // requires its exact produced native layout recipes.
                             if matches!(
                                 storage,
                                 StructuralRecordStorage::AccessView(_)
                                     | StructuralRecordStorage::Accessor(_)
-                                    | StructuralRecordStorage::TargetLayout(_)
                             ) {
                                 return Err(rejection(
                                     "native record codec is not resolved ordinary storage",

@@ -2,7 +2,7 @@
 // reads the constrained u64's bits — the field's invariant doesn't change
 // what a view may reinterpret.
 data Cap
-where
+requires
     v <= 5,
     v >= 1,
 {

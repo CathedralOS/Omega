@@ -1,0 +1,2 @@
+LayoutStorage<DarwinStatRecord, OtherPolicy>
+LayoutStorage<DarwinStatRecord, CAbiPolicy<DarwinStatRecord>>

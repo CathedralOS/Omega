@@ -4,7 +4,7 @@
 // field from establishment. Exit 70.
 use omega_language_std::console;
 
-data Session where retries <= 3 {
+data Session requires retries <= 3 {
     retries: u64;
 }
 

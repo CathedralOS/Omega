@@ -1,5 +1,5 @@
 // Expected exit: 0
-data Pair<Left:u32,Right:u32> [copy] where value<Left && value<Right {value:u32;}
+data Pair<Left:u32,Right:u32> [copy] requires value<Left && value<Right {value:u32;}
 machine first(flag:&mut u32)->u32 ensures result==9 {flag=1;9}
 machine second(flag:&mut u32)->u32 crashes Trap ensures result==10 {
  let before:u32=flag; flag=2;

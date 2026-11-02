@@ -1,89 +1,90 @@
 // Expected exit: 0. Linux stat has no creation timestamp; Darwin has one. Metadata
 // preserves physical field widths, descriptor/path identity and both timespecs.
+use omega::language::core::filesystem_authority;
 use omega_language_std::filesystem;
 use omega_language_std::console;
 
 data Main { filesystem: Filesystem; file: File; original: Metadata; posix: PosixMetadata; }
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
     let mut zero: TimestampResult;
-    transition zero { TimestampResult::Error { kind } -> zero_error(main, kind) _ -> bad(10) }
+    transition zero { TimestampResult::Error { kind } -> block zero_error(main, kind) _ -> bad(10) }
     machine zero_error(main: &mut Main, kind: ErrorKind) {
-        transition kind { ErrorKind::Other -> create(main) _ -> bad(11) }
+        transition kind { ErrorKind::Other -> block create(main) _ -> bad(11) }
     }
     machine create(main: &mut Main) {
         let result: UnitResult = block Filesystem::write_all(&mut main.filesystem, "omega_metadata.txt", "metadata");
-        transition result { UnitResult::Ok -> link(main) _ -> bad(12) }
+        transition result { UnitResult::Ok -> block link(main) _ -> bad(12) }
     }
     machine link(main: &mut Main) {
         let result: UnitResult = block Filesystem::hard_link(&mut main.filesystem, "omega_metadata.txt", "omega_metadata.link");
-        transition result { UnitResult::Ok -> open(main) _ -> bad(13) }
+        transition result { UnitResult::Ok -> block open(main) _ -> bad(13) }
     }
     machine open(main: &mut Main) {
         let result: OpenResult = block Filesystem::open(&mut main.filesystem, "omega_metadata.txt");
-        transition result { OpenResult::Ok { file } -> descriptor(main, file) _ -> bad(14) }
+        transition result { OpenResult::Ok { file } -> block descriptor(main, file) _ -> bad(14) }
     }
     machine descriptor(main: &mut Main, file: File) {
         main.file = file;
         let result: MetadataResult = block Filesystem::metadata(&mut main.filesystem, file);
-        transition result { MetadataResult::Ok { meta } -> inspect(main, meta) _ -> bad(15) }
+        transition result { MetadataResult::Ok { meta } -> block inspect(main, meta) _ -> bad(15) }
     }
     machine inspect(main: &mut Main, metadata: Metadata) {
         main.original = metadata;
         // Inline file data may legitimately use zero separately allocated blocks.
         transition metadata.len == 8 && metadata.nlink == 2 {
-            true -> posix(main, metadata.posix) _ -> bad(16)
+            true -> block posix(main, metadata.posix) _ -> bad(16)
         }
     }
     machine posix(main: &mut Main, result: PosixMetadataResult) {
-        transition result { PosixMetadataResult::Ok { details } -> allocation(main, details) _ -> bad(16) }
+        transition result { PosixMetadataResult::Ok { details } -> block allocation(main, details) _ -> bad(16) }
     }
     machine allocation(main: &mut Main, details: PosixMetadata) {
         main.posix = details;
-        transition details.blksize > 0 { true -> creation(main) false -> bad(16) }
+        transition details.blksize > 0 { true -> block creation(main) false -> bad(16) }
     }
     machine creation(main: &mut Main) {
         let result: TimestampResult = Metadata::created(&main.original);
         let expected: bool = expected_creation_time(result);
-        transition expected { true -> path(main) _ -> bad(17) }
+        transition expected { true -> block path(main) _ -> bad(17) }
     }
     machine path(main: &mut Main) {
         let result: MetadataResult = block Filesystem::metadata_path(&mut main.filesystem, "omega_metadata.link");
-        transition result { MetadataResult::Ok { meta } -> same(main, meta) _ -> bad(19) }
+        transition result { MetadataResult::Ok { meta } -> block same(main, meta) _ -> bad(19) }
     }
     machine same(main: &mut Main, metadata: Metadata) {
-        transition metadata.posix { PosixMetadataResult::Ok { details } -> same_posix(main, details) _ -> bad(20) }
+        transition metadata.posix { PosixMetadataResult::Ok { details } -> block same_posix(main, details) _ -> bad(20) }
     }
     machine same_posix(main: &mut Main, details: PosixMetadata) {
         transition details.ino == main.posix.ino && details.dev == main.posix.dev
             && details.uid == main.posix.uid && details.gid == main.posix.gid
             && details.blocks == main.posix.blocks && details.blksize == main.posix.blksize {
-            true -> times(main) _ -> bad(20)
+            true -> block times(main) _ -> bad(20)
         }
     }
     machine times(main: &mut Main) {
         let result: UnitResult = block Filesystem::set_times(&mut main.filesystem, main.file, 1700000000, 1700000010);
-        transition result { UnitResult::Ok -> changed(main) _ -> bad(21) }
+        transition result { UnitResult::Ok -> block changed(main) _ -> bad(21) }
     }
     machine changed(main: &mut Main) {
         let result: MetadataResult = block Filesystem::metadata(&mut main.filesystem, main.file);
-        transition result { MetadataResult::Ok { meta } -> changed_times(main, meta) _ -> bad(22) }
+        transition result { MetadataResult::Ok { meta } -> block changed_times(main, meta) _ -> bad(22) }
     }
     machine changed_times(main: &mut Main, metadata: Metadata) {
         transition metadata.accessed_secs == 1700000000 && metadata.modified_secs == 1700000010 {
-            true -> close(main) _ -> bad(23)
+            true -> block close(main) _ -> bad(23)
         }
     }
     machine close(main: &mut Main) {
         let result: UnitResult = block Filesystem::close(&mut main.filesystem, main.file);
-        transition result { UnitResult::Ok -> remove_link(main) _ -> bad(24) }
+        transition result { UnitResult::Ok -> block remove_link(main) _ -> bad(24) }
     }
     machine remove_link(main: &mut Main) {
         let result: UnitResult = block Filesystem::remove(&mut main.filesystem, "omega_metadata.link");
-        transition result { UnitResult::Ok -> remove(main) _ -> bad(25) }
+        transition result { UnitResult::Ok -> block remove(main) _ -> bad(25) }
     }
     machine remove(main: &mut Main) {
         let result: UnitResult = block Filesystem::remove(&mut main.filesystem, "omega_metadata.txt");
-        transition result { UnitResult::Ok -> missing(main) _ -> bad(26) }
+        transition result { UnitResult::Ok -> block missing(main) _ -> bad(26) }
     }
     machine missing(main: &mut Main) {
         let result: MetadataResult = block Filesystem::metadata_path(&mut main.filesystem, "omega_metadata.txt");
@@ -109,7 +110,7 @@ macos_arm64 machine expected_creation_time(result: TimestampResult) -> bool {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

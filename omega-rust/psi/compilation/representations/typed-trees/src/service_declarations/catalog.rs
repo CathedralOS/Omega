@@ -27,6 +27,7 @@ mod calling_owners;
 pub struct PreparedServiceRequirement {
     pub source: ServiceRequirementSource,
     calling_eligibility: Result<(), Diagnostic>,
+    pub default_abis: Result<Vec<semantic_vocabulary::CallingAbiIdentity>, Diagnostic>,
 }
 
 impl Default for PreparedServiceRequirement {
@@ -34,6 +35,7 @@ impl Default for PreparedServiceRequirement {
         Self {
             source: ServiceRequirementSource::default(),
             calling_eligibility: Ok(()),
+            default_abis: Ok(Vec::new()),
         }
     }
 }
@@ -486,6 +488,24 @@ impl PreparedServiceCatalog {
                             PreparedServiceRequirement {
                                 source,
                                 calling_eligibility,
+                                default_abis: projected
+                                    .declaration
+                                    .methods
+                                    .get(ordinal)
+                                    .ok_or_else(|| {
+                                        Diagnostic::error(
+                                            "default ABI request lost its ordered requirement",
+                                        )
+                                    })
+                                    .and_then(|method| {
+                                        self.signatures
+                                            .default_abis(
+                                                source,
+                                                &projected.declaration,
+                                                method.requirement_identity,
+                                            )
+                                            .map_err(Diagnostic::error)
+                                    }),
                             }
                         },
                     ));

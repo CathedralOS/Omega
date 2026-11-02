@@ -2,10 +2,10 @@
 
 Fact: matching a 4-variant tagged enum payload Packet { Alpha(u64), Beta(u64), Gamma(u64), Delta(u64) } where every arm satisfies 40u64 <= v <= 80u64 preserves 40u64 <= res <= 80u64 across all nine places so exact subtractions 80u64 - res and res - 40u64 are safe.
 
-Owning Task: `ENUM-PAYLOAD` / `CASE-PAYLOAD-BOUND` (`TASKS.md`)
+Owning Task: `REQUIRES-UNIFICATION` (`TASKS.md`) — retiring case `where` onto the data `requires` must not change any migrated row's result or refusal obligation.
 Obligation Class: Tagged case payload layout plans and variant discriminant tags (`wiki/spec/layouts/plans.md`) — 4-variant enum tagged case payload preserving payload interval bounds `40u64 <= payload <= 80u64` to discharge exact subtractions `80u64 - payload` and `payload - 40u64`.
 
-Every positive place and reject twin tests a 4-variant tagged enum (`data Packet [copy]`) with bounded 64-bit unsigned payloads across all variants (`Alpha(v: u64)`, `Beta(v: u64)`, `Gamma(v: u64)`, and `Delta(v: u64)` where `v >= 40u64 && v <= 80u64`).
+Every positive place and reject twin tests a 4-variant tagged enum (`data Packet [copy]`) with bounded 64-bit unsigned payloads across all variants (`Alpha(v: u64)`, `Beta(v: u64)`, `Gamma(v: u64)`, and `Delta(v: u64)`), whose default domain `requires` each case's `self.v >= 40u64 && self.v <= 80u64`.
 Matching or extracting the active variant payload yields an exact result `res: u64` statically guaranteed to lie in `[40, 80]`.
 Casting or transporting `res` across places preserves `40u64 <= res <= 80u64`.
 Subsequent exact subtractions `headroom = 80u64 - res` and `margin = res - 40u64` inside `verify_payload` are proved underflow-free and non-negative, evaluating to `20u64 + 20u64 = 40u64` for `v == 60u64` and terminating with exit 0.
@@ -49,7 +49,7 @@ Every positive place and the root witness observe `native exit 0` and `interp ex
 ### The oracle discriminates
 
 In each positive place, evaluating `probe(Packet::Gamma { v: 60u64 })` extracts `res = 60u64`.
-Because all four variant arms enforce `v >= 40u64 && v <= 80u64`, the exhaustive match statically establishes `res in [40, 80]`.
+Because the default domain requires `40u64 <= self.v <= 80u64` under every case, each arm's `v` carries that bound and the exhaustive match statically establishes `res in [40, 80]`.
 Subsequent exact subtractions in `verify_payload` (`headroom = 80u64 - res = 20u64` and `margin = res - 40u64 = 20u64`) evaluate to `20u64 + 20u64 = 40u64`.
 The transition guard `combined == 40u64` verifies exact arithmetic evaluation, transitioning to `done()` with native exit 0.
 If payload extraction or verification arithmetic is corrupted, the guard fails and transitions to `bad() { crash Trap; }`, terminating with exit 255.
@@ -109,7 +109,7 @@ The compiler strictly fails closed at compile time:
 - **Identity and lifetime**: The extracted payload interval fact `res in [40, 80]` is preserved across local bindings, carrier record fields, machine parameters, helper call returns, match join arms, named constants, state transitions, helper forwarding machines, and target-scoped bodies without semantic loss.
 - **Composition**: In each place, the synthesized interval `res in [40, 80]` composes directly with `verify_payload` contract preconditions and subsequent exact subtractions `headroom = 80u64 - res` and `margin = res - 40u64` to statically discharge underflow safety and non-negativity without post-hoc caller equality guards.
 - **Soundness boundaries**: In every reject twin, widening the payload bound on variant `Gamma` to `v >= 39u64` permits `res` to reach `39u64`, which fails closed under contract requires preconditions or ensures postconditions across boundary transmissions, verifying that out-of-interval variant payloads cannot satisfy safety bounds.
-- **Checked-to-Terminal Psi lowering (`Psi 05–07`)**: Tagged enum construction, variant discrimination, and payload access lower to target-neutral Terminal Psi tagged case representations (`PSITERM\0`), while proof-only where-clauses are erased. Both Terminal Psi interpreter and native execution agree with exit 0 (`omega run --both`).
+- **Checked-to-Terminal Psi lowering (`Psi 06–08`)**: Tagged enum construction, variant discrimination, and payload access lower to target-neutral Terminal Psi tagged case representations (`PSITERM\0`), while proof-only where-clauses are erased. Both Terminal Psi interpreter and native execution agree with exit 0 (`omega run --both`).
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`)**: Provider layout plans represent the 4-variant tagged enum `Packet` with its discriminant tag and 8-byte payload (`IntegerAt 8-byte` for `u64`), respecting layout alignment and calling conventions across all four hosted platforms.
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`)**: Backend lowering selects target ISA variant tag comparison and branch instructions alongside 64-bit integer moves and exact subtractions: `sub rax, ...` on `x86_64` and `sub x0, ...` on `arm64`, maintaining disjoint register homes and activation stack frames without spilling corruption.
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission)**: Direct binary emission encodes machine instructions, resolves symbolic stack-frame displacements and basic block branches, validates transitive machine-state footprints, and emits PE/ELF/Mach-O images that execute natively and agree with Terminal Psi on exit 0 across all four hosted platforms.
@@ -126,3 +126,25 @@ oracle are unchanged. The entry wrapper and each implementation check a tag
 Linux x86-64 native and Terminal Psi agreement for the positive and source
 rejection for the twin; the other hosted targets keep their authored rows,
 unexecuted here.
+
+## Requirements and evidence
+
+- **Establishment.** The bound is the data default domain's requirement on the
+  selected case. A match arm that selects `Packet::Case` receives that case's
+  conjuncts from the `requires` disjunction; no `ensures` restates them. Root
+  and `call_result` additionally state `ensures result >= 40 && result <= 80`
+  on the extractor; the other eight places call an extractor with no contract,
+  so the caller's bound comes from the callee's arms.
+- **Composition.** Every place transports the same arm-joined interval
+  `[40, 80]` into `verify_payload`, `choose`, `consume` or `forward_payload`.
+- **Reject twins.** Each twin weakens only Gamma's lower bound to `39u64`. The
+  joined interval becomes `[39, 80]` and the consuming call's `requires` (or,
+  in `call_result`, the extractor's `ensures` at Gamma's arm, statement 7) is
+  refused.
+- **Regression history.** From #958 until this repair the eight uncontracted
+  places were refused: the case-guard premise read only the case's own fact
+  span, which #958 left empty. The repair projects the data `requires` onto the
+  selected case once (`default_domains::selected_case_requirements`) for every
+  guard-narrowing consumer.
+- **Open.** Payload interval readers for representation and borrowed write-back
+  (`case_where_field_intervals`) still read the case span only.

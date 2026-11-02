@@ -9,7 +9,6 @@ samples/cli/facts/atomic_operand_carrier_once/README.md ARITHMETIC-POLICY-REALIZ
 samples/cli/facts/atomic_operand_carrier_once/README.md IMPLICIT-STORE-CONVERSION
 samples/cli/facts/boundary_provider_call/README.md PROVIDER-SELECTION
 samples/cli/facts/call_result_bound_discharge/README.md ONE-INTEGER-BOUNDS-ENGINE
-samples/cli/facts/case_dependent_default_domain/README.md DOMAIN-DEFAULT-PREDICATE-UNIFICATION
 samples/cli/facts/case_payload_layout_geometry/README.md COUNT-ADDRESS-GEOMETRY
 samples/cli/facts/case_payload_layout_geometry/README.md LAYOUT-PLANS
 samples/cli/facts/case_tag_discriminant_layout/README.md LAYOUT-PLANS
@@ -30,8 +29,6 @@ samples/cli/facts/exact_integer_narrowing/README.md DOMAIN-DEFAULT-PREDICATE-UNI
 samples/cli/facts/fixed_array_twofiftysix_elem_index_bound/README.md COUNTS-AND-ADDRESSES
 samples/cli/facts/fixed_array_twofiftysix_elem_index_bound/README.md LAYOUT-PLANS
 samples/cli/facts/fixed_array_twofiftysix_elem_index_bound/README.md STRUCTURAL-ACCESS
-samples/cli/facts/four_variant_enum_payload_bound/README.md CASE-PAYLOAD-BOUND
-samples/cli/facts/four_variant_enum_payload_bound/README.md ENUM-PAYLOAD
 samples/cli/facts/free_entry_local_state/README.md EXPLICIT-ENTRY-STORAGE
 samples/cli/facts/index_every_width/README.md ONE-INTEGER-BOUNDS-ENGINE
 samples/cli/facts/inherited_scalar_domain/README.md DOMAIN-DEFAULT-PREDICATE-UNIFICATION
@@ -43,7 +40,6 @@ samples/cli/facts/narrow_to_wide_unsigned_8to64_extension/README.md NUMERIC-SCAL
 samples/cli/facts/nested_array_element_projection/README.md LAYOUT-PLANS
 samples/cli/facts/nested_array_element_projection/README.md STRUCTURAL-ACCESS
 samples/cli/facts/nominal_callback_reach/README.md STATIC-CALLBACK-REACH-RETENTION
-samples/cli/facts/placed_stable_write/README.md PLAN-LAID-VIEWS
 samples/cli/facts/predicate_type_formation/README.md DOMAIN-DEFAULT-PREDICATE-UNIFICATION
 samples/cli/facts/range_fact_delivery/README.md ONE-INTEGER-BOUNDS-ENGINE
 samples/cli/facts/readonly_byte_pool_relocation_bound/README.md BYTE-VIEW-BOUND-DISCHARGE

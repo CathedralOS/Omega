@@ -94,7 +94,7 @@ public data CrashRoutes [copy] {
 // clauses) records the first rejection of every machine it rejects, in the
 // order found, until 64 are recorded.
 public data Checks
-where
+requires
     machine_count <= 10240,
     diagnostic_count <= 64,
 {

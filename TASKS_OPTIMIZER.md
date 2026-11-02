@@ -158,9 +158,9 @@ rewrites and promotion are not prerequisites for the first useful compiler.
     both transfer rosters empty for an owned `CallStructural` result —
     the fence comment says claim movement stays closed until cyclic
     claim custody is supported. Upstream, a linear consumer's operand
-    must chain from a call result (`05_checked-trees-to-lowered-psi`
+    must chain from a call result (`06_checked-trees-to-lowered-psi`
     `result_uses.rs`) whose own linear result cannot be established in a
-    state body (`04_typed-trees-to-checked-trees` `linear_validation.rs`),
+    state body (`05_typed-trees-to-checked-trees` `linear_validation.rs`),
     composed callee lowering refuses the local handoff's graph custody,
     and edge transport rejoins only machine-parameter claims
     (`state_graph/claims.rs`), which pinning then freezes. The narrowest
@@ -279,7 +279,7 @@ rewrites and promotion are not prerequisites for the first useful compiler.
   - Remaining: call-produced children
     (INTERPROCEDURAL-SUMMARIES). Type-path descent is not proof of stored
     contents. Runtime-index `StructuralCaseMembership` cannot reach stage 01
-    from current source; bounded indexed reads stop at Psi stage 05's
+    from current source; bounded indexed reads stop at Psi stage 06's
     authored-binding check.
   - Corpus proof is blocked on routing: the pass executes in post-Terminal
     stage 01, but native realization receives only

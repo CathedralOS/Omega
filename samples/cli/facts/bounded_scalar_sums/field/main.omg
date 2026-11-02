@@ -2,7 +2,7 @@
 // a + b fit result <= 100; no Wrapping domain and no as.
 // Place: field. Bounded record fields carry both operands into the sum.
 // Expected exit: 0
-data Pair where left <= 50, right <= 50 {
+data Pair requires left <= 50, right <= 50 {
     left: u64;
     right: u64;
 }

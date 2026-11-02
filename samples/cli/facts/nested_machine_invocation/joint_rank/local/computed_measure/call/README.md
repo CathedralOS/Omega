@@ -45,7 +45,7 @@ computes `rank(identity(value) + 0)`, retaining the same fact and oracle.
   and an [unproved progress dependency](../../../controls/declared_call_nonterminating/main.omg).
   `ensures` alone proves no return. Existing ownership and tail-cycle rules remain
   independent; declaration calls do not manufacture statement loan captures.
-- Psi 05–07: declaration calls enter the shared call scheduler and emitter.
+- Psi 06–08: declaration calls enter the shared call scheduler and emitter.
   Straight-line direct calls produce ordinary operations without artificial
   control edges; selective control retains the block route and rank-dominance
   check. No new measure interpreter, body folding or Terminal operation exists.

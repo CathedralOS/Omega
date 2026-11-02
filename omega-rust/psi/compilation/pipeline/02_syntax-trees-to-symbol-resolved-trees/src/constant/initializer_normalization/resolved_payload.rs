@@ -547,6 +547,25 @@ impl<'program> Encoder<'program> {
         }
         let operand = self.unconstrained(operand)?;
         match operand.reference {
+            TypeReference::ConstExpression(recipe) => {
+                // Closed scalar arguments keep their exact value in the
+                // declaration label, as in syntax-side application labeling.
+                // This reads the receiving declaration's completed operand;
+                // a result receipt cannot supply or replace that argument.
+                match self
+                    .program
+                    .tables
+                    .bodies
+                    .expressions
+                    .expression(recipe.expression)
+                {
+                    ExpressionNode::Integer(literal) => literal
+                        .value_bignum()
+                        .map(|value| value.to_string())
+                        .ok_or_else(|| "materialized carrier argument has no integer value".into()),
+                    _ => Err("materialized carrier argument is not a completed scalar".into()),
+                }
+            }
             TypeReference::Named { symbol, name, .. } => {
                 Ok(self.program.data_definition_by_symbol(*symbol).map_or_else(
                     || name.as_str().to_owned(),

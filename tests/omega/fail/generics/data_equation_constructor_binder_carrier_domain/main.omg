@@ -1,7 +1,7 @@
 domain<Carrier, const Index: u32> Carrier::Tagged<Index>;
 
 data Box<const Index: u64, Payload [copy]> [copy]
-where Payload == u64::Tagged<Index>
+requires Payload == u64::Tagged<Index>
 { value: Payload; }
 
 data Main { box: Box<4>; }

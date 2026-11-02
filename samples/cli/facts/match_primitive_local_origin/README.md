@@ -123,7 +123,7 @@ are byte-identical copies of their twins, so sample and fixture cannot drift.
    origin; a wrong origin never discharges `value == 17`. The positives show
    the same obligation discharges exactly when the recorded origin has value
    17.
-5. **Checked-to-Terminal Psi lowering (`Psi 05–07`):** The match, its arm
+5. **Checked-to-Terminal Psi lowering (`Psi 06–08`):** The match, its arm
    selection, the recorded origin, and the consumer call lower without loss
    into canonical target-neutral Terminal Psi (`PSITERM\0`); the Terminal Psi
    interpreter executes root and all nine positive places in complete

@@ -100,11 +100,11 @@ pub(crate) fn collection_view_region_geometry(
     {
         return None;
     }
-    // A `&[u8]` view ends its path in a `FixedByteRange` window over the
+    // A `&[u8]` view ends its path in a `FixedRange` window over the
     // fixed byte array the field prefix names; the window start is a byte
     // offset and its width replaces the array length in the descriptor.
     let (field_path, byte_window) = match argument.path.last() {
-        Some(StructuralPathSegment::FixedByteRange { start, end }) => (
+        Some(StructuralPathSegment::FixedRange { start, end }) => (
             &argument.path[..argument.path.len() - 1],
             Some((*start, *end)),
         ),

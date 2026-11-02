@@ -1,0 +1,24 @@
+// A call spelled through a dependency's package alias selects the data type's machine,
+// proves its `left.value > 0` premise on the exact operand, and records its `ensures` sum
+// for the caller.
+// Production: by_value. The operands are `[copy]` data passed by value.
+// Expected exit: 0
+use lib::ops;
+
+machine hold(total: u64) -> bool
+requires total == 260
+{
+    true
+}
+
+machine main() crashes Trap {
+    let left: lib::ops::Pod = lib::ops::Pod { value: 0u16 };
+    let right: lib::ops::Pod = lib::ops::Pod { value: 260u16 };
+    let total: u64 = lib::ops::Pod::describe(left, right);
+    transition hold(total) && total == 260 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

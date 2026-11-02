@@ -50,7 +50,7 @@ re-evaluated at invocation.
 Incoming referents stay distinct from the parameter slots holding descriptors.
 The canonical Terminal graph keeps formation captures, backing, access,
 parentage and supplier transport. These are demands, not a preservation proof.
-Activation-wide analysis in stage 04 keeps borrow formation's strict CPU/thread
+Activation-wide analysis in stage 05 keeps borrow formation's strict CPU/thread
 contribution. Runtime backing, preservation and cancellation joins remain
 separate requirements.
 

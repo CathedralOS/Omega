@@ -2,7 +2,7 @@
 // `index > 0` — zero is excluded from the value space. Strict and
 // non-strict bounds discharge from the same literal facts.
 data Skip
-where
+requires
     index > 0,
 {
     index: u64;

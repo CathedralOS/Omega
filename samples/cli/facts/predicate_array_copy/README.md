@@ -108,7 +108,7 @@ so sample and fixture cannot drift apart.
 | Identity and lifetime | The copy is a fresh unrestricted occurrence, not a qualification added retroactively to the initializer's contract. Separate fixtures check mutation before capture rejects and mutation after capture preserves the copy. |
 | Composition | Nine transport places retain the same predicate and exact u16 addition. |
 | Soundness boundaries | Each one-tail twin rejects; routed origin is not obtained from equal bytes. |
-| Psi 05–07 | Checked memberships survive proof erasure, canonical serialization and separate consumption; Terminal execution returns the authored result. |
+| Psi 06–08 | Checked memberships survive proof erasure, canonical serialization and separate consumption; Terminal execution returns the authored result. |
 | Omega 00–02 | Hosted Build bindings select the entry; fixed-array geometry and qualified aggregate argument/result placement remain ordinary plans. |
 | Omega 03–06 | Native array copies, calls and state transfers preserve payloads and independent storage; the exact addition is realized in u16. |
 | Omega 07–09 and emission | The host image executes with exit 0 and agrees with Terminal execution; this does not establish native execution on an unavailable host. |

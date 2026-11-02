@@ -2,7 +2,7 @@
 // Expected exit: 0.
 const LIMIT: u64 = 80u64;
 
-data Counter [copy] where used <= LIMIT {
+data Counter [copy] requires used <= LIMIT {
     used: u64;
     limit: u64;
 }

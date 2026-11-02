@@ -157,7 +157,7 @@ An authorized public conformance may retain private implementation identities
 without granting consumers direct selection of them. A public domain's
 [issuer catalog](../resources/authority.md#private-issuer-routes) may likewise
 retain private trait requirements or exact machines accessible to its author.
-The same limited exception applies to its exact `read by` / `written by` routes.
+The same limited exception applies to exact reader/writer descriptors in its access policy.
 That authorization metadata grants no consumer call, conformance, or private-type
 selection permission. Other public signatures and predicates retain their
 ordinary exposure rules; this is not general public access to private names.

@@ -43,9 +43,8 @@ pub(super) fn emit_callable_object(
                 realization: settlement.realization.clone(),
             })
             .collect(),
-        &admitted.input.plan().boundary_machines,
+        &admitted.input,
         admission.providers.selected_provider_plans,
-        artifact.semantic_module(),
         admission.providers.external_binding_rows,
     )
     .map_err(|reason| realization_error("callable runtime companions", reason))?;

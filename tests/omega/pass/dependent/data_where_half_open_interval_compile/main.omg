@@ -2,7 +2,7 @@
 // only while `value >= 3` and `value < 10` — lower bound inclusive, upper
 // bound exclusive.
 data Level
-where
+requires
     value >= 3,
     value < 10,
 {

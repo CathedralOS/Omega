@@ -9,6 +9,16 @@ A linear Token [linear] carries its exact payload across the place and retires t
 
 ## The nine transport places
 
+The [nonreturning-alternative control](controls/nonreturning_alternative/main.omg)
+exercises the same claim through a call whose other arm transfers control to a
+machine that crashes. That edge still transports custody but produces no return
+alternative. The successful return must retain its exact claim through a second
+forwarding call; a crash ceiling alone must not erase that return. The
+[reject twin](controls/nonreturning_alternative/invalid/main.omg) consumes that
+returned claim twice. This is the return-frontier prerequisite exposed by
+`BUMP-ALLOCATOR-CANARY`'s resident initialization/extraction path, not completion
+of that allocator outcome.
+
 | Place | Positive witness | Reject twin | Transport |
 | --- | --- | --- | --- |
 | `root` | [main.omg](main.omg) | — | Direct linear `Token` construction and retirement without intermediate transport. |
@@ -23,6 +33,18 @@ A linear Token [linear] carries its exact payload across the place and retires t
 | `target_body` | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | Each target body retires the linear `Token`. |
 
 ## Execution and validation
+
+The [completed-case return control](controls/completed_case_return/main.omg)
+adds a composition exposed by **BUMP-ALLOCATOR-CANARY**: a helper constructs
+one case containing two linear children, another helper forwards that result,
+and the caller retires both children. The absent alternative carries no live
+claims, but its absence must come from that exact completed call. The control
+also reads nested payload fields directly, retaining the case-qualified storage
+path; both case choices have distinct runtime oracles. Its
+[reject twin](controls/completed_case_return/invalid/main.omg) consumes the first
+child twice. These are pinned under `ownership/runtime_completed_case_claim_return_exit`
+and `ownership/completed_case_claim_return_double_consume`, not a second nine-place
+row. This tests result composition, not real allocator backing or Vec growth.
 
 Each place is an application that exits 0 with native and Terminal execution agreement:
 
@@ -56,7 +78,7 @@ Full 8-layer specification and lowering evidence:
 - **Identity and lifetime:** Linear values track exact unique storage and ownership identity; consuming the `Token` transfers it to `retire`, which consumes it via explicit `drop(token)` and invalidates the source place, preventing duplicate use or implicit disposal.
 - **Composition:** The linear claim and retirement obligation compose across all nine standard places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`, `other_machine`, `target_body`). Across calls, record fields, function parameters, match branches, successor machines, forwarding machines, and target-scoped bodies, linear conservation holds. In each place, `<place>/main.omg` vs. `<place>/invalid/main.omg` differ only in attempting duplicate consumption after retirement.
 - **Soundness boundaries:** All nine `<place>/invalid/main.omg` reject twins fail closed at compile time (`--check`), soundly refusing duplicate consumption with a precise diagnostic naming the consumed place (`after `place_token` was transferred or consumed`, `after `holder.item` was transferred or consumed`, etc.).
-- **Checked-to-Terminal Psi lowering (`Psi 05–07`):** Source linear constructs and explicit retirement lower without loss into canonical target-neutral Terminal Psi (`PSITERM\0`). The retired claim lowers into an explicit `RetireHome` / `InvokeNominal` affine cleanup action with no implicit discard, and executes identically in the Terminal Psi interpreter (`omega run --both` exit 0).
+- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Source linear constructs and explicit retirement lower without loss into canonical target-neutral Terminal Psi (`PSITERM\0`). The retired claim lowers into an explicit `RetireHome` / `InvokeNominal` affine cleanup action with no implicit discard, and executes identically in the Terminal Psi interpreter (`omega run --both` exit 0).
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** `ProgramEntry` settles across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`). Record layout geometry evaluates `Token` (one-field `u64` record, 8 bytes, alignment 8), and `CallPlan`/`StatePlan` lower the scalar carrier by value across register argument/return slots and spill slots.
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects 64-bit scalar moves and nominal drop calls, assigns register homes and disjoint stack-frame activation storage for live-across-call values, and inserts entry prologues and multi-return restoration epilogues honoring the `StatePlan` ceiling.
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic stack-frame displacements resolve, basic blocks and branch offsets relax with offset reflow after prologue/epilogue insertion, machine-state footprint evidence validates, and direct PE/ELF/Mach-O emission agrees with Terminal Psi (`omega run --both` exit 0) across host targets including `windows_x86_64` and `macos_arm64`.

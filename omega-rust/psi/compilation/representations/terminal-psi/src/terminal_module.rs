@@ -163,6 +163,9 @@ pub struct TerminalModule {
     /// retained Unit boundary requirement. This is a semantic catalog, not a
     /// selection: installation policy remains outside terminal-Psi identity.
     pub provider_candidates: Vec<ProviderCandidateConformance>,
+    /// Independent source-issued completeness obligations, not a census
+    /// reconstructed from whichever candidates happened to be emitted.
+    pub provider_instance_requirements: Vec<ProviderInstanceRequirements>,
     pub boundary_application_candidates: Vec<crate::BoundaryApplicationCandidate>,
     /// Checked callback applications joined to their emitted registrar operations.
     pub callback_applications: Vec<crate::TerminalCallbackApplication>,
@@ -240,7 +243,15 @@ impl TerminalModule {
             .calling_signatures
             .iter()
             .find(|row| row.boundary == boundary)
-            .ok_or("boundary has no Terminal calling declaration")?;
+            .ok_or_else(|| {
+                let name = self
+                    .boundary_machines
+                    .iter()
+                    .find(|declaration| declaration.id == boundary)
+                    .and_then(|declaration| self.identities.text(declaration.identity))
+                    .unwrap_or("<unknown>");
+                format!("boundary `{name}` has no Terminal calling declaration")
+            })?;
         self.calling_abi_signature(*declaration.application.as_ref().map_err(Clone::clone)?)
             .ok_or("boundary lost its exact declaration ABI")?
             .identity(&self.identities)
@@ -373,6 +384,7 @@ impl TerminalModule {
             unoptimized_behavior: Vec::new(),
             external_providers: Vec::new(),
             provider_candidates: Vec::new(),
+            provider_instance_requirements: Vec::new(),
             boundary_application_candidates: Vec::new(),
             callback_applications: Vec::new(),
             dynamic_dispatch: TerminalDynamicDispatchCatalog::default(),

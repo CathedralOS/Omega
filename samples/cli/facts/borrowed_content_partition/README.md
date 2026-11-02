@@ -60,7 +60,7 @@ The requirement coverage is:
   forwarding machines and target bodies retain the same size obligations.
 - Soundness boundaries: the 17-unit twins fail at unchanged call contracts;
   the original custody, restoration and conservation controls remain relevant.
-- Psi 05–07: ordinary checked ownership and borrow restoration lower to Terminal
+- Psi 06–08: ordinary checked ownership and borrow restoration lower to Terminal
   execution, including detached results and explicit consumption.
 - Omega 00–02: package imports, entry bindings, structural layout and calling
   plans must preserve the same values through each exercised route.

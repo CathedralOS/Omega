@@ -1,0 +1,37 @@
+// Complete Darwin LP64 filesystem ABI data. Semantic declarations stay
+// layout-neutral; every nested timespec selects its C representation explicitly.
+// sys/stat.h fixes the stat extent at144/alignment8, including four timestamp
+// pairs and the reserved tail. A sparse record must use its own named policy.
+use omega::language::core::c_layout;
+
+public data DarwinTimespec [copy] {
+    seconds: i64;
+    nanoseconds: i64;
+}
+
+public data DarwinStatRecord [copy] {
+    dev: i32;
+    mode: u16;
+    nlink: u16;
+    ino: u64;
+    uid: u32;
+    gid: u32;
+    rdev: i32;
+    atime: CLayout<DarwinTimespec>;
+    mtime: CLayout<DarwinTimespec>;
+    ctime: CLayout<DarwinTimespec>;
+    btime: CLayout<DarwinTimespec>;
+    size: i64;
+    blocks: i64;
+    blksize: i32;
+    flags: u32;
+    generation: u32;
+    reserved: i32;
+    spare: [i64; 2];
+}
+
+public data DarwinStat = CLayout<DarwinStatRecord>;
+
+// futimens consumes timespec[2], not four independently packed integers.
+// No nanosecond domain excludes the platform's UTIME_NOW/UTIME_OMIT sentinels.
+public data DarwinFileTimes = [CLayout<DarwinTimespec>; 2];

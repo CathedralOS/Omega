@@ -10,6 +10,7 @@ pub struct BoundaryCallingApplicationCandidate {
     pub report_fingerprint: u64,
     pub commitment: [u8; 32],
     pub plan: BoundaryEntryPlan,
+    pub dispatch_only_parameter_count: u32,
     pub signature: BoundarySignatureGeometry,
     pub opaque_applications: Vec<BoundaryOpaqueApplication>,
     pub callback_context: crate::CallbackMaterializationContext,
@@ -25,6 +26,7 @@ impl BoundaryCallingApplicationCandidate {
             report_fingerprint,
             commitment,
             plan,
+            dispatch_only_parameter_count,
             signature,
             opaque_applications,
             callback_context,
@@ -49,17 +51,12 @@ impl BoundaryCallingApplicationCandidate {
             .span(signature.native_parameter_rows)
             .ok_or("recovered native telescope has stale storage")?;
         let mut parameters = Vec::with_capacity(native.len());
-        for (ordinal, parameter) in native.iter().enumerate() {
-            if usize::try_from(parameter.native_ordinal).ok() != Some(ordinal)
-                || native[..ordinal]
-                    .iter()
-                    .any(|prior| prior.identity == parameter.identity)
-            {
-                return Err(
-                    "recovered native telescope repeats an identity or changes row order"
-                        .to_owned(),
-                );
-            }
+        let projection = NativeCallProjection::new(
+            native,
+            signature.parameters.len(),
+            dispatch_only_parameter_count,
+        )?;
+        for parameter in native {
             let shape = match parameter.shape {
                 BoundaryNativeParameterShape::Semantic(root) => {
                     let crate::BoundaryNativeParameterOrigin::SemanticFormal { formal_ordinal } =
@@ -94,7 +91,12 @@ impl BoundaryCallingApplicationCandidate {
                     }
                 }
             };
-            parameters.push(shape);
+            if projection
+                .parameter_ordinal(parameter.native_ordinal)?
+                .is_some()
+            {
+                parameters.push(shape);
+            }
         }
         let expected = CallSignature {
             parameters,
@@ -123,6 +125,7 @@ impl BoundaryCallingApplicationCandidate {
             report_fingerprint,
             commitment,
             plan: validated,
+            dispatch_only_parameter_count,
             signature,
             opaque_applications,
             callback_context,

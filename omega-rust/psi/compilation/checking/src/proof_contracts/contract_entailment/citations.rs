@@ -43,6 +43,19 @@ pub(super) struct CitationTarget {
     has_static_selection: bool,
 }
 
+impl CitationTarget {
+    pub(super) fn same_resolution_payload(&self, other: &Self) -> bool {
+        self.symbol == other.symbol
+            && self.invoked_symbol == other.invoked_symbol
+            && self.result_binding == other.result_binding
+            && self.has_static_selection == other.has_static_selection
+            && super::structural_judgment::same_static_selection_payload(
+                &self.machine_arguments,
+                &other.machine_arguments,
+            )
+    }
+}
+
 #[derive(Clone, Default)]
 pub(super) struct CitationFacts {
     pub(super) equations: Vec<(StructuralTerm, StructuralTerm)>,
@@ -58,6 +71,22 @@ pub(super) struct CitationFrontier {
 }
 
 impl CitationFacts {
+    pub(super) fn same_resolution_payload(&self, other: &Self) -> bool {
+        self.equations.len() == other.equations.len()
+            && self.equations.iter().zip(&other.equations).all(
+                |((left, right), (other_left, other_right))| {
+                    left.same_resolution_payload(other_left)
+                        && right.same_resolution_payload(other_right)
+                },
+            )
+            && self.cases.len() == other.cases.len()
+            && self
+                .cases
+                .iter()
+                .zip(&other.cases)
+                .all(|(left, right)| left.same_resolution_payload(right))
+    }
+
     pub(super) fn intake_since(
         &self,
         judge: &mut StructuralJudge<'_>,

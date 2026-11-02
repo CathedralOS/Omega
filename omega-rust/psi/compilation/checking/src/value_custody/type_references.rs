@@ -105,6 +105,12 @@ pub enum StaticTypeArgumentOwner<'program> {
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum TypeReferenceOwner<'program> {
+    /// A copied operand is formed in its actual supplier's declaration. This
+    /// context deliberately carries no receiving state facts or local values.
+    SuppliedOperand {
+        declaration: &'program str,
+        generic_depth: usize,
+    },
     TypeAlias {
         name: &'program str,
         generic_depth: usize,
@@ -195,6 +201,13 @@ impl TypeReferenceOwner<'_> {
 
     fn generic_argument(self) -> Self {
         match self {
+            Self::SuppliedOperand {
+                declaration,
+                generic_depth,
+            } => Self::SuppliedOperand {
+                declaration,
+                generic_depth: generic_depth + 1,
+            },
             Self::TypeAlias {
                 name,
                 generic_depth,
@@ -314,6 +327,13 @@ impl TypeReferenceOwner<'_> {
 impl fmt::Display for TypeReferenceOwner<'_> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         let generic_depth = match self {
+            Self::SuppliedOperand {
+                declaration,
+                generic_depth,
+            } => {
+                write!(formatter, "operand supplied by `{declaration}`")?;
+                *generic_depth
+            }
             Self::TypeAlias {
                 name,
                 generic_depth,

@@ -1,1 +1,2 @@
-cannot prove the `terminates by` ranking
+cannot prove published termination
+without a usable termination guarantee

@@ -3,24 +3,23 @@
 //! Standalone object and executable-image emission for the clean terminal-Psi
 //! realization lane.
 //!
-//! This crate consumes emitted fragments and owned terminal machine-code functions. It does not
-//! reconstruct the legacy `EncodedMachineCode` carrier or any source-shaped
-//! lowering state. Typed internal-call relocations may change only their exact
+//! This crate consumes emitted fragments. It does not reconstruct the legacy
+//! `EncodedMachineCode` carrier or any source-shaped lowering state. Typed internal-call relocations may change only their exact
 //! architecture-native immediate fields; every other compiler-authored bit and
 //! every provenance-bearing function region remains final-byte validated.
 //!
 //! The crate has two lanes:
 //!
-//! - **Object-artifact construction and replay validation** lives in
-//!   [`object_artifact`]: the sealed [`ObjectArtifact`] carrier, its builder
-//!   entry points, and the evidence replay passes beneath
-//!   `object_artifact/replay/` that re-decode every retained record from final
-//!   bytes. Executable-image output over a sealed object starts at
+//! - **The object artifact** lives in [`object_artifact`]: the sealed
+//!   [`ObjectArtifact`] carrier, built only by [`function_fragments`], which
+//!   projects each admitted fragment once rather than replaying a second
+//!   machine-code record model against final bytes. Executable-image output
+//!   over a sealed object starts at
 //!   [`image_output`]'s `emit_executable_image`, which selects the direct
 //!   writers it owns or the dynamic ELF lane in [`dynamic_elf`], with
-//!   [`final_image_validation`] replaying either; [`function_fragments`]
-//!   projects admitted current fragments into that same object and places
-//!   every addressed byte literal's octets in one read-only pool after the
+//!   [`final_image_validation`] replaying either for retained-artifact
+//!   readers; [`function_fragments`] places every addressed byte literal's
+//!   octets in one read-only pool after the
 //!   code, binding each literal address field to it. Ordinary callback bodies
 //!   follow that same projection. [`private_object_composition`] embeds their
 //!   complete objects while keeping machine, call and replay identities local;
@@ -79,7 +78,7 @@ pub(crate) use object_artifact::stack_demand::StackDemand;
 pub use object_artifact::stack_demand::derive_stack_demand;
 pub use object_artifact::{
     ObjectArtifact, ObjectBoundarySettlement, ObjectCodeAttribution, ObjectForeignCall,
-    ObjectFunction, ObjectScalarCallStack, ObjectUnitCallStack, build_object_artifact,
+    ObjectFunction, ObjectScalarCallStack, ObjectUnitCallStack,
     derive_normalized_foreign_call_custody, durable_home_offsets,
     foreign_invocation_provenance_matches, foreign_result_operand_count, fragment_instruction_span,
     producer_instruction, scalar_call_result_producer, scalar_immediate_span,

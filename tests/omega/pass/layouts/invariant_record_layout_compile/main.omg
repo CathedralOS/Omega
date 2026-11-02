@@ -2,7 +2,7 @@
 // and two u64 members — the invariant lives in the type's facts, not its
 // bytes, so size_of folds to the plain record geometry.
 data Band
-where
+requires
     a >= 1,
     b >= a,
     b <= 9,

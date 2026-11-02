@@ -193,7 +193,7 @@ fn append_projection(
         match segment {
             // Windows narrow the same backing. Their scalar coordinates are
             // private to this activation and cannot become caller addresses.
-            StructuralPathSegment::FixedByteRange { .. } => break,
+            StructuralPathSegment::FixedRange { .. } => break,
             StructuralPathSegment::RuntimeIndex { .. } => {
                 path.push(ReferenceOriginProjection::Element)
             }

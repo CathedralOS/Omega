@@ -2,7 +2,7 @@
 // `data where count <= 11` keeps that fact standing for `as i32`.
 // Expected exit: 0
 const USED: u32 = 4;
-data Main where count <= 11 { count: u32; j: u32; out: i32; }
+data Main requires count <= 11 { count: u32; j: u32; out: i32; }
 
 machine Main::main(main: &mut Main)
     requires USED <= main.count

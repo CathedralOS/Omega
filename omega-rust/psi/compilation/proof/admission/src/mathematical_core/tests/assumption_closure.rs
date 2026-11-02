@@ -2,8 +2,8 @@
 
 use super::{constant, default_budget, pi, two, type_sort};
 use crate::mathematical_core::{
-    Declaration, MathematicalCertificate, Term, TermArena, certificate_assumption_closure,
-    check_signature, judgment_assumption_closure, verification_workers_started,
+    Declaration, MathematicalCertificate, Term, TermArena, bounded_verification_entries,
+    certificate_assumption_closure, check_signature, judgment_assumption_closure,
     verify_mathematical_certificate,
 };
 use std::collections::BTreeSet;
@@ -30,16 +30,16 @@ fn certificate_assumption_closure_stays_on_callers_stack() {
         // could substitute for typing. General kernel verification stays intact.
         verify_mathematical_certificate(&mut arena, &certificate, &mut default_budget())
             .expect("deep closed telescope has its declared universe");
-        let workers = verification_workers_started();
+        let workers = bounded_verification_entries();
         assert_eq!(
             certificate_assumption_closure(&arena, &certificate),
             BTreeSet::from([0]),
             "the definition's body contributes its axiom; unused declarations do not"
         );
         assert_eq!(
-            verification_workers_started(),
+            bounded_verification_entries(),
             workers,
-            "assumption traversal must stay on the caller's default stack"
+            "assumption collection does not re-enter bounded admission or denotation"
         );
     })
     .join()

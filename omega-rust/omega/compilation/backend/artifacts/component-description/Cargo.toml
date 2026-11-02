@@ -12,6 +12,7 @@ path = "src/lib.rs"
 test-support = []
 
 [dependencies]
+backend-plan = { path = "../../plans/backend-plan" }
 effects = { path = "../../plans/provider-evidence" }
 optimization-core = { path = "../../../../foundation/optimization-core" }
 proof-admission = { path = "../../../../../psi/compilation/proof/admission" }

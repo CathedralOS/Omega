@@ -320,7 +320,7 @@ cancellation; interruption alone does not prove child processes stopped.
 Each implementation owner validates its submitted change, pushes candidate HEAD
 directly to a remote ref (`git push origin HEAD:refs/heads/work/<name>`), and uses
 the native merge queue in tools/landing.md. Open the pull request as a draft on
-the first push; mark it ready only when that page says it can be enqueued.
+the first push; when the work is finished, run `tools/landing.py land`.
 GitHub integrates
 current main; do not recreate the old lease/rebase/build-receipt loop around it.
 Resolve actual conflicts or failed checks while preserving both intents.

@@ -1,7 +1,7 @@
 use omega_language_std::console;
 
 data Main
-where offset <= 2,
+requires offset <= 2,
 {
     bytes: [u8; 6];
     offset: u32;

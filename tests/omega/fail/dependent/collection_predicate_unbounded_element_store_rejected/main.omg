@@ -29,7 +29,7 @@ machine cells_valid(cells: &[i32; 4]) -> bool {
     }
 }
 
-data Grid where cells_valid(&board) == true {
+data Grid requires cells_valid(&board) == true {
     board: [i32; 4];
 }
 

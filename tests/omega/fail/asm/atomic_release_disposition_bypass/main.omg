@@ -13,13 +13,13 @@ reaches MachineControl
  transition ack.nonce == 37 { true -> write(ack, word) false -> skipped(ack, word) }
  machine skipped(ack: Ack, word: &Cell) {
  let mut marker: u64 = 0;
- asm where ensures acknowledged(ack, word) { mov marker, marker }
+ asm ensures acknowledged(ack, word) { mov marker, marker }
  }
  machine write(ack: Ack, word: &Cell)
  {
  word.value.store(ack.nonce, Publish);
  let mut marker: u64 = 0;
- asm where ensures acknowledged(ack, word) { mov marker, marker }
+ asm ensures acknowledged(ack, word) { mov marker, marker }
  }
 }
 CompletionProvider satisfies Completion { machine complete(ack: Ack, word: &Cell) reaches MachineControl { finish(ack, word) } }

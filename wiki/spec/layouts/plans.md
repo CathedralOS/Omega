@@ -223,14 +223,16 @@ have no physical field key, access decision, or initialization bytes. A
 complete erased-only value can therefore materialize zeroed plan storage
 without inventing a runtime field or discarding its semantic custody.
 
-An [access plan](../resources/access.md) contains a `LayoutPlan`, per-field
-operation/exposure decisions, and required boundary reach. A layout plan carries
-no access policy. Ordinary layout policies remain reusable without access views;
-an `AccessPolicy` composes them through ordinary checked calls, not a separate
-composition trait. Their returned data is independently validated before use.
-A separate provider receipt gives a resource profile standing as supply. Layout
-compatibility alone grants neither backing authority, resident custody, nor
-device correspondence.
+An [access plan](../resources/access.md) attaches to a domain and names semantic
+regions through reflection, including whole-object and field rules. It contains
+no `LayoutPlan`; a layout plan carries no access policy. An `AccessPolicy` consumes
+the semantic `reflect::TypeSchema`, while layout policies consume the separately
+target-resolved schema. Establishment joins their independently checked results
+through exact semantic-member correspondence, then checks actual supply. One
+field may map to several layout fragments without duplicating its authorization
+rule. A separate provider receipt gives a resource profile standing as supply.
+Neither layout compatibility nor an unrestricted caller list grants backing
+authority, resident custody, or device correspondence.
 
 ## Representation applications
 

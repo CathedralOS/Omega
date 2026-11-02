@@ -155,7 +155,7 @@ judgment refusals name their exact site.
 Checked trees retain a whole-place scalar re-view as
 `CheckedScalarExpression::RepresentationView`: the source place's read at its
 declared carrier beneath the view carrier. A same-carrier recast changes only
-facts and reads the place directly. Stage 05 lowers the source read with its
+facts and reads the place directly. Stage 06 lowers the source read with its
 declared-type checks intact and replays the carrier relation
 (`expression_preparation/representation_view.rs`): equal-width integer
 carriers read the two's-complement modular image, and a wider integer view of
@@ -219,10 +219,10 @@ preserves the value. Writes need only matching geometry to invalidate those
 bounds. Unknown writes remain opaque, and a signed reinterpretation cannot
 transport an unsigned bound.
 
-A record-as-record view retains its source leaf at Terminal: stage 05 reads
+A record-as-record view retains its source leaf at Terminal: stage 06 reads
 each view field at the same offset under the source's declaration
 (`recast_record_source_leaf`), which the identical-geometry judgment makes
-exact. A mutable view's direct field store rejoins the same leaf in stage 04
+exact. A mutable view's direct field store rejoins the same leaf in stage 05
 (`structural_scalar_store/destination.rs`); both store replays recompute it
 (`representation_view_store::record_view_leaf_destination`). An equal-width
 integer leaf of the other sign (`i16` seen as `u16`) reads its declared

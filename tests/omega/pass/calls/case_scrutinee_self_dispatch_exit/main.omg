@@ -1,7 +1,7 @@
 // Case-scrutinee transition on the subject with Named at-state targets plus a
 // scalar `(0)` Value fallback (ScanResultsResponse::get_result_address shape).
 // The `statement sequence: unsupported statement kind` gate is admitted past
-// it; this shape clears both stage-04 routes and declines in Terminal
+// it; this shape clears both stage-05 routes and declines in Terminal
 // production at `InvalidTerminalModule(UnknownStructuralArgument)` -- the
 // arm-bound case payload's place is not registered for the named-target call
 // at emission time (composed-control emission, case-payload territory).

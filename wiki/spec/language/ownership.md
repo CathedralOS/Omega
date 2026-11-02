@@ -113,7 +113,7 @@ reconstruction and publication.
 
 These are ordinary loan modes, not exemptions from
 [domain-owned access policy](domains.md#domain-owned-read-and-write-authority).
-`read by` and `written by` restrict observation and mutation of the exact
+Reader and writer lists restrict observation and mutation of the exact
 qualified subject, including a qualified field reached through an owned parent.
 A restricted reference may be forwarded to an authorized machine; merely owning
 or borrowing it does not activate that machine's grant. Authorized calls may

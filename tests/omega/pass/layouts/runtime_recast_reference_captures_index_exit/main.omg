@@ -28,7 +28,7 @@ data PortableByte [copy] { value: i64; }
 data RawView { value: LayoutStorage<PortableByte, SignedByte>; }
 
 data Main
-where position < 2;
+requires position < 2;
 {
     position: u64;
     bytes: [u8; 2];

@@ -145,9 +145,7 @@ linux_arm64 machine linux_arm64_errno_copy_binding() -> ForeignBinding<9, 6, 10>
     } }
 }
 linux_arm64 machine PosixCanonicalImports::provider_defaults(defaults: &mut PosixCanonicalImports) {
-    PosixCanonicalImports::select_provider<PosixCanonicalLibc::resolve, PosixCanonicalImports>(defaults);
-    PosixCanonicalImports::select_provider<PosixCanonicalLibc::error_location, PosixCanonicalImports>(defaults);
-    PosixCanonicalImports::select_provider<PosixCanonicalLibc::copy_error, PosixCanonicalImports>(defaults);
+    PosixCanonicalImports::select_provider<PosixCanonicalLibc, PosixCanonicalImports>(defaults);
 }
 linux_arm64 machine PosixCanonicalImports::resolve(path: &[u8; 4096], output: &mut [u8; 4096]) -> u64
 satisfies PosixCanonicalLibc::resolve via linux_arm64_realpath_binding();

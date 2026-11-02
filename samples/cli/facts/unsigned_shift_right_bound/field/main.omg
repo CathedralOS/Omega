@@ -2,7 +2,7 @@
 // Place: field. Bounded record fields carry the u64 value and shift count into the shift.
 // Expected exit: 0
 
-data ShiftPayload where val >= 400 && val <= 400 && shift >= 2 && shift <= 2 {
+data ShiftPayload requires val >= 400 && val <= 400 && shift >= 2 && shift <= 2 {
     val: u64;
     shift: u64;
 }

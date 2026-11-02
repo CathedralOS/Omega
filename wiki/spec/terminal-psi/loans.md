@@ -116,6 +116,6 @@ bounds obligations independently of this lifecycle publication.
 
 Lowering consumes the checked lifetime and restoration relationships.
 Supported forms live beside
-[borrow checking](../../../omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/README.md).
+[borrow checking](../../../omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/README.md).
 The [structural access contract](structural_access.md) governs permitted operations
 and original-referent preservation independently of these relational proofs.

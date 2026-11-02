@@ -871,7 +871,7 @@ Older markers are rejected before their payload is read.
 | 10 | services | counted service declarations |
 | 11 | concrete root service reach | counted service ids |
 | 12 | installation reach dependencies | counted installation reach rows |
-| 13 | access-view plans | counted access policy plans |
+| 13 | access-view plans | counted checked joins of domain policy, layout and semantic-field correspondence |
 | 14 | access lifecycle plans | counted whole-value access demand rows, below |
 | 15 | access-view inputs | counted access-view input rows |
 | 16 | reborrow restored call uses | counted restored-use rows |
@@ -1036,8 +1036,15 @@ coordinates: extent structural type id, base and length field ids, and Granted,
 Vacant and Resident domain ids. These roles come from the source-authenticated
 core declaration, not a consumer's recognition of names or record shape. Three
 `u32` identity-table indices follow: policy, policy-plan machine, and schema. The complete
-normalized access-plan payload follows, using the same layout/access/reach wire
-as an access-view plan, without the view carrier or accessor table. Rows are
+normalized domain-policy and independent layout/correspondence payloads follow,
+using the same checked-join representation as an access-view plan, without the
+view carrier or accessor table. The source `AccessPlan` is not a layout container.
+Policy encoding retains unrestricted versus empty establishment/reader/writer
+sets, concrete-machine versus requirement callable identity, exact semantic
+region paths, observation demands and required reach. Layout geometry and
+provider supply remain separately identified. Changes to these encoded fields
+require explicit codec/version migration, not reinterpretation of an old plan
+commitment under new defaults. Rows are
 strictly ordered by boundary id. These rows describe demanded operations;
 they establish neither provider selection, backing, profile authority, nor
 successful initialization. A checked adapter selected statically does not

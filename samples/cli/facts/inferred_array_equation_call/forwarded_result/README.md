@@ -68,7 +68,7 @@ Actual diagnostics quote the binder names with backticks.
   rejection; reconstruction does not waive that check. A false callee
   `requires okay` still rejects as a structurally false invocation fact, even
   when the consumer supplies a complete tuple.
-- **Psi 05–07:** the inferred closed tuple monomorphizes through the ordinary
+- **Psi 06–08:** the inferred closed tuple monomorphizes through the ordinary
   lowering route; the emitted Terminal Psi executes the authored exit oracle.
 - **Omega 00–02:** normal Build entry settlement, two-byte array layout and
   argument/result placement execute on Linux x86-64.

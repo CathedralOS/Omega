@@ -15,7 +15,7 @@ machine issue() -> Region in Owned ensures result.length == 48 {
 }
 machine Region::drop(region: &mut Region) {}
 data Parts { taken: Region in Owned; rest: Region in Owned; }
-data Strategy where remaining == tail.length { tail: Region in Owned; remaining: u64; }
+data Strategy requires remaining == tail.length { tail: Region in Owned; remaining: u64; }
 machine partition(whole: Region in Owned, requested: u64) -> Parts
 requires requested <= whole.length
 ensures result.taken.length == requested,

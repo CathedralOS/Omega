@@ -6,7 +6,7 @@ const EXPECTED_MATCH: u32 = 10;
 const EXPECTED_MISMATCH: u32 = 9;
 const REPLACEMENT: u32 = 99;
 const SIBLING_INIT: u32 = 17;
-data Cells where selected <= 100 { selected: AtomicU32; untouched: AtomicU32; }
+data Cells requires selected <= 100 { selected: AtomicU32; untouched: AtomicU32; }
 machine probe(cells: &Cells) -> bool {
     cells.selected.store(EXPECTED_MATCH, NoOrdering);
     cells.untouched.store(SIBLING_INIT, NoOrdering);

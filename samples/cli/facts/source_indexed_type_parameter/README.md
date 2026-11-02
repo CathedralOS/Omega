@@ -57,7 +57,7 @@ Applicable requirements:
   definitions rather than additional assumptions. General mathematics and
   higher-universe, Const, Machine and region-dependent source-family profiles
   remain outside this row's demonstrated acceptance.
-- **Psi 05–07:** exact Type/value telescopes and proof-formal tags survive
+- **Psi 06–08:** exact Type/value telescopes and proof-formal tags survive
   checked lowering and canonical mathematical certificates. A carrier is
   recorded without an ambient context only when ordinary kernel formation
   succeeds in an empty context, then is checked again against the completed

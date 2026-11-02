@@ -57,7 +57,7 @@ python3 tools/sample_native_gate.py --facts --filter cli/facts/indexed_owned_cas
 - Soundness: invalid payload formation rejects. Qualification preservation
   grants neither a loan nor copy/disposal authority. Routed issuer, reference
   retention and mutation controls supplement this predicate-only row.
-- Psi 05–07: case construction, selected store, state arrival, payload selection
+- Psi 06–08: case construction, selected store, state arrival, payload selection
   and exact subtraction must survive Terminal Psi lowering and interpretation.
 - Omega 00–02: the case/array layout and explicit calls/state parameters must
   realize through the ordinary provider, geometry and calling-plan route.

@@ -10,7 +10,7 @@ data Main {
 }
 
 machine Main::main(main: &mut Main) reaches MachineControl {
-    asm where clobbers x9, x10, x11, x15 {
+    asm clobbers x9, x10, x11, x15 {
         read_sctlr_el1 main.value;
         write_sctlr_el1 main.value;
         read_tcr_el1 main.value;

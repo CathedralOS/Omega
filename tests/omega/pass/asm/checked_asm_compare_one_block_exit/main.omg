@@ -1,7 +1,7 @@
 // Expected exit: 0.
 linux_x86_64 machine compare(seed: u32) -> u32 requires seed == 37 ensures result == 37 {
  let mut output: u32 = 0;
- asm where clobbers rax, rflags {
+ asm clobbers rax, rflags {
  entry requires seed == 37 ensures output == 37:
   mov eax, seed;
   mov output, eax;
@@ -12,7 +12,7 @@ linux_x86_64 machine compare(seed: u32) -> u32 requires seed == 37 ensures resul
 }
 windows_x86_64 machine compare(seed: u32) -> u32 requires seed == 37 ensures result == 37 {
  let mut output: u32 = 0;
- asm where clobbers rax, rflags {
+ asm clobbers rax, rflags {
  entry requires seed == 37 ensures output == 37:
   mov eax, seed;
   mov output, eax;
@@ -23,7 +23,7 @@ windows_x86_64 machine compare(seed: u32) -> u32 requires seed == 37 ensures res
 }
 linux_arm64 machine compare(seed: u32) -> u32 requires seed == 37 ensures result == 37 {
  let mut output: u32 = 0;
- asm where clobbers x0, nzcv {
+ asm clobbers x0, nzcv {
  entry requires seed == 37 ensures output == 37:
   mov w0, seed;
   mov output, w0;
@@ -34,7 +34,7 @@ linux_arm64 machine compare(seed: u32) -> u32 requires seed == 37 ensures result
 }
 macos_arm64 machine compare(seed: u32) -> u32 requires seed == 37 ensures result == 37 {
  let mut output: u32 = 0;
- asm where clobbers x0, nzcv {
+ asm clobbers x0, nzcv {
  entry requires seed == 37 ensures output == 37:
   mov w0, seed;
   mov output, w0;

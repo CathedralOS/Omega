@@ -28,8 +28,8 @@ weakening, aliases, and semantic-role composition.
 
 ## Domain access authority
 
-[Domain-owned read/write policy](../language/domains.md#domain-owned-read-and-write-authority)
-separates `read by` and `written by` from `established by`. The latter controls
+[Domain-owned access policy](../language/domains.md#domain-owned-read-and-write-authority)
+contains independent establishment, reader and writer lists. Establishment controls
 introduction of provenance, not all later accesses. Access routes authorize
 specific operations on specific qualified subjects; they add no backing, loan,
 validity, resource supply, or concurrency guarantee. The domain owner and carrier
@@ -74,19 +74,21 @@ transfer needs another owner decision.
 `boundary data` leaves representation supplied at a crossing. Direction comes
 from supply and use, not the keyword. None is a substitute for claim evidence.
 
-A domain's `requires` clauses state predicate obligations; `established by`
-names exact trait requirements or exact machine declarations authorized to
-establish provenance. An absent route restriction permits qualification wherever
+A domain's `requires` clauses state predicate obligations; its `access` policy
+uses `AccessPlan::establish` with exact `reflect::callable` descriptors of trait
+requirements or machine declarations authorized to establish provenance.
+An absent route restriction permits qualification wherever
 the predicates and ordinary carrier obligations hold, including on a linear
 carrier. It is not a private or empty issuer catalog. A protected library claim
 must declare its authorized routes; neither linearity nor a domain's name gives
-it implicit protection. Existing evidence can be transferred without making
+it implicit protection. An explicit empty establishment list authorizes no fresh
+issuer; it is not equivalent to omission. Existing evidence can be transferred without making
 the transferring machine a new issuer.
 
-Each route is an alternative origin, not a call. The signature-free path must
+Each descriptor is an alternative origin, not a call. The reflected path must
 resolve to one exact declaration without consulting an
 expected result or selecting among satisfiers. Ambiguity across overloads or
-declaration kinds rejects. Adding an overload can break establishment clauses;
+declaration kinds rejects. Adding an overload can break establishment selectors;
 compatibility reporting attributes that change to the selected declaration.
 `as Name` labels a satisfier edge or selects a complete conformance where its
 grammar allows it, never an overload.
@@ -128,8 +130,8 @@ The authorized issuance spellings on a boundary-trait requirement are an `ensure
 clause on the bare result, the requirement's own declared result type carrying
 `T in D` (the signature's declared constraint is itself the issuance witness),
 and a selected case payload of the owned result carrier whose declared type
-carries the domain on the domain's own target carrier. The `established by`
-route names the exact called requirement in each; a case-payload grant carries
+carries the domain on the domain's own target carrier. The policy's establishment
+descriptor names the exact called requirement in each; a case-payload grant carries
 the same authority as the bare-result spelling, scoped to the selected case —
 a payload wearing the constraint on an unrelated carrier mints nothing. A call
 that consumed a live owned claim of the same family transfers it rather than

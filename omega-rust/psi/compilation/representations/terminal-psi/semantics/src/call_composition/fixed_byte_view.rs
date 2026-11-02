@@ -12,7 +12,7 @@ use terminal_psi::{
 /// The backing path excludes the final range presentation. Empty windows keep
 /// the same backing custody and merely expose zero writable bytes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct FixedByteArrayWindow<'path> {
+pub struct FixedCollectionWindow<'path> {
     pub backing_path: &'path [StructuralPathSegment],
     pub backing_length: u64,
     pub offset: u64,
@@ -129,7 +129,7 @@ pub fn fixed_byte_array_window<'types, 'path>(
     actual: &StructuralParameterDeclaration,
     argument: &'path StructuralArgument,
     expected: &StructuralParameterDeclaration,
-) -> Option<FixedByteArrayWindow<'path>> {
+) -> Option<FixedCollectionWindow<'path>> {
     if !readable_collection_loan(actual, argument, expected)
         || !types.clone().any(|declaration| {
             declaration.id == expected.structural_type
@@ -164,7 +164,7 @@ pub fn fixed_byte_array_window<'types, 'path>(
     if bounded_capacity.is_some()
         && matches!(
             argument.path.last(),
-            Some(StructuralPathSegment::FixedByteRange { .. })
+            Some(StructuralPathSegment::FixedRange { .. })
         )
     {
         return None;
@@ -183,9 +183,21 @@ pub fn fixed_byte_storage_window<'types, 'path>(
     types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     root: semantic_vocabulary::StructuralTypeId,
     path: &'path [StructuralPathSegment],
-) -> Option<FixedByteArrayWindow<'path>> {
+) -> Option<FixedCollectionWindow<'path>> {
+    let window = fixed_collection_storage_window(types.clone(), root, path)?;
+    let backing = runtime_structural_path_tip(types.clone(), root, window.backing_path)?;
+    (fixed_byte_extent(types, backing.id)? == window.backing_length).then_some(window)
+}
+
+/// Source collection ordinals stay independent from the target view's scalar
+/// partition. No standalone value type or borrow permission is manufactured.
+pub fn fixed_collection_storage_window<'types, 'path>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    root: semantic_vocabulary::StructuralTypeId,
+    path: &'path [StructuralPathSegment],
+) -> Option<FixedCollectionWindow<'path>> {
     let (backing_path, range) = match path.split_last() {
-        Some((StructuralPathSegment::FixedByteRange { start, end }, backing)) => {
+        Some((StructuralPathSegment::FixedRange { start, end }, backing)) => {
             (backing, Some((*start, *end)))
         }
         _ => (path, None),
@@ -197,12 +209,18 @@ pub fn fixed_byte_storage_window<'types, 'path>(
     // Inline arrays and already borrowed backing expose the same extent.
     // Window admission is independent of how native code stores the carrier;
     // transport must preserve that separate residence distinction.
-    let length = fixed_byte_extent(types, declaration.id)?;
+    let length = match declaration.shape {
+        StructuralTypeShape::FixedArray {
+            length: terminal_psi::ArrayExtent::Literal(length),
+            ..
+        } => length,
+        _ => fixed_byte_extent(types, declaration.id)?,
+    };
     let (start, end) = range.unwrap_or((0, length));
     if start > end || end > length {
         return None;
     }
-    Some(FixedByteArrayWindow {
+    Some(FixedCollectionWindow {
         backing_path,
         backing_length: length,
         offset: start,
@@ -295,7 +313,7 @@ pub fn fixed_byte_array_loan<'types, 'domain, 'path>(
     actual: &StructuralParameterDeclaration,
     argument: &'path StructuralArgument,
     expected: &StructuralParameterDeclaration,
-) -> Option<FixedByteArrayWindow<'path>> {
+) -> Option<FixedCollectionWindow<'path>> {
     let window = fixed_byte_array_window(types.clone(), actual, argument, expected)?;
     if !window.backing_path.is_empty() && !actual.qualifications.is_empty() {
         return None;

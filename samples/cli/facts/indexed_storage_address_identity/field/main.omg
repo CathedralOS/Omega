@@ -1,6 +1,6 @@
 // For runtime u64 index < 2 into live [u64; 2], compatible references to items[index] expose the same nonzero addr and differ from the other live element address.
 // Expected exit: 0.
-data Selection [copy] where index < 2 { index: u64; }
+data Selection [copy] requires index < 2 { index: u64; }
 machine observe(selection: Selection) -> bool {
     let mut items: [u64; 2] = [7, 11];
     let index: u64 = selection.index;

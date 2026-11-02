@@ -1,7 +1,7 @@
 domain u64::Tagged;
 
 data Box<Payload [copy], const Count: u64> [copy]
-where Payload == [u64 in Tagged; Count]
+requires Payload == [u64 in Tagged; Count]
 { value: Payload; }
 
 data Main { box: Box<[u64 in Tagged; 1]>; }

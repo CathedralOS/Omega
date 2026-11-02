@@ -17,6 +17,6 @@ is observed. Its updated signed integer and Boolean fields must be visible in
 that original storage; constructing a detached target array cannot satisfy it.
 
 Before this implementation, package candidate checking omitted the entry unit
-at stage 04 `state graph: terminator: conditional successors: parameter transfer`.
+at stage 05 `state graph: terminator: conditional successors: parameter transfer`.
 The execution check is the authored result above, not merely advancing that
 construction boundary.

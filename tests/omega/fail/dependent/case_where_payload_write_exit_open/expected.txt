@@ -1,1 +1,1 @@
-in a predecessor state must close first
+default domain is still FALSE at a call

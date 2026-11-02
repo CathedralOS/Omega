@@ -17,7 +17,7 @@ fn quotient_path_tip(
     // Byte windows end a storage path rather than selecting an owned leaf.
     // Their ordinary bounds/access verifier still owns the window obligation.
     let (path, window) = match path.split_last() {
-        Some((P::FixedByteRange { .. }, prefix)) => (prefix, true),
+        Some((P::FixedRange { .. }, prefix)) => (prefix, true),
         _ => (path, false),
     };
     let tip = crate::primitive_place::projection_tip_with_policy(

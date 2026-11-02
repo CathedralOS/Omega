@@ -8,7 +8,7 @@ use omega::language::core::float_operations;
 use omega_language_std::console;
 
 data Ratio [copy]
-where
+requires
     value >= 0.0 && value < 0.5,
     wide >= -1.0 && wide <= 1.0,
 {

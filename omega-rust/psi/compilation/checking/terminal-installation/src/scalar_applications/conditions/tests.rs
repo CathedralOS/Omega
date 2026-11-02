@@ -291,3 +291,57 @@ fn entry_admission_retains_module_and_reached_debts_without_certifying_product_f
         &ScalarConditionScope::Invocation(roots.to_vec())
     );
 }
+
+#[test]
+fn abi_storage_demands_keep_actual_helper_debt_without_product_declarations() {
+    let (scope, mut conditions) = fixture();
+    let pending = ScalarApplicationId::new(7).unwrap();
+    conditions.retain_completion(
+        ScalarConditionSubject::Declaration(ProofDeclarationId(5)),
+        ScalarApplicationId::new(5).unwrap(),
+    );
+    let mut nodes = Arena::new();
+    let root = nodes.insert(ScalarPredicateNode(PredicateNode::Value(
+        ScalarValue::Boolean(false),
+    )));
+    let helper_refusal = conditions.predicates().len();
+    conditions
+        .retain_predicate(
+            ScalarConditionSubject::Declaration(ProofDeclarationId(3)),
+            "actual scalar helper must satisfy this condition".into(),
+            nodes,
+            root,
+        )
+        .unwrap();
+    let abi_scope = ScalarConditionScope::AbiStorage(super::super::AbiStorageScope {
+        declaration: semantic_vocabulary::CallingAbiIdentity {
+            requirement_identity: "exact boundary".into(),
+            declaring_application: "exact declaring application".into(),
+            operands: Vec::new(),
+        },
+        applications: vec![pending],
+    });
+    let mut selected = ScalarConditionSelection::select(
+        &scope,
+        &conditions,
+        "macos_arm64",
+        true,
+        [],
+        &[pending],
+        &abi_scope,
+    )
+    .unwrap();
+    assert_eq!(selected.ranges(), [5, 6]);
+    assert_eq!(selected.predicates(), [5, 6]);
+    assert!(selected.completions().is_empty());
+    assert_eq!(selected.application_machines(), Some([].as_slice()));
+
+    selected
+        .include_evaluation_entry(MachineId::new(3).unwrap())
+        .unwrap();
+    assert!(selected.predicates().contains(&helper_refusal));
+    assert!(selected.predicates().contains(&2));
+    assert!(!selected.predicates().contains(&4));
+    assert!(selected.completions().is_empty());
+    assert_eq!(selected.scope(), &abi_scope);
+}

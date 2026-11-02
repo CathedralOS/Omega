@@ -25,6 +25,8 @@ use crate::{
 
 mod conditions;
 pub use conditions::ScalarConditionSelection;
+#[cfg(test)]
+mod abi_storage_tests;
 mod closure;
 pub use closure::{
     AdmittedScalarApplications, ScalarAddressModel, ScalarApplicationClosure, ScalarScopeInputs,
@@ -39,6 +41,73 @@ enum ScalarConditionScope {
     Source,
     SourceRoots(Vec<terminal_psi::ProofDeclarationId>),
     Invocation(Vec<terminal_psi::ProofDeclarationId>),
+    AbiStorage(AbiStorageScope),
+}
+
+/// A descriptive demand bound to the complete ABI key and canonical storage.
+/// It grants no callable root and cannot certify Product formation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct AbiStorageScope {
+    declaration: semantic_vocabulary::CallingAbiIdentity,
+    applications: Vec<ScalarApplicationId>,
+}
+
+fn abi_storage_scope(
+    artifact: TerminalArtifactView<'_>,
+    target: &str,
+    declaration: &semantic_vocabulary::CallingAbiIdentity,
+) -> Result<AbiStorageScope, String> {
+    let module = artifact.module();
+    let retained = module
+        .calling_abi_signature(declaration.id())
+        .ok_or("ABI scalar demand has no canonical declaration")?;
+    if retained.identity(&module.identities)? != *declaration {
+        return Err("ABI scalar demand differs from its complete declaration key".into());
+    }
+    let applications =
+        terminal_semantics::calling_abi_extent_dependencies(module, retained.id, target)?;
+    Ok(AbiStorageScope {
+        declaration: declaration.clone(),
+        applications,
+    })
+}
+
+/// One exact, target-bound roster shared by scalar selection and completion.
+/// Constructing this demand performs no evaluation and grants no execution.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CallingAbiStorageDemand {
+    terminal: terminal_psi::TerminalPsiIdentity,
+    target: String,
+    scope: AbiStorageScope,
+}
+
+impl CallingAbiStorageDemand {
+    pub fn new(
+        artifact: TerminalArtifactView<'_>,
+        target: &str,
+        declaration: &semantic_vocabulary::CallingAbiIdentity,
+    ) -> Result<Self, String> {
+        Ok(Self {
+            terminal: artifact.identity(),
+            target: target.to_owned(),
+            scope: abi_storage_scope(artifact, target, declaration)?,
+        })
+    }
+
+    pub fn declaration(&self) -> &semantic_vocabulary::CallingAbiIdentity {
+        &self.scope.declaration
+    }
+
+    pub fn applications(&self) -> &[ScalarApplicationId] {
+        &self.scope.applications
+    }
+
+    fn require_artifact(&self, artifact: TerminalArtifactView<'_>) -> Result<(), String> {
+        if self.terminal != artifact.identity() {
+            return Err("ABI storage demand belongs to another Terminal artifact".into());
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -234,6 +303,17 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
         Ok(self)
     }
 
+    /// Select only this ABI's storage demands. Generated scalar entries add
+    /// their own checked debts during discovery; the boundary is not invoked.
+    pub fn with_abi_storage(mut self, demand: &CallingAbiStorageDemand) -> Result<Self, String> {
+        demand.require_artifact(self.artifact)?;
+        if demand.target != self.targets.target() {
+            return Err("ABI storage demand names another selected target".into());
+        }
+        self.condition_scope = ScalarConditionScope::AbiStorage(demand.scope.clone());
+        Ok(self)
+    }
+
     pub fn values(&self) -> ScalarApplicationValues {
         ScalarApplicationValues(std::sync::Arc::clone(&self.applications))
     }
@@ -245,6 +325,11 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
         value_scope: &str,
         demanded: &[ScalarApplicationId],
     ) -> Result<ScalarConditionSelection<'artifact>, String> {
+        if let ScalarConditionScope::AbiStorage(scope) = &self.condition_scope
+            && scope.applications != demanded
+        {
+            return Err("ABI scalar request differs from its canonical extent roster".into());
+        }
         let catalog = &self.artifact.module().scalar_applications;
         ScalarConditionSelection::select(
             &catalog.proof_scope,

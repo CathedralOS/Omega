@@ -65,7 +65,7 @@ and [call markers](../../../../wiki/spec/language/effects.md#call-site-acknowled
   exact subtraction, without a caller-side equality guard re-establishing it.
 - Soundness: 61 violates the same required bound; separate call controls retain
   non-tail, receiver, overload, precondition and marker refusals.
-- Psi 05–07: normalized checked state edges and erased contracts must preserve
+- Psi 06–08: normalized checked state edges and erased contracts must preserve
   the result through Terminal Psi execution, including the acknowledged call.
 - Omega 00–02: the Build-selected ordinary implementation and scalar argument/result calling plans
   must realize the same checked program; no target-specific source recognizer.

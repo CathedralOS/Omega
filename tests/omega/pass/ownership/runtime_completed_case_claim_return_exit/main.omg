@@ -1,0 +1,55 @@
+// A linear Token [linear] carries its exact payload across the place and retires through its explicit consuming machine on every normal exit.
+// Expected exit: 0
+use omega::language::core::drop;
+data Token [linear] { value: u64; }
+machine Token::drop(token: &mut Token) { token.value = 0; }
+machine retire(token: Token) -> u64 {
+    let value: u64 = token.value;
+    drop(token);
+    value
+}
+data Pair { first: Token; second: Token; }
+data Result {
+    case Kept(pair: Pair);
+    case Returned(pair: Pair);
+}
+machine keep(pair: Pair) -> Result { Result::Kept { pair: pair } }
+machine give_back(pair: Pair) -> Result { Result::Returned { pair: pair } }
+machine forward(pair: Pair, choose: bool) -> Result {
+    transition choose {
+        true -> keep(pair)
+        false -> give_back(pair)
+    }
+}
+machine retire_pair(pair: Pair, choose_first: bool) -> u64 {
+    let first: u64 = retire(pair.first);
+    let second: u64 = retire(pair.second);
+    transition choose_first { true -> first false -> second }
+}
+machine inspect(choose: bool) -> u64 {
+    let result: Result = forward(Pair {
+        first: Token { value: 42 }, second: Token { value: 59 }
+    }, choose);
+    transition result {
+        Result::Kept { pair } -> retire_pair(pair, true)
+        Result::Returned { pair } -> retire_pair(pair, false)
+    }
+}
+// Observe payloads directly as well as moving them into retire_pair. The
+// case selector is part of the nested field's runtime storage identity.
+machine observe(choose: bool) -> u64 {
+    let result: Result = forward(Pair {
+        first: Token { value: 42 }, second: Token { value: 59 }
+    }, choose);
+    transition result {
+        Result::Kept { pair } -> pair.first.value
+        Result::Returned { pair } -> pair.second.value
+    }
+}
+machine main() crashes Trap {
+    transition inspect(true) == 42 && inspect(false) == 59 && observe(true) == 42 && observe(false) == 59 {
+        true -> done() false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

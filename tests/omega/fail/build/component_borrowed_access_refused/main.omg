@@ -1,0 +1,12 @@
+// A shared caller cannot lend mutable authority to the component.
+public data Token {}
+public boundary trait Lending {
+    machine touch(value: &mut Token) -> u64 reaches suspends;
+}
+public Immediate satisfies Lending {
+    machine touch(value: &mut Token) -> u64 { 73 }
+}
+machine shared_entry(value: &Token) -> u64 reaches Lending suspends {
+    suspend Lending::touch(value)
+}
+machine main() {}

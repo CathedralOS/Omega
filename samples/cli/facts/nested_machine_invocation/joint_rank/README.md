@@ -67,7 +67,7 @@ this workbench's `build/joint-rank/` and identified in the publication record.
   tail-position checks remain separate. Unpromised productive components receive
   no fabricated natural rank. Other views and authored ranges retain their
   existing full-coordinate and endpoint obligations.
-- Psi 05–07: admitted coordinates become the existing entry observation and
+- Psi 06–08: admitted coordinates become the existing entry observation and
   constant-stack component rows, including witness-free helpers. Native and
   canonical Terminal execution agree; the pinned corpus independently audits
   emitted operations and custody.

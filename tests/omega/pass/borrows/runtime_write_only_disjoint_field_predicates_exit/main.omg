@@ -1,6 +1,6 @@
 // Parent predicates constrain siblings, not either selected write-only place.
-data Row where position <= 1 { values: [i64; 2]; position: u64; }
-data Main where phase <= 1 { row: Row; phase: u64; }
+data Row requires position <= 1 { values: [i64; 2]; position: u64; }
+data Main requires phase <= 1 { row: Row; phase: u64; }
 
 machine replace(values: &write [i64; 2], position: u64)
 requires position < 2

@@ -5,7 +5,7 @@ use omega::language::core::float_operations;
 // finite interval while its value flows to a Finite transition parameter.
 use omega_language_std::console;
 
-data Main where ranged >= 0.0 && ranged <= 1.0 {
+data Main requires ranged >= 0.0 && ranged <= 1.0 {
     direct: f64 in Finite;
     ranged: f32;
 }
