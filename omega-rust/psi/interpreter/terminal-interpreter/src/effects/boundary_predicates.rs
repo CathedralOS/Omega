@@ -203,7 +203,9 @@ impl InputObservations<'_, '_, '_> {
                 scalar_type,
             } => {
                 let mut selected = Vec::with_capacity(path.len());
-                for segment in path {
+                let path_length = path.len();
+                let mut extent = false;
+                for (position, segment) in path.iter_mut().enumerate() {
                     selected.push(match segment {
                         ScalarReadProjection::Static(segment) => *segment,
                         ScalarReadProjection::Referent => CanonicalStructuralPathSegment::Referent,
@@ -217,14 +219,28 @@ impl InputObservations<'_, '_, '_> {
                             CanonicalStructuralPathSegment::FixedIndex(index)
                         }
                         ScalarReadProjection::Extent => {
-                            return Err(TerminalInterpretError::UnsupportedSemanticVariant(
-                                "boundary input descriptor extent has no closed evaluation",
-                            ));
+                            if position + 1 != path_length {
+                                return Err(malformed());
+                            }
+                            extent = true;
+                            continue;
                         }
                     });
                 }
-                Some(self.read(*root, &selected, *scalar_type)?)
+                Some(if extent {
+                    let ScalarType::Integer(carrier) = scalar_type else {
+                        return Err(malformed());
+                    };
+                    self.read_extent(*root, &selected, *carrier)?
+                } else {
+                    self.read(*root, &selected, *scalar_type)?
+                })
             }
+            ScalarTerm::ViewExtent {
+                root,
+                path,
+                scalar_type,
+            } => Some(self.read_extent(*root, path, *scalar_type)?),
             ScalarTerm::BooleanField { root, path } => {
                 Some(self.read(*root, path, ScalarType::Boolean)?)
             }
@@ -242,6 +258,101 @@ impl InputObservations<'_, '_, '_> {
             *term = scalar_literal(value);
         }
         Ok(())
+    }
+
+    /// Observe the actual formal's selected live descriptor, never a caller
+    /// SSA value, backing capacity or a newly constructed descriptor. Existing
+    /// view owners validate the same home/loan association as length operations.
+    fn read_extent(
+        &self,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+        carrier: semantic_vocabulary::IntegerType,
+    ) -> Result<TerminalScalarValue, TerminalInterpretError> {
+        use terminal_psi::{StructuralAccess, StructuralTypeShape};
+        let position = self
+            .boundary
+            .structural_parameters
+            .iter()
+            .position(|parameter| parameter.place == root)
+            .ok_or_else(malformed)?;
+        let parameter = &self.boundary.structural_parameters[position];
+        let actual = self.arguments.get(position).ok_or_else(malformed)?;
+        self.values.get(position).ok_or_else(malformed)?;
+        let relative = terminal_semantics::canonical_structural_storage_path(
+            self.execution.program.structural_types().values(),
+            parameter.structural_type,
+            path,
+        )
+        .ok_or_else(malformed)?;
+        let mut source = actual.clone();
+        source.path.extend(relative);
+        let access = match parameter.access {
+            StructuralAccess::Owned
+            | StructuralAccess::SharedBorrow
+            | StructuralAccess::MutableBorrow => {
+                self.execution
+                    .validate_descriptor_borrow(&source, StructuralAccess::SharedBorrow)?;
+                StructuralAccess::SharedBorrow
+            }
+            StructuralAccess::WriteOnlyBorrow => {
+                // Match ordinary element-view metadata observation: this may
+                // read an inline descriptor's count, never dereference a stored
+                // pointer or acquire content-read permission through it.
+                if source
+                    .path
+                    .iter()
+                    .any(|step| matches!(step, terminal_psi::StructuralPathSegment::Referent))
+                {
+                    return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                        "boundary write-only descriptor extent cannot cross a reference",
+                    ));
+                }
+                StructuralAccess::WriteOnlyBorrow
+            }
+        };
+        source.access = access;
+        let selected =
+            self.execution
+                .resolve_live_projection(source.place, &source.path, access)?;
+        let length = match self
+            .execution
+            .program
+            .structural_types()
+            .get(&selected.structural_type)
+            .map(|row| &row.shape)
+        {
+            Some(StructuralTypeShape::ElementView { .. }) => u64::try_from(
+                self.execution
+                    .element_view_argument(&source, &selected)?
+                    .len(),
+            )
+            .map_err(|_| malformed())?,
+            Some(StructuralTypeShape::ByteSequence(_))
+                if access != StructuralAccess::WriteOnlyBorrow =>
+            {
+                let binding = self.execution.byte_descriptor_binding(&source, &selected)?;
+                self.execution.byte_descriptor_length(&binding, &selected)?
+            }
+            _ => {
+                return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                    "boundary extent requires an observable live view descriptor",
+                ));
+            }
+        };
+        let value = match carrier.sign() {
+            semantic_vocabulary::IntegerSign::Signed => IntegerValue::Signed(i128::from(length)),
+            semantic_vocabulary::IntegerSign::Unsigned => {
+                IntegerValue::Unsigned(u128::from(length))
+            }
+        };
+        if !carrier.admits(value) {
+            return Err(malformed());
+        }
+        Ok(TerminalScalarValue::Integer {
+            scalar_type: carrier,
+            value,
+        })
     }
 
     fn read(

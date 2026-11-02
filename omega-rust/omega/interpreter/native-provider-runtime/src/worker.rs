@@ -41,6 +41,11 @@ pub(crate) struct Worker {
     // address, including when native code retains the pointer in this incarnation.
     #[cfg(target_os = "macos")]
     guest_errno: libc::c_int,
+    // Windows also owns guest thread state independently of protocol/loader
+    // calls. GetLastError observes the live worker thread, not a cached API
+    // substitute; this value is restored immediately around native entry.
+    #[cfg(windows)]
+    guest_last_error: u32,
 }
 
 /// Internal executable entry used by an embedding sponsor's actual bounded
@@ -88,6 +93,8 @@ pub fn run_worker_if_requested() {
             directory: directory.into(),
             #[cfg(target_os = "macos")]
             guest_errno: 0,
+            #[cfg(windows)]
+            guest_last_error: 0,
         });
         loop {
             let packet = wire::receive(&mut stream)?;
@@ -280,7 +287,15 @@ impl Worker {
                 // slot. The serialized worker executes the adapter here too.
                 *errno_pointer = self.guest_errno;
             }
+            #[cfg(windows)]
+            windows_sys::Win32::Foundation::SetLastError(self.guest_last_error);
             adapter.entry.call(&pointers, result_pointer);
+            #[cfg(windows)]
+            {
+                // Capture every normal return, including successful calls
+                // which may change last-error state. No IPC may intervene.
+                self.guest_last_error = windows_sys::Win32::Foundation::GetLastError();
+            }
             #[cfg(target_os = "macos")]
             {
                 // Capture on every normal return: success does not imply an
