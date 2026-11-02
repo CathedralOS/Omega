@@ -1,9 +1,13 @@
 //! Exact admitted calloc/free operations over invocation-owned virtual storage.
 //! Addresses identify live allocations in this invocation only. Their bytes
 //! are zeroed and retained until free; no host pointer escapes. This adapter
-//! grants no domain, content account, backing receipt or issuance authority.
+//! grants no guest domain or content account. The selected profile resolver
+//! can attest the actual allocation's backing; source authority still comes
+//! only from the independently admitted guest provider contract.
 
 mod admission;
+mod backing;
+pub(super) use backing::AllocationStorage;
 
 use super::TerminalRuntimeError;
 use calling_conventions::BoundaryCallingApplication;
@@ -25,7 +29,9 @@ enum AllocationOperation {
 
 struct Allocation {
     address: u64,
-    bytes: Option<Vec<u8>>,
+    length: u64,
+    issuer: u64,
+    backing: terminal_interpreter::TerminalProviderBacking,
 }
 
 /// Addresses never recycle within an invocation, so a retired address cannot
@@ -39,7 +45,23 @@ pub(super) struct AllocationValues {
 }
 
 impl AllocationValues {
-    fn allocate(&mut self, count: u64, width: u64) -> u64 {
+    fn backing_for_range(&self, base: u64, length: u64) -> Option<&Allocation> {
+        let end = base.checked_add(length)?;
+        // An empty range at a shared endpoint belongs to an exact-base
+        // allocation when one exists, not the preceding allocation's end.
+        self.allocations
+            .iter()
+            .find(|allocation| allocation.address == base && length <= allocation.length)
+            .or_else(|| {
+                self.allocations.iter().find(|allocation| {
+                    base >= allocation.address
+                        && base < allocation.address + allocation.length
+                        && end <= allocation.address + allocation.length
+                })
+            })
+    }
+
+    fn allocate(&mut self, count: u64, width: u64, issuer: u64) -> u64 {
         let Some(length) = count.checked_mul(width) else {
             return 0;
         };
@@ -61,7 +83,9 @@ impl AllocationValues {
         bytes.resize(capacity, 0);
         self.allocations.push(Allocation {
             address,
-            bytes: Some(bytes),
+            length,
+            issuer,
+            backing: terminal_interpreter::TerminalProviderBacking::new(bytes),
         });
         self.next_address = next;
         address
@@ -80,11 +104,63 @@ impl AllocationValues {
                     "free address belongs to no allocation in this instance",
                 )
             })?;
-        allocation
-            .bytes
-            .take()
-            .ok_or_else(|| TerminalEffectRejection::new("free address was already retired"))?;
+        allocation.backing.retire()?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::AllocationValues;
+
+    #[test]
+    fn empty_ranges_choose_the_exact_allocation_not_its_neighbor() {
+        let mut values = AllocationValues::default();
+        let first = values.allocate(1, 16, 7);
+        let second = values.allocate(1, 16, 7);
+        assert_eq!(second, first + 16);
+        assert_eq!(values.backing_for_range(second, 0).unwrap().address, second);
+        let empty = values.allocate(0, 1, 7);
+        assert_eq!(values.backing_for_range(empty, 0).unwrap().address, empty);
+        assert!(values.backing_for_range(empty, 1).is_none());
+        assert!(values.backing_for_range(first + 1, 32).is_none());
+        assert!(values.backing_for_range(u64::MAX, 1).is_none());
+    }
+
+    #[test]
+    fn calloc_retains_exact_zeroed_backing() {
+        let mut values = AllocationValues::default();
+        let address = values.allocate(3, 8, 7);
+        assert_ne!(address, 0);
+        assert_eq!(address % 16, 0);
+        assert_eq!(values.allocations[0].length, 24);
+        assert_eq!(values.allocations[0].issuer, 7);
+        assert_eq!(values.allocations[0].backing.retire().unwrap(), vec![0; 24]);
+        assert!(values.release(address).is_err());
+    }
+
+    #[test]
+    fn free_invalidates_retained_handles_without_recycling_addresses() {
+        let mut values = AllocationValues::default();
+        let first = values.allocate(1, 16, 7);
+        let retained = values.allocations[0].backing.clone();
+        values.release(first).unwrap();
+        assert!(retained.retire().is_err());
+        assert!(values.release(first).is_err());
+        let second = values.allocate(1, 16, 7);
+        assert!(second >= first + 16);
+        assert!(values.release(second).is_ok());
+    }
+
+    #[test]
+    fn overflow_and_unknown_free_do_not_discard_other_allocations() {
+        let mut values = AllocationValues::default();
+        let address = values.allocate(1, 16, 7);
+        assert_eq!(values.allocate(u64::MAX, 2, 7), 0);
+        assert!(values.release(address + 1).is_err());
+        assert!(values.release(0).is_ok());
+        assert_eq!(values.allocations.len(), 1);
+        assert!(values.release(address).is_ok());
     }
 }
 
@@ -188,7 +264,11 @@ impl TerminalEffectHandler for AllocationImport {
                 let width = u64::try_from(*width).map_err(|_| invalid())?;
                 Ok(TerminalEffectResult::Scalar(TerminalScalarValue::Integer {
                     scalar_type: address_type,
-                    value: IntegerValue::Unsigned(u128::from(values.allocate(count, width))),
+                    value: IntegerValue::Unsigned(u128::from(values.allocate(
+                        count,
+                        width,
+                        call.boundary.get(),
+                    ))),
                 }))
             }
             AllocationOperation::Release => {

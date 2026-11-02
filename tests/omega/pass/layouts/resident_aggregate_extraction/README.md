@@ -14,7 +14,7 @@ the decoded bytes. The host checks the original allocation identity, geometry,
 origin and lineage, the 32-byte encoded image and the unchanged eight-byte tail.
 
 The opt-in corpus host provision executes both borrowed and loaded artifacts
-with a 3884-cell ceiling and 64-byte placement-image payload ceiling. It checks
+with a 3885-cell ceiling and 64-byte placement-image payload ceiling. It checks
 one-cell-short, one-byte-short and one-byte-only refusals; a root reservation
 made after the initialization image retires independently forces extraction to
 refuse. Actual write-only backing also refuses the source provider's read/write

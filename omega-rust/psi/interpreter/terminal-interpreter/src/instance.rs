@@ -216,6 +216,7 @@ pub struct TerminalInstance<'host, 'artifact> {
     /// Established host bindings by exact slot. Empty at construction; deferred
     /// component routes cannot be fulfilled by a host adapter.
     bindings: BTreeMap<BoundaryMachineId, TerminalImportBinding<'host>>,
+    storage_resolver: Option<std::rc::Rc<dyn crate::TerminalProviderStorageResolver + 'host>>,
     components: ComponentBindings<'host, 'artifact>,
     /// Whether `invoke` has admitted the entry. Close of a paused activation
     /// rejects `Busy` only once the entry has actually started.
@@ -238,6 +239,7 @@ impl<'host, 'artifact> TerminalInstance<'host, 'artifact> {
             execution: Some(execution),
             required_imports,
             bindings: BTreeMap::new(),
+            storage_resolver: None,
             components: BTreeMap::new(),
             invoked: false,
             closed: false,
@@ -248,6 +250,19 @@ impl<'host, 'artifact> TerminalInstance<'host, 'artifact> {
     /// retained by the instance for its whole life.
     pub fn program(&self) -> &TerminalProgram<'artifact> {
         &self.program
+    }
+
+    /// Install the host's actual-storage resolver before entry. It supplies no
+    /// source qualifications and cannot replace a resolver during a fuel pause.
+    pub fn bind_storage_resolver(
+        &mut self,
+        resolver: std::rc::Rc<dyn crate::TerminalProviderStorageResolver + 'host>,
+    ) -> Result<(), String> {
+        if self.invoked || self.closed || self.storage_resolver.is_some() {
+            return Err("provider storage resolver is already frozen or instance is closed".into());
+        }
+        self.storage_resolver = Some(resolver);
+        Ok(())
     }
 
     /// Exact demanded import under this instance's admitted supply choices.
@@ -509,6 +524,7 @@ impl<'host, 'artifact> TerminalInstance<'host, 'artifact> {
                 meter,
                 &mut ImportDispatch {
                     bindings: &mut self.bindings,
+                    storage_resolver: self.storage_resolver.as_deref(),
                 },
                 &mut self.components,
             )
@@ -635,6 +651,7 @@ impl<'host, 'artifact> TerminalInstance<'host, 'artifact> {
 /// call to a slot no adapter bound rejects before any host code runs.
 struct ImportDispatch<'a, 'host> {
     bindings: &'a mut BTreeMap<BoundaryMachineId, TerminalImportBinding<'host>>,
+    storage_resolver: Option<&'a (dyn crate::TerminalProviderStorageResolver + 'host)>,
 }
 
 impl<'a, 'host> ImportDispatch<'a, 'host> {
@@ -676,6 +693,15 @@ impl<'a, 'host> ImportDispatch<'a, 'host> {
 }
 
 impl TerminalEffectHandler for ImportDispatch<'_, '_> {
+    fn resolve_provider_storage(
+        &mut self,
+        request: &crate::TerminalProviderStorageRequest,
+    ) -> Result<Option<crate::TerminalProviderStorageSupply>, TerminalEffectRejection> {
+        match self.storage_resolver {
+            Some(resolver) => resolver.resolve(request),
+            None => Ok(None),
+        }
+    }
     fn poll_host_computation(
         &mut self,
         effect: &TerminalEffect,

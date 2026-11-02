@@ -521,6 +521,7 @@ impl<'artifact> TerminalExecution<'artifact> {
                         boundary,
                         callee_id,
                         structural_arguments,
+                        handler,
                     )?;
                     self.begin_structural_result_call(
                         callee_id,

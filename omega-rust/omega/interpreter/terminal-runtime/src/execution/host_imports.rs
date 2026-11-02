@@ -329,6 +329,10 @@ impl<'host> HostContext<'host> {
 }
 
 pub(super) trait HostBindingTarget<'host> {
+    fn bind_storage_resolver(
+        &mut self,
+        resolver: std::rc::Rc<dyn terminal_interpreter::TerminalProviderStorageResolver + 'host>,
+    ) -> Result<(), TerminalRuntimeError>;
     fn import(&self, slot: BoundaryMachineId) -> Option<&terminal_psi::BoundaryMachineDeclaration>;
     fn bind_import(
         &mut self,
@@ -337,6 +341,13 @@ pub(super) trait HostBindingTarget<'host> {
     ) -> Result<(), TerminalRuntimeError>;
 }
 impl<'host> HostBindingTarget<'host> for TerminalInstance<'host, '_> {
+    fn bind_storage_resolver(
+        &mut self,
+        resolver: std::rc::Rc<dyn terminal_interpreter::TerminalProviderStorageResolver + 'host>,
+    ) -> Result<(), TerminalRuntimeError> {
+        self.bind_storage_resolver(resolver)
+            .map_err(|error| TerminalRuntimeError::missing("runtime-provider-storage", error))
+    }
     fn import(&self, slot: BoundaryMachineId) -> Option<&terminal_psi::BoundaryMachineDeclaration> {
         self.import(slot)
     }
@@ -350,6 +361,13 @@ impl<'host> HostBindingTarget<'host> for TerminalInstance<'host, '_> {
     }
 }
 impl<'host> HostBindingTarget<'host> for terminal_interpreter::TerminalComponentBinding<'host, '_> {
+    fn bind_storage_resolver(
+        &mut self,
+        resolver: std::rc::Rc<dyn terminal_interpreter::TerminalProviderStorageResolver + 'host>,
+    ) -> Result<(), TerminalRuntimeError> {
+        self.bind_storage_resolver(resolver)
+            .map_err(|error| TerminalRuntimeError::missing("runtime-provider-storage", error))
+    }
     fn import(&self, slot: BoundaryMachineId) -> Option<&terminal_psi::BoundaryMachineDeclaration> {
         self.import(slot)
     }
@@ -375,6 +393,9 @@ pub(super) fn bind<'host>(
     let clock = &context.clock;
     let addresses = &context.addresses;
     let allocations = &context.allocations;
+    instance.bind_storage_resolver(std::rc::Rc::new(allocation::AllocationStorage {
+        values: std::sync::Arc::clone(allocations),
+    }))?;
     for slot in imports {
         let provision = provisions
             .and_then(|provisions| {
