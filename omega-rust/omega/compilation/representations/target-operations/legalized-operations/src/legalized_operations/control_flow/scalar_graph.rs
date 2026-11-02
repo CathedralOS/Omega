@@ -1627,6 +1627,8 @@ pub struct LegalizedNormalizedForeignCall {
     pub structural_indices: Vec<Vec<LegalizedRuntimeIndexOperand>>,
     pub result: target_operations::TargetBoundaryResult,
     pub callbacks: Vec<target_operations::TargetNativeCallbackArgument>,
+    /// The target producer's count guard for a descriptor-reading import.
+    pub descriptor_input: Option<target_operations::DescriptorInputGuard>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

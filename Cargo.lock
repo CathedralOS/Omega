@@ -2451,11 +2451,13 @@ dependencies = [
  "calling-conventions",
  "function-identity",
  "installation-evidence",
+ "runtime-abi",
  "semantic-vocabulary",
  "target",
  "task-plans",
  "terminal-installation",
  "terminal-psi",
+ "terminal-semantics",
 ]
 
 [[package]]
@@ -2463,7 +2465,6 @@ name = "target-operations-to-selected-instructions"
 version = "0.1.0"
 dependencies = [
  "abstract-operations",
- "abstract-operations-to-target-operations",
  "access-plans",
  "calling-conventions",
  "layout-plans",

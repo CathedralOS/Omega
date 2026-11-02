@@ -23,7 +23,9 @@ mod callback_materializations;
 mod host_operations;
 mod hosts;
 mod plans;
+mod structural_shapes;
 pub mod terminal_layout;
+pub use structural_shapes::{InvalidStructuralShape, classified_boundary_shape};
 
 pub use aggregate_layout::{
     ConventionalSumCaseLayout, ConventionalSumLayout, PackedFieldLayout,

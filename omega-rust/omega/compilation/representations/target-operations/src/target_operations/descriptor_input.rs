@@ -2,15 +2,20 @@
 //! scalar prefix. Exact import identity and the evaluated ABI authenticate
 //! the operation; selection must guard its actual count before invocation.
 //! The guard preserves opaque descriptors and their active case identities.
+//!
+//! The rule reads the buffer's native storage layout through `layout_of`: the
+//! target producer captures it from the structural catalog, and the target
+//! audit looks it up among the layouts that producer retained.
+use crate::{
+    NormalizedForeignCallBinding, NormalizedForeignScalarArgument,
+    NormalizedForeignStructuralArgument, TargetBoundaryResult,
+};
 use calling_conventions::{CallSignature, ValueShape, validate_boundary_entry_plan};
 use runtime_abi::{
     DescriptorAbi, DescriptorOperation, NativeBorrowedStorageLayout, NativeStorageRepetition,
 };
 use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType, StructuralTypeId};
-use target_operations::{
-    NormalizedForeignCallBinding, NormalizedForeignScalarArgument,
-    NormalizedForeignStructuralArgument, TargetBoundaryResult,
-};
+use std::borrow::Borrow;
 use terminal_psi::StructuralTypeShape;
 use terminal_psi::{
     BoundaryCompletion, BoundaryMachineDeclaration, BoundaryMachineResult, BoundaryParameterKind,
@@ -28,10 +33,11 @@ pub struct DescriptorInputGuard {
 
 /// A declaration-level contract for descriptor-flow reconstruction. This is a
 /// requirement on native emission, never a claim that an unguarded call is safe.
-pub fn descriptor_input_guard(
+pub fn descriptor_input_guard<Layout: Borrow<NativeBorrowedStorageLayout>>(
     declaration: &BoundaryMachineDeclaration,
     binding: &NormalizedForeignCallBinding,
     structural_types: &[StructuralTypeDeclaration],
+    layout_of: impl FnOnce(StructuralTypeId) -> Option<Layout>,
 ) -> Result<Option<DescriptorInputGuard>, &'static str> {
     let [parameter] = declaration.structural_parameters.as_slice() else {
         return Ok(None);
@@ -59,17 +65,19 @@ pub fn descriptor_input_guard(
         parameter.access,
         &declaration.scalar_parameters,
         result,
+        layout_of,
     )
 }
 
 /// The same contract from a receiving stage's independently joined typed call.
 /// No caller-proposed maximum or preservation flag is accepted as authority.
-pub fn descriptor_input_guard_for_call(
+pub fn descriptor_input_guard_for_call<Layout: Borrow<NativeBorrowedStorageLayout>>(
     binding: &NormalizedForeignCallBinding,
     structural_types: &[StructuralTypeDeclaration],
     scalar_arguments: &[NormalizedForeignScalarArgument],
     structural_arguments: &[NormalizedForeignStructuralArgument],
     result: &TargetBoundaryResult,
+    layout_of: impl FnOnce(StructuralTypeId) -> Option<Layout>,
 ) -> Result<Option<DescriptorInputGuard>, &'static str> {
     if !matches!(
         selected_descriptor(binding),
@@ -121,16 +129,18 @@ pub fn descriptor_input_guard_for_call(
         argument.access,
         &scalars,
         result,
+        layout_of,
     )
 }
 
-fn derive(
+fn derive<Layout: Borrow<NativeBorrowedStorageLayout>>(
     binding: &NormalizedForeignCallBinding,
     types: &[StructuralTypeDeclaration],
     buffer: StructuralTypeId,
     access: StructuralAccess,
     scalars: &[ScalarType],
     result: Option<ScalarType>,
+    layout_of: impl FnOnce(StructuralTypeId) -> Option<Layout>,
 ) -> Result<Option<DescriptorInputGuard>, &'static str> {
     let operation = selected_descriptor(binding);
     let Some((abi, DescriptorOperation::Read)) = operation else {
@@ -139,9 +149,10 @@ fn derive(
     if access != StructuralAccess::MutableBorrow {
         return Ok(None);
     }
-    let Some(layout) = super::borrowed_storage::capture_type(buffer, types) else {
+    let Some(layout) = layout_of(buffer) else {
         return Ok(None);
     };
+    let layout = layout.borrow();
     if layout.opaque_regions().is_empty() {
         return Ok(None);
     }
@@ -181,7 +192,7 @@ fn derive(
     Ok(Some(DescriptorInputGuard {
         count_scalar_argument: 1,
         structural_argument: 0,
-        max_bytes: u64::from(scalar_prefix(&layout, types)?),
+        max_bytes: u64::from(scalar_prefix(layout, types)?),
         count_type: count,
     }))
 }

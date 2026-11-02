@@ -30,6 +30,14 @@ pub enum LoweringError {
         boundary: semantic_vocabulary::BoundaryMachineId,
         reason: &'static str,
     },
+    /// A descriptor-reading import whose count guard cannot be derived from
+    /// its exact admitted native ABI.
+    DescriptorInputGuard {
+        machine: MachineId,
+        operation: OperationId,
+        boundary: semantic_vocabulary::BoundaryMachineId,
+        reason: &'static str,
+    },
     UnconsumedOptimizationPhase(optimization_core::OptimizationExecutionPhase),
     UnsupportedIeeeFloatFmaRealization(OperationId),
     AccessViewInput(AccessViewInputTranslationError),
