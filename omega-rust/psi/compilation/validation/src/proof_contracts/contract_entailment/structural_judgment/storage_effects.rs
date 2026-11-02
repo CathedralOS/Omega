@@ -397,7 +397,8 @@ impl StructuralJudge<'_> {
     /// Incoming by-value parameters own their scalar payload or inline cells.
     /// Retain that entry observation before the first effect, just as completed
     /// local bindings do. A disjoint write may erase pointee observations without
-    /// erasing this copy's descriptor words. No reference formal is seeded.
+    /// erasing this copy's descriptor words. Readable nominal reference formals
+    /// retain an authenticated referent observation through their frame backing.
     pub(super) fn retain_entry_values(&mut self, state: &State) {
         if self.storage_version.is_none() {
             self.storage_version = self.incoming_storage_version(state);
