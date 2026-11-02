@@ -706,14 +706,26 @@ fn complete_callable_type_matches(
     bindings: &mut Vec<TypeBinding>,
     binder_bindings: &[BinderBinding],
 ) -> bool {
-    if !required_type_matches(
-        program,
-        actual,
-        required,
-        generic_types,
-        bindings,
-        binder_bindings,
-    ) {
+    // The structural walk infers missing operands. A complete supplied tuple
+    // instead owes the canonical full application identity below: prepared
+    // constructors may have a different symbol/arity from their authored
+    // generic origin without denoting a different type. Borrow-region and
+    // callable-contract formation remain independent mandatory judgments.
+    let needs_inference = generic_types.iter().any(|parameter| {
+        !bindings
+            .iter()
+            .any(|binding| binding.symbol == parameter.symbol)
+    });
+    if needs_inference
+        && !required_type_matches(
+            program,
+            actual,
+            required,
+            generic_types,
+            bindings,
+            binder_bindings,
+        )
+    {
         return false;
     }
     if !actual.is_valid() || !required.is_valid() {
