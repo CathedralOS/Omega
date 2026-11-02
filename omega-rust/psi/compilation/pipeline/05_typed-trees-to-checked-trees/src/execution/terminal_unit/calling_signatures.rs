@@ -78,6 +78,7 @@ pub(super) fn collect(
             operands: declaration.operands.clone(),
             formals: declaration.formals.clone(),
             default_eligible: declaration.default_eligible,
+            physical_owner: declaration.physical_owner.clone(),
             storage,
         });
     }

@@ -757,12 +757,11 @@ pub fn settle_checked_providers(
             .map_err(|reason| vec![Diagnostic::error(reason)])?
             == crate::CompositionMode::Independent
         {
-            component_providers.push(selected);
+            component_providers.push(&selected.plan);
         }
     }
     let component_calling_applications =
         crate::calling_policy_plans::component_calling_applications(
-            services,
             planning_target.unwrap_or_else(target::TargetProfile::host),
             &calling_program,
             &component_providers,

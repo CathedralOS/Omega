@@ -88,6 +88,13 @@ fn validate_census(module: &TerminalModule) -> Result<(), CodecError> {
         "declaration ABI applications",
     )?;
     for row in &module.calling_abi_signatures {
+        if row
+            .physical_owner
+            .as_ref()
+            .is_err_and(|reason| reason.is_empty())
+        {
+            return malformed("declaration ABI has an empty physical-owner refusal");
+        }
         let requirement = module
             .identities
             .text(row.requirement_identity)

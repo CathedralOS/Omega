@@ -31,6 +31,7 @@ fn fixture(
             operands: Vec::new(),
             formals: Vec::new(),
             default_eligible: true,
+            physical_owner: Ok(semantic_vocabulary::CallingDeclarationOwner::BoundaryTrait),
             storage: Ok(CallingAbiStorage {
                 parameters: Vec::new(),
                 result: with_extents.then(|| StructuralTypeId::new(3).unwrap()),

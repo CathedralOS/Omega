@@ -194,7 +194,17 @@ fn calling_policies_share_product_code_across_targets_and_single_target_outputs(
 fn assert_calling_review_outlives_source(relative: &str) {
     use std::sync::Arc;
 
-    let (prepared, substituted, code, wrong_code, source_owner, wrong_owner, expected) = {
+    let (
+        prepared,
+        substituted,
+        code,
+        wrong_code,
+        source_owner,
+        wrong_owner,
+        expected,
+        target,
+        plans,
+    ) = {
         let fixture = prepare(relative);
         let package_inputs = fixture.package_inputs;
         let mut request = CheckedCompileRequest::new(&fixture.root_path, Some("macos_arm64"));
@@ -244,6 +254,35 @@ fn assert_calling_review_outlives_source(relative: &str) {
                     .expect("original application")
             })
             .collect::<Vec<_>>();
+        let plans = execution
+            .selected_provider_provenance
+            .iter()
+            .filter(|provider| {
+                !provider.plan.schema.calling_applications.is_empty()
+                    && provider.plan.rows.iter().all(|row| {
+                        let requirement = provider.plan.identities.text(row.requirement_identity);
+                        provider
+                            .plan
+                            .schema
+                            .declaration
+                            .methods
+                            .iter()
+                            .any(|method| {
+                                provider
+                                    .plan
+                                    .schema
+                                    .identity_text(method.requirement_identity)
+                                    == requirement
+                                    && !provider
+                                        .plan
+                                        .schema
+                                        .calling_for_requirement(method.requirement_identity)
+                                        .is_empty()
+                            })
+                    })
+            })
+            .map(|provider| provider.plan.clone())
+            .collect::<Vec<_>>();
         assert!(
             !expected.is_empty(),
             "witness must actually activate policies"
@@ -267,6 +306,8 @@ fn assert_calling_review_outlives_source(relative: &str) {
             Arc::downgrade(source),
             wrong_owner,
             expected,
+            target,
+            plans,
         )
     };
     assert!(
@@ -288,9 +329,10 @@ fn assert_calling_review_outlives_source(relative: &str) {
         "{rejected:?}"
     );
 
-    let actual = prepared
+    let realizations = prepared
         .evaluate(&code)
-        .expect("activate and attach review after Source drop")
+        .expect("activate and attach review after Source drop");
+    let actual = realizations
         .iter()
         .map(|application| {
             application
@@ -301,6 +343,43 @@ fn assert_calling_review_outlives_source(relative: &str) {
     assert_eq!(
         actual, expected,
         "Source release cannot change the complete native applications"
+    );
+    let components = provider_planning::calling_policy_plans::component_calling_applications(
+        target,
+        &code,
+        &plans.iter().collect::<Vec<_>>(),
+        &realizations,
+    )
+    .expect("canonical ABI row association after Source disposal");
+    assert!(
+        !components.is_empty(),
+        "the witness must join actual selected ABI rows"
+    );
+    for application in &components {
+        assert!(
+            actual.contains(application),
+            "the Source-free row must retain its exact evaluated application"
+        );
+    }
+    let recovered = provider_planning::calling_policy_plans::CallingProgram {
+        source_owner: std::sync::Weak::new(),
+        artifact: Arc::new(
+            terminal_codec::CanonicalTerminalArtifact::from_bytes(&code.artifact.to_bytes())
+                .expect("ordinary published artifact ingress"),
+        ),
+        entries: Vec::new(),
+        source_records: Arc::from([]),
+    };
+    let reloaded = provider_planning::calling_policy_plans::component_calling_applications(
+        target,
+        &recovered,
+        &plans.iter().collect::<Vec<_>>(),
+        &realizations,
+    )
+    .expect("decoded ABI census needs no Source owner, entries or review records");
+    assert_eq!(
+        reloaded, components,
+        "artifact reload must preserve exact ABI row association"
     );
 }
 
