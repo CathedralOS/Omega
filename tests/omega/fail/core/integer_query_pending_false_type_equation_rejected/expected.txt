@@ -1,1 +1,1 @@
-where type predicate does not hold
+requires type predicate does not hold
