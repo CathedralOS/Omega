@@ -50,7 +50,8 @@ Each twin changes only the restoration scalar from `0u32` to `0xFFFFFFFFu32`.
 The parameter twin also changes its exact input contract and both call inputs
 together, so no input requirement is intentionally violated. Identity contracts,
 parent construction, first corrupting store and runtime oracles stay unchanged.
-The intended refusal is **`default domain is still FALSE`** naming **`pair`**
+The current production's intended refusal is **`cannot lend restricted field `start``**
+with **`normal-return guarantees do not preserve the field's standing predicate`**
 at the helper's normal-return handback. A formation failure or an unrelated input-contract refusal
 does not establish this obligation.
 
@@ -236,3 +237,27 @@ keeps immutable argument snapshots, stages all sibling outputs together, and
 retires affected storage before installing new contents. Full parent handback
 reads that exact completion, before later siblings. It no longer reconstructs
 coupled predicates from independent intervals or a formal's carrier range.
+
+
+The [argument-snapshot control](controls/argument_snapshot/main.omg) captures zero
+for the restoring actual, then a later argument changes its source local to
+all-one bits. The helper must consume the earlier immutable snapshot. Its twin
+starts with all-one bits and changes the later local to zero: the later value
+cannot repair the captured actual. A counter and caller-visible marker expose
+omitted or repeated evaluation in both engines.
+
+The [completion-order control](controls/completion_order/main.omg) restores zero
+in the first nested call and again in a later sibling. Its twin makes only the
+first restoration invalid; the later sibling cannot excuse that earlier handback.
+Distinct returned values and marker writes expose reversed/omitted calls. Each
+control has an exact reject twin and matching corpus pins in this same fact.
+
+A separate exploratory attempt borrowed both `start` and its coupled `end` as
+exclusive scalar inputs. It was correctly refused after the parent proof:
+the live dependent loan pins its witness (`dependent_values.md`, invariant
+windows). Physical disjointness does not authorize those competing loans; no
+loan-compatibility rule is relaxed. This is retained negative evidence, not a
+valid production or a passing runtime claim. Write-only specification equality
+probes likewise refuse formation on both baseline and repair; they establish
+no new write-only guarantee API. Existing write-only/read-authority controls
+remain in the focused regression selection.
