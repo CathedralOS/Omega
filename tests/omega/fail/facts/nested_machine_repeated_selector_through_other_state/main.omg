@@ -35,7 +35,8 @@ terminates by remaining -> Progress::Remaining
     requires pending.values[0] > 0 && pending.values[0] <= 7 && pending.values[1] <= 919
     {
         counter = ((counter as u64 in Wrapping) + 1) as u64;
-        let next: Progress = Progress { values: [pending.values[0] - 0, pending.values[1]], canary: pending.canary };
+        let mut next: Progress = pending;
+        next.values[0] = pending.values[0] - 0;
         transition { _ -> count(counter, next) }
     }
 }

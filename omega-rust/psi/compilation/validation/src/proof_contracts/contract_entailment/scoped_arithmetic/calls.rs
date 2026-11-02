@@ -253,11 +253,26 @@ impl<'program> ScopedCalls<'program> {
             let parameters = owner_parameters(self.program, &owner);
             let arguments = expression_table(self.program).expression_handles(call.arguments);
             if independent && parameters.len() == arguments.len() {
+                // Nested clauses retain the outer captured root and its exact
+                // call-context read roster. Complete actuals before selecting
+                // this callee's public formals; source handles alone are not
+                // observations of the caller's later storage.
+                let mut engine = super::Engine::strict_for_declaration(self.program, source.owner);
+                let actuals = engine
+                    .install_scoped_expression(&prepared)
+                    .then(|| {
+                        engine.capture_contract_call_actuals(
+                            expression,
+                            &prepared.bindings,
+                            &mut self.remaining,
+                        )
+                    })
+                    .flatten();
                 let bindings = self.completed_bindings(
                     owner,
                     arguments,
                     CallOccurrence::Expression(expression),
-                    &prepared.bindings,
+                    actuals.as_deref().unwrap_or(&prepared.bindings),
                     Some(result.clone()),
                     scope,
                 )?;

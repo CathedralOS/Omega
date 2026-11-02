@@ -214,7 +214,11 @@ impl super::Engine<'_> {
             .iter()
             .find(|(binder, _)| *binder == crate::ScopedArithmeticBinder::Symbol(root))?;
         let snapshot = snapshot.project(self.program, &place.segments)?;
-        let actual_type = self.source_result_type(observed)?;
+        let actual_type =
+            crate::value_custody::expression_types::readable_observation_type_reference(
+                self.program,
+                self.source_result_type(observed)?,
+            )?;
         if !super::super::ranking_range::declared_input_type_matches(
             self.program,
             snapshot.actual_type(),
