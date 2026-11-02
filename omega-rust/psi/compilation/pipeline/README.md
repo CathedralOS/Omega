@@ -20,7 +20,7 @@ authority.
 | 07 — selected optimization | [psi_optimization.rs](07_lowered-psi-to-lowered-psi/src/psi_optimization.rs) | the same Lowered Psi representation |
 | 08 — publication | [publish_artifact.rs](08_lowered-psi-to-terminal-psi/src/publish_artifact.rs) | [Terminal Psi and codec](../representations/terminal-psi/) |
 
-Stage 05 constructs the checked program using reusable judgments from
+Psi 05 constructs the checked program using reusable judgments from
 [checking/](../checking/README.md), obligation construction/search from
 [proof/](../proof/src/lib.rs), and independent mathematical admission. Those
 services are not competing typed-to-checked stages.

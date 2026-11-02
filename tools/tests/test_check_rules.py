@@ -122,8 +122,8 @@ A detached editable document is not an instance of its described type.
 
 
 class Stage06RatchetTests(unittest.TestCase):
-    """Stage 06 lowers stage 05's plans; it neither re-gates their shapes nor
-    reads the typed source trees to rebuild a fact stage 05 did not publish."""
+    """Psi 06 lowers Psi 05's plans; it neither re-gates their shapes nor
+    reads the typed source trees to rebuild a fact Psi 05 did not publish."""
 
     UNIT = STAGE06_ROOT + "/src/unit/lowering.rs"
     TEST = STAGE06_ROOT + "/src/unit/lowering/tests.rs"
@@ -172,14 +172,14 @@ class Stage06RatchetTests(unittest.TestCase):
                            self.TEST: "LoweringError::Unsupported"})
         violations = ratchet_violations(SHAPE_GATES, ratchet_counts(SHAPE_GATES, after), baseline)
         self.assertEqual(len(violations), 2)
-        self.assertIn("lowering.rs: 2 stage-06 shape gates, baseline 1", violations[0])
-        self.assertIn("stage 05 plan", violations[0])
-        self.assertIn("tests.rs: 1 stage-06 shape gates, baseline 0", violations[1])
+        self.assertIn("lowering.rs: 2 Psi 06 shape gates, baseline 1", violations[0])
+        self.assertIn("Psi 05 plan", violations[0])
+        self.assertIn("tests.rs: 1 Psi 06 shape gates, baseline 0", violations[1])
 
     def test_a_planted_source_read_fails(self):
         violations = ratchet_violations(SOURCE_CONTEXT_READS, {self.UNIT: 3}, {self.UNIT: 2})
         self.assertEqual(len(violations), 1)
-        self.assertIn("3 stage-06 source-context reads, baseline 2", violations[0])
+        self.assertIn("3 Psi 06 source-context reads, baseline 2", violations[0])
         self.assertIn("Public contracts", violations[0])
 
     def test_a_retired_site_lowers_the_baseline(self):

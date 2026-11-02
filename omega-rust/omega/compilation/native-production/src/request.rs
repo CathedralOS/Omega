@@ -6,7 +6,7 @@ use terminal_psi_to_abstract_operations::provider_admission::{
 };
 
 /// Native admission plus the product's physical selections and image destination.
-/// Stage 00 owns admission vocabulary and checks; this request supplies policy
+/// Omega 00 owns admission vocabulary and checks; this request supplies policy
 /// and retains the exact image custody if realization fails.
 pub(crate) struct NativeRealizationRequest<'request> {
     pub observation: &'request crate::observations::NativePipelineObservation,
@@ -90,7 +90,7 @@ pub struct NativeCompileRequest<'request> {
 impl NativeCompileRequest<'_> {
     /// Require native proposal custody and rejoin the image's loader/signing
     /// metadata before provider preparation. This admits a product input, not
-    /// provider, receiver or execution authority; stage 00 still checks those.
+    /// provider, receiver or execution authority; Omega 00 still checks those.
     /// The retained product never left this process, so its proposal is not
     /// replayed against the artifact again.
     /// The caller retains its original image request for failure recovery.

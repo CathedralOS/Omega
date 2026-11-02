@@ -1,7 +1,7 @@
 # Native failure preserves its successful target sibling
 
 One ordinary package request produces one canonical Terminal artifact. Linux
-executes the authored zero-materialization check; macOS enters Omega stage 06
+executes the authored zero-materialization check; macOS enters Omega 06
 and refuses the selected x86-only optimization with its existing target mismatch
 obligation. The refusal must not discard the successful Linux image or replay
 source, Build, Terminal publication, or a native stage.

@@ -9,7 +9,7 @@ use crate::unit::attached_unit::bodies::UnitPlans;
 use crate::unit::attached_unit::call_closure::BoundaryIdentity;
 
 /// A composed graph does not lower an attachment or its provider fields yet:
-/// stage 05 can plan them (`checked_composed_provider_attachment_requirements`),
+/// Psi 05 can plan them (`checked_composed_provider_attachment_requirements`),
 /// and this route refuses the machine rather than drop them.
 pub(super) fn reject_attachment(
     plan: &checked_trees::CheckedComposedUnitControlMachinePlan,

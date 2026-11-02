@@ -192,10 +192,10 @@ pub fn case_where_field_intervals(
 /// `where` facts is a literal false witness (the `0` an instance's refuted
 /// `T == i32` leaves behind in generic synthesis, or an authored `where
 /// false`). Typing's exhaustiveness count excludes such a case
-/// (`exhaustiveness::variant_is_impossible` in stage 03), so a dispatch may
+/// (`exhaustiveness::variant_is_impossible` in Psi 03), so a dispatch may
 /// omit it without a `_` arm. Every later roster of the instance's cases —
 /// the checked structural shape, the closed-sum terminator, the permission
-/// schedule's run coverage, stage 06's computed-case bindings — applies this
+/// schedule's run coverage, Psi 06's computed-case bindings — applies this
 /// same rule, or one of them would demand an arm, a tag or a successor for
 /// a value that cannot exist. Facts that need evaluation are not
 /// contradictions and keep the case.

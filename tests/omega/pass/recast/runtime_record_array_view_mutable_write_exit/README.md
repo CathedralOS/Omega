@@ -10,7 +10,7 @@ that the writes changed the original bytes and that subsequent view reads
 reconstruct those values, returning 70 in native execution and the checked
 interpreter on macOS ARM64.
 
-Previously the public command stopped in stage 05 with `record view store field
+Previously the public command stopped in Psi 06 with `record view store field
 has no single source leaf`. Typed-record leaf replay now leaves byte-backed
 views to their existing captured-loan route. Shared normalized geometry retains
 each runtime array coordinate, stride and declared extent. Each coordinate

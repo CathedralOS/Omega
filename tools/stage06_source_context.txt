@@ -1,4 +1,4 @@
-# Stage 06 reads of source context (TypedTrees, typed_trees::expression,
+# Psi 06 reads of source context (TypedTrees, typed_trees::expression,
 # .typed) per file. Counts may only fall: stages do not reconstruct missing
 # input facts (omega-rust/pipeline.md "Public contracts").
 # Written by `python tools/check_rules.py --update-source-context`.

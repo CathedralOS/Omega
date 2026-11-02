@@ -1,7 +1,7 @@
 //! Checked provider requirements projected into Terminal attachment roots.
 //!
 //! Roots witness exact field-to-requirement specialization, not lexical self
-//! storage. Stage 05 builds the requirement set
+//! storage. Psi 05 builds the requirement set
 //! (`execution/terminal_unit/providers.rs`): one row for each boundary call
 //! whose receiver, lexical self or a parameter-rooted Fused binding, routes
 //! through a provider field, refusing the plan when a receiver claims none.

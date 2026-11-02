@@ -3010,8 +3010,12 @@ pass/build/dependency_implementation_closure rejected 1453ms regressed-from:chec
 	fixed-array length `[u8; placed_byte_count()]`: const evaluation of `placed_byte_count` failed: Lowering(InvalidDeclarationIdentity("checked machine identity: declaration `@array-extent-1-43` has non-hermetic source origin `User`"))
 pass/build/described_runner_entry_left_exit checked 17644ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/described_runner_entry_right_exit checked 19223ms check-target:macos_arm64 @ccdb99ca2214
-pass/build/discarded_provider_selection_exit rejected 18520ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	build selects provider `omega_language_std::ConsoleNativeProvider` for slot `Console`, but candidate `<selected target>::ConsoleNativeProvider::satisfies::Console` is partial (4/6) and cannot be selected
+pass/build/discarded_provider_selection_exit rejected 3180ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @b8f9f267c739+wt
+	machine `NativeAccess::initialize` state `initialize` calls `Access::initialize_from_profile` with write-only input authority; an opaque selected implementation requires an admitted write-only boundary claim
+	bodyless boundary symbol `view_from_profile` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
+	bodyless boundary symbol `view_mut_from_profile` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
+	bodyless boundary symbol `initialize_from_profile` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
+	bodyless boundary symbol `extract_resident` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
 pass/build/entry_schema_same_leaf_exit checked 3941ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/executed_dependency_shared_source_exit checked 3885ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/executed_dependency_source_join_exit checked 4489ms check-target:macos_arm64 @ccdb99ca2214
@@ -3149,7 +3153,12 @@ pass/calls/caller_structural_result_indexed_borrow_exit checked 15598ms check-ta
 pass/calls/case_arm_payload_receiver_arg checked 16898ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/case_payload_clone_observation_exit checked 19036ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/case_scrutinee_param_clone_exit checked 16163ms check-target:macos_arm64 @ccdb99ca2214
-pass/calls/case_scrutinee_self_dispatch_exit checked 50225ms check-target:macos_arm64 @2e34e43cf530
+pass/calls/case_scrutinee_self_dispatch_exit rejected 3244ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @b8f9f267c739+wt
+	machine `NativeAccess::initialize` state `initialize` calls `Access::initialize_from_profile` with write-only input authority; an opaque selected implementation requires an admitted write-only boundary claim
+	bodyless boundary symbol `view_from_profile` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
+	bodyless boundary symbol `view_mut_from_profile` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
+	bodyless boundary symbol `initialize_from_profile` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
+	bodyless boundary symbol `extract_resident` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
 pass/calls/completed_effectful_result_requirement_exit checked 3739ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/completed_narrowing_result_case_bounds checked 1857ms check-target:macos_arm64 @33b180036351
 pass/calls/computed_binding_argument_exit checked 3502ms check-target:macos_arm64 @ccdb99ca2214
@@ -3568,7 +3577,12 @@ pass/collections/element_view_whole_write rejected 0ms regressed-from:checked+ch
 pass/collections/element_view_write_transition checked 11948ms check-target:macos_arm64 @ccdb99ca2214
 pass/collections/empty_record_array_borrow_exit checked 3012ms check-target:macos_arm64 @ccdb99ca2214
 pass/collections/float_array_completed_call_store_exit checked 22636ms check-target:macos_arm64 @ccdb99ca2214
-pass/collections/indexed_row_array_literal_store checked 49440ms check-target:macos_arm64 @2e34e43cf530
+pass/collections/indexed_row_array_literal_store rejected 1958ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @b8f9f267c739+wt
+	machine `NativeAccess::initialize` state `initialize` calls `Access::initialize_from_profile` with write-only input authority; an opaque selected implementation requires an admitted write-only boundary claim
+	bodyless boundary symbol `view_from_profile` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
+	bodyless boundary symbol `view_mut_from_profile` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
+	bodyless boundary symbol `initialize_from_profile` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
+	bodyless boundary symbol `extract_resident` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
 pass/collections/integer_index_every_width checked 1969ms @ccdb99ca2214
 pass/collections/local_byte_array_input_state_loan_exit checked 17121ms check-target:macos_arm64 @ccdb99ca2214
 pass/collections/mutable_slice_view_edge_release checked 17361ms check-target:macos_arm64 @ccdb99ca2214
@@ -12013,7 +12027,12 @@ pass/optimizer/equivalent_compare_selection_compile checked 3323ms check-target:
 pass/optimizer/join_invariant_copy_transport_selected checked 9469ms rollback:requested=[CopyPropagation];applied=[CopyPropagation];effective=[DeadPureScalarElimination] unrolled-receipt:none unrolled-semantic:d8cd114ef1c1caaa rolled-back-semantic:a66ff28341a461f3 module:differs check-target:macos_arm64 @ccdb99ca2214
 pass/optimizer/join_invariant_dead_scalar_transport_selected checked 11111ms rollback:requested=[DeadPureScalarElimination];applied=[DeadPureScalarElimination];effective=[CopyPropagation] unrolled-receipt:none unrolled-semantic:01f0c565166aa74f rolled-back-semantic:01f0c565166aa74f module:same check-target:macos_arm64 @ccdb99ca2214
 pass/optimizer/join_invariant_transport_control checked 3540ms check-target:macos_arm64 @ccdb99ca2214
-pass/optimizer/ordinary_copy_membership_selected checked 4002ms check-target:macos_arm64 @ccdb99ca2214
+pass/optimizer/ordinary_copy_membership_selected rejected 923ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @b8f9f267c739+wt
+	machine `NativeAccess::initialize` state `initialize` calls `Access::initialize_from_profile` with write-only input authority; an opaque selected implementation requires an admitted write-only boundary claim
+	bodyless boundary symbol `view_from_profile` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
+	bodyless boundary symbol `view_mut_from_profile` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
+	bodyless boundary symbol `initialize_from_profile` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
+	bodyless boundary symbol `extract_resident` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
 pass/optimizer/pre_allocation_joint_frontier_exit checked 3317ms check-target:macos_arm64 @ccdb99ca2214
 pass/optimizer/redundant_compare_selection_compile checked 4060ms check-target:macos_arm64 @ccdb99ca2214
 pass/optimizer/reference_storage_scalar_demand_exit checked 17498ms check-target:macos_arm64 @ccdb99ca2214

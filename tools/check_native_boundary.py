@@ -156,7 +156,7 @@ FIREWALL_ALLOWANCES = (
     Allowance(stage("03"), stage("01"), f"{STAGE_DEBT} (ValidatedOptimizedAbstractPlan)"),
     Allowance(stage("03"), stage("02"),
               "Debt: calls classified_boundary_shape and descriptor_input_guard instead of "
-              "reading them from stage 02 output"),
+              "reading them from Omega 02 output"),
     Allowance(stage("04"), stage("03"),
               "Debt: calls staging_custody_core_accessors and selected_instruction_plan_identity; "
               "ValidatedSelectedInstructions"),
@@ -250,7 +250,7 @@ FORBIDDEN_DEPENDENCIES = tuple(Rule(*rule) for rule in (
     (
         (PSI_FACADE,),
         TERMINAL_STAGES,
-        "stages 06-08 are sequenced only by terminal-production",
+        "Psi 06-08 are sequenced only by terminal-production",
         (TERMINAL_PRODUCTION,),
     ),
     (
