@@ -200,13 +200,6 @@ impl DirectBoundaryInput {
             .retain(|method| {
                 original.schema.identity_text(method.requirement_identity) == requirement
             });
-        plan.schema.calling_applications.retain(|application| {
-            plan.schema
-                .declaration
-                .methods
-                .iter()
-                .any(|method| method.requirement_identity == application.requirement)
-        });
         let declaration = std::sync::Arc::make_mut(&mut plan.schema.declaration);
         declaration.receiver_applications.clear();
         plan.name = format!("direct-boundary:{}:{}", plan.target, self.callable_identity);

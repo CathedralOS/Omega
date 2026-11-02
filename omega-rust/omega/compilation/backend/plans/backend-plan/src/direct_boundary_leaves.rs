@@ -41,24 +41,32 @@ impl DirectBoundaryLeaf {
         let [method] = self.plan.schema.declaration.methods.as_slice() else {
             return Err("direct boundary does not retain one callable contract".into());
         };
-        if self.plan.identities.text(row.requirement_identity) != self.callable_identity
-            || self.plan.schema.identity_text(method.requirement_identity) != self.callable_identity
-            || self
-                .plan
-                .schema
-                .identity_text(self.plan.schema.declaration.trait_name)
-                != self.callable_identity
-            || !self
-                .plan
-                .schema
-                .declaration
-                .receiver_applications
-                .is_empty()
-            || !self.plan.schema.calling_applications.is_empty()
+        let route = self.plan.identities.text(row.requirement_identity);
+        if route.is_empty() {
+            return Err("direct callable route has no requirement identity".into());
+        }
+        if self.plan.schema.identity_text(method.requirement_identity) != route {
+            return Err("direct method coordinate differs from its callable route".into());
+        }
+        if self
+            .plan
+            .schema
+            .identity_text(self.plan.schema.declaration.trait_name)
+            != route
         {
-            return Err(
-                "direct callable route substituted declaration or calling ownership".into(),
-            );
+            return Err("direct schema coordinate differs from its callable route".into());
+        }
+        if !self
+            .plan
+            .schema
+            .declaration
+            .receiver_applications
+            .is_empty()
+        {
+            return Err("synthetic direct route retained a public receiver roster".into());
+        }
+        if !self.plan.schema.calling_applications.is_empty() {
+            return Err("synthetic direct route relabelled public calling attachments".into());
         }
         let source = &self.satisfied_schema;
         let mut sources = source.declaration.methods.iter().filter(|method| {
@@ -91,7 +99,7 @@ impl DirectBoundaryLeaf {
             // enter their own source-owned semantic settlement.
             return Ok(());
         };
-        if binding.requirement_identity != self.callable_identity {
+        if binding.requirement_identity != route {
             return Err("direct foreign execution changed its callable coordinate".into());
         }
         let expected = source.calling_for_requirement(original.requirement_identity);
@@ -127,6 +135,41 @@ impl DirectBoundaryLeaf {
                     );
                 }
             }
+        }
+        Ok(())
+    }
+
+    /// Terminal binding changes the route coordinate, never either retained
+    /// Source identity or its public ABI. Rejoin all three against this exact
+    /// receiving module before the route can supply native execution.
+    pub fn validate_bound_calling_custody(
+        &self,
+        module: &terminal_psi::TerminalModule,
+    ) -> Result<(), String> {
+        self.validate_calling_custody()?;
+        let route = self
+            .plan
+            .identities
+            .text(self.plan.rows[0].requirement_identity);
+        let count = module
+            .boundary_machines
+            .iter()
+            .filter(|boundary| {
+                module.identities.text(boundary.identity) == Some(route)
+                    && boundary.declaration.as_ref().is_some_and(|declaration| {
+                        module
+                            .identities
+                            .text(declaration.source.semantic_declaration)
+                            == Some(self.declaration_identity.as_str())
+                            && module.identities.text(declaration.source.callable)
+                                == Some(self.callable_identity.as_str())
+                    })
+            })
+            .count();
+        if count != 1 {
+            return Err(format!(
+                "direct callable route rejoins {count} exact Source/Terminal declarations"
+            ));
         }
         Ok(())
     }
