@@ -44,6 +44,14 @@ indexed writeback. The
 [compensating-increase control](controls/invalid_compensating_increase/main.omg)
 preserves the full sum while decreasing one cell; it must reject.
 
+The [Boolean-dispatch control](controls/boolean_dispatch/main.omg) preserves
+the same sum and the same 7/919 bounds: it returns slot one when slot zero is
+zero, and otherwise adds both slots. Its condition contains a helper call.
+The complete entry-observation graph owns that call's operands and receipts;
+those operands do not acquire a synthetic statement origin. Its
+[zero-step twin](controls/boolean_dispatch/invalid/main.omg) must still reject
+cycle descent.
+
 The missing/partial-bound controls refuse unformed arithmetic; the missing
 premise and unformed-child controls refuse helper preconditions, including a
 canceled child operation. The no-result-relation control cannot replace a

@@ -201,6 +201,7 @@ pub(super) fn record(
                 plans,
                 structural_values,
                 statement_nodes_start,
+                root_scope: super::builder::RootScope::RankObservation,
                 scalar_occurrences: Vec::new(),
                 integer_occurrences: Vec::new(),
             };
