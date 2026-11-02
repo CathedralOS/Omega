@@ -6170,12 +6170,8 @@ pass/facts/domain_selected_cleanup_computed_target_body_exit checked 10823ms che
 pass/facts/domain_selected_cleanup_enclosing_generic_telescope_exit checked 15341ms check-target:macos_arm64 @dfac2536232b
 pass/facts/domain_selected_cleanup_erased_interface_exit checked 12804ms check-target:macos_arm64 @dfac2536232b
 pass/facts/domain_selected_cleanup_erased_predicates_exit checked 4010ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/domain_selected_cleanup_indexed_inherited_computed_exit rejected 3346ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot prove automatic cleanup requires at selected edge from consume state entry after statement 0: keeper does not establish release_keeper$specialized$9346d865f1ff1699$0 clause `keeper.code == 7`
-	cannot prove requires contract for call consume from main: Keeper in Keeper::Label in state `entry`
-pass/facts/domain_selected_cleanup_indexed_inherited_exit rejected 3109ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot prove automatic cleanup requires at selected edge from consume state entry after statement 0: keeper does not establish release_keeper$specialized$9346d865f1ff1699$0 clause `keeper.code == 7`
-	cannot prove requires contract for call consume from main: Keeper in Keeper::Label in state `entry`
+pass/facts/domain_selected_cleanup_indexed_inherited_computed_exit checked 15270ms check-target:macos_arm64 @f02c05b344cf
+pass/facts/domain_selected_cleanup_indexed_inherited_exit checked 15304ms check-target:macos_arm64 @f02c05b344cf
 pass/facts/domain_selected_cleanup_lifetime_application_exit checked 3669ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/domain_selected_cleanup_through_call_result_exit checked 3423ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/domain_selected_cleanup_through_const_name_exit checked 3569ms check-target:macos_arm64 @ccdb99ca2214
