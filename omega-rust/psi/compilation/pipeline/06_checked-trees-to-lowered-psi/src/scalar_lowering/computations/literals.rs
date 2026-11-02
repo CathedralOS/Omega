@@ -63,13 +63,14 @@ pub(crate) fn prepare(
             let source_call = source_call.statement().ok_or(LoweringError::Unsupported(
                 "declaration call has no byte-literal argument custody",
             ))?;
-            let declaration = crate::terminal_identities::structural_declaration_by_identity(
-                types,
-                identities,
-                checked,
-                argument.type_identity,
-                "computed literal has no structural type namespace",
-            )?;
+            let declaration =
+                crate::shared::terminal_identities::structural_declaration_by_identity(
+                    types,
+                    identities,
+                    checked,
+                    argument.type_identity,
+                    "computed literal has no structural type namespace",
+                )?;
             if let Some(existing) = slots.iter().find(|slot| {
                 slot.source_call == source_call && slot.argument_ordinal == argument_ordinal
             }) {

@@ -1,7 +1,7 @@
 //! Rebase callee crash paths onto the exact caller structural argument source.
 
-use crate::lowering_error::LoweringError;
-use crate::lowering_error::unsupported;
+use crate::shared::lowering_error::LoweringError;
+use crate::shared::lowering_error::unsupported;
 use semantic_vocabulary::CanonicalStructuralPathSegment;
 use terminal_psi::{
     ByteSequenceCarrier, StructuralAccess, StructuralArgument, StructuralFieldType,

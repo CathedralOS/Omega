@@ -17,7 +17,7 @@ optimization-core = { path = "../../../../omega-rust/omega/foundation/optimizati
 build-declarations = { path = "../../../../omega-rust/omega/packages/build-declarations" }
 package-compilation = { path = "../../../../omega-rust/omega/packages/compilation-inputs", features = ["test-support"] }
 package-manager = { path = "../../../../omega-rust/omega/packages/package-manager" }
-build-time-evaluation = { path = "../../../../omega-rust/psi/compilation/compile-time" }
+build-time-evaluation = { path = "../../../../omega-rust/psi/compilation/build-time-evaluation" }
 provider-planning = { path = "../../../../omega-rust/omega/compilation/realization/provider-planning" }
 semantic-vocabulary = { path = "../../../../omega-rust/psi/foundation/semantic-vocabulary" }
 source-files-to-tokens = { path = "../../../../omega-rust/psi/compilation/pipeline/00_source-files-to-tokens" }
@@ -28,7 +28,7 @@ target = { path = "../../../../omega-rust/omega/compilation/backend/target" }
 terminal-interpreter = { path = "../../../../omega-rust/psi/interpreter/terminal-interpreter" }
 terminal-psi = { path = "../../../../omega-rust/psi/compilation/representations/terminal-psi" }
 image-emission = { path = "../../../../omega-rust/omega/compilation/backend/images/image-emission" }
-effects = { path = "../../../../omega-rust/omega/compilation/backend/plans/provider-evidence" }
+effects = { path = "../../../../omega-rust/omega/compilation/backend/plans/effects" }
 symbols = { path = "../../../../omega-rust/psi/foundation/symbols" }
 mimalloc = { version = "0.1", default-features = false }
 typed-trees = { path = "../../../../omega-rust/psi/compilation/representations/typed-trees" }

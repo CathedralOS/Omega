@@ -3,10 +3,10 @@
 //! no live storage read may substitute the former source after sibling effects.
 
 use super::StateGraphEmission;
-use crate::checked_facts::{flow_facts, value_facts};
 use crate::emission::operation_emission::buffer::OperationBuffer;
-use crate::lowering_error::{LoweringError, unsupported};
-use crate::terminal_identities::stored_structural_identity;
+use crate::shared::checked_facts::{flow_facts, value_facts};
+use crate::shared::lowering_error::{LoweringError, unsupported};
+use crate::shared::terminal_identities::stored_structural_identity;
 use crate::unit::attached_unit::argument_evaluation::Evaluation;
 use crate::unit::attached_unit::composed_control::emission::{FrameValues, StateFrame};
 use terminal_psi::{StructuralParameterDeclaration, ValueDeclaration};
@@ -106,7 +106,7 @@ impl StateGraphEmission<'_, '_> {
                     "selected copied value lost its independent copy/discard capability",
                 );
             }
-            let structural_type = crate::terminal_identities::lookup_type_id(
+            let structural_type = crate::shared::terminal_identities::lookup_type_id(
                 &self.catalogs.type_ids,
                 &stored_structural_identity(checked, root.type_reference),
             )?;

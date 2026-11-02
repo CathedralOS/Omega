@@ -11,9 +11,9 @@ use super::{
     CheckedTrees, LoweredSourceCallOccurrence, LoweringError, OperationKind, TerminalModule,
     ValueDeclaration, ValueId, terminal_scalar_type, unsupported,
 };
-use crate::direct_calls::direct_call_parts;
 use crate::expression_preparation::bindings::structural_paths::lower_static_argument_path;
-use crate::terminal_identities::lookup_claim_id;
+use crate::shared::direct_calls::direct_call_parts;
+use crate::shared::terminal_identities::lookup_claim_id;
 use arena::{Handle, HandleSpan};
 use terminal_psi::{TerminalSuspensionPlace, TerminalSuspensionValueType};
 pub(crate) fn retain_suspension_call_plans(

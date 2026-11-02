@@ -46,14 +46,15 @@ pub struct TargetLayoutQueries<'selection> {
     pub target: target::TargetProfile,
     pub applications: Option<&'selection [build_time_evaluation::LayoutApplicationTargetInput]>,
     pub opaque_representations:
-        &'selection [representation_planning::OpaqueRepresentationSelection],
+        &'selection [representation_selections::OpaqueRepresentationSelection],
 }
 
 /// Invocation-local backend view; invariant programs borrow the caller's
 /// current program instead of copying its arenas.
 pub struct TargetLayoutMeasurements<'selection> {
     target: target::TargetProfile,
-    opaque_representations: &'selection [representation_planning::OpaqueRepresentationSelection],
+    opaque_representations:
+        &'selection [representation_selections::OpaqueRepresentationSelection],
     layout_program: Option<TypedTrees>,
 }
 

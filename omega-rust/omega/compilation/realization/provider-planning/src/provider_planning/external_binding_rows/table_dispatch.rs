@@ -12,7 +12,7 @@ pub(super) fn field_offset(
     row: usize,
     table_name: &str,
     field_name: &str,
-    selections: &[representation_planning::OpaqueRepresentationSelection],
+    selections: &[representation_selections::OpaqueRepresentationSelection],
 ) -> Result<u32, String> {
     let machine_symbol = provenance
         .row_realizations

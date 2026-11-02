@@ -9,8 +9,19 @@ machine build(builder: &mut Build) {
     Build::select_provider<Io, Actual>(builder, cross_platform_cli);
     Build::select_provider<Io, Actual>(builder, local_unchecked);
     Build::select_provider<Io, Actual>(builder, alpha_bootstrap);
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
+    Build::bind(builder, macos_x86_64::ProgramEntry, x86_entry);
+    Build::bind(builder, macos_arm64::ProgramEntry, arm_entry);
+    Build::bind(builder, linux_x86_64::ProgramEntry, x86_entry);
+    Build::bind(builder, linux_arm64::ProgramEntry, arm_entry);
+    Build::bind(builder, windows_x86_64::ProgramEntry, x86_entry);
+    Build::select_provider<SelectedBodyCheck, X86BodyCheck>(builder, macos_x86_64);
+    Build::select_provider<SelectedTransport, X86Transport>(builder, macos_x86_64);
+    Build::select_provider<SelectedBodyCheck, ArmBodyCheck>(builder, macos_arm64);
+    Build::select_provider<SelectedTransport, ArmTransport>(builder, macos_arm64);
+    Build::select_provider<SelectedBodyCheck, X86BodyCheck>(builder, linux_x86_64);
+    Build::select_provider<SelectedTransport, X86Transport>(builder, linux_x86_64);
+    Build::select_provider<SelectedBodyCheck, ArmBodyCheck>(builder, linux_arm64);
+    Build::select_provider<SelectedTransport, ArmTransport>(builder, linux_arm64);
+    Build::select_provider<SelectedBodyCheck, X86BodyCheck>(builder, windows_x86_64);
+    Build::select_provider<SelectedTransport, X86Transport>(builder, windows_x86_64);
 }

@@ -7,7 +7,7 @@
 //! retain their own explicit, exclusive projection walk.
 
 use crate::emission::scalar_types::terminal_scalar_type;
-use crate::lowering_error::{LoweringError, unsupported};
+use crate::shared::lowering_error::{LoweringError, unsupported};
 use checked_trees::CheckedUnitStructuralPathSegment;
 use semantic_vocabulary::CanonicalStructuralPathSegment;
 use semantic_vocabulary::{ScalarReadProjection, ScalarType, StructuralTypeId};

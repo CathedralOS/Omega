@@ -9,7 +9,7 @@ use calling_conventions::ValidatedBoundaryEntryPlan;
 use calling_conventions::callback_nominal_report_fingerprint;
 use calling_conventions::{CallingPolicy, evaluate_ordinary_boundary_entry_plan};
 use diagnostics::Diagnostic;
-use representation_planning::OpaqueRepresentationSelection;
+use representation_selections::OpaqueRepresentationSelection;
 use std::sync::{Arc, Weak};
 
 pub(crate) fn evaluate_default_calling_applications(
@@ -337,6 +337,14 @@ impl PreparedBoundaryCallingPlans {
                 boundary_plan_application_identity(&signature, &validated).map_err(&diagnostic)?;
             evaluated.push(BoundaryCallingPlanRealization {
                 declaration: policy.signature,
+                calling_owner_application: module
+                    .identities
+                    .text(instance.declaring_application)
+                    .filter(|identity| !identity.is_empty())
+                    .ok_or_else(|| {
+                        diagnostic("calling instance lost its complete owner application".into())
+                    })?
+                    .to_owned(),
                 boundary_trait: policy.boundary_trait,
                 boundary_arguments: policy.boundary_arguments,
                 argument_owner: policy.argument_owner,

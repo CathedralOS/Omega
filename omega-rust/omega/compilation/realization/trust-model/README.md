@@ -24,7 +24,7 @@ template. Package admission and final reconstruction read the same inventory.
 [accepted_machine_grants.rs](src/accepted_machine_grants.rs) resolves exact names
 before unqualified leaf matches and rejects ambiguous names or repeated exact
 symbols. [root_grants.rs](src/root_grants.rs) preserves the package-grant fence.
-Backend [provider_grants.rs](../../backend/plans/provider-evidence/src/provider_grants.rs)
+Backend [provider_grants.rs](../../backend/plans/effects/src/provider_grants.rs)
 owns selected-provider lookup. [trust_admission](src/trust_admission/mod.rs)
 constructs distinct provider, template, and concrete-contract digest domains;
 compact report fingerprints never replace commitment authority.

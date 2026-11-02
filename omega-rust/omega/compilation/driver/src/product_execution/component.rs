@@ -96,6 +96,7 @@ impl ComponentPublication {
             .execution()
             .selected_provider_provenance
             .iter()
+            .map(|provider| &provider.plan)
             .collect::<Vec<_>>();
         if providers.is_empty() {
             return Ok(Vec::new());
@@ -116,12 +117,6 @@ impl ComponentPublication {
             )]);
         }
         provider_planning::calling_policy_plans::component_calling_applications(
-            self.checked
-                .execution()
-                .provider_source
-                .inventory()
-                .services_for(self.checked.execution().provider_source.program())
-                .map_err(|error| vec![error])?,
             target,
             calling,
             &providers,

@@ -4,9 +4,9 @@
 //! immutable while straight-line emission reserves checked completion names.
 //! Namespace reservation is not live custody: the producing operation alone
 //! establishes or receives the resource when execution completes.
-use crate::checked_facts::flow_facts;
-use crate::lowering_error::{LoweringError, unsupported};
-use crate::terminal_identities::{allocate_dense, claim_id, lookup_claim_id};
+use crate::shared::checked_facts::flow_facts;
+use crate::shared::lowering_error::{LoweringError, unsupported};
+use crate::shared::terminal_identities::{allocate_dense, claim_id, lookup_claim_id};
 use language_semantics::PermissionClaimIdentity;
 use semantic_vocabulary::ClaimId;
 

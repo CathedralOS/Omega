@@ -7,7 +7,7 @@ A storage declaration or parameter chooses a representation of that structure.
 Library-authored policies compute its geometry; one general compiler mechanism
 validates and applies the result. No format name receives special recognition.
 This contract describes the accepted language, not completed implementation;
-the [implementation boundary](../../../omega-rust/psi/compilation/compile-time/layouts.md)
+the [implementation boundary](../../../omega-rust/psi/compilation/build-time-evaluation/layouts.md)
 identifies the supported subset and legacy migration.
 
 Firmware structures follow the same rule: their target package supplies data
@@ -137,7 +137,7 @@ interpretation obligations are specified under
 [location alignment](../language/counts_and_addresses.md#location-alignment).
 
 The Rust reference's supported query flow and retained arithmetic obligations
-are documented under [runtime layout observations](../../../omega-rust/psi/compilation/compile-time/layouts.md#runtime-layout-observations).
+are documented under [runtime layout observations](../../../omega-rust/psi/compilation/build-time-evaluation/layouts.md#runtime-layout-observations).
 
 ## Placement vocabulary
 

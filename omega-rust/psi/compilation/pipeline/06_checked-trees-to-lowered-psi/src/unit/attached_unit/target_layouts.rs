@@ -69,7 +69,8 @@ pub(super) fn lower(
                 .ok_or(LoweringError::Unsupported(
                     "target layout application lost its alternative span",
                 ))?;
-        let schema_id = crate::terminal_identities::lookup_type_id(type_ids, schema_type_identity)?;
+        let schema_id =
+            crate::shared::terminal_identities::lookup_type_id(type_ids, schema_type_identity)?;
         let schema = types
             .iter()
             .find(|candidate| candidate.id == schema_id)

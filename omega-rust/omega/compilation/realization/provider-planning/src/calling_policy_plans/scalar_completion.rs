@@ -10,7 +10,7 @@ use terminal_installation::{
 
 /// Invoking a policy owes its checked entry. Describing a default ABI does not
 /// invoke the boundary and cannot certify its ordinary body or Product formation.
-pub(super) enum CallingScalarScope<'request> {
+pub enum CallingScalarScope<'request> {
     Invocation {
         declaration: terminal_psi::ProofDeclarationId,
         applications: &'request [ScalarApplicationId],
@@ -20,7 +20,7 @@ pub(super) enum CallingScalarScope<'request> {
 
 /// Both purposes use the same dependency-ready scalar evaluator and supplied
 /// provider custody. Neither can install host imports or inherit Product grants.
-pub(super) fn complete_calling_scalar_inputs(
+pub fn complete_calling_scalar_inputs(
     artifact: &CanonicalTerminalArtifact,
     primary: target::TargetProfile,
     request: CallingScalarScope<'_>,

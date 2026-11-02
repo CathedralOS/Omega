@@ -15,7 +15,6 @@
 //! This implements contracts.md (blob 0551b01c): matching result case and exact
 //! argument/result substitution, preserving witness identity through erasure.
 
-use crate::checked_facts::flow_facts;
 use crate::proofs::evidence_lowering::evidence_terms::{
     lower_evidence_contract_lanes, lower_evidence_interface,
 };
@@ -29,6 +28,7 @@ use crate::proofs::{
     PropositionApplicationIdentity, PropositionDeclaration,
 };
 use crate::scalar_lowering::computations::fields::field_path_identity;
+use crate::shared::checked_facts::flow_facts;
 
 /// The caller places one validity roster of checked occurrences names,
 /// sorted and deduplicated as the codec's canonical order requires.

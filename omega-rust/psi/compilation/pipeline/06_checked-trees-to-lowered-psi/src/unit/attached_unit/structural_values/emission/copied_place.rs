@@ -25,7 +25,7 @@ impl Emission<'_, '_, '_> {
         ) {
             return super::unsupported("storage projection requires readable source custody");
         }
-        let authored = crate::declarations::state_declaration(self.checked, self.state)?;
+        let authored = crate::shared::declarations::state_declaration(self.checked, self.state)?;
         let bindings = self.structural_bindings();
         let parameters = self.checked.state_parameters(authored.1);
         let home = bindings.borrowed_structural_home(source, parameters)?;

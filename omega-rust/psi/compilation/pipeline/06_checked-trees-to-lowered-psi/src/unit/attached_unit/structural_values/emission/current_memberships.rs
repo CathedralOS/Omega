@@ -2,7 +2,7 @@
 //! Unchanged Contents receipts preserve producer guarantees, while changed subjects
 //! require live contextual or completed Content evidence. Receiver types mint nothing.
 use super::{Emission, LoweringError, StructuralArgument};
-use crate::checked_facts::flow_facts;
+use crate::shared::checked_facts::flow_facts;
 use terminal_psi::{StructuralPathQualification, StructuralPathSegment};
 
 mod descriptor_bindings;
@@ -150,7 +150,8 @@ impl Emission<'_, '_, '_> {
         {
             pair
         } else {
-            let (_, state) = crate::declarations::state_declaration(self.checked, self.state)?;
+            let (_, state) =
+                crate::shared::declarations::state_declaration(self.checked, self.state)?;
             self.evaluation
                 .structural_parameters
                 .iter()
@@ -325,7 +326,8 @@ impl Emission<'_, '_, '_> {
         subject: &validation::CanonicalPlace,
     ) -> Option<usize> {
         let symbol = root.as_symbol()?;
-        let (_, state) = crate::declarations::state_declaration(self.checked, self.state).ok()?;
+        let (_, state) =
+            crate::shared::declarations::state_declaration(self.checked, self.state).ok()?;
         let (_, local) = self.checked.state_local_declaration(state, symbol)?;
         if local.is_mutable || !local.initial_value.is_valid() {
             return None;

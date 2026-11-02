@@ -17,8 +17,6 @@ use crate::flow::state_statements;
 use arena::HandleSpan;
 use symbols::SymbolHandle;
 use typed_trees::state::State;
-use typed_trees::statement::TableTransition;
-use typed_trees::statement::TransitionTargetNode;
 use typed_trees::types::TypeReferenceHandle;
 use typed_trees::{
     expression::{BinaryOperator, ExpressionHandle, ExpressionNode},
@@ -373,7 +371,7 @@ impl ExitScalars<'_, '_> {
             let form = self.linear_form(*argument, state, substitution, &mut expanding, depth)?;
             callee_substitution.push((parameter.symbol, form));
         }
-        let returned = callee_return_expression(self, entry)?;
+        let returned = crate::flow::state_returned_value(self.program, entry)?;
         self.reconstruction_forms(returned, entry, &callee_substitution, depth + 1)
     }
 
@@ -625,42 +623,4 @@ struct CopiedCall {
 
 fn exact_return(scalars: &ExitScalars<'_, '_>, reference: TypeReferenceHandle) -> bool {
     super::exact_integer_carrier(scalars.program, reference).is_some()
-}
-
-/// The one value this state returns: a trailing expression, or one transition
-/// whose only target is a value. Locals may precede it. Any other statement
-/// is a different control shape and is not inlined.
-fn callee_return_expression(
-    scalars: &ExitScalars<'_, '_>,
-    state: &State,
-) -> Option<ExpressionHandle> {
-    let statements = state_statements(scalars.program, state.statement_nodes);
-    let mut returned = None;
-    for statement in statements {
-        match statement {
-            StatementNode::LocalData(_) => {}
-            StatementNode::Expression(value) if returned.is_none() => returned = Some(*value),
-            StatementNode::Transition(transition) if returned.is_none() => {
-                returned = Some(single_transition_value(scalars, transition)?);
-            }
-            _ => return None,
-        }
-    }
-    returned
-}
-
-fn single_transition_value(
-    scalars: &ExitScalars<'_, '_>,
-    transition: &TableTransition,
-) -> Option<ExpressionHandle> {
-    let mut value = None;
-    for target in transition.targets() {
-        match scalars.program.statement_table.transition_target(target) {
-            TransitionTargetNode::Value(expression) if value.is_none() => {
-                value = Some(*expression);
-            }
-            _ => return None,
-        }
-    }
-    value
 }

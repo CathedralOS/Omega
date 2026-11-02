@@ -1,213 +1,215 @@
-//! Complete calling applications selected against exact boundary requirements.
+//! Join selected physical ABI applications from canonical declarations.
 //!
-//! External calls and independently published checked entries use one explicit
-//! policy-selection replay. Their execution/installation authority remains with
-//! their different provider owners. Default native plans are materialized only
-//! when an actual external or component boundary requests an ABI application.
+//! External calls and independent checked entries consume the same exact
+//! requirement, inherited receiver and policy-root keys. No Source catalog,
+//! symbol correspondence or repeated policy validation participates in this join.
 
 use crate::provider_planning::trait_name_text;
-use checked_trees::typed_trees::service_declarations::ServiceCatalog;
 use diagnostics::Diagnostic;
+use semantic_vocabulary::{CallingAbiIdentity, CallingDeclarationOwner};
 
-/// Resolve implementation evidence only through the provider candidate that
-/// selection admitted. The public provider/schema identity carries the
-/// canonical fingerprint; source preparation retained the exact declaration
-/// and requirement correspondence, so selection never rediscovers source.
-pub(crate) fn selected_source_calling_applications<'catalog>(
-    services: ServiceCatalog<'catalog>,
-    boundary_calling_plan_realizations: &[super::BoundaryCallingPlanRealization],
+pub(crate) fn selected_calling_applications(
+    module: &terminal_psi::TerminalModule,
+    explicit: &[super::BoundaryCallingPlanRealization],
     plan: &effects::provider_plan::ProviderPlan,
-    provenance: &crate::ProviderPlanProvenance,
     row_index: usize,
-) -> Result<SelectedCallingApplications<'catalog>, Diagnostic> {
-    if plan.name.is_empty() {
-        return Err(Diagnostic::error(
-            "selected source boundary entry plan has an empty ProviderPlan name",
-        ));
-    }
-    let provider_plan_name = plan.name.as_str();
-    let trait_name = trait_name_text(&plan.schema);
+) -> Result<SelectedCallingApplications, Diagnostic> {
     let row = plan
         .rows
         .get(row_index)
-        .ok_or_else(|| Diagnostic::error("selected source boundary entry lost its provider row"))?;
-    let method_name = row.method.as_str();
-    let requirement_identity = plan.identities.text(row.requirement_identity);
-    if requirement_identity.is_empty() {
-        return Err(Diagnostic::error(format!(
-            "selected source boundary entry `{trait_name}::{method_name}` has an empty exact requirement overload identity"
-        )));
-    }
-    if services.context().scope != source::DependencyScope::Product {
+        .ok_or_else(|| Diagnostic::error("selected boundary entry lost its provider row"))?;
+    let requirement = plan.identities.text(row.requirement_identity);
+    if requirement.is_empty() {
         return Err(Diagnostic::error(
-            "selected source boundary entry requires the exact Product declaration catalog",
+            "selected boundary entry has no exact requirement identity",
         ));
     }
-
-    // The deriving owner retained this association. A captured named map and
-    // an abstract declaration are different origins, not fallback searches.
-    let prepared = match &provenance.named_application {
-        Some(application) => services.named_application(
-            application.declaration,
-            application.capture,
-            provenance.schema.symbol(),
-        ),
-        None => services.declaration(provenance.schema),
-    }
-    .ok_or_else(|| {
-        Diagnostic::error("selected source boundary entry lost its exact prepared declaration")
-    })?;
-    if prepared.declaration != &plan.schema.declaration {
-        return Err(Diagnostic::error(
-            "selected source boundary entry changed its exact prepared service surface",
-        ));
-    }
-    let source_symbol = provenance.row_requirements.get(row_index);
-    let source_symbol = source_symbol.ok_or_else(|| {
-        Diagnostic::error("selected source boundary entry lost its provider requirement")
-    })?;
-    let mut matching_sources = prepared
-        .requirements
-        .iter()
-        .enumerate()
-        .filter(|(_, requirement)| &requirement.source.symbol == source_symbol);
-    let Some((method_index, source)) = matching_sources.next() else {
-        return Err(Diagnostic::error(
-            "selected source boundary entry lost its ordered requirement correspondence",
-        ));
-    };
-    if matching_sources.next().is_some() {
-        return Err(Diagnostic::error(
-            "selected source boundary entry has ambiguous requirement correspondence",
-        ));
-    }
-    let method = plan
+    let mut methods = plan
         .schema
         .declaration
         .methods
-        .get(method_index)
-        .ok_or_else(|| {
-            Diagnostic::error("selected source boundary entry lost its corresponding public method")
-        })?;
-    if method.name != method_name
-        || plan.schema.identity_text(method.requirement_identity) != requirement_identity
-    {
-        return Err(Diagnostic::error(format!(
-            "selected source boundary entry ProviderPlan `{provider_plan_name}` does not bind exact schema method `{trait_name}::{method_name}` / `{requirement_identity}`"
-        )));
+        .iter()
+        .filter(|method| plan.schema.identity_text(method.requirement_identity) == requirement);
+    let method = methods
+        .next()
+        .ok_or_else(|| Diagnostic::error("selected ABI row has no exact schema requirement"))?;
+    if methods.next().is_some() || method.name != row.method {
+        return Err(Diagnostic::error(
+            "selected ABI row has competing or changed schema correspondence",
+        ));
     }
-    if method.requirement_owner.is_empty() {
-        return Err(Diagnostic::error(format!(
-            "selected source boundary entry ProviderPlan `{provider_plan_name}` method `{method_name}` has an empty exact requirement owner"
-        )));
+    let declarations = module
+        .calling_abi_signatures
+        .iter()
+        .filter(|declaration| {
+            module.identities.text(declaration.requirement_identity) == Some(requirement)
+        })
+        .collect::<Vec<_>>();
+    // An ordinary inherited trait has no boundary receiver view. Consume its
+    // independent owner refusal before receiver filtering could discard it.
+    for declaration in &declarations {
+        declaration
+            .physical_owner
+            .as_ref()
+            .map_err(|reason| Diagnostic::error(reason.clone()))?;
     }
-    if !matches!(
-        prepared.schema,
-        crate::ProviderSchemaDeclaration::BoundaryTrait(_)
-    ) {
-        return if plan
-            .schema
-            .calling_for_requirement(method.requirement_identity)
-            .is_empty()
-        {
-            Ok(SelectedCallingApplications {
-                applications: Vec::new(),
-                default_abis: &source.default_abis,
-            })
-        } else {
-            Err(Diagnostic::error(
-                "selected source non-trait boundary retains a trait calling-plan fingerprint",
-            ))
-        };
-    }
-    source.require_calling_owner()?;
-
-    let mut applications = Vec::new();
-    for calling in plan
+    let calling = plan
         .schema
-        .calling_for_requirement(method.requirement_identity)
+        .calling_for_requirement(method.requirement_identity);
+    if !calling.is_empty()
+        && declarations.iter().any(|declaration| {
+            declaration.physical_owner == Ok(CallingDeclarationOwner::TopLevelRequirement)
+        })
     {
+        return Err(Diagnostic::error(
+            "selected non-trait boundary retains a trait calling application",
+        ));
+    }
+    let default_abis =
+        default_calling_abis(module, plan, method.requirement_identity, &declarations)
+            .map_err(Diagnostic::error);
+    let mut applications = Vec::with_capacity(calling.len());
+    for calling in calling {
         let abi = &calling.abi;
-        let fingerprint = calling.plan.report_fingerprint;
-        let commitment = calling.plan.commitment;
-        if fingerprint == 0 {
-            return Err(Diagnostic::error(format!(
-                "selected source boundary entry `{trait_name}::{method_name}` has a zero calling-plan fingerprint"
-            )));
-        }
-
-        let matching_realizations = boundary_calling_plan_realizations
-            .iter()
-            .filter(|realization| {
-                realization.materialized_signature().abi() == abi
-                    && realization.boundary_trait == prepared.schema.symbol()
-                    && realization.requirement_machine == source.source.symbol
-                    && realization.boundary_arguments == prepared.boundary_arguments
-                    && realization.argument_owner() == prepared.argument_owner
-            })
-            .collect::<Vec<_>>();
-        let Some(realization) = matching_realizations.first().copied() else {
-            return Err(Diagnostic::error(format!(
-                "selected source boundary entry `{trait_name}::{method_name}` / `{requirement_identity}` resolves to {} exact calling-plan realizations for fingerprint 0x{fingerprint:016x}",
-                matching_realizations.len()
-            )));
-        };
-        if matching_realizations
-            .iter()
-            .any(|candidate| *candidate != realization)
-            || realization.report_fingerprint != fingerprint
-            || realization.commitment != commitment
+        let declaration = module.calling_abi_signature(abi.id()).ok_or_else(|| {
+            Diagnostic::error("selected calling application has no exact published declaration ABI")
+        })?;
+        let published = declaration
+            .identity(&module.identities)
+            .map_err(Diagnostic::error)?;
+        if &published != abi
+            || abi.requirement_identity != requirement
+            || !receiver_accepts(module, plan, method.requirement_identity, declaration)?
         {
             return Err(Diagnostic::error(
-                "selected source ABI application has competing or stale policy custody",
+                "selected calling application differs from its exact inherited receiver",
             ));
         }
-        let (validated, application_report_fingerprint, application_commitment) = realization
-        .replayed_validated_application()
-        .map_err(|error| {
-        Diagnostic::error(format!(
-            "selected source boundary entry `{trait_name}::{method_name}` / `{requirement_identity}` retained an invalid target calling-plan realization: {error}"
-        ))
-    })?;
-        if validated.plan() != realization.exact_boundary_entry_plan() {
-            return Err(Diagnostic::error(format!(
-                "selected source boundary entry `{trait_name}::{method_name}` / `{requirement_identity}` substituted a calling plan behind its compact report fingerprint"
-            )));
-        }
-        if realization.report_fingerprint != application_report_fingerprint
-            || realization.commitment != application_commitment
-        {
-            return Err(Diagnostic::error(format!(
-                "selected source boundary entry `{trait_name}::{method_name}` / `{requirement_identity}` substituted a calling-plan commitment behind its compact report fingerprint"
-            )));
-        }
-
-        applications.push(
-            realization
+        let root = plan.schema.root_application_identity().ok_or_else(|| {
+            Diagnostic::error("selected trait ABI has no complete calling owner application")
+        })?;
+        let mut selected = None;
+        for realization in explicit.iter().filter(|realization| {
+            realization.calling_owner_application() == root
+                && realization.materialized_signature().abi() == abi
+        }) {
+            if realization.report_fingerprint == 0
+                || realization.report_fingerprint != calling.plan.report_fingerprint
+                || realization.commitment != calling.plan.commitment
+            {
+                return Err(Diagnostic::error(
+                    "selected ABI application has stale policy custody",
+                ));
+            }
+            // The producer retains the validated plan. This is a data
+            // projection, not another policy execution or intra-stage replay.
+            let application = realization
                 .native_application()
-                .map_err(Diagnostic::error)?,
-        );
+                .map_err(Diagnostic::error)?;
+            if selected.as_ref().is_some_and(|prior| prior != &application) {
+                return Err(Diagnostic::error(
+                    "selected ABI application has competing policy results",
+                ));
+            }
+            selected = Some(application);
+        }
+        applications.push(selected.ok_or_else(|| {
+            Diagnostic::error(format!(
+                "selected boundary entry `{}::{}` has no exact calling application",
+                trait_name_text(&plan.schema),
+                row.method
+            ))
+        })?);
     }
     Ok(SelectedCallingApplications {
         applications,
-        default_abis: &source.default_abis,
+        default_abis,
     })
 }
 
-/// Exact admitted row correspondence plus its deferred default requests.
-/// Neither the source witness nor the ABI keys grant provider execution.
-pub(crate) struct SelectedCallingApplications<'catalog> {
+/// Root and inherited receivers belong to one whole schema. A method's
+/// declaring application is not necessarily the selected schema's root.
+fn receiver_accepts(
+    module: &terminal_psi::TerminalModule,
+    plan: &effects::provider_plan::ProviderPlan,
+    requirement: effects::provider_plan::ProviderIdentityId,
+    declaration: &terminal_psi::CallingAbiDeclaration,
+) -> Result<bool, Diagnostic> {
+    match declaration
+        .physical_owner
+        .as_ref()
+        .map_err(|reason| Diagnostic::error(reason.clone()))?
+    {
+        CallingDeclarationOwner::TopLevelRequirement => {
+            Ok(plan.schema.declaration.receiver_applications.is_empty())
+        }
+        CallingDeclarationOwner::BoundaryTrait => {
+            let application = module
+                .identities
+                .text(declaration.declaring_application)
+                .ok_or_else(|| {
+                    Diagnostic::error("declaration ABI lost its declaring application")
+                })?;
+            Ok(plan
+                .schema
+                .declaration
+                .receiver_applications
+                .iter()
+                .any(|receiver| {
+                    receiver.requirement_identities.contains(&requirement)
+                        && plan.schema.identity_text(receiver.application) == application
+                }))
+        }
+    }
+}
+
+fn default_calling_abis(
+    module: &terminal_psi::TerminalModule,
+    plan: &effects::provider_plan::ProviderPlan,
+    requirement: effects::provider_plan::ProviderIdentityId,
+    declarations: &[&terminal_psi::CallingAbiDeclaration],
+) -> Result<Vec<CallingAbiIdentity>, String> {
+    let mut keys = Vec::new();
+    for declaration in declarations {
+        if !declaration.default_eligible
+            || !receiver_accepts(module, plan, requirement, declaration)
+                .map_err(|error| error.message)?
+        {
+            continue;
+        }
+        let formals = declaration
+            .formals
+            .iter()
+            .filter(|formal| formal.callback.is_none());
+        if formals.clone().count() != declaration.operands.len()
+            || !formals.zip(&declaration.operands).all(|(formal, operand)| {
+                formal.ordinal == operand.ordinal && formal.kind == operand.kind
+            })
+        {
+            // Open local tuples remain dormant metadata, never guessed actuals.
+            continue;
+        }
+        let key = declaration.identity(&module.identities)?;
+        if !keys.contains(&key) {
+            keys.push(key);
+        }
+    }
+    Ok(keys)
+}
+
+/// Exact canonical applications and their deferred compatibility requests.
+/// Retaining a key never grants provider supply or execution authority.
+pub(crate) struct SelectedCallingApplications {
     pub applications: Vec<calling_conventions::BoundaryCallingApplication>,
-    pub default_abis: &'catalog Result<Vec<semantic_vocabulary::CallingAbiIdentity>, Diagnostic>,
+    pub default_abis: Result<Vec<CallingAbiIdentity>, Diagnostic>,
 }
 
 /// Materialize this producer's component applications from published storage.
 /// Fused internal calls need no compatibility ABI and never enter this route.
 pub fn component_calling_applications(
-    services: ServiceCatalog<'_>,
     profile: target::TargetProfile,
     program: &super::CallingProgram,
-    providers: &[&crate::SelectedProviderReviewProvenance],
+    providers: &[&effects::provider_plan::ProviderPlan],
     explicit: &[super::BoundaryCallingPlanRealization],
 ) -> Result<Vec<calling_conventions::BoundaryCallingApplication>, Vec<Diagnostic>> {
     let native_target = profile.native_realization().ok_or_else(|| {
@@ -216,8 +218,7 @@ pub fn component_calling_applications(
         )]
     })?;
     let mut applications = Vec::<calling_conventions::BoundaryCallingApplication>::new();
-    for provider in providers {
-        let plan = &provider.plan;
+    for &plan in providers {
         if !plan.rows.iter().any(|row| {
             matches!(
                 row.binding,
@@ -244,11 +245,10 @@ pub fn component_calling_applications(
             }
             let trait_name = trait_name_text(&plan.schema);
             let requirement = plan.identities.text(row.requirement_identity);
-            let selected = selected_source_calling_applications(
-                services,
+            let selected = selected_calling_applications(
+                program.artifact.semantic_module(),
                 explicit,
                 plan,
-                &provider.provider,
                 row_index,
             )
             .map_err(|error| vec![error])?;

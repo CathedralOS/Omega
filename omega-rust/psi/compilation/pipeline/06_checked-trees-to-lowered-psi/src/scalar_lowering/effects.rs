@@ -1,7 +1,6 @@
 //! A branch state's non-scalar effects consume completed operands without
 //! adding value slots.
 use super::{LoweringError, ValueDeclaration, emit_direct_expression, unsupported};
-use crate::checked_facts::value_facts;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::expressions::emit_prepared_path;
@@ -9,6 +8,7 @@ use crate::emission::operation_emission::view_subslice;
 use crate::expression_preparation::bindings::structural_paths::structural_argument;
 use crate::scalar_lowering::branch_states::prepared::LoweredScalarEffect;
 use crate::scalar_lowering::computations::cases::structural_case_identity;
+use crate::shared::checked_facts::value_facts;
 use crate::unit::attached_unit::argument_memberships;
 use crate::unit::attached_unit::view_ranges::establish;
 
@@ -434,7 +434,7 @@ pub(crate) fn emit(
                 let qualifications = memberships
                     .iter()
                     .map(|domain| {
-                        crate::terminal_identities::lookup_domain_id_for_carrier(
+                        crate::shared::terminal_identities::lookup_domain_id_for_carrier(
                             calls.domain_ids,
                             *domain,
                             literal.structural_type,

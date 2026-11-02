@@ -4,7 +4,7 @@
 use super::{CheckedTrees, LoweringError};
 use crate::expression_preparation::computation_graph::reachable_structural_values;
 use crate::expression_preparation::structural_value_requirements::collect_value_requirements;
-use crate::terminal_identities::stored_structural_identity;
+use crate::shared::terminal_identities::stored_structural_identity;
 use checked_trees::{
     CheckedScalarComputationKind as Computation,
     CheckedScalarComputationStructuralArgument as Argument,

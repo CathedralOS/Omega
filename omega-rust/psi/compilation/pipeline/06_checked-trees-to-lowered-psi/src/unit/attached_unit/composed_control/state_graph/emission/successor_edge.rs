@@ -19,7 +19,6 @@ use super::super::{
     subslices,
 };
 use super::StateGraphEmission;
-use crate::checked_facts::value_facts;
 use crate::emission::borrowed_window::terminal_multiplicity;
 use crate::emission::operation_emission::buffer::{
     OperationBuffer, StorageObservations, structural_result_declaration,
@@ -30,8 +29,9 @@ use crate::expression_preparation::bindings::structural_fields::EstablishedCaseP
 use crate::expression_preparation::bindings::structural_fields::establish_case_payloads;
 use crate::proofs::crash_routes::lowered_erased_scalar_term;
 use crate::scalar_lowering::contracts::lowered_proof_term;
-use crate::terminal_identities::lookup_domain_id_for_carrier;
-use crate::terminal_identities::lookup_type_id;
+use crate::shared::checked_facts::value_facts;
+use crate::shared::terminal_identities::lookup_domain_id_for_carrier;
+use crate::shared::terminal_identities::lookup_type_id;
 use crate::unit::attached_unit::composed_control::emission::{
     FrameValues, StateFrame, with_call_namespace,
 };

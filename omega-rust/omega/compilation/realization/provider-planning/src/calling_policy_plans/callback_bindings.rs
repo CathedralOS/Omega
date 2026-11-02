@@ -22,6 +22,9 @@ use checked_trees::typed_trees::types::TypeReferenceHandle;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundaryCallingPlanRealization {
     pub declaration: semantic_vocabulary::CallingSignatureId,
+    /// Complete canonical application of the Calling relationship's root.
+    /// An inherited member ABI may name a different declaring application.
+    pub(crate) calling_owner_application: String,
     pub boundary_trait: symbols::SymbolHandle,
     pub boundary_arguments: Vec<TypeReferenceHandle>,
     /// Supplying declaration for lifetime-bearing type operands. An argument
@@ -48,6 +51,10 @@ pub struct BoundaryCallingPlanRealization {
 }
 
 impl BoundaryCallingPlanRealization {
+    pub fn calling_owner_application(&self) -> &str {
+        &self.calling_owner_application
+    }
+
     pub const fn argument_owner(&self) -> symbols::SymbolHandle {
         self.argument_owner
     }
@@ -145,7 +152,7 @@ impl BoundaryCallingPlanRealization {
                     || !use_.carrier.is_valid()
                     || usize::from(use_.shape_root) >= self.materialized_signature.shapes.len()
                     || use_.representation_schema_version
-                        != representation_planning::OPAQUE_REPRESENTATION_APPLICATION_SCHEMA_VERSION
+                        != representation_selections::OPAQUE_REPRESENTATION_APPLICATION_SCHEMA_VERSION
                     || use_.selected_application_commitment
                         != use_.rederived_selected_application_commitment()
             })
@@ -258,7 +265,7 @@ pub(super) fn source_free_application(
                 conformance_application_commitment: use_.conformance_application_commitment,
                 representation_schema_version: use_.representation_schema_version,
                 checked_semantic_copy: matches!(use_.copy_disposition,
-                    representation_planning::OpaqueRepresentationCopyDisposition::CheckedSemanticCopy),
+                    representation_selections::OpaqueRepresentationCopyDisposition::CheckedSemanticCopy),
             }
         }).collect(),
         callback_context: policy.callbacks,

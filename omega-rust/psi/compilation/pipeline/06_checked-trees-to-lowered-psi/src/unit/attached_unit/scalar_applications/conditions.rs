@@ -6,7 +6,7 @@
 //! different intermediate call, and a missing owner is never module authority.
 
 use super::SourceScalarApplications;
-use crate::lowering_error::LoweringError;
+use crate::shared::lowering_error::LoweringError;
 use crate::unit::attached_unit::{BoundaryParameters, target_families};
 use checked_trees::{CheckedTrees, NominalMachineUseSite};
 use lowered_psi::{LoweredSourceCallOccurrence, LoweredSourceCallSite};

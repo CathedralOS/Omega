@@ -11,7 +11,7 @@ fn prepare(relative: &str) -> fixture_package_inputs::ReviewedFixtureCompilation
         &fixture_package_inputs::repo_root().join(relative),
         Some("macos_arm64"),
     )
-    .expect("fixture admission")
+    .unwrap_or_else(|diagnostics| panic!("fixture admission for {relative}: {diagnostics:?}"))
 }
 
 #[test]
@@ -191,10 +191,26 @@ fn calling_policies_share_product_code_across_targets_and_single_target_outputs(
     }
 }
 
-fn assert_calling_review_outlives_source(relative: &str) {
+fn assert_calling_review_outlives_source(
+    relative: &str,
+    physical_refusal: Option<&str>,
+) -> (
+    Vec<provider_planning::calling_policy_plans::BoundaryCallingPlanRealization>,
+    Vec<effects::provider_plan::ProviderPlan>,
+) {
     use std::sync::Arc;
 
-    let (prepared, substituted, code, wrong_code, source_owner, wrong_owner, expected) = {
+    let (
+        prepared,
+        substituted,
+        code,
+        wrong_code,
+        source_owner,
+        wrong_owner,
+        expected,
+        target,
+        plans,
+    ) = {
         let fixture = prepare(relative);
         let package_inputs = fixture.package_inputs;
         let mut request = CheckedCompileRequest::new(&fixture.root_path, Some("macos_arm64"));
@@ -244,8 +260,52 @@ fn assert_calling_review_outlives_source(relative: &str) {
                     .expect("original application")
             })
             .collect::<Vec<_>>();
+        let plans = execution
+            .selected_provider_provenance
+            .iter()
+            .filter(|provider| {
+                if physical_refusal.is_some() {
+                    let module = code.artifact.semantic_module();
+                    return provider.plan.rows.iter().any(|row| {
+                        let requirement = provider.plan.identities.text(row.requirement_identity);
+                        module.calling_abi_signatures.iter().any(|declaration| {
+                            declaration.physical_owner.is_err()
+                                && module.identities.text(declaration.requirement_identity)
+                                    == Some(requirement)
+                        })
+                    });
+                }
+                !provider.plan.schema.calling_applications.is_empty()
+                    && provider.plan.rows.iter().all(|row| {
+                        let requirement = provider.plan.identities.text(row.requirement_identity);
+                        provider
+                            .plan
+                            .schema
+                            .declaration
+                            .methods
+                            .iter()
+                            .any(|method| {
+                                provider
+                                    .plan
+                                    .schema
+                                    .identity_text(method.requirement_identity)
+                                    == requirement
+                                    && !provider
+                                        .plan
+                                        .schema
+                                        .calling_for_requirement(method.requirement_identity)
+                                        .is_empty()
+                            })
+                    })
+            })
+            .map(|provider| provider.plan.clone())
+            .collect::<Vec<_>>();
         assert!(
-            !expected.is_empty(),
+            !plans.is_empty(),
+            "the witness must retain its selected calling or refused-owner rows"
+        );
+        assert!(
+            physical_refusal.is_some() || !expected.is_empty(),
             "witness must actually activate policies"
         );
 
@@ -258,6 +318,7 @@ fn assert_calling_review_outlives_source(relative: &str) {
             artifact: Arc::clone(&code.artifact),
             entries: code.entries.clone(),
             source_records: Arc::clone(&code.source_records),
+            evaluator: code.evaluator,
         };
         (
             prepared,
@@ -267,6 +328,8 @@ fn assert_calling_review_outlives_source(relative: &str) {
             Arc::downgrade(source),
             wrong_owner,
             expected,
+            target,
+            plans,
         )
     };
     assert!(
@@ -288,9 +351,10 @@ fn assert_calling_review_outlives_source(relative: &str) {
         "{rejected:?}"
     );
 
-    let actual = prepared
+    let realizations = prepared
         .evaluate(&code)
-        .expect("activate and attach review after Source drop")
+        .expect("activate and attach review after Source drop");
+    let actual = realizations
         .iter()
         .map(|application| {
             application
@@ -302,12 +366,93 @@ fn assert_calling_review_outlives_source(relative: &str) {
         actual, expected,
         "Source release cannot change the complete native applications"
     );
+    let recovered = provider_planning::calling_policy_plans::CallingProgram {
+        source_owner: std::sync::Weak::new(),
+        artifact: Arc::new(
+            terminal_codec::CanonicalTerminalArtifact::from_bytes(&code.artifact.to_bytes())
+                .expect("ordinary published artifact ingress"),
+        ),
+        entries: Vec::new(),
+        source_records: Arc::from([]),
+        evaluator: code.evaluator,
+    };
+    let mut retained = None;
+    for program in [&*code, &recovered] {
+        let components = provider_planning::calling_policy_plans::component_calling_applications(
+            target,
+            program,
+            &plans.iter().collect::<Vec<_>>(),
+            &realizations,
+        );
+        if let Some(reason) = physical_refusal {
+            let diagnostics = components.expect_err("ordinary owner cannot acquire a physical ABI");
+            assert!(
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.message.contains(reason)),
+                "{diagnostics:?}"
+            );
+            continue;
+        }
+        let components = components.expect("canonical ABI census needs no Source companions");
+        assert!(
+            !components.is_empty(),
+            "the witness must join actual selected ABI rows"
+        );
+        for application in &components {
+            assert!(
+                actual.contains(application),
+                "the Source-free row must retain its exact evaluated application"
+            );
+        }
+        match &retained {
+            None => retained = Some(components),
+            Some(original) => assert_eq!(
+                &components, original,
+                "artifact reload preserves exact ABI row association"
+            ),
+        }
+    }
+    (realizations, plans)
 }
 
 #[test]
 fn opaque_policy_review_activates_after_source_drop() {
     assert_calling_review_outlives_source(
         "tests/omega/pass/build/terminal_calling_policy_execution/main.omg",
+        None,
+    );
+    let (realizations, plans) = assert_calling_review_outlives_source(
+        "tests/omega/pass/facts/generic_calling_policy/shared_parent_roots_exit/main.omg",
+        None,
+    );
+    let mut competing_root_observed = false;
+    for plan in &plans {
+        let root = plan.schema.root_application_identity().unwrap();
+        for attachment in &plan.schema.calling_applications {
+            let selected = realizations
+                .iter()
+                .find(|realization| {
+                    realization.calling_owner_application() == root
+                        && realization.materialized_signature().abi() == &attachment.abi
+                        && realization.commitment == attachment.plan.commitment
+                })
+                .expect("the selected attachment has an actual evaluated application");
+            competing_root_observed |= realizations.iter().any(|other| {
+                other.calling_owner_application() != root
+                    && other.materialized_signature().abi() == &attachment.abi
+                    && other.commitment != selected.commitment
+                    && other.native_application().unwrap() != selected.native_application().unwrap()
+            });
+        }
+    }
+    assert!(
+        competing_root_observed,
+        "the unused root must actually evaluate a different plan for the selected member ABI"
+    );
+    assert_calling_review_outlives_source(
+        "tests/omega/pass/facts/generic_calling_policy/ordinary_parent_fused_exit/main.omg",
+        Some("requirement owner `ParentEntry` is not an exact boundary trait"),
     );
 }
 
@@ -315,6 +460,7 @@ fn opaque_policy_review_activates_after_source_drop() {
 fn private_callback_policy_review_activates_after_source_drop() {
     assert_calling_review_outlives_source(
         "tests/omega/pass/build/terminal_private_callback_calling/main.omg",
+        None,
     );
 }
 

@@ -1,7 +1,9 @@
 //! Bind emitted whole-value copies to retained checked formation and operation identity.
 use crate::emission::operation_emission::buffer::SourceQuotientAdaptation;
-use crate::lowering_error::LoweringError;
-use crate::terminal_identities::{lookup_machine_id, lookup_type_id, stored_structural_identity};
+use crate::shared::lowering_error::LoweringError;
+use crate::shared::terminal_identities::{
+    lookup_machine_id, lookup_type_id, stored_structural_identity,
+};
 use checked_trees::{CheckedQuotientAdaptationLicense, CheckedStructuralValueKind, CheckedTrees};
 use terminal_psi::{
     TerminalQuotientAdaptation, TerminalQuotientAdaptationLicense, TerminalQuotientCatalog,

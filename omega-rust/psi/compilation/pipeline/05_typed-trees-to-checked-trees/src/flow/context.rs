@@ -1039,6 +1039,37 @@ pub(crate) fn state_statements(
     program.statement_table.statements(statements)
 }
 
+/// The one value a state returns: a trailing expression, or one transition
+/// whose only target is a value. Locals may precede it. Any other statement
+/// is a different control shape and names no single returned value.
+pub(crate) fn state_returned_value(
+    program: &dyn ::validation::CheckingInput,
+    state: &typed_trees::state::State,
+) -> Option<typed_trees::expression::ExpressionHandle> {
+    use typed_trees::statement::{StatementNode, TransitionTargetNode};
+    let mut returned = None;
+    for statement in state_statements(program, state.statement_nodes) {
+        match statement {
+            StatementNode::LocalData(_) => {}
+            StatementNode::Expression(value) if returned.is_none() => returned = Some(*value),
+            StatementNode::Transition(transition) if returned.is_none() => {
+                let mut value = None;
+                for target in transition.targets() {
+                    match program.statement_table.transition_target(target) {
+                        TransitionTargetNode::Value(expression) if value.is_none() => {
+                            value = Some(*expression);
+                        }
+                        _ => return None,
+                    }
+                }
+                returned = Some(value?);
+            }
+            _ => return None,
+        }
+    }
+    returned
+}
+
 /// The statements a state's statement span names, paired with their index.
 pub(crate) fn indexed_statements(
     program: &dyn ::validation::CheckingInput,

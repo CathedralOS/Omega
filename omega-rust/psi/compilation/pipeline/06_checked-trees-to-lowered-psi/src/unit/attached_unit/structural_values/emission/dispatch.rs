@@ -7,9 +7,9 @@ use super::super::super::{
     CheckedScalarExpressionRole, LoweringError, OperationKind, PlaceId, ScalarType, unsupported,
 };
 use super::{Emission, ValueContinuation, ValueOutcome};
-use crate::checked_facts::value_facts;
 use crate::emission::claim_bindings::selections::SelectedDecision;
 use crate::emission::operation_emission::integer::LoweredIntegerComparisonKind;
+use crate::shared::checked_facts::value_facts;
 
 impl Emission<'_, '_, '_> {
     /// Lower one `Dispatch` node authored at `expression`.

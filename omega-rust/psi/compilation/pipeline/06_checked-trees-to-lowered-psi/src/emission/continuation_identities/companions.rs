@@ -2,7 +2,7 @@
 //! static invocation. Rebinding these rows invents neither a loan nor a proof.
 
 use super::IdentityMap;
-use crate::lowering_error::LoweringError;
+use crate::shared::lowering_error::LoweringError;
 use lowered_psi::{LoweredSourceCallOccurrence, LoweredSourceCallSite, LoweredSourceLoanCapture};
 use terminal_psi::{LoanCompletion, ScalarBlockInvariant};
 
