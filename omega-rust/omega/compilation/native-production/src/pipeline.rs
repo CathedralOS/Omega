@@ -79,8 +79,14 @@ pub(crate) fn emit_target(
     phase_profile::scope("omega.native.frame_realization", || {
         let machine = phase_profile::scope("omega.06", || {
             observation.enter(NativePipelineStage::PostAllocationMachine);
-            stage_optimized_post_allocation_machine_plan(&allocation.current())
-                .map_err(OptimizedVerifiedPhysicalPipelineError::PostAllocationMachine)
+            let current = allocation.current();
+            stage_optimized_post_allocation_machine_plan(
+                allocation.facts(),
+                current.register_environment(),
+                current.selections(),
+                current.budget_per_pass(),
+            )
+            .map_err(OptimizedVerifiedPhysicalPipelineError::PostAllocationMachine)
         })?;
         let current = allocation.current();
         let selected = current.selected();

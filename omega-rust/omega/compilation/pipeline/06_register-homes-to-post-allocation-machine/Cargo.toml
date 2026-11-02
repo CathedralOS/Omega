@@ -10,7 +10,7 @@ path = "src/lib.rs"
 
 [dependencies]
 physical-instructions = { path = "../../representations/post-allocation-machine" }
-selected-instructions-to-register-homes = { path = "../05_selected-instructions-to-register-homes" }
+register-homes = { path = "../../representations/register-homes" }
 register-environment = { path = "../../backend/register-environment" }
 optimization-core = { path = "../../../foundation/optimization-core" }
 register-model = { path = "../../backend/register-model" }

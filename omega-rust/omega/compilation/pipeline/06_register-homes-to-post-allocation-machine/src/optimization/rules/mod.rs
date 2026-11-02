@@ -14,10 +14,9 @@ use optimization_core::{Optimization, OptimizationWorkUsage};
 use physical_instructions::PostAllocationMachinePlan;
 use register_model::RegisterUnitId;
 use selected_instructions::{
-    MachineAlternative, MachineAlternativeApplicability, SelectedInstructionKind,
-    SelectedInstructionPlan, terminator_successors,
+    MachineAlternative, MachineAlternativeApplicability, PreAllocationMachineEffectPlan,
+    SelectedInstructionKind, SelectedInstructionPlan, terminator_successors,
 };
-use selected_instructions_to_register_homes::ValidatedPreAllocationMachineEffects;
 use target::Architecture;
 
 use super::unit_liveness::UnitLivenessTable;
@@ -29,7 +28,7 @@ use super::{
 /// Everything one rule execution reads and charges.
 pub(super) struct RuleContext<'a> {
     pub(super) plan: &'a mut PostAllocationMachinePlan,
-    pub(super) effects: &'a ValidatedPreAllocationMachineEffects,
+    pub(super) effects: &'a PreAllocationMachineEffectPlan,
     /// Successor block indexes per function and block index.
     pub(super) successors: &'a [Vec<Vec<usize>>],
     pub(super) usage: &'a mut OptimizationWorkUsage,
@@ -101,7 +100,7 @@ pub(super) fn select_declared_form(
     rewrite_declared_forms(
         optimization,
         &mut context.plan.functions,
-        &context.effects.plan().functions,
+        &context.effects.functions,
         context.successors,
         context.usage,
         admits,

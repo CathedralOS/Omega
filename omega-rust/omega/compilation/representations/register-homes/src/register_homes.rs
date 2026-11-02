@@ -70,7 +70,7 @@ pub use storage::{
     RegisterHomePlan, VirtualRegisterHome, fixed_precolored_segment_home_plan_identity,
     fixed_precolored_segment_homes,
 };
-pub use view::AllocatedProgramRef;
+pub use view::{AllocatedProgramFacts, AllocatedProgramRef};
 
 /// One current allocated program, independent of the route that produced it.
 /// Immutable artifacts may be shared with replay evidence without copying

@@ -1985,9 +1985,9 @@ dependencies = [
  "optimization-core",
  "physical-instructions",
  "register-environment",
+ "register-homes",
  "register-model",
  "selected-instructions",
- "selected-instructions-to-register-homes",
  "semantic-vocabulary",
  "target",
 ]
