@@ -13,9 +13,9 @@ use psi_compiler::{TerminalBuildFilesystemCall, TerminalBuildFilesystemOperation
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use std::sync::{Arc, Mutex};
 use terminal_interpreter::{
-    TerminalBoundaryByteBuffer, TerminalEffect, TerminalEffectHandler, TerminalEffectRejection,
-    TerminalEffectResult, TerminalImportAdapter, TerminalImportSignature, TerminalScalarValue,
-    TerminalStructuralValue,
+    TerminalBoundaryByteBuffer, TerminalByteSequenceValue, TerminalEffect, TerminalEffectHandler,
+    TerminalEffectRejection, TerminalEffectResult, TerminalImportAdapter, TerminalImportSignature,
+    TerminalScalarValue, TerminalStructuralValue,
 };
 
 struct Marker {
@@ -364,7 +364,16 @@ impl FilesystemAdapter {
                 Ok(TerminalEffectResult::Unit)
             }
             Operation::RequiredPath => {
-                Err("Terminal Build required-output path byte results are not installed".into())
+                // The marker supplies activation custody; this stable read-only
+                // snapshot supplies bytes only. Its lease follows the returned
+                // view through guest storage and suspension, independently of
+                // the host's obligation table and filesystem lock.
+                TerminalByteSequenceValue::copy(
+                    runtime.required_path(obligation(0)?)?,
+                    Some(&self.host.account),
+                )
+                .map(TerminalEffectResult::ByteSequence)
+                .map_err(|error| error.to_string())
             }
         }
     }

@@ -2290,6 +2290,26 @@ fail/facts/representation_conversion_through_target_body_wrong_endpoint_rejected
 	generic machine `compose` cannot bind `First` to conformance `ReadSecond`: expected a complete `TryFrom` implementation with the instantiated trait arguments
 	generic machine `inspect` cannot bind `Reader` to conformance `ReadSecond`: expected a complete `TryFrom` implementation with the instantiated trait arguments
 	generic machine `decoded` cannot bind `Reader` to conformance `ReadSecond`: expected a complete `TryFrom` implementation with the instantiated trait arguments
+fail/facts/required_output_path/call_result rejected 1037ms expected @a763a36a6498
+	argument `path` for state `entry` is declared `&mut` (`&mut [u8]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
+fail/facts/required_output_path/const_name rejected 774ms expected @a763a36a6498
+	argument `path` for state `entry` is declared `&mut` (`&mut [u8]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
+fail/facts/required_output_path/field rejected 514ms expected @a763a36a6498
+	argument `path` for state `entry` is declared `&mut` (`&mut [u8]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
+fail/facts/required_output_path/local rejected 595ms expected @a763a36a6498
+	argument `path` for state `entry` is declared `&mut` (`&mut [u8]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
+fail/facts/required_output_path/match_join rejected 559ms expected @a763a36a6498
+	argument `path` for state `entry` is declared `&mut` (`&mut [u8]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
+fail/facts/required_output_path/other_machine rejected 987ms expected @a763a36a6498
+	argument `path` for state `entry` is declared `&mut` (`&mut [u8]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
+fail/facts/required_output_path/other_state rejected 492ms expected @a763a36a6498
+	argument `path` for state `entry` is declared `&mut` (`&mut [u8]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
+fail/facts/required_output_path/parameter rejected 548ms expected @a763a36a6498
+	argument `path` for state `entry` is declared `&mut` (`&mut [u8]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
+fail/facts/required_output_path/target_body rejected 653ms expected @a763a36a6498
+	argument `path` for state `entry` is declared `&mut` (`&mut [u8]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
+fail/facts/required_output_path/wrong_join_path rejected 2038ms expected @a763a36a6498
+	StructuralArgumentPreparation { stage: "execute captured host call", detail: "EffectRejected { operation: OperationId(57), rejection: TerminalEffectRejection { reason: \\"Build output obligation is consumed or names another output\\" } }" } in MachineId(10)/BlockId(72) at Some(OperationId(57))
 fail/facts/resident_backing_call_result_missing_vacancy rejected 5482ms expected @b3876048c0a2
 	cannot prove requires contract for call partition from allocated: vacant in Extent::Vacant in state `entry`
 	cannot prove initializer of `vacant` in allocated is in domain `Extent::Vacant`; an annotation cannot establish routed qualification
@@ -9682,6 +9702,15 @@ pass/facts/representation_conversion_through_other_machine_exit checked 7444ms c
 pass/facts/representation_conversion_through_other_state_exit checked 7782ms check-target:macos_arm64 @1763580d3498
 pass/facts/representation_conversion_through_parameter_exit checked 10497ms check-target:macos_arm64 @dde0f3a03bcd
 pass/facts/representation_conversion_through_target_body_exit checked 7815ms check-target:macos_arm64 @1763580d3498
+pass/facts/required_output_path/call_result checked 22851ms check-target:macos_arm64 @a763a36a6498
+pass/facts/required_output_path/const_name checked 21959ms check-target:macos_arm64 @a763a36a6498
+pass/facts/required_output_path/field checked 25416ms check-target:macos_arm64 @a763a36a6498
+pass/facts/required_output_path/local checked 25553ms check-target:macos_arm64 @a763a36a6498
+pass/facts/required_output_path/match_join checked 27608ms check-target:macos_arm64 @a763a36a6498
+pass/facts/required_output_path/other_machine checked 30078ms check-target:macos_arm64 @a763a36a6498
+pass/facts/required_output_path/other_state checked 30367ms check-target:macos_arm64 @a763a36a6498
+pass/facts/required_output_path/parameter checked 29727ms check-target:macos_arm64 @a763a36a6498
+pass/facts/required_output_path/target_body checked 22634ms check-target:macos_arm64 @a763a36a6498
 pass/facts/resident_backing_call_result_exit checked 9137ms check-target:macos_arm64 @b3876048c0a2
 pass/facts/resident_backing_coexisting_exit checked 9180ms check-target:macos_arm64 @2f26bec1b1f6+wt
 pass/facts/resident_backing_const_name_exit checked 8977ms check-target:macos_arm64 @b3876048c0a2
