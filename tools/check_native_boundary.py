@@ -144,8 +144,9 @@ FIREWALL_ALLOWANCES = (
               "Debt: OpaqueRepresentationSelection only, which the selections package carries"),
     Allowance(PROVIDER_PLANNING, f"{PSI}/compilation/compile-time",
               "Debt: provider declarations and BuildTimeValue from compile-time evaluation"),
-    Allowance(PROVIDER_PLANNING, REPRESENTATION_PLANNING,
-              "Debt: opaque representation dispositions from the admission checker"),
+    Allowance(PROVIDER_PLANNING, f"{REPRESENTATION_PLANNING}/selections",
+              "Sanctioned: pipeline.md:1301-1303, the selections package \"keeps consumers free "
+              "of a dependency on admission\" (OpaqueRepresentationSelection, selection_for_opaque)"),
     Allowance(stage("01"), stage("00"),
               "Debt: calls build_verified_psi_optimization_unit; VerifiedPsiOptimizationInput"),
     Allowance(stage("02"), stage("00"), f"{STAGE_DEBT} (VerifiedPsiOptimizationInput)"),

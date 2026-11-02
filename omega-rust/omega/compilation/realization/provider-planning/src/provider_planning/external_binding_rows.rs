@@ -20,7 +20,7 @@ pub(crate) fn extract_native_external_binding_rows(
     ],
     services: ServiceCatalog<'_>,
     calling_program: &crate::calling_policy_plans::CallingProgram,
-    opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
+    opaque_representation_selections: &[representation_selections::OpaqueRepresentationSelection],
 ) -> Result<Vec<calling_conventions::ExternalBindingRow>, Vec<Diagnostic>> {
     let context = ExternalBindingContext {
         selected_target,
@@ -55,7 +55,7 @@ pub(crate) struct ExternalBindingContext<'a> {
     pub services: ServiceCatalog<'a>,
     pub calling_program: &'a crate::calling_policy_plans::CallingProgram,
     pub opaque_representation_selections:
-        &'a [representation_planning::OpaqueRepresentationSelection],
+        &'a [representation_selections::OpaqueRepresentationSelection],
 }
 
 impl ExternalBindingContext<'_> {
