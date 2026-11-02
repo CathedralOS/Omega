@@ -115,7 +115,7 @@ fn invocation_fixture() -> (TerminalTargetProviderPlan, TerminalModule) {
         .push(terminal_psi::ProviderInstanceRequirements {
             template: candidates[0].source_requirement_identity,
             package: None,
-            selecting_declaration: Some(candidates[0].provider_declaration),
+            selecting_declaration: Some(candidates[0].provider_declaration.clone()),
             source_candidate_identity: candidates[0].source_candidate_identity,
             required_instances: candidates
                 .iter()
