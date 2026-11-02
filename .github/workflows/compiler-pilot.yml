@@ -99,16 +99,9 @@ jobs:
         if: github.event_name != 'workflow_dispatch'
         id: compiler-check
         run: cargo check --locked -p omega
-      - name: Restore the repaired CLI for copied-case migration preflight
+      - name: Qualify owned copied-case boundary custody
         if: github.event_name == 'workflow_dispatch'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh run download 41447323417 --name compiler-pilot-linux_x86_64-76c90dd84cb12119b9035a248d37fad6eed98a23-1 --dir build/copied-retained-input
-          git fetch --depth=1 origin df5f7139ef5fbeb8a6e068a863853ff65aade2c0
-      - name: Probe the reviewed copied-case scaffold without Rust
-        if: github.event_name == 'workflow_dispatch'
-        run: python tools/build_slot.py -- python tools/ci/copied_case_migration_probe2.py
+        run: python tools/build_slot.py -- python tools/ci/copied_case_repair2.py
       - name: Optional executable observations
         if: github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
         env:
