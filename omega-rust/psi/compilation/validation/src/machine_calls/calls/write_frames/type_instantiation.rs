@@ -1,16 +1,18 @@
-//! Type-parameter substitution for write-frame storage proofs.
+//! Determine which types a generic call uses before analyzing its writes.
 //!
-//! A boundary signature or generic carrier can name a type parameter where
-//! the call site already pins a concrete storage type. These queries bind
-//! parameters to caller-visible type handles and resolve substituted heads
-//! without allocating type nodes. Evidence only narrows: an unbound
-//! parameter stays a named leaf for the existing conservative fallbacks.
+//! Calls save their type and constant arguments during checking. Read those
+//! arguments here so a read-only call does not erase unrelated guarantees just
+//! because its declaration is generic. Missing or inconsistent arguments leave
+//! the possible writes unknown; they never establish that a call is harmless.
 
 use super::caller_aliases::{CallerWriteSite, caller_statement_owner};
+use crate::frozen_program::expression_table;
+use crate::machine_calls::calls::{CallSite, call_binding_correspondence};
 use typed_trees::data::{TypeParameter, TypeParameterKind};
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
 use typed_trees::signature::{StateParameter, StateSignature};
+use typed_trees::static_applications::StaticMachineBindingValue;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 pub(super) use crate::queries::type_applications::{
@@ -114,17 +116,65 @@ pub(super) fn signature_call_type_bindings_seeded(
     arguments: &[ExpressionHandle],
     bindings: TypeBindings,
 ) -> Option<TypeBindings> {
-    signature_call_type_bindings_in(
-        program,
-        current_machine,
-        signature,
-        site,
-        arguments,
-        bindings,
-    )
+    let parameters = program.state_signature_type_parameters(signature);
+    if parameters.is_empty() {
+        return Some(bindings);
+    }
+    let call = match site {
+        CallerWriteSite::Call(call) => CallSite::Statement(call),
+        CallerWriteSite::Expression(expression) => CallSite::Expression {
+            expression,
+            call: expression_table(program).call_node(expression)?,
+        },
+        // Named transitions have no saved application header. Keep their
+        // existing type-only inference until they retain one, too. A failed
+        // saved call above must never fall back to guessing from its operands.
+        CallerWriteSite::Transition(_) => {
+            return transition_signature_type_bindings(
+                program,
+                current_machine,
+                signature,
+                site,
+                arguments,
+                bindings,
+            );
+        }
+        CallerWriteSite::Statement(_) => return None,
+    };
+    let correspondence =
+        call_binding_correspondence(program, current_machine.symbol, &call).ok()?;
+    if correspondence.public_owner != signature.symbol {
+        return None;
+    }
+    let saved =
+        expression_table(program).static_machine_application_bindings(call.authored_application());
+    let mut bindings = bindings;
+    for parameter in parameters {
+        let authored = correspondence
+            .parameters
+            .iter()
+            .find_map(|(authored, public)| (*public == parameter.symbol).then_some(*authored))?;
+        let argument = saved.iter().find(|binding| binding.parameter == authored)?;
+        let actual = match (&parameter.kind, &argument.value) {
+            (TypeParameterKind::Type, StaticMachineBindingValue::Type(actual))
+            | (TypeParameterKind::Const { .. }, StaticMachineBindingValue::Const(actual)) => {
+                *actual
+            }
+            _ => return None,
+        };
+        if !program.type_reference_table.contains_type_reference(actual)
+            || bindings
+                .iter()
+                .any(|(symbol, _)| *symbol == parameter.symbol)
+        {
+            return None;
+        }
+        bindings.push((parameter.symbol, actual));
+    }
+    Some(bindings)
 }
 
-fn signature_call_type_bindings_in(
+fn transition_signature_type_bindings(
     program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     signature: &StateSignature,

@@ -204,8 +204,8 @@ pub(super) fn boundary_trait_signature_and_receiver<'program>(
 enum SignatureBinders {
     /// Fact seeding and frame lookup read formals as written.
     Monomorphic,
-    /// Write frames substitute `Type` binders the actual arguments pin.
-    ArgumentPinnedTypes,
+    /// Write analysis uses the call's saved type and constant arguments.
+    AppliedStorageParameters,
     /// Call validation admits the binders the call itself discharges: `machine`
     /// binders, which no runtime argument supplies, and `Type` binders, which
     /// its explicit operands or arguments pin (see
@@ -256,7 +256,7 @@ pub(super) fn call_has_authority_receiver(
         &members,
         target,
         site,
-        SignatureBinders::ArgumentPinnedTypes,
+        SignatureBinders::AppliedStorageParameters,
     )
     .is_some_and(|signature| !signature.has_runtime_receiver)
 }
@@ -281,11 +281,9 @@ fn boundary_receiver_type_symbol(
     None
 }
 
-/// The write-frame route additionally admits a signature whose `Type`
-/// parameters the call's actual arguments pin concretely; callers then prove
-/// every carrier against the instantiated environment. A parameter that no
-/// argument binds keeps the named leaf and fails the same single-origin
-/// gates.
+/// Find the declaration needed to determine what this call may change.
+/// The caller then substitutes the call's saved type and constant arguments
+/// before following references to caller-owned storage.
 fn boundary_write_signature_and_receiver<'program>(
     program: &'program dyn crate::CheckingInput,
     current_machine: &Machine,
@@ -299,7 +297,7 @@ fn boundary_write_signature_and_receiver<'program>(
         receiver_members,
         target,
         site,
-        SignatureBinders::ArgumentPinnedTypes,
+        SignatureBinders::AppliedStorageParameters,
     )
 }
 
@@ -431,7 +429,7 @@ fn boundary_trait_signature_and_receiver_inner<'program>(
                     &receiver_scope,
                 )
             })
-        && binders != SignatureBinders::ArgumentPinnedTypes
+        && binders != SignatureBinders::AppliedStorageParameters
     {
         return None;
     }
@@ -448,8 +446,11 @@ fn boundary_trait_signature_and_receiver_inner<'program>(
         parameter.symbol.is_valid()
             && match binders {
                 SignatureBinders::Monomorphic => false,
-                SignatureBinders::ArgumentPinnedTypes => {
-                    matches!(parameter.kind, TypeParameterKind::Type)
+                SignatureBinders::AppliedStorageParameters => {
+                    matches!(
+                        parameter.kind,
+                        TypeParameterKind::Type | TypeParameterKind::Const { .. }
+                    )
                 }
                 SignatureBinders::CallBinders => {
                     matches!(
@@ -1446,8 +1447,7 @@ pub(super) fn bodyless_callee_result_origins(
         }
         live_unconstrained_type(program, substituted_head(program, *referee, &bindings))?
     };
-    let parameters: Vec<&StateParameter> =
-        program.state_parameters(callee_state).iter().collect();
+    let parameters: Vec<&StateParameter> = program.state_parameters(callee_state).iter().collect();
     let arguments = expression_table(program).expression_handles(call.arguments);
     if parameters.len() != arguments.len() {
         return None;
@@ -1658,6 +1658,21 @@ fn owned_storage_may_hold_inner(
     if aggregate_storage_types_match_in(program, container, referent, bindings, identities) {
         return Some(true);
     }
+    // Different symbolic lengths do not prove that two arrays are disjoint:
+    // the caller can supply the same length for both. Exact substituted types
+    // matched above; keep the remaining symbolic cases unknown, including
+    // lengths inside multidimensional arrays.
+    if matches!(
+        program.type_reference_table.type_reference(container),
+        TypeReferenceNode::FixedArray { .. }
+    ) && matches!(
+        program.type_reference_table.type_reference(referent),
+        TypeReferenceNode::FixedArray { .. }
+    ) && (!array_lengths_are_literal(program, container)
+        || !array_lengths_are_literal(program, referent))
+    {
+        return None;
+    }
     if program.primitive_type_reference(container).is_some() {
         return Some(false);
     }
@@ -1760,6 +1775,34 @@ fn owned_storage_may_hold_inner(
         // `live_unconstrained_type` above already erased every constraint.
         TypeReferenceNode::Constrained { .. } => None,
     }
+}
+
+/// Literal lengths can prove arrays different without assumptions about a
+/// generic caller. Other length forms stay conservative when type equality
+/// has not already established that the arrays are the same.
+fn array_lengths_are_literal(
+    program: &dyn crate::CheckingInput,
+    mut reference: TypeReferenceHandle,
+) -> bool {
+    for _ in 0..program.type_reference_table.type_reference_count() {
+        reference = match live_unconstrained_type(program, reference) {
+            Some(reference) => reference,
+            None => return false,
+        };
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::FixedArray {
+                element_type,
+                length,
+            } => {
+                if !matches!(length, typed_trees::types::FixedArrayLength::Literal(_)) {
+                    return false;
+                }
+                reference = *element_type;
+            }
+            _ => return true,
+        }
+    }
+    false
 }
 
 /// Is `container`'s root the only position inside its declared storage that

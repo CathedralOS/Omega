@@ -14,7 +14,7 @@ use typed_trees::data::DataMember;
 use typed_trees::declaration_index::IsolationVerdicts;
 use typed_trees::expression::TableStructLiteral;
 use typed_trees::name::Identifier;
-use typed_trees::type_identity::NormalizedTypeIdentity;
+use typed_trees::type_identity::{NormalizedTypeIdentity, TypeIdentityRequest};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 /// Handle-keyed maps take the integer hasher; none is iterated for output order.
@@ -133,6 +133,19 @@ pub(super) fn aggregate_storage_types_match_in(
     bindings: &[(SymbolHandle, TypeReferenceHandle)],
     identities: &mut TypeIdentityMemo,
 ) -> bool {
+    // Array lengths and other nested arguments need the complete call's
+    // substitutions, not just replacement of a named outer type.
+    if !bindings.is_empty()
+        && program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
+            substitutions: bindings,
+            ..TypeIdentityRequest::ordinary(actual)
+        }) == program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
+            substitutions: bindings,
+            ..TypeIdentityRequest::ordinary(expected)
+        })
+    {
+        return true;
+    }
     let actual = substituted_head(program, actual, bindings);
     let expected = substituted_head(program, expected, bindings);
     if type_identities_match(program, actual, expected, identities) {

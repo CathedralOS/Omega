@@ -71,3 +71,33 @@ The retained `r5-row-acceptance-r2.json` ledger binds source, Build and producer
 hashes, actual engine reports, empty output streams and intended refusals.
 Other hosts, the calculator's interactive acceptance, and the parent migration
 remain open; this row does not establish their completion.
+
+## Read-only calls inside generic functions
+
+A generic function must keep a string's terminator guarantee when it reads a
+separate string. This is needed by the standard library on the continuing
+compiler migration and Cathedral path (`PROVIDER-SELECTION-AFTER-TERMINAL`).
+
+The [direct forwarding example](probes/generic_forward/main.omg) calls the same
+string-length operation through a generic function. The
+[second example](probes/generic_forward_after_call/main.omg) first reads an
+unrelated string, then forwards the original one. Both retain this row's
+four-byte arrays, results 3 and 1, and neighboring canaries. Their invalid twins
+remove only the forwarding function's terminator requirement:
+[direct](probes/generic_forward/invalid/main.omg) and
+[after another call](probes/generic_forward_after_call/invalid/main.omg).
+
+Two additional rejection controls permit an external call to write to the
+array, [directly](probes/generic_forward_after_call/invalid_mutation/main.omg)
+or [through a returned reference](probes/generic_forward_after_call/invalid_returned_mutation/main.omg).
+The old terminator guarantee cannot justify a later string read after either
+write. These controls check invalidation; they do not claim that a particular
+external implementation actually performs that write.
+
+Before this repair, optimized compiler `2484aa7758a` runs direct forwarding
+with native and Terminal exit 0, but rejects the second example at the final
+string-length call. Both missing-contract twins and both mutation controls
+reject for the missing terminator guarantee. The compiler was treating a
+read-only call with a constant generic argument as having unknown writes.
+New execution results will be recorded with the repair's tested producer;
+these probes do not extend the historical nine-place execution claim above.
