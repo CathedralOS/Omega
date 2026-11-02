@@ -221,6 +221,9 @@ pub(super) fn validate_type_constraints_node(
                         owner: StateSignatureOwner::Machine(_),
                         generic_depth: 0,
                         ..
+                    } | TypeReferenceOwner::Expression {
+                        generic_depth: 0,
+                        ..
                     } | TypeReferenceOwner::StateLocalData {
                         generic_depth: 0,
                         ..
@@ -643,6 +646,12 @@ fn scoped_maximum_error(
             generic_depth,
             ..
         } => (*machine, *state_name, None, *generic_depth),
+        TypeReferenceOwner::Expression {
+            machine,
+            current_state: Some(state),
+            generic_depth,
+            ..
+        } => (*machine, state.name.as_str(), None, *generic_depth),
         TypeReferenceOwner::StateLocalData {
             machine,
             state: state_name,

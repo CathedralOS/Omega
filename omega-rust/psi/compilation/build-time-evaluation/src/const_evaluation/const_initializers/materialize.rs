@@ -263,6 +263,7 @@ fn nominal_literal_for_definition(
     }
     let fields = syntax.expressions.insert_struct_fields(literal_fields);
     Ok(ExpressionNode::StructLiteral(TableStructLiteral {
+        application_type: Default::default(),
         // Keep the source location but not a fabricated authored token shared
         // by every generated constructor. Lookup was checked above against the
         // exact owner; the receiving carrier and initializer receipt still
