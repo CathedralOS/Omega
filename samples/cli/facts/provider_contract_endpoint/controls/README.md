@@ -15,7 +15,8 @@ by this repair rather than adding transport matrices.
 - `field_snapshot_before_sibling_write` preserves the value captured before a
   sibling mutates its source. `field_snapshot_after_sibling_write` rejects the
   changed value; `field_false_conjunct` cannot discard another default-domain
-  requirement. The independent shared-handle source-model test keeps later
+  requirement. The positive also checks that the sibling call changed its
+  source to eight and left neighboring fields 31 and 47 untouched. The independent shared-handle source-model test keeps later
   scalar reevaluation distinct from an earlier captured child.
 - `dormant_target_endpoint_positive` checks the provider's authored target
   bodies. Its reject twin changes only the dormant Linux endpoint to 6 and

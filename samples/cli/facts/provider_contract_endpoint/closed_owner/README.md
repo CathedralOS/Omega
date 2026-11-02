@@ -13,11 +13,13 @@ a concrete call.
 The selected provider makes limit() equal to 7; requires value <= limit() preserves the bound needed to prove 7 - value.
 
 This is another production of the existing `provider_contract_endpoint` fact,
-owned by **CANONICALIZE-SCALAR-RANGE-CONTRACTS**. The original generic-wrapper
-customer, `tests/omega/pass/generics/folded_range_endpoint_selection_custody`,
-encounters this compiler error while checking the standard library's generic
-macOS window function. Its individual Objective-C calls supply constant counts.
-The repair must let that unchanged customer reach its original runtime result.
+owned by **CANONICALIZE-SCALAR-RANGE-CONTRACTS**. The generic-wrapper customer,
+`tests/omega/pass/generics/folded_range_endpoint_selection_custody`, originally
+exposed the call-checking failure in the standard library's generic macOS window
+function. Its individual Objective-C calls supply constant counts. Main now
+contains the call-contract repair. The remaining field case needs its bound
+evaluated in the data declaration where it was written; the field value itself
+still belongs to the constructing caller.
 
 | Place | Program | Provider returns six instead of seven |
 | --- | --- | --- |
