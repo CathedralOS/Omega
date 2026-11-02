@@ -3,7 +3,7 @@
 //! never the field initializer or a new observation of overwritten storage.
 use super::{Binding, CurrentScalarValues, ScopedOccurrence, integer_carrier};
 mod collection_values;
-mod coordinates;
+pub(super) mod coordinates;
 pub(super) use coordinates::{
     ScalarProjection, capture_path, entry_selector_value, projection_has_prefix, same_projection,
     source_path, storage_path,
@@ -319,9 +319,21 @@ impl CurrentScalarValues<'_> {
                 read_dependencies: Some(Vec::new()),
             })
             .collect::<Vec<_>>();
+        // A selector may read a field of an explicitly supplied structural
+        // argument. Its value is the completed actual's captured field, not
+        // the callee formal's current name or an unrelated entry observation.
+        let fields = parameters
+            .iter()
+            .zip(arguments)
+            .flat_map(|(formal, actual)| {
+                self.captured_scalar_fields(*actual, 0)
+                    .into_iter()
+                    .map(|field| ScalarField::for_owner(self.program, formal.symbol, field))
+            })
+            .collect::<Vec<_>>();
         let occurrence = self.occurrence_at(self.program, callee, state, &[]);
         let path = capture_path(path, |selector| {
-            coordinates::selector_value(occurrence, selector, &bindings, &[])
+            coordinates::selector_value(occurrence, selector, &bindings, &fields)
         })?;
         self.captured_scalar_fields(actual, 0)
             .into_iter()

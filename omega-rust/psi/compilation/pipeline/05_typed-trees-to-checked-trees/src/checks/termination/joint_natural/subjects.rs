@@ -59,12 +59,7 @@ impl Subject {
             .reads
             .iter()
             .map(|read| {
-                let path = root
-                    .path
-                    .iter()
-                    .chain(&read.coordinate.path)
-                    .cloned()
-                    .collect::<Vec<_>>();
+                let path = values.declared_read_path(root, read)?;
                 available
                     .iter()
                     .find(|coordinate| {

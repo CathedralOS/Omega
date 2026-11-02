@@ -850,6 +850,32 @@ fail/facts/named_const_callable_family_through_parameter_rejected rejected 681ms
 	generic machine `apply` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `observe_four` state `observe_four::entry`: Const slot `Count` conflicts: 5 [identity named(integer-const(5)); supplier unretained] versus 4 [identity named(integer-const(4)); supplier unretained]
 fail/facts/named_const_callable_family_through_target_body_rejected rejected 613ms expected @75dd4e483f7a
 	generic machine `apply` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `X86Observe::observe` state `X86Observe::observe::observe`: Const slot `Count` conflicts: 5 [identity named(integer-const(5)); supplier unretained] versus 4 [identity named(integer-const(4)); supplier unretained]
+fail/facts/nested_machine_declared_selector_computed_selector rejected 7800ms expected @b3e852cfac94
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_declared_selector_distinct_contexts rejected 7818ms expected @b3e852cfac94
+	machine call cycle: `count`, `forward` -- a computed natural rank application has no independent entry formation; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_declared_selector_missing_bound rejected 6089ms expected @b3e852cfac94
+	cannot form specification index in machine `count` requires contract: independent collection bounds are not established by preceding formed facts
+fail/facts/nested_machine_declared_selector_public_call rejected 7472ms expected @b3e852cfac94
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_declared_selector_through_call_result rejected 6605ms expected @b3e852cfac94
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_declared_selector_through_const_name rejected 9872ms expected @b3e852cfac94
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_declared_selector_through_field rejected 20324ms expected @b3e852cfac94
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_declared_selector_through_local rejected 9446ms expected @b3e852cfac94
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_declared_selector_through_match_join rejected 9775ms expected @b3e852cfac94
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_declared_selector_through_other_machine rejected 17739ms expected @b3e852cfac94
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_declared_selector_through_other_state rejected 16417ms expected @b3e852cfac94
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_declared_selector_through_parameter rejected 13971ms expected @b3e852cfac94
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_declared_selector_through_target_body rejected 12902ms expected @b3e852cfac94
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_header_contracts_call_result_rejected rejected 225ms expected @2fc408782574
 	tests/omega/fail/facts/nested_machine_header_contracts_call_result_rejected/main.omg:13:1: expected one of `use`, `data`, `domain`, `abi`, `machine`, `capability`, `let`, `library`, `measure`, `host`, `module`, `operator`, `package`, `platform`, `public`, `trait`, `boundary let`, `boundary operator`, `boundary requirement`, `boundary data`, `boundary trait`, found identifier `crashes`
 fail/facts/nested_machine_header_contracts_const_name_rejected rejected 269ms expected @2fc408782574
@@ -7701,6 +7727,17 @@ pass/facts/nested_machine_completion_result_parameter_exit checked 4318ms check-
 pass/facts/nested_machine_completion_result_target_body_exit rejected 30ms regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	select_provider requires two bare declaration operands and its explicit mutable Build and catalog target arguments (plus an optional composition mode)
 pass/facts/nested_machine_completion_result_unit_and_crash_exit checked 3109ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/nested_machine_declared_selector_computed_selector built 15500ms exit:0 interpreter-exit:0 interpreter:agrees @b3e852cfac94
+pass/facts/nested_machine_declared_selector_public_call built 16921ms exit:0 interpreter-exit:0 interpreter:agrees @b3e852cfac94
+pass/facts/nested_machine_declared_selector_through_call_result built 17445ms exit:0 interpreter-exit:0 interpreter:agrees @b3e852cfac94
+pass/facts/nested_machine_declared_selector_through_const_name built 17249ms exit:0 interpreter-exit:0 interpreter:agrees @b3e852cfac94
+pass/facts/nested_machine_declared_selector_through_field built 15142ms exit:0 interpreter-exit:0 interpreter:agrees @b3e852cfac94
+pass/facts/nested_machine_declared_selector_through_local built 14519ms exit:0 interpreter-exit:0 interpreter:agrees @b3e852cfac94
+pass/facts/nested_machine_declared_selector_through_match_join built 12335ms exit:0 interpreter-exit:0 interpreter:agrees @b3e852cfac94
+pass/facts/nested_machine_declared_selector_through_other_machine built 13428ms exit:0 interpreter-exit:0 interpreter:agrees @b3e852cfac94
+pass/facts/nested_machine_declared_selector_through_other_state built 11542ms exit:0 interpreter-exit:0 interpreter:agrees @b3e852cfac94
+pass/facts/nested_machine_declared_selector_through_parameter built 11802ms exit:0 interpreter-exit:0 interpreter:agrees @b3e852cfac94
+pass/facts/nested_machine_declared_selector_through_target_body built 9193ms exit:0 interpreter-exit:0 interpreter:agrees @b3e852cfac94
 pass/facts/nested_machine_default_domain_call_result_exit checked 6221ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/nested_machine_default_domain_const_name_exit checked 8687ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/nested_machine_default_domain_explicit_unit_exit checked 8210ms check-target:macos_arm64 @911f6617ba9e
