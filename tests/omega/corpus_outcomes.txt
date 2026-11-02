@@ -930,8 +930,18 @@ fail/facts/generic_requirement_statement_call_through_target_body_rejected rejec
 	argument `value` for state `record` expects `&T`, got `named value`
 	argument `value` for state `record` expects `&i32`, got `named value`
 	argument `value` for state `record` expects `&u8`, got `named value`
+fail/facts/generic_terminated_array_after_mutating_call_rejected rejected 6622ms expected @6271352bf00d
+	cannot prove requires contract for call length from forward: title[Extent - 1] == 0 (needs fact `text[Extent - 1] == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/generic_terminated_array_generic_forward_after_call_rejected rejected 6621ms expected @6271352bf00d
+	cannot prove requires contract for call length from forward: title[Extent - 1] == 0 (needs fact `text[Extent - 1] == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call length from forward$specialized$24369ad4fefe944b$0$2688: title[4 - 1] == 0 (needs fact `text[4 - 1] == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/generic_terminated_array_generic_forward_rejected rejected 5747ms expected @6271352bf00d
+	cannot prove requires contract for call length from forward: title[Extent - 1] == 0 (needs fact `text[Extent - 1] == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call length from forward$specialized$24369ad4fefe944b$0$2686: title[4 - 1] == 0 (needs fact `text[4 - 1] == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/generic_terminated_array_missing_terminator rejected 1518ms expected @a889c2d8b84c
 	cannot prove requires contract for call length from entry_start: second.bytes[5 - 1] == 0 (needs fact `text[5 - 1] == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/generic_terminated_array_returned_mutation_rejected rejected 6622ms expected @6271352bf00d
+	cannot prove requires contract for call length from forward: title[Extent - 1] == 0 (needs fact `text[Extent - 1] == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/generic_terminated_array_through_call_result rejected 975ms expected @a889c2d8b84c
 	data `Text` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/facts/generic_terminated_array_through_const_name rejected 227ms expected @a889c2d8b84c
@@ -7739,6 +7749,8 @@ pass/facts/generic_requirement_statement_call_through_other_machine_exit checked
 pass/facts/generic_requirement_statement_call_through_other_state_exit checked 11079ms check-target:macos_arm64 @d58d8c534048
 pass/facts/generic_requirement_statement_call_through_parameter_exit checked 7406ms check-target:macos_arm64 @d58d8c534048
 pass/facts/generic_requirement_statement_call_through_target_body_exit checked 9998ms check-target:macos_arm64 @d58d8c534048
+pass/facts/generic_terminated_array_generic_forward_after_call_exit checked 6753ms check-target:macos_arm64 @6271352bf00d
+pass/facts/generic_terminated_array_generic_forward_exit checked 7515ms check-target:macos_arm64 @6271352bf00d
 pass/facts/generic_terminated_array_through_call_result_exit checked 2405ms check-target:macos_arm64 @a889c2d8b84c
 pass/facts/generic_terminated_array_through_const_name_exit checked 2074ms check-target:macos_arm64 @a889c2d8b84c
 pass/facts/generic_terminated_array_through_field_exit checked 1804ms check-target:macos_arm64 @a889c2d8b84c
