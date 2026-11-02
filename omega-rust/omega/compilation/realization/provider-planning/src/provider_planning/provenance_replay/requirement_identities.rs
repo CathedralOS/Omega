@@ -285,6 +285,7 @@ pub(crate) fn external_provider_binding(
     binding: &language_semantics::ExternalBindingIdentity,
     dispatch_table: &str,
     intrinsic_machine_identity: &str,
+    table_field_storage: Result<effects::provider_plan::TableFieldStorage, String>,
 ) -> ProviderBinding {
     use language_semantics::ExternalBindingIdentity;
 
@@ -299,10 +300,12 @@ pub(crate) fn external_provider_binding(
         ExternalBindingIdentity::VtableField { field } => ProviderBinding::VtableField {
             table: dispatch_table.to_owned(),
             field: field.clone(),
+            storage: table_field_storage,
         },
         ExternalBindingIdentity::TableFunction { field } => ProviderBinding::TableFunction {
             table: dispatch_table.to_owned(),
             field: field.clone(),
+            storage: table_field_storage,
         },
     }
 }

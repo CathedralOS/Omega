@@ -270,6 +270,7 @@ pub(super) struct StatementRead<'a> {
     pub(super) place: &'a CanonicalPlace,
     /// Invalid for a statement call's receiver, which has no expression.
     pub(super) expression: ExpressionHandle,
+    pub(super) evaluation: checked_trees::FlowPermissionEvaluation,
     pub(super) active_loans: &'a [Handle<BorrowLoanFact>],
 }
 
@@ -430,18 +431,35 @@ pub(super) fn check_storage_read<'p>(
         });
     let kind = borrow.map_or(BorrowAccessKind::Read, BorrowAccessKind::from);
     let verb = if borrow.is_some() { "borrows" } else { "reads" };
-    let backings = place_access::place_backings(
-        program,
-        facts,
-        read.state,
-        statement_index,
-        read.active_loans.iter().copied(),
-        CapturedPlace {
-            root: facts::PlaceRoot::Symbol(root),
-            segments: read.place.segments.clone(),
-            ..Default::default()
-        },
-    );
+    let metadata_receiver = if read.expression.is_valid() {
+        validation::machine_state_by_symbols(
+            program,
+            read.state.machine_symbol,
+            read.state.state_symbol,
+        )
+        .and_then(|(machine, state)| {
+            validation::collection_length_receiver(program, machine, Some(state), read.expression)
+        })
+    } else {
+        None
+    };
+    let place = CapturedPlace {
+        root: facts::PlaceRoot::Symbol(root),
+        segments: read.place.segments.clone(),
+        ..Default::default()
+    };
+    let backings = if metadata_receiver.is_some() {
+        metadata_backings(program, facts, &read, place)
+    } else {
+        place_access::place_backings(
+            program,
+            facts,
+            read.state,
+            statement_index,
+            read.active_loans.iter().copied(),
+            place,
+        )
+    };
     let conflicts: Vec<_> = backings.as_ref().map_or_else(Vec::new, |backings| {
         read.active_loans
             .iter()
@@ -463,19 +481,58 @@ pub(super) fn check_storage_read<'p>(
         return;
     }
     let label = read.place.label(program);
+    let refusal = |message: String| {
+        super::staged_values::refusal(
+            program,
+            read.state,
+            statement_index,
+            read.expression,
+            &message,
+        )
+    };
     if backings.is_none() {
-        diagnostics.push(Diagnostic::error(format!(
+        diagnostics.push(refusal(format!(
             "statement {statement_index} {verb} `{label}` without an exact retained backing for its loan",
         )));
         return;
     }
     for loan_handle in conflicts {
         let loan = facts.borrow.loans.get(loan_handle);
-        diagnostics.push(Diagnostic::error(format!(
+        diagnostics.push(refusal(format!(
             "statement {statement_index} {verb} `{label}` while local borrow `{}` is still active ({})",
             symbol_name(program, loan.owner_symbol),
             active_loan_detail(read.state, facts, loan_handle, statement_index)
                 .unwrap_or_else(|| format!("borrowed at statement {}", loan.statement_index)),
         )));
     }
+}
+
+/// The producer records the receiver after its selectors finish. Earlier
+/// statement-entry loans cannot replace that exact storage generation.
+fn metadata_backings(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    read: &StatementRead<'_>,
+    place: CapturedPlace,
+) -> Option<Vec<super::aliases::ResolvedAlias>> {
+    let control = &facts.flow.control;
+    let mut observations = control
+        .value_observations
+        .span(read.statement.value_observations)?
+        .iter()
+        .filter(|observation| {
+            observation.expression == read.expression && observation.evaluation == read.evaluation
+        });
+    let observed = observations.next()?;
+    if observations.next().is_some() {
+        return None;
+    }
+    super::access_sources::metadata_storage(
+        program,
+        facts,
+        read.state,
+        read.statement.statement_index,
+        observed,
+        place,
+    )
 }

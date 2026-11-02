@@ -8,7 +8,7 @@ use arena::Handle;
 use language_semantics::boundary_values::{
     BoundaryFieldRecipe, BoundaryRecordStorage, BoundaryValueRecipe, BoundaryValueRecipes,
 };
-use semantic_vocabulary::{ScalarApplicationId, ScalarType, StructuralTypeId};
+use semantic_vocabulary::{ScalarApplicationId, ScalarType, StructuralFieldId, StructuralTypeId};
 use terminal_psi::{
     StructuralFieldDeclaration, StructuralFieldType, StructuralRecordStorage, StructuralTypeShape,
     TerminalModule,
@@ -21,6 +21,7 @@ pub struct TerminalBoundaryRecipes<'module> {
     extents: &'module dyn Fn(ScalarApplicationId) -> Result<u64, StorageGeometryError>,
     visiting: Vec<StructuralTypeId>,
     closed: Vec<(StructuralTypeId, Handle<BoundaryValueRecipe>)>,
+    fields: Vec<(StructuralTypeId, StructuralFieldId, usize)>,
     recipes: BoundaryValueRecipes,
 }
 
@@ -36,12 +37,30 @@ impl<'module> TerminalBoundaryRecipes<'module> {
             extents,
             visiting: Vec::new(),
             closed: Vec::new(),
+            fields: Vec::new(),
             recipes: BoundaryValueRecipes::default(),
         }
     }
 
     pub fn recipes(&self) -> &BoundaryValueRecipes {
         &self.recipes
+    }
+
+    /// Return this recipe producer's exact live-field coordinate. The caller
+    /// never zips a second declaration inventory with the physical field list.
+    pub fn record_field(
+        &mut self,
+        record: StructuralTypeId,
+        field: StructuralFieldId,
+    ) -> Result<(Handle<BoundaryValueRecipe>, usize), String> {
+        let recipe = self.value(record)?;
+        let ordinal = self
+            .fields
+            .iter()
+            .find(|(owner, candidate, _)| *owner == record && *candidate == field)
+            .map(|(_, _, ordinal)| *ordinal)
+            .ok_or("boundary record has no exact live field recipe")?;
+        Ok((recipe, ordinal))
     }
 
     pub fn scalar(&mut self, scalar: ScalarType) -> Result<Handle<BoundaryValueRecipe>, String> {
@@ -104,12 +123,8 @@ impl<'module> TerminalBoundaryRecipes<'module> {
             .module
             .structural_type(structural_type)
             .ok_or("boundary value has no canonical storage declaration")?;
-        if let Some((selection_ordinal, selected)) = self
-            .module
-            .opaque_representations
-            .iter()
-            .enumerate()
-            .find(|(_, row)| row.opaque == structural_type)
+        if let Some((selection_ordinal, selected)) =
+            terminal_semantics::foreign_opaque_carrier(self.module, declaration)?
         {
             let carrier = self.value(selected.carrier)?;
             return Ok(self.recipes.values.insert(BoundaryValueRecipe::Opaque {
@@ -118,11 +133,6 @@ impl<'module> TerminalBoundaryRecipes<'module> {
                 selection_ordinal,
                 carrier,
             }));
-        }
-        if declaration.quotient_carrier.is_some() {
-            return Err(
-                "nominally opaque boundary value requires retained selected-carrier custody".into(),
-            );
         }
         let recipe =
             match &declaration.shape {
@@ -163,45 +173,11 @@ impl<'module> TerminalBoundaryRecipes<'module> {
         fields: &[StructuralFieldDeclaration],
         storage: StructuralRecordStorage,
     ) -> Result<BoundaryValueRecipe, String> {
-        let selected = match storage {
-            StructuralRecordStorage::TargetLayout(application) => {
-                let application = self
-                    .module
-                    .target_layout_applications
-                    .iter()
-                    .find(|candidate| candidate.id == application && candidate.record == record)
-                    .ok_or("boundary record has no exact target layout application")?;
-                Some(
-                    application
-                        .realizations
-                        .iter()
-                        .find(|row| row.target == self.target)
-                        .ok_or("boundary record has no layout for its selected target")?,
-                )
-            }
-            _ => None,
-        };
-        let authored = match storage {
-            StructuralRecordStorage::Packed => None,
-            StructuralRecordStorage::Authored(storage) => Some(storage),
-            StructuralRecordStorage::TargetLayout(_) => selected.map(|row| row.storage),
-            StructuralRecordStorage::AccessView(_) | StructuralRecordStorage::Accessor(_) => {
-                return Err("placed data has no ordinary owned boundary storage".into());
-            }
-        };
+        let selected =
+            terminal_semantics::foreign_record_storage(self.module, record, storage, self.target)?;
         let mut recipes = Vec::new();
         for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
-            let storage = match selected {
-                Some(row) => Some(
-                    row.fields
-                        .iter()
-                        .find(|candidate| candidate.field == field.id)
-                        .ok_or("target boundary layout omitted a live field")?
-                        .storage
-                        .clone(),
-                ),
-                None => field.storage.clone(),
-            };
+            let storage = selected.field(field)?;
             let value = match storage.as_ref().and_then(|storage| storage.stored_scalar()) {
                 Some(scalar) => self.scalar(scalar)?,
                 None => match &field.field_type {
@@ -235,6 +211,7 @@ impl<'module> TerminalBoundaryRecipes<'module> {
                         .ok_or("fragmented field has no single foreign boundary offset")
                 })
                 .transpose()?;
+            self.fields.push((record, field.id, recipes.len()));
             recipes.push(BoundaryFieldRecipe { value, byte_offset });
         }
         Ok(BoundaryValueRecipe::Record {
@@ -250,7 +227,7 @@ impl<'module> TerminalBoundaryRecipes<'module> {
                 .ok_or("boundary record lost its declaration identity")?
                 .to_owned(),
             fields: self.recipes.fields.insert_many(recipes),
-            storage: authored.map(|storage| BoundaryRecordStorage {
+            storage: selected.storage.map(|storage| BoundaryRecordStorage {
                 byte_size: storage.byte_size,
                 byte_alignment: storage.byte_alignment,
             }),

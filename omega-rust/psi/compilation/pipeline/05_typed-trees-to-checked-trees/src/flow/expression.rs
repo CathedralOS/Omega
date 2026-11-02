@@ -1582,6 +1582,27 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         {
             return None;
         }
+        if let Some(receiver) = validation::collection_length_receiver(
+            self.program,
+            self.machine,
+            Some(self.state),
+            expression,
+        ) {
+            // Both name-path and member spellings observe the same descriptor.
+            // Retain its completed occurrence cut before any later operand can
+            // replace that descriptor; metadata has no nominal field selector.
+            let receiver = self.evaluated_place(receiver, contexts, constraints);
+            *backing = self.context.control.operands.insert(receiver.capture);
+            *referents = Some(HandleSpan::empty());
+            self.retain_value_observation(
+                expression,
+                *backing,
+                HandleSpan::empty(),
+                *contexts,
+                *constraints,
+            );
+            return self.live_boolean(expression, *contexts);
+        }
         match self.program.expression_table.expression(expression) {
             ExpressionNode::SavedSubject(saved) => {
                 let captured = self

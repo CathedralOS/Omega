@@ -144,6 +144,9 @@ pub use selected_form_encoding::{
 };
 
 pub use selected_form_encoding::encode_aarch64_selected_floating_control_form;
+pub use selected_form_encoding::{
+    encode_aarch64_selected_table_call_form, validate_aarch64_selected_table_call_form,
+};
 
 pub use selected_form_encoding::{
     encode_aarch64_selected_frame_form, encode_aarch64_selected_memory_form,

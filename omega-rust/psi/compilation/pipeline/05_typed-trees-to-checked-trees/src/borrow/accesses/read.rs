@@ -42,6 +42,23 @@ pub(super) fn collect_read_accesses(
     collection: &mut BorrowAccessCollection<'_>,
     expression: ExpressionHandle,
 ) {
+    let metadata_receiver = validation::machine_state_by_symbols(
+        collection.program,
+        collection.machine_symbol,
+        collection.state_symbol,
+    )
+    .and_then(|(machine, state)| {
+        validation::collection_length_receiver(collection.program, machine, Some(state), expression)
+    });
+    if let Some(receiver) = metadata_receiver {
+        collect_place_evaluation_reads(collection, receiver);
+        if let Some(place) = collection.borrow_access_place(receiver) {
+            // The read ends when its scalar metadata completes, not when a
+            // forwarded view would finish lending its referent to the callee.
+            collection.append_read_access(place, expression);
+        }
+        return;
+    }
     if recurse_shared_children(collection.program, expression, &mut |child| {
         collect_read_accesses(collection, child);
     }) {

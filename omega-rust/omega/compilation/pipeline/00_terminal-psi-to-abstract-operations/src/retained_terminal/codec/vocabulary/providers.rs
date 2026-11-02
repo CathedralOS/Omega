@@ -85,13 +85,18 @@ record_fields!(effects::InstallationReachResolution {
     resolved_row
 });
 
+record_fields!(effects::provider_plan::TableFieldStorage {
+    table_application,
+    field_declaration
+});
+
 record_variants!(effects::provider_plan::ProviderBinding {
     0 => Import { evaluated },
     1 => Syscall { number },
     2 => CompilerIntrinsic { machine },
     3 => VtableSlot { index },
-    4 => VtableField { table, field },
-    5 => TableFunction { table, field },
+    4 => VtableField { table, field, storage },
+    5 => TableFunction { table, field, storage },
     6 => CheckedAdapter { machine_identity, machine_package_identity },
 });
 
