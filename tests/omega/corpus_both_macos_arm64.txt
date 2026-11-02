@@ -292,6 +292,17 @@ pass/facts/crash_entry_nonempty_path_through_other_machine_exit built 2016ms exi
 pass/facts/crash_entry_nonempty_path_through_other_state_exit built 1949ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/crash_entry_nonempty_path_through_parameter_exit built 1849ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/crash_entry_nonempty_path_through_target_body_exit built 1960ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
+pass/facts/data_where_standing_borrowed_field_descriptor_snapshot_exit built 6033ms exit:0 interpreter-exit:0 interpreter:agrees @f366e4cf8853
+pass/facts/data_where_standing_borrowed_field_disjoint_local_write_exit built 4703ms exit:0 interpreter-exit:0 interpreter:agrees @f366e4cf8853
+pass/facts/data_where_standing_borrowed_field_through_call_result_exit built 5922ms exit:0 interpreter-exit:0 interpreter:agrees @f366e4cf8853
+pass/facts/data_where_standing_borrowed_field_through_const_name_exit built 4744ms exit:0 interpreter-exit:0 interpreter:agrees @f366e4cf8853
+pass/facts/data_where_standing_borrowed_field_through_field_exit built 5896ms exit:0 interpreter-exit:0 interpreter:agrees @f366e4cf8853
+pass/facts/data_where_standing_borrowed_field_through_local_exit built 4646ms exit:0 interpreter-exit:0 interpreter:agrees @f366e4cf8853
+pass/facts/data_where_standing_borrowed_field_through_match_join_exit built 4634ms exit:0 interpreter-exit:0 interpreter:agrees @f366e4cf8853
+pass/facts/data_where_standing_borrowed_field_through_other_machine_exit built 6596ms exit:0 interpreter-exit:0 interpreter:agrees @f366e4cf8853
+pass/facts/data_where_standing_borrowed_field_through_other_state_exit built 4644ms exit:0 interpreter-exit:0 interpreter:agrees @f366e4cf8853
+pass/facts/data_where_standing_borrowed_field_through_parameter_exit built 6613ms exit:0 interpreter-exit:0 interpreter:agrees @f366e4cf8853
+pass/facts/data_where_standing_borrowed_field_through_target_body_exit built 3289ms exit:0 interpreter-exit:0 interpreter:agrees @f366e4cf8853
 pass/facts/disjoint_field_borrow_windows_through_call_result_exit built 1145ms exit:0 interpreter-exit:0 interpreter:agrees @1e127a84987a
 pass/facts/disjoint_field_borrow_windows_through_const_name_exit built 1167ms exit:0 interpreter-exit:0 interpreter:agrees @1e127a84987a
 pass/facts/disjoint_field_borrow_windows_through_field_exit built 1151ms exit:0 interpreter-exit:0 interpreter:agrees @1e127a84987a
