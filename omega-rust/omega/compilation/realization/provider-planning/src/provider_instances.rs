@@ -1,9 +1,10 @@
 //! Retain selected source correspondence once, then lend declaration-only views.
 //!
 //! The immutable checked owner and complete selected plan roster stay coupled.
-//! Callbacks, checking, review and reference execution share lazy preparation,
-//! but each consumes source-free policy at its existing admission point. Cache
-//! population is not a provider grant or part of semantic equality.
+//! Explicit reference execution retains lazy Source instance projection. Product
+//! callback planning instead reads canonical callable headers and instance rows;
+//! it does not populate this Source cache. Cache population is not a provider
+//! grant or part of semantic equality.
 
 use crate::exact_checked_adapter;
 use checked_trees::typed_trees::machine::Machine;
@@ -15,7 +16,6 @@ pub struct SelectedProviderSource {
     inventory: Arc<checked_trees::PreparedProviderInventory>,
     plans: effects::SelectedProviderPlanFacts,
     declarations: OnceLock<PreparedProviderInstances>,
-    checked_bodies: OnceLock<Vec<Vec<Result<bool, Diagnostic>>>>,
 }
 
 struct PreparedProviderInstances {
@@ -49,7 +49,6 @@ impl SelectedProviderSource {
             inventory,
             plans,
             declarations: OnceLock::new(),
-            checked_bodies: OnceLock::new(),
         }
     }
 
@@ -80,64 +79,6 @@ impl SelectedProviderSource {
             )
             .collect::<Vec<_>>();
         provider_selection::project_provider_instances(&self.plans, &declarations)
-    }
-
-    /// A native request with no nominal uses does no instance preparation.
-    pub fn callback_providers(
-        &self,
-        declarations: &terminal_psi::CallbackDeclarationRoster,
-        provider_declarations: &[backend_plan::TerminalTargetProviderPlan],
-        module: &terminal_psi::TerminalModule,
-    ) -> Result<provider_selection::CallbackProviderDeclarations<'_>, Vec<Diagnostic>> {
-        if declarations.uses.is_empty() {
-            return Ok(provider_selection::CallbackProviderDeclarations::unused());
-        }
-        let instances = backend_plan::close_checked_provider_specializations(
-            self.plans.clone(),
-            provider_declarations,
-            module,
-        )
-        .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        let checked_bodies = self.checked_bodies.get_or_init(|| {
-            let adapters = CheckedAdapterDeclarations::prepare(&self.program().typed, &self.plans);
-            self.plans
-                .plans()
-                .iter()
-                .map(|plan| {
-                    plan.rows
-                        .iter()
-                        .map(|row| {
-                            if matches!(row.binding, ProviderBinding::CheckedAdapter { .. }) {
-                                adapters
-                                    .machine(plan, row)
-                                    .map(Machine::supplies_checked_body)
-                            } else {
-                                Ok(false)
-                            }
-                        })
-                        .collect()
-                })
-                .collect()
-        });
-        let mut checked_adapters = Vec::new();
-        for (plan, bodies) in self.plans.plans().iter().zip(checked_bodies) {
-            for (row, body) in plan.rows.iter().zip(bodies) {
-                if !matches!(row.binding, ProviderBinding::CheckedAdapter { .. }) {
-                    continue;
-                }
-                checked_adapters.push(provider_selection::SelectedCallbackRow {
-                    plan,
-                    row,
-                    checked_adapter_body: body.clone().map_err(|diagnostic| format!(
-                        "callback forwarding provider is not its exact checked adapter: {diagnostic:?}"
-                    )),
-                });
-            }
-        }
-        Ok(provider_selection::CallbackProviderDeclarations::prepared(
-            instances,
-            checked_adapters,
-        ))
     }
 
     fn declarations(&self) -> &PreparedProviderInstances {

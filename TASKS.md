@@ -237,10 +237,8 @@ retired-syntax deletions to completion.
   - Qualify matching-host execution for
     `samples/cli/facts/{positional_implementation_binder,open_const_implementation,open_record_const_implementation,named_conformance_dispatch,generic_calling_policy}`
     across remaining hosted targets.
-  - **STATELESS-PROVIDERS:** take `ForeignBinding::VtableField` vtable addresses
-    from its foreign binding plan rather than provider data, and ensure no
-    installation or interpretation route supplies an unauthored provider value
-    or receiver.
+  - **STATELESS-PROVIDERS:** ensure no installation or interpretation route
+    supplies an unauthored provider value or receiver.
   - Move remaining Build facet receiver calls (such as test groups) to
     namespace-qualified calls with explicit arguments (`Build::bind`,
     `Build::select_provider`, `Build::exclude_service`,
@@ -329,9 +327,8 @@ retired-syntax deletions to completion.
     `samples/cli/audio/audio_playback` and its sine, square, and melody
     consumers through unchanged playback oracles; shared binding-value producers
     and helpers remain ordinary machines.
-    Frontier: 59 `samples/cli/facts/*/target_body` places still spell the
-    prefix, and 1 fact spells it in all nine places
-    (`target_layout_derived_constant`).
+    Frontier: 58 `samples/cli/facts/*/target_body` places still spell the
+    prefix.
   - Transport exact requirement and implementation identities, lifetimes,
     captured operands, const/evidence telescopes, callbacks, entry backing,
     ownership, reach, and public contracts through one checked Terminal artifact
@@ -1897,12 +1894,6 @@ defines the complete product bar.
     breadth/set-file-time/metadata fixtures (exit 70), and Linux
     `write_all_full_device_exit`, and provide trusted Terminal adapters for the
     exact authored foreign bindings.
-  - Supply Darwin `_futimens` through the existing matching-host filesystem
-    adapter with its exact OS signature, guest descriptor custody and explicit
-    metadata-mutation delegation; keep missing-delegation rejection. Complete
-    `tests/omega/pass/filesystem/runtime_portable_metadata_exit` in Terminal as
-    well as native execution. The private native sponsor supplies no extra
-    filesystem capability.
   - Run `tests/omega/pass/filesystem/windows_canonicalize_exit` (exit 70 on
     Windows) and wire the occurrence-bound close proof helpers in
     `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/provider_admission/terminal_authority_policy/filesystem.rs`

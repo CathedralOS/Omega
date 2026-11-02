@@ -132,7 +132,8 @@ pub fn prepare_selected_execution(
             .map(|realization| (realization.boundary_trait, realization.requirement_machine)),
     );
     let callback_roots = {
-        let providers = provider_source.callback_providers(
+        let providers = provider_selection::CallbackProviderDeclarations::prepare(
+            selected_provider_plan_facts,
             &external_providers.callbacks.declarations,
             settlement.provider_declarations,
             settlement.terminal_module,

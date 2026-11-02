@@ -8,8 +8,11 @@
 
 use super::{StorageCodec, rejection, validate_scalar_shape};
 use calling_conventions::{BoundarySignatureGeometry, BoundaryValueClass, BoundaryValueShape};
-use semantic_vocabulary::{CanonicalStructuralPathSegment as Path, ScalarType, StructuralTypeId};
-use terminal_interpreter::TerminalEffectRejection;
+use runtime_abi::NativeBorrowedStorageLayout;
+use semantic_vocabulary::{
+    CanonicalStructuralPathSegment as Path, IntegerSign, IntegerType, ScalarType, StructuralTypeId,
+};
+use terminal_interpreter::{TerminalEffectRejection, TerminalProgram};
 use terminal_psi::{
     StructuralFieldDeclaration, StructuralFieldType, StructuralRecordStorage,
     StructuralTypeDeclaration, StructuralTypeShape,
@@ -95,6 +98,79 @@ impl Schema<'_> {
             self.completed.push((semantic, public, index));
         }
     }
+}
+
+/// Match a complete OS record-array contract against semantic shape and the
+/// exact selected native recipes. No field or policy spelling supplies geometry.
+pub(in crate::execution::host_imports) fn matches_signed_record_array(
+    program: &TerminalProgram,
+    layouts: &[NativeBorrowedStorageLayout],
+    root: StructuralTypeId,
+    records: u64,
+    words: usize,
+    bits: u16,
+    alignment: u16,
+) -> bool {
+    let Ok(integer) = IntegerType::new(IntegerSign::Signed, bits) else {
+        return false;
+    };
+    if bits % 8 != 0 || !alignment.is_power_of_two() {
+        return false;
+    }
+    let expected = ScalarType::Integer(integer);
+    let Some(array) = program.structural_type(root) else {
+        return false;
+    };
+    let StructuralTypeShape::FixedArray { element, length } = &array.shape else {
+        return false;
+    };
+    if length.literal() != Some(records) {
+        return false;
+    }
+    let Some(record) = program.structural_type(*element) else {
+        return false;
+    };
+    let StructuralTypeShape::Record { fields, .. } = &record.shape else {
+        return false;
+    };
+    let relevant = fields.iter().filter(|field| !field.relevance.is_erased());
+    if relevant.clone().count() != words
+        || !relevant.into_iter().all(|field| match &field.field_type {
+            StructuralFieldType::Scalar(scalar) => *scalar == expected,
+            StructuralFieldType::BoundedInteger(bounds) => {
+                ScalarType::Integer(bounds.integer_type()) == expected
+            }
+            StructuralFieldType::RefinedScalar(refinement) => refinement.carrier() == expected,
+            StructuralFieldType::Structural(child) => program.structural_type(*child).is_some_and(
+                |child| matches!(&child.shape, StructuralTypeShape::PrimitiveScalar(scalar) if *scalar == expected),
+            ),
+            _ => false,
+        })
+    {
+        return false;
+    }
+    let Some(count) = usize::try_from(records)
+        .ok()
+        .and_then(|count| count.checked_mul(words))
+    else {
+        return false;
+    };
+    let word_bytes = usize::from(bits / 8);
+    let Some(extent) = count.checked_mul(word_bytes) else {
+        return false;
+    };
+    let Ok(codec) = StorageCodec::admit(program, layouts, root) else {
+        return false;
+    };
+    codec.extent == extent
+        && codec.alignment >= usize::from(alignment)
+        && codec.references.is_empty()
+        && codec.fields.len() == count
+        && codec.fields.iter().enumerate().all(|(index, field)| {
+            field.logical == expected
+                && field.stored == expected
+                && field.offset == index * word_bytes
+        })
 }
 
 pub(super) fn validate<'declaration>(

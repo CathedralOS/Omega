@@ -988,44 +988,51 @@ impl<'base> ConstantSelection<'base> {
         let selected_name = self.symbols.name(selected);
         let parameters = |forest: &SyntaxTrees| {
             let mut declarations = forest.root_items().filter_map(|item| {
-                let (kind, declaration, parameters) = match item {
-                    Item::Data(data) => (SymbolKind::Data, &data.name, data.type_parameters),
+                let (kind, declaration, parameters, evidence_count) = match item {
+                    Item::Data(data) => (SymbolKind::Data, &data.name, data.type_parameters, 0),
                     Item::TypeAlias(alias) => {
-                        (SymbolKind::TypeAlias, &alias.name, alias.type_parameters)
+                        (SymbolKind::TypeAlias, &alias.name, alias.type_parameters, 0)
                     }
-                    Item::Machine(machine) => {
-                        (SymbolKind::Machine, &machine.name, machine.type_parameters)
-                    }
+                    Item::Machine(machine) => (
+                        SymbolKind::Machine,
+                        &machine.name,
+                        machine.type_parameters,
+                        machine.conformance_bounds.len(),
+                    ),
                     Item::Conformance(conformance) => (
                         SymbolKind::Conformance,
                         conformance.alias.as_ref()?,
                         conformance.type_parameters,
+                        0,
                     ),
                     _ => return None,
                 };
                 (kind == selected_kind
                     && declaration.source_span() == reference
                     && declaration.as_str(forest) == selected_name)
-                    .then_some(parameters)
+                    .then_some((parameters, evidence_count))
             });
-            let Some(parameters) = declarations.next() else {
+            let Some((parameters, evidence_count)) = declarations.next() else {
                 return Ok(None);
             };
             if declarations.next().is_some() {
                 return Err(());
             }
-            Ok(Some(
-                syntax_items(&forest)
-                    .type_parameters(parameters)
-                    .iter()
-                    .map(|parameter| match parameter.kind {
-                        syntax_trees::item::TypeParameterKind::Const { type_reference } => {
-                            Some(type_reference)
-                        }
-                        _ => None,
-                    })
-                    .collect::<Vec<_>>(),
-            ))
+            let mut carriers = syntax_items(forest)
+                .type_parameters(parameters)
+                .iter()
+                .map(|parameter| match parameter.kind {
+                    syntax_trees::item::TypeParameterKind::Const { type_reference } => {
+                        Some(type_reference)
+                    }
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            // Evidence occupies the authored suffix of the same application.
+            // It has no value carrier, but omitting its slots makes an exact
+            // mixed telescope look incomplete and hides every const operand.
+            carriers.resize(carriers.len() + evidence_count, None);
+            Ok(Some(carriers))
         };
         if let Some(parameters) = parameters(syntax).ok()? {
             return Some(parameters);
