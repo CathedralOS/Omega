@@ -1,4 +1,6 @@
-//! Assignment addresses follow completed receivers and captured projections.
+//! Writes retain their evaluated receiver and the field or index selected below
+//! it, even when a returned view has no absolute source address. Relative paths
+//! are produced with the operand, rather than reconstructed from newer storage.
 //! Loading an intermediate pointer uses the ordinary descriptor authority
 //! resolver at that receiver's own cut. The final field's address does not load
 //! its old pointer when the operation replaces that field. Captured projections
@@ -71,13 +73,6 @@ fn project_address(
 ) -> Result<Vec<ResolvedAlias>, &'static str> {
     let control = &facts.flow.control;
     let operand = control.operands.get(capture);
-    let places = control
-        .operand_referents
-        .span(operand.referents)
-        .ok_or("the completed storage address has no complete place roster")?;
-    if places.is_empty() {
-        return Err("the completed storage address has no exact places");
-    }
     let mut resolved = Vec::new();
     if control.operands.is_valid(operand.backing) {
         let receiver = control.operands.get(operand.backing);
@@ -86,47 +81,49 @@ fn project_address(
         {
             return Err("the completed receiver belongs to another evaluation");
         }
-        let receivers = control
-            .operand_referents
-            .span(receiver.referents)
-            .ok_or("the completed receiver has no complete place roster")?;
+        let projection = operand
+            .address_projection
+            .and_then(|path| control.operand_child_paths.span(path))
+            .ok_or("the completed address has no captured receiver projection")?;
         let backings = address(program, facts, state, operand.backing, false, ancestors)?;
-        for place in places {
-            let segments = control
-                .operand_referent_segments
-                .span(place.segments)
-                .ok_or("the completed address has an incomplete projection")?;
-            let mut suffixes = Vec::new();
-            for parent in receivers {
-                let prefix = control
-                    .operand_referent_segments
-                    .span(parent.segments)
-                    .ok_or("the completed receiver has an incomplete projection")?;
-                if parent.root == place.root
-                    && let Some(suffix) = segments.strip_prefix(prefix)
-                    && !suffixes.contains(&suffix)
-                {
-                    suffixes.push(suffix);
-                }
+        let projectable = validation::completed_storage::projectable_reference_places(
+            program,
+            control,
+            operand.backing,
+            &[],
+        );
+        for backing in backings {
+            let mut projected = backing.place;
+            // An authority footprint can enclose another representation. Only
+            // independently retained typed coordinates admit a field/index
+            // suffix; otherwise the whole source enclosure may be written.
+            // In particular Viewed::field cannot name Original::field merely
+            // because their byte layouts agree.
+            if projectable.as_ref().is_some_and(|places| {
+                places.iter().any(|place| {
+                    place.root == projected.root && place.segments == projected.segments
+                })
+            }) {
+                projected.segments =
+                    facts::project_captured_view_segments(&projected.segments, projection)
+                        .ok_or("the captured address projection exceeds its receiver window")?;
             }
-            if suffixes.is_empty() {
-                return Err("the completed address is not projected from its receiver");
-            }
-            for suffix in suffixes {
-                for backing in &backings {
-                    let mut projected = backing.place.clone();
-                    projected.segments.extend_from_slice(suffix);
-                    append_distinct(
-                        &mut resolved,
-                        ResolvedAlias {
-                            place: projected,
-                            lineage: backing.lineage.clone(),
-                        },
-                    );
-                }
-            }
+            append_distinct(
+                &mut resolved,
+                ResolvedAlias {
+                    place: projected,
+                    lineage: backing.lineage,
+                },
+            );
         }
     } else {
+        let places = control
+            .operand_referents
+            .span(operand.referents)
+            .ok_or("the completed storage address has no complete place roster")?;
+        if places.is_empty() {
+            return Err("the completed storage address has no exact places");
+        }
         for place in places {
             let place = CapturedPlace {
                 root: place.root,

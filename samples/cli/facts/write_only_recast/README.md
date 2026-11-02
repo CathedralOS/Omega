@@ -78,7 +78,12 @@ and [Build-owned target selection](../../../../wiki/spec/build/provider_selectio
 Historical validation before this target migration ran all nine original places
 and their twins on macOS ARM64 after repairing a refusal at `as &write Viewed`
 on optimized main `05580b16504`. Those records do not validate the newly selected
-provider route or the stronger match example. Current Linux replay is pending.
+provider route or the stronger match example. The first Linux replay ran seven places successfully, including the migrated
+selected implementation, but the unchanged returned-view place and the stronger
+match place refused because assignment checking lost their relative field
+address. The local-escape control also refused before its intended lifetime
+check. General address tracking and check-order repairs are under validation;
+this first replay is not row acceptance.
 
 This row establishes ordinary write-only representation-view transport. It does
 not close domain-policy retention under erasure, operation demands, helper grants,

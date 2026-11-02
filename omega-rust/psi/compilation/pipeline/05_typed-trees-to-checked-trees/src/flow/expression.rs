@@ -88,6 +88,7 @@ struct CompletedValue {
     /// independently of the projected value's reference leaves. Scalar value
     /// snapshots do not consume this place-only relationship.
     backing: Handle<checked_trees::FlowOperandFact>,
+    address_projection: Option<HandleSpan<facts::PlaceSegment>>,
     evaluated_inputs: HandleSpan<checked_trees::FlowOperandFact>,
     conditional_inputs_from: Option<usize>,
     referents: Option<HandleSpan<checked_trees::FlowOperandReferent>>,
@@ -857,6 +858,11 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         } else {
             completed.backing
         };
+        capture.address_projection = if observed_descriptor.is_valid() {
+            None
+        } else {
+            completed.address_projection
+        };
         capture.type_reference = if destination.is_valid() {
             destination
         } else {
@@ -1104,6 +1110,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         capture.evaluated_inputs = completed.evaluated_inputs;
         capture.conditional_inputs_from = completed.conditional_inputs_from;
         capture.backing = completed.backing;
+        capture.address_projection = completed.address_projection;
         capture.type_reference = reference;
         if let Some(leaves) = completed.reference_leaves {
             capture.retention = completed.retention.unwrap_or_default();
@@ -1229,6 +1236,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             type_reference: TypeReferenceHandle::invalid(),
             completion: checked_trees::FlowOperandCompletion::Observation,
             backing: Handle::invalid(),
+            address_projection: None,
             evaluated_inputs: HandleSpan::empty(),
             conditional_inputs_from: None,
             value_source: Handle::invalid(),
@@ -1577,6 +1585,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             completion,
             value_source,
             backing,
+            address_projection,
             evaluated_inputs,
             conditional_inputs_from,
             referents,
@@ -1624,6 +1633,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     *completion = captured.completion;
                     let source = self.context.control.operands.insert(captured);
                     *backing = source;
+                    *address_projection = Some(HandleSpan::empty());
                     if self.is_view_type(captured.type_reference)
                         || self.program.type_multiplicity(captured.type_reference)
                             == language_semantics::Multiplicity::Unrestricted
@@ -1689,6 +1699,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     *constraints,
                     case_access,
                     possible_storage,
+                    address_projection,
                 ));
                 *retention = self.capture_member_retention(expression, &receiver.capture);
                 self.retain_value_observation(
@@ -2061,6 +2072,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                         &start_operand,
                         Some(&end_operand),
                         possible_storage,
+                        address_projection,
                     ));
                     // `self.expression(indexed.index)` would publish the
                     // range node's own result tags after evaluating both
@@ -2090,6 +2102,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                         &index_operand,
                         None,
                         possible_storage,
+                        address_projection,
                     ));
                     self.record_operator_invocation(
                         expression,
