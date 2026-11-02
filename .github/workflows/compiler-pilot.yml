@@ -125,6 +125,9 @@ jobs:
                   result = subprocess.run([runner], env=environment, stdin=subprocess.DEVNULL,
                       stdout=log, stderr=subprocess.STDOUT, timeout=180)
               print('Frozen buffered proof trace runner exit:', result.returncode)
+              trace = (output / 'buffered-proof-trace.log').read_text()
+              for line in [line for line in trace.splitlines() if line.startswith('LOWER ')][-120:]:
+                  print(line)
       - name: Report actual producer and fixture observations
         if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
         run: python -c "from pathlib import Path; root = Path('build/compiler-pilot'); [print(name + '\n' + (root / name).read_text(encoding='utf-8')) for name in ('summary.json', 'checking.json', 'both.json', 'samples.json', 'cli.json') if (root / name).is_file()]"

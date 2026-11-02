@@ -155,6 +155,15 @@ impl Builder<'_, '_> {
                 }
             }
         }
+        if source.is_none() && std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            eprintln!("LOWER reference-capture refused machine={:?} expression={} access={expected_access:?} descriptor={descriptor:?}", self.machine, self.program.expression_table.display_name(expression));
+            for (_, resource) in self.borrow.call_loan_resources.iter().filter(|(_, resource)| resource.machine_symbol == self.machine && resource.state_symbol == self.state) {
+                let operand = self.flow.control.operands.get(resource.operand);
+                if operand.expression == expression {
+                    eprintln!("LOWER reference-leaf resource={resource:?} operand={operand:?}");
+                }
+            }
+        }
         Some((source?, access))
     }
 

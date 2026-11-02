@@ -212,9 +212,6 @@ impl StructuralJudge<'_> {
             ),
         };
         if !exact {
-            if super::super::struct_trace() {
-                eprintln!("STRUCT case-import refused owner={scope:?} fact={fact:?} stage=exact-meaning");
-            }
             return;
         }
         let reference = crate::parameter_expression_result_type_reference(
@@ -226,9 +223,6 @@ impl StructuralJudge<'_> {
         let Some((definition, variant)) =
             applied_case_classifier(self.program, binary.right, reference)
         else {
-            if super::super::struct_trace() {
-                eprintln!("STRUCT case-import refused owner={scope:?} fact={fact:?} reference={reference:?} stage=classifier");
-            }
             return;
         };
         let Some(subject) = structural_terms::structural_term(
@@ -238,21 +232,12 @@ impl StructuralJudge<'_> {
             binary.left,
             None,
         ) else {
-            if super::super::struct_trace() {
-                eprintln!("STRUCT case-import refused owner={scope:?} fact={fact:?} stage=subject-term");
-            }
             return;
         };
         let Some(subject) = self.resolve_case_subject(Self::substitute_term(&subject, map), 0)
         else {
-            if super::super::struct_trace() {
-                eprintln!("STRUCT case-import refused owner={scope:?} fact={fact:?} stage=subject-resolution");
-            }
             return;
         };
-        if super::super::struct_trace() {
-            eprintln!("STRUCT case-import owner={scope:?} fact={fact:?} subject={subject:?} data={:?} case={:?}", definition.symbol, variant.symbol);
-        }
         guarantees.push(CaseGuarantee {
             subject,
             data: definition.symbol,
@@ -280,9 +265,6 @@ impl StructuralJudge<'_> {
         let Some(subject) = self.resolve_case_subject(subject, 0) else {
             return StructuralJudgment::Unknown;
         };
-        if super::super::struct_trace() && matches!(subject, StructuralTerm::CapturedValue { .. }) {
-            eprintln!("STRUCT case-judge subject={subject:?} data={data_symbol:?} case={case_symbol:?} known={:?}", self.case_facts);
-        }
         // Checked inline observations retain this value's case identity.
         // A reference descriptor without an observed referent has no such tag.
         let subject = if matches!(&subject, StructuralTerm::ObservedValue { .. }) {

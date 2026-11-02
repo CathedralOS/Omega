@@ -171,7 +171,12 @@ pub(in crate::execution::terminal_unit) fn evaluated_argument_root<'a>(
         state,
         u32::try_from(statement_index).ok()?,
         argument,
-    )?;
+    ).or_else(|| {
+        if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            eprintln!("LOWER argument-root absent machine={machine:?} expression={} expected={:?}", program.expression_table.display_name(argument), program.type_reference_table.type_reference(expected));
+        }
+        None
+    })?;
     if root.machine != machine
         || program.normalized_type_identity(root.type_reference)
             != program.normalized_type_identity(expected)
