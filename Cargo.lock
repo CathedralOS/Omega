@@ -511,6 +511,7 @@ dependencies = [
  "platform-custody",
  "proof-admission",
  "provider-planning",
+ "provider-selection",
  "psi-compiler",
  "representation-planning",
  "runtime-abi",
