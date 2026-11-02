@@ -80,7 +80,7 @@ close the parent outcome's remaining computed-index or effectful compositions.
 
 The same fact also covers [direct computed results](computed_result/README.md), [qualified computed carriers](qualified_computed/README.md), and [mutating selected operators](mutating_operator/README.md). Their nine-place productions retain the bound and payload above. The named direct-result probe originally refused its constructor proof on optimized source `219b21966eb`; the qualified recipe originally lost its resolved cast context, and the explicit-reference token probe checked but had no executable body. These are implementation gaps under the existing generics and evaluation contracts. Current candidate-bound reports retain the actual source, producer and host observations.
 
-[Call-computed result indices](call_index/README.md) carry the same bound and payload through a constructor whose result index is a machine call.
+[Call-computed result indices](call_index/README.md) carry the same bound and payload through a constructor whose result index is a machine call; the [contract-proved production](contract_index/README.md) reads that call's value from the callee's published result equation.
 
 [Ordinary effectful calls](ordinary_call/README.md) use the same Value argument schedule. Independent review of `640b8808aa44` exposed eager const evaluation of such a call; the ordinary-call production retains runtime operands while the closed-call and nested explicit-const controls preserve static identity and staging.
 

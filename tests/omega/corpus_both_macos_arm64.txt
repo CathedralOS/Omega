@@ -1037,6 +1037,15 @@ pass/facts/runtime_index_application_computed_result_through_other_machine_exit 
 pass/facts/runtime_index_application_computed_result_through_other_state_exit built 987ms exit:0 interpreter-exit:0 interpreter:agrees @276a24ccda04
 pass/facts/runtime_index_application_computed_result_through_parameter_exit built 1027ms exit:0 interpreter-exit:0 interpreter:agrees @276a24ccda04
 pass/facts/runtime_index_application_computed_result_through_target_body_exit built 1010ms exit:0 interpreter-exit:0 interpreter:agrees @276a24ccda04
+pass/facts/runtime_index_application_contract_index_through_call_result_exit built 33790ms exit:0 interpreter-exit:0 interpreter:agrees @4a93353f8274+wt
+pass/facts/runtime_index_application_contract_index_through_const_name_exit built 21314ms exit:0 interpreter-exit:0 interpreter:agrees @4a93353f8274+wt
+pass/facts/runtime_index_application_contract_index_through_field_exit built 37673ms exit:0 interpreter-exit:0 interpreter:agrees @4a93353f8274+wt
+pass/facts/runtime_index_application_contract_index_through_local_exit built 33438ms exit:0 interpreter-exit:0 interpreter:agrees @4a93353f8274+wt
+pass/facts/runtime_index_application_contract_index_through_match_join_exit built 34251ms exit:0 interpreter-exit:0 interpreter:agrees @4a93353f8274+wt
+pass/facts/runtime_index_application_contract_index_through_other_machine_exit built 33686ms exit:0 interpreter-exit:0 interpreter:agrees @4a93353f8274+wt
+pass/facts/runtime_index_application_contract_index_through_other_state_exit built 28828ms exit:0 interpreter-exit:0 interpreter:agrees @4a93353f8274+wt
+pass/facts/runtime_index_application_contract_index_through_parameter_exit built 34276ms exit:0 interpreter-exit:0 interpreter:agrees @4a93353f8274+wt
+pass/facts/runtime_index_application_contract_index_through_target_body_exit built 29178ms exit:0 interpreter-exit:0 interpreter:agrees @4a93353f8274+wt
 pass/facts/runtime_index_application_mutating_operator_through_call_result_exit built 1048ms exit:0 interpreter-exit:0 interpreter:agrees @276a24ccda04
 pass/facts/runtime_index_application_mutating_operator_through_const_name_exit built 1027ms exit:0 interpreter-exit:0 interpreter:agrees @276a24ccda04
 pass/facts/runtime_index_application_mutating_operator_through_field_exit built 1014ms exit:0 interpreter-exit:0 interpreter:agrees @276a24ccda04
