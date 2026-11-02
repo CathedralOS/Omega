@@ -90,6 +90,7 @@ pub(super) fn validate(
     // The signature for plan revalidation is the computed destination shapes,
     // matching the producer's own derivation.
     let callbacks = native_callbacks_at(native, *psi_operation, &binding.boundary_entry_plan)?;
+    let operands = binding.operand_placements();
     // Only parameter-destination callbacks occupy a private plan slot and
     // shift authored positions; field destinations live inside the record a
     // real argument already names, so they mint no plan operand.
@@ -101,7 +102,8 @@ pub(super) fn validate(
         ) {
             private_ordinals.push(
                 usize::try_from(callback.application.native_ordinal)
-                    .map_err(|_| LegalizationError::custody())?,
+                    .map_err(|_| LegalizationError::custody())?
+                    + binding.dispatch_operand_count(),
             );
         }
     }
@@ -122,11 +124,7 @@ pub(super) fn validate(
                     semantic,
                     index,
                     declaration_parameter,
-                    binding
-                        .boundary_entry_plan
-                        .call
-                        .parameters
-                        .get(native_position),
+                    operands.get(native_position),
                     parameters,
                     optimized,
                     native.target,
@@ -191,7 +189,10 @@ pub(super) fn validate(
         return Err(LegalizationError::custody());
     }
     let signature = CallSignature {
-        parameters,
+        parameters: parameters
+            .into_iter()
+            .skip(binding.dispatch_operand_count())
+            .collect(),
         result: result_shape,
     };
     let validated = match callbacks.first() {
@@ -218,8 +219,7 @@ pub(super) fn validate(
             != provider_execution.provider_plan_report_identity().get()
         || !binding.has_valid_entry_mechanism()
         || validated.plan() != &binding.boundary_entry_plan
-        || binding.boundary_entry_plan.call.parameters.len()
-            != scalar_shapes.len() + structural.len() + private_ordinals.len()
+        || operands.len() != scalar_shapes.len() + structural.len() + private_ordinals.len()
         || scalar_arguments.len() != arguments.len()
         || arguments.len() != declaration.scalar_parameters.len()
         || structural_arguments.as_slice() != structural.as_slice()
@@ -241,12 +241,7 @@ pub(super) fn validate(
                         .filter(|ordinal| **ordinal <= index)
                         .count();
                 usize::try_from(argument.parameter_index).ok() != Some(native_position)
-                    || binding
-                        .boundary_entry_plan
-                        .call
-                        .parameters
-                        .get(native_position)
-                        != Some(&argument.placement)
+                    || operands.get(native_position) != Some(&argument.placement)
                     || argument.placement.shape != *shape
                     || shape.byte_size != access_byte_size
                     || argument.source.scalar_type() != *parameter

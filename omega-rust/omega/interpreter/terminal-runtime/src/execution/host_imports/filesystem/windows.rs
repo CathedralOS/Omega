@@ -56,7 +56,7 @@ enum Effect {
     Use,
     Close,
     Duplicate,
-    Path,
+    Path { count: usize },
     Pipe,
     Query { class: u32, bytes: u32 },
 }
@@ -161,7 +161,11 @@ fn replace_handle(
 
 impl Call {
     pub(super) fn path_argument(&self, index: usize) -> bool {
-        index == 0 && matches!(self.effect, Effect::Acquire | Effect::Path)
+        match self.effect {
+            Effect::Acquire => index == 0,
+            Effect::Path { count } => index < count,
+            _ => false,
+        }
     }
     pub(super) fn validate_path(
         &self,
@@ -183,9 +187,10 @@ impl Call {
     ) -> Result<Vec<TerminalScalarValue>, TerminalEffectRejection> {
         self.namespace.map_err(rejection)?;
         let invalid = || {
-            rejection(
-                "Windows file operation requires its exact synchronous/null/current-process inputs",
-            )
+            rejection(format!(
+                "Windows {} requires its exact synchronous/null/current-process inputs",
+                String::from_utf8_lossy(self.symbol)
+            ))
         };
         let safe = match self.symbol {
             b"CreateFileW" => {
@@ -216,8 +221,26 @@ impl Call {
             b"SetFilePointerEx" => {
                 arguments.len() == 3 && (0..=2).any(|method| scalar(arguments[2], method))
             }
-            b"CloseHandle" | b"GetFileType" => arguments.len() == 1,
+            b"GetFinalPathNameByHandleW" => {
+                // Capacity counts UTF-16 code units, including room for NUL.
+                // The complete captured array is the destination; zero flags
+                // request the normalized DOS spelling. Query the owned object
+                // without replacing its handle or manufacturing a path.
+                arguments.len() == 3 && scalar(arguments[1], 4096) && scalar(arguments[2], 0)
+            }
+            b"CloseHandle" | b"GetFileType" | b"FlushFileBuffers" => arguments.len() == 1,
             b"CreateDirectoryW" => arguments.len() == 1 && scalar(arguments[0], 0),
+            b"SetFileAttributesW" => arguments.len() == 1,
+            b"MoveFileExW" => {
+                // Replace/copy/write-through/tracking are synchronous file
+                // operations. Deferred reboot registration is a different
+                // effect; reserved/unknown flags have no admitted contract.
+                // https://learn.microsoft.com/windows/win32/api/winbase/nf-winbase-movefileexw
+                arguments.len() == 1
+                    && matches!(arguments[0], TerminalScalarValue::Integer {
+                    value: IntegerValue::Unsigned(flags), ..
+                } if flags & !0x2b == 0)
+            }
             b"DeleteFileW" | b"RemoveDirectoryW" => arguments.is_empty(),
             _ => false,
         };
@@ -225,7 +248,7 @@ impl Call {
             return Err(invalid());
         }
         let index = match self.effect {
-            Effect::Acquire | Effect::Path | Effect::Pipe => return Ok(arguments.to_vec()),
+            Effect::Acquire | Effect::Path { .. } | Effect::Pipe => return Ok(arguments.to_vec()),
             Effect::Duplicate => 1,
             _ => 0,
         };

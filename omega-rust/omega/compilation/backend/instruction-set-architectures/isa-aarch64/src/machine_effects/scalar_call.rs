@@ -55,6 +55,13 @@ pub fn aarch64_normalized_foreign_call_declaration(
         return None;
     }
     let supervisor = record.call.binding.system_call().is_some();
+    let table = if record.call.binding.table_dispatch().is_some() {
+        Some(crate::selected_form_encoding::table_call::table_address(
+            record,
+        )?)
+    } else {
+        None
+    };
     let mut register_destinations = 0_u16;
     let mut field_destinations = 0_u16;
     for callback in &record.call.callbacks {
@@ -82,6 +89,8 @@ pub fn aarch64_normalized_foreign_call_declaration(
     let variant = u32::from(register_destinations != 0) | (u32::from(field_destinations != 0) << 1);
     let byte_count = if supervisor {
         20
+    } else if table.is_some() {
+        20
     } else {
         4_u16
             .checked_add(register_destinations.checked_mul(8)?)?
@@ -90,8 +99,16 @@ pub fn aarch64_normalized_foreign_call_declaration(
     Some(MachineEffectDeclaration {
         semantic: MachineSemanticKind::NormalizedForeignCall,
         constraint: row.key,
-        memory: MachineMemoryEffect::NoneV1,
-        trap: MachineTrapBehavior::NeverV1,
+        memory: if table.is_some() {
+            MachineMemoryEffect::ReadPointerV1
+        } else {
+            MachineMemoryEffect::NoneV1
+        },
+        trap: if table.is_some() {
+            MachineTrapBehavior::MayArchitecturalFaultV1
+        } else {
+            MachineTrapBehavior::NeverV1
+        },
         barrier: MachineBarrier::Call,
         call: if supervisor {
             MachineCallEffect::SupervisorNormalReturnV1
@@ -115,11 +132,27 @@ pub fn aarch64_normalized_foreign_call_declaration(
                 implicit_unit_uses: row.implicit_uses.clone(),
                 implicit_unit_defs: row.implicit_defs.clone(),
                 implicit_unit_clobbers: row.clobbers.clone(),
-                memory: MachineEncodedMemoryEffect::NoneV1,
+                memory: match table {
+                    Some((_, byte_offset)) => {
+                        let position =
+                            selected_instructions::calls::constraints::foreign_argument_registers(
+                                &record.call,
+                            )
+                            .iter()
+                            .position(|(parameter, _)| *parameter == 0)?;
+                        MachineEncodedMemoryEffect::ReadTableFieldV1 {
+                            pointer_operand: u16::try_from(position).ok()?,
+                            byte_offset,
+                        }
+                    }
+                    None => MachineEncodedMemoryEffect::NoneV1,
+                },
                 stack: MachineEncodedStackEffect::UnchangedV1,
                 trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
                 control: if supervisor {
                     MachineEncodedControlEffect::SupervisorCallV1
+                } else if table.is_some() {
+                    MachineEncodedControlEffect::IndirectExternalCallV1
                 } else {
                     MachineEncodedControlEffect::DirectRelativeCallV1
                 },

@@ -70,10 +70,10 @@ projection does not independently admit an arbitrary Terminal artifact as Build.
 ordered binding effects and settings readback across fuel pauses, using both
 retained and loaded artifacts. It also tests nested records, case payloads,
 byte views and invalid identifiers, loaders and duplicate optimization counts.
-This is migration machinery, not a second production execution route. Production
-Build still uses the checked-tree evaluator; Terminal live-storage/result
-accounting, the remaining host operations and dependency/provider suspension
-must join the activation before that route replaces it.
+Production authored Build preparation uses this Terminal activation through
+`activation/preparation.rs` and the Build scheduler. The default declaration
+for a missing `build.omg`, remaining host operations, complete live-storage/result
+accounting and dependency/provider suspension retain migration work.
 Terminal's existing fuel meter now accepts the exact invocation sponsor and
 charges it at the ordinary operation/edge sites. The Build integration witness
 uses a shared account across two activations: an exact budget completes both,

@@ -7,6 +7,176 @@
 use semantic_vocabulary::{CallingSignatureId, ScalarApplicationId, StructuralTypeId};
 use terminal_psi::{StructuralAccess, StructuralTypeShape, TerminalModule};
 
+#[cfg(test)]
+mod tests;
+
+/// The same exact field-storage selection used by foreign geometry and its
+/// scalar dependency query. Logical construction has a different dependency
+/// walk: an authored stored-scalar override does not construct its logical child.
+pub struct ForeignRecordStorage<'module> {
+    pub storage: Option<semantic_vocabulary::AuthoredRecordStorage>,
+    fields: Option<&'module [terminal_psi::TargetLayoutFieldStorage]>,
+}
+
+impl ForeignRecordStorage<'_> {
+    pub fn field(
+        &self,
+        field: &terminal_psi::StructuralFieldDeclaration,
+    ) -> Result<Option<semantic_vocabulary::AuthoredFieldStorage>, String> {
+        match self.fields {
+            Some(fields) => Ok(Some(
+                fields
+                    .iter()
+                    .find(|candidate| candidate.field == field.id)
+                    .ok_or("target boundary layout omitted a live field")?
+                    .storage
+                    .clone(),
+            )),
+            None => Ok(field.storage.clone()),
+        }
+    }
+}
+
+pub fn foreign_record_storage<'module>(
+    module: &'module TerminalModule,
+    record: StructuralTypeId,
+    storage: terminal_psi::StructuralRecordStorage,
+    target: &str,
+) -> Result<ForeignRecordStorage<'module>, String> {
+    use terminal_psi::StructuralRecordStorage;
+    let selected = match storage {
+        StructuralRecordStorage::TargetLayout(application) => {
+            let application = module
+                .target_layout_applications
+                .iter()
+                .find(|candidate| candidate.id == application && candidate.record == record)
+                .ok_or("boundary record has no exact target layout application")?;
+            Some(
+                application
+                    .realizations
+                    .iter()
+                    .find(|row| row.target == target)
+                    .ok_or("boundary record has no layout for its selected target")?,
+            )
+        }
+        _ => None,
+    };
+    Ok(ForeignRecordStorage {
+        storage: match storage {
+            StructuralRecordStorage::Packed => None,
+            StructuralRecordStorage::Authored(storage) => Some(storage),
+            StructuralRecordStorage::TargetLayout(_) => selected.map(|row| row.storage),
+            StructuralRecordStorage::AccessView(_) | StructuralRecordStorage::Accessor(_) => {
+                return Err("placed data has no ordinary owned boundary storage".into());
+            }
+        },
+        fields: selected.map(|row| row.fields.as_slice()),
+    })
+}
+
+pub fn foreign_opaque_carrier<'module>(
+    module: &'module TerminalModule,
+    declaration: &terminal_psi::StructuralTypeDeclaration,
+) -> Result<Option<(usize, &'module terminal_psi::TerminalOpaqueRepresentation)>, String> {
+    let selected = module
+        .opaque_representations
+        .iter()
+        .enumerate()
+        .find(|(_, row)| row.opaque == declaration.id);
+    if selected.is_none() && declaration.quotient_carrier.is_some() {
+        return Err(
+            "nominally opaque boundary value requires retained selected-carrier custody".into(),
+        );
+    }
+    Ok(selected)
+}
+
+/// Exact foreign-value geometry debts. References and view descriptors are
+/// leaves; selected opaque carriers and target field overrides determine which
+/// by-value children actually occupy this boundary's storage.
+pub fn foreign_storage_extent_dependencies(
+    module: &TerminalModule,
+    roots: impl IntoIterator<Item = StructuralTypeId>,
+    target: &str,
+) -> Result<Vec<ScalarApplicationId>, String> {
+    fn visit(
+        module: &TerminalModule,
+        subject: StructuralTypeId,
+        target: &str,
+        active: &mut Vec<StructuralTypeId>,
+        closed: &mut Vec<StructuralTypeId>,
+        applications: &mut Vec<ScalarApplicationId>,
+    ) -> Result<(), String> {
+        if closed.contains(&subject) {
+            return Ok(());
+        }
+        if active.contains(&subject) {
+            return Err("recursive by-value Terminal data has no finite boundary shape".into());
+        }
+        let declaration = module
+            .structural_type(subject)
+            .ok_or("boundary value has no canonical storage declaration")?;
+        active.push(subject);
+        let mut children = Vec::new();
+        if let Some((_, selected)) = foreign_opaque_carrier(module, declaration)? {
+            children.push(selected.carrier);
+        } else {
+            match &declaration.shape {
+                StructuralTypeShape::PrimitiveScalar(_)
+                | StructuralTypeShape::Reference { .. }
+                | StructuralTypeShape::ByteSequence(_)
+                | StructuralTypeShape::ElementView { .. } => {}
+                StructuralTypeShape::FixedArray { element, length } => {
+                    if let terminal_psi::ArrayExtent::Application(application) = length {
+                        applications.push(*application);
+                    }
+                    children.push(*element);
+                }
+                StructuralTypeShape::Record { fields, storage } => {
+                    let selected = foreign_record_storage(module, subject, *storage, target)?;
+                    for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
+                        let storage = selected.field(field)?;
+                        if storage
+                            .as_ref()
+                            .and_then(|storage| storage.stored_scalar())
+                            .is_none()
+                            && let terminal_psi::StructuralFieldType::Structural(child) =
+                                field.field_type
+                        {
+                            children.push(child);
+                        }
+                    }
+                }
+                StructuralTypeShape::Sum { .. } | StructuralTypeShape::Mixed { .. } => {
+                    return Err("case data is not yet classifiable as a boundary value; pass it by reference".into());
+                }
+            }
+        }
+        for child in children {
+            visit(module, child, target, active, closed, applications)?;
+        }
+        active.pop();
+        closed.push(subject);
+        Ok(())
+    }
+    let mut applications = Vec::new();
+    let mut active = Vec::new();
+    let mut closed = Vec::new();
+    for root in roots {
+        visit(
+            module,
+            root,
+            target,
+            &mut active,
+            &mut closed,
+            &mut applications,
+        )?;
+    }
+    applications.sort_unstable();
+    applications.dedup();
+    Ok(applications)
+}
+
 pub fn calling_abi_extent_dependencies(
     module: &TerminalModule,
     declaration: CallingSignatureId,
@@ -30,13 +200,7 @@ pub fn calling_abi_extent_dependencies(
             roots.push(backing);
         }
     }
-    let declarations = module
-        .structural_types
-        .iter()
-        .map(|row| (row.id, row))
-        .collect();
-    crate::inline_storage_extent_dependencies(roots, &declarations)
-        .map(|applications| applications.into_iter().collect())
+    foreign_storage_extent_dependencies(module, roots, target)
 }
 
 pub fn callback_storage_has_slots(

@@ -176,17 +176,28 @@ pub(super) fn fragment_normalized_foreign_rejoin<'a>(
                 .map(|operand| operand.access)
                 .collect::<Vec<_>>();
             if record.call.binding.table_dispatch().is_some() {
-                if section.target.architecture != target::Architecture::X86_64 {
-                    return Err("table entry has no decoder for its architecture");
+                match section.target.architecture {
+                    target::Architecture::X86_64 => {
+                        isa_x86_64::validate_x86_64_selected_table_call_form(
+                            record,
+                            span.alternative,
+                            &views,
+                            &accesses,
+                            bytes,
+                        )
+                        .map_err(|_| "table entry bytes disagree with its selected binding")?;
+                    }
+                    target::Architecture::Aarch64 => {
+                        isa_aarch64::validate_aarch64_selected_table_call_form(
+                            record,
+                            span.alternative,
+                            &views,
+                            &accesses,
+                            bytes,
+                        )
+                        .map_err(|_| "table entry bytes disagree with its selected binding")?;
+                    }
                 }
-                isa_x86_64::validate_x86_64_selected_table_call_form(
-                    record,
-                    span.alternative,
-                    &views,
-                    &accesses,
-                    bytes,
-                )
-                .map_err(|_| "table entry bytes disagree with its selected binding")?;
             } else {
                 let kernel = record
                     .call

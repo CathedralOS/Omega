@@ -214,7 +214,7 @@ impl StructuralJudge<'_> {
         })
     }
 
-    pub(super) fn freeze_entry_scalar_read_backing(
+    pub(super) fn freeze_entry_read_backing(
         &self,
         state: &State,
         dependencies: CapturedStorageReadBacking,

@@ -15,6 +15,9 @@ use psi::checking::obligations;
 use psi::checking::ownership;
 use psi::checking::places;
 use psi::checking::qualification;
+use psi::checking::reference_backings;
+use psi::checking::reference_origins;
+use psi::checking::reference_writes;
 use psi::checking::references;
 use psi::checking::ranking;
 use psi::checking::slots;
@@ -42,12 +45,15 @@ public data Checker {
     // The body being walked: its places, its integer subjects and its zone.
     places: [Place; 256];
     place_count: u64;
-    // Captured local-reference storage origins; zero means unknown.
-    reference_origins: [u64; 256];
-    // Whether a captured origin is only the storage containing an
-    // untracked element (references.omg): the reference writes within it
-    // and reads nothing of it.
-    reference_footprints: [bool; 256];
+    // Reference descriptors retain live storage identity independently of
+    // owned scalar snapshots, including inside copied aggregate values.
+    reference_origins: [ReferenceOrigin; 256];
+    // Append-only per-body result rosters: old aliases retain their group
+    // when a later publication reuses a call place.
+    reference_views: [ReferenceView; 256];
+    reference_view_count: u64 in Trapping;
+    reference_backings: [ReferenceOrigin; 256];
+    reference_backing_count: u64 in Trapping;
     // Each place's default domain (domains.omg), and the place whose fields a
     // `where` fact's field names stand for while it is installed.
     domains: [DomainMark; 256];
@@ -236,7 +242,7 @@ crashes Trap
     machine settle(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing) {
         Checker::settle_routes(checker, syntax);
         Checker::settle_termination(checker, syntax, resolution);
-        Checker::check_supply(checker, syntax, resolution);
+        Checker::check_supply(checker, syntax, resolution, typing);
         Checker::project_slots(checker, syntax, typing);
     }
 }
@@ -557,13 +563,21 @@ crashes Trap
     }
 
     machine enter(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, index: u64 in Trapping, end: u64 in Trapping) {
-        let parameter: Parameter = SyntaxTrees::parameter(syntax, index);
-        let type_handle: u64 in Trapping = Typing::reference_type(typing, parameter.type_reference);
-        let place: u64 in Trapping = Checker::place(checker, typing, PlaceKind::Parameter, index, 0, type_handle);
+        let place: u64 in Trapping = Checker::parameter_place(checker, syntax, typing, index);
         transition { _ -> next(checker, syntax, typing, index + 1, end) }
     }
 
     machine done() {}
+}
+
+// Authenticate a parameter coordinate through its actual declared type. This
+// is also the root of arbitrary formal values in universal contract checking.
+public machine Checker::parameter_place(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, parameter: u64 in Trapping) -> u64 in Trapping
+crashes Trap
+{
+    let written: Parameter = SyntaxTrees::parameter(syntax, parameter);
+    let type_handle: u64 in Trapping = Typing::reference_type(typing, written.type_reference);
+    Checker::place(checker, typing, PlaceKind::Parameter, parameter, 0, type_handle)
 }
 
 // Machine-local declaration tables, guarded by the declaration's offset.
@@ -1125,8 +1139,14 @@ crashes Trap
         let whole: bool = Checker::writes_whole(checker, first_parameter + offset);
         transition exclusive {
             true -> origin(checker, syntax, typing, expression, callee, first_parameter, parameter_count, unknown, offset, handle, unknown || whole || offset >= parameter_count)
-            _ -> next(checker, syntax, typing, expression, callee, first_parameter, parameter_count, unknown, offset + 1)
+            _ -> embedded(checker, syntax, typing, expression, callee, first_parameter, parameter_count, unknown, offset, handle, value.place)
         }
+    }
+
+    machine embedded(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, callee: u64 in Trapping, first_parameter: u64 in Trapping, parameter_count: u64 in Trapping, unknown: bool, offset: u64 in Trapping, lender: u64 in Trapping, place: u64 in Trapping) {
+        let release: ReferenceRelease = ReferenceRelease::Invocation { expression: expression, lender: lender };
+        Checker::forget_exclusive_referents(checker, syntax, typing, place, release);
+        transition { _ -> next(checker, syntax, typing, expression, callee, first_parameter, parameter_count, unknown, offset + 1) }
     }
 
     machine origin(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, callee: u64 in Trapping, first_parameter: u64 in Trapping, parameter_count: u64 in Trapping, unknown: bool, offset: u64 in Trapping, handle: u64 in Trapping, whole: bool) {
@@ -1178,6 +1198,8 @@ crashes Trap
         checker.write_epoch = checker.write_epoch + 1;
         let write: WriteFootprint = WriteFootprint { place: place, callee: callee, whole: whole };
         Checker::snapshot_operands(checker, syntax, typing, expression, lender, write);
+        let release: ReferenceRelease = ReferenceRelease::Invocation { expression: expression, lender: lender };
+        Checker::forget_exclusive_referents(checker, syntax, typing, place, release);
         transition whole {
             true -> released(checker, syntax, typing, expression, callee, first_parameter, parameter_count, unknown, offset, place)
             _ -> narrowed(checker, syntax, typing, expression, callee, first_parameter, parameter_count, unknown, offset, place)
@@ -1185,6 +1207,7 @@ crashes Trap
     }
 
     machine released(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, callee: u64 in Trapping, first_parameter: u64 in Trapping, parameter_count: u64 in Trapping, unknown: bool, offset: u64 in Trapping, place: u64 in Trapping) {
+        Checker::forget_reference_origins(checker, typing, place);
         Checker::forget_place(checker, typing, place);
         transition { _ -> next(checker, syntax, typing, expression, callee, first_parameter, parameter_count, unknown, offset + 1) }
     }
@@ -1255,8 +1278,20 @@ crashes Trap
     }
 
     machine forgotten(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, callee: u64 in Trapping, index: u64 in Trapping) {
+        let entry: Place = Checker::place_at(checker, index);
+        let row: TypeRow = TypeTable::row(&typing.types, entry.type_handle);
+        // A reference-typed target writes its referent. Replacing owned
+        // storage can instead replace the descriptors contained in it.
+        replace_origins(checker, typing, index + 1, row.kind != TypeKind::Reference);
         Checker::forget_place(checker, typing, index + 1);
         transition { _ -> next(checker, typing, place, callee, index + 1) }
+    }
+
+    machine replace_origins(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, replace: bool) {
+        transition replace { true -> replaced(checker, typing, place) false -> {} }
+    }
+    machine replaced(checker: &mut Checker, typing: &Typing, place: u64 in Trapping) {
+        Checker::forget_reference_origins(checker, typing, place);
     }
 
     machine done() {}

@@ -133,7 +133,7 @@ fn duplicate_classifications_and_contracts_are_deferred_without_selecting_the_fi
 #[test]
 fn an_inventory_publishes_one_trust_roster_for_its_exact_immutable_owner() {
     let checked = Arc::new(CheckedTrees::default());
-    let inventory = PreparedProviderInventory::new(Arc::clone(&checked));
+    let inventory = PreparedProviderInventory::new(Arc::clone(&checked), &[]);
     assert!(std::ptr::eq(
         inventory.trust_declarations(),
         inventory.trust_declarations()

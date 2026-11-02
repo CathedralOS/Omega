@@ -126,9 +126,10 @@ pub(crate) fn check_product_source(
         );
     }
     let sources = Arc::new(build_sources.seal(&program, package_inputs)?);
-    let provider_inventory = Arc::new(psi_compiler::PreparedProviderInventory::new(Arc::clone(
-        &program,
-    )));
+    let provider_inventory = Arc::new(psi_compiler::PreparedProviderInventory::new(
+        Arc::clone(&program),
+        sources.exact_toolchain_sources(),
+    ));
     let terminal_publication = Arc::new(compilation_products::ProductTerminalPublication::new(
         rollback
             .settle(&computed_build_config.config.settings.optimizations)

@@ -1095,13 +1095,22 @@ fn validate_encoded_effects(
             MachineEncodedMemoryEffect::ReadTableFieldV1 {
                 pointer_operand, ..
             },
-            MachineEncodedStackEffect::CallReturnAddressLifecycleV1 {
+            stack @ (MachineEncodedStackEffect::CallReturnAddressLifecycleV1 {
                 return_address_byte_count: 8,
                 ..
-            },
+            }
+            | MachineEncodedStackEffect::UnchangedV1),
             MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
         ) if declaration.semantic == MachineSemanticKind::NormalizedForeignCall
             && declaration.memory == crate::MachineMemoryEffect::ReadPointerV1
+            && declaration.trap == MayArchitecturalFaultV1
+            && match architecture {
+                target::Architecture::X86_64 => matches!(
+                    stack,
+                    MachineEncodedStackEffect::CallReturnAddressLifecycleV1 { .. }
+                ),
+                target::Architecture::Aarch64 => stack == MachineEncodedStackEffect::UnchangedV1,
+            }
             && encoded.control == MachineEncodedControlEffect::IndirectExternalCallV1
             && encoded.external_operand_reads.contains(&pointer_operand) => {}
         (

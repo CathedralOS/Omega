@@ -66,14 +66,33 @@ impl<Declaration: Copy + Eq + Default + 'static> ProofApplicationPlan<Declaratio
             .map(|row| row.machine)
     }
 
+    /// Describe authored target membership independently of Product selection
+    /// or executable availability. This adds no invocation or seed authority.
+    pub fn declared_callable_for_target(
+        &self,
+        symbol: Declaration,
+        target: &str,
+    ) -> Option<Declaration> {
+        self.target_machine_matching(self.matching_machine(symbol, |_| true)?, target, |_| true)
+            .map(|row| row.machine)
+    }
+
     fn called_machine(&self, symbol: Declaration) -> Option<&ProofApplicationMachine<Declaration>> {
+        self.matching_machine(symbol, |row| row.product_selected)
+    }
+
+    fn matching_machine(
+        &self,
+        symbol: Declaration,
+        accepts: fn(&ProofApplicationMachine<Declaration>) -> bool,
+    ) -> Option<&ProofApplicationMachine<Declaration>> {
         self.machines
             .iter()
             .map(|(_, row)| row)
-            .find(|row| row.product_selected && row.machine == symbol)
+            .find(|row| accepts(row) && row.machine == symbol)
             .or_else(|| {
                 self.machines.iter().map(|(_, row)| row).find(|row| {
-                    row.product_selected && self.symbols.span_or_empty(row.states).contains(&symbol)
+                    accepts(row) && self.symbols.span_or_empty(row.states).contains(&symbol)
                 })
             })
     }
@@ -83,13 +102,22 @@ impl<Declaration: Copy + Eq + Default + 'static> ProofApplicationPlan<Declaratio
         machine: &'a ProofApplicationMachine<Declaration>,
         target: &str,
     ) -> Option<&'a ProofApplicationMachine<Declaration>> {
+        self.target_machine_matching(machine, target, |row| row.product_selected)
+    }
+
+    fn target_machine_matching<'a>(
+        &'a self,
+        machine: &'a ProofApplicationMachine<Declaration>,
+        target: &str,
+        accepts: fn(&ProofApplicationMachine<Declaration>) -> bool,
+    ) -> Option<&'a ProofApplicationMachine<Declaration>> {
         if machine.family_interface {
             let member = self
                 .target_members
                 .span_or_empty(machine.family_members)
                 .iter()
                 .find(|member| member.target == target)?;
-            return self.called_machine(member.machine);
+            return self.matching_machine(member.machine, accepts);
         }
         machine
             .authored_target

@@ -270,3 +270,8 @@ shared window separately from the scalar proof reads.
 [Declaration-local selector coordinates](local/declared_measure/computed_record/selected_value/README.md)
 carry the same private-cycle fact through indexed measure reads in all nine
 places, with public-contract and computed-selector compositions.
+
+[Declared calls borrowing outer input homes](local/borrowed_value/declared_call/README.md)
+lend the caller-owned rank record to a pure, total shared call across all nine
+places. Repeated shared arguments, projected input and alias forwarding preserve
+the same initialized home; access violations and stale/reset descent still reject.

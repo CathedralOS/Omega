@@ -14,7 +14,7 @@ pub(super) struct BorrowAccessCollection<'a> {
     accesses: &'a mut arena::HandleSpan<BorrowArgumentAccessFact>,
     pub(super) state_symbol: SymbolHandle,
     pub(super) statement_index: usize,
-    machine_symbol: SymbolHandle,
+    pub(super) machine_symbol: SymbolHandle,
     dispatch_extraction: DispatchExtraction,
 }
 
@@ -71,16 +71,16 @@ impl<'a> BorrowAccessCollection<'a> {
         )
     }
 
-    pub(super) fn expression_type_reference(
+    pub(super) fn value_type_reference(
         &self,
         expression: ExpressionHandle,
     ) -> Option<typed_trees::types::TypeReferenceHandle> {
-        validation::expression_type_reference_in_state(
+        let (machine, state) = validation::machine_state_by_symbols(
             self.program,
+            self.machine_symbol,
             self.state_symbol,
-            self.statement_index,
-            expression,
-        )
+        )?;
+        validation::expression_result_type_reference(self.program, machine, state, expression)
     }
 
     pub(super) fn append_argument_access(
@@ -145,7 +145,7 @@ impl<'a> BorrowAccessCollection<'a> {
         // completed descriptors and staged-value exclusions keep those loans.
         // Ending a temporary access is not retirement of the stored frontier.
         if !self
-            .expression_type_reference(expression)
+            .value_type_reference(expression)
             .is_some_and(|reference| {
                 validation::has_contents(
                     self.program,
@@ -187,13 +187,8 @@ impl<'a> BorrowAccessCollection<'a> {
     }
 
     pub(super) fn is_copyable_value(&self, expression: ExpressionHandle) -> bool {
-        validation::expression_type_reference_in_state(
-            self.program,
-            self.state_symbol,
-            self.statement_index,
-            expression,
-        )
-        .is_some_and(|reference| super::is_copyable_value_type(self.program, reference))
+        self.value_type_reference(expression)
+            .is_some_and(|reference| super::is_copyable_value_type(self.program, reference))
     }
 
     fn append_access(
