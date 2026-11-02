@@ -13,6 +13,6 @@ ensures finished(token)
 {
     let index: u32 = 2059;
     let value: u64 = 0;
-    asm where ensures finished(token) { wrmsr index, value }
+    asm ensures finished(token) { wrmsr index, value }
 }
 machine main() {}

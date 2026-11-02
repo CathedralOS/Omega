@@ -62,7 +62,7 @@ use tokens::PunctuationKind;
 /// - `read_crN <dest>` / `write_crN <source>` -> structured u64 control-
 ///   register value flow
 ///
-/// `asm where ... { ... }` additionally authors block proof obligations and/or
+/// `asm requires ... ensures ... clobbers ... { ... }` additionally authors block proof obligations and/or
 /// an exact clobber contract. `requires` facts become assertions immediately
 /// before the lowered instructions and `ensures` facts become assertions
 /// immediately after them; neither clause grants facts or overrides the shared
@@ -78,7 +78,7 @@ pub(crate) fn parse_asm_block_statement_handles<'tokens, 'source>(
 ) -> ParseResult<'tokens, 'source, HandleSpan<StatementHandle>> {
     let expression_start = exprs_of(syntax_trees).expression_count();
     let input = input.take_contextual("asm")?;
-    let (contract, input) = parse_asm_where_contract(syntax_trees, input)?;
+    let (contract, input) = parse_asm_contract(syntax_trees, input)?;
     let mut input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
     let mut target_requirement = AsmTargetApplicability::Any;
     let mut blocks = Vec::new();
@@ -427,22 +427,20 @@ fn assembly_label_starts(input: Input<'_, '_>) -> bool {
 }
 
 #[derive(Default)]
-struct ParsedAsmWhereContract {
+struct ParsedAsmContract {
     requires: Vec<ExpressionHandle>,
     ensures: Vec<ExpressionHandle>,
     clobbers: Option<std::collections::BTreeSet<String>>,
 }
 
-fn parse_asm_where_contract<'tokens, 'source>(
+fn parse_asm_contract<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, ParsedAsmWhereContract> {
-    if !input.at_contextual("where") {
-        return Ok((ParsedAsmWhereContract::default(), input));
-    }
-    let mut input = input.take_contextual("where")?;
-    let contract_site = input;
-    let mut contract = ParsedAsmWhereContract::default();
+) -> ParseResult<'tokens, 'source, ParsedAsmContract> {
+    // The contract clauses follow `asm` directly; there is no grouping word.
+    // A body without a leading clause has no authored contract.
+    let mut input = input;
+    let mut contract = ParsedAsmContract::default();
 
     while !input.at_punctuation(PunctuationKind::LeftBrace) {
         if input.at_contextual("requires") || input.at_contextual("ensures") {
@@ -475,7 +473,7 @@ fn parse_asm_where_contract<'tokens, 'source>(
             ]));
         }
         if contract.clobbers.is_some() {
-            return Err(input.error_here("an asm where block may declare `clobbers` only once"));
+            return Err(input.error_here("an asm block may declare `clobbers` only once"));
         }
         input = input.take_contextual("clobbers")?;
         let clobber_list_site = input;
@@ -508,11 +506,6 @@ fn parse_asm_where_contract<'tokens, 'source>(
         }
     }
 
-    if contract.clobbers.is_none() && contract.requires.is_empty() && contract.ensures.is_empty() {
-        return Err(contract_site.error_here(
-            "asm where requires at least one `requires`, `ensures`, or `clobbers` clause",
-        ));
-    }
     Ok((contract, input))
 }
 
@@ -543,7 +536,7 @@ fn validate_asm_clobber_contract<'tokens, 'source>(
         details.push(format!("not clobbered {}", format_asm_registers(&extra)));
     }
     Err(input.error_here(format!(
-        "asm where `clobbers` must exactly match the realized instruction contract: {}",
+        "asm `clobbers` must exactly match the realized instruction contract: {}",
         details.join("; ")
     )))
 }

@@ -25,6 +25,6 @@ ensures finished(token)
 {
     let observed: u32 = match enabled { true -> emit(), false -> 0 };
     let mut marker: u32 = observed;
-    asm where ensures finished(token) { mov marker, marker }
+    asm ensures finished(token) { mov marker, marker }
 }
 machine main() {}

@@ -1,0 +1,3 @@
+// The retired `asm where` grouping word has no parse path; the contract
+// clauses follow `asm` directly, as in `asm clobbers none { ... }`.
+machine main() { asm where clobbers none { lfence } }

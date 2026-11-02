@@ -10,7 +10,7 @@ machine failed() crashes Trap { crash Trap; }
 machine move_selected(selected: Counted, ignored: u64) -> u64
 ensures result == 7 {
     let mut output: u64 = 99;
-    asm where clobbers none {
+    asm clobbers none {
     entry:
         mov output, selected.length;
     done requires output == 7 ensures output == selected.length && output == 7:

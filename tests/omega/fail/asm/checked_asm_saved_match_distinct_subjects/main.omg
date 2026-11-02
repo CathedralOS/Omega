@@ -4,7 +4,7 @@ data Holder { value: u32; }
 linux_x86_64 machine compare(seed: u32) -> u32 requires seed == 37 ensures result == 37 {
     let other: Holder = Holder { value: 38 };
     let mut output: Holder = Holder { value: 0 };
-    asm where clobbers rax, rflags {
+    asm clobbers rax, rflags {
     entry:
         mov eax, seed;
         cmp eax, eax;
@@ -23,7 +23,7 @@ linux_x86_64 machine compare(seed: u32) -> u32 requires seed == 37 ensures resul
 windows_x86_64 machine compare(seed: u32) -> u32 requires seed == 37 ensures result == 37 {
     let other: Holder = Holder { value: 38 };
     let mut output: Holder = Holder { value: 0 };
-    asm where clobbers rax, rflags {
+    asm clobbers rax, rflags {
     entry:
         mov eax, seed;
         cmp eax, eax;
@@ -42,7 +42,7 @@ windows_x86_64 machine compare(seed: u32) -> u32 requires seed == 37 ensures res
 linux_arm64 machine compare(seed: u32) -> u32 requires seed == 37 ensures result == 37 {
     let other: Holder = Holder { value: 38 };
     let mut output: Holder = Holder { value: 0 };
-    asm where clobbers x0, nzcv {
+    asm clobbers x0, nzcv {
     entry:
         mov w0, seed;
         cmp w0, w0;
@@ -61,7 +61,7 @@ linux_arm64 machine compare(seed: u32) -> u32 requires seed == 37 ensures result
 macos_arm64 machine compare(seed: u32) -> u32 requires seed == 37 ensures result == 37 {
     let other: Holder = Holder { value: 38 };
     let mut output: Holder = Holder { value: 0 };
-    asm where clobbers x0, nzcv {
+    asm clobbers x0, nzcv {
     entry:
         mov w0, seed;
         cmp w0, w0;

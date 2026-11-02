@@ -2,6 +2,6 @@
   "role": "intended-invalid",
   "entry": "main.omg",
   "rejection_contains": [
-    "asm where `clobbers` must exactly match the realized instruction contract: not clobbered `x0`"
+    "asm `clobbers` must exactly match the realized instruction contract: not clobbered `x0`"
   ]
 }

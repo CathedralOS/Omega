@@ -22,7 +22,7 @@ ensures finished(token)
 {
     let selected: u32 = match emit_once() { true -> 0, false -> 1 };
     let mut marker: u32 = selected;
-    asm where ensures finished(token) { mov marker, marker }
-    asm where ensures finished(other) { mov marker, marker }
+    asm ensures finished(token) { mov marker, marker }
+    asm ensures finished(other) { mov marker, marker }
 }
 machine main() {}

@@ -102,7 +102,7 @@ fn nested_machine_layout_rejects_resumed_statements_and_package_exports() {
 #[test]
 fn entry_and_nested_bodies_preserve_expanded_statement_order_and_boundaries() {
     let body =
-        "let first: u64 = 1; asm where clobbers none { lfence; sfence } transition { _ -> done() }";
+        "let first: u64 = 1; asm clobbers none { lfence; sfence } transition { _ -> done() }";
     for source in [
         format!("machine process() {{ {body} machine done() {{}} }}"),
         format!("machine process() {{ machine begin() {{ {body} }} machine done() {{}} }}"),

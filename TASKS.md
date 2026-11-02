@@ -744,11 +744,6 @@ helper that passes does not close an item.
     callable's complete contract and terminating semicolon distinct from its
     enclosing declaration's requirements and guarantees, including higher-order
     and logical-evidence requirements.
-  - Parse body-level assembly `requires`, `ensures` and `clobbers` directly
-    after `asm`, including headers without predicates. Preserve label scopes,
-    incoming-edge and exit proofs, exact clobbers, instruction-catalog checks
-    and authority; removing the grouping word cannot turn assertions into
-    admissions or remove required effects.
   - Migrate bundled/product sources, Build declarations, samples, corpus and
     compiler-input literals, source tooling and highlighting, and affected
     customer programs. Update the Omega parser in `bootstrap/5_omega/` and its

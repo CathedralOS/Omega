@@ -16,13 +16,13 @@ machine main() reaches MachineControl crashes Trap {
 }
 
 machine restore(holder: &mut Flags) reaches MachineControl crashes Trap {
-    asm where clobbers rax, rflags, r10, r15 {
+    asm clobbers rax, rflags, r10, r15 {
         entry:
             mov eax, 1;
             sub eax, 1;
             pushfq holder.saved;
     }
-    asm where clobbers r10, r15 {
+    asm clobbers r10, r15 {
         entry:
             popfq holder.saved;
         observed requires (holder.saved & 64u64) == 64u64:

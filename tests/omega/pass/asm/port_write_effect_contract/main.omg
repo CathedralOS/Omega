@@ -7,15 +7,15 @@ data Main { port: u16; byte: u8; }
 machine emit(port: u16, byte: u8)
 reaches PortIo
 ensures port_written(port, byte)
-{ asm where ensures port_written(port, byte) { out port, byte } }
+{ asm ensures port_written(port, byte) { out port, byte } }
 machine Main::main(main: &mut Main) reaches PortIo {
     main.port = 32;
     main.byte = 32;
-    asm where ensures port_written(main.port, main.byte) { out main.port, main.byte }
+    asm ensures port_written(main.port, main.byte) { out main.port, main.byte }
     main.port = 33;
     main.byte = 77;
     emit(main.port, main.byte);
-    asm where requires port_written(main.port, main.byte) { mov main.byte, main.byte }
+    asm requires port_written(main.port, main.byte) { mov main.byte, main.byte }
 }
 
 machine port_value() -> u16 { 32 }
@@ -23,12 +23,12 @@ machine byte_value() -> u8 { 32 }
 machine local_values() reaches PortIo {
     let port: u16 = port_value();
     let byte: u8 = byte_value();
-    asm where ensures port_written(port, byte) { out port, byte }
+    asm ensures port_written(port, byte) { out port, byte }
 }
 machine another_state(port: u16, byte: u8) reaches PortIo {
     transition true { true -> work(port, byte) }
     machine work(port: u16, byte: u8) {
-        asm where ensures port_written(port, byte) { out port, byte }
+        asm ensures port_written(port, byte) { out port, byte }
     }
 }
 
@@ -37,16 +37,16 @@ ensures model_set(marker)
 {
     let index: u32 = 2059;
     let value: u64 = 0;
-    asm where ensures model_set(marker) { wrmsr index, value }
+    asm ensures model_set(marker) { wrmsr index, value }
 }
 machine computed_alias() reaches PortIo {
     let port: u16 = 32;
     let byte: u8 = 32;
-    asm where ensures reported(port, byte) { out port, byte }
+    asm ensures reported(port, byte) { out port, byte }
 }
 
 machine parameter_alias(port: u16, byte: u8) reaches PortIo {
-    asm where ensures reported(port, byte) { out port, byte }
+    asm ensures reported(port, byte) { out port, byte }
 }
 
 machine reverse_edge(port: u16, byte: u8) reaches PortIo {
@@ -75,37 +75,37 @@ data PortCell { port: u16; }
 machine emit_and_replace(port: u16, cell: &mut PortCell, byte: u8) reaches PortIo
 ensures port_written(port, byte)
 {
-    asm where ensures port_written(port, byte) { out port, byte }
+    asm ensures port_written(port, byte) { out port, byte }
     cell.port = 33;
 }
 machine helper_captured_value(cell: &mut PortCell) reaches PortIo {
     cell.port = 32;
     emit_and_replace(cell.port, cell, 32);
     let mut marker: u8 = 0;
-    asm where ensures reported(32, 32) { mov marker, marker }
+    asm ensures reported(32, 32) { mov marker, marker }
 }
 
 machine replace_and_emit(cell: &mut PortCell, byte: u8) reaches PortIo
 ensures port_written(cell.port, byte)
 {
     cell.port = 33;
-    asm where ensures port_written(cell.port, byte) { out cell.port, byte }
+    asm ensures port_written(cell.port, byte) { out cell.port, byte }
 }
 machine reference_helper_alias(cell: &mut PortCell, byte: u8) reaches PortIo {
     replace_and_emit(cell, byte);
     let mut marker: u8 = 0;
-    asm where ensures reported(cell.port, byte) { mov marker, marker }
+    asm ensures reported(cell.port, byte) { mov marker, marker }
 }
 machine reference_helper_copy(cell: &mut PortCell, byte: u8) reaches PortIo {
     replace_and_emit(cell, byte);
     let captured_port: u16 = cell.port;
     let mut marker: u8 = 0;
-    asm where ensures reported(captured_port, byte) { mov marker, marker }
+    asm ensures reported(captured_port, byte) { mov marker, marker }
 }
 machine helper_call_values() reaches PortIo {
     let port: u16 = port_value();
     let byte: u8 = byte_value();
     emit(port, byte);
     let mut marker: u8 = 0;
-    asm where ensures reported(port, byte) { mov marker, marker }
+    asm ensures reported(port, byte) { mov marker, marker }
 }

@@ -7,7 +7,7 @@ boundary trait Countdown {
 X86Countdown satisfies Countdown {
     machine run(seed: u32) -> u32 requires seed == 2 ensures result == 0 {
         let mut output: u32 = 99;
-        asm where clobbers rax, rflags {
+        asm clobbers rax, rflags {
         entry:
             mov eax, seed;
             jmp loop;
@@ -24,7 +24,7 @@ X86Countdown satisfies Countdown {
 ArmCountdown satisfies Countdown {
     machine run(seed: u32) -> u32 requires seed == 2 ensures result == 0 {
         let mut output: u32 = 99;
-        asm where clobbers x0, x1, nzcv {
+        asm clobbers x0, x1, nzcv {
         entry:
             mov w0, seed;
             b loop;

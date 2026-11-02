@@ -1,4 +1,4 @@
-// `asm where` block contract: `requires main.ready` +
+// `asm` block contract: `requires main.ready` +
 // `clobbers {r15, r11, rax, r10, rdx}` + `ensures main.ready`
 // — the exact realized register union, plus field operands
 // `out main.port, main.status; in main.status, main.port`.
@@ -16,7 +16,7 @@ data Main { port: u16; status: u8; ready: bool; }
 machine Main::main(main: &mut Main) reaches PortIo
 requires main.ready
 {
-    asm where
+    asm
         requires main.ready
         clobbers r15, r11, rax, r10, rdx
         ensures main.ready

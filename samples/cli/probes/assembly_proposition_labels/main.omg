@@ -4,10 +4,10 @@ proposition bounded_alias(value: i32) = bounded(value + 0);
 proposition ready(value: i32);
 machine preserve_ready(value: i32)
 requires ready(value)
-{ asm where requires ready(value) ensures ready(value) { nop } }
+{ asm requires ready(value) ensures ready(value) { nop } }
 machine specialized<const Instance: u64>() -> i32 {
     let mut value: i32 = 7;
-    asm where requires bounded(value) ensures bounded_alias(value) { mov value, 9 }
+    asm requires bounded(value) ensures bounded_alias(value) { mov value, 9 }
     value
 }
 data Main { input: i32; output: i32; }
@@ -23,7 +23,7 @@ machine Main::main(main: &mut Main) crashes Trap {
         mov main.output, main.output
     }
     let mut copied: i32 = 3;
-    asm where requires bounded(copied) ensures bounded_alias(copied) { mov copied, 9 }
+    asm requires bounded(copied) ensures bounded_alias(copied) { mov copied, 9 }
     let first: i32 = specialized<1>();
     let second: i32 = specialized<2>();
     transition main.output == 7 && copied == 9 && first == 9 && second == 9 { true -> good() false -> bad() }
