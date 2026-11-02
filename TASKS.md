@@ -923,13 +923,6 @@ helper that passes does not close an item.
     cyclic/opaque/provider/dependent result composition with exact guard and
     operand completion cuts, and runtime-dispatched value construction on the
     common `EstablishStructuralValue` route through ordinary argument evaluation.
-  - Repair const-argument recipe boundary (red on main since `#91`,
-    `a600523a236`): Psi 01 retains generic value arguments as `ConstExpression`
-    recipes until `omega/compilation/driver/src/execution_settlement/constant_recipe_closure.rs`
-    rewrites application sites to canonical literal spellings, so the layout
-    crate's two `full_width_*_rejects_placement_instead_of_panicking` tests built
-    from raw 01→04 output degrade generic-capacity fields to `Unit` and must be
-    migrated to the closed representation or have their contract restated.
   - **REFERENCE-LOCAL-BINDING-ROUTES:** qualify reference-valued local routes on
     Linux x86-64 and Windows x86-64 and carry
     `samples/cli/facts/scalar_tag_field_loan` through remaining matching hosts,
@@ -938,7 +931,7 @@ helper that passes does not close an item.
   - **TRANSITION-TAIL-CALL-TO-MACHINE:** validate matching-host native trap and
     normal-return oracles for `calls/runtime_guarded_reference_return_crash` and
     `pass/calls/runtime_guarded_reference_return_before_crash_exit` on Linux
-    ARM64, macOS ARM64, and Windows x86-64.
+    ARM64 and Windows x86-64.
   - Complete remaining runtime aggregate construction and opaque-provider
     result replacement through opaque incoming referents.
   - Complete generic body-checking compositions, byte-predicate observations, and
