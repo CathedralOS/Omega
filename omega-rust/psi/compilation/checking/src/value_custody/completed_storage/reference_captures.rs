@@ -93,6 +93,25 @@ pub fn reference_sources_at_path(
                     matches!(result, Some(Selection::Unavailable)),
                     control.operand_retentions.get(*profile)
                 );
+                for leaf in control
+                    .operand_retained_leaves
+                    .span_or_empty(control.operand_retentions.get(*profile).leaves)
+                {
+                    eprintln!(
+                        "CHECKSITE completed-reference profile-leaf={leaf:?} path={:?}",
+                        control.operand_retained_paths.span_or_empty(leaf.path)
+                    );
+                    if control.operand_retentions.is_valid(leaf.retention) {
+                        let retained = control.operand_retentions.get(leaf.retention);
+                        eprintln!("CHECKSITE completed-reference leaf-retention={retained:?}");
+                        if control.operands.is_valid(retained.descriptor) {
+                            eprintln!(
+                                "CHECKSITE completed-reference leaf-descriptor={:?}",
+                                control.operands.get(retained.descriptor)
+                            );
+                        }
+                    }
+                }
             }
         }
     }
