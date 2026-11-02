@@ -9,7 +9,7 @@
 use crate::SelectedProviderAdapter;
 use effects::provider_plan::{ProviderBinding, ProviderPlan};
 
-pub(crate) fn retain_selected_provider_adapters(
+pub fn retain_selected_provider_adapters(
     selected: &effects::SelectedProviderPlanFacts,
     declarations: &[backend_plan::TerminalTargetProviderPlan],
 ) -> Result<Vec<SelectedProviderAdapter>, String> {

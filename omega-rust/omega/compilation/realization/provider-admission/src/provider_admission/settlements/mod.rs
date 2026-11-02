@@ -3,9 +3,9 @@
 //! realization, and publish executions in canonical order.
 
 use crate::AdmittedBoundarySettlement;
-use crate::providers::provider_admission::AdmittedTerminalMechanism;
-use crate::providers::provider_admission::terminal_authority_policy::TerminalAuthorityPolicyRow;
-use crate::providers::provider_admission::{NativeRealizationInput, ProviderAdmissionRequest};
+use crate::provider_admission::AdmittedTerminalMechanism;
+use crate::provider_admission::terminal_authority_policy::TerminalAuthorityPolicyRow;
+use crate::provider_admission::{NativeRealizationInput, ProviderAdmissionRequest};
 use diagnostics::Diagnostic;
 use installation_evidence::ProviderExecutionEvidence;
 

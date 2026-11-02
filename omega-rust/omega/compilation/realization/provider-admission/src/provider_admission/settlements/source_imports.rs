@@ -4,12 +4,12 @@
 use std::collections::BTreeMap;
 
 use crate::NativeCallbackArgumentProposal;
-use crate::providers::provider_admission::AdmittedTerminalMechanism;
+use crate::provider_admission::AdmittedTerminalMechanism;
 use diagnostics::Diagnostic;
 use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow};
 use semantic_vocabulary::BoundaryMachineId;
 
-use crate::providers::provider_admission::terminal_authority_policy::TerminalAuthorityPolicyRow;
+use crate::provider_admission::terminal_authority_policy::TerminalAuthorityPolicyRow;
 
 struct ImportCoverageRows<'input> {
     boundary: BoundaryMachineId,
@@ -31,7 +31,7 @@ struct ImportCoverageRows<'input> {
 /// Each leaf must still resolve to one selected row, one Terminal boundary
 /// and, for an import, one external implementation contract to derive from.
 pub(super) fn derive_source_evaluated_mechanisms(
-    input: &crate::VerifiedNativeArtifactInput,
+    input: &crate::AdmissionSource<'_>,
     selected_plans: &effects::SelectedProviderPlanFacts,
     external_binding_rows: &[calling_conventions::ExternalBindingRow],
     native_callbacks: &[crate::NativeCallbackArgumentProposal],
@@ -60,7 +60,6 @@ pub(super) fn derive_source_evaluated_mechanisms(
             continue;
         };
         let abi = input
-            .optimization_input()
             .selected_calling_abi_identity(rows.boundary)
             .map_err(|reason| {
                 vec![Diagnostic::error(format!(
@@ -125,7 +124,7 @@ pub(super) fn derive_source_evaluated_mechanisms(
                 let target_profile =
                     target::TargetProfile::from_canonical_target_name(&provider_plan.target)
                         .map_err(|diagnostic| vec![diagnostic])?;
-                crate::providers::provider_admission::terminal_authority_policy::conservative_syscall_terminal_mechanism(
+                crate::provider_admission::terminal_authority_policy::conservative_syscall_terminal_mechanism(
                     target_profile,
                     *number,
                     plan,
@@ -149,7 +148,7 @@ pub(super) fn derive_source_evaluated_mechanisms(
                         .plan
                         .plan();
                 match rows.callbacks.as_slice() {
-                    [] => crate::providers::provider_admission::normalized_foreign_terminal_mechanism(
+                    [] => crate::provider_admission::normalized_foreign_terminal_mechanism(
                         evaluated.locator(),
                         boundary_entry_plan,
                     ),
@@ -161,7 +160,7 @@ pub(super) fn derive_source_evaluated_mechanisms(
                                     && callback.registrar_context == first.registrar_context
                             }) =>
                     {
-                        crate::providers::provider_admission::normalized_foreign_terminal_mechanism_with_callback_materializations(
+                        crate::provider_admission::normalized_foreign_terminal_mechanism_with_callback_materializations(
                             evaluated.locator(),
                             boundary_entry_plan,
                             &first.registrar_context,
@@ -212,7 +211,7 @@ fn settled_host_cohort_row(
         .methods
         .iter()
         .find(|method| method.name == row.method)?;
-    crate::providers::provider_admission::terminal_authority_policy::cohort_mechanism_row(
+    crate::provider_admission::terminal_authority_policy::cohort_mechanism_row(
         mechanism,
         &provider_plan.schema,
         method,

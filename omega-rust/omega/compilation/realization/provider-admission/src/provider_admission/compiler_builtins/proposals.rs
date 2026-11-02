@@ -29,7 +29,7 @@ struct SelectedIntrinsicRow<'a> {
 /// once to its selected plan and the one Terminal boundary it settles.
 /// Provenance stays borrowed and source-free; every plan is checked even
 /// without demand. The receiving target catalog admits these proposals later.
-pub(crate) fn derive_selected_intrinsic_settlement_proposals<'a>(
+pub fn derive_selected_intrinsic_settlement_proposals<'a>(
     selected: &'a effects::SelectedProviderPlanFacts,
     provenance: impl ExactSizeIterator<Item = CompilerIntrinsicPlanProvenance<'a>>,
     demanded_boundaries: &BTreeSet<String>,

@@ -22,7 +22,7 @@ use super::diagnostics::realization_error;
 use super::terminal_authority_review::reachability::AuthorityGraph;
 
 pub(super) fn require_reached_providers(
-    input: &crate::VerifiedPsiOptimizationInput,
+    input: &crate::AdmissionSource<'_>,
     target_profile: target::TargetProfile,
     selected: &effects::SelectedProviderPlanFacts,
 ) -> Result<(), Vec<Diagnostic>> {

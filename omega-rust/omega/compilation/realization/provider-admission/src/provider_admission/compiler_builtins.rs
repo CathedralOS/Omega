@@ -24,14 +24,14 @@ mod retained;
 pub use catalog::SettledCompilerBuiltin;
 
 pub use proposals::CompilerIntrinsicPlanProvenance;
-pub(crate) use proposals::derive_selected_intrinsic_settlement_proposals;
+pub use proposals::derive_selected_intrinsic_settlement_proposals;
 mod external_satisfaction;
-pub(crate) use external_satisfaction::validate_external_provider_owners;
-pub(crate) use retained::prepare_retained_compiler_builtins;
+pub use external_satisfaction::validate_external_provider_owners;
+pub use retained::prepare_retained_compiler_builtins;
 pub use retained::{TerminalCompilerBuiltinProposal, TerminalCompilerBuiltinSettlement};
 
-use crate::providers::provider_admission::AdmittedTerminalMechanism;
-use crate::providers::provider_admission::{NativeRealizationInput, ProviderAdmissionRequest};
+use crate::provider_admission::AdmittedTerminalMechanism;
+use crate::provider_admission::{NativeRealizationInput, ProviderAdmissionRequest};
 use crate::{AdmittedBoundaryExecution, AdmittedBoundarySettlement};
 use diagnostics::Diagnostic;
 use effects::CompilerAccessorScalarOperation;
@@ -140,7 +140,7 @@ pub(super) fn settle_compiler_builtins<'request>(
                 )]);
             }
             CompilerBuiltinExecution::ProgramStorageEntry => {
-                let binding = input.optimization_input().selected_program_entry_call()
+                let binding = input.selected_program_entry_call()
                     .filter(|binding| binding.boundary() == boundary.id
                         && binding.provider_plan() == proposal.provider_plan.identity_digest())
                     .ok_or_else(|| vec![Diagnostic::error(
@@ -181,7 +181,7 @@ pub(super) fn settle_compiler_builtins<'request>(
                 access_slot,
                 operation,
             } => {
-                let module = input.context().module();
+                let module = input.module();
                 let demand = terminal_semantics::accessor_scalar_boundary_demand(
                     &module.structural_types,
                     &module.identities,
@@ -453,7 +453,7 @@ fn require_access_backing_origins(
     boundary: semantic_vocabulary::BoundaryMachineId,
 ) -> Result<(), String> {
     use std::collections::BTreeSet;
-    let module = input.context().module();
+    let module = input.module();
     let reachable = input
         .plan()
         .functions
@@ -476,7 +476,7 @@ fn require_access_backing_origins(
             continue;
         }
         if let Some(terminal_psi::TargetMachineCallable::Machine(member)) =
-            input.optimization_input().target_family_member(*head)?
+            input.target_family_member(*head)?
         {
             selected_calls.push((*head, member));
         }

@@ -10,7 +10,7 @@ mod reviewer;
 use effects::{SelectedProviderPlanFacts, TerminalAuthorityClosureReviewReceipt};
 
 use super::{TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy};
-use crate::providers::provider_admission::AdmittedTerminalMechanism;
+use crate::provider_admission::AdmittedTerminalMechanism;
 use context::ReviewContext;
 use reviewer::Reviewer;
 
@@ -22,13 +22,13 @@ use reviewer::Reviewer;
 pub(crate) fn review_terminal_authority_closure(
     terminal_artifact_identity: [u8; 32],
     target_profile: target::TargetProfile,
-    input: &crate::VerifiedPsiOptimizationInput,
+    input: &crate::AdmissionSource<'_>,
     selected: &SelectedProviderPlanFacts,
     physical_policy: &TerminalAuthorityPolicy,
     permission_policy: Option<&TerminalAuthorityPermissionPolicy>,
     mechanisms: &[AdmittedTerminalMechanism],
     installed_candidates: &[terminal_psi::ProviderCandidateConformance],
-    components: &[crate::providers::provider_admission::NativeProviderSettlement<'_>],
+    components: &[crate::provider_admission::NativeProviderSettlement<'_>],
 ) -> Result<TerminalAuthorityClosureReviewReceipt, String> {
     let context = ReviewContext::new(
         target_profile,

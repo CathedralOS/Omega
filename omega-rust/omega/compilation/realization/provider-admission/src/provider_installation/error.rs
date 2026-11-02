@@ -1,9 +1,7 @@
-use crate::artifact_admission::ArtifactLoweringError;
 use semantic_vocabulary::{InvocationSite, MachineId, OperationId};
 
 #[derive(Debug)]
 pub enum ProviderInstallationError {
-    ArtifactReplay(ArtifactLoweringError),
     PlanReplayMismatch,
     InvalidLoweredCatalog,
     MissingSelectedProvider {

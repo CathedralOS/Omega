@@ -28,10 +28,12 @@ import sys
 
 NATIVE_ROOT = "omega-rust/omega/compilation/native-production"
 PROVIDER_SELECTION_ROOT = "omega-rust/omega/compilation/realization/provider-selection"
+PROVIDER_ADMISSION_ROOT = "omega-rust/omega/compilation/realization/provider-admission"
 TRUST_ROOT = "omega-rust/omega/compilation/realization/trust-model"
 PERMITTED_OWNERS = (
     NATIVE_ROOT,
     PROVIDER_SELECTION_ROOT,
+    PROVIDER_ADMISSION_ROOT,
     "omega-rust/omega/compilation/pipeline",
     "omega-rust/omega/compilation/representations",
     "omega-rust/omega/compilation/backend",
