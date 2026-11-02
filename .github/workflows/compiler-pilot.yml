@@ -149,7 +149,7 @@ jobs:
           producer = summary.get('producer', {})
           runner = producer.get('runner')
           if runner:
-              environment = dict(os.environ, OMEGA_STRUCT_TRACE='1',
+              environment = dict(os.environ, OMEGA_STRUCT_TRACE='1', OMEGA_COMPILER_CHECK_SITES='1',
                   OMEGA_CORPUS_FIXTURE_FILTER='pass/facts/resource_representation_buffered_local_exit',
                   OMEGA_CORPUS_JOBS='1', OMEGA_CORPUS_ROOT=str(Path.cwd()),
                   OMEGA_LIBRARY_ROOT=str(Path('source/library').resolve()),
@@ -159,7 +159,7 @@ jobs:
                       stdout=log, stderr=subprocess.STDOUT, timeout=180)
               print('Frozen buffered proof trace runner exit:', result.returncode)
               trace = (output / 'buffered-proof-trace.log').read_text()
-              for line in [line for line in trace.splitlines() if line.startswith('LOWER ')][-120:]:
+              for line in [line for line in trace.splitlines() if line.startswith(('LOWER ', 'descriptor lowering refusal'))][-120:]:
                   print(line)
       - name: Report actual producer and fixture observations
         if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
