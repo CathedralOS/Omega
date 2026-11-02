@@ -1098,12 +1098,13 @@ impl<'program> CurrentScalarValues<'program> {
         &self,
         expression: ExpressionHandle,
     ) -> Option<ScopedArithmeticExpression> {
-        let captured = self
-            .current
-            .iter()
-            .map(|binding| (binding.symbol, binding.value.clone()))
-            .collect::<Vec<_>>();
-        self.application_value_with_captured(expression, &[], &captured)
+        scoped_operations(
+            self.occurrence(),
+            expression,
+            &self.current,
+            &self.fields,
+            true,
+        )
     }
 
     pub(crate) fn integer_expression_formation(
@@ -1818,6 +1819,19 @@ fn scoped(
     bindings: &[Binding],
     fields: &[ScalarField],
 ) -> Option<ScopedArithmeticExpression> {
+    scoped_operations(occurrence, expression, bindings, fields, false)
+}
+
+/// Bind the same exact read roster for proof consumers and declaration
+/// formation. Formation preserves operations for the child-first checker;
+/// completed proof consumers retain their prior preserving-cast projection.
+fn scoped_operations(
+    occurrence: ScopedOccurrence<'_, '_>,
+    expression: ExpressionHandle,
+    bindings: &[Binding],
+    fields: &[ScalarField],
+    form_operations: bool,
+) -> Option<ScopedArithmeticExpression> {
     let ScopedOccurrence {
         program,
         machine,
@@ -1841,6 +1855,24 @@ fn scoped(
                 crate::shared::collections::push_unique(&mut symbols, name.symbol);
             }
             ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) => {}
+            ExpressionNode::Atomic(atomic) if form_operations => {
+                pending.push((atomic.value, depth + 1));
+            }
+            ExpressionNode::Cast(cast) if form_operations => {
+                pending.push((cast.value, depth + 1));
+            }
+            ExpressionNode::Call(call) if form_operations => {
+                if call.receiver.is_valid() {
+                    pending.push((call.receiver, depth + 1));
+                }
+                pending.extend(
+                    program
+                        .expression_table
+                        .expression_handles(call.arguments)
+                        .iter()
+                        .map(|argument| (*argument, depth + 1)),
+                );
+            }
             ExpressionNode::Cast(_) => {
                 let operand =
                     preserving_integer_cast_operand(occurrence, expression, bindings, fields)?;

@@ -101,13 +101,23 @@ impl Engine<'_> {
         let program = self.program;
         let mut admitted = self.clone();
         admitted.source_owner = owner;
-        let result_type = admitted.source_result_type(body)?;
-        program
-            .primitive_type_reference(result_type)?
-            .integer_bounds()?;
+        // Anonymous numeric peers have exact unbounded intermediates until
+        // their consumer lands the final integer. All other expressions retain
+        // their actual selected finite carrier; no default carrier is inferred.
+        let anonymous = super::super::proof_integer::anonymous_integer_value(program, body);
+        let result_type = if anonymous.is_some() {
+            None
+        } else {
+            let reference = admitted.source_result_type(body)?;
+            program
+                .primitive_type_reference(reference)?
+                .integer_bounds()?;
+            Some(reference)
+        };
         let mut decisions = ApplicationDecisions::default();
         let value = formed_value(&mut admitted, program, body, 0, &mut decisions)?;
-        if !formed_type(&mut admitted, program, result_type, &value)
+        if result_type
+            .is_some_and(|reference| !formed_type(&mut admitted, program, reference, &value))
             || admitted.requires_unsatisfiable
         {
             return None;
@@ -271,6 +281,16 @@ fn formed_value(
     // normalized parent as formed could erase a partial child (x / 0, a bad
     // index, or a selected user operation) after polynomial cancellation.
     if let Some(value) = engine.formal_coordinate_value(expression) {
+        return Some(value);
+    }
+    // The current-value owner captured these exact reads, including their
+    // selectors, before formation. Only read leaves can use occurrence facts:
+    // a normalized arithmetic/call parent must still form every child.
+    if matches!(
+        expression_table(program).expression(expression),
+        ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
+    ) && let Some(value) = engine.strict_occurrence_value(expression)
+    {
         return Some(value);
     }
     // Wholly anonymous integers have unbounded intermediates until landing.

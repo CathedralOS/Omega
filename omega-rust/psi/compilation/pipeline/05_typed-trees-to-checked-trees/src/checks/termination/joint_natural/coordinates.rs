@@ -45,15 +45,12 @@ impl Bound {
         match self {
             Self::Authored { expression, .. } => {
                 let state = &program.machine_states(machine)[0];
-                let arguments = program
-                    .state_parameters(state)
-                    .iter()
-                    .zip(edge.arguments)
-                    .map(|(formal, actual)| (formal.symbol, Some(*actual)))
-                    .collect::<Vec<_>>();
-                let expression =
-                    edge.values
-                        .application_value_with_captured(*expression, &arguments, &[])?;
+                let expression = edge.values.bind_integer_expression_parameters(
+                    machine,
+                    state,
+                    *expression,
+                    edge.arguments,
+                )?;
                 edge.values
                     .integer_expression_formation(edge.values.machine(), &expression)
                     .map(|(_, value)| value)

@@ -82,9 +82,12 @@ pub fn scoped_integer_expression_formation(
         return None;
     }
     let application = engine.form_integer_expression(expression.owner, expression.expression)?;
-    let value = engine.capture_integer_denotation(&application.value)?;
-    Some((
-        application.formation?,
-        super::ScopedArithmeticValue::CapturedInteger(value),
-    ))
+    let value = if let Some(value) = application.value.constant_value() {
+        super::ScopedArithmeticValue::Integer(value)
+    } else {
+        super::ScopedArithmeticValue::CapturedInteger(
+            engine.capture_integer_denotation(&application.value)?,
+        )
+    };
+    Some((application.formation?, value))
 }
