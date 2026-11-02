@@ -1747,6 +1747,24 @@ fail/facts/nested_machine_signed_rank_target_body_rejected rejected 1677ms expec
 	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_signed_rank_unsafe_below_minimum_rejected rejected 844ms expected @db757705d687
 	Exact integer cast in machine `rank` state `entry` from `i64` to `i8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/facts/nested_machine_suspending_cycle_call_result_rejected rejected 15457ms expected @cc22150d70ee+wt
+	call to `sum` has operational envelope `suspend` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+fail/facts/nested_machine_suspending_cycle_const_name_rejected rejected 17827ms expected @cc22150d70ee+wt
+	call to `sum` has operational envelope `suspend` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+fail/facts/nested_machine_suspending_cycle_field_rejected rejected 15414ms expected @cc22150d70ee+wt
+	call to `sum` has operational envelope `suspend` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+fail/facts/nested_machine_suspending_cycle_local_rejected rejected 16640ms expected @cc22150d70ee+wt
+	call to `sum` has operational envelope `suspend` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+fail/facts/nested_machine_suspending_cycle_match_join_rejected rejected 12143ms expected @cc22150d70ee+wt
+	call to `sum` has operational envelope `suspend` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+fail/facts/nested_machine_suspending_cycle_other_machine_rejected rejected 12140ms expected @cc22150d70ee+wt
+	call to `sum` has operational envelope `suspend` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+fail/facts/nested_machine_suspending_cycle_other_state_rejected rejected 9373ms expected @cc22150d70ee+wt
+	call to `sum` has operational envelope `suspend` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+fail/facts/nested_machine_suspending_cycle_parameter_rejected rejected 7658ms expected @cc22150d70ee+wt
+	call to `sum` has operational envelope `suspend` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
+fail/facts/nested_machine_suspending_cycle_target_body_rejected rejected 7657ms expected @cc22150d70ee+wt
+	call to `sum` has operational envelope `suspend` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
 fail/facts/open_const_implementation_changed_statement_output rejected 365ms expected @ea132c1fff8b
 	cannot prove ensures contract for exit from selected at statement 3: result >= Minimum
 fail/facts/open_const_implementation_private_record_package_rejected rejected 836ms expected @ea132c1fff8b
@@ -8584,6 +8602,17 @@ pass/facts/nested_machine_stored_case_alias_child_exit checked 1261ms check-targ
 pass/facts/nested_machine_stored_case_copied_descriptor_exit checked 1201ms check-target:macos_arm64 @05d0ed3ff2df
 pass/facts/nested_machine_stored_case_ordered_slot_read_exit checked 1017ms check-target:macos_arm64 @05d0ed3ff2df
 pass/facts/nested_machine_stored_case_scalar_alias_exit checked 1018ms check-target:macos_arm64 @05d0ed3ff2df
+pass/facts/nested_machine_suspending_cycle_borrowed_backing_exit checked 30789ms check-target:macos_arm64 @cc22150d70ee+wt
+pass/facts/nested_machine_suspending_cycle_call_result_exit checked 16126ms check-target:macos_arm64 @cc22150d70ee+wt
+pass/facts/nested_machine_suspending_cycle_const_name_exit checked 21807ms check-target:macos_arm64 @cc22150d70ee+wt
+pass/facts/nested_machine_suspending_cycle_field_exit checked 29077ms check-target:macos_arm64 @cc22150d70ee+wt
+pass/facts/nested_machine_suspending_cycle_guarded_boundary_arm_exit checked 21811ms check-target:macos_arm64 @cc22150d70ee+wt
+pass/facts/nested_machine_suspending_cycle_local_exit checked 30814ms check-target:macos_arm64 @cc22150d70ee+wt
+pass/facts/nested_machine_suspending_cycle_match_join_exit checked 30878ms check-target:macos_arm64 @cc22150d70ee+wt
+pass/facts/nested_machine_suspending_cycle_other_machine_exit checked 30791ms check-target:macos_arm64 @cc22150d70ee+wt
+pass/facts/nested_machine_suspending_cycle_other_state_exit checked 30791ms check-target:macos_arm64 @cc22150d70ee+wt
+pass/facts/nested_machine_suspending_cycle_parameter_exit checked 21808ms check-target:macos_arm64 @cc22150d70ee+wt
+pass/facts/nested_machine_suspending_cycle_target_body_exit checked 30874ms check-target:macos_arm64 @cc22150d70ee+wt
 pass/facts/nested_machine_terminal_value_call_result_exit checked 3610ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_machine_terminal_value_const_name_exit checked 3383ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_machine_terminal_value_field_exit checked 3415ms check-target:macos_arm64 @ccdb99ca2214
@@ -16554,9 +16583,9 @@ fail/calls/struct_constant_requires_argument_rejected rejected 14079ms expected 
 	machine `Main::main` state `main` value call to `Main::take` violates required fact `p == Point.zero()`: the instantiated fact is structurally false (`Point { x: 1, y: 0 } == Point { x: 0, y: 0 }`)
 fail/calls/subslice_argument_unrelated_fact_missing rejected 2647ms expected @ccdb99ca2214
 	cannot prove requires contract for call compare from Table::restore: position < this.count && position < 4 (needs fact `position < this.count && position < 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `restore`
-fail/calls/terminal_call_duplicate_block rejected 375ms expected @ccdb99ca2214
+fail/calls/terminal_call_duplicate_block rejected 1067ms expected @cc22150d70ee+wt
 	tests/omega/fail/calls/terminal_call_duplicate_block/main.omg:3:29: duplicate `block` call acknowledgement; write it exactly once
-fail/calls/terminal_call_duplicate_suspend rejected 549ms expected @ccdb99ca2214
+fail/calls/terminal_call_duplicate_suspend rejected 970ms expected @cc22150d70ee+wt
 	tests/omega/fail/calls/terminal_call_duplicate_suspend/main.omg:3:31: duplicate `suspend` call acknowledgement; write it exactly once
 fail/calls/terminal_call_marked_state rejected 2540ms expected @ccdb99ca2214
 	call to `next` has operational envelope neither suspension nor blocking but acknowledges `block`; call acknowledgements must match exactly
@@ -16567,7 +16596,7 @@ fail/calls/terminal_call_result_type_mismatch_rejected rejected 668ms expected @
 	store in machine `forward` state `entry` return value implicitly converts `u64` to `i32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32`)
 	machine `finish` state `entry`: `record(..)` does not return a value but is used in a VALUE position; Unit cannot supply a scalar operand or local
 	machine `finish` state `entry` terminal call to `record` completes with its `Unit` result, but the state returns `i32`; a terminal machine call's normal result is its caller's result, so the two must match
-fail/calls/terminal_call_reversed_markers rejected 589ms expected @ccdb99ca2214
+fail/calls/terminal_call_reversed_markers rejected 1050ms expected @cc22150d70ee+wt
 	tests/omega/fail/calls/terminal_call_reversed_markers/main.omg:3:29: call acknowledgements use canonical order `suspend block`, never `block suspend`
 fail/calls/terminal_return_type_mismatch_rejected rejected 904ms expected @ccdb99ca2214
 	machine `Main::main` state `main` stores a boolean into a `i32` return value, which holds a numeric value
