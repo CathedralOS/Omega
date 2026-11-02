@@ -1843,6 +1843,29 @@ fail/facts/nested_machine_signed_rank_parameter_rejected rejected 2225ms expecte
 	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_signed_rank_preserving_below_zero_rejected rejected 2552ms expected @db757705d687
 	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_relation_requirement_call_result_rejected rejected 23628ms expected @455526568ecd
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_relation_requirement_const_name_rejected rejected 33657ms expected @455526568ecd
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_relation_requirement_false_boolean_pair_rejected rejected 25197ms expected @455526568ecd
+	terminating machine count: cannot prove rank range `-128..=127` for the rank produced by the selected view
+	machine call cycle: `count`, `forward` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_relation_requirement_field_rejected rejected 27613ms expected @455526568ecd
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_relation_requirement_local_rejected rejected 23321ms expected @455526568ecd
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_relation_requirement_match_join_rejected rejected 23100ms expected @455526568ecd
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_relation_requirement_other_machine_rejected rejected 24376ms expected @455526568ecd
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_relation_requirement_other_state_rejected rejected 26621ms expected @455526568ecd
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_relation_requirement_parameter_rejected rejected 21884ms expected @455526568ecd
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_signed_rank_relation_requirement_strict_boolean_right_rejected rejected 13581ms expected @455526568ecd
+	partial exact division in machine `rank` requires contract: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
+fail/facts/nested_machine_signed_rank_relation_requirement_target_body_rejected rejected 13471ms expected @455526568ecd
+	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_signed_rank_target_body_rejected rejected 1677ms expected @db757705d687
 	machine call cycle: `count`, `forward` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_signed_rank_unsafe_below_minimum_rejected rejected 844ms expected @db757705d687
@@ -8809,6 +8832,18 @@ pass/facts/nested_machine_signed_rank_other_machine_exit checked 6236ms check-ta
 pass/facts/nested_machine_signed_rank_other_state_exit checked 3735ms check-target:macos_arm64 @db757705d687
 pass/facts/nested_machine_signed_rank_parameter_exit checked 6841ms check-target:macos_arm64 @db757705d687
 pass/facts/nested_machine_signed_rank_probe_exit checked 2583ms check-target:macos_arm64 @db757705d687
+pass/facts/nested_machine_signed_rank_relation_requirement_boolean_inequality_exit checked 28815ms check-target:macos_arm64 @455526568ecd
+pass/facts/nested_machine_signed_rank_relation_requirement_boolean_pair_equality_exit checked 26717ms check-target:macos_arm64 @455526568ecd
+pass/facts/nested_machine_signed_rank_relation_requirement_call_result_exit checked 45820ms check-target:macos_arm64 @455526568ecd
+pass/facts/nested_machine_signed_rank_relation_requirement_const_name_exit checked 39418ms check-target:macos_arm64 @455526568ecd
+pass/facts/nested_machine_signed_rank_relation_requirement_field_exit checked 32923ms check-target:macos_arm64 @455526568ecd
+pass/facts/nested_machine_signed_rank_relation_requirement_guarded_boolean_equality_exit checked 32249ms check-target:macos_arm64 @455526568ecd
+pass/facts/nested_machine_signed_rank_relation_requirement_local_exit checked 36830ms check-target:macos_arm64 @455526568ecd
+pass/facts/nested_machine_signed_rank_relation_requirement_match_join_exit checked 41926ms check-target:macos_arm64 @455526568ecd
+pass/facts/nested_machine_signed_rank_relation_requirement_other_machine_exit checked 38401ms check-target:macos_arm64 @455526568ecd
+pass/facts/nested_machine_signed_rank_relation_requirement_other_state_exit checked 34447ms check-target:macos_arm64 @455526568ecd
+pass/facts/nested_machine_signed_rank_relation_requirement_parameter_exit checked 46731ms check-target:macos_arm64 @455526568ecd
+pass/facts/nested_machine_signed_rank_relation_requirement_target_body_exit checked 34780ms check-target:macos_arm64 @455526568ecd
 pass/facts/nested_machine_signed_rank_signed_forward_exit checked 4013ms check-target:macos_arm64 @db757705d687
 pass/facts/nested_machine_signed_rank_signed_input_exit checked 6829ms check-target:macos_arm64 @db757705d687
 pass/facts/nested_machine_signed_rank_target_body_exit checked 3891ms check-target:macos_arm64 @db757705d687
