@@ -833,8 +833,9 @@ helper that passes does not close an item.
     compile-time evaluation, complete plan validation, field/case projection,
     nested representation composition, cleanup, references, recasts and ABI
     realization without wrapper storage or per-layout Build registration.
-    Complete byte roundtrips, including the [guarded fixed-layout row](samples/cli/facts/fixed_layout_byte_roundtrip/README.md),
-    broader reference composition, and other-host
+    The [guarded fixed-layout byte-roundtrip row](samples/cli/facts/fixed_layout_byte_roundtrip/README.md)
+    covers all nine Rust/Linux places with rejection twins. Complete its
+    other-host execution, broader reference composition, and other-host
     execution for [typed stored-reference readback](samples/cli/facts/fixed_layout_reference_readback/README.md)
     and [implementation-region forwarding](samples/cli/facts/implementation_region_forwarding/README.md).
   - Complete remaining schema/case composition support and platform ABI

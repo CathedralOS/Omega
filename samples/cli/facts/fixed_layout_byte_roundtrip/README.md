@@ -45,5 +45,22 @@ The optimized Rust producer is `dd84cfd469ed`; its returned-loan joins use the
 same exact applied-owner correspondence as local stored descriptors, preserving
 root, site, access, lineage and complete-capture requirements.
 
-Five places are qualified on Linux x86_64. The const-name, nested-machine,
-other-machine and selected-target places and other hosted execution remain open.
+The [const-name](const_name/main.omg), [nested-machine](other_state/main.omg),
+[other-machine](other_machine/main.omg) and [selected-target](target_body/main.omg)
+places complete the row. Constants carry fully initialized source representations
+as ordinary copied values; runtime materialization owns their backing. A real
+terminal handoff carries `Saved` and the independently read canaries into the
+nested machine. Build chooses the named decoder, with marker17/29 independently
+checking the selected body.
+[Run 41436633328](https://github.com/CathedralOS/Omega/actions/runs/41436633328)
+qualifies those four pairs and ordinary samples with optimized producer
+`e1c62c271d9e`: eleven checking observations, four native/Terminal exit-0
+agreements, and eight ordinary sample observations. The three existing escape
+controls still reject. Retained-home analysis follows the common concrete
+invocation graph and each callee's actual machine, preserving complete operand
+captures, escape checks and the ban on re-establishing a still-borrowed home.
+
+All nine places have Rust-reference Linux x86_64 observations at the recorded
+producer epochs above. Earlier places retain their original accepted records;
+this run adds only the final four. Other hosted execution, the Omega-written
+producer and the broader representation-family requirements remain open.
