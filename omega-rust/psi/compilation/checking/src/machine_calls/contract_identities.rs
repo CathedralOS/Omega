@@ -879,7 +879,7 @@ fn signature_lifetime_binders(
     signature: &typed_trees::signature::StateSignature,
 ) -> Vec<(
     typed_trees::type_identity::LifetimeParameterIdentity,
-    String,
+    usize,
 )> {
     let mut owners = Vec::new();
     let mut owner = signature.symbol;
