@@ -75,6 +75,47 @@ above reaches the intended target realization. A newly authored write-only
 table control refused at an earlier missing boundary-claim obligation. It was
 removed rather than changing its oracle to count that unrelated refusal.
 
+## Actual integration and required checking repair
+
+Landing encountered a real conflict with newer main. The merge of published
+`5b3373427d83e24f434db394f4174cb37709a2c0` produced
+`7ebdc5f3adcb0cd79b6e1e562507bd5c6a8d3f01`. Its table/native-layout checks
+passed, but the private-callback witness refused `bytes.unknown` in checking.
+New member rebasing correctly rejected an invalid nominal field that builtin
+collection length had incorrectly emitted. A smaller stored-slice witness
+reproduced `alias.view.unknown` with that integrated producer.
+
+The repair records authenticated metadata as a read of its evaluated receiver's
+descriptor, not a nominal member or the pointee contents. The existing typed
+descriptor walk retains crossed-receiver lineage and every alternative, follows
+nested references to the slice descriptor, and reads no elements for fixed-array
+geometry. Both ordinary reads and call-argument accesses join the producer's
+exact metadata observation and post-selector constraint cut. Scalar completion
+uses checked result types rather than source place projections. The invalid
+nominal-field guard remains unchanged. A live exclusive holder still excludes
+reading its stored descriptor; the new negative demonstrates that refusal.
+
+The final production source is
+`e2e21da6e1d99f2c66fb994e235d42e8e93f517f`, with verified opt1 runner SHA-256
+`dd91c4c2f13373fca06accad77188494d84c26bceb83af6e0a8398a99f750205`.
+[Integrated receipts and source](https://github.com/CathedralOS/Omega/releases/tag/evidence/pr1436-source-e2e21da6e1d9)
+preserve the failed integration, partial repair, and final observations separately.
+The final 29 observations over 28 distinct fixtures contain 12 native/Terminal
+agreements, 14 intended refusals, two native successes and one positive check.
+These include every existing length-row place and its nine reject twins, the
+new nested/projected descriptor witness and suspension control, the original
+descriptor-loan controls, private-callback controls, table calls and native
+layout controls. Execution observations are macOS ARM64, not other-host results.
+
+The existing shared-target test passed in 128.29 s. Its counters prove one Source
+judgment, one Build execution and one Terminal publication; pointer identity
+proves shared storage. Mixed-target refusal preserves the surviving output,
+and both macOS ARM64 and Linux ARM64 native images match their respective
+single-target images byte-for-byte. Only the matching macOS image executes.
+These timings are observations across changed upstream sources, not a speedup
+or a controlled performance comparison. Private-callback qualification took
+103.327 s; this remains an expensive focused workflow.
+
 The parent work remains open: capture Calling request/review and helper inputs
 once, remove per-target Source preparation, complete the remaining provider
 consumers, then establish Cathedral's fresh UEFI handoff baseline.

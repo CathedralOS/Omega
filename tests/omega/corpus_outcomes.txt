@@ -8,6 +8,8 @@
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
 # context: {"incoming_observations_from": "e8e2fe90b14b2a7bad0e714ba635161d80c9f585", "integration_base": "2e9f231f798bffee7a2bd46857d02adb79de70b6", "measurement": "Historical three-way integration, not a new whole-corpus run. Keep incoming-main observations changed since 66fc7ac3c97, otherwise retain qualified ccdb99ca2214 observations. Also preserve the two additional incoming-main rows from e8e2fe90b14b; no compiler rebase or new full run.", "recorded_source": "ccdb99ca2214b93c0e2535a31cb34a3e2167d9dd", "schema": "omega-corpus-context-v1"}
+fail/borrows/collection_metadata_descriptor_slot_suspended rejected 4601ms expected @e2e21da6e1d9
+	statement 4 reads `alias.view` while local borrow `exclusive` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
 fail/borrows/independent_invocation_reference_result_escapes rejected 1619ms expected @c0424312ea2a+wt
 	machine `Code::reply` returns a view borrowing the local `bytes`, which does not outlive the call; return a view of storage that outlives the invocation instead
 fail/borrows/match_effectful_subject_fresh_overlap_rejected rejected 13145ms expected @5445b5af611f+wt
@@ -2564,9 +2566,9 @@ fail/providers/provider_receiver_parameter_rejected rejected 1222ms expected @5d
 	machine `main` state `entry` parameter `counter` uses boundary trait `Counter` as a value type; call a `Counter` requirement directly, or carry an ordinary handle, session, or `dyn` value for runtime multiplicity
 fail/providers/provider_receiver_requirement_signature_rejected rejected 1222ms expected @5d5ae6099032+wt
 	trait `Use` state `apply` parameter `counter` uses boundary trait `Counter` as a value type; call a `Counter` requirement directly, or carry an ordinary handle, session, or `dyn` value for runtime multiplicity
-fail/providers/table_dispatch_non_address_field rejected 2811ms expected @e81e92bdf28b
+fail/providers/table_dispatch_non_address_field rejected 6748ms expected @e2e21da6e1d9
 	cannot realize table field `invoke` for `query`: table dispatch field must have type addr
-fail/providers/table_leaf_without_dispatch_borrow rejected 2590ms expected @e81e92bdf28b+wt
+fail/providers/table_leaf_without_dispatch_borrow rejected 5976ms expected @e2e21da6e1d9
 	selected provider plan `<selected target>::satisfies::Measure` is not fully covering: external leaf for `Measure::length` uses a table field, but its first parameter is not a readable borrow of a data declaration
 fail/recast/pending_layout_view_call_requires_establishment rejected 1431ms expected @70ba9ee572b42c4d7f6ffe7d3051217e0906221c
 	argument `value` for state `consume::entry`: unestablished recast target `Payload`; prove its predicate over current storage before consuming a valid value
@@ -2949,6 +2951,7 @@ pass/borrows/carry_property_declared checked 3255ms @ccdb99ca2214
 pass/borrows/case_payload_shared_transition_exit checked 34572ms check-target:macos_arm64 @8fce926f9735
 pass/borrows/case_payload_state_loan_exit checked 16758ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/collection_element_loans_exit checked 3405ms check-target:macos_arm64 @ccdb99ca2214
+pass/borrows/collection_metadata_descriptor_storage_exit checked 6358ms check-target:macos_arm64 @e2e21da6e1d9
 pass/borrows/completed_reference_read_preserves_prefix checked 3981ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/completed_reference_result_preserves_input_holds_exit checked 4046ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/completed_selector_join_pattern_effect_exit checked 4279ms check-target:macos_arm64 @ccdb99ca2214
@@ -13099,7 +13102,7 @@ pass/providers/specialized_structural_fixed_operator_terminal_custody checked 35
 pass/providers/staggered_installation_reach_exit checked 3868ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/structural_membership_boundary_exit checked 3781ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/structural_result_field_guarantee_exit checked 4145ms check-target:macos_arm64 @ccdb99ca2214
-pass/providers/table_leaf_dispatch_parameter_exit checked 3328ms check-target:macos_arm64 @e81e92bdf28b
+pass/providers/table_leaf_dispatch_parameter_exit checked 6147ms check-target:macos_arm64 @7ebdc5f3adcb
 pass/providers/target_contract_adjacency_exit checked 3257ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/target_family_entry checked 3097ms @ccdb99ca2214
 pass/providers/token_machine_family_override_exit checked 12968ms check-target:macos_arm64 @ccdb99ca2214
@@ -15170,8 +15173,8 @@ fail/borrows/aliased_descriptor_slot_suspended_call rejected 1801ms expected @cc
 	statement 4 reads `alias.value` while local borrow `exclusive` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
 fail/borrows/aliased_descriptor_slot_suspended_read rejected 1855ms expected @ccdb99ca2214
 	statement 4 reads `alias.value` while local borrow `exclusive` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
-fail/borrows/aliased_descriptor_slot_suspended_reborrow rejected 2011ms expected @ccdb99ca2214
-	statement 4 borrows `alias.value` while local borrow `exclusive` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
+fail/borrows/aliased_descriptor_slot_suspended_reborrow rejected 4625ms expected @e2e21da6e1d9
+	statement 4 borrows `alias.value` while local borrow `exclusive` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit) in machine `exercise`, state `entry`, statement 4
 fail/borrows/aliased_forwarded_placed_views rejected 3973ms expected @ccdb99ca2214
 	state `view_mut` receives `value` while local borrow `companion_view` is still active (borrowed at statement 2; its last use is at statement 4)
 	state `write_pair` receives `view` as mutable more than once
@@ -24391,23 +24394,23 @@ fail/facts/integer_width_truncation_mask_bound_through_parameter_rejected reject
 fail/facts/integer_width_truncation_mask_bound_through_target_body_rejected rejected 667ms expected @ccdb99ca2214
 	exact arithmetic in machine `X86Probe::exercise` state `exercise` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `ArmProbe::exercise` state `exercise` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/length_through_call_result_rejected rejected 2253ms expected @ccdb99ca2214
+fail/facts/length_through_call_result_rejected rejected 5227ms expected @e2e21da6e1d9
 	cannot prove index `length - 1` is within unknown slice length of `window` in last_byte::entry
-fail/facts/length_through_const_name_rejected rejected 2067ms expected @ccdb99ca2214
+fail/facts/length_through_const_name_rejected rejected 6023ms expected @e2e21da6e1d9
 	cannot prove index `3 - 1` is within length 2
-fail/facts/length_through_field_rejected rejected 2171ms expected @ccdb99ca2214
+fail/facts/length_through_field_rejected rejected 6024ms expected @e2e21da6e1d9
 	cannot prove index `meter.length - 1` is within unknown slice length of `window` in last_byte::entry
-fail/facts/length_through_local_rejected rejected 2472ms expected @ccdb99ca2214
+fail/facts/length_through_local_rejected rejected 6023ms expected @e2e21da6e1d9
 	cannot prove index `length - 1` is within unknown slice length of `window` in last_byte::entry
-fail/facts/length_through_match_join_rejected rejected 2517ms expected @ccdb99ca2214
+fail/facts/length_through_match_join_rejected rejected 5206ms expected @e2e21da6e1d9
 	cannot prove index `length - 1` is within unknown slice length of `window` in last_byte::entry
-fail/facts/length_through_other_machine_rejected rejected 1985ms expected @ccdb99ca2214
+fail/facts/length_through_other_machine_rejected rejected 5215ms expected @e2e21da6e1d9
 	cannot prove index `length - 1` is within unknown slice length of `window` in read_at::entry
-fail/facts/length_through_other_state_rejected rejected 1671ms expected @ccdb99ca2214
+fail/facts/length_through_other_state_rejected rejected 6023ms expected @e2e21da6e1d9
 	cannot prove index `length - 1` is within unknown slice length of `window` in pick::entry
-fail/facts/length_through_parameter_rejected rejected 2145ms expected @ccdb99ca2214
+fail/facts/length_through_parameter_rejected rejected 6708ms expected @e2e21da6e1d9
 	cannot prove index `length - 1` is within unknown slice length of `window` in read_at::entry
-fail/facts/length_through_target_body_rejected rejected 1757ms expected @ccdb99ca2214
+fail/facts/length_through_target_body_rejected rejected 6024ms expected @e2e21da6e1d9
 	cannot prove index `length - 1` is within unknown slice length of `window` in read_at::entry
 	cannot prove index `length - 1` is within unknown slice length of `window` in read_at::entry
 	cannot prove index `length - 1` is within unknown slice length of `window` in read_at::entry
@@ -33570,7 +33573,7 @@ fail/providers/direct_foreign_missing_reach rejected 3083ms expected @ccdb99ca22
 	machine `RestrictedProvider::current` state `current` does not satisfy trait `Restricted` machine `current`: service `Process` is not allowed by the trait requirement
 fail/providers/direct_foreign_rejected_calling rejected 11514ms expected @ccdb99ca2214
 	calling policy rejected the boundary: direct foreign policy refuses
-fail/providers/direct_foreign_wrong_table rejected 3132ms expected @e81e92bdf28b+wt
+fail/providers/direct_foreign_wrong_table rejected 7086ms expected @e2e21da6e1d9
 	cannot realize table field `invoke` for `query`: no runtime field `invoke` in the dispatch table
 fail/providers/erased_routed_result_not_recovered checked 2624ms @ccdb99ca2214
 fail/providers/explicit_unavailable_target_provider rejected 9055ms expected @ccdb99ca2214
