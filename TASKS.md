@@ -1784,21 +1784,20 @@ defines the complete product bar.
   **`TOPOLOGY-PRIVATE-PIPE-INSTALLATION`**.) Deliver the
   [checked boundary topology contract](wiki/spec/packages/topology.md) end to
   end:
-  - Update `tests/omega/pending/build/build_scope_topology_plan` to current
-    `Build` facets and drive `source/library/topology/verify.omg` over ordinary
-    component-description outputs (`payments.plan`) against a supplied
-    `TopologyRequest`.
+  - Write the topology package from the contract alongside its first customer:
+    a build-scope dependency that verifies ordinary component-description
+    outputs (`payments.plan`) against a supplied `TopologyRequest`.
   - Run the [three-process payment customer](wiki/spec/packages/topology.md#first-executable-realization)
     on Windows and macOS with an Omega-authored installer, private-pipe
     adaptation, explicit Windows handle transfer, macOS validated/signed member
     images, and generation replacement.
   - Add co-located and remote realizations beside the private-pipe leg and show
     parity across co-located, isolated and remote realization.
-  Acceptance: `build_scope_topology_plan` and `verify.omg` admit and verify
-  `payments.plan` and execute the three-process payment topology on Windows and
-  macOS with schema-checked private pipes and quiesced generation replacement,
-  while missing/substituted components, cycles, bypasses, and ungranted
-  endpoints reject.
+  Acceptance: the topology package admits and verifies `payments.plan`, and the
+  three-process payment topology executes on Windows and macOS with
+  schema-checked private pipes and quiesced generation replacement, while
+  missing/substituted components, cycles, bypasses, and ungranted endpoints
+  reject.
 
 ## Embedding and interpreted components
 
