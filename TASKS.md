@@ -163,7 +163,8 @@ retired-syntax deletions to completion.
     contract (exact actuals/snapshots, live facts and write invalidation,
     result/Unit postconditions, effects/markers, loans, invariant/hole
     restoration, cleanup, linear custody, and joint SCC measures using
-    declaration calls needing exclusive-loan or affine input custody or declaration-local
+    declaration calls needing exclusive-loan arguments or owned affine transfers,
+    borrowed outer input homes or declaration-local
     selectors, other remaining declared body forms, nonscalar orders beyond fixed-integer
     lexicographic products, or dependent distances with computed endpoints
     without ambient parent entry facts).
@@ -191,19 +192,10 @@ retired-syntax deletions to completion.
   - Carry field/case propositions through construction
     (`checking/src/proof_contracts/contract_entailment/construction_predicates.rs`),
     remaining case/aggregate writes, record-field and owned-array
-    predicate handback with current storage versions. WindowDemo's guarded
-    `pumped + 1` / `frame + 1` writes now complete its native 60-frame oracle
-    after ordinary package review, retaining `pumped <= 16`, `frame <= 60`,
-    the original guards and operation. Pixel/input/close and Finder-launch
-    qualification remains pending under **MACOS-APPLICATION-PUBLICATION**,
-    as requested by the owner; Terminal comparison currently declines the
-    Objective-C adapter's additional service demands. Scalar-range syntax
-    migration and the remaining aggregate handback obligations below stay open.
-    Applied case predicates now retain saved scalar endpoints through an invalid
-    intermediate payload write and exact restoration across all nine places in
-    `samples/cli/facts/case_dependent_default_domain` (`macos_arm64` native/Terminal
-    exit 0); missing-ceiling and stale-snapshot controls still reject.
-    Carry those facts through reads, calls, state joins,
+    predicate handback with current storage versions.
+  - Complete changed-source scalar-loan representation guarantees, common-field
+    case-predicate rosters, and recursive/reference predicate read inventories.
+    Carry the remaining propositions through reads, calls, state joins,
     [mutable recasts](omega-rust/psi/compilation/checking/recasts.md), and
     returns, preserving the audited inventories in
     [range_suffix_migration.md](wiki/drafts/designs/range_suffix_migration.md).
@@ -251,10 +243,6 @@ retired-syntax deletions to completion.
     `omega-rust/psi/compilation/checking/src/value_custody/type_references.rs`,
     and selected-dispatch `service_custody` with
     `program_entry_service_requirements`.
-  - Add fail controls for ambiguous provider supply and unpark
-    `inherited_applied_binding_ambiguous_ancestors`,
-    `occurrence_region_binding_conflicting_inputs`, and
-    `private_binding_authority_contract`.
   - Retire remaining attachment helpers in checking/lowering and complete
     checked per-value loan carry evidence for suspension production without
     restoring hidden argument insertion.
@@ -327,9 +315,8 @@ retired-syntax deletions to completion.
     `samples/cli/audio/audio_playback` and its sine, square, and melody
     consumers through unchanged playback oracles; shared binding-value producers
     and helpers remain ordinary machines.
-    Frontier: 59 `samples/cli/facts/*/target_body` places still spell the
-    prefix, and 1 fact spells it in all nine places
-    (`target_layout_derived_constant`, `target_scoped_constant_realization`).
+    Frontier: 58 `samples/cli/facts/*/target_body` places still spell the
+    prefix.
   - Transport exact requirement and implementation identities, lifetimes,
     captured operands, const/evidence telescopes, callbacks, entry backing,
     ownership, reach, and public contracts through one checked Terminal artifact
@@ -344,11 +331,6 @@ retired-syntax deletions to completion.
     supply, invalid unselected implementations, and retired-prefix rejection;
     applicability is checked on the selected closure, not by accepting untyped
     source or exposing a selected body's private guarantees to callers.
-  - Carry the requirement-guarantee dependency to generic evidence binders: a
-    binder `S satisfies R` instantiated at the implementation that defines its
-    caller still imports `R`'s guarantee, so a citation cycle through it is
-    accepted (reproduction in
-    `samples/cli/facts/independent_call_result_bound/README.md`).
   Acceptance: one portable call selects distinct ordinary implementations for
   two targets from the same Terminal artifact and Build companion, with authored
   results observed by `omega run --both` on matching hosts. Migrated target,
@@ -558,7 +540,7 @@ decision (`SourceChecked`) into stage 06 and stage 00.
   `omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi`,
   `omega-rust/psi/compilation/representations/terminal-psi/{semantics,codec}`,
   `omega-rust/psi/interpreter/terminal-interpreter` and
-  `omega-rust/omega/application/terminal-runtime`.
+  `omega-rust/omega/interpreter/terminal-runtime`.
   - Stage 06's fail-closed shape gates (`unsupported`, `unpinned`), counted
     per file in `tools/stage06_shape_gates.txt`, re-check checked custody.
     Retire only gates shown to be unreachable, after reject twins cover the
@@ -572,18 +554,19 @@ decision (`SourceChecked`) into stage 06 and stage 00.
   `samples/cli/facts` places still pass `omega run --both`.
 
 - **WIRE-CODEC-LIBRARY.** (new-scope; also covers **SEMANTIC-REFLECTION**)
-  Connect [semantic reflection](wiki/spec/language/reflection.md) in
-  `omega-rust/psi/compilation/compile-time/src/reflection/` to authored Omega
-  queries, field subloans, and active-case dispatch, implement the
-  `compact_binary` codec in Omega in `source/library/std/wire.omg` over the
-  reflection serializer, and delete the Rust source-text wire generator end to
-  end (`omega run --both`).
-  Owners: `omega-rust/psi/compilation/compile-time/src/reflection/`,
-  `source/library/std/wire.omg`,
-  `omega-rust/omega/packages/compilation-inputs/src/wire_codec_sources/mod.rs`,
-  `omega-rust/omega/packages/compilation-inputs/src/source_assembly.rs`,
-  `omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames/wire_codecs.rs`,
-  and `omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/authored_selections.rs`.
+  Finish accepted-project execution and qualification for
+  [semantic reflection](wiki/spec/language/reflection.md) and the authored
+  `compact_binary` codec in `source/library/std/wire.omg`.
+  - Obtain explicit package-policy decisions for the standard library and the
+    terminal permissions requested by the wire-protocol sample. Ordinary Linux
+    preparation stops at editable review for the sample and the 40-field fixture;
+    their accepted locks remain unpublished. Public CLI execution is parked
+    until those authority decisions are made.
+  - Complete the wire fixture and public-customer acceptance below, including
+    the 40-field runtime qualification.
+  Owners: `source/library/std/wire.omg`,
+  `omega-rust/psi/compilation/checking/src/reflection/`, and
+  `omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/monomorphization/reflection.rs`.
   Acceptance: the reflection inspector/serializer and `source/library/std/wire.omg`
   compile from Omega source and run in both engines (`omega run --both`) across
   the 40-field/five-type record, three-package delegated visitation,
@@ -656,7 +639,6 @@ compile-time, Build, CLI/corpus, and embedded execution through the common core.
     park/resume contract to the production Build scheduler, replacing checked-tree Build
     evaluation and the live-source/Git static syntax projections in
     `omega-rust/omega/packages/build-declarations`.
-  - Complete applied/inherited multi-slot provider readiness.
   - **BUILD-PRODUCT-REFERENCES / TERMINAL-BUILD-QUERIES:** keep `bind`,
     `select_provider`, `assume_binding_contract`, test registration, and product
     description/schema queries inert during Build and resolve them at the final
@@ -686,11 +668,11 @@ compile-time, Build, CLI/corpus, and embedded execution through the common core.
   **CHECKED-INTERPRETER-DELETED** and **TERMINAL-RUNTIME-DRIVERS**)
   Delete `omega-rust/psi/interpreter/checked-interpreter/` immediately after
   **TERMINAL-BUILD-SEED** closes, restore hosted CLI/corpus/embedded Terminal
-  runtime drivers (`omega-rust/omega/application/terminal-runtime`), and close
+  runtime drivers (`omega-rust/omega/interpreter/terminal-runtime`), and close
   the universal cutover with one execution core and no executable tree visitor
   end to end (`omega run --both`).
   Owners: `omega-rust/psi/interpreter/`,
-  `omega-rust/omega/application/terminal-runtime/src/execution.rs`, and
+  `omega-rust/omega/interpreter/terminal-runtime/src/execution.rs`, and
   `source/psi/` + `source/omega/`.
   - **CHECKED-INTERPRETER-DELETED:** remove
     `omega-rust/psi/interpreter/checked-interpreter/` and all production
@@ -698,7 +680,7 @@ compile-time, Build, CLI/corpus, and embedded execution through the common core.
     any remaining unimplemented caller as an explicit capability gap before
     effects.
   - **TERMINAL-RUNTIME-DRIVERS:** finish the source-free Terminal artifact
-    execution boundary in `omega-rust/omega/application/terminal-runtime`
+    execution boundary in `omega-rust/omega/interpreter/terminal-runtime`
     (consuming retained provisions from `native-artifact` without recompiling
     source or rerunning Build), completing scalar entry arguments,
     placed/aggregate/atomic host loans, case replacement, clock/descriptor

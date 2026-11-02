@@ -67,8 +67,8 @@ fn retain_component(
             let casts = admitted
                 .application_casts
                 .insert_many(application.casts().iter().cloned());
-            let owned_copy = declaration.parameter.as_ref().and_then(|formal| {
-                super::super::application_inputs::owned_copy(
+            let owned_input = declaration.parameter.as_ref().and_then(|formal| {
+                super::super::application_inputs::owned_input(
                     program,
                     admitted,
                     own_state,
@@ -91,7 +91,7 @@ fn retain_component(
                             .insert_many(application.calls().iter().copied()),
                     },
                     bindings,
-                    owned_copy,
+                    owned_input,
                 })
         } else {
             Default::default()

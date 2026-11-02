@@ -41,8 +41,8 @@ PERMITTED_OWNERS = (
     "omega-rust/psi/compilation/checking/terminal-installation",
     "omega-rust/psi/compilation/proof/admission",
 )
-RUNTIME_ROOT = "omega-rust/omega/application/terminal-runtime"
-NATIVE_PROVIDER_RUNTIME_ROOT = "omega-rust/omega/application/native-provider-runtime"
+RUNTIME_ROOT = "omega-rust/omega/interpreter/terminal-runtime"
+NATIVE_PROVIDER_RUNTIME_ROOT = "omega-rust/omega/interpreter/native-provider-runtime"
 NATIVE_PROVIDER_RUNTIME_OWNERS = (NATIVE_PROVIDER_RUNTIME_ROOT, *PERMITTED_OWNERS[1:])
 PROVIDER_SELECTION_OWNERS = PERMITTED_OWNERS[1:]
 TRUST_OWNERS = (TRUST_ROOT, *PERMITTED_OWNERS[1:])
@@ -63,7 +63,7 @@ PACKAGE_MANAGER = f"{PACKAGES}/package-manager"
 PRODUCT_COORDINATOR = f"{OMEGA}/compilation/driver"
 PRODUCTS = f"{OMEGA}/compilation/products"
 BUILD_EVALUATION = f"{OMEGA}/compilation/build-evaluation"
-BUILD_APPLICATION = f"{OMEGA}/application/build"
+BUILD_COORDINATOR = f"{OMEGA}/compilation/build"
 CLI_APPLICATION = f"{OMEGA}/application/cli"
 TRUST_MODEL = f"{OMEGA}/compilation/realization/trust-model"
 REVIEW_EVIDENCE = f"{PACKAGES}/review-evidence"
@@ -205,7 +205,7 @@ FORBIDDEN_DEPENDENCIES = tuple(Rule(*rule) for rule in (
         "application operations call compiler facades, not numbered transforms",
     ),
     (
-        (BUILD_APPLICATION,),
+        (BUILD_COORDINATOR,),
         (
             PSI_PIPELINE,
             OMEGA_PIPELINE,

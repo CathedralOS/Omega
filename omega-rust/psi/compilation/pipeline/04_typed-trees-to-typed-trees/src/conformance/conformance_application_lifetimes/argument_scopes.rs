@@ -4,9 +4,8 @@
 //! undeclared 'storage rather than resolving its actual activation operand.
 
 use symbols::SymbolHandle;
-use typed_trees::type_identity::applied_lifetime_parameter_identity;
-use typed_trees::type_identity::lifetime_parameter_identity;
 use typed_trees::type_identity::{AppliedTypeIdentityScope, IndexIdentityArgument};
+use typed_trees::type_identity::{lifetime_parameter_identity, lifetime_parameter_name};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 use validation::canonical_place_from_expression_in_state;
 
@@ -111,9 +110,33 @@ impl<'scopes> Scope<'scopes> {
         if !caller.is_valid() {
             return Some(name.clone());
         }
-        let region =
-            applied_lifetime_parameter_identity(program, self.owner, name.as_str(), self.frames)?;
-        let spelling = typed_trees::type_identity::lifetime_parameter_name(program, region)?;
+        // The frames are the enclosing applications along the argument's place.
+        // The outermost is spelled in the caller's scope and each inner one in
+        // the declaration of the frame enclosing it. Substitute through the
+        // frame that applies the region's declaration, then resolve its operand
+        // in that frame's supplying scope, until the region belongs to no frame.
+        let mut owner = self.owner;
+        let mut frames = self.frames;
+        let mut operand = name.as_str();
+        let region = loop {
+            let region = lifetime_parameter_identity(program, owner, operand)?;
+            let Some(index) = frames.iter().rposition(|frame| {
+                program.lifetime_declaration_owner(frame.declaration) == region.declaration
+            }) else {
+                break region;
+            };
+            let parameter = lifetime_parameter_name(program, region)?;
+            let (_, argument) = frames[index]
+                .lifetimes
+                .iter()
+                .find(|(declared, _)| declared == parameter.as_str())?;
+            owner = index
+                .checked_sub(1)
+                .map_or(caller, |outer| frames[outer].declaration);
+            operand = argument;
+            frames = &frames[..index];
+        };
+        let spelling = lifetime_parameter_name(program, region)?;
         (lifetime_parameter_identity(program, caller, spelling.as_str()) == Some(region))
             .then(|| spelling.clone())
     }

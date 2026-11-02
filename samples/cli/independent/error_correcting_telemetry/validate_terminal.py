@@ -90,9 +90,9 @@ def main():
     project = ROOT/'build/terminal-host'
     (project/'src').mkdir(parents=True, exist_ok=True)
     dependencies = {'compiler': 'omega-rust/omega/compilation/driver',
-                    'terminal-runtime': 'omega-rust/omega/application/terminal-runtime',
+                    'terminal-runtime': 'omega-rust/omega/interpreter/terminal-runtime',
                     'package-manager': 'omega-rust/omega/packages/package-manager',
-    'omega-build': 'omega-rust/omega/application/build',
+    'omega-build': 'omega-rust/omega/compilation/build',
                     'target': 'omega-rust/omega/compilation/backend/target',
                     'terminal-interpreter': 'omega-rust/psi/interpreter/terminal-interpreter'}
     manifest = '[package]\nname="new084-terminal-host"\nversion="0.1.0"\nedition="2024"\n[workspace]\nresolver="3"\n[dependencies]\n'

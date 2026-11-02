@@ -510,17 +510,10 @@ fn direct_storage_type(
     types: &StructuralTypeLookup<'_>,
     source: &StructuralArgument,
 ) -> Option<StructuralTypeId> {
-    if !source.path.iter().all(|segment| {
-        matches!(
-            segment,
-            StructuralPathSegment::Field(_)
-                | StructuralPathSegment::FixedIndex(_)
-                | StructuralPathSegment::RuntimeIndex { .. }
-                | StructuralPathSegment::RepresentationView { .. }
-        )
-    }) {
-        return None;
-    }
+    // Terminal's typed projection grammar owns storage geometry, including
+    // case-qualified payload fields. A second segment whitelist discarded
+    // admitted case paths before that query. Resolving their type supplies
+    // neither active-discriminator evidence nor new borrow authority.
     let (structural_type, access) =
         if let Some(parameter) = function.arrival_parameter(source.place) {
             (parameter.structural_type, parameter.access)

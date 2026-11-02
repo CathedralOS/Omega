@@ -11,12 +11,14 @@ requires self.start >= 0 && self.start <= self.end,
     origin: u32;
 }
 data Replacement [copy] { before: u32; value: u32; after: u32; }
+machine retain_view<'storage>(view: &'storage mut u32) -> &'storage mut u32 { view }
 public machine inspect(pair: &mut Pair)
 {
     let carried: Replacement = Replacement { before: 0x10203040, value: 0u32, after: 0x50607080 };
     pair.marker = carried.before;
     pair.origin = carried.after;
-    let view: &mut u32 = &mut pair.start as &mut u32;
+    let formed: &mut u32 = &mut pair.start as &mut u32;
+    let view: &mut u32 = retain_view(formed);
     view = 0xFFFFFFFFu32;
     view = carried.value;
     pair.end = 10;

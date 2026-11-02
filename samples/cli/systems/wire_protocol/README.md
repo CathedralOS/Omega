@@ -19,7 +19,7 @@ Wire layout (13 bytes):
 Companion to the `runtime_wire_roundtrip_nested_and_repeated_exit` canary,
 which covers the same schema with the exact same values.
 
-The grammar policy borrows each indexed FieldKind while choosing its placement.
-FieldKind is affine, so passing it by value would partially consume the schema
-before the next policy state receives it. The shared observer preserves the
-complete schema without changing its ownership or the authored wire format.
+The grammar policy borrows each indexed `FieldKind` while choosing its placement.
+Its fuel witness is declared on `fill`, which participates in the recursive
+`fill`/`place` component. The acyclic `evaluate` wrapper derives termination from
+that checked component; lexical nesting does not supply an inherited rank.
