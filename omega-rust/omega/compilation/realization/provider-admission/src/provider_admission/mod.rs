@@ -15,7 +15,7 @@
 
 mod adapters;
 mod callable_authority;
-pub(crate) use adapters::retain_selected_provider_adapters;
+pub use adapters::retain_selected_provider_adapters;
 pub use callable_authority::AdmittedNativeCallableAuthority;
 mod access_lifecycles;
 mod callback_arguments;
@@ -31,20 +31,20 @@ pub mod terminal_authority_permissions;
 mod terminal_authority_policy;
 mod terminal_authority_review;
 
-pub(crate) use callback_arguments::project_native_callback_arguments;
+pub use callback_arguments::project_native_callback_arguments;
 pub use compiler_builtins::{
     CompilerIntrinsicPlanProvenance, SettledCompilerBuiltin, TerminalCompilerBuiltinProposal,
     TerminalCompilerBuiltinSettlement,
 };
-pub(crate) use compiler_builtins::{
+pub use compiler_builtins::{
     derive_selected_intrinsic_settlement_proposals, prepare_retained_compiler_builtins,
     validate_external_provider_owners,
 };
 pub use diagnostics::realization_error;
 
-pub(crate) use source_evaluated_bindings::PreparedSourceEvaluatedBindings;
+pub use source_evaluated_bindings::PreparedSourceEvaluatedBindings;
 pub use source_evaluated_bindings::SourceEvaluatedImportSettlement;
-pub(crate) use source_evaluated_bindings::prepare_source_evaluated_bindings;
+pub use source_evaluated_bindings::prepare_source_evaluated_bindings;
 
 pub use request::{NativeBoundaryRealization, NativeCompilerBuiltinSettlement};
 pub use request::{NativeProviderSettlement, ProviderAdmissionRequest};
@@ -61,8 +61,8 @@ pub(crate) use terminal_authority_policy::{
     normalized_foreign_terminal_mechanism_with_callback_materializations,
 };
 mod model;
+use crate::AdmissionSource as NativeRealizationInput;
 use crate::AdmittedProviderInstallation;
-use crate::VerifiedNativeArtifactInput as NativeRealizationInput;
 use ::diagnostics::Diagnostic;
 use installation_evidence::ProviderExecutionEvidence;
 pub use model::{
@@ -86,6 +86,12 @@ pub struct AdmittedNativeProviders<'execution> {
 }
 
 impl AdmittedNativeProviders<'_> {
+    /// Hand the admitted callback arguments to the verified input they were
+    /// admitted for. They leave this admission only as admitted values.
+    pub fn take_native_callbacks(&mut self) -> Vec<AdmittedNativeCallbackArgument> {
+        std::mem::take(&mut self.native_callbacks)
+    }
+
     pub const fn callable_authority(&self) -> &AdmittedNativeCallableAuthority {
         &self.callable_authority
     }
@@ -102,14 +108,14 @@ pub(crate) struct AdmittedTerminalMechanism {
     pub mechanism: effects::TerminalMechanismIdentity,
 }
 
-pub(crate) fn admit_native_providers<'request>(
+pub fn admit_native_providers<'request>(
     input: &NativeRealizationInput,
     artifact: &terminal_codec::CanonicalTerminalArtifact,
     request: &ProviderAdmissionRequest<'_, 'request>,
 ) -> Result<AdmittedNativeProviders<'request>, Vec<Diagnostic>> {
     let terminal_artifact_identity = *artifact.manifest().identity().as_bytes();
     provider_supply::require_reached_providers(
-        input.optimization_input(),
+        input,
         request.profile,
         request.selected_provider_plans,
     )?;
@@ -137,7 +143,7 @@ pub(crate) fn admit_native_providers<'request>(
                 if matches!(&binding.mechanism,
                     target_operations::NormalizedForeignCallMechanism::Component { .. })
         );
-        let module = input.context().module();
+        let module = input.module();
         let opaque_foreign = matches!(
             &settlement.realization,
             target_operations::BoundarySettlementRealization::NormalizedForeignCall(_)
@@ -211,7 +217,7 @@ pub(crate) fn admit_native_providers<'request>(
         terminal_authority_review::review_terminal_authority_closure(
             terminal_artifact_identity,
             request.profile,
-            input.optimization_input(),
+            input,
             request.selected_provider_plans,
             effective_policy,
             request.terminal_authority_permission_policy.as_ref(),

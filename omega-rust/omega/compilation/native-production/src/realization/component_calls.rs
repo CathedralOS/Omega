@@ -154,7 +154,7 @@ impl<'input> ComponentNativeCall<'input> {
             provider_execution: self,
             provider_plan: self.plan,
             realization: NativeBoundaryRealization::Component {
-                call: self.call,
+                call: self.call.facts(),
                 authority: self.image.authority(),
                 locator: &self.locator,
                 same_stack: &self.same_stack,

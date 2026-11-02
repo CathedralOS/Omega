@@ -347,21 +347,7 @@ impl VerifiedPsiOptimizationInput {
 
 pub(crate) use terminal_installation::admitted_boundary_member as target_family_member;
 
-/// Family membership is admitted independently of native planning. Proposal
-/// construction and later native admission use this same declaration join.
-pub(crate) fn selected_calling_boundary(
-    module: &terminal_psi::TerminalModule,
-    targets: Option<&terminal_installation::AdmittedTargetMachineSelections>,
-    boundary: semantic_vocabulary::BoundaryMachineId,
-) -> Result<semantic_vocabulary::BoundaryMachineId, String> {
-    match target_family_member(module, targets, boundary)? {
-        Some(terminal_psi::TargetMachineCallable::Boundary(member)) => Ok(member),
-        Some(terminal_psi::TargetMachineCallable::Machine(_)) => {
-            Err("checked target-family member has no external calling declaration".into())
-        }
-        None => Ok(boundary),
-    }
-}
+pub(crate) use ::provider_admission::selected_calling_boundary;
 
 /// Verifier-owned proof context retained beside the reconstructible Omega plan.
 /// The complete immutable Terminal module remains for proof-question and cycle

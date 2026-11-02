@@ -1795,6 +1795,37 @@ dependencies = [
 ]
 
 [[package]]
+name = "provider-admission"
+version = "0.1.0"
+dependencies = [
+ "abstract-operations",
+ "backend-plan",
+ "calling-conventions",
+ "component-description",
+ "diagnostics",
+ "effects",
+ "function-identity",
+ "installation-evidence",
+ "language-semantics",
+ "layout-plans",
+ "numerics",
+ "optimization-core",
+ "optimization-unit-semantics",
+ "provider-selection",
+ "semantic-vocabulary",
+ "source",
+ "symbols",
+ "target",
+ "target-operations",
+ "task-plans",
+ "terminal-codec",
+ "terminal-fuel",
+ "terminal-installation",
+ "terminal-psi",
+ "terminal-semantics",
+]
+
+[[package]]
 name = "provider-planning"
 version = "0.1.0"
 dependencies = [
@@ -2621,6 +2652,7 @@ dependencies = [
  "optimization-unit-semantics",
  "program-entry-plan",
  "proof-admission",
+ "provider-admission",
  "provider-selection",
  "runtime-abi",
  "semantic-vocabulary",

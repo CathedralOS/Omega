@@ -13,9 +13,7 @@ use super::{
     AdmittedBoundaryExecution, AdmittedBoundarySettlement, AdmittedTerminalMechanism,
     SettledCompilerBuiltin,
 };
-use crate::providers::provider_installation::{
-    AdmittedInstalledProviderCall, AdmittedProviderInstallation,
-};
+use crate::provider_installation::{AdmittedInstalledProviderCall, AdmittedProviderInstallation};
 use diagnostics::Diagnostic;
 use semantic_vocabulary::{InvocationSite, MachineId, OperationId};
 use terminal_psi::{
@@ -40,7 +38,7 @@ pub(super) fn settle_native_lifecycles<'execution>(
     ),
     Vec<Diagnostic>,
 > {
-    let module = input.context().module();
+    let module = input.module();
     let primitive_plans: std::collections::BTreeMap<
         semantic_vocabulary::BoundaryMachineId,
         &TerminalAccessLifecyclePlan,

@@ -69,7 +69,6 @@ impl<'a> Reviewer<'a> {
         if let Some(plan) = self
             .context
             .input
-            .context()
             .module()
             .access_lifecycle_plans
             .iter()
@@ -264,7 +263,6 @@ impl<'a> Reviewer<'a> {
         let declaration = self
             .context
             .input
-            .context()
             .module()
             .services
             .iter()

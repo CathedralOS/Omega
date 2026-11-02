@@ -6,7 +6,7 @@
 use diagnostics::Diagnostic;
 
 pub(super) fn rejoin_component_call(
-    call: &crate::AdmittedNativeComponentCall<'_>,
+    call: &crate::ComponentCallFacts<'_>,
     authority: &super::super::AdmittedNativeCallableAuthority,
     locator: &target::NormalizedComponentLocator,
     same_stack: &task_plans::AdmittedSameStackContribution,

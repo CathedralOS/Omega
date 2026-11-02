@@ -30,7 +30,7 @@ pub(crate) struct ReachableAuthorityEdges {
 
 /// The shared canonical call graph plus this receiver's native observations.
 pub(crate) struct AuthorityGraph<'a> {
-    input: &'a crate::VerifiedPsiOptimizationInput,
+    input: &'a crate::AdmissionSource<'a>,
     functions: BTreeMap<MachineId, &'a AbstractFunction>,
     calls: terminal_installation::SynchronousCallGraph<'a>,
     target_profile: target::TargetProfile,
@@ -38,7 +38,7 @@ pub(crate) struct AuthorityGraph<'a> {
 
 impl<'a> AuthorityGraph<'a> {
     pub(crate) fn new(
-        input: &'a crate::VerifiedPsiOptimizationInput,
+        input: &'a crate::AdmissionSource<'a>,
         target_profile: target::TargetProfile,
     ) -> Result<Self, String> {
         let plan = input.plan();
@@ -61,7 +61,7 @@ impl<'a> AuthorityGraph<'a> {
             .selected_program_entry_call()
             .map(|entry| (entry.boundary(), entry.entry()));
         let calls = terminal_installation::SynchronousCallGraph::new(
-            input.context().module(),
+            input.module(),
             input.target_machine_selections(),
             bridge,
         )?;
@@ -100,7 +100,6 @@ impl<'a> AuthorityGraph<'a> {
                     .as_ref()
                     .and_then(|declaration| {
                         self.input
-                            .context()
                             .module()
                             .identities
                             .text(declaration.machine.identity())

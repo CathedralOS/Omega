@@ -3,7 +3,7 @@ use super::{
     normalized_foreign_call::rejoin_normalized_foreign_call,
 };
 use crate::AdmittedBoundarySettlement;
-use crate::providers::provider_admission::{
+use crate::provider_admission::{
     NativeBoundaryRealization, NativeProviderSettlement, NativeRealizationInput,
     ProviderAdmissionRequest,
 };
@@ -73,7 +73,7 @@ pub(super) fn settle_boundary<'request>(
             same_stack,
         } => target_operations::BoundarySettlementRealization::NormalizedForeignCall(
             super::component_call::rejoin_component_call(
-                call,
+                &call,
                 authority,
                 locator,
                 same_stack,
@@ -130,22 +130,20 @@ pub(super) fn settle_boundary<'request>(
         if input.plan().boundary_machine(boundary.id).is_none() {
             continue;
         }
-        let realization = match settlement.realization {
-            NativeBoundaryRealization::Builtin(realization) => {
-                target_operations::BoundarySettlementRealization::Builtin(realization)
-            }
-            _ => realize(
-                &input
-                    .optimization_input()
-                    .selected_calling_abi_identity(boundary.id)
-                    .map_err(|reason| {
+        let realization =
+            match settlement.realization {
+                NativeBoundaryRealization::Builtin(realization) => {
+                    target_operations::BoundarySettlementRealization::Builtin(realization)
+                }
+                _ => realize(&input.selected_calling_abi_identity(boundary.id).map_err(
+                    |reason| {
                         vec![Diagnostic::error(format!(
                             "provider settlement for `{requirement}` at {:?}: {reason}",
                             boundary.id
                         ))]
-                    })?,
-            )?,
-        };
+                    },
+                )?)?,
+            };
         if let target_operations::BoundarySettlementRealization::Builtin(builtin) = &realization {
             let completion = match builtin {
                 target_operations::BoundaryRealization::AccessLifecycle { .. } => {

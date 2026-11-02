@@ -192,7 +192,8 @@ pub fn admit_prepared_native_realization<'execution>(
             .terminal_authority_permission_policy,
         x86_scalar_fma_provider: request.providers.x86_scalar_fma_provider,
     };
-    let mut providers = admit_native_providers(&input, artifact, &scoped_providers)?;
+    let mut providers =
+        admit_native_providers(&input.admission_source(), artifact, &scoped_providers)?;
     // Exclusions constrain the exercised mechanism closure even when the
     // caller makes no receiver-permission claim.
     request
@@ -221,7 +222,7 @@ pub fn admit_prepared_native_realization<'execution>(
             })
             .unwrap_or_default(),
     );
-    input.retain_admitted_native_callbacks(std::mem::take(&mut providers.native_callbacks));
+    input.retain_admitted_native_callbacks(providers.take_native_callbacks());
     Ok(AdmittedNativeRealization {
         input,
         providers,

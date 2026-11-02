@@ -1,6 +1,6 @@
 use crate::AdmittedProviderInstallation;
-use crate::providers::provider_admission::diagnostics::realization_error;
-use crate::providers::provider_admission::{NativeRealizationInput, ProviderAdmissionRequest};
+use crate::provider_admission::diagnostics::realization_error;
+use crate::provider_admission::{NativeRealizationInput, ProviderAdmissionRequest};
 use diagnostics::Diagnostic;
 
 pub(crate) fn admit_checked_provider_installation(
@@ -36,7 +36,7 @@ pub(crate) fn admit_checked_provider_installation(
         }));
     }
     let mut installation =
-        crate::providers::provider_installation::admit_provider_installation_with_projection(
+        crate::provider_installation::admit_provider_installation_with_projection(
             plan,
             view,
             request.checked_adapters,

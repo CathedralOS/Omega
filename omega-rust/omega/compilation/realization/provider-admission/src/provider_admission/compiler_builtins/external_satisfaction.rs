@@ -6,7 +6,7 @@ pub(super) use effects::external_providers::reconcile_numeric_meaning;
 /// Rejoin exact selecting owners at native proposal ingress, including private
 /// record recovery. Later execution borrows this same immutable catalog and
 /// selected plan; it does not need another parallel declaration sidecar.
-pub(crate) fn validate_external_provider_owners(
+pub fn validate_external_provider_owners(
     external_providers: &[terminal_psi::ExternalProviderConformance],
     identities: &terminal_psi::TerminalIdentityTable,
     declarations: &[backend_plan::TerminalTargetProviderPlan],

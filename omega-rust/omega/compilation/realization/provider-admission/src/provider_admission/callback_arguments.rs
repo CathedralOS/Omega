@@ -13,7 +13,7 @@ use diagnostics::Diagnostic;
 /// production remains valid, but native admission must reject that proposal.
 /// This does not validate the thunk body, admit registration, or replace the
 /// target lowerer's independent application replay.
-pub(crate) fn project_native_callback_arguments(
+pub fn project_native_callback_arguments(
     placements: &[backend_plan::NativeCallbackPlacement],
     occurrences: &[backend_plan::TerminalCallbackOccurrenceProposal],
 ) -> Result<Option<Vec<crate::NativeCallbackArgumentProposal>>, Vec<Diagnostic>> {
