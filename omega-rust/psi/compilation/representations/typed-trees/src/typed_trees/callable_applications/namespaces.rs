@@ -32,6 +32,21 @@ impl CallableApplication {
         } else {
             return Ok(Vec::new());
         };
+        program.selected_implementation_namespace_symbols(binder, &selected)
+    }
+}
+
+impl TypedTrees {
+    /// Rejoin an already selected implementation operand with the exact
+    /// requirement children of its receiving binder. Materialization and
+    /// read-only contract observation consume the same correspondence; this
+    /// supplies no bound admission, invocation or implementation guarantee.
+    pub fn selected_implementation_namespace_symbols(
+        &self,
+        binder: SymbolHandle,
+        selected: &crate::expression::StaticMachineArgument,
+    ) -> Result<Vec<(SymbolHandle, SymbolHandle)>, &'static str> {
+        let program = self;
         if !selected.names_implementation(&program.symbols) {
             return Err("applied requirement namespace needs an implementation operand");
         }

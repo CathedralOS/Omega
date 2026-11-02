@@ -1205,26 +1205,34 @@ fn validate_specification_expression_in_scope(
                         substitution
                             .iter()
                             .all(|(_, term)| term_has_complete_substitution(program, term))
-                            && matches!(
-                                instantiated_selected_fact_judgment(
-                                    program,
-                                    judge,
-                                    owner_symbol(&contract_owner),
-                                    parameters,
-                                    *required,
-                                    substitution,
-                                    &application_bindings
-                                        .as_ref()
-                                        .expect("complete application")
-                                        .machines,
-                                    &application_bindings
-                                        .as_ref()
-                                        .expect("complete application")
-                                        .types,
-                                    caller.state_scope(),
-                                ),
-                                StructuralJudgment::Proven
-                            )
+                            && application_bindings
+                                .as_ref()
+                                .expect("complete application")
+                                .predicate_machine_bindings(program, owner_symbol(&contract_owner), parameters, *required)
+                                .inspect_err(|reason| {
+                                    if super::struct_trace() {
+                                        eprintln!("STRUCT specification-predicate-application declined reason={reason}");
+                                    }
+                                })
+                                .is_ok_and(|machines| {
+                                    matches!(
+                                        instantiated_selected_fact_judgment(
+                                            program,
+                                            judge,
+                                            owner_symbol(&contract_owner),
+                                            parameters,
+                                            *required,
+                                            substitution,
+                                            &machines,
+                                            &application_bindings
+                                                .as_ref()
+                                                .expect("complete application")
+                                                .types,
+                                            caller.state_scope(),
+                                        ),
+                                        StructuralJudgment::Proven
+                                    )
+                                })
                     })
             });
             structural
