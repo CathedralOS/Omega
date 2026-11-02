@@ -161,10 +161,33 @@ and match-join executions with explicit native/Terminal zero. All 23 checking
 and ten runtime full outcome tuples equal the first full qualification. The
 two counterfactuals again produce native signal 4 and agreeing Terminal Trap;
 four fresh target artifacts retain their actual hashes and formats, with no
-foreign execution claim. All 7,957 frozen compiler/Cargo/SDK inputs match the
-final compiler bytes, including the same 176 SDK files. Temporary hosted probe
+foreign execution claim. At that checkpoint, all 7,957 frozen compiler/Cargo/SDK inputs matched the
+compiler bytes, including its actual 176 SDK files. Temporary hosted probe
 orchestration is removed before landing. Normal CI and exact final semantic
 review remain publication gates.
+
+A later actual queue conflict required integrating Main
+`e4a61cb4484f0f4bf37c2cde98555018da931aab`. Its Boolean-premise admission and
+selected-conjunction consumers warranted another bounded proof check; moved
+interpreter frame/storage routes warranted four affected runtime observations.
+Actual optimized CLI `08b7c22717e58f422e770c848287927ac9099f64`, run
+[41399107774](https://github.com/CathedralOS/Omega/actions/runs/41399107774),
+freshly checks all 23 frozen Sources through ordinary review and explicit
+checking products: ten positives and thirteen authored refusals. Call-result,
+match, selected-target and snapshot preservation pins each explicitly exit zero
+in both engines. The same two mutants again produce native signal 4 and agreeing
+Terminal Trap. This is a CLI-only consumer check, with no new corpus-runner build
+or restamping of historical corpus records. All 7,964 current compiler/Cargo/SDK
+inputs are retained; its 176-file SDK includes three allocator/extent changes
+whose APIs this row does not consume. Earlier 68a runtime/public results keep
+their actual producer identities. The native backend did not change in this
+join, so the four 68a artifact receipts remain applicable.
+
+A separate replay on that exact retained CLI and source snapshot, run
+[41401034384](https://github.com/CathedralOS/Omega/actions/runs/41401034384),
+retains the generated acceptance locks/admissions beside each command's raw
+checking and engine output. It performs no Rust build. These historical locks
+are replay inputs, not authority to install into a new checkout.
 
 Only this fact's target-body frontier is subtracted (47 to 46). Both Build-owned
 parent capabilities, broader target-family retirement, other-host runtime, and
