@@ -1,11 +1,11 @@
 # Provider-dependent scalar contract endpoint
 
-The selected checked provider closes `limit()` to 7; `requires value <= limit()`
-carries that bound into exact subtraction `7u64 - value`.
+The selected provider makes `limit()` equal to 7. The input contract
+`requires value <= limit()` preserves the bound needed to prove `7u64 - value`.
 
-Owning task: **CANONICALIZE-SCALAR-RANGE-CONTRACTS**, specifically the retained
-contract-expression work root and fold-publication route for provider-dependent
-clause endpoints. No endpoint-only nominal domain substitutes for the clause.
+This row tests bounds computed by a selected provider and written in an ordinary
+`requires` clause. It belongs to **CANONICALIZE-SCALAR-RANGE-CONTRACTS**. No named
+domain is needed solely to express that bound.
 
 The [generic-function production](closed_owner/README.md) carries the same fact
 when the selected provider call supplies constants inside a function that still
