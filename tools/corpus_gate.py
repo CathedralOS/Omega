@@ -116,11 +116,14 @@ Measuring your own change against the commit it builds on:
 
     python3 tools/corpus_gate.py --compare origin/main --filter calls/
 
-`--compare` builds REVISION's runner in its own worktree (`build/cmp`, with
-its own build directory) and diffs this tree's run fixture by fixture: a lost
-outcome, expected fragment or execution fact exits 1. REVISION's rows are
+`--compare` builds REVISION's runner in its own worktree
+(`build/compare-bases/<sha>`, with its own build directory) and diffs this
+tree's run fixture by fixture: a lost outcome, expected fragment or execution
+fact exits 1. REVISION's rows are
 cached under ignored `build/corpus_baselines/<sha>[-leg].txt`, so later runs
-against the same base cost one pass. It answers "what did I move" even while
+against the same base cost one pass. Both live in the `build/` beside the
+common git directory, shared by every worktree of the checkout and locked per
+commit, so two sessions never build one base twice. It answers "what did I move" even while
 the checked-in golden disagrees with this checkout over another lane's
 in-flight work, and editing this tree cannot leak into the base.
 
@@ -1023,6 +1026,19 @@ def shown(value) -> str:
     return str(value)
 
 
+def shared_compare_root() -> Path:
+    """Where base runners and their rows live: the ignored `build/` beside the
+    common git directory, shared by every worktree of this checkout.
+
+    A base runner is a pure function of its commit, and coordinators launch
+    workers from one fetched `origin/main`, so bases repeat across sessions.
+    On 2026-11-02 eight worktrees each held their own 955 MB `build/cmp`, and
+    two had built the same base separately.
+    """
+    import build_slot
+    return build_slot.shared_build_root(ROOT)
+
+
 def baseline_path(revision: str, leg: str = "") -> Path:
     """The cached outcomes of `revision`, one file per commit and leg.
 
@@ -1030,76 +1046,175 @@ def baseline_path(revision: str, leg: str = "") -> Path:
     with any checkout whose base carries another lane's in-flight movement, and
     a single run against it cannot separate that lane's drift from this one's.
     `--compare` measures the base commit itself and keeps those rows here, so
-    each later measurement against the same base costs one corpus pass.
+    each later measurement against the same base, from any worktree, costs one
+    corpus pass. A native leg's name carries its target.
     """
     suffix = f"-{leg}" if leg else ""
-    return ROOT / "build" / "corpus_baselines" / f"{revision}{suffix}.txt"
+    return shared_compare_root() / "corpus_baselines" / f"{revision}{suffix}.txt"
 
 
-COMPARE_WORKTREE = ROOT / "build" / "cmp"
 FILTER_VARIABLE = "OMEGA_CORPUS_FIXTURE_FILTER"
+# Each base worktree holds about 1 GB of build output; older ones are removed
+# once no session holds their lock.
+COMPARE_BASES_KEPT = 3
+
+
+def compare_worktree(revision: str) -> Path:
+    return shared_compare_root() / "compare-bases" / revision[:12]
+
+
+@contextlib.contextmanager
+def file_lock(path: Path, blocking: bool = True):
+    """Hold `path` exclusively for the block, yielding whether it was taken.
+
+    The operating system releases the lock when its holder dies, so a killed
+    session never wedges a base."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "a+b") as handle:
+        if os.name == "nt":
+            import msvcrt
+            while True:
+                try:
+                    handle.seek(0)
+                    msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+                    break
+                except OSError:
+                    if not blocking:
+                        yield False
+                        return
+                    import time
+                    time.sleep(1.0)
+            try:
+                yield True
+            finally:
+                handle.seek(0)
+                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+        else:
+            import fcntl
+            try:
+                fcntl.flock(handle.fileno(),
+                            fcntl.LOCK_EX | (0 if blocking else fcntl.LOCK_NB))
+            except BlockingIOError:
+                yield False
+                return
+            try:
+                yield True
+            finally:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+
+@contextlib.contextmanager
+def revision_lock(revision: str):
+    """One session at a time measures `revision`, so two never build it twice;
+    the second finds the first's runner and rows."""
+    path = shared_compare_root() / "compare-bases" / f"{revision[:12]}.lock"
+    with file_lock(path, blocking=False) as taken:
+        if taken:
+            yield
+            return
+    print(f"corpus_gate: waiting for another session measuring {revision[:12]}",
+          file=sys.stderr)
+    with file_lock(path):
+        yield
+
+
+def evict_compare_bases(keep: Path) -> None:
+    """Remove base worktrees past the newest COMPARE_BASES_KEPT that no session
+    holds."""
+    directory = keep.parent
+    bases = sorted((entry for entry in directory.iterdir()
+                    if entry.is_dir() and entry != keep
+                    and re.fullmatch(r"[0-9a-f]{12}", entry.name)),
+                   key=lambda entry: entry.stat().st_mtime, reverse=True)
+    for stale in bases[COMPARE_BASES_KEPT - 1:]:
+        with file_lock(directory / f"{stale.name}.lock", blocking=False) as taken:
+            if not taken:
+                continue
+            if git_out("worktree", "remove", "--force", str(stale)) is None:
+                import shutil
+                shutil.rmtree(stale, ignore_errors=True)
+                git_out("worktree", "prune")
 
 
 def checkout_base(revision: str) -> Path:
     """A detached worktree at `revision` with its own build directory, so the
-    base runner can never link the measured tree's edits or artifacts."""
-    if (COMPARE_WORKTREE / ".git").exists():
-        moved = git_out("-C", str(COMPARE_WORKTREE), "checkout", "-q", "-f",
-                        "--detach", revision)
+    base runner can never link the measured tree's edits or artifacts. Callers
+    hold `revision_lock(revision)`."""
+    worktree = compare_worktree(revision)
+    if (worktree / ".git").exists():
+        moved = (git_out("-C", str(worktree), "rev-parse", "HEAD") == revision
+                 or git_out("-C", str(worktree), "checkout", "-q", "-f",
+                            "--detach", revision) is not None)
     else:
+        worktree.parent.mkdir(parents=True, exist_ok=True)
         git_out("worktree", "prune")
         moved = git_out("worktree", "add", "-q", "--detach",
-                        str(COMPARE_WORKTREE), revision)
-    if moved is None:
+                        str(worktree), revision) is not None
+    if not moved:
         raise InfrastructureFailure(
-            f"corpus_gate: cannot check out {revision} at {COMPARE_WORKTREE}")
-    return COMPARE_WORKTREE
+            f"corpus_gate: cannot check out {revision} at {worktree}")
+    os.utime(worktree)
+    evict_compare_bases(worktree)
+    return worktree
+
+
+def read_baseline(cache: Path) -> dict:
+    return ({record["fixture"]: record for record in corpus_records.read(cache)}
+            if cache.is_file() else {})
 
 
 def base_records_for(revision: str, leg: str, selected: list, baseline_runner: Path = None) -> list:
     """`revision`'s rows for the selected fixtures, measuring only those the
     cache lacks. A fixture the base does not have stays absent: it is new."""
     cache = baseline_path(revision, leg)
-    cached = ({record["fixture"]: record for record in corpus_records.read(cache)}
-              if cache.is_file() else {})
-    missing = [fixture for fixture in selected if fixture not in cached]
-    if missing:
-        worktree = checkout_base(revision)
-        # A warm cache contains every old fixture but cannot contain rows for
-        # newly added programs. Do not launch a base runner with an empty
-        # effective selection: absence on the base is a comparison fact, not
-        # a runner failure. Fixture discovery uses these same main.omg roots.
-        missing = [fixture for fixture in missing
-                   if (worktree / "tests/omega" / fixture / "main.omg").is_file()]
-    if missing:
-        selection = os.environ.get(FILTER_VARIABLE, "")
-        exact = ",".join(missing)
-        # Exact names keep a top-up cheap; the original selection already
-        # covers a cold cache, and an over-long list would exceed the
-        # environment block on Windows.
-        if len(missing) < len(selected) and len(exact) < 20_000:
-            selection = exact
-        previous = os.environ.get(FILTER_VARIABLE)
-        if selection:
-            os.environ[FILTER_VARIABLE] = selection
-        try:
-            if baseline_runner is not None:
-                if git_out("-C", str(worktree), "rev-parse", "HEAD") != revision:
-                    raise InfrastructureFailure("corpus_gate: frozen baseline runner needs the exact compared source checkout")
-                measured = run_runner(baseline_runner, worktree, freshly_built=False)
-            else:
-                measured = run_runner(build_runner(worktree), worktree, freshly_built=True)
-        finally:
-            if previous is None:
-                os.environ.pop(FILTER_VARIABLE, None)
-            else:
-                os.environ[FILTER_VARIABLE] = previous
-        for record in measured:
-            record["recorded_at"] = revision[:12]
-            cached[record["fixture"]] = record
-        cache.parent.mkdir(parents=True, exist_ok=True)
-        cache.write_text(corpus_records.render(
-            [cached[fixture] for fixture in sorted(cached)]), encoding="utf-8")
+    cached = read_baseline(cache)
+    if all(fixture in cached for fixture in selected):
+        return [cached[fixture] for fixture in selected]
+    with revision_lock(revision):
+        # Another session may have measured these while this one waited.
+        cached = read_baseline(cache)
+        missing = [fixture for fixture in selected if fixture not in cached]
+        if missing:
+            worktree = checkout_base(revision)
+            # A warm cache contains every old fixture but cannot contain rows
+            # for newly added programs. Do not launch a base runner with an
+            # empty effective selection: absence on the base is a comparison
+            # fact, not a runner failure. Fixture discovery uses these same
+            # main.omg roots.
+            missing = [fixture for fixture in missing
+                       if (worktree / "tests/omega" / fixture / "main.omg").is_file()]
+        if missing:
+            selection = os.environ.get(FILTER_VARIABLE, "")
+            exact = ",".join(missing)
+            # Exact names keep a top-up cheap; the original selection already
+            # covers a cold cache, and an over-long list would exceed the
+            # environment block on Windows.
+            if len(missing) < len(selected) and len(exact) < 20_000:
+                selection = exact
+            previous = os.environ.get(FILTER_VARIABLE)
+            if selection:
+                os.environ[FILTER_VARIABLE] = selection
+            try:
+                if baseline_runner is not None:
+                    if git_out("-C", str(worktree), "rev-parse", "HEAD") != revision:
+                        raise InfrastructureFailure("corpus_gate: frozen baseline runner needs the exact compared source checkout")
+                    measured = run_runner(baseline_runner, worktree, freshly_built=False)
+                else:
+                    measured = run_runner(build_runner(worktree), worktree, freshly_built=True)
+            finally:
+                if previous is None:
+                    os.environ.pop(FILTER_VARIABLE, None)
+                else:
+                    os.environ[FILTER_VARIABLE] = previous
+            for record in measured:
+                record["recorded_at"] = revision[:12]
+                cached[record["fixture"]] = record
+            cache.parent.mkdir(parents=True, exist_ok=True)
+            # Readers outside the lock see the old file or the new one whole.
+            staged = cache.with_name(f"{cache.name}.{os.getpid()}.tmp")
+            staged.write_text(corpus_records.render(
+                [cached[fixture] for fixture in sorted(cached)]), encoding="utf-8")
+            os.replace(staged, cache)
     return [cached[fixture] for fixture in selected if fixture in cached]
 
 
@@ -1725,8 +1840,9 @@ def main() -> int:
                              "(supply --golden when absent)")
     parser.add_argument("--compare", metavar="REVISION",
                         help="diff this tree's run against REVISION's, built "
-                             "in its own worktree (build/cmp) and cached per "
-                             "commit under build/corpus_baselines; exits 1 "
+                             "in a base worktree (build/compare-bases/<sha>) and cached "
+                             "per commit under build/corpus_baselines, both "
+                             "shared by every worktree; exits 1 "
                              "when any fixture loses an outcome, expected "
                              "fragment or execution fact")
     parser.add_argument("--filter",
@@ -1890,8 +2006,8 @@ def main() -> int:
         if not compare_revision:
             print(f"corpus_gate: --compare names no commit: {options.compare}")
             return usage_error
-        # A foreign native target keeps its own cache beside the host's.
-        compare_leg = f"{leg}-{options.native_target}" if options.native_target else leg
+        # Rows are shared by every worktree; a native leg names its target.
+        compare_leg = f"{leg}-{target}" if target else leg
 
     if options.sweep:
         os.environ["OMEGA_CORPUS_SWEEP"] = "1"
