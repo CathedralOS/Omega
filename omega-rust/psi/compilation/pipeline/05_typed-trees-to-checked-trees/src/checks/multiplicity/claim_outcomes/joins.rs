@@ -435,6 +435,7 @@ fn state_frontiers(
                             &entry.source,
                             &ownership.segments,
                             events,
+                            maps,
                         ) else {
                             diagnostics.record(
                                 edge,
