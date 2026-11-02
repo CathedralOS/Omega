@@ -76,7 +76,7 @@ impl Expansion<'_> {
                 self.machine,
                 exit.state_symbol,
                 statement,
-            )?
+            )
         } else {
             Vec::new()
         };

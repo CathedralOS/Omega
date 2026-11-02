@@ -76,6 +76,10 @@ pub struct CheckedStructuralValue {
     /// namespace as ordinary construction operands. Custody and lowering read
     /// this roster independently of the payload's producing expression kind.
     pub content_inputs: HandleSpan<crate::CheckedUnitStructuralArgumentPlan>,
+    /// This occurrence selects resident source storage, including an owned
+    /// case view whose logical carrier covers the whole physical owner.
+    /// Whole-value forwarding keeps its memberships but does not select storage.
+    pub selects_source_storage: bool,
     pub kind: CheckedStructuralValueKind,
 }
 
@@ -873,6 +877,7 @@ mod index_tests {
             qualification_decisions: Default::default(),
             content_transformation: Default::default(),
             content_inputs: Default::default(),
+            selects_source_storage: false,
             kind: super::CheckedStructuralValueKind::Scalar {
                 value: Default::default(),
             },

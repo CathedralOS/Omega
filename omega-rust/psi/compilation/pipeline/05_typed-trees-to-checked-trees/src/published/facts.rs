@@ -354,7 +354,7 @@ pub(crate) fn build_check_facts(
     crate::borrow::accesses::retain_completed_dispatch_extractions(program, &mut prepared);
     phase_profile::scope(
         "psi.05.build_check_facts.post_flow_facts.scalar_and_index_plans",
-        || {
+        || -> Result<(), Vec<diagnostics::Diagnostic>> {
             crate::values::retain_nested_call_arguments(
                 program,
                 &prepared.operators,
@@ -375,9 +375,10 @@ pub(crate) fn build_check_facts(
                 &prepared.proof,
                 &mut prepared.values.scalar_expressions,
                 &validation_facts.exact_integer_casts,
-            );
+            )?;
+            Ok(())
         },
-    );
+    )?;
     crate::execution::content_consumption::attach(program, &mut prepared)?;
     let index_compatibility = phase_profile::scope(
         "psi.05.build_check_facts.post_flow_facts.index_compatibility",

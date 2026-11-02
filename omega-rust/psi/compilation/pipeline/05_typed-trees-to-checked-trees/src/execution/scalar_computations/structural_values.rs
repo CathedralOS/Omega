@@ -1050,6 +1050,10 @@ impl Builder<'_, '_> {
             qualification_decisions: Default::default(),
             content_transformation: Default::default(),
             content_inputs: Default::default(),
+            selects_source_storage: matches!(&kind, ValueKind::Projection { path, .. }
+                if !path.is_empty()
+                    || (self.program.type_reference_table.case_view_subject(type_reference).is_some()
+                        && validation::reference_shell(self.program, type_reference).is_none())),
             kind,
         }))
     }
