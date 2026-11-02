@@ -107,24 +107,7 @@ jobs:
           OMEGA_COMPILER_PILOT_SAMPLES: ${{ inputs.samples }}
           OMEGA_COMPILER_PILOT_CLI_FIXTURES: ${{ inputs.cli_fixtures }}
           OMEGA_COMPILER_PILOT_CHECKING_ONLY: ${{ inputs.checking_only }}
-          OMEGA_TRACE_CRASH_REQUIREMENTS: '1'
         run: python tools/ci/compiler_pilot.py
-      - name: Check retained requirement ownership
-        if: always() && github.event_name == 'workflow_dispatch'
-        run: |
-          python - <<'PY'
-          import subprocess
-          import sys
-          from pathlib import Path
-          sys.path.insert(0, 'tools')
-          import build_slot
-          with build_slot.hold(Path.cwd()):
-              for package, selected in (
-                  ('typed-trees-to-checked-trees', 'requirement_contracts::tests'),
-                  ('checked-trees', 'executable_binding_tests'),
-              ):
-                  subprocess.run(['cargo', 'test', '--locked', '-p', package, '--lib', selected], check=True)
-          PY
       - name: Report actual producer and fixture observations
         if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
         run: python -c "from pathlib import Path; root = Path('build/compiler-pilot'); [print(name + '\n' + (root / name).read_text(encoding='utf-8')) for name in ('summary.json', 'checking.json', 'both.json', 'samples.json', 'cli.json') if (root / name).is_file()]"

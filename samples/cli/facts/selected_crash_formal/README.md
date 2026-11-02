@@ -31,7 +31,7 @@ fact to discharge its authored value < Zero Trap route.
 | Const name | [const_name](const_name/main.omg) | [invalid](const_name/invalid/main.omg) |
 | A nested machine | [other_state](other_state/main.omg) | [invalid](other_state/invalid/main.omg) |
 | Another machine | [other_machine](other_machine/main.omg) | [invalid](other_machine/invalid/main.omg) |
-| Another target body | [target_body](target_body/main.omg) | [invalid](target_body/invalid/main.omg) |
+| A selected target implementation | [target_body](target_body/main.omg) | [invalid](target_body/invalid/main.omg) |
 
 The row is pinned under `tests/omega/{pass,fail}/facts/selected_crash_formal_through_*`.
 All nine positives and the root bind all four hosted targets and expect exit 0.
@@ -110,9 +110,12 @@ services. The public helper names the interface it may call with
 still reject, even though the chosen implementation returns normally.
 
 This uses the generic interface support already landed with
-`selected_value_application`. Crash comparisons also need to read a named
-integer constant's completed, checked value. That repair implements the existing
-crash rule; it does not change which crashes an interface permits.
+`selected_value_application`. The compiler now reads named integer limits from
+their completed, checked values and keeps the full selected signature for each
+call. Private forwarding helpers use that public signature too. When lowering
+the call, the retained call record connects the public requirement to the
+implementation that will execute. These repairs enforce the existing crash
+rule; they do not change which crashes an interface permits.
 [Provider selection](../../../../wiki/spec/build/provider_selection.md#build-owned-target-selection),
 [explicit evidence selection](../../../../wiki/spec/language/conformances.md#declaration-and-selection),
 and [boundary crash contracts](../../../../wiki/spec/terminal-psi/boundary_calls.md#boundary-crash-contracts)
