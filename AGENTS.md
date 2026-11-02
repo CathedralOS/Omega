@@ -710,7 +710,11 @@ The rules that touch every edit:
   use `Handle<T>`/`HandleSpan<T>`; `Vec` is construction scratch, not the
   durable shape. Arena/vector-backed symbol tables over local hash maps; a
   map keyed by compiler-owned objects is a review trigger for missing
-  representation structure. Symbols are handle-first — string names are
+  representation structure. Dense IDs (`semantic_id!` types, arena handles)
+  index flat tables (`IdTable`/`IdSet` once they land; until then a `Vec`
+  indexed by the ID), and derived data is computed once by its owner, not
+  cached; `tools/check_rules.py` fails a file whose count of ID-keyed maps or
+  cache-shaped bindings rises. Symbols are handle-first — string names are
   debug/export payload, not identity. Source text stays in loading,
   diagnostic, and debug payload roles.
 - Entrypoints stay prominent: `main.rs` owns startup and visible dispatch
