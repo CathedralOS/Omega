@@ -27,7 +27,8 @@ pub use language_semantics::byte_predicates::{ByteSequencePredicate, ByteSequenc
 
 mod prepared_roots;
 pub use prepared_roots::{
-    PreparedTerminalRoots, RetainedTerminalRoot, TerminalRootDeclaration, TerminalRootRequest,
+    NominalRootError, PreparedNominalRoot, PreparedTerminalRoots, RetainedTerminalRoot,
+    TerminalRootDeclaration, TerminalRootRequest,
 };
 
 mod callback_application;
