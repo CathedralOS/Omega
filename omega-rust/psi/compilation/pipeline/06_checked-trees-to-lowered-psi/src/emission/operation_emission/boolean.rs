@@ -6,9 +6,9 @@ use super::expressions::{
 };
 use super::integer::LoweredIntegerComparisonKind;
 use crate::emission::operation_emission::buffer::scalar_result_declaration;
-use crate::terminal_identities::mint;
-use crate::terminal_identities::obligation_id;
-use crate::terminal_identities::value_id;
+use crate::shared::terminal_identities::mint;
+use crate::shared::terminal_identities::obligation_id;
+use crate::shared::terminal_identities::value_id;
 use semantic_vocabulary::{PlaceId, ScalarType, StructuralFieldId, ValueId};
 use terminal_psi::{OperationKind, ValueDeclaration};
 

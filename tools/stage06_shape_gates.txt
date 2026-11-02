@@ -2,10 +2,10 @@
 # Counts may only fall: Psi 06 is a mechanical lowering of Psi 05's plans
 # (TASKS.md owner ruling 2026-10-04; LOC-VALUE-CUSTODY retires these gates).
 # Written by `python tools/check_rules.py --update-shape-gates`.
-3 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/activation_storage.rs
-13 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/call_sites.rs
-7 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/declarations.rs
-4 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/declarations/state_selection_tests.rs
+3 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/shared/activation_storage.rs
+13 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/shared/call_sites.rs
+7 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/shared/declarations.rs
+4 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/shared/declarations/state_selection_tests.rs
 12 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/emission/affine_cleanup.rs
 2 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/emission/affine_cleanup/carrier_arrivals.rs
 7 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/emission/affine_cleanup/custody_flow.rs
@@ -73,16 +73,16 @@
 11 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/expression_preparation/representation_view.rs
 4 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/expression_preparation/saturating_shift.rs
 7 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/expression_preparation/structural_value_requirements.rs
-3 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/external_provider_declarations/prepared.rs
+3 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/projections/external_provider_declarations/prepared.rs
 1 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/lib.rs
-6 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/lowering_error.rs
+6 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/shared/lowering_error.rs
 11 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/machine_lowering.rs
 4 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/machine_lowering/build_providers.rs
 2 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/machine_lowering/debug_map.rs
 1 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/machine_lowering/float_meanings.rs
 1 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/machine_lowering/guarded_exits.rs
 5 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/machine_lowering/machine_dispatch.rs
-3 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/producer_result.rs
+3 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/shared/producer_result.rs
 16 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/proofs/content_conservation.rs
 8 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/proofs/contract_predicates.rs
 5 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/proofs/contract_predicates/integer_math.rs
@@ -141,9 +141,9 @@
 3 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/scalar_lowering/contracts/indexed_theorems.rs
 11 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/scalar_lowering/contracts/namespace.rs
 12 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/scalar_lowering/effects.rs
-6 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/structural_types.rs
-4 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/structural_types/scalar_refinements.rs
-12 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/terminal_identities.rs
+6 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/shared/structural_types.rs
+4 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/shared/structural_types/scalar_refinements.rs
+12 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/shared/terminal_identities.rs
 5 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit.rs
 55 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/argument_evaluation.rs
 14 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/argument_evaluation/cleanup_control.rs

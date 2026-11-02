@@ -12,7 +12,6 @@
 //! expression would lose that identity and could repeat a call's effects. Both
 //! schedules then narrow the same half-open descriptor with exact arithmetic.
 use super::{CheckedTrees, LoweringError, allocate_dense, place_id, unsupported};
-use crate::checked_facts::flow_facts;
 use crate::emission::operation_emission::buffer::{OperationBuffer, structural_result_declaration};
 use crate::emission::operation_emission::expressions::emit_direct_expression;
 use crate::emission::operation_emission::expressions::{
@@ -26,7 +25,8 @@ use crate::expression_preparation::bindings::ScalarBindings;
 use crate::expression_preparation::bindings::structural_paths::prepare_projection_path;
 use crate::expression_preparation::bindings::structural_paths::terminal_access;
 use crate::expression_preparation::prepare_expression::exact_u64_index;
-use crate::terminal_identities::obligation_id;
+use crate::shared::checked_facts::flow_facts;
+use crate::shared::terminal_identities::obligation_id;
 use checked_trees::expression::ExpressionHandle;
 use checked_trees::{CheckedCallScalarArgument, CheckedScalarExpressionRole, CheckedSubsliceSite};
 use checked_trees::{
@@ -156,7 +156,7 @@ pub(crate) fn element_type(
     match declaration.shape {
         terminal_psi::StructuralTypeShape::ElementView { element, .. } => Ok(element),
         terminal_psi::StructuralTypeShape::ByteSequence(_) => {
-            let identity = crate::terminal_identities::byte_view_element_identity(
+            let identity = crate::shared::terminal_identities::byte_view_element_identity(
                 flow_facts(checked)
                     .terminal_unit_effects
                     .structural_types
@@ -165,7 +165,7 @@ pub(crate) fn element_type(
             .ok_or(LoweringError::Unsupported(
                 "byte view lost its element identity",
             ))?;
-            crate::terminal_identities::structural_declaration_by_identity(
+            crate::shared::terminal_identities::structural_declaration_by_identity(
                 declarations,
                 identities,
                 checked,
@@ -195,7 +195,7 @@ impl RangeStorage {
         destination: Option<PlaceId>,
         declarations: &[terminal_psi::StructuralTypeDeclaration],
     ) -> Result<(ViewRangeSource, Option<CollectionView>), LoweringError> {
-        let (_, authored) = crate::declarations::state_declaration(checked, state)?;
+        let (_, authored) = crate::shared::declarations::state_declaration(checked, state)?;
         let argument = &self.source;
         let source =
             bindings.borrowed_structural_home(argument, checked.state_parameters(authored))?;
@@ -399,7 +399,7 @@ pub(crate) fn storage(
             .ok_or(LoweringError::Unsupported(
                 "range collection has no exact Terminal type",
             ))?;
-    let view = crate::terminal_identities::structural_declaration_by_identity(
+    let view = crate::shared::terminal_identities::structural_declaration_by_identity(
         declarations,
         identities,
         checked,
@@ -610,7 +610,7 @@ pub(crate) fn emit(
     environment: &mut super::OperationEnvironment<'_>,
 ) -> Result<StructuralPlaceDeclaration, LoweringError> {
     let (start, end) = (site.range.start.clone(), site.range.end.clone());
-    let (machine, _) = crate::declarations::state_declaration(checked, site.state)?;
+    let (machine, _) = crate::shared::declarations::state_declaration(checked, site.state)?;
     // Complete the collection selectors before any endpoint can call or write.
     // The checked loan retains the selected descriptor through those effects.
     let path = emit_prepared_path(&source.path, 0, values, next_value, operations);

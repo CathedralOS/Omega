@@ -3,7 +3,7 @@
 //! authored state-graph formals keep their separate edge-bound block namespace.
 //! This changes no certificate context, grant, term, or carrier identity.
 
-use crate::lowering_error::LoweringError;
+use crate::shared::lowering_error::LoweringError;
 use semantic_vocabulary::{MathematicalArgument, ProofFormalScope, ProofTerm};
 use terminal_psi::{OperationKind, TerminalMachine, Terminator};
 

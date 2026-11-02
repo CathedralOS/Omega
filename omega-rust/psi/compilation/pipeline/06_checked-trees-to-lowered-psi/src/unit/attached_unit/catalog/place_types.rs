@@ -5,11 +5,11 @@
 //! do not recursively expand reference edges in the type catalog. A caller that
 //! happens to construct the referent must not supply an isolated callee's types.
 use super::*;
-use crate::checked_facts::value_facts;
-use crate::declarations::state_declaration;
 use crate::expression_preparation::computation_graph::reachable_nodes;
 use crate::expression_preparation::computation_graph::reachable_structural_values;
-use crate::terminal_identities::stored_structural_identity;
+use crate::shared::checked_facts::value_facts;
+use crate::shared::declarations::state_declaration;
+use crate::shared::terminal_identities::stored_structural_identity;
 use checked_trees::{
     CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan as Source,
     CheckedUnitStructuralPathSegment as Segment,

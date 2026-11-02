@@ -7,9 +7,9 @@ use super::super::super::{LoweringError, PlaceId, unsupported};
 use super::{
     CompletionOccurrence, Emission, NormalDeathReceipt, ValueCompletion, ValueContinuation,
 };
-use crate::checked_facts::flow_facts;
 use crate::emission::claim_bindings::completed_value_paths;
 use crate::expression_preparation::bindings::LoanAccess;
+use crate::shared::checked_facts::flow_facts;
 
 impl Emission<'_, '_, '_> {
     /// Finish the actual value operation once: retain its produced custody,

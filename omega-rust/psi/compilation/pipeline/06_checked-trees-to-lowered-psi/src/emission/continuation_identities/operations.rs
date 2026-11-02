@@ -1,7 +1,7 @@
 //! The operation's runtime uses and occurrence-local proof obligations.
 
 use super::IdentityMap;
-use crate::lowering_error::{LoweringError, unsupported};
+use crate::shared::lowering_error::{LoweringError, unsupported};
 use semantic_vocabulary::ObligationId;
 use terminal_psi::{ElementViewRegion, OperationKind, RecordFieldValue, StructuralPathSegment};
 

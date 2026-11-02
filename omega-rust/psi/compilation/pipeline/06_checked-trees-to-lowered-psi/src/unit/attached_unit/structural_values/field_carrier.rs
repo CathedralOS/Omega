@@ -24,7 +24,7 @@ pub(crate) fn resolve(
         ));
     }
     let identity = validation::structural_type_identity(&checked.typed, reference, &[], &[]);
-    let declaration = crate::terminal_identities::structural_declaration_by_identity(
+    let declaration = crate::shared::terminal_identities::structural_declaration_by_identity(
         declarations,
         identities,
         checked,

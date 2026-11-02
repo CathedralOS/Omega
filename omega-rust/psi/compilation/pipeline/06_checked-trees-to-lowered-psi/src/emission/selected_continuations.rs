@@ -7,7 +7,7 @@
 //! conditions again or reconcile different nominal lifetimes at an early join.
 //! Physical namespace allocation belongs to continuation identity instantiation.
 
-use crate::lowering_error::{LoweringError, unsupported};
+use crate::shared::lowering_error::{LoweringError, unsupported};
 use semantic_vocabulary::{BlockId, EdgeId, PlaceId, StructuralPlaceKind, StructuralTypeId};
 use terminal_psi::{
     Block, OperationKind, StructuralAccess, StructuralArgument, StructuralParameterDeclaration,
@@ -504,17 +504,19 @@ fn validate_group(
                     structural_arguments,
                     cleanup_actions,
                     ..
-                } if *edge == group.edge => Some(crate::lowering_error::SelectedCleanupEntrySite {
-                    block: block.id,
-                    target: *target,
-                    structural_arguments: structural_arguments.clone(),
-                    cleanup_actions: cleanup_actions.clone(),
-                }),
+                } if *edge == group.edge => {
+                    Some(crate::shared::lowering_error::SelectedCleanupEntrySite {
+                        block: block.id,
+                        target: *target,
+                        structural_arguments: structural_arguments.clone(),
+                        cleanup_actions: cleanup_actions.clone(),
+                    })
+                }
                 _ => None,
             })
             .collect();
         return Err(LoweringError::InvalidSelectedCleanupEntry(Box::new(
-            crate::lowering_error::SelectedCleanupEntryMismatch {
+            crate::shared::lowering_error::SelectedCleanupEntryMismatch {
                 machine,
                 edge: group.edge,
                 region: group.region.clone(),

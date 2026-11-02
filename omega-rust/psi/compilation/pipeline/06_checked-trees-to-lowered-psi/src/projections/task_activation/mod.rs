@@ -272,7 +272,7 @@ fn resident_value(
     let value_type = match scalar_or_unit(checked, reference)? {
         Some(value_type) => value_type,
         None => TerminalTaskValueType::Structural(
-            crate::terminal_identities::lookup_type_id(
+            crate::shared::terminal_identities::lookup_type_id(
                 types,
                 &validation::stored_structural_type_identity(&checked.typed, reference, &[], &[]),
             )

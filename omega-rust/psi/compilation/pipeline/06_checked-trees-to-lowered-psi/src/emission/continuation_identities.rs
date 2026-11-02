@@ -13,7 +13,7 @@
 use semantic_vocabulary::{BlockId, ClaimId, EdgeId, ObligationId, OperationId, PlaceId, ValueId};
 use terminal_psi::{Block, Operation, OperationResult, StructuralPathSegment};
 
-use crate::lowering_error::{LoweringError, unsupported};
+use crate::shared::lowering_error::{LoweringError, unsupported};
 
 mod companions;
 mod operations;

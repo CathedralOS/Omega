@@ -12,12 +12,12 @@ use super::{
     checked_scalar_call_closure_with_structural_roots, checked_unit_call_closure_including,
     checked_unit_provider_candidates, unsupported,
 };
-use crate::checked_facts::value_facts;
 use crate::expression_preparation::computation_graph::boundary_targets;
 use crate::expression_preparation::computation_graph::call_targets;
 use crate::expression_preparation::computation_graph::structural_call_targets;
 use crate::expression_preparation::computation_graph::value_call_operations;
-use crate::lowering_error::unit_machine_plan_error;
+use crate::shared::checked_facts::value_facts;
+use crate::shared::lowering_error::unit_machine_plan_error;
 pub(super) struct CheckedCallCatalog {
     pub(super) operations: Vec<symbols::SymbolHandle>,
     pub(super) source_machines: Vec<symbols::SymbolHandle>,

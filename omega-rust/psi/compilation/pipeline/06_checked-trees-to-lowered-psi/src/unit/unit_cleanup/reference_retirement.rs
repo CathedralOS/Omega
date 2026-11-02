@@ -5,8 +5,8 @@
 //! appending it to the captured storage path; case identities require that type.
 
 use super::{CleanupRegion, LoweringError};
-use crate::checked_facts::flow_facts;
 use crate::emission::operation_emission::buffer::OperationBuffer;
+use crate::shared::checked_facts::flow_facts;
 use crate::unit::attached_unit::argument_evaluation::{Evaluation, StructuralValueStorage};
 use checked_trees::CheckedUnitEffectOperationPlan;
 use terminal_psi::{StructuralParameterDeclaration, TerminalAffineCleanupAction};

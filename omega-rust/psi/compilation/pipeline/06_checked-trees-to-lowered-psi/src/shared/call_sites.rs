@@ -10,8 +10,8 @@
 //! again. Declaration applications carry their own admitted receipts into
 //! `checked_invocation`; neither source owner can impersonate the other.
 
-use crate::checked_facts::flow_facts;
-use crate::lowering_error::{LoweringError, unsupported};
+use crate::shared::checked_facts::flow_facts;
+use crate::shared::lowering_error::{LoweringError, unsupported};
 use checked_trees::expression::ExpressionHandle;
 use checked_trees::types::PrimitiveType;
 use checked_trees::{CheckedTrees, CheckedUnitCallCoordinate, FlowCallResult};
@@ -29,7 +29,7 @@ pub(crate) fn locate(
     coordinate: CheckedUnitCallCoordinate,
 ) -> Result<AuthoredCall, LoweringError> {
     let program = &checked.typed;
-    let (machine, _) = crate::declarations::state_declaration(checked, caller_state)?;
+    let (machine, _) = crate::shared::declarations::state_declaration(checked, caller_state)?;
     let control = &checked.facts.flow.control;
     let call = checked_call(
         checked,
@@ -41,7 +41,8 @@ pub(crate) fn locate(
     let arguments = control
         .call_arguments
         .span_or_empty(call.authored_arguments);
-    let target = crate::declarations::target_signature(checked, machine.symbol, source_target)?;
+    let target =
+        crate::shared::declarations::target_signature(checked, machine.symbol, source_target)?;
     let parameters = target.parameters;
     if arguments.len() != parameters.len() {
         return unsupported("call row disagrees with its callee's argument count");
@@ -89,7 +90,7 @@ pub(crate) fn selected_module_target<'source>(
     occurrence: &lowered_psi::LoweredSourceCallOccurrence,
 ) -> Result<ModuleCallTarget<'source>, LoweringError> {
     let (target, _, _) = checked_invocation(checked, occurrence.origin)?;
-    let (machine, state) = crate::declarations::state_declaration(checked, target)?;
+    let (machine, state) = crate::shared::declarations::state_declaration(checked, target)?;
     Ok(ModuleCallTarget { machine, state })
 }
 
@@ -172,7 +173,8 @@ pub(crate) fn source_site(
             call.authored_expression,
         ))),
         FlowCallSite::Statement => {
-            let (_, state) = crate::declarations::state_declaration(checked, coordinate.state)?;
+            let (_, state) =
+                crate::shared::declarations::state_declaration(checked, coordinate.state)?;
             let offset = u32::try_from(coordinate.statement_index)
                 .map_err(|_| LoweringError::Unsupported("call statement ordinal exceeds u32"))?;
             let start = state.statement_nodes.start();

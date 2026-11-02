@@ -9,8 +9,8 @@
 
 use super::calls::CallInputs;
 use super::{OperationFrame, StructuralResults};
-use crate::checked_facts::flow_facts;
 use crate::emission::operation_emission::expressions::emit_direct_expression;
+use crate::shared::checked_facts::flow_facts;
 use crate::unit::{
     LoweringError, OperationResult, ValueDeclaration, allocate_dense, terminal_scalar_type,
     unsupported, value_id,

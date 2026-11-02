@@ -11,7 +11,7 @@ use semantic_vocabulary::{
     StructuralTypeId, ValueId,
 };
 
-use crate::lowering_error::LoweringError;
+use crate::shared::lowering_error::LoweringError;
 
 // Structural Unit call requirements occupy the upper half of the module-wide
 // obligation namespace. Existing contract and cleanup producers allocate from

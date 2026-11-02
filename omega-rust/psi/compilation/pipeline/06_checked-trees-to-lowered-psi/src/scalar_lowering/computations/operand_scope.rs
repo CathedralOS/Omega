@@ -6,11 +6,11 @@ use super::{
     Argument, Computation, EstablishedValue, Expansion, LoweringError, QualifiedScalarType, Site,
     parameter, parameters,
 };
-use crate::checked_facts::value_facts;
 use crate::scalar_lowering::branch_states::prepared::{
     LoweredScalarBranchState, LoweredScalarBranchTerminator,
 };
 use crate::scalar_lowering::branch_states::structural_values::ValueRequest;
+use crate::shared::checked_facts::value_facts;
 use checked_trees::CheckedScalarEvaluationOperand as Operand;
 
 impl Expansion<'_> {

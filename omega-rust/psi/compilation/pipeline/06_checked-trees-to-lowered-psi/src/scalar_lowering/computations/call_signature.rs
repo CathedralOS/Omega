@@ -1,8 +1,8 @@
 //! The selected call signature owns custody independently of its mixed operand
 //! evaluator. Boundary declarations and checked bodies retain their own identities.
 use super::{CheckedTrees, LoweringError, unsupported};
-use crate::checked_facts::flow_facts;
 use crate::scalar_lowering::call_closure::callee::CheckedScalarCallee;
+use crate::shared::checked_facts::flow_facts;
 use checked_trees::CheckedUnitStructuralParameterPlan;
 use symbols::SymbolHandle;
 

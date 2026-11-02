@@ -1,7 +1,7 @@
 //! Generated private backing carriers are prepared before callable bodies borrow
 //! the shared type roster. They describe frame geometry, never claim authority.
 
-use crate::lowering_error::{LoweringError, unsupported};
+use crate::shared::lowering_error::{LoweringError, unsupported};
 use checked_trees::{CheckedUnitCallRoute, CheckedUnitEffectOperationPlan};
 use semantic_vocabulary::StructuralTypeId;
 use terminal_psi::{
@@ -56,7 +56,7 @@ pub(crate) fn prepare_operation(
                 ))?;
             types.push(StructuralTypeDeclaration {
                 quotient_carrier: None,
-                id: crate::terminal_identities::structural_type_id(next),
+                id: crate::shared::terminal_identities::structural_type_id(next),
                 identity: key,
                 owns_linear_claim: false,
                 no_code_affine_cleanup: true,
