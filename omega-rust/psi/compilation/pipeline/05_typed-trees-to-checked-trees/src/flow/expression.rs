@@ -1139,7 +1139,8 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 },
             );
         }
-        self.retain_descriptor_permission(&mut capture, constraints);
+        // An address capture retains its receiver's permission. It does not
+        // load the final reference cell or create a pointer-read permission.
         capture
     }
 

@@ -4,29 +4,36 @@
 // Invalid: reading the write-only slot's stored descriptor to supply its own
 // replacement.
 data Cell { value: i64; }
-data Held { target: &Cell; stamp: i64; }
+data Held<'source> { target: &'source Cell; stamp: i64; }
 
-boundary trait SelectedLend {
-    machine lend(slot: &write Held) -> &write Held reaches;
+boundary trait SelectedStore {
+    machine install<'source>(slot: &write Held<'source>, incoming: &'source Cell) reaches;
 }
-WindowsLend satisfies SelectedLend {
-    machine lend(slot: &write Held) -> &write Held { &write slot }
+WindowsStore satisfies SelectedStore {
+    machine install<'source>(slot: &write Held<'source>, incoming: &'source Cell) {
+        slot.target = slot.target;
+    }
 }
-LinuxX86Lend satisfies SelectedLend {
-    machine lend(slot: &write Held) -> &write Held { &write slot }
+LinuxX86Store satisfies SelectedStore {
+    machine install<'source>(slot: &write Held<'source>, incoming: &'source Cell) {
+        slot.target = slot.target;
+    }
 }
-MacosLend satisfies SelectedLend {
-    machine lend(slot: &write Held) -> &write Held { &write slot }
+MacosStore satisfies SelectedStore {
+    machine install<'source>(slot: &write Held<'source>, incoming: &'source Cell) {
+        slot.target = slot.target;
+    }
 }
-LinuxArmLend satisfies SelectedLend {
-    machine lend(slot: &write Held) -> &write Held { &write slot }
+LinuxArmStore satisfies SelectedStore {
+    machine install<'source>(slot: &write Held<'source>, incoming: &'source Cell) {
+        slot.target = slot.target;
+    }
 }
 machine main() crashes Trap {
     let left: Cell = Cell { value: 11 };
     let right: Cell = Cell { value: 85 };
     let mut held: Held = Held { target: &left, stamp: 17 };
-    let slot: &write Held = SelectedLend::lend(&write held);
-    slot.target = slot.target;
+    SelectedStore::install(&write held, &right);
     transition held.target.value == 85 {
         true -> done()
         _ -> bad()

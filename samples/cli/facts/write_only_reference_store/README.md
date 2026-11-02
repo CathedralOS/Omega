@@ -1,90 +1,97 @@
-# Write-only reference-carrying store
+# Replacing a stored reference through write-only access
+
+Each program replaces a reference stored in a record through `&write`, which
+permits writing the destination without reading its old contents. The new
+reference must point to a value of 85. The previous referent must remain 11,
+and the neighboring stamp must remain 17.
 
 Fact: a `&write` store into a record's reference leaf installs the incoming
 descriptor — the stored target reads the new referent's 85 while the displaced
-referent's 11 and the sibling stamp's 17 stay untouched. Parent:
-`WRITE-ONLY-BORROW` in `TASKS.md`, whose aggregate replacement must carry
-conserved displaced custody without observing old contents through write-only
-access. This row establishes replacement of a reference-carrying leaf through
-write-only authority, not readable widening or loan splitting.
+referent's 11 and the sibling stamp's 17 stay untouched.
 
-`Held` pairs a `target: &Cell` descriptor with a `stamp: i64` neighbor. Every
-positive forms `held` pointing at `main.left`, transports a `&write Held`
-through the place, then stores `&main.right` into `slot.target`; the runtime falsifier observes
-`held.target.value == 85`, `main.left.value == 11` untouched, and the sibling
-`stamp == 17` preserved beside the displaced leaf. The observation twin reads the write-only
-referent (`slot.target`) to compute its own replacement and must reject at
-checking.
+The owning tasks are **WRITE-ONLY-BORROW**, for replacing stored references
+without reading old contents or losing their borrow obligations, and
+**BUILD-OWNED-TARGET-SELECTION**, for choosing the forwarding implementation
+through explicit Build configuration.
 
-Acceptance is `omega run --both <place>/main.omg` with native/Terminal exit 0,
-plus refusal of each `invalid/main.omg` for write-only observation. All four
-hosted `ProgramEntry` bindings are present. Places: local, field, parameter,
-call_result, match_join, const_name, other_state, other_machine, target_body.
+`Held` contains `target: &Cell` and a neighboring `stamp: i64`. Each positive
+program creates `held` pointing at `left`, carries a write-only view of `held`
+through one place, and assigns `&right` to `slot.target`. It then reads the
+record through its original owner and checks `held.target.value == 85`,
+`left.value == 11`, and `held.stamp == 17`. The invalid program instead reads
+`slot.target` through the write-only view to supply its own replacement.
+That read must reject during source checking.
 
-## Evidence and remaining scope
-
-Optimized main `b45b43803e` refused the positive store as an unsupported
-write-only projection and could not summarize `forward`/`lend` bodies that
-return `&write Held`. The repair admits a displaced reference leaf as a
-non-observing assignment target in `write_only_borrows.rs` (the incoming
-descriptor installs its own backing loan; the displaced descriptor retires
-through the retained replacement custody transaction) and exports argument
-storage backing for write-only parameters in the descriptor-results replay:
-a `&write` loan fixes its referent at formation, so `Parameter` origins naming
-that storage are formation facts, not observations. All nine positives execute
-with native and Terminal exit 0 on Linux x86-64; their nine observation twins
-reject. Exact producer identities and raw runs are retained in the owning
-qualification.
-
-The row is pinned under
+Acceptance is `omega run --both <place>/main.omg`: native execution and the
+Terminal Psi interpreter must both exit 0. Each `invalid/main.omg` must reject
+for observing write-only contents. The nine places are `local`, `field`,
+`parameter`, `call_result`, `match_join`, `const_name`, `other_state` (a nested
+machine), `other_machine`, and `target_body`. All four hosted `ProgramEntry`
+bindings are present. Matching programs and reject controls live under
 `tests/omega/{pass,fail}/facts/write_only_reference_store_through_<place>_{exit,rejected}`.
-Adjacent controls under `tests/omega/fail/borrow/write_only_*` refuse readable
-escalation, direct referent observation, and overlapping exclusive loans.
-No execution on the other three hosted targets is claimed.
 
-This closes reference-carrying leaf replacement under `&write`, not the parent
-write-only capability: boundary declarations, opaque foreign outputs, and
-routed-membership preservation remain open under `WRITE-ONLY-BORROW`.
+## What the row establishes
 
-## Required evidence
-
-- Establishment: incoming `&Cell` validity, exact `Held` layout, write-only
-  authority over the whole referent including its descriptor leaves.
-- Identity/lifetime: retained `&write` identity across locals, fields,
-  parameters, call results, match joins, constants, nested machines, other
-  machines, and per-target bodies; the returned descriptor names the argument
-  storage it was formed from.
-- Composition: the same replace-and-observe sentence through all nine places;
-  `forward`/`lend` are ordinary forwarding bodies, never special-cased.
-- Soundness: the invalid twins read `slot.target` under `&write` and reject
-  before lowering; no readable widening is admitted.
-- Psi lowering: the returned `&write Held` carries a resolvable
-  stored-reference result origin into the caller; the displaced `&Cell`
-  retires without a contents observation.
-- Layout/provider/ABI: ordinary two-field record geometry and pointer calls;
-  four hosted entry bindings, with execution claims only for observed hosts.
-- Instructions/frames: the store writes the new descriptor word beside `stamp`
-  without a dead read of the old referent.
-- Encoding/native: native exit 0 agrees with Terminal; the stored `&Cell`
-  carries its referent address through call-result and join transport.
-
-Return to `WRITE-ONLY-BORROW` acceptance after this prerequisite.
+- **Establishment:** the incoming reference points to a valid `Cell`, and the
+  write-only view covers the exact `Held` record being changed.
+- **Identity and lifetime:** the view keeps the same destination through all
+  nine places. A returned view still borrows the caller's record; it does not
+  refer to a helper's temporary copy.
+- **Composition:** ordinary helpers forward the view. The assignment replaces
+  the stored reference without reading either referent or changing a neighboring
+  field. Any still-live borrow obligations remain enforced.
+- **Soundness:** the invalid programs read `slot.target` under write-only access
+  and reject. Other controls reject readable widening and overlapping exclusive
+  borrows. Forwarding does not add permission to read.
+- **Psi lowering:** the checked program keeps the returned view's original
+  destination and the old and new stored references' borrow relationships.
+- **Layout, providers, and ABI:** the record has two ordinary fields. Calls pass
+  the view using the ordinary pointer calling convention; Build chooses a
+  checked implementation for each hosted target.
+- **Instructions and frames:** the store changes the reference field's address
+  without loading its old referent or overwriting `stamp`.
+- **Native image and execution:** the emitted program must produce the same
+  exit-0 result as Terminal Psi. Omitting the store, changing the wrong field,
+  or returning a view of a copy makes the final check trap.
 
 ## Build-owned target selection
 
-The `target_body` place calls `SelectedLend::lend`, backed by four ordinary
-named implementations selected through explicit target-keyed Build rows.
-The boundary requirement retains the exact write-only input and returned
-write-only view; its single outer reference input supplies the unambiguous
-elided result lifetime. Each checked implementation returns `&write slot`
-without reading the stored descriptor. Build selects the forwarding body,
-never a replacement access mode or referent. This discharges that place's
-remaining **BUILD-OWNED-TARGET-SELECTION** migration; wider source and library
-migration remains open.
+The `target_body` program passes the destination and incoming reference to
+`SelectedStore::install`. Four explicit Build rows choose ordinary named
+implementations for the four hosted targets. Each body performs the same
+`slot.target = incoming` assignment. `Held<'source>` and the incoming parameter
+share an explicit lifetime, so the contract keeps the new reference valid for
+its use after the call. Build chooses code; it does not choose another
+destination or grant readable access.
 
-[Write-only authority](../../../../wiki/spec/terminal-psi/structural_access.md#write-only-authority),
+The selected body performs the store directly. A requirement that only returns
+`&write Held` with an input-related lifetime does not promise that it returns
+the same reference: a lifetime constrains validity, not the pointer's identity.
+The earlier forwarding attempt and its refusals are retained with the PR
+records, rather than presented as repaired by this migration. The ordinary
+`call_result` place continues to test returning the original view through a
+checked helper.
+
+The compiler repair keeps address formation separate from reading a pointer.
+Locating the field to replace uses its receiver's existing write permission;
+it must not activate a new permission for reading that field's old reference.
+Actual pointer reads keep their existing checks. Unproved opaque boundaries
+also remain rejected: a declaration without a checked body needs admitted
+evidence that it will not observe write-only contents. The governing rules are
+[write-only authority](../../../../wiki/spec/terminal-psi/structural_access.md#write-only-authority),
 [returned-view lifetimes](../../../../wiki/spec/language/lifetimes.md#returned-views),
-and [checked boundary providers](../../../../wiki/spec/terminal-psi/boundary_calls.md#checked-providers)
-govern the exact non-observing transport. Opaque declarations without admitted
-non-observation evidence remain rejected; checked forwarding is not permission
-to read the descriptor through write-only access.
+and [checked boundary providers](../../../../wiki/spec/terminal-psi/boundary_calls.md#checked-providers).
+
+## Evidence and remaining scope
+
+Existing row qualification records native and Terminal exit 0 for all nine
+places on Linux x86-64, with all nine observation twins rejected. The new
+Build-selected target-body migration has separate focused validation pending;
+its run records and producer identities stay in the claim and PR evidence.
+No execution on the other three hosted targets is claimed here.
+
+This row establishes replacement of a stored reference through write-only
+access. It does not establish whole-record replacement, readable widening,
+loan splitting, opaque foreign outputs, or preservation of every routed domain
+constraint. Those remaining requirements stay on **WRITE-ONLY-BORROW**; broader
+source and library target migration stays on **BUILD-OWNED-TARGET-SELECTION**.
