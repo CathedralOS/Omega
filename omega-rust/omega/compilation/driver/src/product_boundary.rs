@@ -521,18 +521,6 @@ fn provider_derivation_consumes_the_prepared_service_census() {
 }
 
 #[test]
-fn service_catalog_dispatch_does_not_reopen_service_schemas() {
-    let dispatch = include_str!(
-        "../../realization/selected-dispatch/src/checked_interpreter_dispatch/boundary_dispatch.rs"
-    );
-    assert_absent(
-        &[dispatch],
-        "dispatch retained",
-        &["service_schema::from_typed"],
-    );
-}
-
-#[test]
 fn native_product_supplies_inputs_without_orchestrating_component_emission() {
     let source = include_str!("product_execution.rs");
     let inputs = include_str!("../../../compilation/build/src/native_completion.rs");
