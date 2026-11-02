@@ -85,6 +85,42 @@ pub(super) fn lower_match(
     )
 }
 
+/// Declaration-input preparation lowers selected calls before executable
+/// bodies. Preserve the current transition's lexical aliases while doing so;
+/// this installs no statements and does not complete or admit the machine.
+pub(in crate::lowering) fn with_transition_pattern_captures<T>(
+    lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
+    statement: syntax_trees::statement::StatementHandle,
+    operation: impl FnOnce(&mut Lowerer) -> Result<T, Diagnostic>,
+) -> Result<T, Diagnostic> {
+    let outer = lowerer.expression_match_captures.len();
+    let result = (|| {
+        if let syntax_trees::statement::StatementNode::Transition(transition) =
+            syntax_trees.statements.statement(statement)
+        {
+            for retained in syntax_trees
+                .statements
+                .transition_patterns(transition.patterns)
+            {
+                let subject = lower_expression_into_table(lowerer, syntax_trees, retained.subject)?;
+                let head =
+                    lower_expression_into_table(lowerer, syntax_trees, retained.pattern.head)?;
+                let capture = expression_table(lowerer).insert_transition_subject(subject);
+                lowerer.expression_match_captures.push(MatchArmCapture {
+                    syntax_capture: retained.capture,
+                    syntax_head: retained.pattern.head,
+                    resolved_capture: capture,
+                    resolved_head: head,
+                });
+            }
+        }
+        operation(lowerer)
+    })();
+    lowerer.expression_match_captures.truncate(outer);
+    result
+}
+
 pub(super) fn lower_saved_subject(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
