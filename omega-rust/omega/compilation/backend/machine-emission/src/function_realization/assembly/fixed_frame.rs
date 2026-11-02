@@ -95,11 +95,7 @@ pub(in crate::function_realization) fn expected_fixed_frame_manifest(
         ),
         _ => (OptimizationSelections::default().identity(), None),
     };
-    let pre_physical = target_input
-        .optimized()
-        .pre_physical_manifest()
-        .record()
-        .identity;
+    let pre_physical = target_input.optimized().pre_physical_manifest().identity;
     // The post-allocation phase run must have executed exactly this build's
     // projection of that phase and must have produced exactly the plan every
     // later stage consumed.

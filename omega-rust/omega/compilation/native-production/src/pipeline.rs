@@ -50,7 +50,8 @@ pub(crate) fn lower_to_target(
         )
         .map_err(TargetLoweringError::AbstractOptimization)?;
         observation.enter(NativePipelineStage::AbstractToTarget);
-        let target = lower_optimized_to_target_operations(optimized, request)
+        let (program, verified_input) = optimized.into_lowering_parts();
+        let target = lower_optimized_to_target_operations(program, verified_input, request)
             .map_err(TargetLoweringError::Target)?;
         Ok(target)
     })
@@ -76,8 +77,8 @@ pub(crate) fn emit_target(
                 unit: optimized.unit(),
                 origins: target_input.boundary_origins(),
                 optimization: optimized.identity_bundle().identity(),
-                projection: optimized.validation().identity(),
-                manifest: optimized.pre_physical_manifest().record().identity,
+                projection: optimized.projection(),
+                manifest: optimized.pre_physical_manifest().identity,
                 selections: optimized.selections().clone(),
                 budget_per_pass: optimized.budget_per_pass(),
             },

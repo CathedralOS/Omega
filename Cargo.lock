@@ -44,11 +44,11 @@ name = "abstract-operations-to-target-operations"
 version = "0.1.0"
 dependencies = [
  "abstract-operations",
- "abstract-operations-to-abstract-operations",
  "calling-conventions",
  "diagnostics",
  "installation-evidence",
  "optimization-core",
+ "optimization-unit",
  "optimization-unit-semantics",
  "runtime-abi",
  "semantic-vocabulary",
@@ -1218,7 +1218,6 @@ name = "machine-emission"
 version = "0.1.0"
 dependencies = [
  "abstract-operations",
- "abstract-operations-to-abstract-operations",
  "abstract-operations-to-target-operations",
  "arena",
  "calling-conventions",
@@ -1228,6 +1227,7 @@ dependencies = [
  "isa-x86_64",
  "machine-code",
  "optimization-core",
+ "optimization-unit",
  "physical-instructions",
  "post-allocation-machine-to-selected-form-encoding",
  "register-environment",

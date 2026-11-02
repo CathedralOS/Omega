@@ -182,6 +182,29 @@ impl ValidatedOptimizedAbstractPlan {
     pub const fn pre_physical_manifest(&self) -> &ValidatedPrePhysicalOptimizationManifest {
         &self.pre_physical_manifest
     }
+
+    /// Hand target lowering the optimized program and the verified input it
+    /// was admitted from. Target lowering reads the program's rows and keeps
+    /// the input by type; the replay evidence stays with this product.
+    pub fn into_lowering_parts(
+        self,
+    ) -> (
+        optimization_unit::OptimizedAbstractProgram,
+        VerifiedPsiOptimizationInput,
+    ) {
+        let program = optimization_unit::OptimizedAbstractProgram {
+            plan: self.plan,
+            unit: self.replay_unit,
+            selections: self.evidence.selections,
+            budget_per_pass: self.evidence.budget_per_pass,
+            identity_bundle: self.evidence.identity_bundle,
+            projection: self.validation.identity(),
+            projection_psi: self.validation.psi(),
+            final_unit: self.validation.final_unit(),
+            pre_physical_manifest: self.pre_physical_manifest.record().clone(),
+        };
+        (program, self.replay_input)
+    }
 }
 
 const fn work_usage(usage: OptimizationRunUsage) -> optimization_core::OptimizationWorkUsage {
