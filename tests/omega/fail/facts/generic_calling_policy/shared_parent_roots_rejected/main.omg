@@ -30,7 +30,7 @@ public const PolicyWidth: u64 = 4;
 public boundary trait ParentEntry { machine value() -> u64 reaches; }
 public boundary trait LocalEntry: ParentEntry + Calling<GenericPolicy<Box<u64>, PolicyWidth>> {}
 public boundary trait UnusedEntry: ParentEntry + Calling<OtherPolicy> {}
-OtherPolicy satisfies CallingPolicy {
+public OtherPolicy satisfies CallingPolicy {
     machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
         ValuePlan::plan(signature, true, 8)
     }
@@ -83,7 +83,7 @@ machine scalar_plan(signature: BoundarySignature, allow_vectors: bool, width: u6
 
 
 machine main() reaches LocalEntry crashes Trap {
-    let value: u64 = LocalEntry::value();
+    let value: u64 = ParentEntry::value();
     transition value == 42 { true -> done() _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
