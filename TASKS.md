@@ -742,9 +742,10 @@ helper that passes does not close an item.
   - Delete `ClauseKind::Where`, `RetiredWhereMachineRequirement` and the dead
     case-fact readers in `source/psi` (checking, resolution, typing), and move the
     multi-line data `where` literals in the `tests/psi` resolver, checking and
-    typing harnesses to `requires`. Verifying it needs the product gate, whose
-    `omega update` step ran over 30 minutes at 19 GB without finishing on
-    d83ddecd769.
+    typing harnesses to `requires`. Verifying it needs the product gates, which
+    stop because `source/psi` fails checking with 5 errors on 2da2c5b57f1
+    (`lex/lexer.omg:781`, `parse/data.omg:275,281,515`, `parse/machine.omg:714`;
+    tracked under OMEGA-PRODUCT-COMPILER-SOURCE).
   Acceptance: both producers accept the new data, generic, callable and assembly
   forms; all affected authored sources migrate without changing their result or
   refusal obligation. Existing applicable fact rows and their sensitive reject
