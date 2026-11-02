@@ -157,7 +157,10 @@ impl RuntimeRankOperand {
                                     calls,
                                 },
                                 bindings,
-                                owned_input: None,
+                                // An expression has no structural input home.
+                                // Its absence remains the record default when
+                                // the retained home's API name changes.
+                                ..Default::default()
                             },
                         ))
                     })
