@@ -44,8 +44,6 @@ mod difference_bounds;
 pub(crate) use difference_bounds::DifferenceBounds;
 mod bitwise;
 pub(crate) use bitwise::binary as bitwise_binary;
-mod referent_predicates;
-pub(crate) use referent_predicates::referent_predicates_preserved;
 mod call_result_bounds;
 mod deferred_bounds;
 mod deferred_observations;

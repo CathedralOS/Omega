@@ -590,7 +590,7 @@ pub(crate) fn validate_call_arguments(
         return;
     }
 
-    argument_bounds::report_referent_handbacks(
+    argument_bounds::report_declared_referent_ranges(
         program,
         current_machine,
         current_state,
@@ -598,7 +598,6 @@ pub(crate) fn validate_call_arguments(
         arguments,
         parameters,
         target_name,
-        value_environment,
         diagnostics,
     );
 

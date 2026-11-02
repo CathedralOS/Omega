@@ -12,10 +12,14 @@ its actual backing. A plain `u32` view's validity cannot establish the mixed
 `Pair` predicate.
 
 Each public `inspect` receives `pair: &mut Pair` and forms its own
-`let view: &mut u32 = &mut pair.start as &mut u32`. It first stores
-`0xFFFFFFFFu32` (signed -1), then the transported restoration scalar.
-`pair.end = 10` independently supplies the upper-bound witness before handback;
-there is no direct restoring store to `pair.start`. Restoration-value helpers finish before the window opens and promise ordinary
+`let view: &mut u32 = &mut pair.start as &mut u32`. It calls ordinary `restore`, whose checked `ensures view == replacement`
+retains the transported scalar. The helper first stores `0xFFFFFFFFu32`
+(signed -1), then that restoration scalar through the same view.
+The complete parent predicate already holds when the helper is called.
+Its unchanged end retains the old predicate's consequences; the new start must
+come from the checked guarantee interpreted in the original signed storage.
+The later `pair.end = 10` cannot justify this earlier call handback, and there
+is no direct restoring store to `pair.start`. Restoration-value helpers finish before the window opens and promise ordinary
 `ensures result == value`.
 Each place now also forwards the already formed reference through
 `retain_view<'storage>`, which returns it unchanged before the corrupting store.
@@ -47,7 +51,7 @@ The parameter twin also changes its exact input contract and both call inputs
 together, so no input requirement is intentionally violated. Identity contracts,
 parent construction, first corrupting store and runtime oracles stay unchanged.
 The intended refusal is **`default domain is still FALSE`** naming **`pair`**
-at return/termination. A formation failure or an unrelated input-contract refusal
+at the helper's normal-return handback. A formation failure or an unrelated input-contract refusal
 does not establish this obligation.
 
 All positives declare `Expected exit: 0` and pin native/interpreter exit 0.
@@ -205,3 +209,30 @@ one attributed baseline lowering refusal. The execution selection records
 31 native/Terminal agreements, one compile-only result, and that same refused
 local-loan fixture. The execution gate exits 3 for the retained baseline failure;
 no execution or repaired acceptance is claimed for it.
+
+
+## Checked restoring-call production
+
+The primary nine places now consume their unchanged restoration scalar through
+`restore(view: &mut u32, replacement: u32) ensures view == replacement`.
+Both stores remain inside that helper; the caller's fact, bounds, two distinct
+parents, markers, neighbor canaries and exit oracle are unchanged. Twins change
+only the restoration fact and must refuse the original parent's immediate
+handback. The source field's i32 meaning cannot come from the formal u32 type.
+
+The optimized exact baseline `be5c01dd42f9038cf62412bd94a67a23b6658241`,
+SHA-256 `ad370b5f5a8ae3ae45520cb2f9f0225a5388cc625d840a993e41bea14f680b53`,
+wrongly refuses all nine positives at handback and state exit. The first repair
+executes all nine with native/Terminal exits 0/0 and rejects their nine twins at
+the intended handback. Its raw R1 build receipt's tracked patch is accompanied
+by the retained added-module overlay; final-source qualification and independent
+review remain required before publication. No later revision is labelled as that
+actual R1 producer.
+
+Normal invocation subjects now preserve the authenticated scalar representation
+and exact backing. Incoming values use source-to-view interpretation; returned
+cells use view-to-source interpretation. The existing call-completion owner
+keeps immutable argument snapshots, stages all sibling outputs together, and
+retires affected storage before installing new contents. Full parent handback
+reads that exact completion, before later siblings. It no longer reconstructs
+coupled predicates from independent intervals or a formal's carrier range.

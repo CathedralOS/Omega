@@ -18,11 +18,21 @@ use typed_trees::signature::StateParameter;
 use typed_trees::types::TypeReferenceHandle;
 use typed_trees::{machine::Machine, state::State};
 
+#[derive(Clone, Copy)]
+pub(crate) enum CapturedPredicatePoint {
+    Prefix(usize),
+    StatementReturn(usize),
+    ExpressionReturn {
+        statement_index: usize,
+        expression: ExpressionHandle,
+    },
+}
+
 pub(crate) fn captured_data_predicate_holds(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
-    statement_index: usize,
+    point: CapturedPredicatePoint,
     place: &crate::CanonicalPlace,
     receiver_type: TypeReferenceHandle,
     definition: &DataDefinition,
@@ -39,12 +49,32 @@ pub(crate) fn captured_data_predicate_holds(
     {
         return false;
     }
+    let statement_index = match point {
+        CapturedPredicatePoint::Prefix(index) | CapturedPredicatePoint::StatementReturn(index) => {
+            index
+        }
+        CapturedPredicatePoint::ExpressionReturn {
+            statement_index, ..
+        } => statement_index,
+    };
+    let in_transition_target = match point {
+        CapturedPredicatePoint::ExpressionReturn { expression, .. } => {
+            super::structural_prefix::expression_is_transition_target(
+                program,
+                state,
+                statement_index,
+                expression,
+            )
+        }
+        _ => false,
+    };
     let mut visitor = CapturedPredicate {
         site: StructuralPrefixSite {
             state: state.symbol,
             statement_index,
-            in_transition_target: false,
+            in_transition_target,
         },
+        point,
         place: place.clone(),
         application,
         definition,
@@ -69,6 +99,7 @@ pub(crate) fn captured_data_predicate_holds(
 #[derive(Clone)]
 struct CapturedPredicate<'definition> {
     site: StructuralPrefixSite,
+    point: CapturedPredicatePoint,
     place: crate::CanonicalPlace,
     application: TypeReferenceHandle,
     definition: &'definition DataDefinition,
@@ -92,8 +123,46 @@ impl StructuralPrefixVisitor for CapturedPredicate<'_> {
     }
 
     fn observe<'program>(&mut self, observation: PrefixObservation<'_, 'program>) {
-        let (program, machine, state, judge, _) = observation;
+        let (program, machine, state, judge, environment) = observation;
         self.observed = true;
+        let scope = (machine, state, state.return_type);
+        let completed = match self.point {
+            CapturedPredicatePoint::Prefix(_) => {
+                self.judge_predicate(program, machine, state, judge);
+                return;
+            }
+            CapturedPredicatePoint::StatementReturn(index) => program
+                .statement_table
+                .statement_at(state, index)
+                .and_then(|statement| statement.as_call())
+                .and_then(|call| {
+                    judge.normal_statement_completion_paths(call, index, environment, scope)
+                }),
+            CapturedPredicatePoint::ExpressionReturn {
+                statement_index,
+                expression,
+            } => {
+                judge.normal_operation_completions(statement_index, expression, environment, scope)
+            }
+        };
+        let Some(completed) = completed else {
+            self.proven = false;
+            return;
+        };
+        for judge in completed {
+            self.judge_predicate(program, machine, state, judge);
+        }
+    }
+}
+
+impl CapturedPredicate<'_> {
+    fn judge_predicate(
+        &mut self,
+        program: &dyn crate::CheckingInput,
+        machine: &Machine,
+        state: &State,
+        judge: super::structural_judgment::StructuralJudge<'_>,
+    ) {
         let mut parameters = Vec::new();
         let mut bindings = Vec::new();
         // Restoring a value judges the same applied predicate as constructing
