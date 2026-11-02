@@ -2833,6 +2833,8 @@ fail/float/constructor_case_invalid_narrow_widen_rejected rejected 3180ms expect
 	Exact integer cast in machine `make` state `entry` from `u16` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
 fail/float/constructor_case_invalid_wide_rejected rejected 2742ms expected @5163c9f60160
 	data `Choice` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/generics/closed_requirement_in_generic_body_unproved_bound rejected 2271ms expected @8301d75651b4
+	static application of requirement `Echo::echo` violates its declared requires facts: the complete tuple is structurally false
 fail/generics/constructor_inferred_byte_domain_unproved rejected 2858ms expected @b852a38544d0
 	cannot prove default-domain field requirement for call consume from program::entry: parameter value.bytes[0] requires u8::Small
 	cannot prove default-domain field requirement for call consume from program::entry: parameter value.bytes[1] requires u8::Small
@@ -12296,6 +12298,7 @@ pass/generics/runtime_case_qualified_reference_storage_exit rejected 2923ms chec
 	machine `joined` state `entry` statement 5: cannot prove selected case for payload access `__transition_subject#329.target`: captured source `selection::Right.target` has no live case evidence
 	machine `joined` state `entry` statement 5: cannot prove selected case for payload access `__transition_subject#329.target.value`: captured source `selection::Right.target.value` has no live case evidence
 pass/generics/runtime_closed_case_array_payload_exit checked 3375ms check-target:macos_arm64 @ccdb99ca2214
+pass/generics/runtime_closed_requirement_in_generic_body_exit checked 5027ms check-target:macos_arm64 @8301d75651b4
 pass/generics/runtime_closed_scalar_and_record_const_fields_exit checked 56028ms check-target:macos_arm64 @911f6617ba9e
 pass/generics/runtime_computed_closed_call_identity_exit checked 7364ms check-target:macos_arm64 @911f6617ba9e
 pass/generics/runtime_computed_closed_identity_exit checked 7825ms check-target:macos_arm64 @911f6617ba9e
