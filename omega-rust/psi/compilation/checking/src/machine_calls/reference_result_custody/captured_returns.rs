@@ -1101,9 +1101,18 @@ impl Captures<'_> {
             } else {
                 crate::reference_view_storage(self.program, selected, recast.target_type)?
             };
+            // Formation publishes the selected storage declaration. Routing
+            // qualifications remain on its checked reference and contract;
+            // storage joins use the same complete identity as registration,
+            // retaining scalar receiving restrictions and nested reference shape.
+            let backing_identity =
+                crate::stored_structural_type_identity(self.program, backing_type, &[], &[]);
+            let selected_identity =
+                crate::stored_structural_type_identity(self.program, selected, &[], &[]);
             if formations.next().is_some()
-                || self.program.normalized_type_identity(backing_type)
-                    != self.program.normalized_type_identity(selected)
+                || !backing_identity.is_valid()
+                || !selected_identity.is_valid()
+                || backing_identity != selected_identity
                 || storage != expected_storage
                 || self.program.normalized_type_identity(
                     crate::reference_shell(self.program, formation.type_reference)?.referee,

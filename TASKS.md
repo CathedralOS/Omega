@@ -318,9 +318,9 @@ retired-syntax deletions to completion.
     captured operands, const/evidence telescopes, callbacks, entry backing,
     ownership, reach, and public contracts through one checked Terminal artifact
     and Build companion to both engines without target-specific source rewriting.
-  - Carry the facts that still refuse behind a selected implementation: `&write`
-    arguments (an opaque selected implementation requires an admitted
-    write-only boundary claim; draft #1361 carries the repair) and a `&write`
+  - Carry the facts that still refuse behind a selected implementation: opaque
+    write-only boundaries requiring an admitted claim for the selected implementation,
+    a `&write`
     slot whose referent carries a reference leaf (`write_only_reference_store`),
     evidence binders in requirement signatures (`selected_crash_formal`,
     `selected_value_application`: the requirement grammar admits none), and

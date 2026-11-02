@@ -52,13 +52,13 @@ use validation::field_domains::{
 
 mod zero_cases;
 
-/// The declared surface of a state parameter for entry-invariant seeding:
+/// The declared surface shared by entry field premises and exit field duties:
 /// `&`, `&mut`, and `&write` shells all peel, along with `Constrained` domain
 /// wrappers. `readable_type_reference` refuses write-only references because
 /// they expose no readable contents, but these seeded rows are the caller's
 /// declared field obligations — premises a `requires <place> in D` discharge
 /// consumes — never reads of the incoming value.
-fn lent_type_reference(
+pub(crate) fn declared_field_domain_carrier(
     program: &dyn ::validation::CheckingInput,
     mut reference: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {
@@ -266,7 +266,7 @@ pub(super) fn append_state_parameter_domain_facts(
                 // Without these rows a `requires <place> in D` on a nested
                 // `&write` subloan could never discharge, even though the
                 // lent place's own declaration already carries the atom.
-                let lent = lent_type_reference(program, parameter.type_reference);
+                let lent = declared_field_domain_carrier(program, parameter.type_reference);
                 if let Some(lent) = lent {
                     let row_index = field_domain_walks
                         .iter()

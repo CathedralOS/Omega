@@ -136,12 +136,11 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
             // The referent's own declared constraints join only the returned
             // guarantee vocabulary. A checked write through this formal's
             // typed view is the one route by which the callee could have
-            // touched the captured storage, so a confined write covering the
-            // row's place restores it on whichever occurrence it selected.
-            // They never mint an unconditional membership: a view recast to
-            // its unqualified carrier, or a deeper element write, could still
-            // violate the constraint — exactly the writes that fail
-            // confinement or coverage.
+            // touched the captured storage. Restoration additionally rejoins
+            // the performed assignment's checked destination presentation:
+            // an unqualified recast retains storage coordinates but supplies
+            // no evidence for this constraint. A deeper write cannot restore
+            // a qualification on the whole referent by address confinement.
             for (domain_symbol, semantic_domain) in
                 validation::field_domains::domain_constraint_identities(
                     program,
@@ -437,6 +436,7 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
                             crate::flow::mutation::StorageRegion::Declared(region) => Some(region),
                             _ => None,
                         },
+                        write.checked_write_type,
                     )
                 });
                 if affected && restored {
