@@ -85,6 +85,12 @@ ReadFrame<'frame, 'buffer> satisfies TryFrom<&'frame Frame<'buffer>, Pair, Reaso
     }
 }
 
+// The frame borrow and the buffer it contains have distinct lifetimes. Name
+// both for the selected map; this helper intentionally publishes no value law.
+machine read_frame<'frame, 'buffer>(source: &'frame Frame<'buffer>) -> Result<Pair, Reason> {
+    convert<&'frame Frame<'buffer>, Pair, Reason, ReadFrame<'frame, 'buffer>>(source)
+}
+
 trait BufferedRoundTrip<'buffer> {
     machine round_trip(request: Request<'buffer>) -> Result<Request<'buffer>, Failure<'buffer>>
     requires request.output.len >= 3u64
@@ -172,7 +178,7 @@ requires output.len >= 3u64
     requires frame.output.len >= 3u64
     {
         let decoded: Result<Pair, Reason> =
-            convert<&Frame<'buffer>, Pair, Reason, ReadFrame>(&frame);
+            read_frame(&frame);
         transition decoded {
             Result::Err { error as reason } -> false
             Result::Ok { value as value } -> inspect(frame, value, expected)
@@ -206,7 +212,7 @@ machine short_output<'buffer>(output: &'buffer mut [u8]) -> bool {
 }
 machine malformed<'buffer>(output: &'buffer mut [u8]) -> bool {
     let frame: Frame<'buffer> = Frame { output: output };
-    let answer: Result<Pair, Reason> = convert<&Frame<'buffer>, Pair, Reason, ReadFrame>( &frame );
+    let answer: Result<Pair, Reason> = read_frame(&frame);
     transition answer {
         Result::Ok { value as unexpected } -> false
         Result::Err { error as reason } -> (reason in Reason::InvalidTag)
