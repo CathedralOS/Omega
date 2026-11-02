@@ -16,6 +16,8 @@ fail/build/activation_owned_field_refused rejected 227ms expected @3a020eca642a
 	the compiler-owned Build activation cannot be stored in field `builder`
 fail/build/component_borrowed_access_refused rejected 1375ms expected @017c32ace00f
 	argument `value` for state `touch` is declared `&mut` (`&mut Token`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
+fail/build/component_scalar_shared_provider_mutation rejected 2233ms expected @1c738b2ffe7e
+	machine `Reader::read` state `read` assignment cannot write `left` because it is not mutable in this state (if `left` is undeclared -- a typo -- no such field or local exists)
 fail/build/default_component_abi_wrong_arity rejected 444ms expected @930d13be83c0
 	Product application must supply its complete declaration telescope
 fail/build/native_locator_nonzero_unused_coordinate rejected 290ms expected @b852a38544d0
@@ -323,6 +325,24 @@ fail/facts/checked_asm_refuted_fallthrough_interior_jump rejected 3989ms expecte
 fail/facts/checked_asm_refuted_fallthrough_taken_arm rejected 5643ms expected @0af7c594a1c0
 	cannot prove requires contract for call main$assembly$portable$4$entry from main: !asm#scratch#0#zf$version$2 || asm#scratch#0#eax$version$0 == 0 (needs fact `!asm#scratch#0#zf || asm#scratch#0#eax == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call equal from main$assembly$portable$4$entry: asm#scratch#0#eax == 0 (needs fact `asm#scratch#0#eax == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/component_scalar_lending_through_call_result_rejected rejected 9012ms expected @1c738b2ffe7e
+	argument `value` for state `write` is declared `&mut` (`&mut Word`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
+fail/facts/component_scalar_lending_through_const_name_rejected rejected 8952ms expected @1c738b2ffe7e
+	argument `value` for state `write` is declared `&mut` (`&mut Word`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
+fail/facts/component_scalar_lending_through_field_rejected rejected 8495ms expected @1c738b2ffe7e
+	argument `value` for state `write` is declared `&mut` (`&mut Word`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
+fail/facts/component_scalar_lending_through_local_rejected rejected 8000ms expected @1c738b2ffe7e
+	argument `value` for state `write` is declared `&mut` (`&mut Word`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
+fail/facts/component_scalar_lending_through_match_join_rejected rejected 7999ms expected @1c738b2ffe7e
+	argument `value` for state `write` is declared `&mut` (`&mut Word`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
+fail/facts/component_scalar_lending_through_other_machine_rejected rejected 8367ms expected @1c738b2ffe7e
+	argument `value` for state `write` is declared `&mut` (`&mut Word`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
+fail/facts/component_scalar_lending_through_other_state_rejected rejected 7888ms expected @1c738b2ffe7e
+	argument `value` for state `write` is declared `&mut` (`&mut Word`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
+fail/facts/component_scalar_lending_through_parameter_rejected rejected 8514ms expected @1c738b2ffe7e
+	argument `value` for state `write` is declared `&mut` (`&mut Word`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
+fail/facts/component_scalar_lending_through_target_body_rejected rejected 8139ms expected @1c738b2ffe7e
+	argument `value` for state `write` is declared `&mut` (`&mut Word`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/facts/contract_excluded_case_through_branch_world_rejected rejected 5621ms expected @f8ae8d815e07
 	match does not cover its subject; cover every admitted case, both Boolean alternatives, or add a wildcard arm
 fail/facts/contract_excluded_case_through_call_result_rejected rejected 2949ms expected @f8ae8d815e07
@@ -2699,6 +2719,7 @@ pass/build/component_assumption_reborrow checked 2772ms @ccdb99ca2214
 pass/build/component_assumption_user_declaration checked 3193ms @ccdb99ca2214
 pass/build/component_borrowed_continuation checked 84537ms check-target:macos_arm64 terminal-runtime.mutable_lender_entry:unrequested terminal-runtime.reborrow_lender_entry:unrequested terminal-runtime.shared_lender_entry:unrequested terminal-runtime.owned_entry:unrequested terminal-runtime.guest_lender_entry:unrequested terminal-runtime.nested_lender_entry:unrequested terminal-runtime.borrowed_entry:unrequested terminal-runtime.write_lender_entry:unrequested terminal-runtime.owned_materialized_entry:unrequested terminal-inspections:match @017c32ace00f
 pass/build/component_declaration_scalar_conditions_exit checked 4486ms check-target:macos_arm64 @ccdb99ca2214
+pass/build/component_scalar_borrowed_continuation checked 14890ms check-target:macos_arm64 terminal-runtime.entry:match terminal-inspections:match @1c738b2ffe7e
 pass/build/conditional_root_binding checked 7552ms check-target:windows_x86_64 terminal-runtime.build:unrequested terminal-inspections:match @ccdb99ca2214
 pass/build/const_index_dependency_order_exit checked 3890ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/crash_exclusion_closed_provider_exit checked 3584ms check-target:macos_arm64 @ccdb99ca2214
@@ -5451,6 +5472,15 @@ pass/facts/closed_integer_bound_through_parameter_exit checked 3406ms check-targ
 pass/facts/closed_integer_bound_through_target_body_exit checked 3565ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/completed_operand_saved_reference_origin_exit checked 1266ms check-target:macos_arm64 @80af9f60f917+wt
 pass/facts/completed_operand_selected_aggregate_index_exit checked 1266ms check-target:macos_arm64 @80af9f60f917+wt
+pass/facts/component_scalar_lending_through_call_result_exit checked 14476ms check-target:macos_arm64 @1c738b2ffe7e
+pass/facts/component_scalar_lending_through_const_name_exit checked 16593ms check-target:macos_arm64 @1c738b2ffe7e
+pass/facts/component_scalar_lending_through_field_exit checked 16736ms check-target:macos_arm64 @1c738b2ffe7e
+pass/facts/component_scalar_lending_through_local_exit checked 17170ms check-target:macos_arm64 @1c738b2ffe7e
+pass/facts/component_scalar_lending_through_match_join_exit checked 15842ms check-target:macos_arm64 @1c738b2ffe7e
+pass/facts/component_scalar_lending_through_other_machine_exit checked 15115ms check-target:macos_arm64 @1c738b2ffe7e
+pass/facts/component_scalar_lending_through_other_state_exit checked 15762ms check-target:macos_arm64 @1c738b2ffe7e
+pass/facts/component_scalar_lending_through_parameter_exit checked 14541ms check-target:macos_arm64 @1c738b2ffe7e
+pass/facts/component_scalar_lending_through_target_body_exit checked 16696ms check-target:macos_arm64 @1c738b2ffe7e
 pass/facts/compound_guard_through_distinct_match_calls_compile rejected 1771ms regressed-from:checked @ccdb99ca2214
 	cannot prove index `main.b * 20 + a` is within length 200 in put::entry
 pass/facts/compound_guard_through_stored_call_result_compile rejected 1759ms regressed-from:checked @ccdb99ca2214

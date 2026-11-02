@@ -416,8 +416,8 @@ and checks exact observations after return and repeated completion. The mutable
 child changes the host object before its caller observes it. Explicit reborrows
 and a second component preserve the same backing. The embedding supplies an
 owned original object; checked source forms its loans. The owned control uses
-the existing transfer path; `storage-refusal` requires guest materialized storage
-and an unbacked borrowed entry to refuse before child or host effects. Enable with
+the existing transfer path; `storage-refusal` requires a mutable guest empty
+record and an unbacked borrowed entry to refuse before child or host effects. Enable with
 `OMEGA_CORPUS_HOST_PROVISIONS=1`; otherwise it is `unrequested`. This establishes
 the embedding's opaque input carrier, not complete Build continuation staging.
 `mutations=0` explicitly distinguishes actual guest scalar stores from host-object
