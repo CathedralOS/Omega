@@ -429,7 +429,6 @@ fn prepare_target_provider_selection(
         selected_target_profile,
         package_inputs,
         prepared_providers,
-        &build_config.assumed_bindings,
         &build_config.accepted_component_assumption_digests(),
         boundary_calling_plan_realizations,
         code,
