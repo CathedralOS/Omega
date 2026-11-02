@@ -26,21 +26,16 @@ pub struct PreparedCompilation {
         Option<target::TargetProfile>,
         Result<ValidatedTargetCompilation, Vec<Diagnostic>>,
     )>,
+    // `None` exactly when no target was admitted, so no Build runs.
     source: Option<Result<crate::SourceCompilation, crate::CompileFailure>>,
 }
 
 impl PreparedCompilation {
     pub fn product_queries(&self) -> Option<crate::ProductQueries> {
-        match &self.source {
-            Some(Ok(source)) => Some(source.product_queries()),
-            _ => None,
-        }
+        Some(self.source.as_ref()?.as_ref().ok()?.product_queries())
     }
     pub fn execution(&mut self) -> Option<&mut build_evaluation::PreparedBuildExecution> {
-        match &mut self.source {
-            Some(Ok(source)) => source.execution(),
-            _ => None,
-        }
+        self.source.as_mut()?.as_mut().ok()?.execution()
     }
 }
 
@@ -53,21 +48,22 @@ impl crate::CompilationSession {
     ) -> Result<PreparedCompilation, Vec<Diagnostic>> {
         run_on_compile_thread(|| {
             let (shared, targets) = request.validate_for_execution()?.into_parts();
-            let mut admitted = Vec::with_capacity(targets.len());
-            for target in targets {
-                let profile = target.profile();
-                let admission = target
-                    .checked_execution(&shared.build_directory)
-                    .admit_package_inputs();
-                admitted.push((profile, admission.map(|()| target)));
-            }
-            let source = match admitted.iter().find_map(|(_, target)| target.as_ref().ok()) {
-                Some(target) => Some(self.prepare_shared_source(&shared, target)),
-                None => None,
-            };
+            let targets: Vec<_> = targets
+                .into_iter()
+                .map(|target| {
+                    let admission = target
+                        .checked_execution(&shared.build_directory)
+                        .admit_package_inputs();
+                    (target.profile(), admission.map(|()| target))
+                })
+                .collect();
+            let source = targets
+                .iter()
+                .find_map(|(_, target)| target.as_ref().ok())
+                .map(|target| self.prepare_shared_source(&shared, target));
             Ok(PreparedCompilation {
                 shared,
-                targets: admitted,
+                targets,
                 source,
             })
         })
@@ -88,55 +84,57 @@ impl crate::CompilationSession {
                 source,
             } = prepared;
             let source = match source {
-                Some(Ok(source)) => Some(self.check_completed_source(source, returned)),
-                Some(Err(failure)) => Some(Err(failure.into_diagnostics())),
-                None => None,
+                Some(Ok(source)) => self.check_completed_source(source, returned),
+                Some(Err(failure)) => Err(failure.into_diagnostics()),
+                // Only reached by admitted targets, and `begin_compilation`
+                // prepares source whenever one exists.
+                None => Err(vec![Diagnostic::error(
+                    "admitted target has no shared source preparation",
+                )]),
             };
             // Complete every occurrence's Source inputs before the first
             // target can publish shared code. Preparing inside the selection
             // loop would reopen Source for its later siblings.
-            let mut prepared_targets = Vec::with_capacity(targets.len());
-            for (profile, target) in targets {
-                let prepared = match target {
-                    Err(diagnostics) => Err(diagnostics),
-                    Ok(target) => match &source {
-                        Some(Ok(source)) => PreparedProductTarget::capture(
+            let prepared_targets: Vec<_> = targets
+                .into_iter()
+                .map(|(profile, target)| {
+                    let prepared = target.and_then(|target| {
+                        let source = source.as_ref().map_err(Clone::clone)?;
+                        let prepared = PreparedProductTarget::capture(
                             source,
                             target.profile(),
                             target.package_inputs(),
-                        )
-                        .map(|prepared| (target, source, prepared)),
-                        Some(Err(diagnostics)) => Err(diagnostics.clone()),
-                        None => Err(vec![Diagnostic::error(
-                            "admitted target has no shared source preparation",
-                        )]),
-                    },
-                };
-                prepared_targets.push((profile, prepared));
-            }
-            let mut products = Vec::with_capacity(prepared_targets.len());
-            for (profile, prepared) in prepared_targets {
-                let product = prepared.and_then(|(target, source, prepared)| {
-                    select_target_product(&shared, target, source, prepared)
-                });
-                products.push((
-                    profile,
-                    product.map_err(CompilationProductError::Production),
-                ));
-            }
+                        )?;
+                        Ok((target, source, prepared))
+                    });
+                    (profile, prepared)
+                })
+                .collect();
+            let products = prepared_targets
+                .into_iter()
+                .map(|(profile, prepared)| {
+                    let product = prepared.and_then(|(target, source, prepared)| {
+                        select_target_product(&shared, target, source, prepared)
+                    });
+                    (
+                        profile,
+                        product.map_err(CompilationProductError::Production),
+                    )
+                })
+                .collect();
 
-            let outcomes = produce_products(products)
+            Ok(produce_products(products)
                 .into_iter()
                 .map(|(target, result)| TargetProductOutcome { target, result })
-                .collect();
-            Ok(outcomes)
+                .collect())
         })
     }
 }
 
 /// Select provider custody without installation. The portable producer still
 /// reads source-selected entries, callbacks and exclusion policy from this
-/// record; this refactor does not claim a Terminal-only provider handoff.
+/// record.
+/// @Incomplete: provider selection is not yet handed off through Terminal alone.
 fn select_target_product(
     shared: &SharedCompileInputs,
     target: ValidatedTargetCompilation,
@@ -172,38 +170,34 @@ pub(crate) fn produce_products<Owner>(
     requests: Vec<(Owner, Result<ProductRequest, CompilationProductError>)>,
 ) -> Vec<(Owner, Result<CompilationOutput, CompilationProductError>)> {
     // The caller's target/package identity travels with its work and outcome.
-    let mut work = Vec::with_capacity(requests.len());
-    for (owner, request) in requests {
-        let planned = match request {
-            Ok(request) => request.plan(),
-            Err(error) => Err(error),
-        };
-        work.push((owner, planned));
-    }
+    let mut work: Vec<_> = requests
+        .into_iter()
+        .map(|(owner, request)| (owner, request.and_then(ProductRequest::plan)))
+        .collect();
 
-    let mut terminal_requests = Vec::new();
-    for (_, planned) in &mut work {
-        if let Ok(CompilationWork::Terminal(product)) = planned {
-            terminal_requests.push(product.terminal_request());
-        }
-    }
+    let terminal_requests = work
+        .iter_mut()
+        .filter_map(|(_, planned)| match planned {
+            Ok(CompilationWork::Terminal(product)) => Some(product.terminal_request()),
+            _ => None,
+        })
+        .collect();
     let mut terminals = produce_retained_terminal_artifacts(terminal_requests).into_iter();
 
-    let mut outcomes = Vec::with_capacity(work.len());
-    for (owner, planned) in work {
-        let outcome = match planned {
-            Err(error) => Err(error),
-            Ok(CompilationWork::Complete(output)) => Ok(output),
-            Ok(CompilationWork::Terminal(product)) => match terminals.next() {
-                Some(Ok(terminal)) => product.finish(terminal),
-                Some(Err(diagnostics)) => Err(diagnostics.into()),
-                None => Err(vec![Diagnostic::error(
-                    "Terminal production lost a requested application",
-                )]
-                .into()),
-            },
-        };
-        outcomes.push((owner, outcome));
-    }
-    outcomes
+    work.into_iter()
+        .map(|(owner, planned)| {
+            let outcome = planned.and_then(|planned| match planned {
+                CompilationWork::Complete(output) => Ok(output),
+                CompilationWork::Terminal(product) => match terminals.next() {
+                    Some(Ok(terminal)) => product.finish(terminal),
+                    Some(Err(diagnostics)) => Err(diagnostics.into()),
+                    None => Err(vec![Diagnostic::error(
+                        "Terminal production lost a requested application",
+                    )]
+                    .into()),
+                },
+            });
+            (owner, outcome)
+        })
+        .collect()
 }
