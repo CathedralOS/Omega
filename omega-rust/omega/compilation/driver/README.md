@@ -329,7 +329,7 @@ belong to the package system's independent
 depend on those contracts directly, not on the package-command application.
 
 Target-neutral build evaluation remains in
-[Psi's compiler support](../../../psi/compilation/compile-time/README.md).
+[Psi's compiler support](../../../psi/compilation/build-time-evaluation/README.md).
 Opaque representation admission belongs to
 [Psi checking](../../../psi/compilation/checking/representation-planning/README.md);
 provider selection and planning belong to
