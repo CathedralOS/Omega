@@ -1069,6 +1069,7 @@ impl Execution<'_, '_, '_> {
 
     pub(super) fn capture_returned_retention(
         &mut self,
+        invocation: Handle<checked_trees::FlowCallFact>,
         expression: ExpressionHandle,
         destination: TypeReferenceHandle,
         call: &TableCallExpression,
@@ -1263,6 +1264,7 @@ impl Execution<'_, '_, '_> {
                 Handle::invalid()
             };
             let descriptor = self.capture_returned_descriptor(
+                invocation,
                 call,
                 inputs,
                 returned,

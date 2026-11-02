@@ -662,6 +662,7 @@ fn has_selection(facts: &CheckFacts, operand: &FlowOperandFact) -> bool {
             .any(|child| has_selection(facts, facts.flow.control.operands.get(child.value))),
         FlowOperandCompletion::Copied { .. }
         | FlowOperandCompletion::IncomingContents { .. }
+        | FlowOperandCompletion::InvocationResult { .. }
         | FlowOperandCompletion::Observation => false,
     }
 }
@@ -750,6 +751,7 @@ fn collect(
         }
         FlowOperandCompletion::Copied { .. }
         | FlowOperandCompletion::IncomingContents { .. }
+        | FlowOperandCompletion::InvocationResult { .. }
         | FlowOperandCompletion::Observation => {}
     }
     let source = ownership_place_from_expression_in_state(

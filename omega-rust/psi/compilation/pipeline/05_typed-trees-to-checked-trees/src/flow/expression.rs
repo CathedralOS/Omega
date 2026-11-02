@@ -1873,6 +1873,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 }
                 self.install_call_stores(completed.stores);
                 self.capture_returned_retention(
+                    completed.call,
                     expression,
                     destination,
                     call,

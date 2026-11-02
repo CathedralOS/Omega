@@ -249,6 +249,7 @@ fn argument_capture(
             }
             checked_trees::FlowOperandCompletion::Observation
             | checked_trees::FlowOperandCompletion::IncomingContents { .. }
+            | checked_trees::FlowOperandCompletion::InvocationResult { .. }
             | checked_trees::FlowOperandCompletion::Copied { .. } => {}
         }
     }

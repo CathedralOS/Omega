@@ -196,6 +196,22 @@ impl Resolver<'_> {
                 Some(stored) => self.stored(stored, &[]),
             };
         }
+        if matches!(
+            capture.completion,
+            FlowOperandCompletion::InvocationResult { .. }
+        ) && path.is_empty()
+            && crate::reference_shell(self.program, capture.type_reference).is_some()
+        {
+            return Selection::Sources {
+                incoming: Vec::new(),
+                values: vec![StoredCapture {
+                    capture: value,
+                    reference: capture.type_reference,
+                    projection: Vec::new(),
+                    slot: None,
+                }],
+            };
+        }
         if let FlowOperandCompletion::Selected(alternatives) = capture.completion {
             let Some(rows) = self.control.operand_alternatives.span(alternatives) else {
                 return Selection::Unavailable;

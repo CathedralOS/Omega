@@ -383,88 +383,61 @@ impl Resolver<'_> {
             }
             return Ok(resolved);
         }
-        if let ExpressionNode::Call(call) =
-            self.program.expression_table.expression(operand.expression)
+        if let FlowOperandCompletion::InvocationResult {
+            invocation,
+            result_type,
+            path: output,
+        } = operand.completion
         {
-            let mut calls = control
-                .calls
-                .span(self.state.calls)
-                .ok_or("the completed call has no invocation roster")?
-                .iter()
-                .filter(|row| {
-                    row.statement_index == operand.statement_index
-                        && row.authored_expression == operand.expression
-                });
+            if !path.is_empty() {
+                return Err("a returned descriptor observation does not capture pointee contents");
+            }
+            let output = control
+                .operand_retained_paths
+                .span(output)
+                .ok_or("the returned descriptor has no result coordinate")?;
+            let selected =
+                validation::project_type_reference_from_segments(self.program, result_type, output)
+                    .ok_or("the returned descriptor coordinate has no declared type")?;
+            if self.program.normalized_type_identity(selected)
+                != self
+                    .program
+                    .normalized_type_identity(operand.type_reference)
+            {
+                return Err("the returned descriptor disagrees with its completed result leaf");
+            }
+            return self.invocation_result(
+                operand,
+                invocation,
+                result_type,
+                output,
+                ancestors,
+                forwarded_inputs,
+            );
+        }
+        if matches!(
+            self.program.expression_table.expression(operand.expression),
+            ExpressionNode::Call(_)
+        ) {
+            let mut calls = self.state.calls.handles().filter(|handle| {
+                let row = control.calls.get(*handle);
+                row.statement_index == operand.statement_index
+                    && row.authored_expression == operand.expression
+            });
             let invocation = calls
                 .next()
                 .ok_or("the completed result has no actual invocation")?;
-            if calls.next().is_some() || invocation.authored_target != call.target_symbol {
+            if calls.next().is_some() {
                 return Err("the completed result has no unique checked invocation");
             }
-            let sources = crate::borrow::completed_call_reference_sources(
-                self.program,
-                self.state.state_symbol,
-                call,
-            )
-            .ok_or("the completed call has no declared return-source relation")?;
-            let mut resolved = BackingFrontier::default();
-            for source in sources {
-                let (source, projection) = match source {
-                    crate::borrow::CompletedReturnSource::ImmutableImage { owner_path, kind } => {
-                        if kind != checked_trees::BorrowAccessKind::Read {
-                            return Err("immutable image storage cannot grant writable access");
-                        }
-                        let structural =
-                            crate::borrow::structural_owner_path(self.program, &owner_path)
-                                .ok_or("the image result has no declared output path")?;
-                        let output = validation::reference_result_custody::loan_place_segments(
-                            self.program,
-                            operand.type_reference,
-                            &structural,
-                        )
-                        .ok_or("the image result path disagrees with its completed carrier")?;
-                        if same_path(self.program, &output, path) {
-                            resolved.immutable_image = true;
-                        }
-                        continue;
-                    }
-                    crate::borrow::CompletedReturnSource::DescriptorCandidate {
-                        field,
-                        projection,
-                    } => (field, projection),
-                    crate::borrow::CompletedReturnSource::LifetimeDependency { .. } => continue,
-                    crate::borrow::CompletedReturnSource::UnresolvedDescriptor { .. } => {
-                        return Err("the completed call has an unresolved descriptor alternative");
-                    }
-                };
-                let output = crate::borrow::owner_place_segments(&source.owner_path);
-                if !same_path(self.program, &output, path) {
-                    continue;
-                }
-                let actuals = invocation.argument_operands();
-                let index = u32::try_from(source.parameter_index)
-                    .map_err(|_| "the returned descriptor's input coordinate is out of range")?;
-                if index >= actuals.count() {
-                    return Err("the returned descriptor has no completed input");
-                }
-                let input = crate::borrow::owner_place_segments(&source.source_path);
-                let mut backings = self.input_descriptor(
-                    actuals.handle_at(index),
-                    source.source,
-                    &input,
-                    ancestors,
-                    forwarded_inputs,
-                )?;
-                for backing in &mut backings.places {
-                    backing.place.segments =
-                        facts::project_captured_view_segments(&backing.place.segments, &projection)
-                            .ok_or("the returned descriptor cannot project its retained source")?;
-                }
-                resolved.append(backings);
-            }
-            return (!resolved.places.is_empty() || resolved.immutable_image)
-                .then_some(resolved)
-                .ok_or("the completed call does not cover the returned descriptor path");
+            return self.invocation_result(
+                operand,
+                invocation,
+                operand.type_reference,
+                path,
+                ancestors,
+                forwarded_inputs,
+            );
         }
         let source =
             coordinate.ok_or("the completed descriptor has no source storage coordinate")?;
@@ -491,6 +464,114 @@ impl Resolver<'_> {
         } else {
             Err("the computed descriptor has no retained authority producer")
         }
+    }
+
+    /// Both an evaluated call and its retained result-leaf observations name
+    /// the same performed invocation. The normal return contract selects the
+    /// actual captured inputs; lifetime debt and exclusion regions alone never
+    /// become a descriptor supplier.
+    fn invocation_result(
+        &self,
+        operand: &FlowOperandFact,
+        invocation: Handle<checked_trees::FlowCallFact>,
+        result_type: typed_trees::types::TypeReferenceHandle,
+        path: &[PlaceSegment],
+        ancestors: &mut Vec<Handle<FlowOperandFact>>,
+        forwarded_inputs: &mut Vec<Handle<FlowOperandFact>>,
+    ) -> Result<BackingFrontier, &'static str> {
+        let control = &self.facts.flow.control;
+        if !control.calls.is_valid(invocation)
+            || !self
+                .state
+                .calls
+                .handles()
+                .any(|candidate| candidate == invocation)
+        {
+            return Err("the completed result invocation belongs to another state");
+        }
+        let invocation = control.calls.get(invocation);
+        let ExpressionNode::Call(call) = self
+            .program
+            .expression_table
+            .expression(invocation.authored_expression)
+        else {
+            return Err("the completed result has no authored call occurrence");
+        };
+        if invocation.statement_index != operand.statement_index
+            || invocation.authored_target != call.target_symbol
+        {
+            return Err("the completed result disagrees with its checked invocation");
+        }
+        let sources = crate::borrow::completed_call_reference_sources(
+            self.program,
+            self.state.state_symbol,
+            call,
+        )
+        .ok_or("the completed call has no declared return-source relation")?;
+        let mut resolved = BackingFrontier::default();
+        for source in sources {
+            let (source, projection) = match source {
+                crate::borrow::CompletedReturnSource::ImmutableImage { owner_path, kind } => {
+                    if kind != checked_trees::BorrowAccessKind::Read {
+                        return Err("immutable image storage cannot grant writable access");
+                    }
+                    let structural =
+                        crate::borrow::structural_owner_path(self.program, &owner_path)
+                            .ok_or("the image result has no declared output path")?;
+                    let output = validation::reference_result_custody::loan_place_segments(
+                        self.program,
+                        result_type,
+                        &structural,
+                    )
+                    .ok_or("the image result path disagrees with its completed carrier")?;
+                    if same_path(self.program, &output, path) {
+                        resolved.immutable_image = true;
+                    }
+                    continue;
+                }
+                crate::borrow::CompletedReturnSource::DescriptorCandidate { field, projection } => {
+                    (field, projection)
+                }
+                crate::borrow::CompletedReturnSource::LifetimeDependency { .. } => continue,
+                crate::borrow::CompletedReturnSource::UnresolvedDescriptor { .. } => {
+                    return Err("the completed call has an unresolved descriptor alternative");
+                }
+            };
+            let structural = crate::borrow::structural_owner_path(self.program, &source.owner_path)
+                .ok_or("the returned descriptor has no declared output path")?;
+            let output = validation::reference_result_custody::loan_place_segments(
+                self.program,
+                result_type,
+                &structural,
+            )
+            .ok_or("the returned descriptor path disagrees with its completed carrier")?;
+            if !same_path(self.program, &output, path) {
+                continue;
+            }
+            let actuals = invocation.argument_operands();
+            let index = u32::try_from(source.parameter_index)
+                .map_err(|_| "the returned descriptor's input coordinate is out of range")?;
+            if index >= actuals.count() {
+                return Err("the returned descriptor has no completed input");
+            }
+            let input = crate::borrow::owner_place_segments(&source.source_path);
+            let mut backings = self.input_descriptor(
+                actuals.handle_at(index),
+                source.source,
+                &input,
+                ancestors,
+                forwarded_inputs,
+            )?;
+            for backing in &mut backings.places {
+                backing.place.segments =
+                    facts::project_captured_view_segments(&backing.place.segments, &projection)
+                        .ok_or("the returned descriptor cannot project its retained source")?;
+            }
+            resolved.append(backings);
+        }
+        (!resolved.places.is_empty() || resolved.immutable_image)
+            .then_some(resolved)
+            .ok_or("the completed call does not cover the returned descriptor path")
     }
 
     fn immutable_image_profile(

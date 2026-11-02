@@ -279,6 +279,14 @@ pub enum FlowOperandCompletion {
         root: facts::PlaceRoot,
         path: HandleSpan<facts::PlaceSegment>,
     },
+    /// A descriptor leaf observed after this actual invocation completed.
+    /// This preserves its result coordinate, not a second evaluation, exact
+    /// pointer geometry, or permission inferred from its lifetime frontier.
+    InvocationResult {
+        invocation: Handle<super::FlowCallFact>,
+        result_type: typed_trees::types::TypeReferenceHandle,
+        path: HandleSpan<facts::PlaceSegment>,
+    },
     Constructed(HandleSpan<FlowOperandChild>),
     Selected(HandleSpan<FlowOperandAlternative>),
     /// A projection of one already completed owned copy. The value's contents
@@ -298,6 +306,7 @@ impl FlowOperandFact {
             FlowOperandCompletion::Constructed(children) => children,
             FlowOperandCompletion::Observation
             | FlowOperandCompletion::IncomingContents { .. }
+            | FlowOperandCompletion::InvocationResult { .. }
             | FlowOperandCompletion::Selected(_)
             | FlowOperandCompletion::Copied { .. } => HandleSpan::empty(),
         }
