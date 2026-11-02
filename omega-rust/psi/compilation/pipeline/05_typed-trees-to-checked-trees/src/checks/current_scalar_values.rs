@@ -1138,6 +1138,38 @@ impl<'program> CurrentScalarValues<'program> {
         &self.hypotheses
     }
 
+    /// Bind a declaration recipe to current snapshots without treating its
+    /// unevaluated calls as completed runtime occurrences. The formation owner
+    /// must still discharge every operation before using the returned roster.
+    pub(crate) fn integer_expression(
+        &self,
+        expression: ExpressionHandle,
+    ) -> Option<ScopedArithmeticExpression> {
+        scoped_operations(
+            self.occurrence(),
+            expression,
+            &self.current,
+            &self.fields,
+            true,
+        )
+    }
+
+    pub(crate) fn integer_expression_formation(
+        &self,
+        machine: &Machine,
+        expression: &ScopedArithmeticExpression,
+    ) -> Option<(
+        validation::IntegerApplicationFormation,
+        ScopedArithmeticValue,
+    )> {
+        validation::scoped_integer_expression_formation(
+            self.program,
+            machine,
+            &self.hypotheses,
+            expression,
+        )
+    }
+
     pub(crate) fn declared_integer_application_formation(
         &self,
         machine: &Machine,
@@ -1834,6 +1866,19 @@ fn scoped(
     bindings: &[Binding],
     fields: &[ScalarField],
 ) -> Option<ScopedArithmeticExpression> {
+    scoped_operations(occurrence, expression, bindings, fields, false)
+}
+
+/// Bind the same exact read roster for proof consumers and declaration
+/// formation. Formation preserves operations for the child-first checker;
+/// completed proof consumers retain their prior preserving-cast projection.
+fn scoped_operations(
+    occurrence: ScopedOccurrence<'_, '_>,
+    expression: ExpressionHandle,
+    bindings: &[Binding],
+    fields: &[ScalarField],
+    form_operations: bool,
+) -> Option<ScopedArithmeticExpression> {
     let ScopedOccurrence {
         program,
         machine,
@@ -1857,6 +1902,24 @@ fn scoped(
                 crate::shared::collections::push_unique(&mut symbols, name.symbol);
             }
             ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) => {}
+            ExpressionNode::Atomic(atomic) if form_operations => {
+                pending.push((atomic.value, depth + 1));
+            }
+            ExpressionNode::Cast(cast) if form_operations => {
+                pending.push((cast.value, depth + 1));
+            }
+            ExpressionNode::Call(call) if form_operations => {
+                if call.receiver.is_valid() {
+                    pending.push((call.receiver, depth + 1));
+                }
+                pending.extend(
+                    program
+                        .expression_table
+                        .expression_handles(call.arguments)
+                        .iter()
+                        .map(|argument| (*argument, depth + 1)),
+                );
+            }
             ExpressionNode::Cast(_) => {
                 let operand =
                     preserving_integer_cast_operand(occurrence, expression, bindings, fields)?;

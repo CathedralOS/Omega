@@ -169,6 +169,7 @@ pub enum CheckedRankOperand {
         state: SymbolHandle,
         expression: typed_trees::expression::ExpressionHandle,
         primitive_type: typed_trees::types::PrimitiveType,
+        formation: super::CheckedRankApplicationFormationHandle,
     },
     Literal(u64),
 }

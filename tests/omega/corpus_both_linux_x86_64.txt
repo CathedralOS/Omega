@@ -7999,6 +7999,22 @@ run/traits/target_scoped_map_method_arguments rejected 6237ms exit:0 interpreter
 	artifact control retargeted boundary with copied declaration refused for another reason: MalformedStructuralFoundation("checked boundary declaration differs from its exact declaration owner")
 run/variant_decimal_runtime_division built 6803ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @a92f16431042
 run/variant_record_normalization_repeats built 9955ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @a92f16431042
+# Ordinary-call endpoint campaign: source 4449c9d8ccc0, compiler 8ead9159def9.
+pass/facts/nested_machine_joint_rank_computed_measure_parameter_exit built 20328ms exit:0 interpreter-exit:0 interpreter:agrees @4449c9d8ccc0
+pass/facts/nested_machine_joint_rank_computed_upper_parameter_exit built 20587ms exit:0 interpreter-exit:0 interpreter:agrees @4449c9d8ccc0
+pass/facts/nested_machine_joint_rank_endpoint_call_call_result_exit built 24488ms exit:0 interpreter-exit:0 interpreter:agrees @4449c9d8ccc0
+pass/facts/nested_machine_joint_rank_endpoint_call_const_name_exit built 23491ms exit:0 interpreter-exit:0 interpreter:agrees @4449c9d8ccc0
+pass/facts/nested_machine_joint_rank_endpoint_call_field_exit built 26927ms exit:0 interpreter-exit:0 interpreter:agrees @4449c9d8ccc0
+pass/facts/nested_machine_joint_rank_endpoint_call_local_exit built 26137ms exit:0 interpreter-exit:0 interpreter:agrees @4449c9d8ccc0
+pass/facts/nested_machine_joint_rank_endpoint_call_match_join_exit built 24693ms exit:0 interpreter-exit:0 interpreter:agrees @4449c9d8ccc0
+pass/facts/nested_machine_joint_rank_endpoint_call_other_machine_exit built 24429ms exit:0 interpreter-exit:0 interpreter:agrees @4449c9d8ccc0
+pass/facts/nested_machine_joint_rank_endpoint_call_other_state_exit built 24166ms exit:0 interpreter-exit:0 interpreter:agrees @4449c9d8ccc0
+pass/facts/nested_machine_joint_rank_endpoint_call_parameter_exit built 23966ms exit:0 interpreter-exit:0 interpreter:agrees @4449c9d8ccc0
+pass/facts/nested_machine_joint_rank_endpoint_call_target_body_exit built 19174ms exit:0 interpreter-exit:0 interpreter:agrees @4449c9d8ccc0
+pass/facts/nested_machine_joint_rank_increasing_to_overshoot_exit built 18624ms exit:0 interpreter-exit:0 interpreter:agrees @4449c9d8ccc0
+pass/termination/nested_machine_computed_distance_indexed_upper_exit built 20216ms exit:0 interpreter-exit:0 interpreter:agrees @4449c9d8ccc0
+pass/termination/private_rank_endpoint_composed_endpoint_exit built 20254ms exit:0 interpreter-exit:0 interpreter:agrees @4449c9d8ccc0
+
 pass/calls/guarded_terminal_call_chain_exit built 1898ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/calls/runtime_guarded_terminal_array_operands_exit built 3419ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/calls/runtime_guarded_terminal_reference_result_exit built 2024ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
