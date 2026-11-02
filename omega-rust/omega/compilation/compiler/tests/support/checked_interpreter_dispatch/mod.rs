@@ -13,8 +13,8 @@ mod checked_body;
 pub(crate) use checked_body::exact_checked_body_entry;
 
 use boundary_dispatch::settle_selected_boundary_adapter_dispatch;
+use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
-use selected_dispatch::SelectedExecution;
 
 /// Exact adapter and IEEE comparison bindings for one checked-source oracle.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -26,10 +26,11 @@ pub struct CheckedInterpreterDispatch {
 /// Bind the reference engine to the same checked program and selected plans.
 /// Errors refuse reference execution; they never fall back to another engine.
 pub fn prepare_checked_interpreter_dispatch(
-    execution: &SelectedExecution,
+    compilation: &CheckedCompilation,
 ) -> Result<CheckedInterpreterDispatch, Vec<Diagnostic>> {
-    let checked = execution.provider_source.program();
-    let selected_instances = execution.provider_source.project_instances()?;
+    let execution = compilation.execution();
+    let checked = compilation.source_inspection().program();
+    let selected_instances = compilation.source_inspection().project_instances()?;
     let selected_provider_plans = &selected_instances;
     let selected_provider_provenance = &execution.selected_provider_provenance;
     if selected_provider_provenance.iter().any(|provider| {

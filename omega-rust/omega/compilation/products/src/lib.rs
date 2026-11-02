@@ -36,6 +36,7 @@ mod independent_component;
 mod native_product;
 mod package_build;
 mod prepared_build;
+pub use prepared_build::ProductSourceIdentity;
 mod prepared_source;
 pub mod publication;
 mod retained_native_program;

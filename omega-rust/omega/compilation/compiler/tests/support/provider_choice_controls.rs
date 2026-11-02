@@ -45,15 +45,11 @@ pub(super) fn prepare(
         Default::default(),
     )
     .map_err(|errors| format!("provider choices checking: {errors:?}"))?;
-    let selected_plans = checked.execution().provider_source.plans().plans().to_vec();
+    let selected_plans = checked.execution().plans().plans().to_vec();
     let publication = checked.providers().provider_publication.prepare(
         &[profile.target_name().to_owned()],
         None,
-        checked
-            .execution()
-            .provider_source
-            .plans()
-            .assumed_bindings(),
+        checked.execution().plans().assumed_bindings(),
         &checked.providers().verified_independent_components,
     );
     let expected_instances = provider_instance_controls::prepare(&checked, root)?;

@@ -1,19 +1,44 @@
-//! Match root runtime-policy consent against fresh checked declarations.
+//! Refuse execution when a program requests permissions its root has not accepted.
 //!
 //! The package manager selects the exact root Product occurrence. A retained
 //! lock is historical consent and is compared here; compilation does not write
 //! one. When the consuming root's own public Build evaluation recorded an
 //! assumed binding and no lock is present, the Product risk rows are projected
-//! from that evaluation and admitted for this activation only. Consent is not
-//! provider evidence, and this projection never reconstructs the rest of a
-//! package review.
+//! from saved declarations and admitted for this activation only. Target
+//! selection and provider admission remain independent requirements.
 
 use crate::capture::EvidenceOption;
-use crate::record::{PACKAGE_POLICY_ROW_VERSION, PackagePolicyRowKind, PackagePolicyRowLimits};
-use compilation_products::CheckedCompilation;
+pub use crate::capture::PreparedRuntimePolicy;
+use crate::record::{PACKAGE_POLICY_ROW_VERSION, PackagePolicyRowKind};
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
 use target::TargetProfile;
+
+/// Completed target choices and saved declarations used for runtime consent.
+/// There is no source program in this input.
+pub struct RuntimePermissionInput<'a> {
+    pub(crate) declarations: &'a PreparedRuntimePolicy,
+    pub(crate) execution: &'a selected_dispatch::SelectedExecution,
+    pub(crate) providers: &'a provider_planning::ProviderSettlement,
+    pub(crate) sources: &'a package_compilation::CheckedSourceCustody,
+}
+
+impl<'a> RuntimePermissionInput<'a> {
+    /// Borrow completed outputs from one compilation so callers cannot mix
+    /// one program's selected code with another program's permission inputs.
+    /// This assembly reads no source declarations.
+    pub fn from_compilation(
+        declarations: &'a PreparedRuntimePolicy,
+        checked: &'a compilation_products::CheckedCompilation,
+    ) -> Self {
+        Self {
+            declarations,
+            execution: checked.execution(),
+            providers: checked.providers(),
+            sources: checked.sources(),
+        }
+    }
+}
 
 /// Exact consent for one root Product occurrence.
 ///
@@ -35,31 +60,23 @@ impl TerminalPermissionAcceptance {
     /// assumed relationship and the checked plan still names the same count.
     /// A later locked compile does not reuse this value; it must present its
     /// own retained rows.
-    pub fn from_public_build(checked: &CheckedCompilation) -> Result<Self, Vec<Diagnostic>> {
-        let package = checked
-            .sources()
+    pub fn from_public_build(input: &RuntimePermissionInput<'_>) -> Result<Self, Vec<Diagnostic>> {
+        let package = input
+            .sources
             .package_identity()
             .or_evidence("assumed binding risk rows require the consuming root package")?;
-        let target = checked
-            .execution()
+        let target = input
+            .execution
             .selected_target_profile
             .or_evidence("assumed binding risk rows require an exact product target")?;
-        let evaluated = checked.build().config.assumed_bindings.len();
-        let installed = checked
-            .execution()
-            .provider_source
-            .plans()
-            .assumed_bindings()
-            .len();
+        let evaluated = input.declarations.evaluated_assumptions();
+        let installed = input.execution.plans().assumed_bindings().len();
         if evaluated == 0 || evaluated != installed {
             return Err(vec![Diagnostic::error(
                 "assumed binding risk rows do not match the public Build evaluation",
             )]);
         }
-        let policy = crate::project_checked_package_policy(checked, target, package)?;
-        let (policy_rows, _) = policy
-            .acceptance_rows_with_limits(PackagePolicyRowLimits::default())
-            .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
+        let policy_rows = input.declarations.rows(input, target, package)?;
         let mut assumed_row_count = 0usize;
         let mut rows = Vec::new();
         for row in policy_rows {
@@ -87,26 +104,13 @@ impl TerminalPermissionAcceptance {
         })
     }
 
-    pub fn validate(&self, checked: &CheckedCompilation) -> Result<(), Vec<Diagnostic>> {
+    pub fn validate(&self, input: &RuntimePermissionInput<'_>) -> Result<(), Vec<Diagnostic>> {
         if self.schema_version != PACKAGE_POLICY_ROW_VERSION {
             return Err(vec![Diagnostic::error(
                 "accepted runtime policy uses an obsolete schema; run omega update",
             )]);
         }
-        let (rows, _) = if checked
-            .execution()
-            .provider_source
-            .plans()
-            .assumed_bindings()
-            .is_empty()
-        {
-            crate::project_checked_terminal_permission_policy(checked, self.target, self.package)?
-                .acceptance_rows_with_limits(PackagePolicyRowLimits::default())
-        } else {
-            crate::project_checked_package_policy(checked, self.target, self.package)?
-                .acceptance_rows_with_limits(PackagePolicyRowLimits::default())
-        }
-        .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
+        let rows = input.declarations.rows(input, self.target, self.package)?;
         let mut rows: Vec<_> = rows
             .into_iter()
             .filter(|row| {

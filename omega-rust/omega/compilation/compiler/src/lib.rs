@@ -2,7 +2,7 @@
 
 //! Source checking, compilation, and retained-artifact realization.
 //!
-//! Start at `compiler.rs`: prepare one `CompileRequest`, then consume its exact
+//! Start at `target_batch.rs`: prepare one `CompileRequest`, then consume its exact
 //! returned Build to produce one `CompileReport` per target through checking, Terminal production and
 //! native realization. `package_compilation::source_assembly` assembles the physical
 //! and generated source set; the folders are the remaining work those steps
@@ -16,7 +16,7 @@
 //! choices through those phases. Finished products and publication belong to the independent
 //! `compilation_products` owner; this crate only sequences their production.
 
-mod compiler;
+mod target_batch;
 mod execution_settlement;
 mod identity;
 pub use psi_compiler::ProducedTerminalProgram;
@@ -59,7 +59,7 @@ pub use compilation_products::{
     CompileOutputKind, CompileReport, ExecutablePublicationReceipt, OptimizationRollbackReceipt,
     RetainedBuildOutputs, RetainedNativeArtifact,
 };
-pub use compiler::PreparedCompilation;
+pub use target_batch::PreparedCompilation;
 pub use native_production::SourceEvaluatedImportSettlement;
 pub use package_compilation::BuildExecutionInputs;
 pub use package_evidence::permission_acceptance::TerminalPermissionAcceptance;

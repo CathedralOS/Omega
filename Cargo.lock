@@ -2680,6 +2680,8 @@ dependencies = [
  "native-artifact",
  "native-provider-runtime",
  "numerics",
+ "omega-build",
+ "platform-custody",
  "runtime-abi",
  "semantic-vocabulary",
  "target",

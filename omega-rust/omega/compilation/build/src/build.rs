@@ -1,7 +1,7 @@
 //! Admit output locations, prepare a project, compile products, then publish.
 
+use crate::project::{build_directory, products, publication};
 use crate::{BuildError, BuildRequest, BuildTargets, ProjectProduct, TargetBuildOutcome};
-use crate::{build_directory, products, publication};
 use artifacts::compile_timings::{CompileTimings, StageMeta};
 use diagnostics::Diagnostic;
 use package_manager::operations as packages;

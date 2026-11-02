@@ -1,9 +1,7 @@
-//! Capture occurrence-local Source inputs before the shared Product publication.
-//!
-//! A target chooses realization, never a pruned Source program. Each occurrence
-//! retains its own augmented package authority and measured binding results;
-//! sharing portable code cannot substitute another occurrence's admission.
-//! Results stay deferred until their original settlement boundaries.
+//! Save everything a requested target needs before publishing shared code.
+//! Targets keep their own build settings and package permissions. Saved errors
+//! are reported at the same later selection step, so preparing an unused
+//! declaration cannot reject a valid program early.
 
 use super::checking::timed;
 use artifacts::compile_timings::{CompileTimings, EXECUTION_SETTLEMENT};
@@ -13,11 +11,20 @@ use package_compilation::PackageCompilationInputs;
 use provider_planning::target_machines::{PreparedProductProviders, ProductProviderPreparation};
 
 pub(crate) struct PreparedProductTarget {
+    pub(crate) runtime_policy:
+        std::sync::Arc<package_evidence::permission_acceptance::PreparedRuntimePolicy>,
     pub(crate) profile: Option<target::TargetProfile>,
     pub(crate) package_inputs: Option<PackageCompilationInputs>,
     pub(crate) declarations: Result<PreparedTargetDeclarations, Vec<Diagnostic>>,
     pub(crate) deployment: Result<(), Vec<Diagnostic>>,
     pub(crate) timings: CompileTimings,
+    pub(crate) binding_declarations: std::sync::Arc<selected_dispatch::PreparedBindingDeclarations>,
+    pub(crate) direct_calls: Result<
+        std::sync::Arc<
+            language_semantics::direct_calls::DirectCallDeclarations<symbols::SymbolHandle>,
+        >,
+        Diagnostic,
+    >,
 }
 
 pub(crate) struct PreparedTargetDeclarations {
@@ -26,6 +33,7 @@ pub(crate) struct PreparedTargetDeclarations {
         Vec<Diagnostic>,
     >,
     pub(crate) providers: Result<PreparedProductProviders, Vec<Diagnostic>>,
+    pub(crate) entry_service_requirements: Vec<symbols::SymbolHandle>,
 }
 
 impl PreparedProductTarget {
@@ -137,10 +145,37 @@ impl PreparedProductTarget {
                     }
                     .capture()
                 })();
-                PreparedTargetDeclarations { entry, providers }
+                let entry_service_requirements = entry
+                    .as_ref()
+                    .ok()
+                    .and_then(Option::as_ref)
+                    .map(|entry| entry.service_requirements(&source.program))
+                    .unwrap_or_default();
+                PreparedTargetDeclarations {
+                    entry,
+                    providers,
+                    entry_service_requirements,
+                }
             })
         });
+        let binding_declarations =
+            std::sync::Arc::clone(source.binding_declarations.get_or_init(|| {
+                std::sync::Arc::new(selected_dispatch::PreparedBindingDeclarations::capture(
+                    &source.program,
+                    &source.provider_inventory,
+                    source.sources.exact_toolchain_sources(),
+                ))
+            }));
+        let direct_calls = source
+            .provider_inventory
+            .retained_direct_calls_for(&source.program);
+        let runtime_policy = std::sync::Arc::new(
+            package_evidence::permission_acceptance::PreparedRuntimePolicy::capture(source),
+        );
         Ok(Self {
+            runtime_policy,
+            binding_declarations,
+            direct_calls,
             profile,
             package_inputs,
             declarations,

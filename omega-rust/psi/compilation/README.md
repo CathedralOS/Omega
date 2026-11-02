@@ -3,7 +3,7 @@
 This domain turns Omega source into Terminal Psi. It owns source meaning and
 its evidence, not package acquisition, command policy or native realization.
 The [Psi facade](psi-compiler/src/lib.rs) owns source-stage sequencing.
-The [product coordinator](../../omega/compilation/psi-compiler/src/compiler.rs) owns
+The [product coordinator](../../omega/compilation/compiler/src/target_batch.rs) owns
 request sharing and target products; the application owns Build execution.
 
 | Reader's question | Entrance and responsibility |

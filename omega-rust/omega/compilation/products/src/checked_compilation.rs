@@ -53,6 +53,9 @@ pub struct CheckedCompilationInputs {
     /// Checked semantics with target/entry custody and every selected-execution
     /// sidecar, produced by selected dispatch.
     pub settled: SelectedExecution,
+    /// Checked source is retained only for explicit inspection and reference
+    /// interpretation. Target execution receives the separate settled record.
+    pub source_inspection: Arc<provider_planning::SelectedProviderSource>,
     /// One immutable evaluated Build shared by target products and review clones.
     /// Authored choices stay distinct from the realized settlements beside it.
     pub build: Arc<ComputedBuildConfig>,
@@ -128,6 +131,10 @@ impl CheckedCompilation {
             settled_checks: RetainedCompilationChecks::default(),
             terminal_publication,
         }
+    }
+
+    pub fn source_inspection(&self) -> &provider_planning::SelectedProviderSource {
+        &self.execution.source_inspection
     }
 
     pub fn terminal_publication(&self) -> &crate::ProductTerminalPublication {
@@ -226,10 +233,7 @@ impl CheckedCompilation {
             return Ok(());
         }
         trust_model::reconstruct_trust_obligations(
-            self.execution()
-                .provider_source
-                .inventory()
-                .trust_declarations(),
+            &self.execution().trust_declarations,
             &grants,
             &self
                 .providers()
@@ -237,7 +241,7 @@ impl CheckedCompilation {
                 .iter()
                 .map(provider_planning::ProviderPlanCandidate::plan)
                 .collect::<Vec<_>>(),
-            self.execution().provider_source.plans(),
+            self.execution().plans(),
             self.sources.package_subject().is_some(),
         )
         .map(drop)
@@ -298,6 +302,6 @@ impl std::ops::Deref for CheckedCompilation {
     type Target = CheckedTrees;
 
     fn deref(&self) -> &Self::Target {
-        self.execution.settled.provider_source.program()
+        self.source_inspection().program()
     }
 }

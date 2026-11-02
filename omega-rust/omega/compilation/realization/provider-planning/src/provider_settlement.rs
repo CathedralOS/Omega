@@ -44,6 +44,10 @@ pub struct CheckedProviderSelection {
     pub settlement: ProviderSettlement<crate::DeferredProviderRows>,
     pub selected_provider_plan_facts: SelectedProviderPlanFacts,
     pub selected_provider_provenance: Vec<SelectedProviderReviewProvenance>,
+    pub selected_declarations:
+        Vec<Result<language_semantics::provider_declarations::ProviderDeclarations, Diagnostic>>,
+    pub native_provider_sources:
+        Result<std::sync::Arc<backend_plan::NativeProviderSources>, Vec<Diagnostic>>,
 }
 
 /// Provider-planning results a checked compilation retains for package review,
@@ -191,7 +195,6 @@ impl<Intrinsic> ProviderSettlement<Intrinsic> {
 /// Derive every candidate, selecting whole maps only for demanded or authored
 /// slots. Unselected exported implementations remain checked review content.
 pub fn settle_checked_providers(
-    checked: &checked_trees::CheckedTrees,
     selected_target_profile: Option<target::TargetProfile>,
     package_inputs: Option<&PackageCompilationInputs>,
     prepared_providers: Result<crate::target_machines::PreparedProductProviders, Vec<Diagnostic>>,
@@ -210,7 +213,7 @@ pub fn settle_checked_providers(
     // separate by provider type and only the uniquely covering candidate may
     // rewrite adapter calls in the interpreter program.
     let prepared = prepared_providers?.attach_calling(
-        checked,
+        &calling_program,
         planning_target,
         &boundary_calling_plan_realizations,
     )?;
@@ -247,7 +250,8 @@ pub fn settle_checked_providers(
         provider_selection::ProviderApplicationDemand::Product(canonical_roots.as_deref()),
         &assumptions,
     )?;
-    let provider_declarations = canonical_selection.plans.clone();
+    let provider_declarations: std::sync::Arc<[backend_plan::TerminalTargetProviderPlan]> =
+        canonical_selection.plans.clone().into();
     let selected_provider_plans = choices;
     let direct_context = crate::provider_planning::external_binding_rows::ExternalBindingContext {
         calling_program: &calling_program,
@@ -280,10 +284,14 @@ pub fn settle_checked_providers(
     )?;
     // Only a selected implementation must keep its promise to exit. Report
     // its saved result here, after the same binding and cycle checks as before.
+    let mut selected_declarations = Vec::with_capacity(selected_provider_plans.len());
+    let mut selected_families = Vec::with_capacity(selected_provider_plans.len());
     let completed_providers = selected_provider_plans
         .into_iter()
         .map(|selected| {
             let review = selected.candidate.owner;
+            selected_declarations.push(review.declarations);
+            selected_families.push(review.families);
             Ok((
                 SelectedProviderReviewProvenance {
                     plan: selected.candidate.plan,
@@ -306,6 +314,12 @@ pub fn settle_checked_providers(
         .into_iter()
         .map(|(provider, _)| provider)
         .collect::<Vec<_>>();
+    let native_provider_sources = crate::native_provider_sources::attach_native_provider_sources(
+        &selected_provider_provenance,
+        selected_families,
+        std::sync::Arc::clone(&provider_declarations),
+    )
+    .map(std::sync::Arc::new);
     for assumption in prepared_assumptions.rows {
         assumption.validate_calling(&boundary_calling_plan_realizations)?;
     }
@@ -365,7 +379,7 @@ pub fn settle_checked_providers(
             calling_program,
             selected_provider_publication,
             boundary_provider_demands,
-            provider_declarations: provider_declarations.into(),
+            provider_declarations,
             provider_publication,
             planning_target_profile: planning_target,
             boundary_calling_plan_realizations,
@@ -386,5 +400,7 @@ pub fn settle_checked_providers(
         },
         selected_provider_plan_facts,
         selected_provider_provenance,
+        selected_declarations,
+        native_provider_sources,
     })
 }

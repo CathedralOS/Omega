@@ -223,21 +223,14 @@ impl ProductRequest {
                 },
             )))
         } else {
-            if realization
-                .custody
-                .execution
-                .provider_source
-                .program()
-                .facts
-                .proof_applications
-                .has_obligations
-            {
+            if realization.custody.execution.has_proof_obligations {
                 return Ok(CompilationWork::Terminal(TerminalCompilation::Checking(
                     checking::CheckingCompilation::new(realization, report, permissions),
                 )));
             }
+            let runtime_policy = std::sync::Arc::clone(&realization.runtime_policy);
             let checked = realization.finish_check()?;
-            admit_permissions(&checked, permissions.as_ref(), false)?;
+            admit_permissions(&checked, &runtime_policy, permissions.as_ref(), false)?;
             checked
                 .admit_trust()
                 .map_err(CompilationProductError::TrustAdmission)?;
@@ -297,11 +290,12 @@ impl RequestedTerminalCompilation {
         self,
         produced: TerminalApplication,
     ) -> Result<CompilationOutput, CompilationProductError> {
+        let runtime_policy = std::sync::Arc::clone(&self.realization.runtime_policy);
         let checked = self.realization.into_checked_compilation();
         phase_profile::scope(
             "omega.product.admit_permissions_and_trust",
             || -> Result<_, CompilationProductError> {
-                admit_permissions(&checked, self.permissions.as_ref(), true)?;
+                admit_permissions(&checked, &runtime_policy, self.permissions.as_ref(), true)?;
                 checked
                     .admit_trust()
                     .map_err(CompilationProductError::TrustAdmission)
@@ -309,8 +303,9 @@ impl RequestedTerminalCompilation {
         )?;
         // Product eligibility precedes application completion, as it did before
         // batching. Both production halves consume the same settled choices.
-        let product =
-            phase_profile::scope("omega.product.report_prepare", || self.report.prepare(&checked))?;
+        let product = phase_profile::scope("omega.product.report_prepare", || {
+            self.report.prepare(&checked)
+        })?;
         let report = match product {
             CheckedProductReport::Complete(_) => {
                 return Err(vec![Diagnostic::error(
@@ -334,11 +329,12 @@ impl RequestedTerminalCompilation {
                 request,
                 rollback,
             } => {
-                let terminal = phase_profile::scope("omega.product.finish_terminal_application", || {
-                    let request =
-                        checked.terminal_native_proposal_request(rollback.effective(), &[])?;
-                    produced.prepare(request)
-                })?;
+                let terminal =
+                    phase_profile::scope("omega.product.finish_terminal_application", || {
+                        let request =
+                            checked.terminal_native_proposal_request(rollback.effective(), &[])?;
+                        produced.prepare(request)
+                    })?;
                 let accepted_package_permissions =
                     native_inputs::accepted_terminal_authority_permission_policy(&checked)
                         .map_err(|diagnostics| CompilationProductError::ProductionAttempt {
@@ -368,6 +364,7 @@ impl RequestedTerminalCompilation {
 
 fn admit_permissions(
     checked: &CheckedCompilation,
+    declarations: &package_evidence::permission_acceptance::PreparedRuntimePolicy,
     permissions: Option<&TerminalPermissionAcceptance>,
     runtime_product: bool,
 ) -> Result<(), CompilationProductError> {
@@ -376,18 +373,17 @@ fn admit_permissions(
     // from the Build this compilation already evaluated. Writing `omega.lock`
     // here would accept one source graph as a side effect and leave every other
     // place of the same fact without consent.
+    let input = package_evidence::permission_acceptance::RuntimePermissionInput::from_compilation(
+        declarations,
+        checked,
+    );
     let evaluated_rows = if runtime_product
         && permissions.is_none()
         && checked.sources().package_identity().is_some()
-        && !checked
-            .execution()
-            .provider_source
-            .plans()
-            .assumed_bindings()
-            .is_empty()
+        && !checked.execution().plans().assumed_bindings().is_empty()
     {
         Some(
-            TerminalPermissionAcceptance::from_public_build(checked)
+            TerminalPermissionAcceptance::from_public_build(&input)
                 .map_err(CompilationProductError::TrustAdmission)?,
         )
     } else {
@@ -396,7 +392,7 @@ fn admit_permissions(
     let permissions = evaluated_rows.as_ref().or(permissions);
     if let Some(permissions) = permissions {
         permissions
-            .validate(checked)
+            .validate(&input)
             .map_err(CompilationProductError::TrustAdmission)?;
     }
     Ok(())

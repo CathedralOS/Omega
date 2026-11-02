@@ -28,7 +28,7 @@ fn produce(project: &str, entries: &[&str]) -> Vec<psi_compiler::ProducedTermina
         .iter()
         .map(|entry| {
             psi_compiler::TerminalProductionRequest::new(
-                checked.execution().provider_source.program(),
+                checked.source_inspection().program(),
                 psi_compiler::TerminalMachineSelection::Name(entry),
                 checked.sources().exact_toolchain_sources(),
             )

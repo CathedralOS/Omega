@@ -469,12 +469,12 @@ foundations, product reports and publication keep independent ownership.
 | --- | --- |
 | `omega/application/cli/src/main.rs` | Parse, route to the command's owner, display outcomes |
 | `omega/compilation/build/src/build.rs` | Request admission, Build lifecycle, requested products, required tests and publication |
-| `omega/compilation/build/src/build_execution.rs` | Dependency jobs and Build activation readiness; mandatory final join |
-| `omega/compilation/build/src/source_compilation.rs` | One-shot source consumers: prepare an opaque compiler invocation, execute Build, complete the requested products |
+| `omega/compilation/build/src/compile/build_execution.rs` | Dependency jobs and Build activation readiness; mandatory final join |
+| `omega/compilation/build/src/compile/source_compilation.rs` | One-shot source consumers: prepare an opaque compiler invocation, execute Build, complete the requested products |
 | `omega/compilation/build/src/build_session.rs` | Invocation compiler lifetime beside independently package-owned staging and aggregate sponsors |
-| `omega/compilation/build/src/package_commands.rs` | Admitted install/update target-review work; complete findings returned to package-owned publication |
-| `omega/compilation/build/src/package_review.rs` | Admitted review dependency passes, compiler calls and suspended-Build cache recovery, shared with audit |
-| `omega/compilation/build/src/package_inspection.rs` | Read-only audit session lifetime and ordered target execution; package-owned pinned resolution and reporting |
+| `omega/compilation/build/src/package/package_commands.rs` | Admitted install/update target-review work; complete findings returned to package-owned publication |
+| `omega/compilation/build/src/package/package_review.rs` | Admitted review dependency passes, compiler calls and suspended-Build cache recovery, shared with audit |
+| `omega/compilation/build/src/package/package_inspection.rs` | Read-only audit session lifetime and ordered target execution; package-owned pinned resolution and reporting |
 | `psi/compilation/psi-compiler/src/compiler.rs` | Source processing and checking through Terminal Psi |
 | `omega/compilation/compiler/src/compiler.rs` | Terminal plus explicit realization inputs through native emission |
 | Terminal interpreter entrance | Load or borrow code, execute, suspend, install admitted bindings, resume |
@@ -769,7 +769,7 @@ Native preparation first determines the work and scalar demand for the root and
 its components. The application completes that demand; native compilation consumes
 the same preparation and completed inputs. Native production has no interpreter
 dependency or evaluator callback, and cannot silently recompute a missing value.
-`compilation/build/src/native_completion.rs` owns this lifecycle for standalone
+`compilation/build/src/compile/native_completion.rs` owns this lifecycle for standalone
 and package products. Source compilation transfers an owned `PendingNativeProduct`
 after admission and Terminal preparation, releasing its checked source. The shared
 `build-evaluation` scalar operation also serves descriptive Check, inspection and
@@ -1095,7 +1095,7 @@ the exact application's existing body span supplies its executable alternatives.
 `omega/compilation/compiler/` owns only compilation orchestration.
 [`omega/compilation/native-production/`](omega/compilation/native-production/README.md)
 owns the source-free Terminal-to-image sequence. Its entry is
-`compiler.rs`; `pipeline.rs` owns shared abstract-to-object sequencing for
+`compile.rs`; `pipeline.rs` owns shared abstract-to-object sequencing for
 application entries, callbacks and component exports. Realization captures runtime provisions before the
 abstract, target and physical stages produce the image. Those provisions belong
 to `native-artifact`, not the source compilation products. Provider evidence

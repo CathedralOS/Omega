@@ -19,7 +19,6 @@ use crate::checks::multiplicity::linear_obligations::{
 };
 use crate::checks::multiplicity::linear_validation::linear_claim_frontier;
 use crate::shared::collections::push_unique;
-use crate::shared::collections::unique_in_order;
 use checked_trees::{
     CheckFacts, FlowClaimJoinAlternative, FlowClaimJoinAlternativeSource, FlowClaimJoinExit,
     FlowClaimJoinExitKind, FlowClaimJoinReceipt, FlowClaimOutcomeSource, FlowOwnershipFacts,
@@ -50,11 +49,6 @@ struct ExitFrontier {
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum JoinedOccurrence {
-    Call {
-        state: SymbolHandle,
-        statement: usize,
-        ordinal: usize,
-    },
     Storage {
         state: SymbolHandle,
         statement: usize,
@@ -341,8 +335,9 @@ fn known_source(source: &CheckedClaimOutcomeSource) -> bool {
     }
 }
 
-/// No exit may disappear through filter_map. Missing facts, unknown sources,
-/// and recursive expansion all make the complete correspondence unavailable.
+/// No exit may disappear through filter_map. Missing facts and unknown sources
+/// make the complete correspondence unavailable. Completed call results stay
+/// local edges; only named jumps without a returned capture expand here.
 #[allow(clippy::too_many_arguments)]
 fn state_frontiers(
     program: &dyn ::validation::CheckingInput,
@@ -738,9 +733,8 @@ fn bound_sources_at_call(
     }
 }
 
-/// A wrapper cannot reuse its callee's local joined occurrence as a global
-/// resource id. Reconstruct the producing call and substitute its complete
-/// alternatives together, preserving correlations between returned fields.
+/// Expand local storage choices while preserving completed calls as edges.
+/// A receiving identity is local to its invocation, never a global resource id.
 #[allow(clippy::too_many_arguments)]
 fn expand_joined_frontier(
     program: &dyn ::validation::CheckingInput,
@@ -799,220 +793,14 @@ fn expand_joined_frontier(
     }) {
         return None;
     }
-    let joined = frontier
-        .entries
-        .iter()
-        .find_map(|entry| match entry.source {
-            CheckedClaimOutcomeSource::Established {
-                provenance:
-                    PermissionProvenance::Joined {
-                        machine_symbol,
-                        state_symbol,
-                        source:
-                            PermissionEventSource::Call {
-                                statement_index,
-                                call_ordinal,
-                                target_symbol,
-                            },
-                        ..
-                    },
-                ..
-            } => Some((
-                machine_symbol,
-                state_symbol,
-                statement_index,
-                call_ordinal,
-                target_symbol,
-            )),
-            _ => None,
-        });
-    let Some((machine, owner, statement, ordinal, target_symbol)) = joined else {
-        return Some(vec![frontier]);
-    };
-    if owner != state.symbol {
-        return None;
-    }
-    let invocation = JoinedOccurrence::Call {
-        state: owner,
-        statement,
-        ordinal,
-    };
-    if visited.contains(&invocation) {
-        return None;
-    }
-    let mut visited = visited.to_vec();
-    visited.push(invocation);
-    let validation::CallSite::Expression {
-        call,
-        expression: call_expression,
-        ..
-    } = validation::find_call_site(program, machine, owner, statement, ordinal)?
-    else {
-        return None;
-    };
-    if validation::call_target_entry_symbol(program, validation::call_target_symbol(program, call))
-        != target_symbol
-    {
-        return None;
-    }
-    let target = validation::call_target_state(program, target_symbol)?;
-    let joined_identity = frontier
-        .entries
-        .iter()
-        .find_map(|entry| match entry.source {
-            CheckedClaimOutcomeSource::Established {
-                claim_identity,
-                provenance: PermissionProvenance::Joined { .. },
-            } => Some(claim_identity),
-            _ => None,
-        })?;
-    // A completed child can establish the same claim at successive
-    // receiving homes. Those rows still name one call occurrence and
-    // result path; distinct result paths remain ambiguous.
-    let origins = unique_in_order(
-        events
-            .iter()
-            .filter(|event| {
-                event.kind == PermissionEventKind::Establish
-                    && event.state_symbol == owner
-                    && event.claim_identity == joined_identity
-            })
-            .filter_map(|event| {
-                let (at, expression, path) =
-                    super::receiving_value(program, &ownership.segments, event)?;
-                (at == statement && expression == call_expression).then_some(path)
-            }),
-    );
-    let [requested] = origins.as_slice() else {
-        return None;
-    };
-    let children = state_frontiers(
-        program,
-        facts,
-        target,
-        events,
-        maps,
-        active,
-        requested,
-        diagnostics,
-    )?;
-    let mut expanded = Vec::new();
-    for child in children {
-        let mut next = frontier.clone();
-        next.exits.push(FlowClaimJoinExit {
-            state_symbol: owner,
-            statement_index: statement,
-            kind: FlowClaimJoinExitKind::CallResult {
-                call_ordinal: ordinal,
-            },
-        });
-        next.exits.extend(child.exits);
-        next.captures.extend(child.captures);
-        if next.excluded_input.is_none() {
-            next.excluded_input = child.excluded_input;
-        }
-        // This operation queries one exact result claim path. Its receiving
-        // identity stays distinct from the source lineage being substituted.
-        let position = next.entries.iter().position(|entry| matches!(entry.source,
-            CheckedClaimOutcomeSource::Established { claim_identity, .. } if claim_identity == joined_identity))?;
-        let output_path = next.entries[position].output_path.clone();
-        if child
-            .inactive_paths
-            .iter()
-            .any(|inactive| inactive == requested)
-        {
-            next.entries.remove(position);
-            next.inactive_paths.push(output_path);
-            expanded.push(next);
-            continue;
-        }
-        let mut matching = child
-            .entries
-            .iter()
-            .filter(|entry| entry.output_path == *requested);
-        let source = &matching.next()?.source;
-        if matching.next().is_some() {
-            return None;
-        }
-        let bound_sources = match bound_sources_at_call(
-            program,
-            facts,
-            machine,
-            state,
-            statement,
-            ordinal,
-            call_expression,
-            call,
-            target,
-            source,
-            events,
-        ) {
-            Ok(sources) => sources,
-            Err(reason) => {
-                diagnostics.record_binding(
-                    FlowClaimJoinExit {
-                        state_symbol: owner,
-                        statement_index: statement,
-                        kind: FlowClaimJoinExitKind::CallResult {
-                            call_ordinal: ordinal,
-                        },
-                    },
-                    reason,
-                    source,
-                );
-                return None;
-            }
-        };
-        for bound in bound_sources {
-            let mut next = next.clone();
-            next.captures.extend(bound.captures);
-            if next.excluded_input.is_none() {
-                next.excluded_input = bound.excluded_input;
-            }
-            if let Some(mut bound) = bound.source {
-                // A callee-local origin is an explanation, not a replacement
-                // for this exact caller result occurrence's resource name.
-                if matches!(source, CheckedClaimOutcomeSource::Established { .. })
-                    && let CheckedClaimOutcomeSource::Established { claim_identity, .. } =
-                        &mut bound
-                {
-                    *claim_identity = joined_identity;
-                }
-                if matches!(bound, CheckedClaimOutcomeSource::Established { provenance:
-                    PermissionProvenance::Joined { machine_symbol: rebound_machine, state_symbol: rebound_state,
-                        source: PermissionEventSource::Call { statement_index: rebound_statement, call_ordinal: rebound_ordinal, .. }, .. }, .. }
-                    if (rebound_machine, rebound_state, rebound_statement, rebound_ordinal) == (machine, owner, statement, ordinal))
-                {
-                    return None;
-                }
-                next.entries[position].source = bound;
-            } else {
-                next.entries.remove(position);
-                next.inactive_paths.push(output_path.clone());
-            }
-            if !complete_frontier(
-                program,
-                state.return_type,
-                &next.path,
-                &next.entries,
-                &next.inactive_paths,
-            ) {
-                return None;
-            }
-            expanded.extend(expand_joined_frontier(
-                program,
-                facts,
-                state,
-                events,
-                maps,
-                active,
-                &visited,
-                next,
-                diagnostics,
-            )?);
-        }
-    }
-    Some(expanded)
+    // A completed call is a custody edge, not an instruction to inline its
+    // entire return history. Keep its machine-local receiving identity here;
+    // validate_call_claim_joins checks that exact occurrence's own receipt.
+    // Every actual return and every call argument still checks independently.
+    // This closes recursive call graphs by induction on completed calls,
+    // without claiming an invariant input lineage or inventing an authority
+    // for a call that has not completed. Content ancestry is a separate check.
+    Some(vec![frontier])
 }
 
 pub(super) fn complete_whole_frontier(
@@ -1527,7 +1315,8 @@ pub(crate) fn publish_call_claim_joins(
         .iter()
         .map(|(_, event)| event.clone())
         .collect::<Vec<_>>();
-    // Earlier call joins can feed later calls, but no receipt cites itself.
+    // Publish exact receiving identities throughout the finite call graph.
+    // Recursive edges are conditional on completion, not new lineage roots.
     let mut converged = false;
     for _ in 0..=events.len() {
         let receipts = derive_receipts(program, facts, &events, None)?;

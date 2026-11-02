@@ -491,6 +491,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
         machine.symbol,
         state.symbol,
         structural_result.as_ref(),
+        scalar_control.as_ref(),
         &structural_results,
         &mut operations,
         trace,

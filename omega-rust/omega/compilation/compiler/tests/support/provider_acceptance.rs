@@ -116,7 +116,6 @@ fn accept(
 ) -> Result<AcceptedSemanticBinding, Vec<Diagnostic>> {
     let candidates = checked
         .execution()
-        .provider_source
         .plans()
         .plans()
         .iter()

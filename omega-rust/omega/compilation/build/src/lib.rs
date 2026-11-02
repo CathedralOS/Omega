@@ -5,11 +5,14 @@
 //! `build.rs` owns output admission, project preparation, product requests and
 //! publication. Project compilation admits a package batch, invokes the compiler,
 //! and returns its outcomes to package-owned identity reconciliation and disposal.
-//! `build_execution.rs` schedules dependency Builds, joins generated source and
-//! waits for demanded components before their consumers. `package_commands.rs`
+//! The flows group by subject: `project/` for one project's products and
+//! publication, `package/` for package commands and Builds, and `compile/` for
+//! the calls around the compiler.
+//! `compile/build_execution.rs` schedules dependency Builds, joins generated source and
+//! waits for demanded components before their consumers. `package/package_commands.rs`
 //! schedules admitted target reviews before package-owned publication. The
 //! review dependency loop and audit target/session lifecycle also live here.
-//! `build_execution/source_resolution.rs` drives actual source requests while
+//! `compile/build_execution/source_resolution.rs` drives actual source requests while
 //! retaining returned invocations, sharing execution with compilation/review.
 //! `build_session.rs` retains the compiler alongside package-owned resources
 //! across those operations; package policy borrows execution, not a compiler.
@@ -20,33 +23,26 @@
 //! named checked Terminal implementation, and resume the original activation.
 
 mod build;
-mod build_directory;
-mod build_execution;
 mod build_session;
-mod native_completion;
-pub use native_completion::complete_product;
-mod package_commands;
-mod package_compilation;
-mod package_inspection;
-mod package_review;
-mod products;
-mod project_compilation;
-mod source_compilation;
-pub use source_compilation::{check_source, compile_sources, produce_source};
-pub mod publication;
+mod compile;
+mod package;
+mod project;
+pub use compile::native_completion::complete_product;
+pub use compile::source_compilation::{check_source, compile_sources, produce_source};
+pub use project::publication;
 
 #[cfg(test)]
 mod build_boundary;
 
 pub use build::build;
-pub use build_execution::source_resolution::{
+pub use build_session::BuildSession;
+pub use compile::build_execution::source_resolution::{
     ProjectSourceRequest, ProjectSourceResolutionError, ResolvedPackageBuild,
     ResolvedProjectBuilds, resolve_project_sources,
 };
-pub use build_session::BuildSession;
-pub use package_commands::execute_package_command;
-pub use package_compilation::{compile_packages, prepare_package};
-pub use package_inspection::inspect_packages;
+pub use package::package_commands::execute_package_command;
+pub use package::package_compilation::{compile_packages, prepare_package};
+pub use package::package_inspection::inspect_packages;
 
 use artifacts::compile_timings::CompileTimings;
 use compiler::{CompileReport, OptimizationRollback};

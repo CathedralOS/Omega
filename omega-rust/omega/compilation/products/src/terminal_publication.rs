@@ -78,6 +78,25 @@ impl ProductTerminalPublication {
         self.program.get()?.as_ref().ok().map(Arc::as_ref)
     }
 
+    /// Read the shared program after publication. Target compilation cannot
+    /// invoke a source producer or retry a saved failure through this method.
+    pub fn require_published(
+        &self,
+        optimizations: &OptimizationSelections,
+    ) -> Result<Arc<PortableTerminalProgram>, Vec<Diagnostic>> {
+        if self.optimizations.project_psi().selections() != optimizations.project_psi().selections()
+        {
+            return Err(vec![Diagnostic::error(
+                "Terminal publication differs from the Product's fixed Psi optimization selection",
+            )]);
+        }
+        self.program.get().cloned().ok_or_else(|| {
+            vec![Diagnostic::error(
+                "target compilation requires the shared Terminal program to be published first",
+            )]
+        })?
+    }
+
     /// Retain one exact Psi projection. Post-Terminal choices do not change
     /// portable code; a different Psi projection must belong to another source
     /// product, never silently replace this publication or borrow stale code.

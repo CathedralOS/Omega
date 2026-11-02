@@ -7,9 +7,7 @@
 
 use super::{CompilationOutput, CompilationProductError};
 use crate::execution_settlement::SelectedProductTarget;
-use crate::terminal::{
-    ProducedTerminalProduct, TerminalProductRequest, TerminalProductUse, TerminalProductionView,
-};
+use crate::terminal::{ProducedTerminalProduct, TerminalProductRequest};
 use diagnostics::Diagnostic;
 use optimization_core::OptimizationSelections;
 
@@ -29,11 +27,11 @@ impl InspectionCompilation {
     }
 
     pub(crate) fn terminal_request(&mut self) -> TerminalProductRequest<'_> {
-        TerminalProductRequest {
-            view: TerminalProductionView::selection(&mut self.realization.custody, None),
-            selections: &self.selections,
-            use_kind: TerminalProductUse::Inspection(&self.machine),
-        }
+        TerminalProductRequest::inspection(
+            &mut self.realization.custody,
+            &self.machine,
+            &self.selections,
+        )
     }
 
     pub(crate) fn finish(
@@ -41,16 +39,7 @@ impl InspectionCompilation {
         produced: ProducedTerminalProduct,
     ) -> Result<CompilationOutput, CompilationProductError> {
         let completed = (|| {
-            if self
-                .realization
-                .custody
-                .execution
-                .provider_source
-                .program()
-                .facts
-                .proof_applications
-                .has_obligations
-            {
+            if self.realization.custody.execution.has_proof_obligations {
                 produced.check_conditions(&mut self.realization.custody)?;
             }
             self.realization

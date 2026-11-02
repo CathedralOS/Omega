@@ -82,7 +82,6 @@ pub fn required_dangerous_services(
     let mut console = ConsoleUse::default();
     for (plan, provenance) in checked
         .execution()
-        .provider_source
         .plans()
         .plans()
         .iter()

@@ -219,7 +219,7 @@ fn assert_calling_review_outlives_source(
             .result
             .expect("source and original calling policies check");
         let execution = checked.execution();
-        let source = execution.provider_source.program();
+        let source = checked.source_inspection().program();
         let target = execution.selected_target_profile.expect("fixture target");
         let substituted = provider_planning::calling_policy_plans::prepare_boundary_calling_plans(
             target,
@@ -542,7 +542,7 @@ fn late_application_attachment_outlives_source_and_preserves_recovered_attributi
         let checked = omega_build::check_source(&mut CompilationSession::default(), request)
             .result
             .expect("source checks");
-        let source = checked.execution().provider_source.program();
+        let source = checked.source_inspection().program();
         let source_owner = std::sync::Arc::downgrade(source);
         let sources = checked.sources().exact_toolchain_sources();
         let signature = checked
@@ -649,8 +649,7 @@ fn executed_values_keep_helper_identity_and_omit_untaken_exclusions() {
     assert_eq!(grants[0].selector, "AcceptedService");
     assert_eq!(
         checked
-            .execution()
-            .provider_source
+            .source_inspection()
             .program()
             .symbols
             .name(grants[0].selecting_machine),
@@ -666,8 +665,7 @@ fn executed_values_keep_helper_identity_and_omit_untaken_exclusions() {
     );
     assert!(rows.iter().all(|row| {
         checked
-            .execution()
-            .provider_source
+            .source_inspection()
             .program()
             .typed
             .symbols
@@ -731,7 +729,7 @@ fn exclusion_tickets_reject_foreign_receivers_and_replay(checked: &compiler::Che
         TerminalStructuralValue,
     };
     let produced = psi_compiler::TerminalProductionRequest::new(
-        checked.execution().provider_source.program(),
+        checked.source_inspection().program(),
         psi_compiler::TerminalMachineSelection::Name("build"),
         checked.sources().exact_toolchain_sources(),
     )

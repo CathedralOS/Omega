@@ -10,7 +10,7 @@ use super::super::super::behavior::{
 use super::super::super::contracts::facts::{ContractProjectionContext, project_contracts};
 use super::super::declarations::{nominal_identity, trait_requirement_identity};
 use super::super::types::project_data_properties;
-use crate::capture::PackageReviewInput;
+use crate::capture::SourceDeclarationInput;
 use crate::record::{
     PackageReviewCrashRoute, PackageReviewMachineParameterContract,
     PackageReviewMachineParameterSignature, PackageReviewPropositionParameterSignature,
@@ -46,7 +46,7 @@ impl Projection<'_> {
     fn value_type(
         self,
         typed: &dyn ::validation::CheckingInput,
-        compilation: &PackageReviewInput<'_>,
+        compilation: &SourceDeclarationInput<'_>,
         reference: typed_trees::types::TypeReferenceHandle,
         binders: &[(SymbolHandle, String)],
         lifetimes: &[typed_trees::name::Identifier],
@@ -54,7 +54,7 @@ impl Projection<'_> {
         super::super::types::signature_type_identity(
             compilation,
             typed,
-            compilation.custody.sources().exact_toolchain_sources(),
+            compilation.exact_toolchain_sources,
             reference,
             binders,
             lifetimes,
@@ -82,7 +82,7 @@ pub(crate) fn identity_lifetime_substitutions(
 /// requirements, and operator operands spell the same reviewed value parameter;
 /// only the checked list and its lifetime telescope differ per owner.
 pub(crate) fn project_signature_parameters(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     parameters: &[typed_trees::signature::StateParameter],
     binders: &[(SymbolHandle, String)],
     lifetime_binders: &[typed_trees::name::Identifier],
@@ -106,7 +106,7 @@ pub(crate) fn project_signature_parameters(
 }
 
 pub(crate) fn project_type_parameters(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     parameters: &[typed_trees::data::TypeParameter],
     declaration_kind: &str,
     declaration_path: &str,
@@ -125,7 +125,7 @@ pub(crate) fn project_type_parameters(
 }
 
 pub(crate) fn project_type_parameters_after(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     parameters: &[typed_trees::data::TypeParameter],
     declaration_kind: &str,
     declaration_path: &str,
@@ -157,7 +157,7 @@ pub(crate) fn project_type_parameters_after(
 #[allow(clippy::too_many_arguments)]
 fn project_type_parameters_inner(
     typed: &dyn ::validation::CheckingInput,
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     parameters: &[typed_trees::data::TypeParameter],
     declaration_kind: &str,
     declaration_path: &str,
@@ -250,7 +250,7 @@ fn project_type_parameters_inner(
 #[allow(clippy::too_many_arguments)]
 fn project_machine_parameter_contract_inner(
     typed: &dyn ::validation::CheckingInput,
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     parameter_symbol: SymbolHandle,
     contract: &typed_trees::data::MachineParameterContract,
     declaration_kind: &str,
@@ -472,7 +472,7 @@ fn project_machine_parameter_contract_inner(
 }
 
 pub(crate) fn project_signature_crash_routes(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     target_machine: SymbolHandle,
     target_state: SymbolHandle,
     subject_kind: &str,

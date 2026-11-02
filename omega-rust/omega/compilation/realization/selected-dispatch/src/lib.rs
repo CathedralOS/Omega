@@ -25,7 +25,9 @@ pub(crate) use intrinsic_review::{
     ResolvedAcceptedSemanticBinding, resolve_accepted_service_binding,
     retain_selected_compiler_intrinsic_review_identities,
 };
-pub use provider_binding::{ProviderBindingRequest, prepare_selected_execution};
+pub use provider_binding::{
+    PreparedBindingDeclarations, ProviderBindingRequest, prepare_selected_execution,
+};
 pub use selected_execution::SelectedExecution;
 
 pub use selected_dispatch::derive_selected_primitive_float_binary_execution;

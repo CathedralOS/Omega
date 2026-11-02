@@ -81,3 +81,114 @@ pub enum CheckedScalarBranchDestination {
         is_continuation: bool,
     },
 }
+
+/// A returning branch can use a local before cleanup may release it. Keep
+/// that branch's evaluated guards and final value together during planning.
+/// Guarded prefixes borrow the retained roster rather than copying it per arm.
+pub struct ScalarReturnPath<'a> {
+    pub destination: CheckedScalarBranchDestination,
+    guarded_prefix: &'a [CheckedScalarGuardedExit],
+    conditional_guard: Option<u32>,
+}
+
+impl ScalarReturnPath<'_> {
+    pub fn guard_ordinals(&self) -> impl Iterator<Item = u32> + '_ {
+        self.conditional_guard.into_iter().chain(
+            self.guarded_prefix
+                .iter()
+                .map(|arm| arm.guard_statement_ordinal),
+        )
+    }
+}
+
+impl CheckedGuardedExitPlans {
+    pub fn returning_exits(
+        &self,
+        arms: arena::HandleSpan<CheckedScalarGuardedExit>,
+        fallback: Option<&CheckedScalarBranchDestination>,
+    ) -> Result<&[CheckedScalarGuardedExit], &'static str> {
+        let arms = self
+            .exits
+            .span(arms)
+            .ok_or("ordered scalar guard roster is stale")?;
+        if arms.is_empty() {
+            return Err("ordered scalar guard roster is empty");
+        }
+        if arms
+            .iter()
+            .map(|arm| &arm.destination)
+            .chain(fallback)
+            .any(|destination| {
+                !matches!(
+                    destination,
+                    CheckedScalarBranchDestination::Return {
+                        is_continuation: false,
+                        ..
+                    }
+                )
+            })
+        {
+            return Err("ordered scalar exit transfers or crashes instead of returning");
+        }
+        Ok(arms)
+    }
+}
+
+impl CheckedScalarStateTerminator {
+    /// Follow the control plan's returning branches in execution order.
+    /// Authored cleanup rows may also name unreachable suffixes; this roster
+    /// comes from executable control and preserves each guard's evaluation.
+    pub fn returning_paths<'a>(
+        &self,
+        guarded: &'a CheckedGuardedExitPlans,
+    ) -> Result<Vec<ScalarReturnPath<'a>>, &'static str> {
+        let paths = match self {
+            Self::Return { statement_ordinal } => vec![ScalarReturnPath {
+                destination: CheckedScalarBranchDestination::Return {
+                    statement_ordinal: *statement_ordinal,
+                    is_continuation: false,
+                },
+                guarded_prefix: &[],
+                conditional_guard: None,
+            }],
+            Self::Conditional {
+                guard_statement_ordinal,
+                when_true,
+                when_false,
+            } => [when_true, when_false]
+                .into_iter()
+                .map(|destination| ScalarReturnPath {
+                    destination: destination.clone(),
+                    guarded_prefix: &[],
+                    conditional_guard: Some(*guard_statement_ordinal),
+                })
+                .collect(),
+            Self::Guarded { arms, fallback } => {
+                let arms = guarded.returning_exits(*arms, fallback.as_ref())?;
+                arms.iter()
+                    .enumerate()
+                    .map(|(index, arm)| ScalarReturnPath {
+                        destination: arm.destination.clone(),
+                        guarded_prefix: &arms[..=index],
+                        conditional_guard: None,
+                    })
+                    .chain(fallback.iter().map(|destination| ScalarReturnPath {
+                        destination: destination.clone(),
+                        guarded_prefix: arms,
+                        conditional_guard: None,
+                    }))
+                    .collect()
+            }
+            _ => return Err("scalar completion has no normal return destination"),
+        };
+        if paths.iter().any(|path| {
+            !matches!(
+                path.destination,
+                CheckedScalarBranchDestination::Return { .. }
+            )
+        }) {
+            return Err("scalar completion has a nonreturning destination");
+        }
+        Ok(paths)
+    }
+}
