@@ -11,6 +11,7 @@ data Reading [copy] {
     #7 case Empty;
 }
 data ExpectedPayload { value: u64 in PayloadValue; }
+data ExpectedPlain { value: u64; }
 data Envelope [copy] { left: u64; graph: reflect::TypeSchema; right: u64; }
 
 machine describe_here<T>() -> reflect::TypeSchema { reflect::schema<T>() }
@@ -39,11 +40,18 @@ machine require_true(value: bool) crashes Trap {
     machine bad() { crash Trap; }
 }
 
-machine inspect(graph: &reflect::TypeSchema) crashes Trap {
-    let root: reflect::SchemaNode = reflect::TypeSchema::root(graph);
-    let fields: reflect::SchemaMembers = reflect::TypeSchema::fields(graph);
-    let cases: reflect::SchemaMembers = reflect::TypeSchema::cases(graph);
-    let members: reflect::SchemaMembers = reflect::SchemaNode::members(&root);
+machine check_qualification<'graph, 'expected>(payload: &reflect::SchemaNode<'graph>, expected_graph: &'expected reflect::TypeSchema, same: bool) crashes Trap {
+    let expected_fields: reflect::SchemaMembers<'expected> = reflect::TypeSchema::fields(expected_graph);
+    let expected: reflect::SchemaNode<'expected> = reflect::SchemaMembers::get(&expected_fields, 0u64);
+    let observed: bool = equal_bytes(reflect::SchemaNode::qualified_type(payload), reflect::SchemaNode::qualified_type(&expected));
+    require_true(observed == same);
+}
+
+machine inspect<'graph>(graph: &'graph reflect::TypeSchema) crashes Trap {
+    let root: reflect::SchemaNode<'graph> = reflect::TypeSchema::root(graph);
+    let fields: reflect::SchemaMembers<'graph> = reflect::TypeSchema::fields(graph);
+    let cases: reflect::SchemaMembers<'graph> = reflect::TypeSchema::cases(graph);
+    let members: reflect::SchemaMembers<'graph> = reflect::SchemaNode::members(&root);
     require_true(reflect::SchemaNode::role(&root) == 1u64);
     require_true(reflect::SchemaNode::shape(&root) == 3u64);
     require_true(reflect::SchemaNode::identity_is_hermetic(&root));
@@ -51,10 +59,10 @@ machine inspect(graph: &reflect::TypeSchema) crashes Trap {
     require_true(reflect::SchemaMembers::count(&members) == 4u64);
     require_true(reflect::SchemaMembers::count(&fields) == 2u64);
     require_true(reflect::SchemaMembers::count(&cases) == 2u64);
-    let header: reflect::SchemaNode = reflect::SchemaMembers::get(&fields, 0u64);
-    let sequence: reflect::SchemaNode = reflect::SchemaMembers::get(&fields, 1u64);
-    let sample: reflect::SchemaNode = reflect::SchemaMembers::get(&cases, 0u64);
-    let empty: reflect::SchemaNode = reflect::SchemaMembers::get(&cases, 1u64);
+    let header: reflect::SchemaNode<'graph> = reflect::SchemaMembers::get(&fields, 0u64);
+    let sequence: reflect::SchemaNode<'graph> = reflect::SchemaMembers::get(&fields, 1u64);
+    let sample: reflect::SchemaNode<'graph> = reflect::SchemaMembers::get(&cases, 0u64);
+    let empty: reflect::SchemaNode<'graph> = reflect::SchemaMembers::get(&cases, 1u64);
     require_true(equal_bytes(reflect::SchemaNode::name(&header), "header"));
     require_true(equal_bytes(reflect::SchemaNode::name(&sequence), "sequence"));
     require_true(equal_bytes(reflect::SchemaNode::name(&sample), "Sample"));
@@ -71,13 +79,13 @@ machine inspect(graph: &reflect::TypeSchema) crashes Trap {
     require_true(reflect::SchemaNode::stable_number(&sequence) == 3u64);
     require_true(reflect::SchemaNode::stable_number(&sample) == 90u64);
     require_true(reflect::SchemaNode::stable_number(&empty) == 7u64);
-    let payloads: reflect::SchemaMembers = reflect::SchemaNode::members(&sample);
-    let none: reflect::SchemaMembers = reflect::SchemaNode::members(&empty);
+    let payloads: reflect::SchemaMembers<'graph> = reflect::SchemaNode::members(&sample);
+    let none: reflect::SchemaMembers<'graph> = reflect::SchemaNode::members(&empty);
     require_true(reflect::SchemaMembers::count(&payloads) == 1u64);
     require_true(reflect::SchemaMembers::count(&none) == 0u64);
-    let payload: reflect::SchemaNode = reflect::SchemaMembers::get(&payloads, 0u64);
-    let owner: reflect::SchemaNode = reflect::SchemaNode::owner_case(&payload);
-    let common_owner: reflect::SchemaNode = reflect::SchemaNode::owner_case(&header);
+    let payload: reflect::SchemaNode<'graph> = reflect::SchemaMembers::get(&payloads, 0u64);
+    let owner: reflect::SchemaNode<'graph> = reflect::SchemaNode::owner_case(&payload);
+    let common_owner: reflect::SchemaNode<'graph> = reflect::SchemaNode::owner_case(&header);
     require_true(reflect::SchemaNode::role(&common_owner) == 0u64);
     require_true(equal_bytes(reflect::SchemaNode::identity(&owner), reflect::SchemaNode::identity(&sample)));
     require_true(equal_bytes(reflect::SchemaNode::name(&payload), "value"));
@@ -90,10 +98,10 @@ machine inspect(graph: &reflect::TypeSchema) crashes Trap {
     // runtime oracle for the complete qualified type, without guessing its
     // package identity or parsing a display name into authority.
     let expected_graph: reflect::TypeSchema = reflect::schema<ExpectedPayload>();
-    let expected_fields: reflect::SchemaMembers = reflect::TypeSchema::fields(&expected_graph);
-    let expected: reflect::SchemaNode = reflect::SchemaMembers::get(&expected_fields, 0u64);
-    require_true(equal_bytes(reflect::SchemaNode::qualified_type(&payload), reflect::SchemaNode::qualified_type(&expected)));
-    let invalid: reflect::SchemaNode = reflect::TypeSchema::node(graph, 18446744073709551615u64);
+    check_qualification(&payload, &expected_graph, true);
+    let plain_graph: reflect::TypeSchema = reflect::schema<ExpectedPlain>();
+    check_qualification(&payload, &plain_graph, false);
+    let invalid: reflect::SchemaNode<'graph> = reflect::TypeSchema::node(graph, 18446744073709551615u64);
     require_true(reflect::SchemaNode::role(&invalid) == 0u64);
 }
 machine consume(selected: reflect::TypeSchema) crashes Trap { inspect(&selected); }
