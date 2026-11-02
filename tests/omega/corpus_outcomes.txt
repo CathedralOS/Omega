@@ -673,7 +673,7 @@ fail/facts/foreign_byte_array_element_backing_through_local_rejected rejected 24
 	statement 2 mutates `text[0]` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
 fail/facts/foreign_byte_array_element_backing_through_match_join_rejected rejected 24580ms expected @3db1f7baaded+wt
 	statement 3 mutates `text[0]` while local borrow `selected` is still active (borrowed at statement 2; its last use is at statement 4)
-fail/facts/foreign_byte_array_element_backing_through_other_machine_rejected rejected 23675ms expected @3db1f7baaded+wt
+fail/facts/foreign_byte_array_element_backing_through_other_machine_rejected rejected 5201ms expected @851c0a22af77+wt
 	statement 2 mutates `text[0]` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
 fail/facts/foreign_byte_array_element_backing_through_other_state_rejected rejected 17486ms expected @3db1f7baaded+wt
 	statement 2 mutates `text[0]` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3)
@@ -6875,7 +6875,7 @@ pass/facts/foreign_byte_array_element_backing_through_const_name_exit checked 22
 pass/facts/foreign_byte_array_element_backing_through_field_exit checked 46404ms check-target:macos_arm64 @3db1f7baaded+wt
 pass/facts/foreign_byte_array_element_backing_through_local_exit checked 31128ms check-target:macos_arm64 @3db1f7baaded+wt
 pass/facts/foreign_byte_array_element_backing_through_match_join_exit checked 40516ms check-target:macos_arm64 @3db1f7baaded+wt
-pass/facts/foreign_byte_array_element_backing_through_other_machine_exit checked 43279ms check-target:macos_arm64 @3db1f7baaded+wt
+pass/facts/foreign_byte_array_element_backing_through_other_machine_exit checked 7097ms check-target:macos_arm64 @851c0a22af77+wt
 pass/facts/foreign_byte_array_element_backing_through_other_state_exit checked 22612ms check-target:macos_arm64 @3db1f7baaded+wt
 pass/facts/foreign_byte_array_element_backing_through_parameter_exit checked 45013ms check-target:macos_arm64 @3db1f7baaded+wt
 pass/facts/foreign_byte_array_element_backing_through_target_body_exit checked 29469ms check-target:macos_arm64 @3db1f7baaded+wt

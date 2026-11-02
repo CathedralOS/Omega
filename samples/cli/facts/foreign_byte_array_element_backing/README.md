@@ -24,7 +24,7 @@ The array is carried through [a local](local/main.omg),
 [a call result](call_result/main.omg), [a match join](match_join/main.omg)
 whose two arms supply texts with distinct counts (83 and 32 after packing),
 [a constant name](const_name/main.omg), [a nested machine](other_state/main.omg),
-[another machine](other_machine/main.omg) and
+[another machine](other_machine/main.omg) that forwards the array to a third, and
 [a Build-selected named implementation](target_body/main.omg). Each sibling
 `invalid/main.omg` adds only `text[0] = 0;` while `selected` is still live and
 must reject for that loan.
@@ -40,18 +40,25 @@ byte array.
 
 - Establishment: the loan is formed by ordinary checking at the consumer; the
   twins write the lent cell while the loan is live and reject.
-- Identity and lifetime: the foreign reader observes the original allocation,
-  not a copy; the bytes after the terminator and the field place's neighbors
-  are read back unchanged.
+- Identity and lifetime: the foreign reader sees every sibling byte of the lent
+  allocation; the bytes after the terminator and the field place's neighbors
+  are read back unchanged. The counts cannot tell the original allocation from
+  a whole-array copy; Terminal mirrors the siblings into the native home as
+  non-resident image cells, and only the lent cell becomes resident.
 - Composition: every place transports the owned array by its construct and
   forms the loan at the consumer; both match arms execute with distinct counts.
-- Soundness: the allocation image is read-only for a shared loan and names only
-  cells of the lent cell's own activation array.
+- Soundness: image cells carry no read or write authority and host writes to
+  them are not copied back; they name only cells of the lent cell's own
+  activation array. The twins are ordinary borrow-liveness rejections: no
+  static falsifier exists for a runtime allocation image, so the runtime
+  counts carry that half.
 - Psi 06–08: the boundary call keeps its scalar loan; Terminal prepares the
   original array allocation for the host.
 - Omega 00–02: each target's Build row selects its own `strlen`; locator
   lengths are inferred.
 - Omega 03–09: the native image passes the frame array's address and exits 0.
+- Open: `&mut` element loans of frame arrays and multi-dimensional or non-u8
+  frame arrays take the same path but have no witness here.
 
 Acceptance is `omega run --both <place>/main.omg` with both exits 0 on each
 matching host, plus each twin's rejection. The fixtures are pinned under
