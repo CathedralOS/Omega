@@ -47,7 +47,7 @@ one whole-pass executor, shared by commands and audit. Package policy does not
 prepare Builds, publish components or finish compiler reviews.
 Supporting packages are siblings under [packages/](../README.md).
 The independent [declaration](../build-declarations/README.md),
-[output](../build-output/README.md) and [compilation-input](../compilation-inputs/README.md)
+[output](../build-output/README.md) and [compilation-input](../package-compilation/README.md)
 packages are below both the compiler and this command application. Their placement
 does not make the compiler depend on install/update orchestration. Source
 acquisition constructs input custody; compiler consumption records the exact

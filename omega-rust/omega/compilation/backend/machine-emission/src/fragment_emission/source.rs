@@ -74,19 +74,15 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
     ) -> &abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations {
         &self.current.target_input
     }
-    pub fn pre_physical_manifest(
-        &self,
-    ) -> &abstract_operations_to_abstract_operations::validation::ValidatedPrePhysicalOptimizationManifest{
+    pub fn pre_physical_manifest(&self) -> &optimization_unit::PrePhysicalOptimizationManifest {
         self.optimized_target().optimized().pre_physical_manifest()
     }
-    pub fn verified_input(
-        &self,
-    ) -> &terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput {
-        self.optimized_target().optimized().verified_input()
+    pub fn lowering_facts(&self) -> &provider_admission::AdmittedLoweringFacts {
+        self.optimized_target().lowering_facts()
     }
     pub fn provider_installation(
         &self,
-    ) -> Option<&terminal_psi_to_abstract_operations::AdmittedProviderInstallation> {
+    ) -> Option<&provider_admission::AdmittedProviderInstallation> {
         self.optimized_target().provider_installation()
     }
 

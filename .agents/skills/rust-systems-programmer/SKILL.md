@@ -64,8 +64,10 @@ For a proposed change, identify the avoided work and the contract that must surv
 
 For implementation, carry the smallest justified change through formatting and [scoped validation](../../../tools/testing.md#validation-scope). Test the changed ownership/order/boundary behavior; measure performance when making a performance claim. Report what changed, what was verified, and any remaining copy or bottleneck that limits the result.
 
-Follow [Explain the change](../../../AGENTS.md#explain-the-change) in PRs and
-reports. Check that the stated before/after behavior, changed operation and
+Follow [Explain the change](../../../AGENTS.md#explain-the-change) in PRs,
+reports and explanatory source comments. Describe what the program needs to do
+before naming the compiler mechanism that supports it.
+Check that the stated before/after behavior, changed operation and
 positive/rejection controls describe the same change. Resolve a mismatch by
 inspecting the implementation and evidence before rewriting the explanation.
 

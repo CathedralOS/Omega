@@ -41,6 +41,16 @@ pub struct AdmittedNativeComponentCall<'input> {
 }
 
 impl<'input> AdmittedNativeComponentCall<'input> {
+    /// The call as provider admission reads it.
+    pub const fn facts(&self) -> provider_admission::ComponentCallFacts<'_> {
+        provider_admission::ComponentCallFacts {
+            selection: &self.selected,
+            component: self.component,
+            application: self.application,
+            plan_digest: &self.plan_digest,
+        }
+    }
+
     pub const fn selection(&self) -> &terminal_installation::AdmittedComponentProvider {
         &self.selected
     }

@@ -11,7 +11,7 @@ records current experimental status, applicability, and composition limits.
 
 ## Selection and portable publication
 
-[Build-value admission](omega/packages/compilation-inputs/src/build_execution/build_value/optimization.rs) admits
+[Build-value admission](omega/packages/package-compilation/src/build_execution/build_value/optimization.rs) admits
 the exact vocabulary. Shared Build declarations project the
 [optimization vocabulary](omega/packages/build-declarations/src/prelude/optimizations.rs)
 into the toolchain prelude from one mapping. The

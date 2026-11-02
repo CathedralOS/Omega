@@ -140,6 +140,9 @@ pub(crate) fn prepare_checked_build(
             },
             previous: priors,
             retain,
+            library_slice: psi_compiler::LibrarySliceRequest {
+                root_package: packages.map(|inputs| inputs.root()),
+            },
         }
         .check();
         artifacts::compile_timings::counters::record_preliminary_check(started.elapsed());

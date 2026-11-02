@@ -1,1 +1,1 @@
-where type equation requires the same fixed-array constructor
+requires type equation requires the same fixed-array constructor

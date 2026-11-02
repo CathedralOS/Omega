@@ -21,7 +21,7 @@ pub(crate) fn validate_equivalence_selection(
 ) {
     let Some(selection) = &quotient.equivalence else {
         diagnostics.push(Diagnostic::error(format!(
-            "quotient data `{}` requires one exact named `Equivalence` conformance in its static `where R satisfies Equivalence<C, R> as Name` surface",
+            "quotient data `{}` requires one exact named `Equivalence` conformance in its static `requires R satisfies Equivalence<C, R> as Name` surface",
             definition.name,
         )));
         return;

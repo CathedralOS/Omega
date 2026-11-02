@@ -1,20 +1,5 @@
 use super::{AllocationEvidence, AllocationOutput, ProjectAllocation};
-use crate::{
-    StagedOptimizedRegisterHomesAfterLiteralFolds,
-    StagedOptimizedRegisterHomesAfterSelectedLowering,
-};
-use selected_instructions_to_selected_instructions::SelectedProgramRef;
-
-impl ProjectAllocation for StagedOptimizedRegisterHomesAfterLiteralFolds {
-    fn project_allocation(&self) -> AllocationOutput<'_> {
-        allocation_output!(
-            self,
-            self.selected().transformed(),
-            SelectedProgramRef::new(self.selected()),
-            AllocationEvidence::LiteralFolds(self.custody().to_owned())
-        )
-    }
-}
+use crate::StagedOptimizedRegisterHomesAfterSelectedLowering;
 
 impl ProjectAllocation for StagedOptimizedRegisterHomesAfterSelectedLowering {
     fn project_allocation(&self) -> AllocationOutput<'_> {

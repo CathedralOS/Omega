@@ -157,8 +157,13 @@ impl<'program> ScopedCalls<'program> {
                 });
             }
         }
-        // Noninteger formals are observation subjects, not scalar symbols.
+        // Descriptor-only subjects have been projected to their numeric
+        // measures. Whole owned snapshots remain structural inputs: a nested
+        // public call needs the same captured root beside its scalar roster.
         bindings.retain(|binding| {
+            if matches!(&binding.value, ScopedArithmeticValue::OwnedSnapshot(_)) {
+                return true;
+            }
             let ScopedArithmeticBinder::Symbol(symbol) = binding.binder else {
                 return true;
             };

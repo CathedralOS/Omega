@@ -78,6 +78,8 @@ pub struct CheckedRankReceivingCoordinate {
 /// subject; its destination denotes this state's own arrival value.
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedRankCoordinateBinding {
+    /// Exact declaration-call path supplying this formal read's telescope.
+    pub application_context: HandleSpan<ExpressionHandle>,
     pub entry: CheckedRankCoordinateHandle,
     pub destination: CheckedRankCoordinateHandle,
     pub transports: HandleSpan<CheckedRankCoordinateTransport>,
@@ -290,8 +292,10 @@ pub struct CheckedSourceNaturalRankComponent {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedRankArrivalPlan {
+    pub application_contexts: Arena<ExpressionHandle>,
     pub application_casts: Arena<crate::operators::ExactIntegerCastFact>,
     pub application_calls: Arena<super::CheckedDeclarationCall>,
+    pub application_dispatches: Arena<super::CheckedDeclarationDispatchArm>,
     pub application_call_arguments: Arena<typed_trees::expression::ExpressionHandle>,
     pub application_formations: Arena<super::CheckedRankApplicationFormation>,
     pub judgments: Arena<CheckedRankBodyJudgment>,

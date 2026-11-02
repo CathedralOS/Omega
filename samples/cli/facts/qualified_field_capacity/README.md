@@ -63,7 +63,7 @@ byte-for-byte returned the same filter to clean. Corrupting the capacity
 relation instead — the twins' own single-line change, `remaining:
 strategy.remaining - length` to `remaining: strategy.remaining` — is refused
 before execution with the clause the nine twins pin:
-`data `Strategy` literal cannot prove the default domain: a `where` fact is not
+`data `Strategy` literal cannot prove the default domain: a `requires` fact is not
 established by the values observed at this construction -- establish the
 required bounds before constructing the value`.
 

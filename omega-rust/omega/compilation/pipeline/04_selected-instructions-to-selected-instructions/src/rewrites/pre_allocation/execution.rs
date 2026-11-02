@@ -23,6 +23,7 @@
 //! the shared protocol (audit charge, decline versus abort, committed-step
 //! restaging) is authored here.
 use crate::{StoredLoadForwardingError, forward_selected_stored_load};
+use selected_instruction_analyses::SelectedProgramView;
 use std::collections::BTreeSet;
 
 use crate::analyses::validated_machine_effect_catalog;
@@ -45,7 +46,7 @@ use crate::{
     StagedOptimizedPreAllocationAttempt, StagedOptimizedPreAllocationAttemptReceipt,
     StagedOptimizedPreAllocationIterationReceipt, StagedOptimizedPreAllocationStep,
     StagedPreAllocationOptimizationCustodyReceipt, StagedPreAllocationOptimizationRun,
-    ValidatedPreAllocationTransformation, ValidatedSelectedAnalysis,
+    ValidatedPreAllocationTransformation,
 };
 use crate::{
     analyze_allocation_legality, analyze_live_ranges, analyze_liveness,

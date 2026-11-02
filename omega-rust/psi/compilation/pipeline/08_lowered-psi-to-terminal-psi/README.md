@@ -26,6 +26,6 @@ emitter has already constructed the call and its policy adapter.
 
 Receipt fields remain private. Source custody cannot replace canonical coverage
 or grant downstream realization authority. The Psi production owner in
-[terminal-production](../../driver/terminal-production/README.md) sequences
+[terminal-production](../../psi-compiler/terminal-production/README.md) sequences
 optimization, artifact publication and source receipt construction. Its test-only
 dependency here exercises that real sequence; production dependencies stay in Psi.

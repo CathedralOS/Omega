@@ -52,7 +52,7 @@ pub(super) fn parse_let_definition<'tokens, 'source>(
     if !generics.conformance_bounds.is_empty() {
         return Err(input.error_here(
             "a mathematical `let` takes no `satisfies` conformance binders; parameterize \
-             over carriers with `where` facts on the citing machine instead",
+             over carriers with `requires` facts on the citing machine instead",
         ));
     }
 

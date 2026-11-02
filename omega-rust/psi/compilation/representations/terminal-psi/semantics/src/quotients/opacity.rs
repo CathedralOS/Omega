@@ -20,7 +20,7 @@ fn quotient_path_tip(
         Some((P::FixedRange { .. }, prefix)) => (prefix, true),
         _ => (path, false),
     };
-    let tip = crate::primitive_place::projection_tip_with_policy(
+    let tip = crate::structural::primitive_place::projection_tip_with_policy(
         module.structural_types.iter(),
         ty,
         path,

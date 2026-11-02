@@ -89,7 +89,7 @@ def main():
     repository = ROOT.parents[3]
     project = ROOT/'build/terminal-host'
     (project/'src').mkdir(parents=True, exist_ok=True)
-    dependencies = {'compiler': 'omega-rust/omega/compilation/driver',
+    dependencies = {'compiler': 'omega-rust/omega/compilation/compiler',
                     'terminal-runtime': 'omega-rust/omega/interpreter/terminal-runtime',
                     'package-manager': 'omega-rust/omega/packages/package-manager',
     'omega-build': 'omega-rust/omega/compilation/build',

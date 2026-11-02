@@ -1,11 +1,11 @@
 use super::{AllocationAdmissionError, AllocationOutput, ProjectAllocation};
+use crate::FixedViewCopyPolicy;
 use crate::{
     StagedOptimizedActiveResidentRematerialization, StagedOptimizedRegisterHomes,
     StagedOptimizedRegisterHomesAfterFixedViewCopies,
-    StagedOptimizedRegisterHomesAfterLiteralFolds, StagedOptimizedRegisterHomesAfterPreAllocation,
+    StagedOptimizedRegisterHomesAfterPreAllocation,
     StagedOptimizedRegisterHomesAfterSelectedLowering,
 };
-use selected_instructions_to_selected_instructions::FixedViewCopyPolicy;
 
 #[cfg(test)]
 mod tests;
@@ -70,7 +70,6 @@ macro_rules! retained_allocation_from_staged {
 retained_allocation_from_staged!(
     StagedOptimizedRegisterHomes,
     StagedOptimizedRegisterHomesAfterFixedViewCopies,
-    StagedOptimizedRegisterHomesAfterLiteralFolds,
     StagedOptimizedRegisterHomesAfterSelectedLowering,
     StagedOptimizedRegisterHomesAfterPreAllocation,
     StagedOptimizedActiveResidentRematerialization,
@@ -137,7 +136,6 @@ fn validate_recovery_selection(
         // mixing an executed phase with the carried-but-unexecuted
         // allocation-recovery slice before this stage runs.
         AllocationEvidence::RegisterHomes(_)
-        | AllocationEvidence::LiteralFolds(_)
         | AllocationEvidence::SelectedLowering(_)
         | AllocationEvidence::PreAllocation(_) => &[],
     };

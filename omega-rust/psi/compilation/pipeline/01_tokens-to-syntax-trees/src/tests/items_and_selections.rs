@@ -972,7 +972,7 @@ fn proposition_declarations_reject_retired_brace_evidence_with_migration_guidanc
 fn parses_trait_proposition_parameter_with_authored_signature() {
     let source = r#"
         trait Reflexive<C, proposition Relation>
-        where proposition Relation(left: C, right: C);
+        requires proposition Relation(left: C, right: C);
         {
         }
     "#;
@@ -995,6 +995,12 @@ fn parses_trait_proposition_parameter_with_authored_signature() {
     let snapshot = parsed.snapshot_json().expect("snapshot should succeed");
     assert!(snapshot.contains("\"kind\":\"proposition\""));
     assert!(snapshot.contains("\"proposition_contract\""));
+
+    let retired = super::parse_tokenized_error(
+        "trait Reflexive<C, proposition Relation>\nwhere proposition Relation(left: C, right: C);\n{}",
+        "retired `where proposition` must reject",
+    );
+    super::expect_error(&retired, "write `requires proposition Relation(...);`");
 }
 
 #[test]

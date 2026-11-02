@@ -287,7 +287,7 @@ pub(crate) fn check_where_interval_containment(
 ) -> bool {
     if !value.fits(program, stated) {
         diagnostics.push(Diagnostic::error(format!(
-            "{owner} stores a value not provably within its data's `where` facts: every read \
+            "{owner} stores a value not provably within its data's `requires` facts: every read \
              trusts them (indexes, exact arithmetic), so the stored value must be proven to \
              honor them. Narrow the value with a dominating guard or a requires coupling",
         )));

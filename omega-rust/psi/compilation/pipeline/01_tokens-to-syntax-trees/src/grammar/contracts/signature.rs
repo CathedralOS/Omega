@@ -20,7 +20,6 @@ fn signature_clause_boundary(input: Input<'_, '_>) -> bool {
         || input.at_contextual("suspends")
         || input.at_contextual("blocks")
         || input.at_contextual("crashes")
-        || input.at_contextual("where")
         || input.tokens.is_empty()
 }
 
@@ -75,10 +74,10 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
             input = rest;
             continue;
         }
-        // Logical-evidence `where proposition` premises still belong to the
+        // Logical-evidence `requires proposition` premises belong to the
         // trait-parameter parser. Every other signature predicate, including a
         // finite generic family, is a `requires` contract.
-        if input.at_contextual("where")
+        if input.at_contextual("requires")
             && input
                 .restarted(input.tokens.get(1..).unwrap_or_default())
                 .at_contextual("proposition")
