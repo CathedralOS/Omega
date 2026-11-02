@@ -14661,9 +14661,10 @@ fail/arithmetic/collection_result_endpoint_effect rejected 4995ms expected @ccdb
 	cannot prove subslice range ordering `__hoist_1..__hoist_2` is within slice length 3
 fail/arithmetic/collection_result_false_loop_bound rejected 2181ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from count at statement 0: result < values.len
-fail/arithmetic/collection_result_rebound_descriptor rejected 2280ms unexpected @ccdb99ca2214
+fail/arithmetic/collection_result_rebound_descriptor rejected 13450ms expected @5a72d03b2a48
 	cannot prove index `count` is within length 2 in rejected::entry
-fail/arithmetic/collection_result_rebound_descriptor_in_later_state checked 2655ms @ccdb99ca2214
+fail/arithmetic/collection_result_rebound_descriptor_in_later_state rejected 13258ms expected regressed-from:checked @5a72d03b2a48
+	cannot prove ensures contract for exit from count at statement 0: result <= values.len
 fail/arithmetic/collection_result_window_metadata rejected 2381ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from rejected at statement 3: result <= 1
 fail/arithmetic/collection_result_wrong_argument rejected 1134ms expected @ccdb99ca2214

@@ -7,24 +7,36 @@ independent Value and explicit evidence telescopes compose without treating
 realized Value arguments as extra public formals, losing their exact subjects,
 replacing a caller's evidence with a Build provider, or dropping returned facts.
 
-Optimized producer `a3f86a99de08` executes all nine places with native and
-Terminal exit 0 on Linux x86-64. The matching corpus pins also execute in both
-engines, all nine input-only twins reject for their intended obligations, and
+Optimized producer `5a72d03b2a48` executes the matching corpus pins for all nine
+places with native and Terminal exit 0 on Linux x86-64. All nine input-only twins
+reject for their intended obligations, and
 the existing inferred-index statement-call preservation program executes with
 its authored Terminal exit oracle. Five unused-wrapper controls retain carrier, requirement
 and Value-to-Const admission even without executable instantiation.
 
-Nominal callable, explicitly disambiguated member and public-evidence probes
-execute with native and Terminal exit 0 under `157d5fc5e2b` on Linux x86-64.
+Nominal callable and public-evidence probes execute with native and Terminal
+exit 0 under `5a72d03b2a48` on Linux x86-64; its header-order probe also exits 0
+in both engines. The explicitly disambiguated member additionally executes
+under historical producer `157d5fc5e2b`.
 The public-evidence package's exact bound survives checked policy projection
-and canonical encode/recover/reencode under producer `3cd963a412e`. Historical
-`8697cb6e141` observations cover eight places and the evidence-composition probes
+and canonical encode/recover/reencode under producer `3cd963a412e`. Historical `a3f86a99de08` captures additionally execute all nine sample projects
+directly with explicit native/Terminal exits. `8697cb6e141` observations cover
+eight places and the evidence-composition probes
 on macOS ARM64. These observations retain their original producer identities.
 
 The field place exposed repeated preparation rebuilding a runtime binding after
 its operand had already been appended. Rejoining that existing operand through
 the closed signature's exact binder roster preserves the public returned
 fact without replaying storage or changing the authored program.
+
+Main integration additionally exposed a completed nominal snapshot losing its
+reference descriptor projection. Typed reference-field projection now reads its
+producer receipt while retaining scalar/case identity and descriptor fences.
+Fresh aggregate observations attach only children valid at the actual storage
+cut. The inferred-index preservation program, an existing case-predicate program
+and stale scalar/descriptor controls validate these boundaries under `5a72d03b2a48`.
+The regression goldens keep their actual historical producer stamps; later
+corroborating executions do not relabel them.
 
 Fact: A selected member preserves runtime index 9 below bound 10, so exact
 10 - right yields 1, while returning the second Cell and closed left 7.
@@ -94,12 +106,12 @@ The additional producers stay in this fact folder:
   evidence namespace through synthesis.
 - [A nominal callable](probes/nominal_evidence/main.omg) exercises the same full
   telescope through an explicitly selected callable parameter. Its exact
-  satisfaction admission and executable public demand execute under `157d5fc5e2b`.
+  satisfaction admission and executable public demand execute under `5a72d03b2a48`.
 - [Header observation order](probes/header_observation_order/main.omg) reads
   runtime index 9 before a later ordinary argument changes its storage to 3.
   The returned right field must retain 9, and its invalid twin changes only
-  the initial index to 11. Producer `a3f86a99de08` records native and Terminal
-  exit 0 and the intended reject diagnostic.
+  the initial index to 11. Producer `5a72d03b2a48` records native and Terminal
+  exit 0; the reject observation remains attributed to `a3f86a99de08`.
 - [Wrong argument](probes/wrong_evidence_argument/main.omg) and
   [wrong nominal trait](probes/wrong_evidence_trait/main.omg) controls retain
   complete static admission.
