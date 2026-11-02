@@ -251,10 +251,6 @@ retired-syntax deletions to completion.
     `omega-rust/psi/compilation/checking/src/value_custody/type_references.rs`,
     and selected-dispatch `service_custody` with
     `program_entry_service_requirements`.
-  - Add fail controls for ambiguous provider supply and unpark
-    `inherited_applied_binding_ambiguous_ancestors`,
-    `occurrence_region_binding_conflicting_inputs`, and
-    `private_binding_authority_contract`.
   - Retire remaining attachment helpers in checking/lowering and complete
     checked per-value loan carry evidence for suspension production without
     restoring hidden argument insertion.
