@@ -36,7 +36,7 @@ X86Compute satisfies SelectedCompute {
         SelectedBodyCheck::require_tag(17u64);
      let value: i32 = read(holder.counter.value);
         let total: i32 = 70 + value;
-        transition holder.counter.before == 17 && holder.counter.after == 53 { true -> total false -> -99 } 
+        transition holder.counter.before == 17 && holder.counter.after == 53 { true -> total false -> -99 }
     }
 }
 
@@ -47,7 +47,7 @@ ArmCompute satisfies SelectedCompute {
         SelectedBodyCheck::require_tag(29u64);
      let value: i32 = read(holder.counter.value);
         let total: i32 = 70 + value;
-        transition holder.counter.before == 17 && holder.counter.after == 53 { true -> total false -> -99 } 
+        transition holder.counter.before == 17 && holder.counter.after == 53 { true -> total false -> -99 }
     }
 }
 
