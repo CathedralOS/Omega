@@ -31,6 +31,22 @@ transport, ARM64 argument and return placement, the complete byte assignment,
 activation storage and Mach-O execution. Every source and destination word is a
 runtime falsifier for an incorrect offset, truncated copy or changed canary.
 
-The match-join, const-name, nested-machine, other-machine and selected-target
-places remain open, together with other-host execution and the broader layout
+The other-machine and selected-target places remain open, together with
+remaining host observations, product-producer support and broader layout
 decoding and representation-family acceptance.
+
+The [match-join](match_join/main.omg), [const-name](const_name/main.omg), and
+[nested-state](other_state/main.omg) places have matching Linux x86_64
+observations in [run 41484907405](https://github.com/CathedralOS/Omega/actions/runs/41484907405),
+with optimized Rust producer `eab17336ac15d1e8a9d68d4e44fe9bb29821aafd`.
+The join executes both arms and checks each selected marker; the constant owns
+the copied seven-word source; the nested state receives the stored byte view
+and exclusive output, performs the copy, and returns before the original arrays
+are checked. Every program still verifies all fourteen words.
+
+All six source outcomes, three native/Terminal exit-0 agreements and six ordinary
+CLI sample outcomes meet their original oracles. Each invalid program changes
+only the source endpoint from 6 to 5 and rejects for representation incompatibility.
+Producer preparation took 309.444 seconds, source checking 23.102 seconds,
+canonical execution 17.665 seconds and ordinary sample observation 40.513 seconds.
+No earlier transport cohort or broader corpus was repeated.

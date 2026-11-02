@@ -837,7 +837,9 @@ helper that passes does not close an item.
     with rejection twins.
     The [typed interior-region prerequisite](samples/cli/facts/fixed_region_byte_roundtrip/README.md)
     additionally carries byte views through fields, parameters and returned records
-    on Mac ARM64; its other five transport places and other-host observations remain open.
+    on Mac ARM64, and through match joins, named constants and nested states
+    on Linux x86_64; the other-machine and selected-target places and remaining
+    host observations remain open.
     Complete Windows execution, broader reference composition, and other-host
     execution for [typed stored-reference readback](samples/cli/facts/fixed_layout_reference_readback/README.md)
     and [implementation-region forwarding](samples/cli/facts/implementation_region_forwarding/README.md).
