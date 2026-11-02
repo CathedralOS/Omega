@@ -91,29 +91,66 @@ The migrated target-body prototype with the setup split freshly passed normal
 preparation and both engines, and its upperless twin refused the intended index
 bound on that same producer. The earlier prototype's missing explicit boundary
 `reaches` was an authored setup error, retained separately from compiler evidence.
-Whole-row Source qualification on that retained producer currently checks seven
-positive places. The valid call-result and strengthened match places refuse:
+Whole-row Source qualification on that retained producer checked seven positive
+places. The valid call-result and strengthened match places refused:
 `cannot prove index main.b * 20 + a is within length 200 in put::entry`.
-The direct-copy control checks, while both the direct call and saved-input call
-variants refuse. The frozen trace retains the call's exact public result/input
-equation and a complete empty write frame; ownership or write-frame weakening is
-not justified. The numeric proof must consume that equation in the same wrapping
-compound observation. The original direct-call witness remains unchanged.
+The direct-copy control checked, while direct-call and saved-input call variants
+refused. The frozen trace retained the public result/input equation and a
+complete empty write frame.
 
-The first match attempt also had an authored Rust-style dereference assignment;
-Omega's transparent `route = tag` syntax is now corrected, with the old refusal
-retained. It is distinct from the subsequent valid-program bounds refusal.
+An actual Source-to-Check test through the compiler fixture facade established
+that both guard comparisons, the public scalar equation, and every admitted
+wrapping operation were present at the failed private arrival. The numeric
+substitution owner published the same equation twice: after `x := y`, its raw
+reverse orientation installed `y := x`, leaving equal observations with different
+normal forms under bounded expansion. It now normalizes both sides through
+established substitutions before choosing an orientation. The existing overflow,
+formation and expansion limits remain. This is not a claim of global acyclicity
+for arbitrary substitution graphs.
 
-Five focused preservation Sources are proper (one positive / four refusals),
+On exact candidate `7331854657d4a7d551695ca1137f8e65141b8262`, all four focused
+optimized units pass, both unchanged Source positives check, and both upperless
+twins plus the wrong-actual control refuse the intended index bound. These are
+Source checking observations, not native execution claims. The first match
+attempt's Rust-style dereference assignment was an authored error; its corrected
+transparent `route = tag` syntax and later valid-program refusal are retained
+separately.
+
+Five baseline preservation Sources are proper (one positive / four refusals),
 including exact actuals, stale field snapshots and distinct repeated calls; the
-one runnable snapshot control has native/Terminal zero and agreement. These are
-baseline observations on the retained producer, not a repaired-current-compiler
-claim. A newer optimized producer is available remotely for the frozen affected
-consumer challenge; its local use awaits safe shared-workspace headroom.
+one runnable snapshot control has native/Terminal zero and agreement on the
+retained producer. The final qualification producer is optimized Linux x86-64
+`b3f00fd60e7f7abf613fde219da040e8e19fcf42`, integrating published Main
+`8d22dd8afbe602cb94cb7087373928c5d4080c97` with the repair. Its 7,948 frozen
+compiler/Cargo/SDK inputs include the actual 176-file SDK, independently retained
+with hashes. Fresh acceptance establishes:
 
-Whole-row native qualification, counterfactuals, affected-current-compiler
-applicability, scoped goldens and final review remain pending. The broader parent
-tasks stay open.
+- All 19 owned pins: nine checked positives and ten intended refusals, including
+  the wrong-actual control; all nine runnable pins have native zero / Terminal
+  zero / agreement.
+- All 20 public projects through ordinary preparation: root plus nine positive
+  places have native/Terminal zero and agreement; nine twins and the wrong-actual
+  control reject for the index bound.
+- The five focused preservation Source tuples and the runnable snapshot's full
+  outcome tuple match their recorded baseline. Baseline and fresh producer/host
+  identities remain distinct.
+- Changing only the selected store from 7 to 8, or only the first match route
+  from 17 to 19, produces actual native signal 4 and agreeing Terminal `Trap`.
+- Four explicit target-body artifact requests produce PE, two ELF images and
+  Mach-O with retained hashes. These artifact observations claim no foreign-host
+  execution.
+
+The hosted run is [41390167139](https://github.com/CathedralOS/Omega/actions/runs/41390167139).
+Producer preparation took 1,218.899 seconds; Source checking took 64.510 seconds,
+pinned execution 37.382 seconds and public execution 148.325 seconds. These are
+actual run timings, not a performance improvement claim. Scoped Clippy completed
+with pre-existing Main warnings retained and no warnings in the changed Rust
+files. The independent Source/oracle review is accepted; exact final review and
+normal CI/queue publication remain required.
+
+Only this fact's target-body frontier is subtracted (57 to 56). Both Build-owned
+parent capabilities, broader target-family retirement, other-host runtime, and
+mutable retained-completion footprint closure remain open.
 
 Commands and frozen inputs are retained in the existing ignored qualification
 directory `build/compound-index-build-selection-20261102`.
