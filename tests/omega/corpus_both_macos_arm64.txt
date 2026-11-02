@@ -298,6 +298,15 @@ pass/facts/crash_entry_nonempty_path_through_other_machine_exit built 2016ms exi
 pass/facts/crash_entry_nonempty_path_through_other_state_exit built 1949ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/crash_entry_nonempty_path_through_parameter_exit built 1849ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/crash_entry_nonempty_path_through_target_body_exit built 1960ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
+pass/facts/data_where_standing_borrowed_field_array_call_result built 12082ms exit:0 interpreter-exit:0 interpreter:agrees @c934a3b70574
+pass/facts/data_where_standing_borrowed_field_array_const_name built 12773ms exit:0 interpreter-exit:0 interpreter:agrees @c934a3b70574
+pass/facts/data_where_standing_borrowed_field_array_field built 12108ms exit:0 interpreter-exit:0 interpreter:agrees @c934a3b70574
+pass/facts/data_where_standing_borrowed_field_array_local built 11219ms exit:0 interpreter-exit:0 interpreter:agrees @c934a3b70574
+pass/facts/data_where_standing_borrowed_field_array_match_join built 12086ms exit:0 interpreter-exit:0 interpreter:agrees @c934a3b70574
+pass/facts/data_where_standing_borrowed_field_array_other_machine built 12029ms exit:0 interpreter-exit:0 interpreter:agrees @c934a3b70574
+pass/facts/data_where_standing_borrowed_field_array_other_state built 10521ms exit:0 interpreter-exit:0 interpreter:agrees @c934a3b70574
+pass/facts/data_where_standing_borrowed_field_array_parameter built 10483ms exit:0 interpreter-exit:0 interpreter:agrees @c934a3b70574
+pass/facts/data_where_standing_borrowed_field_array_target_body built 10608ms exit:0 interpreter-exit:0 interpreter:agrees @c934a3b70574
 pass/facts/data_where_standing_borrowed_field_descriptor_snapshot_exit built 9538ms exit:0 interpreter-exit:0 interpreter:agrees @e96e52e3f616
 pass/facts/data_where_standing_borrowed_field_disjoint_local_write_exit built 6446ms exit:0 interpreter-exit:0 interpreter:agrees @e96e52e3f616
 pass/facts/data_where_standing_borrowed_field_through_call_result_exit built 8927ms exit:0 interpreter-exit:0 interpreter:agrees @e96e52e3f616

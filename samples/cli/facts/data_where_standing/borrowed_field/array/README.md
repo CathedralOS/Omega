@@ -97,11 +97,12 @@ The evidence covers these applicable requirements:
   agrees with actual Terminal Psi execution for every positive. Other hosted
   targets are bound and source-checked; their native execution remains unverified.
 
-Retained optimized producer R4 (source `111e70eb2b599aa6c49ffe3ee0e63114ab203956`
-plus compiler patch SHA-256
-`b28c8fc236dc30898f91e9c964eacee30d24c4f2a3f133209280bd53ff284eab`)
-checks all nine positives, rejects all nine predicate-removal twins for overflow,
-and runs all nine positives at native/Terminal `0/0` on `macos_arm64`.
-The parent migration remains open. Exact producer, source/oracle hashes, raw
-observations and independent review are retained in the claim/commit evidence;
-local records are under `build/scalar-collection-read-20261102`.
+Optimized R4 checks all nine positives, rejects all nine predicate-removal twins
+for overflow, and runs all nine positives at native/Terminal `0/0` on
+`macos_arm64`. The matching corpus pins also produce nine checked positives,
+twelve intended rejections and nine native/Terminal `0/0` agreements through
+the independent receiving path.
+
+The parent migration remains open. Producer revisions/digests, source/oracle
+hashes, raw observations and independent review are retained in the claim/commit
+evidence; local records are under `build/scalar-collection-read-20261102`.
