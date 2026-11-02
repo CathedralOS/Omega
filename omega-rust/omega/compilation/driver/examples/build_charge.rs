@@ -5,6 +5,9 @@ mod fixture_package_inputs;
 mod joined_product_native;
 use joined_product_native::{execute_joined_product, execute_report};
 
+#[path = "support/default_build.rs"]
+mod default_build_workflow;
+
 use artifacts::compile_timings::counters;
 use build_time_evaluation::{BuildEvaluationSponsor, BuildEvaluationSponsorLimits};
 use compiler::{CheckedCompileRequest, CompilationSession};
@@ -55,6 +58,10 @@ fn sponsor(limits: BuildEvaluationSponsorLimits) -> BuildEvaluationSponsor {
 fn main() {
     if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--build-profile")) {
         println!("{}", compiler::compiler_build_profile());
+        return;
+    }
+    if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--default-context")) {
+        settled_default_build_contexts();
         return;
     }
     if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--anonymous-generator"))
@@ -1034,7 +1041,7 @@ fn initial_build_source_isolation() {
     let (_, mut syntax) = checkpoint
         .assemble(None, &mut timings, &mut catalogue)
         .expect("Build assembly");
-    assert!(syntax.build_source_id.is_some());
+    assert!(syntax.build_source.is_some());
     assert!(
         syntax
             .sources
@@ -1053,7 +1060,10 @@ fn initial_build_source_isolation() {
         "initial Build preparation loaded the Product root"
     );
     println!("initial_build_did_not_load_product_root");
-    let original = syntax.sources.get(syntax.build_source_id.unwrap()).unwrap();
+    let original = syntax
+        .sources
+        .get(syntax.build_source.unwrap().source_id())
+        .unwrap();
     let (_, product) = syntax
         .product_sources
         .take()
@@ -1189,7 +1199,10 @@ fn unbound_build_invocation(project_name: &str) {
     );
     let inputs = package_compilation::PackageCompilationInputs::new(
         binding.identity(),
-        actual_return.declaration().kind(),
+        actual_return
+            .declaration()
+            .expect("authored source declaration")
+            .kind(),
         vec![binding],
         Vec::new(),
     )
@@ -2129,57 +2142,7 @@ fn settled_build_product_contexts() {
 }
 
 fn settled_default_build_contexts() {
-    let temporary = exclusive_workspace("settled-default-build");
-    std::fs::write(temporary.path().join("main.omg"), "machine main() {}\n").unwrap();
-    let acquired = package_manager::resolution::source::AcquiredBuildSource::capture_local(
-        temporary.path(),
-        package_source::LocalSourceLimits::default(),
-        package_source::ExternalSourceContext::derive(b"settled-default-build-sdk"),
-    )
-    .unwrap();
-    let capture = acquired.source_capture();
-    let root = capture.canonical_live_root().join("main.omg");
-    let identity = fixture_package_inputs::fixture_package_identity(85);
-    let binding = package_compilation::PackageSourceBinding::new(
-        identity,
-        "settled_default_build",
-        capture.canonical_live_root().to_path_buf(),
-    )
-    .with_captured_source(capture.tree().clone())
-    .unwrap();
-    let inputs = package_compilation::PackageCompilationInputs::new(
-        identity,
-        build_declarations::BuildDeclarationKind::Application,
-        vec![binding],
-        Vec::new(),
-    )
-    .unwrap();
-    let host = target::TargetProfile::host_if_supported().unwrap();
-    let mut session = CompilationSession::default();
-    let before = counters::build_execution_count();
-    let mut invocation = session
-        .begin_package_build(CheckedCompileRequest {
-            package_inputs: Some(inputs.clone()),
-            ..CheckedCompileRequest::new(&root, Some(host.target_name()))
-        })
-        .unwrap();
-    let returned = return_build(&mut invocation);
-    let mut settled = session.settle_package_build(invocation, returned).unwrap();
-    std::fs::remove_file(&root).unwrap();
-    for purpose in [
-        build_declarations::DependencyPurpose::Build,
-        build_declarations::DependencyPurpose::Product,
-    ] {
-        let selected = inputs.clone().with_compilation_purpose(purpose).unwrap();
-        let product = session
-            .prepare_package_product(&mut settled, host, selected, Default::default())
-            .unwrap();
-        session.check_package_build(product).unwrap();
-    }
-    assert_eq!(counters::build_execution_count(), before);
-    println!(
-        "settled_default_build_reprepares_distinct_purposes_from_retained_parsing_without_live_source"
-    );
+    default_build_workflow::run();
 }
 
 fn production_project_discovery() {

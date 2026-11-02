@@ -29,13 +29,12 @@ disposable copy of `samples/cli/basics/print_number` with its relative std
 dependency preserved. An unchanged bound pass reports `settled_checks=0`;
 the operation still checks Build and Product. This is a macOS observation command,
 not a cross-host execution claim or a separate review mode.
-Without an authored Build entry, it returns default settings and the retained
-source commitment without checking, specializing or capturing an execution
-snapshot. This shortcut is migration debt: the retained contract requires
-compiler-supplied ordinary Build source through the same one-entry evaluation,
-dependency join, and freeze route. Final product checking still admits all
-ordinary declarations.
-For actual Build entries, semantic checking is mandatory even without package
+Without a physical `build.omg`, source assembly supplies an ordinary in-memory
+Build entry. It follows the same checking, Terminal activation, dependency join
+and freeze route, retaining the admitted source role and owner without inventing
+a named declaration or selecting an executable entry. An authored Build file
+must supply its own entry and project declaration.
+For every selected Build entry, semantic checking is mandatory even without package
 inputs; package declaration authority adds to that floor. Execution consumes the
 checker-transformed program and its operator facts, with no separate
 specialization pass after checking. Provider derivation and replay use the
@@ -48,10 +47,9 @@ by this same admission owner before checking its settled program. Selected dispa
 supplies only the exact selected numeric identity; Psi performs evaluation and
 validates its source execution plans. The source continuation is consumed once,
 in order, against its original declaration selection and admitted target context.
-The preliminary check still covers the whole provisional program:
-removing that duplicate product work requires a sound Build-helper projection
-and a separately frozen authored-selection frontier. The interpreter's general
-checked-fact dispatch is also unfinished.
+The preliminary check covers the selected Build source and its helpers;
+Product roots remain deferred until the activation returns and its requested
+sources join.
 [Compilation products](../products/src/evaluated_build.rs)
 owns the retained `BuildConfig` and `ComputedBuildConfig` data contracts, re-exported
 here for callers. Evaluation produces those records; consumers need not import
@@ -75,10 +73,19 @@ projection does not independently admit an arbitrary Terminal artifact as Build.
 ordered binding effects and settings readback across fuel pauses, using both
 retained and loaded artifacts. It also tests nested records, case payloads,
 byte views and invalid identifiers, loaders and duplicate optimization counts.
-Production authored Build preparation uses this Terminal activation through
-`activation/preparation.rs` and the Build scheduler. The default declaration
-for a missing `build.omg`, remaining host operations, complete live-storage/result
-accounting and dependency/provider suspension retain migration work.
+Production Build preparation uses this Terminal activation through
+`activation/preparation.rs` and the Build scheduler. With no `build.omg`, source
+assembly admits an ordinary in-memory default and keeps Product roots deferred
+until its checked activation returns. Its private source selection preserves
+supplied role/owner and cannot name a new project or bind an executable entry.
+Remaining host operations, complete live-storage/result accounting and
+dependency/provider suspension retain migration work.
+
+`mbx run -p compiler --example default_build` exercises application, package and
+anonymous defaults, one execution per invocation, role/graph substitution refusal,
+and retained Product preparation after deleting live source. Its Product defines
+a trapping machine named `build` and its own `Build` type; neither can impersonate
+the selected default or the toolchain receiver.
 Terminal's existing fuel meter now accepts the exact invocation sponsor and
 charges it at the ordinary operation/edge sites. The Build integration witness
 uses a shared account across two activations: an exact budget completes both,

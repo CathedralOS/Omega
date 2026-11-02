@@ -15,6 +15,8 @@ pub struct PreparedBuildExecution {
     machine: Arc<package_compilation::build_execution::SelectedBuildMachine>,
     filesystem_scope: package_compilation::BuildMachineFilesystemScope,
     host_issued: bool,
+    default_source: bool,
+    default_sources: Option<Arc<package_compilation::PackageCompilationSourceInputs>>,
     execution_profile: Option<target::TargetProfile>,
 }
 
@@ -27,6 +29,8 @@ impl PreparedBuildExecution {
             evaluation_sponsor,
             execution_profile,
             artifact_only: _,
+            default_source,
+            default_sources,
         } = admitted;
         let refuse = |reason: String| failed(&machine.name, &reason);
         let checked = prepared
@@ -78,6 +82,8 @@ impl PreparedBuildExecution {
             machine: Arc::new(machine),
             filesystem_scope,
             host_issued: false,
+            default_source,
+            default_sources,
             execution_profile,
         })
     }
@@ -95,6 +101,8 @@ impl PreparedBuildExecution {
             Arc::clone(&self.machine),
             &self.filesystem_scope,
             self.execution_profile,
+            self.default_source,
+            self.default_sources.clone(),
         )
         .map_err(|reason| self.refuse(&reason))
     }
@@ -124,7 +132,7 @@ impl PreparedBuildExecution {
                 "dependency requests require coordinator settlement before Product compilation",
             ));
         }
-        let artifact_only = matches!(declaration, build_declarations::BuildDeclaration::Application(application) if application.artifact_only);
+        let artifact_only = matches!(declaration, Some(build_declarations::BuildDeclaration::Application(application)) if application.artifact_only);
         if artifact_only && !completed.root_bindings.is_empty() {
             return Err(
                 self.refuse("artifact-only Build cannot select executable entries or providers")
@@ -177,7 +185,7 @@ impl PreparedBuildExecution {
             native_binding_requests: completed.native_bindings,
             native_formations: completed.native_formations,
             behavior_exclusion_requests: completed.exclusions,
-            project_declaration: Some(completed.declaration),
+            project_declaration: completed.declaration,
             optimization_report_request: completed.optimization_report,
             evaluation_usage: Some(usage),
             observation_summary: Some(observation_summary),

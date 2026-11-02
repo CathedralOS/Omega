@@ -28,7 +28,7 @@ pub struct SelectedBuildMachine {
 }
 
 /// Select the authored entry before preparing an activation or granting resources.
-/// Absence means the program uses default Build settings, not an empty activation.
+/// Source assembly supplies an ordinary default entry when no Build file exists.
 pub fn select_build_machine(
     typed: &typed_trees::TypedTrees,
     build_source_id: Option<source::SourceId>,

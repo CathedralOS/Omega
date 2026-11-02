@@ -163,7 +163,11 @@ impl PreparedPackageInvocation {
         })?;
         Ok(super::package_compilation::SourceBuildDeclaration::new(
             capture.clone(),
-            returned.declaration().clone(),
+            returned.declaration().cloned().ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "default Build has no authored named project declaration",
+                )]
+            })?,
         ))
     }
     pub(super) fn join_product_context(
