@@ -3048,6 +3048,8 @@ fail/memory/bump_allocator_reset_missing_prefix rejected 11974ms expected @2cfbd
 	cannot prove requires contract for call reset from invalid: embed(retired.length) + embed(strategy.remaining) == embed(strategy.capacity) (needs fact `embed(retired.length) + embed(strategy.remaining) == embed(strategy.capacity)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/memory/bump_allocator_reset_with_live_resident rejected 5195ms expected @2cfbda3635e2+wt
 	implicit domain weakening in argument `retired` for state `reset::entry` drops `Resident<Policy, Word>`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
+fail/modules/package_qualified_scalar_access_denied rejected 5391ms expected @97115d9cab54
+	accessor write application: the access plan does not permit this operation
 fail/ownership/completed_case_claim_return_double_consume rejected 2699ms expected @02336e3b5381+wt
 	cannot use `pair.first` in machine `retire_pair` state `entry` (statement 1) after `pair.first` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `pair.first` first
 fail/ownership/nonreturning_claim_alternative_double_consume rejected 1802ms expected @f8fd5ea66130
@@ -13068,6 +13070,7 @@ pass/modules/nominal_constant_bodies checked 2843ms @ccdb99ca2214
 pass/modules/open_const_private_implementation_projection_exit checked 7832ms check-target:macos_arm64 @ea132c1fff8b
 pass/modules/package_bare_cases checked 4116ms @ccdb99ca2214
 pass/modules/package_declaration checked 2352ms @ccdb99ca2214
+pass/modules/package_qualified_scalar_access_exit checked 9360ms check-target:macos_arm64 @97115d9cab54
 pass/modules/package_sibling_declarations checked 2764ms @ccdb99ca2214
 pass/modules/packaged_structured_const_declared_carrier_exit checked 3956ms check-target:macos_arm64 @ccdb99ca2214
 pass/modules/packaged_structured_const_generic_composition_exit checked 4330ms check-target:macos_arm64 @ccdb99ca2214
