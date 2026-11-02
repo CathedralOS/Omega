@@ -1,0 +1,21 @@
+// FAIL: each operation distributes over the other (as `max` and `min` do), so
+// the two expansions undo each other and have no normal form. Normalization
+// must terminate and license neither; the instances stay distinct.
+domain<T, const I: u64> T::Indexed<I>;
+
+trait IndexLattice<Operand> {
+    operator + add(a: Operand, b: Operand) -> Operand
+    terminates;
+    operator * mul(a: Operand, b: Operand) -> Operand
+    terminates;
+    machine mul_distributes(a: Operand, b: Operand, c: Operand)
+    ensures mul(a, add(b, c)) == add(mul(a, b), mul(a, c));
+    machine add_distributes(a: Operand, b: Operand, c: Operand)
+    ensures add(a, mul(b, c)) == mul(add(a, b), add(a, c));
+}
+
+machine expand<const A: u64, const B: u64, const C: u64, Algebra satisfies IndexLattice<u64>>(
+    value: i64 in Indexed<A * (B + C)>
+) -> i64 in Indexed<A * B + A * C> {
+    value
+}

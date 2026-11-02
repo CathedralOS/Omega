@@ -299,6 +299,10 @@ diagnostic names. Closed integer leaves share canonical value identity across
 expression and named-const forms. Established equality operands use this same
 normalizer under simultaneous call bindings; they do not change declared type
 identities or license an operation from a different conformance application.
+Version 4 additionally expands a product over a sum of the same algebra instance
+under a declared distributivity law and drops a closed integer identity element
+under its declared identity law. A nullary identity requirement is not a closed
+element without unfolding a concrete provider.
 
 ## Axioms and receiving policy
 

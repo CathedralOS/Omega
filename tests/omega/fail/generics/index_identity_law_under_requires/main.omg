@@ -1,0 +1,18 @@
+// FAIL: the identity law holds only under its own `requires`. Index
+// normalization has no premise to discharge, so `A + 0` keeps its structure
+// and is not the instance `A`.
+domain<T, const I: u64> T::Indexed<I>;
+
+trait IndexAdd<Operand> {
+    operator + add(a: Operand, b: Operand) -> Operand
+    terminates;
+    machine add_zero(a: Operand, guard: bool)
+    requires guard
+    ensures add(a, 0) == a;
+}
+
+machine drop_zero<const A: u64, Algebra satisfies IndexAdd<u64>>(
+    value: i64 in Indexed<A + 0>
+) -> i64 in Indexed<A> {
+    value
+}

@@ -1,0 +1,105 @@
+// One selected algebra's checked laws -- left distributivity of `*` over
+// `+`, `add(a, 0) == a`, and `mul(a, 1) == a` -- make
+// `Indexed<A * (B + C + 0) * 1>` the same instance as `Indexed<A * B + A * C>`,
+// so a value carried at the first index is accepted where the second is
+// required.
+// Place: other machine -- a forwarding machine declares the first index in and the second out.
+// Expected exit: 0
+domain<T, const I: u64> T::Indexed<I>;
+
+trait IndexRing<Operand> {
+    operator + add(a: Operand, b: Operand) -> Operand
+    terminates;
+    operator * mul(a: Operand, b: Operand) -> Operand
+    terminates;
+    machine add_zero(a: Operand)
+    ensures add(a, 0) == a;
+    machine mul_one(a: Operand)
+    ensures mul(a, 1) == a;
+    machine mul_distributes(a: Operand, b: Operand, c: Operand)
+    ensures mul(a, add(b, c)) == add(mul(a, b), mul(a, c));
+}
+
+// A deliberately small algebra: both operations keep their left operand, so
+// every declared law holds. Index syntax selects these requirements, never
+// compiler-known integer arithmetic.
+machine keep_sum(a: u64, b: u64) -> u64
+satisfies IndexRing<u64>::add as Projection
+ensures result == a
+{
+    a
+}
+
+machine keep_product(a: u64, b: u64) -> u64
+satisfies IndexRing<u64>::mul as Projection
+ensures result == a
+{
+    a
+}
+
+machine keep_sum_zero(a: u64)
+satisfies IndexRing<u64>::add_zero as Projection
+ensures keep_sum(a, 0) == a
+{
+    _ = keep_sum(a, 0);
+}
+
+machine keep_product_one(a: u64)
+satisfies IndexRing<u64>::mul_one as Projection
+ensures keep_product(a, 1) == a
+{
+    _ = keep_product(a, 1);
+}
+
+machine keep_distributes(a: u64, b: u64, c: u64)
+satisfies IndexRing<u64>::mul_distributes as Projection
+ensures keep_product(a, keep_sum(b, c)) == keep_sum(keep_product(a, b), keep_product(a, c))
+{
+    _ = keep_product(a, keep_sum(b, c));
+    _ = keep_sum(keep_product(a, b), keep_product(a, c));
+}
+
+Projection satisfies IndexRing<u64>
+{
+    machine add(a: u64, b: u64) -> u64
+    terminates {
+        keep_sum(a, b)
+    }
+    machine mul(a: u64, b: u64) -> u64
+    terminates {
+        keep_product(a, b)
+    }
+    machine add_zero(a: u64)
+    ensures keep_sum(a, 0) == a {
+        keep_sum_zero(a);
+    }
+    machine mul_one(a: u64)
+    ensures keep_product(a, 1) == a {
+        keep_product_one(a);
+    }
+    machine mul_distributes(a: u64, b: u64, c: u64)
+    ensures keep_product(a, keep_sum(b, c)) == keep_sum(keep_product(a, b), keep_product(a, c)) {
+        keep_distributes(a, b, c);
+    }
+}
+
+machine forward<const A: u64, const B: u64, const C: u64, Algebra satisfies IndexRing<u64>>(value: i64 in Indexed<A * (B + C + 0) * 1>) -> i64 in Indexed<A * B + A * C> {
+    value
+}
+
+machine carry<const A: u64, const B: u64, const C: u64, Algebra satisfies IndexRing<u64>>(seed: i64) -> i64 {
+    let made: i64 in Indexed<A * (B + C + 0) * 1> = seed as i64 in Indexed<A * (B + C + 0) * 1>;
+    let carried: i64 in Indexed<A * B + A * C> = forward<A, B, C, Algebra>(made);
+    carried as i64
+}
+
+machine main() crashes Trap {
+    let first: i64 = carry<2, 3, 4, Projection>(5);
+    let second: i64 = carry<2, 3, 4, Projection>(9);
+    transition first == 5 && second == 9 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

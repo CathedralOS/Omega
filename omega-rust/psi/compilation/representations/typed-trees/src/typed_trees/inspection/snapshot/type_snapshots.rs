@@ -101,6 +101,10 @@ pub struct OpenIndexOperationSnapshot {
     pub algebra_alias: Option<String>,
     pub commutativity_licensed: bool,
     pub associativity_licensed: bool,
+    pub left_distribution_over: Option<String>,
+    pub right_distribution_over: Option<String>,
+    pub right_identity: Option<String>,
+    pub left_identity: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -276,6 +280,10 @@ pub(crate) fn type_reference_snapshot(
                             algebra_alias: operation.algebra_alias.clone(),
                             commutativity_licensed: operation.commutativity_licensed,
                             associativity_licensed: operation.associativity_licensed,
+                            left_distribution_over: operation.left_distribution_over.clone(),
+                            right_distribution_over: operation.right_distribution_over.clone(),
+                            right_identity: operation.right_identity.clone(),
+                            left_identity: operation.left_identity.clone(),
                         })
                         .collect(),
                 }),

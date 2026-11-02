@@ -1,0 +1,3 @@
+index compatibility condition
+Indexed<A * B + A * C>
+is not established

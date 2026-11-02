@@ -40,6 +40,14 @@ pub struct OpenIndexOperationSelection {
     /// Reordering and reassociation consume different checked law slots.
     pub commutativity_licensed: bool,
     pub associativity_licensed: bool,
+    /// The same algebra's requirement this operation distributes over from
+    /// the left (`R(a, S(b, c)) == S(R(a, b), R(a, c))`) or the right.
+    pub left_distribution_over: Option<String>,
+    pub right_distribution_over: Option<String>,
+    /// Closed integer identity elements, as decimal values: `R(a, e) == a`
+    /// and `R(e, a) == a`.
+    pub right_identity: Option<String>,
+    pub left_identity: Option<String>,
 }
 
 impl OpenIndexOperationSelection {

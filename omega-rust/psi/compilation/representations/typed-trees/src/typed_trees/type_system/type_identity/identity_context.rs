@@ -10,8 +10,7 @@ use crate::typed_trees::type_system::type_identity::constraint_identity::{
     normalize_constrained_base, normalized_constraints,
 };
 use crate::typed_trees::type_system::type_identity::open_index_identity::{
-    collect_open_index_operands, index_binary_operator_name, open_index_algebra_identity,
-    open_index_operation_identity, open_index_operation_selection,
+    index_binary_operator_name, normalize_open_index_operation,
 };
 use crate::types::{TypeReferenceHandle, TypeReferenceNode};
 use language_semantics::type_identity::vocabulary::{
@@ -858,34 +857,15 @@ pub(crate) fn normalize_index_expression(
             substitution::index_name(program, symbol, fallback.as_str(), context)
         }
         ExpressionNode::Binary(binary) => {
-            let Some(selection) = open_index_operation_selection(program, expression) else {
-                return compound(
+            normalize_open_index_operation(program, expression, context).unwrap_or_else(|| {
+                compound(
                     index_binary_operator_name(binary.operator),
                     [
                         normalize_index_expression(program, binary.left, context),
                         normalize_index_expression(program, binary.right, context),
                     ],
-                );
-            };
-            let operands = collect_open_index_operands(
-                program,
-                expression,
-                binary.operator,
-                selection,
-                context,
-            );
-            compound(
-                index_binary_operator_name(binary.operator),
-                std::iter::once(atom(
-                    Label::Operation,
-                    &open_index_operation_identity(program, selection, context),
-                ))
-                .chain(std::iter::once(atom(
-                    Label::Algebra,
-                    &open_index_algebra_identity(program, selection, context),
-                )))
-                .chain(operands),
-            )
+                )
+            })
         }
         ExpressionNode::Integer(value) => substitution::index_integer(value, context),
         ExpressionNode::Unary(unary) => compound(

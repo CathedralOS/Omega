@@ -329,6 +329,10 @@ mod authored_type_occurrence_tests {
             algebra_alias: None,
             commutativity_licensed: false,
             associativity_licensed: false,
+            left_distribution_over: None,
+            right_distribution_over: None,
+            right_identity: None,
+            left_identity: None,
         });
         let cast = program
             .expression_table

@@ -1,0 +1,70 @@
+// Control: the selected algebra declares distributivity but no identity law,
+// so `+ 0` and `* 1` keep their structure and the transfer rejects.
+domain<T, const I: u64> T::Indexed<I>;
+
+trait IndexRing<Operand> {
+    operator + add(a: Operand, b: Operand) -> Operand
+    terminates;
+    operator * mul(a: Operand, b: Operand) -> Operand
+    terminates;
+    machine mul_distributes(a: Operand, b: Operand, c: Operand)
+    ensures mul(a, add(b, c)) == add(mul(a, b), mul(a, c));
+}
+
+// A deliberately small algebra: both operations keep their left operand, so
+// every declared law holds. Index syntax selects these requirements, never
+// compiler-known integer arithmetic.
+machine keep_sum(a: u64, b: u64) -> u64
+satisfies IndexRing<u64>::add as Projection
+ensures result == a
+{
+    a
+}
+
+machine keep_product(a: u64, b: u64) -> u64
+satisfies IndexRing<u64>::mul as Projection
+ensures result == a
+{
+    a
+}
+
+machine keep_distributes(a: u64, b: u64, c: u64)
+satisfies IndexRing<u64>::mul_distributes as Projection
+ensures keep_product(a, keep_sum(b, c)) == keep_sum(keep_product(a, b), keep_product(a, c))
+{
+    _ = keep_product(a, keep_sum(b, c));
+    _ = keep_sum(keep_product(a, b), keep_product(a, c));
+}
+
+Projection satisfies IndexRing<u64>
+{
+    machine add(a: u64, b: u64) -> u64
+    terminates {
+        keep_sum(a, b)
+    }
+    machine mul(a: u64, b: u64) -> u64
+    terminates {
+        keep_product(a, b)
+    }
+    machine mul_distributes(a: u64, b: u64, c: u64)
+    ensures keep_product(a, keep_sum(b, c)) == keep_sum(keep_product(a, b), keep_product(a, c)) {
+        keep_distributes(a, b, c);
+    }
+}
+
+machine carry<const A: u64, const B: u64, const C: u64, Algebra satisfies IndexRing<u64>>(seed: i64) -> i64 {
+    let made: i64 in Indexed<A * (B + C + 0) * 1> = seed as i64 in Indexed<A * (B + C + 0) * 1>;
+    let carried: i64 in Indexed<A * B + A * C> = made;
+    carried as i64
+}
+
+machine main() crashes Trap {
+    let first: i64 = carry<2, 3, 4, Projection>(5);
+    let second: i64 = carry<2, 3, 4, Projection>(9);
+    transition first == 5 && second == 9 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

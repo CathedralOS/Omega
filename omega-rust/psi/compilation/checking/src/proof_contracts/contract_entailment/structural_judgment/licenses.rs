@@ -33,6 +33,15 @@ pub(super) struct RingLicense {
 pub(crate) struct DeclaredIndexAlgebraLaws {
     pub commutativity: Vec<String>,
     pub associativity: Vec<String>,
+    /// `R(a, S(b, c)) == S(R(a, b), R(a, c))`: the sibling requirement `S`
+    /// this requirement distributes over from the left.
+    pub left_distribution: Vec<String>,
+    /// `R(S(a, b), c) == S(R(a, c), R(b, c))`.
+    pub right_distribution: Vec<String>,
+    /// `R(a, e) == a` with `e` a closed integer, as its decimal value.
+    pub right_identity: Vec<String>,
+    /// `R(e, a) == a`.
+    pub left_identity: Vec<String>,
 }
 
 /// The trait-level half of the algebra license: `requirement`'s commutativity
@@ -95,6 +104,18 @@ pub(crate) fn declared_index_algebra_laws(
 ) -> DeclaredIndexAlgebraLaws {
     let mut laws = DeclaredIndexAlgebraLaws::default();
     for law in program.trait_machine_signatures(trait_definition) {
+        // A law under its own `requires` holds only where that premise does;
+        // index normalization has no premise to discharge, so it licenses
+        // nothing.
+        if program
+            .state_signature_contracts(law)
+            .iter()
+            .any(|contract| {
+                contract.kind == typed_trees::signature::SignatureContractKind::Requires
+            })
+        {
+            continue;
+        }
         let parameters = program
             .state_signature_parameters(law)
             .iter()
@@ -106,6 +127,28 @@ pub(crate) fn declared_index_algebra_laws(
             }
             if associativity_shape(&left, &right, &parameters).as_deref() == Some(requirement) {
                 laws.associativity.push(law.name.as_str().to_owned());
+            }
+            if let Some((product, sum)) = distributivity_shape(&left, &right, &parameters)
+                && product == requirement
+            {
+                laws.left_distribution.push(sum);
+            }
+            if let Some((product, sum)) = right_distributivity_shape(&left, &right, &parameters)
+                && product == requirement
+            {
+                laws.right_distribution.push(sum);
+            }
+            for (first, second) in [(&left, &right), (&right, &left)] {
+                if let Some((operation, element, element_on_right)) =
+                    identity_shape(first, second, &parameters)
+                    && operation == requirement
+                {
+                    if element_on_right {
+                        laws.right_identity.push(element);
+                    } else {
+                        laws.left_identity.push(element);
+                    }
+                }
             }
         });
     }
@@ -666,7 +709,85 @@ fn distributivity_shape(
     else {
         return None;
     };
-    (la == a && lb == b && ra == a && rc == c).then(|| (mul_op.clone(), add_op.clone()))
+    // Repeated variables state a weaker law than distributivity.
+    let distinct = a != b && b != c && a != c;
+    (distinct && la == a && lb == b && ra == a && rc == c).then(|| (mul_op.clone(), add_op.clone()))
+}
+
+/// `mul(add(a, b), c) == add(mul(a, c), mul(b, c))` up to parameter naming,
+/// with distinct parameters -- returns (mul_op, add_op).
+fn right_distributivity_shape(
+    left: &StructuralTerm,
+    right: &StructuralTerm,
+    parameters: &[String],
+) -> Option<(String, String)> {
+    if !consistent_operation_selections(left, right) {
+        return None;
+    }
+    fn binary(term: &StructuralTerm) -> Option<(String, &StructuralTerm, &StructuralTerm)> {
+        match term {
+            StructuralTerm::Application {
+                machine, arguments, ..
+            } if arguments.len() == 2 => Some((machine.clone(), &arguments[0], &arguments[1])),
+            _ => None,
+        }
+    }
+    let variable = |term: &StructuralTerm| match term {
+        StructuralTerm::Variable(name) if parameters.contains(name) => Some(name.clone()),
+        _ => None,
+    };
+    let (mul_op, sum, c) = binary(left)?;
+    let (add_op, a, b) = binary(sum)?;
+    let (a, b, c) = (variable(a)?, variable(b)?, variable(c)?);
+    let (outer_add, first, second) = binary(right)?;
+    let (first_mul, first_a, first_c) = binary(first)?;
+    let (second_mul, second_b, second_c) = binary(second)?;
+    let shape = mul_op != add_op
+        && outer_add == add_op
+        && first_mul == mul_op
+        && second_mul == mul_op
+        && a != b
+        && b != c
+        && a != c
+        && variable(first_a)? == a
+        && variable(first_c)? == c
+        && variable(second_b)? == b
+        && variable(second_c)? == c;
+    shape.then_some((mul_op, add_op))
+}
+
+/// `R(x, e) == x` or `R(e, x) == x` with `e` a closed integer literal ->
+/// (op, decimal `e`, whether `e` is the right operand). A nullary requirement
+/// such as `zero()` is not a closed element here: connecting it to a literal
+/// needs ordinary unfolding of a concrete provider.
+fn identity_shape(
+    application: &StructuralTerm,
+    result: &StructuralTerm,
+    parameters: &[String],
+) -> Option<(String, String, bool)> {
+    let StructuralTerm::Variable(subject) = result else {
+        return None;
+    };
+    if !parameters.contains(subject) {
+        return None;
+    }
+    let StructuralTerm::Application {
+        machine, arguments, ..
+    } = application
+    else {
+        return None;
+    };
+    match arguments.as_slice() {
+        [
+            StructuralTerm::Variable(operand),
+            StructuralTerm::Integer(element),
+        ] if operand == subject => Some((machine.clone(), element.to_string(), true)),
+        [
+            StructuralTerm::Integer(element),
+            StructuralTerm::Variable(operand),
+        ] if operand == subject => Some((machine.clone(), element.to_string(), false)),
+        _ => None,
+    }
 }
 
 /// Tier-2 licensing: a trait carrying comm+assoc for BOTH an add op and a

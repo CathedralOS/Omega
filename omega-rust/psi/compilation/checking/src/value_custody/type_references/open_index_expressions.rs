@@ -175,7 +175,9 @@ pub fn normalize_open_index_expressions(program: &mut TypedTrees) -> Result<(), 
                 // Version 3 retains exact providers even without AC laws and
                 // shares their identity with established fact operands. An
                 // alias is diagnostic payload, never algebra identity.
-                normalizer_version: 3,
+                // Version 4 also consumes declared distributivity and closed
+                // identity-element laws.
+                normalizer_version: 4,
             },
             operations,
         ));
@@ -400,6 +402,13 @@ fn bound_index_operations(
             algebra_alias: Some(bound.binder_name.as_str().to_owned()),
             commutativity_licensed: !laws.commutativity.is_empty(),
             associativity_licensed: !laws.associativity.is_empty(),
+            // One sibling and one element per direction: a requirement
+            // declared to distribute over two sums licenses only the first,
+            // which can only under-normalize.
+            left_distribution_over: laws.left_distribution.into_iter().next(),
+            right_distribution_over: laws.right_distribution.into_iter().next(),
+            right_identity: laws.right_identity.into_iter().next(),
+            left_identity: laws.left_identity.into_iter().next(),
         })
     })
     .collect()
