@@ -1,19 +1,25 @@
-# Generic selected invocation crash contracts
+# Crash conditions through selected implementations
 
-Owning requirements: **CRASH-CONTRACT**, generic selected-use joins and exact
-invocation-entry operands through public package review and execution; and
-**BUILD-OWNED-TARGET-SELECTION**, carrying that same invocation through an
-explicitly selected target implementation without changing its public contract.
+A call must obey the crash conditions its interface promises, even when the
+chosen implementation happens to return normally. These examples check that
+the compiler keeps that rule as the input passes through nine different places
+in a program.
+
+The `Reader` interface permits a `Trap` only when `value < Limit`. The caller
+chooses an implementation of `Reader<Zero>` and requires a nonnegative input,
+which rules out that crash. Each reject twin changes only `< Limit` to
+`<= Limit`: zero is now an allowed input that may crash, so the compiler must
+reject the caller's promise that it cannot crash. The chosen implementation
+simply returns its input; that harmless body cannot weaken the interface's
+published conditions. The final equality check observes the returned value;
+it does not prove that the call is safe.
+
+Owning tasks: **CRASH-CONTRACT**, checking the chosen interface's crash conditions
+against the actual input; and **BUILD-OWNED-TARGET-SELECTION**, choosing a
+platform implementation in Build configuration while preserving those conditions.
 
 Fact: a generic selected Reader<Zero>::read call preserves the entry i32 >= 0
 fact to discharge its authored value < Zero Trap route.
-
-The requirement owns `crashes Trap value < Limit`. The public consumer selects
-`Implementation satisfies Reader<Zero>` and requires a nonnegative input. The
-provider's harmless implementation cannot remove this public obligation. Every
-reject twin changes only `< Limit` to `<= Limit`; zero then leaves an uncovered
-route under the same consumer precondition. The runtime equality checks observe
-the authored result; they do not establish the fact used to accept the call.
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
@@ -33,63 +39,64 @@ Only the available Linux x86-64 host supplies native execution evidence here.
 
 ## Requirements established by this row
 
-- **Establishment:** the caller's independent entry requirement justifies the
-  comparison complement. Fixed-integer comparison meaning comes from the exact
-  checked declaration; token spelling supplies no authority.
-- **Identity and lifetime:** selected requirement formals substitute authenticated
-  invocation operands. [saved_actual](saved_actual/main.omg) additionally copies
-  the entry value before a write; its [twin](saved_actual/invalid/main.omg) passes
-  changed storage and must reject. A bare readable scalar reference observes
-  the referent through its structural root, never a fictional scalar slot.
-- **Composition:** the completed identity call's `result == value` guarantee
-  transports the exact normal result into the enclosing selected call. Named
-  states, common match origins and forwarded calls retain the same operation.
-- **Soundness boundaries:** the checked executable predicate algebra excludes
-  erased mathematics and structural proof equality from integer complementation.
-  No provider body supplies a public guarantee or narrows a requirement ceiling.
-- **Checked to Terminal Psi:** ordinary checked call correspondence and lowering
-  retain evaluated arguments, the selected declaration and contract commitment.
-  Terminal execution must agree with the authored native result.
-- **Provider settlement, layout and ABI:** public review projects `Reader<Zero>`
-  by the trait's exact const telescope slot using checked canonical values. The
-  existing scalar and borrowed-field calling plans supply the exercised ABI.
-- **Instruction selection and frames:** the selected calls, scalar snapshots,
-  borrowed reads and normal-return values use the ordinary Linux x86-64 path.
-- **Encoding and native execution:** the emitted image executes the oracle;
-  merely checking or emitting it does not establish this layer.
+- **Establishment:** the caller's `value >= 0` requirement rules out `value < 0`.
+  The compiler must use the checked integer comparison, not infer its meaning
+  from an operator's spelling.
+- **Identity and lifetime:** each crash condition uses the value actually passed
+  at that call. [saved_actual](saved_actual/main.omg) copies the input before a
+  write; its [twin](saved_actual/invalid/main.omg) passes the changed value and
+  must reject. Reading a scalar reference means reading its actual backing
+  storage.
+- **Composition:** an identity call's `result == value` guarantee carries the
+  input's nonnegative bound into a later call. Nested machines, match results,
+  and forwarding helpers must preserve the same bound.
+- **Soundness boundaries:** integer comparison rules apply to executable integer
+  values; erased mathematical values and structural equality cannot stand in
+  for them. A chosen implementation cannot narrow the public crash conditions.
+- **Checked to Terminal Psi:** the compiler's portable representation retains
+  the evaluated arguments, chosen declaration, and call contract. Its
+  interpreter must produce the same result as the native program.
+- **Provider selection, layout and calling convention:** package review matches
+  `Zero` to Reader's declared `Limit` parameter. Ordinary integer and borrowed
+  field arguments use their existing calling conventions.
+- **Instructions and stack storage:** calls, saved scalar values, borrowed reads,
+  and returns use the ordinary Linux x86-64 implementation.
+- **Encoding and native execution:** the emitted executable must run and produce
+  the expected result; successful checking or emission alone does not count.
 
-[permitted_return](permitted_return/main.omg) retains a true permitted route
-while the selected provider returns normally. [permitted_crash](permitted_crash/main.omg)
-uses the same public guard and actually crashes: the native illegal-instruction
-presentation and Terminal `Trap` must agree. A permitted guard is not an event.
+[permitted_return](permitted_return/main.omg) allows a crash for its input, but
+the chosen implementation returns normally. [permitted_crash](permitted_crash/main.omg)
+uses the same public condition and actually crashes: the native
+illegal-instruction signal and the interpreter's `Trap` must agree. Permission
+to crash does not require a crash to happen.
 
 ## Baseline and remaining scope
 
 At `d6cf554fd1cbf20551983d29bae26f5cf3b81664`, the local, nested call-result
 and saved-actual positives wrongly reject with an uncovered Trap call route.
-The covered-route variant checks, but public review rejects its named const
-argument as a residual const declaration in structural type identity.
+The version that permits the crash passes source checking, but package review
+rejects the named constant argument instead of treating it as its checked value.
 
-This row does not close **CRASH-CONTRACT**. Provider-backed structural selection,
-other intrinsic spellings, opaque/content provenance, compound ordered completion
-and the task's remaining executed-outcome obligations remain open. A separate
-exploratory generic provider body with an open const guard still rejects its
-own crash site; it is not claimed as completed by this selected-consumer row.
-Run identities, commands, source hashes and actual engine outcomes are retained
-in qualification evidence rather than inferred from folder presence.
+This row does not close **CRASH-CONTRACT**. The task still includes selected
+implementations with record arguments, other compiler-provided operations,
+opaque calls and content ownership, and sequences of calls with different
+possible outcomes. An exploratory implementation whose crash condition depends
+on an unknown constant still rejects its own crash site; this row does not
+claim to fix it. Run records retain the actual commands, source hashes, and
+engine outcomes. Folder presence alone is not execution evidence.
 
 ## Build-owned target-body migration
 
-The `target_body` place calls the public `SelectedForward::forward` requirement.
-Its evidence binder remains caller-selected: `safe<Provider<Zero>>` supplies the
-`Reader<Zero>` map, while four explicit Build rows select ordinary forwarding
-implementations for the four hosted targets. Each body forwards the exact input
-to that map. The requirement retains `crashes Trap value < Zero` and explicit
-empty service reach; the public helper publishes `invokes SelectedForward`.
-The reject twin changes only Reader's `< Limit` to `<= Limit`, leaving an
-uncovered route even though the concrete provider returns normally.
+The `target_body` place calls the public `SelectedForward::forward` interface.
+The caller still chooses the Reader implementation with `safe<Provider<Zero>>`.
+Four explicit Build rows choose the forwarding implementation for each hosted
+platform. Every body passes the same input to the caller's chosen Reader.
+The interface keeps `crashes Trap value < Zero` and declares that it uses no
+services. The public helper names the interface it may call with
+`invokes SelectedForward`. Changing only Reader's `< Limit` to `<= Limit` must
+still reject, even though the chosen implementation returns normally.
 
-This uses the requirement-binder support already landed with
+This uses the generic interface support already landed with
 `selected_value_application`; it adds no compiler rule or compatibility path.
 [Provider selection](../../../../wiki/spec/build/provider_selection.md#build-owned-target-selection),
 [explicit evidence selection](../../../../wiki/spec/language/conformances.md#declaration-and-selection),

@@ -1215,6 +1215,43 @@ pub(crate) fn refine_published_crash_routes(
     contracts: &[typed_trees::signature::SignatureContract],
     content_conservation: &[validation::ContentConservationSourcePlan],
 ) -> Vec<SummaryCrashBucket> {
+    if std::env::var_os("OMEGA_TRACE_CRASH_REQUIREMENTS").is_some()
+        && program
+            .machine_by_symbol(state_flow.machine_symbol)
+            .is_some_and(|machine| {
+                matches!(machine.name.as_str(), "safe" | "WindowsForward::forward")
+            })
+    {
+        let describe = |signature_contracts: &[typed_trees::signature::SignatureContract]| {
+            signature_contracts
+                .iter()
+                .filter(|contract| {
+                    matches!(
+                        contract.kind,
+                        typed_trees::signature::SignatureContractKind::Crashes { .. }
+                    )
+                })
+                .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
+                .filter_map(|fact| fact.as_expression())
+                .map(|expression| program.expression_table.display_name(*expression))
+                .collect::<Vec<_>>()
+        };
+        eprintln!(
+            "CRASH_REQUIREMENT_TRACE caller={:?} target={:?} raw={:?} buckets={buckets:?} applied={:?}",
+            state_flow.machine_symbol,
+            target_state_symbol,
+            describe(contracts),
+            validation::requirement_contract_signature(
+                program,
+                state_flow.machine_symbol,
+                call_site
+            )
+            .map(|(_, signature)| (
+                signature.symbol,
+                describe(program.state_signature_contracts(signature))
+            )),
+        );
+    }
     let route_expressions = crash_route_expressions_by_identity(
         program,
         contracts,
