@@ -34,6 +34,13 @@ Earlier source failures and one cheap Rust-check API failure remain false in
 the raw evidence; no native result is claimed for them. Logs/JSON, frozen
 source and bundles remain outside scratch at
 `/Users/zcanann/Omega-build/alias-rhs-captured-supplier-20261101/`.
-This one default-member place does not complete other mixed/open RHS contexts,
+The local place above and the [generic field](field/README.md) and
+[incoming parameter](parameter/README.md) places are qualified. The two latter
+places passed at source `7ecc47f1c723` in run 41364458750 without rerunning
+the local place. Generated-origin replay now compares transparent alias
+expansions and exact expression-backed array children; independent alias
+formation and all origin tuple checks remain in place.
+
+These three places do not complete other mixed/open RHS contexts,
 RHS calls/qualified value names, Product/Build transport, nine-place rows,
 other hosts or the Omega-written producer.
