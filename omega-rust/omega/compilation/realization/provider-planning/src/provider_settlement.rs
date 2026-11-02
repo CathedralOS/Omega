@@ -1,17 +1,16 @@
-//! Provider settlement for the checked program: plans derived and selected
-//! with provenance over the settled target machines, with every
-//! `Independent` selection closed against the build's verified components.
-//! Derivation is the one producer of each candidate; settlement does not
-//! re-validate what it just derived, and adapter refinement of requirement
-//! ceilings belongs to Psi conformance checking.
+//! Choose which implementation each API uses for the target, and record why
+//! each choice was made. Implementations built as separate components
+//! (`Independent`) must match verified components attached to this build.
 //!
-//! `settle_checked_providers` is the route. `independent_components` owns the
-//! one subordinate admission: re-verifying the component descriptions the
-//! package inputs attached before provider planning joins them.
+//! `settle_checked_providers` coordinates the work. `independent_components`
+//! verifies attached component descriptions before matching them to choices.
+//! Candidates are validated when constructed; do not repeat those checks here.
+//! The source checker ensures adapters satisfy the API's requirements.
 //!
-//! A semantic binding classifies an exact service declaration; it never supplies
-//! an implementation. Provider supply comes from declared candidates and explicit
-//! assumption links, with independent component admission retained here.
+//! Recognizing an API as a filesystem or other service must not invent code
+//! that implements it. Use the implementations declared by the program and
+//! selected by its build settings. Explicit links between APIs and verification
+//! of independently compiled components still follow their usual checks.
 
 pub(crate) mod assumed_bindings;
 mod completion;
@@ -101,8 +100,8 @@ pub struct ProviderSettlement<Rows = crate::PreparedProviderRows> {
 }
 
 impl ProviderSettlement<crate::DeferredProviderRows> {
-    /// Consume captured declaration refusals after entry formation and before
-    /// leaf completion, preserving the original error order without source.
+    /// Report saved declaration errors after program-entry checks and before
+    /// completing direct calls. Preserve error order without reading source.
     pub fn finish_row_declarations(self) -> Result<ProviderSettlement, Vec<Diagnostic>> {
         let Self {
             calling_program,

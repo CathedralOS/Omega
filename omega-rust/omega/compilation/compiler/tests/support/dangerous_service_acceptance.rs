@@ -63,10 +63,9 @@ pub struct RequiredDangerousServices {
 /// through the selected provider type instead, exactly as the binding
 /// constructors attribute it.
 ///
-/// Filesystem and clock roles classify exact package-owned requirements. Their
-/// nomination follows the selected entry's service requirements, independently
-/// of provider selection. Accepting a role supplies neither a provider nor an
-/// execution permission; the program must carry its ordinary selected supply.
+/// Identify filesystem and clock APIs from the services the entry function
+/// requires. Identifying such an API does not implement it or grant permission
+/// to execute it: the program must still declare and select an implementation.
 ///
 /// Console and ProcessExit operations are the trait signatures the program's
 /// resolved calls select — a `Binding<R>` receiver resolves its call

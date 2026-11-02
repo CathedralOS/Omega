@@ -1,10 +1,11 @@
-//! Form Product candidates and close their declarations before portable code.
+//! Collect possible implementations and their declarations before publishing
+//! the shared intermediate program. Later steps can attach target calling
+//! plans without reading source again.
 //!
-//! Calling changes schema attachments, not candidate formation or nominal
-//! declaration closure. Each occurrence keeps its own evaluated bindings and
-//! Build evidence; only immutable declaration metadata crosses this boundary.
-//! Native schema validation remains after attachment. Publication keeps authored
-//! inspection/sibling choices separate from the actual native-augmented receipt.
+//! Each requested target keeps its own evaluated build settings. Validate
+//! native plans after attaching their complete calling information. Keep the
+//! authored choices used for inspection separate from the choices that also
+//! include native bindings.
 
 use super::{AuthoredTargetProviders, TargetProviderPreparationRequest};
 use crate::calling_policy_plans::BoundaryCallingPlanRealization;
@@ -26,8 +27,9 @@ use symbols::SymbolHandle;
 type SourceChoices = PreparedTargetChoices<ProviderPlanProvenance, ProviderSelection>;
 type ApplicationRoots = Result<Option<Vec<CanonicalProviderDeclaration>>, Vec<Diagnostic>>;
 
-/// Source-only inputs for one occurrence. There is no policy execution or
-/// selection in this operation, and its result retains no checked program.
+/// Inputs for preparing implementations for one requested target. Preparation
+/// reads declarations without running calling policies or choosing an
+/// implementation; its result does not retain the checked program.
 pub struct ProductProviderPreparation<'program> {
     pub checked: &'program Arc<checked_trees::CheckedTrees>,
     pub services: ServiceCatalog<'program>,
@@ -110,8 +112,8 @@ impl CallingCandidate {
         if let Some(surface) = surface {
             let surface = surface.surface().map_err(|error| vec![error])?;
             derived.plan.schema = crate::service_schema::attach_calling(&surface, calling);
-            // Source closure may have observed the neutral plan. Its memo must
-            // never stand for the final schema's ABI commitments.
+            // Adding calling plans changes the schema. Clear any cached digest
+            // so later comparisons include the completed ABI information.
             derived.plan.digest_memo = Default::default();
         }
         Ok(derived)
@@ -259,8 +261,8 @@ impl PreparedProductProviders {
                 })
             })
             .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
-        // Validate once, with the final complete Calling applications. Neutral
-        // formation cannot discharge ABI uniqueness or commitment obligations.
+        // Check native implementations against their complete calling plans.
+        // Earlier preparation cannot check ABI details that are attached here.
         for candidate in &candidates[self.native_start..] {
             let errors = candidate.source.plan.validate_candidate_against_schema();
             if !errors.is_empty() {
@@ -320,8 +322,8 @@ fn attach_choices<'candidate>(
             "provider Calling attachment lost its prepared candidate correspondence",
         )]);
     }
-    // Source preparation emits these rosters together, in authored/native
-    // order. One finalized plan feeds selection and original-row review.
+    // Both lists were built together in the same order. Give each choice its
+    // completed plan so selection and review inspect the same information.
     for (choice, candidate) in choices.candidates.iter_mut().zip(candidates) {
         choice.choice.plan = candidate.plan.clone();
     }
@@ -390,9 +392,9 @@ impl ProductProviderPreparation<'_> {
         );
         base_targets.sort();
         base_targets.dedup();
-        // This is a declaration census, not additional target evaluation. Late
-        // request scopes are not known until settlement succeeds. Capture the
-        // finite receiving catalog now, then emit only the original late roster.
+        // Some requested targets become known only after implementation selection.
+        // Save declarations for every supported target now, then publish only
+        // the targets requested later. This does not evaluate additional targets.
         let mut catalog_targets = base_targets.clone();
         catalog_targets.extend(
             target::TargetProfile::ALL
