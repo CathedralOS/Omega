@@ -12,23 +12,15 @@ data Failure<'buffer> { output: &'buffer mut [u8]; reason: Reason; }
 // The ordinary fallible map remains callable with short output. Its stronger
 // public contract covers every semantic value when the supplied resource fits.
 // No purity refinement or ambient allocator is imposed on TryFrom.
-trait BufferedEncoding<Source, Frame, Error, machine Capacity, const Required: u64> :
-    TryFrom<Source, Frame, Error>
-requires machine Capacity(source: &Source) -> u64 reaches terminates;
+trait BufferedEncoding<'buffer, Value, Frame, Error, const Required: u64> :
+    TryFrom<Request<'buffer, Value>, Frame, Error>
 {
-    machine encode_sufficient(request: Source) -> Result<Frame, Error>
-    requires Capacity(&request) >= Required
+    machine encode_sufficient(request: Request<'buffer, Value>) -> Result<Frame, Error>
+    requires request.output.len >= Required
     ensures result in Result::Ok;
 }
 
-machine capacity<'buffer>(source: &Request<'buffer, Pair>) -> u64
-reaches terminates
-ensures result == source.output.len
-{
-    source.output.len
-}
-
-WriteFirst<'buffer> satisfies BufferedEncoding<Request<'buffer, Pair>, FirstFrame<'buffer>, Failure<'buffer>, capacity, 3u64> {
+WriteFirst<'buffer> satisfies BufferedEncoding<'buffer, Pair, FirstFrame<'buffer>, Failure<'buffer>, 3u64> {
     machine try_from(request: Request<'buffer, Pair>) -> Result<FirstFrame<'buffer>, Failure<'buffer>>
     ensures request.output.len < 3u64 || result in Result::Ok
     {
@@ -80,7 +72,7 @@ ReadFirst<'buffer> satisfies TryFrom<FirstFrame<'buffer>, Request<'buffer, Pair>
 }
 
 // Independently authored second format: a different tag and reversed fields.
-WriteSecond<'buffer> satisfies BufferedEncoding<Request<'buffer, Pair>, SecondFrame<'buffer>, Failure<'buffer>, capacity, 3u64> {
+WriteSecond<'buffer> satisfies BufferedEncoding<'buffer, Pair, SecondFrame<'buffer>, Failure<'buffer>, 3u64> {
     machine try_from(request: Request<'buffer, Pair>) -> Result<SecondFrame<'buffer>, Failure<'buffer>>
     ensures request.output.len < 3u64 || result in Result::Ok
     {
@@ -108,7 +100,7 @@ WriteSecond<'buffer> satisfies BufferedEncoding<Request<'buffer, Pair>, SecondFr
 }
 
 machine encode_sufficient<'buffer, Frame, Error,
-    Selected satisfies BufferedEncoding<Request<'buffer, Pair>, Frame, Error, capacity, 3u64>>
+    Selected satisfies BufferedEncoding<'buffer, Pair, Frame, Error, 3u64>>
     (request: Request<'buffer, Pair>) -> Result<Frame, Error>
 requires request.output.len >= 3u64
 ensures result in Result::Ok

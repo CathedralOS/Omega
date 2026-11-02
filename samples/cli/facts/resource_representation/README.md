@@ -9,9 +9,10 @@ its pure maps return fixed owned frames. This row instead transfers an exclusive
 caller-supplied byte slice through ordinary requests, successful frame carriers,
 and rejected outcomes. No allocator or hidden resource is available.
 
-The ordinary `BufferedEncoding` contract takes the complete source type, an
-explicit pure capacity query, and the required capacity. It inherits the exact
-`TryFrom` application and adds a sufficient-output operation. That operation promises
+The ordinary `BufferedEncoding` contract names its explicit `Request` resource
+carrier, semantic value type, result/error carriers and required capacity. It
+inherits the exact `TryFrom` application and adds a sufficient-output operation.
+The public precondition reads the request's output length. That operation promises
 success for every semantic value under the declared capacity bound and delegates
 to the same fallible map. It does not impose purity or totality on base `TryFrom`.
 The two authored formats use different tags and field orders. Core `compose`
@@ -36,20 +37,22 @@ This is the first place, not a completed resource-backed Representation row or
 the general reflection-specialized standard. Allocator resources, external
 services, work sponsorship, arbitrary schemas, full round-trip agreement laws,
 optional total forwarding beyond this declared capacity contract, remaining
-places, other hosts, and Product remain open.
+places, other hosts, arbitrary-source resource metrics, and Product remain open.
 
 ## Current evidence
 
-Development diagnostics refused before checking on retained optimized Mac producer
-`b89a9a700f56c93f9f7e39da3af38b783eea911f` (CLI
-`c505b5b8172f83b5021ba8868040a16e5b76a168cc84d1adf9914d2efbe33c32`):
-named implementation `satisfies` arguments rejected the literal capacity,
-and trait headers did not intake an ordinary machine binder contract. The
-repairs reuse the existing type/domain static-argument reader and ordinary
-machine-contract intake, retaining recipes, full source types and supplier
-identity for resolution and formation. Earlier draft refinement syntax and
-private named-capacity diagnostics are retained separately; none qualifies
-the final program.
-Scoped source/native/Terminal qualification is pending. Raw observations and
-frozen inputs are retained outside scratch under
-`/Users/zcanann/Omega-build/representation-resource-20261102/`.
+Development diagnostics and failed producers are retained separately. The first
+prototype used an abstract borrowed `Capacity(&Source)` in a specification. Its
+signature promised termination, but no stable observation-free denotation;
+selecting one stronger private body could not establish that public promise.
+The request-specific contract is the spec-permitted explicit-resource form,
+with the same Pair values, capacity three, exclusive slice, maps, failure
+custody and runtime oracle. Its twin still changes only guard three to two.
+The broader arbitrary-source metric abstraction remains open.
+
+The previous source `83369dc50b5d8be5ee8fc074c20a53a352e6a1d2` authenticated an
+opt1 Linux producer in run41468881925, cleared callback tuple/region formation,
+and then refused at the denotation and returned-loan obligations. That result
+does not qualify this corrected source. Scoped source/native/Terminal
+qualification is pending. Raw observations and frozen inputs are retained
+outside scratch under `/Users/zcanann/Omega-build/representation-resource-20261102/`.
