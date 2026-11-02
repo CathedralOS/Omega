@@ -993,8 +993,32 @@ fn validate_specification_expression_in_scope(
                     })
                     .collect::<Vec<_>>()
                     .join(", ");
+                let calls = arguments.iter().zip(&types).filter_map(|(argument, reference)| {
+                    if reference.is_some() { return None; }
+                    let call = expression_table(program).call_node(*argument)?;
+                    let path = |symbol: SymbolHandle| {
+                        if symbol.is_valid() { program.symbols.display_path(symbol, "::") }
+                        else { "<absent>".to_owned() }
+                    };
+                    let source = call.authored_machine_application.is_valid().then(|| {
+                        expression_table(program).static_machine_application(call.authored_machine_application)
+                    });
+                    let dispatch = call.static_requirement_dispatch.as_ref();
+                    let selection = dispatch.filter(|dispatch| dispatch.selection_application.is_valid())
+                        .map(|dispatch| expression_table(program).static_machine_application(dispatch.selection_application));
+                    let result = program.requirement_call_signature(caller.symbol(), call)
+                        .map_or_else(|| "<absent>".to_owned(), |signature| {
+                            format!("{} -> {}", path(signature.symbol), program.display_type_reference(signature.return_type))
+                        });
+                    Some(format!("; untyped call `{}` target `{}`, source `{}` / `{}`, selection `{}` / `{}`, public result `{}`",
+                        call.target, path(call.target_symbol),
+                        path(source.map_or_else(SymbolHandle::invalid, |source| source.lexical_owner)),
+                        path(source.map_or_else(SymbolHandle::invalid, |source| source.registration_operation)),
+                        path(selection.map_or_else(SymbolHandle::invalid, |source| source.lexical_owner)),
+                        path(dispatch.map_or_else(SymbolHandle::invalid, |dispatch| dispatch.contract_symbol())), result))
+                }).collect::<String>();
                 diagnostics.push(Diagnostic::error(format!(
-                    "cannot form specification operator `{}` in {owner}: no exact selected meaning for operand types [{carriers}]",
+                    "cannot form specification operator `{}` in {owner}: no exact selected meaning for operand types [{carriers}]{calls}",
                     spelling.symbol(),
                 )).with_source_span(expression_table(program).source_span(expression)));
                 return;

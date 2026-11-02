@@ -18,6 +18,7 @@ use regions::AppliedDeclarationRegionScope;
 mod enclosing;
 mod evidence;
 pub use evidence::GenericBoundRequirement;
+mod refinement_views;
 mod retention;
 mod source_fields;
 pub(crate) use retention::RetainedTraitApplicationFrame;

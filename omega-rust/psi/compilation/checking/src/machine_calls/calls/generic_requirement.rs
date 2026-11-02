@@ -36,15 +36,20 @@ pub fn selected_requirement_signature(
         .ok()??;
     let application = &requirement.application;
     let signature = program
-        .closed_requirement_applications()
-        .find(|closed| {
-            closed.template == requirement.signature.symbol
-                && closed.local_arguments.is_empty()
-                && program
-                    .requirement_application_matches_scope(closed.signature.symbol, application)
+        .applied_callable_signature(application, requirement.signature.symbol)
+        .or_else(|| {
+            program
+                .closed_requirement_applications()
+                .find(|closed| {
+                    closed.template == requirement.signature.symbol
+                        && closed.local_arguments.is_empty()
+                        && program.requirement_application_matches_scope(
+                            closed.signature.symbol,
+                            application,
+                        )
+                })
+                .map(|closed| closed.signature)
         })
-        .map(|closed| closed.signature)
-        .or_else(|| program.applied_callable_signature(application, requirement.signature.symbol))
         .or_else(|| {
             (application.substitutions.is_empty()
                 && application.declaration.lifetime_parameters.is_empty())
@@ -97,7 +102,11 @@ pub fn requirement_contract_signature<'program>(
         super::CallSite::TransitionNamed { .. } => None,
     };
     if let Some(signature) = exact {
-        return (signature.symbol == selected.symbol).then_some((declaration, signature));
+        let same_source = signature.symbol == selected.symbol
+            || program
+                .closed_requirement_application(selected.symbol)
+                .is_some_and(|closed| closed.template == signature.symbol);
+        return same_source.then_some((declaration, signature));
     }
     let requires_exact_application = match site {
         super::CallSite::Expression { call, .. } => {

@@ -643,6 +643,39 @@ pub(crate) fn selected_operator_authored_body<'program>(
     .then_some((machine, entry))
 }
 
+/// A closed named map already selects one checked executable entry. Its body
+/// can establish concrete denotation eligibility just as an authored operator
+/// body does. The public signature still owns all preconditions/guarantees;
+/// abstract evidence and provider spelling cannot supply a body here.
+pub(crate) fn selected_requirement_authored_body<'program>(
+    program: &'program dyn crate::CheckingInput,
+    caller: SymbolHandle,
+    call: &typed_trees::expression::TableCallExpression,
+) -> Option<(&'program Machine, &'program typed_trees::state::State)> {
+    let dispatch = call.static_requirement_dispatch.as_ref()?;
+    let caller = program
+        .machine_holding_state(caller)
+        .map_or(caller, |machine| machine.symbol);
+    let target = crate::CallSite::Expression {
+        expression: Default::default(),
+        call,
+    }
+    .target_symbol(program);
+    if !crate::closed_requirement_dispatch_is_valid(program, caller, target, dispatch) {
+        return None;
+    }
+    let (machine, entry) =
+        crate::find_state(program, target).or_else(|| crate::find_machine_head(program, target))?;
+    if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
+        || !machine.body_is_present
+        || machine.body_status != typed_trees::machine::MachineBodyStatus::Complete
+        || program.machine_states(machine).first()?.symbol != entry.symbol
+    {
+        return None;
+    }
+    Some((machine, entry))
+}
+
 /// Closed compiler catalogs independently establish a total value meaning.
 /// A selected runtime slot must retain its exact sealed declaration and a
 /// complete catalog result equation. Ordinary boundary admission or a matching

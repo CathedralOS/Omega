@@ -392,6 +392,36 @@ pub(super) fn structural_call_target(
     caller: symbols::SymbolHandle,
     call: &typed_trees::expression::TableCallExpression,
 ) -> symbols::SymbolHandle {
+    // An abstract map's child is the invoked operation's identity. Its public
+    // signature describes the contract but is shared by other independently
+    // selected maps, so it cannot replace this symbolic application head.
+    if call.static_requirement_dispatch.is_none()
+        && let Some(receiver) = expression_table(program).name_path_node(call.receiver)
+        && receiver.symbol.is_valid()
+        && program.symbols.get(receiver.symbol).kind == symbols::SymbolKind::ConformanceParameter
+        && program
+            .evidence_bound_requirement(
+                program.symbols.get(receiver.symbol).parent,
+                receiver.symbol,
+                call.target_symbol,
+            )
+            .ok()
+            .flatten()
+            .is_some()
+    {
+        let original = if call.authored_machine_application.is_valid() {
+            expression_table(program)
+                .static_machine_application(call.authored_machine_application)
+                .registration_operation
+        } else {
+            symbols::SymbolHandle::invalid()
+        };
+        for target in [call.target_symbol, original] {
+            if target.is_valid() && program.symbols.get(target).parent == receiver.symbol {
+                return target;
+            }
+        }
+    }
     super::specification_calls::selected_call_contract(program, caller, call)
         .map(|owner| super::specification_calls::owner_symbol(&owner))
         .unwrap_or(call.target_symbol)

@@ -120,25 +120,30 @@ pub(crate) fn validate_specification_calls(
             }
             Some(SelectedCallContract::Signature(signature))
             | Some(SelectedCallContract::DynamicSlot { signature, .. }) => {
-                // An abstract invocation consumes its selected public promise,
-                // never a realized private implementation's stronger summary.
-                if !matches!(
-                    &signature.termination_guarantee,
-                    language_semantics::TerminationGuarantee::Terminates { premises }
-                        if premises.is_empty()
-                ) {
-                    diagnostics.push(Diagnostic::error(format!(
+                if let Some(body) = super::selected_requirement_authored_body(program, caller, call)
+                {
+                    body
+                } else {
+                    // An abstract invocation consumes its selected public promise,
+                    // never a realized private implementation's stronger summary.
+                    if !matches!(
+                        &signature.termination_guarantee,
+                        language_semantics::TerminationGuarantee::Terminates { premises }
+                            if premises.is_empty()
+                    ) {
+                        diagnostics.push(Diagnostic::error(format!(
                             "specification call `{}` is not denotational: the selected machine is not unconditionally terminating",
                             signature.name,
                         )));
-                }
-                if !signature_has_closed_value_effects(program, signature) {
-                    diagnostics.push(Diagnostic::error(format!(
+                    }
+                    if !signature_has_closed_value_effects(program, signature) {
+                        diagnostics.push(Diagnostic::error(format!(
                             "specification call `{}` has no observation-free, reach-free, crash-free value denotation",
                             signature.name,
                         )));
+                    }
+                    continue;
                 }
-                continue;
             }
             None => continue,
         };
