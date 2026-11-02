@@ -221,28 +221,10 @@ fn assert_calling_review_outlives_source(
         let execution = checked.execution();
         let source = execution.provider_source.program();
         let target = execution.selected_target_profile.expect("fixture target");
-        let defaults = provider_planning::target_machines::settle_provider_defaults(
-            execution.provider_source.inventory().origins(),
-            checked.provider_defaults(),
-            target,
-        );
         let prepare_policy = || {
             provider_planning::calling_policy_plans::prepare_boundary_calling_plans(
-                source,
-                execution
-                    .provider_source
-                    .inventory()
-                    .services_for(source)
-                    .expect("exact source catalog"),
                 target,
-                &checked.build().config.opaque_representation_selections,
                 package_inputs.as_ref(),
-                provider_planning::calling_policy_plans::CallingPolicyProviderInputs {
-                    body_declarations: execution.provider_source.inventory().direct_calls(),
-                    defaults: &defaults.provider_defaults,
-                    requested: &checked.build().config.provider_selections,
-                    exact_toolchain_sources: checked.sources().exact_toolchain_sources(),
-                },
                 &checked.providers().calling_program,
             )
             .expect("retain request/review correspondence and canonical helper choices")
@@ -317,6 +299,7 @@ fn assert_calling_review_outlives_source(
             source_owner: wrong_owner.clone(),
             artifact: Arc::clone(&code.artifact),
             source_records: Arc::clone(&code.source_records),
+            source_preparation: Arc::clone(&code.source_preparation),
             evaluator: code.evaluator,
         };
         (
@@ -358,6 +341,7 @@ fn assert_calling_review_outlives_source(
                 .expect("checked Calling facts survive canonical transport"),
         ),
         source_records: Arc::clone(&code.source_records),
+        source_preparation: Arc::clone(&code.source_preparation),
     };
     if relative == "tests/omega/pass/build/terminal_calling_policy_execution/main.omg" {
         assert_live_calling_authority(&decoded_code.artifact);
@@ -384,6 +368,7 @@ fn assert_calling_review_outlives_source(
                 .expect("ordinary published artifact ingress"),
         ),
         source_records: Arc::from([]),
+        source_preparation: Arc::default(),
         evaluator: code.evaluator,
     };
     let mut retained = None;

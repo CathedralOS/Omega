@@ -16,6 +16,7 @@ use std::sync::Arc;
 #[cfg(test)]
 mod tests;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct PreparedOpaqueReviewSelection {
     application:
         Result<language_semantics::opaque_representations::SelectedOpaqueApplication, String>,
@@ -42,6 +43,7 @@ pub(super) fn prepare_opaque_reviews(
         .into()
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct PreparedCallingReview {
     requirement_identity: String,
     callback_binders: Vec<BoundaryCallbackBinder>,
