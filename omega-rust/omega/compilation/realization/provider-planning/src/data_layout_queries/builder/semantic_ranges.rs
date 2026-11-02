@@ -1,10 +1,10 @@
 //! Plan-laid semantic ranges.
 
-use crate::FieldLayout;
+use crate::data_layout_queries::FieldLayout;
 use diagnostics::Diagnostic;
 pub(crate) fn plan_laid_semantic_ranges(
-    plan: &typed_trees::typed_trees::PlanLaidLayout,
-    geometry: &typed_trees::PlanLaidGeometry,
+    plan: &checked_trees::typed_trees::typed_trees::PlanLaidLayout,
+    geometry: &checked_trees::typed_trees::PlanLaidGeometry,
     fields: &[FieldLayout],
 ) -> Result<Vec<(usize, usize)>, Diagnostic> {
     let mut ranges = SemanticRanges {
@@ -88,8 +88,8 @@ pub(crate) fn plan_laid_semantic_ranges(
 /// order with the range checks every extent must pass before a private callback
 /// slot may claim adjacent storage.
 struct SemanticRanges<'a> {
-    plan: &'a typed_trees::typed_trees::PlanLaidLayout,
-    geometry: &'a typed_trees::PlanLaidGeometry,
+    plan: &'a checked_trees::typed_trees::typed_trees::PlanLaidLayout,
+    geometry: &'a checked_trees::typed_trees::PlanLaidGeometry,
     ranges: Vec<(usize, usize)>,
 }
 

@@ -1,6 +1,6 @@
 //! Data-only path/geometry controls; real private-field invocation is a corpus oracle.
 use super::*;
-use crate::{FieldLayout, TypeLayout, TypeLayoutDescriptor};
+use crate::data_layout_queries::{FieldLayout, TypeLayout, TypeLayoutDescriptor};
 use calling_conventions::{LayoutPlanId, callback_layout_slot_id, callback_requirement_id};
 use language_semantics::callback_declarations::PrivateCallbackSlotSelection;
 fn identity(index: u32, size: usize, policy: bool) -> TargetClosedDataLayoutIdentity {

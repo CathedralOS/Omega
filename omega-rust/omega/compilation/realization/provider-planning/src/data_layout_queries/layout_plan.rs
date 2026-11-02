@@ -2,37 +2,23 @@
 //! layouts, shapes, and target-closed callback demands it carries.
 //!
 //! `builder.rs` produces a `LayoutPlan` from typed declarations;
-//! `field_paths`, `packing`, `sizing`, and `sum_materialization` read or
-//! project these types. Layout never authorizes an access; it only fixes
-//! where a value's bytes live.
+//! `packing` and `sizing` read or project these types. Layout never
+//! authorizes an access; it only fixes where a value's bytes live.
 
 use arena::{Arena, HandleSpan};
+use checked_trees::typed_trees::name::Identifier;
 use std::sync::Arc;
 use symbols::SymbolHandle;
-use typed_trees::name::Identifier;
 
 /// Size (and alignment) of the i32 case tag that prefixes every enum-shaped
 /// data value. Comparing an enum value against a case constant compares ONLY
 /// this prefix (tag-only equality); payload bytes never participate.
 pub(crate) const ENUM_TAG_BYTES: usize = runtime_abi::CASE_TAG_BYTE_SIZE as usize;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct TypeLayout {
-    pub size: usize,
-    pub alignment: usize,
-}
+pub use layout::TypeLayout;
 
 pub(crate) const fn type_layout(size: usize, alignment: usize) -> TypeLayout {
     TypeLayout { size, alignment }
-}
-
-impl Default for TypeLayout {
-    fn default() -> Self {
-        Self {
-            size: 0,
-            alignment: 1,
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -304,5 +290,5 @@ pub struct LayoutPlan {
     pub variants: Arena<VariantLayout>,
     pub private_callback_demands: Vec<TargetClosedPrivateCallbackDemand>,
     pub data_layout_identities: Vec<TargetClosedDataLayoutIdentity>,
-    pub private_callback_layouts: Vec<crate::PrivateCallbackLayout>,
+    pub private_callback_layouts: Vec<crate::data_layout_queries::PrivateCallbackLayout>,
 }

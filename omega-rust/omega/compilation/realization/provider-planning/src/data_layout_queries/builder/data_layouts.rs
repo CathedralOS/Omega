@@ -1,19 +1,19 @@
 //! Computing the layouts of records and case-bearing data.
 
-use crate::builder::LayoutBuilder;
-use crate::builder::generic_bindings::GenericLayoutBinding;
-use crate::builder::private_callback_closure::close_private_callback_demands;
-use crate::packing::{
+use crate::data_layout_queries::builder::LayoutBuilder;
+use crate::data_layout_queries::builder::generic_bindings::GenericLayoutBinding;
+use crate::data_layout_queries::builder::private_callback_closure::close_private_callback_demands;
+use crate::data_layout_queries::packing::{
     PlannedField, align_to, pack_fields, pack_fields_at, place_fields_by_plan, placement_overflow,
 };
-use crate::sizing::pointer_layout;
-use crate::{
+use crate::data_layout_queries::sizing::pointer_layout;
+use crate::data_layout_queries::{
     BitFieldFragment, BitFieldLayout, DataLayout, DataShape, RepeatedFieldLayout,
     StoredIntegerLayout, TargetClosedDataLayoutIdentity, TypeLayout, VariantLayout,
 };
 use calling_conventions::{callback_layout_plan_id, callback_plan_laid_layout_id};
+use checked_trees::typed_trees::data::{DataDefinition, DataField, DataMember, DataShapeKind};
 use diagnostics::Diagnostic;
-use typed_trees::data::{DataDefinition, DataField, DataMember, DataShapeKind};
 
 impl<'program> LayoutBuilder<'program> {
     pub(crate) fn compute_data_layout(
@@ -111,7 +111,7 @@ impl<'program> LayoutBuilder<'program> {
                 &mut self.fields,
                 fields,
                 &geometry.offsets,
-                crate::type_layout(geometry.size, geometry.align),
+                crate::data_layout_queries::type_layout(geometry.size, geometry.align),
             )?;
             let placed = self
                 .fields
@@ -284,8 +284,10 @@ impl<'program> LayoutBuilder<'program> {
         members: &[DataMember],
         bindings: &[GenericLayoutBinding<'program>],
     ) -> Result<DataLayout, Diagnostic> {
-        const TAG_LAYOUT: TypeLayout =
-            crate::type_layout(crate::ENUM_TAG_BYTES, crate::ENUM_TAG_BYTES);
+        const TAG_LAYOUT: TypeLayout = crate::data_layout_queries::type_layout(
+            crate::data_layout_queries::ENUM_TAG_BYTES,
+            crate::data_layout_queries::ENUM_TAG_BYTES,
+        );
 
         // Common fields (mixed shapes) pack right after the tag; their end
         // offset is the floor under every case's payload overlay.

@@ -7,12 +7,12 @@
 //! step is checked and an overflow is a `Diagnostic` rejection of the
 //! placement, never a wrapped offset or a compiler panic.
 
-use crate::{FieldLayout, TypeLayout, TypeLayoutDescriptor};
+use crate::data_layout_queries::{FieldLayout, TypeLayout, TypeLayoutDescriptor};
 use arena::{Arena, HandleSpan};
+use checked_trees::typed_trees::name::Identifier;
 use diagnostics::Diagnostic;
 use std::sync::Arc;
 use symbols::SymbolHandle;
-use typed_trees::name::Identifier;
 
 #[cfg(test)]
 mod tests;
@@ -86,7 +86,7 @@ pub(super) fn pack_fields_at(
 
     Ok((
         field_storage.insert_many(placed),
-        crate::type_layout(size, max_alignment),
+        crate::data_layout_queries::type_layout(size, max_alignment),
     ))
 }
 

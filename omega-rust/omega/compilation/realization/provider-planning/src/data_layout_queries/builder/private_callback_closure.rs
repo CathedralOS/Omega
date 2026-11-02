@@ -1,15 +1,17 @@
 //! Target-closed private callback slots and complete inline record paths.
-use crate::builder::semantic_ranges::{plan_laid_semantic_ranges, ranges_overlap};
-use crate::sizing::pointer_layout;
-use crate::{
+use crate::data_layout_queries::builder::semantic_ranges::{
+    plan_laid_semantic_ranges, ranges_overlap,
+};
+use crate::data_layout_queries::sizing::pointer_layout;
+use crate::data_layout_queries::{
     DataLayout, DataShape, FieldLayout, PrivateCallbackInlineField, PrivateCallbackLayout,
     TargetClosedDataLayoutIdentity, TargetClosedPrivateCallbackDemand,
 };
 use arena::Arena;
 use calling_conventions::{callback_layout_slot_id, callback_requirement_id};
+use checked_trees::typed_trees::TypedTrees;
 use diagnostics::Diagnostic;
 use target::NativeTarget;
-use typed_trees::TypedTrees;
 
 pub(crate) fn close_private_callback_layouts(
     program: &TypedTrees,
@@ -301,8 +303,8 @@ fn close_path(
 }
 
 pub(crate) fn close_private_callback_demands(
-    plan: &typed_trees::typed_trees::PlanLaidLayout,
-    geometry: &typed_trees::PlanLaidGeometry,
+    plan: &checked_trees::typed_trees::typed_trees::PlanLaidLayout,
+    geometry: &checked_trees::typed_trees::PlanLaidGeometry,
     fields: &[FieldLayout],
     target: NativeTarget,
     canonical_layout_subject: &str,

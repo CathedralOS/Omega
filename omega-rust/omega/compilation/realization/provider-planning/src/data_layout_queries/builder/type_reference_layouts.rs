@@ -1,17 +1,19 @@
 //! Laying out type references, generic data definitions and named types
 //! under generic bindings.
 
-use crate::TypeLayout;
-use crate::builder::generic_bindings::{
+use crate::data_layout_queries::TypeLayout;
+use crate::data_layout_queries::builder::generic_bindings::{
     GenericLayoutBinding, binding_for_type, fixed_array_length,
 };
-use crate::builder::{LayoutBuilder, OpaqueRepresentationDemand};
-use crate::sizing::{fat_descriptor_layout, pointer_layout, primitive_type_layout};
+use crate::data_layout_queries::builder::{LayoutBuilder, OpaqueRepresentationDemand};
+use crate::data_layout_queries::sizing::{
+    fat_descriptor_layout, pointer_layout, primitive_type_layout,
+};
+use checked_trees::typed_trees::data::DataDefinition;
+use checked_trees::typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 use diagnostics::Diagnostic;
-use representation_selections::selection_for_opaque;
+use representation_planning::selection_for_opaque;
 use symbols::SymbolHandle;
-use typed_trees::data::DataDefinition;
-use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 impl<'program> LayoutBuilder<'program> {
     /// Lay out a type reference under `bindings`; callers outside any generic
@@ -102,7 +104,10 @@ impl<'program> LayoutBuilder<'program> {
                     )));
                 };
 
-                Ok(crate::type_layout(size, element_layout.alignment))
+                Ok(crate::data_layout_queries::type_layout(
+                    size,
+                    element_layout.alignment,
+                ))
             }
             TypeReferenceNode::Slice { .. } => Ok(fat_descriptor_layout(self.target)),
             // A selector is one reference to its implementation's immutable
@@ -158,7 +163,7 @@ impl<'program> LayoutBuilder<'program> {
                 "proof-static index expression `{}` reached runtime layout as a standalone type",
                 self.program.expression_table.display_name(*expression)
             ))),
-            TypeReferenceNode::Unit => Ok(crate::type_layout(0, 1)),
+            TypeReferenceNode::Unit => Ok(crate::data_layout_queries::type_layout(0, 1)),
         }
     }
 
@@ -328,7 +333,7 @@ impl<'program> LayoutBuilder<'program> {
         if self.trait_definitions.iter().any(|trait_definition| {
             trait_definition.symbol == symbol && trait_definition.is_boundary
         }) {
-            return Ok(crate::type_layout(0, 1));
+            return Ok(crate::data_layout_queries::type_layout(0, 1));
         }
 
         Err(Diagnostic::error(format!(
