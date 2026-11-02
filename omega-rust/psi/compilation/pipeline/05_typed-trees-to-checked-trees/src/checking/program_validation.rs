@@ -50,9 +50,10 @@ pub(crate) fn prepare_typed_program<'program>(
         proof::checker::check_proof_plan_with_decisions(&proof_plan)
     })
     .and_then(|decisions| {
-        phase_profile::scope("psi.05.prepare_typed_program.bare_boundary_trait_values", || {
-            validate_no_bare_boundary_trait_values(program)
-        })
+        phase_profile::scope(
+            "psi.05.prepare_typed_program.bare_boundary_trait_values",
+            || validate_no_bare_boundary_trait_values(program),
+        )
         .map(|()| decisions)
     });
     let proof::checker::ProofDecisions {

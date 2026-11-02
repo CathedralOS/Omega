@@ -10,7 +10,7 @@
 //! Copied descriptors follow their earlier producer rather than rereading a
 //! source slot that later operands may have replaced.
 
-use crate::places::place_at;
+use crate::published::places::place_at;
 use arena::Handle;
 use checked_trees::{
     CapturedPlace, CheckFacts, FlowOperandCompletion, FlowOperandFact, FlowStateFact,
@@ -795,7 +795,7 @@ impl Resolver<'_> {
         .ok_or("the installed descriptor has incomplete formation lineage")?;
         for place in &mut places {
             for alternative in &alternatives {
-                crate::collections::push_unique(&mut place.lineage, *alternative);
+                crate::shared::collections::push_unique(&mut place.lineage, *alternative);
             }
         }
         Ok(Some(BackingFrontier::borrowed(places)))

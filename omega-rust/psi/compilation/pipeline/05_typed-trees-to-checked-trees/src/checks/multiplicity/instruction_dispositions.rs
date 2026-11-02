@@ -6,7 +6,7 @@ use super::linear_obligations::LinearPlace;
 use super::linear_validation::exit_evaluation;
 use super::linear_validation::linear_claim_frontier;
 use crate::flow::expressions;
-use crate::places::place_at;
+use crate::published::places::place_at;
 use checked_trees::{CheckFacts, FlowPermissionEvaluation, FlowPermissionEventFact};
 use language_semantics::{
     Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,

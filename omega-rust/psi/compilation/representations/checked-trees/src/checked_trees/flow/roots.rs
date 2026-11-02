@@ -599,6 +599,7 @@ paged_flow_roots!(FlowControlFacts {
         statements,
         calls,
         call_arguments,
+        call_argument_positions,
         exits,
         outgoing,
         exit_parameter_origins,

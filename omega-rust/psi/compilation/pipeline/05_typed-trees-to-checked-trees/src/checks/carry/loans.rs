@@ -331,7 +331,7 @@ fn append_dependency(
             "suspension loan dependency has no retained state-owned occurrence".to_owned(),
         ));
     }
-    crate::collections::push_unique(&mut *closure, loan);
+    crate::shared::collections::push_unique(&mut *closure, loan);
     Ok(())
 }
 
@@ -565,7 +565,7 @@ pub(super) fn retain_backing_values(
             let resource = borrow.call_loan_resources.get(resource);
             match resource.source {
                 checked_trees::CheckedCallBorrowLoanSource::StoredLoan { loan } => {
-                    crate::collections::push_unique(&mut retained_loans, loan);
+                    crate::shared::collections::push_unique(&mut retained_loans, loan);
                 }
                 checked_trees::CheckedCallBorrowLoanSource::CallAccess { parents, .. } => {
                     for loan in borrow.call_loan_parents.span_or_empty(parents) {
@@ -581,7 +581,7 @@ pub(super) fn retain_backing_values(
                     | checked_trees::SuspensionCrossingValueOrigin::Local { symbol, .. } => symbol,
                     checked_trees::SuspensionCrossingValueOrigin::CallArgument { .. } => continue,
                 };
-                crate::collections::push_unique(&mut *live_symbols, root);
+                crate::shared::collections::push_unique(&mut *live_symbols, root);
             }
         }
     }
@@ -606,7 +606,7 @@ pub(super) fn retain_backing_values(
                     && entry.stored_loan().is_valid()
                     && borrow.loans.get(entry.stored_loan()).owner_symbol == symbol
             }) {
-                crate::collections::push_unique(&mut retained_loans, entry.stored_loan());
+                crate::shared::collections::push_unique(&mut retained_loans, entry.stored_loan());
             }
             continue;
         }
@@ -650,7 +650,7 @@ pub(super) fn retain_backing_values(
                 | checked_trees::SuspensionCrossingValueOrigin::Local { symbol, .. } => symbol,
                 checked_trees::SuspensionCrossingValueOrigin::CallArgument { .. } => continue,
             };
-            crate::collections::push_unique(&mut *live_symbols, symbol);
+            crate::shared::collections::push_unique(&mut *live_symbols, symbol);
         }
     }
 }

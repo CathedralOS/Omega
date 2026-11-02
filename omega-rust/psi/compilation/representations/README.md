@@ -21,7 +21,7 @@ transformations live in the linked pipeline stages.
 | [Lowered Psi](lowered-psi/src/lib.rs) | [05: checked trees → lowered Psi](../pipeline/06_checked-trees-to-lowered-psi/README.md) | [06: lowered Psi → lowered Psi](../pipeline/07_lowered-psi-to-lowered-psi/README.md), then [07: lowered Psi → Terminal Psi](../pipeline/08_lowered-psi-to-terminal-psi/README.md) |
 | [Terminal Psi](terminal-psi/src/lib.rs) | [07: lowered Psi → Terminal Psi](../pipeline/08_lowered-psi-to-terminal-psi/README.md) | [Omega 00: Terminal Psi → abstract operations](../../../omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/README.md) |
 
-Stage 07 optimizes lowered Psi in the same representation. The independent
+Psi 07 optimizes lowered Psi in the same representation. The independent
 [checked interpreter](../../interpreter/checked-interpreter/README.md) and
 [Terminal interpreter](../../interpreter/terminal-interpreter/README.md) consume
 their respective program forms without creating another pipeline representation.
@@ -30,7 +30,7 @@ Constituent semantic records have separate package owners:
 [facts](checked-trees/facts/src/lib.rs) holds fact contexts, places and evidence;
 [flow-effects](../../foundation/flow-effects/src/lib.rs) holds operational,
 invocation, capability and reach summaries. The shared
-[optimization selections](../../foundation/optimization-selections/src/lib.rs)
+[optimization selections](../../foundation/optimization/src/lib.rs)
 package owns pass names, canonical selections and their identities. These
 packages support the route above; none is an additional program stage.
 

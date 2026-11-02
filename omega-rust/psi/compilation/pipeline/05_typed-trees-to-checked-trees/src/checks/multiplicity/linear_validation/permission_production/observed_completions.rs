@@ -4,7 +4,7 @@
 //! with ordinary claim receipts, before disposing its backing dependencies.
 use super::{SourceCompletion, StatementOccurrence, StatementStep};
 use crate::checks::multiplicity::temporary_results::{self, TemporaryOwner};
-use crate::places::place_at;
+use crate::published::places::place_at;
 use checked_trees::{CheckFacts, FlowPermissionEvaluation};
 use symbols::SymbolHandle;
 

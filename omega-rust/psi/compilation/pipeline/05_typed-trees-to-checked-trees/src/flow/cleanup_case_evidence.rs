@@ -10,7 +10,7 @@
 //! owned, typed prefix; this consumer checks occurrence/root correspondence.
 //! Independently supplied or persisted rows need that same authentication.
 
-use crate::facts::contextual_cleanup::occurrence_contexts;
+use crate::published::facts::contextual_cleanup::occurrence_contexts;
 use checked_trees::{CheckFacts, ContextualCleanupDisposition, ContextualCleanupExclusionCause};
 use facts::{FactContextHandle, PlaceSegment};
 use language_semantics::PermissionEventSource;

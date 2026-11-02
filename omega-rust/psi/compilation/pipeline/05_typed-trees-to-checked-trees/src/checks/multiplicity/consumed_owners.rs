@@ -51,7 +51,7 @@ use super::borrowed_windows::place_spelling;
 use super::linear_obligations::type_reference_is_reference;
 use super::owned_selection::place_paths_overlap;
 use crate::checks::ownership_occurrences::{EvaluationBranch, routes_compatible};
-use crate::places::place_at;
+use crate::published::places::place_at;
 
 use diagnostics::Diagnostic;
 use typed_trees::statement::StatementNode;

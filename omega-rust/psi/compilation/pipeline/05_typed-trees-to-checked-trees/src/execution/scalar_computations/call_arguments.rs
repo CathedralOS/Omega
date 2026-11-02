@@ -6,7 +6,7 @@ use crate::execution::terminal_unit::strips_erased_parameter;
 use crate::execution::terminal_unit::structural_computation_argument;
 use crate::execution::terminal_unit::types::structural_access_for_type_reference;
 use crate::flow::CapturedSubjectFacts;
-use crate::semantic::calls::shared_argument_referent;
+use crate::published::semantic::calls::shared_argument_referent;
 use crate::values::mutable_scalar_parameter_type;
 use crate::values::scalar::call_lowering::call_is_boundary;
 use crate::values::scalar::scalar_lowering::land_anonymous_scalar_expression;

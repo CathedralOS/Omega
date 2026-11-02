@@ -3,8 +3,10 @@
 //! A projection can know its element or member without knowing its complete
 //! value type. Ownership needs the latter: an array's authored extent and a
 //! constructor's applied declaration determine each child's claim path. Derive
-//! compound values from completed children as calls bind, never from a
-//! same-shaped declaration or the consumer's formal type. Child-before-parent
+//! compound values from completed children and exact Prop identity peers as
+//! calls bind, never from a same-shaped declaration or the consumer's formal
+//! type. A peer contributes only the selected constructor's argument tuple.
+//! Child-before-parent
 //! preparation gives nested constructors the same ordinary result-type route.
 //! No ownership, membership or loan permission is established by this derivation.
 //! Reference formation also needs a value type before static call inference.
@@ -35,6 +37,7 @@ use validation::canonical_place_source_type_application;
 use validation::native_locators::unused_coordinate_widths;
 
 mod call_results;
+mod identity_context;
 
 /// A value-type query is not source admission. Preserve its refusal for an
 /// inferred declaration that requires this result, without masking independent
@@ -46,7 +49,7 @@ pub(crate) struct UnavailableValueType {
 
 /// Executable storage and abstract signature parameters supply different
 /// lexical scopes to the same completed-value derivation.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 enum ValueTypeOwner {
     State {
         machine: symbols::SymbolHandle,
@@ -129,8 +132,12 @@ impl ValueTypeOwner {
 fn occurrences(
     program: &TypedTrees,
     selected: fn(&ExpressionNode) -> bool,
-) -> Vec<(ValueTypeOwner, ExpressionHandle)> {
+) -> (
+    Vec<(ValueTypeOwner, ExpressionHandle)>,
+    identity_context::ConstructorPeers,
+) {
     let mut occurrences = Vec::new();
+    let mut peers = identity_context::ConstructorPeers::new();
     for machine in program.machines() {
         for (state_ordinal, state) in program.machine_states(machine).iter().enumerate() {
             let mut expressions = Vec::new();
@@ -144,6 +151,15 @@ fn occurrences(
             };
             for contract in contracts.iter().chain(program.state_contracts(state)) {
                 for fact in program.proof_facts.span_or_empty(contract.facts) {
+                    identity_context::append(
+                        program,
+                        ValueTypeOwner::State {
+                            machine: machine.symbol,
+                            state: state.symbol,
+                        },
+                        fact,
+                        &mut peers,
+                    );
                     validation::append_fact_expression_roots(program, fact, &mut expressions);
                 }
             }
@@ -184,6 +200,7 @@ fn occurrences(
                 declarations.len() - 1
             });
         for fact in program.proof_facts.span_or_empty(contract.facts) {
+            identity_context::append(program, owner, fact, &mut peers);
             validation::append_fact_expression_roots(program, fact, &mut declarations[position].1);
         }
     }
@@ -194,7 +211,7 @@ fn occurrences(
             }
         });
     }
-    occurrences
+    (occurrences, peers)
 }
 
 /// Static inference needs the argument value, not the place stripped of its
@@ -294,7 +311,7 @@ pub(crate) fn retain_constructed_result_types(
     program: &mut TypedTrees,
 ) -> Result<Vec<UnavailableValueType>, Vec<diagnostics::Diagnostic>> {
     let mut unavailable = Vec::new();
-    for (scope, expression) in occurrences(program, |node| {
+    let (occurrences, peers) = occurrences(program, |node| {
         matches!(
             node,
             ExpressionNode::ArrayLiteral(_)
@@ -302,7 +319,8 @@ pub(crate) fn retain_constructed_result_types(
                 | ExpressionNode::Borrow(_)
                 | ExpressionNode::Call(_)
         ) || matches!(node, ExpressionNode::Cast(cast) if cast.form.is_recast())
-    }) {
+    });
+    for (scope, expression) in occurrences {
         let type_start = program.type_reference_table.type_reference_count();
         let reference = if expressions_of(program).call_node(expression).is_some() {
             let result = match scope {
@@ -337,7 +355,7 @@ pub(crate) fn retain_constructed_result_types(
             .struct_literal_node(expression)
             .is_some()
         {
-            retain_constructor_result_type(program, scope, expression)
+            retain_constructor_result_type(program, scope, expression, &peers)
         } else {
             let derived = (|| {
                 let elements = expressions_of(program).array_literal_node(expression)?;
@@ -482,12 +500,13 @@ fn constructor_byte_literal_observations(
 }
 
 /// A constructor's selected declaration supplies its telescope; completed
-/// child types supply the arguments. Incomplete or conflicting tuples stay
+/// child types and exact Prop peers supply arguments. Conflicting tuples stay
 /// unresolved. This establishes a type, never a resource claim or field proof.
 fn retain_constructor_result_type(
     program: &mut TypedTrees,
     scope: ValueTypeOwner,
     expression: ExpressionHandle,
+    peers: &identity_context::ConstructorPeers,
 ) -> Option<TypeReferenceHandle> {
     let byte_copies = constructor_byte_literal_observations(program, expression);
     let defaults = expressions_of(program)
@@ -541,6 +560,26 @@ fn retain_constructor_result_type(
         0,
     );
     let mut inferred = crate::monomorphization::StaticProposals::default();
+    for arguments in
+        identity_context::argument_tuples(program, scope, expression, owner.symbol, peers)
+    {
+        if arguments.len() != parameters.len() {
+            continue;
+        }
+        for (parameter, argument) in parameters.iter().zip(arguments) {
+            if let Some(ordinal) = type_parameters
+                .iter()
+                .position(|(symbol, _)| *symbol == parameter.symbol)
+            {
+                inferred.types.push((0, ordinal, argument));
+            } else if let Some(ordinal) = const_parameters
+                .iter()
+                .position(|(symbol, _, _)| *symbol == parameter.symbol)
+            {
+                inferred.constants.push((0, ordinal, argument));
+            }
+        }
+    }
     let mut lifetime_bindings = Vec::new();
     let mut lifetime_conflict = false;
     for field in expressions_of(program).struct_fields(literal.fields) {

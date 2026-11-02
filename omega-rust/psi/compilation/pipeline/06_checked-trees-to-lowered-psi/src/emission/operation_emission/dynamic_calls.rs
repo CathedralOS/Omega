@@ -14,8 +14,8 @@
 use super::buffer::{OperationBuffer, SourceCallCoordinate};
 use super::calls::{CallEmissionContext, PreparedStructuralArgument};
 use super::expressions::{LoweredDirectExpression, emit_direct_expression};
-use crate::lowering_error::{LoweringError, unsupported};
-use crate::terminal_identities::{mint_with, value_id};
+use crate::shared::lowering_error::{LoweringError, unsupported};
+use crate::shared::terminal_identities::{mint_with, value_id};
 use semantic_vocabulary::OperationId;
 use semantic_vocabulary::{QualifiedScalarType, ValueId};
 use terminal_psi::{Operation, OperationKind, OperationResult, ValueDeclaration};
@@ -249,7 +249,9 @@ pub(crate) fn emit_completed_dynamic_call(
             let produced = match result {
                 OperationResult::Unit => OperationResult::Unit,
                 OperationResult::Scalar(value) => OperationResult::Scalar(ValueDeclaration {
-                    id: value_id(crate::terminal_identities::allocate_dense(next_value)?),
+                    id: value_id(crate::shared::terminal_identities::allocate_dense(
+                        next_value,
+                    )?),
                     ..*value
                 }),
                 OperationResult::Structural(value) => {

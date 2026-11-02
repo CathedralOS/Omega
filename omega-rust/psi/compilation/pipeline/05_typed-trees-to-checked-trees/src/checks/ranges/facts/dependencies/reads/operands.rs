@@ -2,7 +2,7 @@
 //! read each place contributes.
 
 use crate::flow::expressions;
-use crate::places::place_at;
+use crate::published::places::place_at;
 use validation::CanonicalPlace;
 
 use super::super::{EXPRESSION_WALK_DEPTH_BOUND, ExpressionHandle, ExpressionNode};
@@ -202,7 +202,7 @@ impl ReadWalk<'_, '_, '_> {
         {
             place.root = facts::PlaceRoot::Symbol(value);
         }
-        crate::collections::push_unique(&mut self.reads, place);
+        crate::shared::collections::push_unique(&mut self.reads, place);
         true
     }
 }

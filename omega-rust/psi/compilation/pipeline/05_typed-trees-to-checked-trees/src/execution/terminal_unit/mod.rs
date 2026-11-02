@@ -200,8 +200,9 @@ pub(crate) fn build_checked_unit_effect_plans(
     let mut prepared_calls = structural_value_calls::PreparedCalls::default();
     let retained_records = state_graph::RetainedBorrowRecords::new(facts);
     let mut boundary_gaps = Vec::new();
-    let (boundary_machines, dynamic_slots, boundary_symbols) =
-        phase_profile::scope("psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.boundary_and_dynamic", || {
+    let (boundary_machines, dynamic_slots, boundary_symbols) = phase_profile::scope(
+        "psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.boundary_and_dynamic",
+        || {
             let mut boundary_machines = program
                 .machines()
                 .iter()
@@ -242,7 +243,8 @@ pub(crate) fn build_checked_unit_effect_plans(
                 .map(|plan| plan.machine)
                 .collect::<Vec<_>>();
             (boundary_machines, dynamic_slots, boundary_symbols)
-        });
+        },
+    );
     // Each checked body takes the one route its shape selects; a builder that
     // cannot plan it leaves the gap where it stopped. An ordinary body whose
     // return edge owes the residual complement of a projected owned
@@ -254,106 +256,114 @@ pub(crate) fn build_checked_unit_effect_plans(
     let mut composed_machines = Vec::new();
     let mut partial_affine_machines = Vec::new();
     let mut construction_gaps = BTreeMap::new();
-    phase_profile::scope("psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.candidate_bodies", || {
-        for machine in program
-            .machines()
-            .iter()
-            // A bodied `boundary machine` is a checked adapter: its body is
-            // authored in-package, so it is planned like any other checked body.
-            .filter(|machine| machine.supplies_checked_body())
-        {
-            let trace = LocalConstructionTrace::default();
-            shapes.take_unselected_opaque();
-            let mut attempt_calls = structural_value_calls::PreparedCalls::default();
-            let route = phase_profile::scope("psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.body_route", || {
-                body_route(program, machine)
-            });
-            let planned = match route {
-                BodyRoute::Sequence => {
-                    phase_profile::scope("psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.sequence_body", || {
-                        build_checked_machine_residual_parts(
-                            program,
-                            facts,
-                            scalar_callees,
-                            &mut shapes,
-                            &mut attempt_calls,
-                            machine,
-                            call_frames,
-                            &trace,
-                        )
-                        .and_then(
-                            |(
-                                mut plan,
-                                residual_affine_discards,
-                                has_projected_parameter_moves,
-                            )| {
-                                structural_value_calls::prepare_state(
-                                    program,
-                                    facts,
-                                    &mut shapes,
-                                    &mut attempt_calls,
-                                    plan.machine,
-                                    plan.state,
-                                    &structural_value_calls::StateCallInputs {
-                                        parameters: &plan.structural_parameters,
-                                        entry_claims: &plan.entry_claims,
-                                        operations: &plan.operations,
-                                        trivial_locals: &plan.trivial_affine_locals,
-                                    },
-                                )?;
-                                trace.phase("single-state body: value call source custody");
-                                structural_value_calls::consume_caller_results(
-                                    program,
-                                    plan.machine,
-                                    plan.state,
-                                    &mut plan.operations,
-                                    attempt_calls.state_schedules(plan.machine, plan.state),
-                                )?;
-                                if has_projected_parameter_moves {
-                                    partial_affine_machines.push(
-                                        CheckedPartialAffineUnitCleanupMachinePlan {
-                                            machine: plan,
-                                            residual_affine_discards,
+    phase_profile::scope(
+        "psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.candidate_bodies",
+        || {
+            for machine in program
+                .machines()
+                .iter()
+                // A bodied `boundary machine` is a checked adapter: its body is
+                // authored in-package, so it is planned like any other checked body.
+                .filter(|machine| machine.supplies_checked_body())
+            {
+                let trace = LocalConstructionTrace::default();
+                shapes.take_unselected_opaque();
+                let mut attempt_calls = structural_value_calls::PreparedCalls::default();
+                let route = phase_profile::scope(
+                    "psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.body_route",
+                    || body_route(program, machine),
+                );
+                let planned = match route {
+                    BodyRoute::Sequence => phase_profile::scope(
+                        "psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.sequence_body",
+                        || {
+                            build_checked_machine_residual_parts(
+                                program,
+                                facts,
+                                scalar_callees,
+                                &mut shapes,
+                                &mut attempt_calls,
+                                machine,
+                                call_frames,
+                                &trace,
+                            )
+                            .and_then(
+                                |(
+                                    mut plan,
+                                    residual_affine_discards,
+                                    has_projected_parameter_moves,
+                                )| {
+                                    structural_value_calls::prepare_state(
+                                        program,
+                                        facts,
+                                        &mut shapes,
+                                        &mut attempt_calls,
+                                        plan.machine,
+                                        plan.state,
+                                        &structural_value_calls::StateCallInputs {
+                                            parameters: &plan.structural_parameters,
+                                            entry_claims: &plan.entry_claims,
+                                            operations: &plan.operations,
+                                            trivial_locals: &plan.trivial_affine_locals,
                                         },
-                                    );
-                                } else {
-                                    candidates.push(plan);
-                                }
-                                Some(())
-                            },
-                        )
-                    })
+                                    )?;
+                                    trace.phase("single-state body: value call source custody");
+                                    structural_value_calls::consume_caller_results(
+                                        program,
+                                        plan.machine,
+                                        plan.state,
+                                        &mut plan.operations,
+                                        attempt_calls.state_schedules(plan.machine, plan.state),
+                                    )?;
+                                    if has_projected_parameter_moves {
+                                        partial_affine_machines.push(
+                                            CheckedPartialAffineUnitCleanupMachinePlan {
+                                                machine: plan,
+                                                residual_affine_discards,
+                                            },
+                                        );
+                                    } else {
+                                        candidates.push(plan);
+                                    }
+                                    Some(())
+                                },
+                            )
+                        },
+                    ),
+                    BodyRoute::Graph => phase_profile::scope(
+                        "psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.graph_body",
+                        || {
+                            state_graph::build_traced(
+                                program,
+                                facts,
+                                &retained_records,
+                                scalar_callees,
+                                &mut shapes,
+                                &mut attempt_calls,
+                                machine,
+                                call_frames,
+                                &trace,
+                            )
+                            .map(|plan| composed_machines.push(plan))
+                        },
+                    ),
+                };
+                if planned.is_some() {
+                    prepared_calls.append(machine.symbol, attempt_calls);
                 }
-                BodyRoute::Graph => phase_profile::scope("psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.graph_body", || {
-                    state_graph::build_traced(
-                        program,
-                        facts,
-                        &retained_records,
-                        scalar_callees,
-                        &mut shapes,
-                        &mut attempt_calls,
-                        machine,
-                        call_frames,
-                        &trace,
-                    )
-                    .map(|plan| composed_machines.push(plan))
-                }),
-            };
-            if planned.is_some() {
-                prepared_calls.append(machine.symbol, attempt_calls);
-            }
-            if planned.is_none() {
-                let mut gap = trace.gap(program, machine.symbol);
-                // A shape the collector could not supply because the build
-                // selects no representation for an opaque is the program's
-                // missing selection; it displaces the phase the builder was in.
-                if let Some(opaque) = shapes.take_unselected_opaque() {
-                    gap.reason = GapReason::UnselectedOpaqueRepresentation(opaque);
+                if planned.is_none() {
+                    let mut gap = trace.gap(program, machine.symbol);
+                    // A shape the collector could not supply because the build
+                    // selects no representation for an opaque is the program's
+                    // missing selection; it displaces the phase the builder was in.
+                    if let Some(opaque) = shapes.take_unselected_opaque() {
+                        gap.reason = GapReason::UnselectedOpaqueRepresentation(opaque);
+                    }
+                    construction_gaps.insert(symbol_key(machine.symbol), gap);
                 }
-                construction_gaps.insert(symbol_key(machine.symbol), gap);
             }
-        }
-    });
+        },
+    );
 
     let planned = planned_machines(&candidates, &composed_machines, &partial_affine_machines);
     let mut gaps = construction_gaps
@@ -366,7 +376,9 @@ pub(crate) fn build_checked_unit_effect_plans(
     // contextual actions against the same immutable callable entry roster,
     // before mutating either body catalog. Entry metadata borrows the real
     // bodies; no temporary ordinary plan stands in for a state graph.
-    let _s_cleanup = phase_profile::guard("psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.cleanup_selections");
+    let _s_cleanup = phase_profile::guard(
+        "psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.cleanup_selections",
+    );
     let targets = candidates
         .iter()
         .chain(partial_affine_machines.iter().map(|plan| &plan.machine))
@@ -561,18 +573,21 @@ pub(crate) fn build_checked_unit_effect_plans(
     );
 
     drop(_s_cleanup);
-    let closure_gaps = phase_profile::scope("psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.candidate_closure", || {
-        candidate_closure::retain_available(
-            program,
-            facts,
-            &boundary_symbols,
-            &shapes.cleanup_control,
-            &mut candidates,
-            &mut composed_machines,
-            &mut partial_affine_machines,
-            &prepared_calls,
-        )
-    });
+    let closure_gaps = phase_profile::scope(
+        "psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.candidate_closure",
+        || {
+            candidate_closure::retain_available(
+                program,
+                facts,
+                &boundary_symbols,
+                &shapes.cleanup_control,
+                &mut candidates,
+                &mut composed_machines,
+                &mut partial_affine_machines,
+                &prepared_calls,
+            )
+        },
+    );
     gaps.extend(closure_gaps);
     // Failed cleanup or dependency closure discards the candidate's schedules
     // too. They cannot supply ownership evidence to another surviving body.

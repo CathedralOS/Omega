@@ -4,9 +4,9 @@
 //! immutable while straight-line emission reserves checked completion names.
 //! Namespace reservation is not live custody: the producing operation alone
 //! establishes or receives the resource when execution completes.
-use crate::checked_facts::flow_facts;
-use crate::lowering_error::{LoweringError, unsupported};
-use crate::terminal_identities::{allocate_dense, claim_id, lookup_claim_id};
+use crate::shared::checked_facts::flow_facts;
+use crate::shared::lowering_error::{LoweringError, unsupported};
+use crate::shared::terminal_identities::{allocate_dense, claim_id, lookup_claim_id};
 use language_semantics::PermissionClaimIdentity;
 use semantic_vocabulary::ClaimId;
 
@@ -939,7 +939,7 @@ pub(crate) fn lower_owned_operand_claims(
                 .then_some(event)
         })
         .collect::<Vec<_>>();
-    // Evaluated events own the transfer authority. Stage 05 records a selection
+    // Evaluated events own the transfer authority. Psi 05 records a selection
     // receipt only from these same events at this exact evaluation, so the
     // receipt supplies no claim and needs no second comparison here.
     if evaluated_transfers.is_empty() {

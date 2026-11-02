@@ -365,6 +365,17 @@ pub fn is_fact_only_citation_call(
     call: &TableCall,
     termination: &impl crate::CheckedTerminationOracle,
 ) -> bool {
+    if call.authored_machine_application.is_valid()
+        && is_fact_only_requirement_citation(
+            program,
+            expression_table(program)
+                .static_machine_application(call.authored_machine_application)
+                .lexical_owner,
+            call,
+        )
+    {
+        return true;
+    }
     call.receiver.is_empty()
         && !call.receiver_symbol.is_valid()
         && !call.static_machine_parameter.is_valid()
@@ -399,6 +410,90 @@ pub fn is_fact_only_citation_call(
         && program
             .statement_table
             .expression_handles(call.arguments)
+            .iter()
+            .all(|argument| work_free_argument(program, *argument))
+}
+
+/// A qualified law citation borrows its exact public subjects. The complete
+/// requirement promises effects and progress; a private body's stronger
+/// behavior cannot substitute. Ordinary invocation checking still discharges
+/// every operand, premise, selection and conformance obligation before erasure.
+pub fn is_fact_only_requirement_citation(
+    program: &dyn crate::CheckingInput,
+    owner: SymbolHandle,
+    call: &TableCall,
+) -> bool {
+    let namespace = call.receiver_symbol.is_valid()
+        && (program
+            .conformance_by_symbol(call.receiver_symbol)
+            .is_some()
+            || program.symbols.get(call.receiver_symbol).kind
+                == symbols::SymbolKind::ConformanceParameter);
+    let closed_selection = call.static_requirement_dispatch.is_some()
+        && call.receiver.is_empty()
+        && !call.receiver_symbol.is_valid();
+    if !owner.is_valid()
+        || !(namespace || closed_selection)
+        || !call.evidence_arguments.is_empty()
+        || !call.machine_arguments.is_empty()
+        || call.static_machine_parameter.is_valid()
+        || call.operational_acknowledgement.acknowledges_suspend
+        || call.operational_acknowledgement.acknowledges_block
+        || call.discards_result
+    {
+        return false;
+    }
+    let Some((_, signature)) =
+        crate::requirement_contract_signature(program, owner, &crate::CallSite::Statement(call))
+    else {
+        return false;
+    };
+    let contracts = program.state_signature_contracts(signature);
+    let parameters = program.state_signature_parameters(signature);
+    let arguments = program.statement_table.expression_handles(call.arguments);
+    matches!(
+        program
+            .type_reference_table
+            .type_reference(signature.return_type),
+        TypeReferenceNode::Unit
+    ) && super::denotational_calls::signature_has_closed_value_contract(program, signature)
+        && contracts
+            .iter()
+            .any(|contract| contract.kind == SignatureContractKind::Ensures)
+        && contracts.iter().all(|contract| {
+            matches!(
+                contract.kind,
+                SignatureContractKind::Requires | SignatureContractKind::Ensures
+            ) && contract.binding.is_none()
+        })
+        && parameters.len() == arguments.len()
+        && parameters.iter().all(|parameter| {
+            if parameter.relevance.is_erased()
+                || parameter.is_mutable
+                || crate::type_carries_linear_obligation(program, parameter.type_reference)
+            {
+                return false;
+            }
+            if read_only_parameter(program, parameter) {
+                return true;
+            }
+            // An abstract owned subject has no executable observation here.
+            // Closed applications independently recheck their actual shape;
+            // this does not make a reference, opaque carrier or linear claim
+            // caller-isolated, or grant an erased Type witness extra uses.
+            let reference = program
+                .type_reference_table
+                .unconstrained_type_reference(parameter.type_reference);
+            let TypeReferenceNode::Named { symbol, .. } =
+                program.type_reference_table.type_reference(reference)
+            else {
+                return false;
+            };
+            program
+                .data_type_parameter_by_symbol(*symbol)
+                .is_some_and(|parameter| parameter.kind == TypeParameterKind::Type)
+        })
+        && arguments
             .iter()
             .all(|argument| work_free_argument(program, *argument))
 }

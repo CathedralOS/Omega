@@ -7,7 +7,7 @@
 use super::super::canonical_place_segments_equal;
 use super::super::operand_binds_live_view;
 use super::super::project_captured_view_place;
-use crate::places::place_at;
+use crate::published::places::place_at;
 use arena::{Handle, HandleSpan};
 use checked_trees::{
     FlowControlFacts, FlowFacts, FlowOperandCompletion, FlowOperandFact, FlowPermissionEvaluation,

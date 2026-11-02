@@ -5,8 +5,8 @@
 mod projections;
 
 use super::{Callable, Invocation, arithmetic};
-use crate::facts::contract_occurrences::append_expression_occurrences;
 use crate::flow::expressions;
+use crate::published::facts::contract_occurrences::append_expression_occurrences;
 use symbols::SymbolHandle;
 use typed_trees::data::TypeParameterKind;
 use typed_trees::expression::ExpressionHandle;

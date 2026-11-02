@@ -1,15 +1,14 @@
 //! Explicit evidence namespaces shared by declaration and callable telescopes.
 
-use crate::symbols::symbol_table::names::symbol_seed;
+use crate::symbols::symbol_table::names::evidence_requirement_seed;
 use symbol_resolved_trees::SymbolResolvedTrees;
-use symbols::{SymbolHandle, SymbolKind, SymbolTableAppender};
+use symbols::{SymbolHandle, SymbolTableAppender};
 
 pub(super) fn insert_evidence_children(
     builder: &mut impl SymbolTableAppender,
     program: &SymbolResolvedTrees,
     binder: SymbolHandle,
     bound: &symbol_resolved_trees::machine::GenericConformanceBound,
-    has_sources: bool,
     sources: Option<&source::SourceMap>,
 ) {
     if let Some(trait_definition) =
@@ -27,7 +26,7 @@ pub(super) fn insert_evidence_children(
             binder,
             requirements
                 .into_iter()
-                .map(|requirement| symbol_seed(SymbolKind::State, &requirement.name, has_sources)),
+                .map(|requirement| evidence_requirement_seed(&requirement.name)),
         );
     }
 }

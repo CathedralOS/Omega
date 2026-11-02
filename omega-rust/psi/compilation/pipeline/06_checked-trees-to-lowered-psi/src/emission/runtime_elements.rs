@@ -25,12 +25,12 @@ use super::{
     CheckedScalarExpressionRole, CheckedTrees, LoweringError, ScalarType, StructuralPathSegment,
     ValueDeclaration, ValueId, unsupported,
 };
-use crate::checked_facts::value_facts;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::emission::scalar_types::terminal_scalar_type;
-use crate::terminal_identities::value_id;
+use crate::shared::checked_facts::value_facts;
+use crate::shared::terminal_identities::value_id;
 
 /// One resolved step of a destination path: a static Terminal segment, or a
 /// runtime element whose selector the emitter evaluates.
@@ -344,7 +344,9 @@ pub(crate) fn observe_element_extent(
             }
             _ => continue,
         };
-        let length = value_id(crate::terminal_identities::allocate_dense(next_value)?);
+        let length = value_id(crate::shared::terminal_identities::allocate_dense(
+            next_value,
+        )?);
         operations.push_leaf(
             crate::emission::operation_emission::buffer::scalar_result_declaration(
                 length,

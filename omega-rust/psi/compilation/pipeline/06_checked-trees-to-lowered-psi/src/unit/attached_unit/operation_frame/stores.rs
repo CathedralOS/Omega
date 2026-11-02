@@ -1750,9 +1750,9 @@ fn push_initialized_scalar_field(
 ) -> Result<(), LoweringError> {
     let range_obligation = if terminal_semantics::scalar_field_requires_evidence(&target.field_type)
     {
-        Some(crate::terminal_identities::obligation_id(allocate_dense(
-            next_obligation_identity,
-        )?))
+        Some(crate::shared::terminal_identities::obligation_id(
+            allocate_dense(next_obligation_identity)?,
+        ))
     } else {
         None
     };

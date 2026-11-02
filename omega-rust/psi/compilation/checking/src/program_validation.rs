@@ -1127,7 +1127,7 @@ impl std::fmt::Debug for DeferredEntailment {
     }
 }
 
-/// The one judgment over checked bodies, consumed by the stage-04 prover.
+/// The one judgment over checked bodies, consumed by the Psi 05 prover.
 pub struct ContractEntailment {
     /// For each checked-body machine, the postconditions entailment proved.
     /// Empty when the machine's entailment raised a diagnostic or does not
@@ -1171,7 +1171,7 @@ fn judge_machines(
         // Pristine templates remain in the frozen roster. Judge their declared
         // abstract envelope here, alongside concrete bodies; preparation cannot
         // grant a blanket prevalidated exemption to either declaration.
-        // This is the one judgment over bodies: the stage-04 prover consumes
+        // This is the one judgment over bodies: the Psi 05 prover consumes
         // the retained postconditions below. A dependency body already judged
         // in this invocation transfers its raw proved ordinals and still runs
         // exit coverage; it does not grow a second summary of the body.

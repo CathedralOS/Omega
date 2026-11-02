@@ -7,7 +7,7 @@ use crate::borrow::place_path_covers_owner;
 use validation::CanonicalPlace;
 
 use crate::flow::reference_spans;
-use crate::places::place_at;
+use crate::published::places::place_at;
 use checked_trees::{
     BorrowFacts, FlowBorrowWeakeningFact, FlowBorrowWeakeningReason, FlowConstraintKind,
     FlowConstraintRef, FlowInvalidationSource,

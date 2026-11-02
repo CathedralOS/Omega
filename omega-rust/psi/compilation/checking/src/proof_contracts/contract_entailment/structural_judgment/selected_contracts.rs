@@ -193,28 +193,7 @@ impl StructuralJudge<'_> {
                     .map(|(_, value)| (parameter.symbol, value.clone()))
             })
             .collect::<Vec<_>>();
-        let term = self.bound_contract_term(
-            expression,
-            owner,
-            parameters,
-            owner,
-            &bindings,
-            &[],
-            None,
-            0,
-        );
-        if super::super::struct_trace() {
-            eprintln!(
-                "STRUCT captured-predicate owner={owner:?} expression={expression:?} term={term:?}"
-            );
-        }
-        let Some(term) = term else {
-            return StructuralJudgment::Unknown;
-        };
-        // The bound-term owner authenticates every completed scalar cell and
-        // descriptor measure independently. Eligibility follows that evidence,
-        // not the presence of a metadata node somewhere in the proposition.
-        self.judge_observed_predicate(term, 0)
+        selected_requirement_judgment(self, expression, owner, parameters, &bindings, &[], 0)
     }
 
     /// Normalize an exact selected result or a view of a nested selected
@@ -839,8 +818,8 @@ impl StructuralJudge<'_> {
 }
 
 /// Discharge a selected entry predicate in its own formal scope. Boolean
-/// conjunction combines judgments, rather than asking value equality to fold
-/// a formula. Case membership keeps its tag-only authority; scalar leaves use
+/// structure retains whole-formula evidence before combining leaf judgments.
+/// Case membership keeps its tag-only authority; scalar leaves use
 /// the same exact-symbol substitution as selected normal guarantees.
 pub(super) fn selected_requirement_judgment(
     judge: &StructuralJudge<'_>,
@@ -858,6 +837,23 @@ pub(super) fn selected_requirement_judgment(
     if let Some(binary) = program.expression_table.binary_node(expression)
         && matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or)
     {
+        // Knowing P or Q does not select either disjunct. First discharge the
+        // complete substituted requirement from retained predicate evidence.
+        if let Some(required) = judge.bound_contract_term(
+            expression,
+            callable,
+            parameters,
+            callable,
+            bindings,
+            type_bindings,
+            None,
+            depth + 1,
+        ) {
+            let judgment = judge.judge_observed_predicate(required, depth);
+            if !matches!(judgment, StructuralJudgment::Unknown) {
+                return judgment;
+            }
+        }
         // The retained conjunction is not overloadable. Its operands keep
         // their own selected predicate meanings; a nominal leaf must not
         // prevent a neighboring scalar leaf from reaching its judge.
@@ -897,6 +893,69 @@ pub(super) fn selected_requirement_judgment(
             return StructuralJudgment::Unknown;
         };
         return judge.instantiated_case_judgment(callable, parameters, expression, &map);
+    }
+    if let Some(references) = super::super::structural_terms::data_identity_operand_references(
+        program, callable, parameters, expression,
+    ) && super::super::structural_terms::has_identity_equality_meaning(
+        program, callable, parameters, expression,
+    ) {
+        let Some(binary) = program.expression_table.binary_node(expression) else {
+            return StructuralJudgment::Unknown;
+        };
+        let terms = [binary.left, binary.right].map(|operand| {
+            judge.bound_contract_term(
+                operand,
+                callable,
+                parameters,
+                callable,
+                bindings,
+                type_bindings,
+                None,
+                depth + 1,
+            )
+        });
+        let [Some(left), Some(right)] = terms else {
+            return StructuralJudgment::Unknown;
+        };
+        if !super::super::structural_terms::scalar_operand_is_observed(
+            program,
+            references[0],
+            &left,
+        ) || !super::super::structural_terms::scalar_operand_is_observed(
+            program,
+            references[1],
+            &right,
+        ) {
+            return StructuralJudgment::Unknown;
+        }
+        // Data Id is a proposition over these completed values, not an
+        // executable Boolean operator to rediscover under the public signature.
+        // Resolve through already admitted prefix equations, as declaration
+        // equality does, before judging the completed pair. The raw map
+        // application is not yet its value under the caller's requires.
+        let left = judge.resolve_at(left, depth + 1);
+        let right = judge.resolve_at(right, depth + 1);
+        if !super::super::structural_terms::scalar_operand_is_observed(
+            program,
+            references[0],
+            &left,
+        ) || !super::super::structural_terms::scalar_operand_is_observed(
+            program,
+            references[1],
+            &right,
+        ) {
+            return StructuralJudgment::Unknown;
+        }
+        let judgment = judge.judge_equation(left, right, depth + 1);
+        return if binary.operator == BinaryOperator::NotEqual {
+            match judgment {
+                StructuralJudgment::Proven => StructuralJudgment::Refuted,
+                StructuralJudgment::Refuted => StructuralJudgment::Proven,
+                StructuralJudgment::Unknown => StructuralJudgment::Unknown,
+            }
+        } else {
+            judgment
+        };
     }
     let Some(required) = judge.bound_contract_term(
         expression,

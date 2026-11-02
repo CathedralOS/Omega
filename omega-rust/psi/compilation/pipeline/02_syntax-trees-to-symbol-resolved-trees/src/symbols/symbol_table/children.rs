@@ -96,7 +96,6 @@ fn insert_generic_parameter_children(
                         program,
                         parameter_symbol,
                         bound,
-                        has_sources,
                         sources.as_deref(),
                     );
                 }

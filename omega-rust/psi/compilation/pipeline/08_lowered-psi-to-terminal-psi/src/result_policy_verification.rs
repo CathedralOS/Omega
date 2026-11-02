@@ -1,4 +1,4 @@
-//! Source custody of post-call policies, independent of stage 06's emitter.
+//! Source custody of post-call policies, independent of Psi 06's emitter.
 //!
 //! A policy is not another provider call. It belongs immediately after the
 //! exact original call, consumes its raw result and ordered operands, and is

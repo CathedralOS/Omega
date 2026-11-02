@@ -13,7 +13,7 @@ use crate::borrow::view_link::borrow_carrying_owner_paths;
 use crate::borrow::view_link::{DeclarationLifetimeFrontier, declaration_lifetime_frontier};
 use crate::flow::expressions;
 use crate::flow::indexed_statements;
-use crate::places::place_at;
+use crate::published::places::place_at;
 use diagnostics::Diagnostic;
 use language_core::place_label;
 use symbols::SymbolHandle;
@@ -804,7 +804,7 @@ fn add_static_borrow_frontier(
                 )
             }
         }));
-        crate::collections::push_unique(&mut *paths, path);
+        crate::shared::collections::push_unique(&mut *paths, path);
     }
 }
 

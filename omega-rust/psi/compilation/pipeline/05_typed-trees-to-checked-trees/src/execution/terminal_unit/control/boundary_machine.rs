@@ -142,6 +142,7 @@ pub(crate) fn build_boundary_machine(
         kind: semantic_vocabulary::BoundaryRequirementKind::Machine,
         state: state.symbol,
         contract_owner: machine.symbol,
+        owning_service: None,
         attachment_type_identity: None,
         structural_parameters,
         scalar_parameters,
@@ -314,12 +315,25 @@ pub(crate) fn build_static_boundary_requirements(
     shapes: &mut ShapeCollector<'_>,
 ) -> Vec<CheckedBoundaryMachinePlan> {
     let mut plans = Vec::new();
-    for definition in program
-        .traits()
-        .iter()
-        .filter(|definition| definition.is_boundary)
-    {
+    // A selected service may inherit an ordinary requirement. Its logical
+    // contract still needs a portable invocation plan, even though its
+    // declaring owner cannot authorize a physical boundary ABI. Calling's
+    // separately retained owner judgment owns that latter distinction.
+    for definition in program.traits().iter() {
+        let owning_service = if definition.is_boundary {
+            program.service_reaches.id_for_symbol(definition.symbol)
+        } else {
+            None
+        };
         for signature in program.executable_trait_machine_instances(definition) {
+            if definition.is_boundary && owning_service.is_none() {
+                gaps.push(machine_gap(
+                    program,
+                    signature,
+                    "boundary trait has no service identity",
+                ));
+                continue;
+            }
             // The declaration's outer telescope remains authored and open.
             // Prepared instances retain its exact application and substituted
             // formals; publish those instances without admitting the open head
@@ -491,7 +505,7 @@ pub(crate) fn build_static_boundary_requirements(
                 ));
                 continue;
             };
-            let closed = crate::facts::build_callable_scalar_value_contract_plan(
+            let closed = crate::published::facts::build_callable_scalar_value_contract_plan(
                 program,
                 signature.symbol,
                 Some(program.state_signature_parameters(signature)),
@@ -549,6 +563,7 @@ pub(crate) fn build_static_boundary_requirements(
                 kind: semantic_vocabulary::BoundaryRequirementKind::Trait,
                 state: signature.symbol,
                 contract_owner: definition.symbol,
+                owning_service,
                 attachment_type_identity: None,
                 structural_parameters,
                 scalar_parameters,
@@ -619,7 +634,7 @@ fn build_boundary_operator(
         &scalar_parameters,
         &[],
     )?;
-    let closed = crate::facts::build_callable_scalar_value_contract_plan(
+    let closed = crate::published::facts::build_callable_scalar_value_contract_plan(
         program,
         operator.symbol,
         Some(program.operator_parameters(operator)),
@@ -654,6 +669,7 @@ fn build_boundary_operator(
         kind: semantic_vocabulary::BoundaryRequirementKind::Operator,
         state: operator.symbol,
         contract_owner: operator.symbol,
+        owning_service: None,
         attachment_type_identity: None,
         structural_parameters,
         scalar_parameters,

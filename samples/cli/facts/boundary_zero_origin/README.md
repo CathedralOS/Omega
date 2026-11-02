@@ -30,3 +30,7 @@ All positive projects select the source provider and bind `ProgramEntry` for the
 8. **Encoding and emission (Omega 07–09).** Every positive native image exits zero, agreeing with Terminal Psi.
 
 The row qualifies one general origin-frame repair required by ordinary parser admission. It does not replace the remaining R5 may-write matrices or parser convergence gate.
+
+## Build-owned target-body migration
+
+The `target_body` place and its twins carry no source target prefix. `BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected by explicit target-keyed Build rows. The operation, inputs, contracts and exit oracle are unchanged. The entry wrapper and each implementation check a tag (17 for x86-64, 29 for AArch64), so a wrong Build row traps. The requirement and its implementations publish `invokes Io` for the boundary call their bodies make. Observed on macOS x86-64 with optimized producers for base 4f87c9e08b1 and for the #1378 head: the migrated positive exits 0 under `omega run --both` (native and Terminal Psi agree) and every twin and control in the place still rejects with its authored fragment. No compiler change was needed. The other hosted targets keep their authored rows, unexecuted here.

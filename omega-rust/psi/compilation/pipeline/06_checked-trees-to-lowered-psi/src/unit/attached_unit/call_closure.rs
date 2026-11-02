@@ -6,7 +6,7 @@ use super::{
     CheckedBoundaryMachinePlan, CheckedTrees, CheckedUnitEffectOperationPlan, LoweringError,
     UnitBody, unsupported,
 };
-use crate::checked_facts::flow_facts;
+use crate::shared::checked_facts::flow_facts;
 use checked_trees::{CheckedUnitCallResult, CheckedUnitCallRoute};
 use typed_trees::type_identity::CallableIdentityId;
 
@@ -61,7 +61,7 @@ pub(crate) fn checked_unit_call_closure_including(
         next += 1;
         let name = checked_terminal_machine_name(checked, machine_symbol)?;
         let machine = UnitBody::find(plans, machine_symbol).map_err(
-            crate::lowering_error::unit_machine_plan_error(checked, &name, machine_symbol),
+            crate::shared::lowering_error::unit_machine_plan_error(checked, &name, machine_symbol),
         )?;
         for target in machine
             .operations()
@@ -214,7 +214,6 @@ pub(crate) fn checked_unit_boundary_identity(
         .typed
         .traits()
         .iter()
-        .filter(|definition| definition.is_boundary)
         .flat_map(|definition| {
             checked
                 .typed

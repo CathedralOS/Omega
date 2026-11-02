@@ -201,19 +201,19 @@ fn validate_function(
                 .checked_sub(source_row.offset)
                 .ok_or(FrameApplicationError::ArtifactMismatch)?;
             validate_shifted_fixup(
-                source_row.internal_machine_fixup,
-                candidate_row.internal_machine_fixup,
+                source_row.internal_machine_fixup(),
+                candidate_row.internal_machine_fixup(),
                 shift,
                 compute::shift_fixup,
             )?;
             validate_shifted_fixup(
-                source_row.normalized_foreign_call_fixup.clone(),
-                candidate_row.normalized_foreign_call_fixup.clone(),
+                source_row.normalized_foreign_call_fixup().cloned(),
+                candidate_row.normalized_foreign_call_fixup().cloned(),
                 shift,
                 compute::shift_foreign_fixup,
             )?;
             let expected_address = source_row
-                .image_address_fixup
+                .image_address_fixup()
                 .map(|fixup| {
                     fixup
                         .fields
@@ -225,7 +225,7 @@ fn validate_function(
                         .ok_or(FrameApplicationError::OffsetOverflow)
                 })
                 .transpose()?;
-            if candidate_row.image_address_fixup != expected_address {
+            if candidate_row.image_address_fixup() != expected_address {
                 return Err(FrameApplicationError::ArtifactMismatch);
             }
             cursor = advance(cursor, candidate_row.bytes.len())?;

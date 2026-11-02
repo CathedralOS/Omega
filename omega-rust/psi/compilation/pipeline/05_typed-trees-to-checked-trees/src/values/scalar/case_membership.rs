@@ -18,23 +18,8 @@ pub(crate) fn lower(
     parameters: &[StateParameter],
     expression: ExpressionHandle,
 ) -> Option<CheckedBooleanExpression> {
-    let Some(binary) = program.expression_table.binary_node(expression) else {
-        return None;
-    };
-    if !matches!(
-        binary.operator,
-        BinaryOperator::Equal | BinaryOperator::CaseMembership
-    ) {
-        return None;
-    }
-    let subject = match program.expression_table.expression(binary.left) {
-        ExpressionNode::Borrow(borrow) => borrow.target,
-        _ => binary.left,
-    };
-    let mut path = Vec::new();
-    let parameter_position = super::structural_fields::structural_parameter_case_path(
-        program, parameters, subject, &mut path,
-    )?;
+    let (binary, parameter_position, path) =
+        parameter_case_subject(program, parameters, expression)?;
     let root = parameters.get(parameter_position as usize)?;
     // The existing scalar builder supplies its authored parameter namespace,
     // not a machine handle. Rejoin through the selected root symbol, which is
@@ -49,6 +34,7 @@ pub(crate) fn lower(
                 .then_some((machine, state))
         })
     })?;
+    let subject = peeled_subject(program, binary);
     let case = case_identity(program, machine, Some(state), expression, binary, subject)?;
     Some(CheckedBooleanExpression::StructuralCaseMembership {
         subject: CheckedStructuralParameterField {
@@ -58,6 +44,67 @@ pub(crate) fn lower(
         .into(),
         case,
     })
+}
+
+/// A requirement signature's own `requires subject in T::Case` has no machine
+/// state to rejoin: the published telescope of `owner` is the observation
+/// scope, as source checking judged it. The test stays a tag observation of
+/// the actual parameter referent.
+pub(crate) fn lower_in_declaration(
+    program: &dyn ::validation::CheckingInput,
+    owner: symbols::SymbolHandle,
+    parameters: &[StateParameter],
+    expression: ExpressionHandle,
+) -> Option<CheckedBooleanExpression> {
+    let (binary, parameter_position, path) =
+        parameter_case_subject(program, parameters, expression)?;
+    let selected = validation::applied_declaration_case_membership_variant(
+        program, owner, parameters, expression, binary,
+    )?;
+    Some(CheckedBooleanExpression::StructuralCaseMembership {
+        subject: CheckedStructuralParameterField {
+            parameter_position,
+            path,
+        }
+        .into(),
+        case: structural_case_name(program, selected)?,
+    })
+}
+
+fn peeled_subject(
+    program: &dyn ::validation::CheckingInput,
+    binary: &typed_trees::expression::TableBinaryExpression,
+) -> ExpressionHandle {
+    match program.expression_table.expression(binary.left) {
+        ExpressionNode::Borrow(borrow) => borrow.target,
+        _ => binary.left,
+    }
+}
+
+fn parameter_case_subject<'program>(
+    program: &'program dyn ::validation::CheckingInput,
+    parameters: &[StateParameter],
+    expression: ExpressionHandle,
+) -> Option<(
+    &'program typed_trees::expression::TableBinaryExpression,
+    u32,
+    Vec<checked_trees::CheckedStructuralPredicatePathSegment>,
+)> {
+    let binary = program.expression_table.binary_node(expression)?;
+    if !matches!(
+        binary.operator,
+        BinaryOperator::Equal | BinaryOperator::CaseMembership
+    ) {
+        return None;
+    }
+    let mut path = Vec::new();
+    let parameter_position = super::structural_fields::structural_parameter_case_path(
+        program,
+        parameters,
+        peeled_subject(program, binary),
+        &mut path,
+    )?;
+    Some((binary, parameter_position, path))
 }
 
 pub(crate) fn lower_result(

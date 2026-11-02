@@ -619,6 +619,15 @@ pub struct CleanupSelection {
     pub executable: SymbolHandle,
 }
 
+/// A generic data declaration's default-domain cleanup closed for one exact
+/// carrier identity that typing or specialization supplied. The subject is the
+/// substituted closed application; the declaration's own selection stays open.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+pub struct AppliedDataCleanupSelection {
+    pub declaration: SymbolHandle,
+    pub selection: CleanupSelection,
+}
+
 /// A complete explicit index telescope applied to one immutable authored theory.
 /// Original constraints retain their argument pack and ordinary formation checks.
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
@@ -661,6 +670,46 @@ impl TypedTrees {
 }
 
 impl TypedTrees {
+    /// Every owner-authored cleanup interface: data default domains, named
+    /// domains, their closed index theories and closed generic data carriers.
+    pub fn cleanup_selections(&self) -> impl Iterator<Item = &CleanupSelection> {
+        self.data_definitions()
+            .iter()
+            .filter_map(|data| data.cleanup_selection.as_ref())
+            .chain(
+                self.domain_definitions()
+                    .iter()
+                    .filter_map(|domain| domain.cleanup_selection.as_ref()),
+            )
+            .chain(
+                self.applied_domain_applications
+                    .iter()
+                    .filter(|application| self.domain_definition(application.declaration).is_some())
+                    .filter_map(|application| application.theory.cleanup_selection.as_ref()),
+            )
+            .chain(
+                self.applied_data_cleanup_selections
+                    .iter()
+                    .map(|application| &application.selection),
+            )
+    }
+
+    /// The closed cleanup view of `declaration` for the carrier `reference`.
+    pub fn applied_data_cleanup_selection(
+        &self,
+        declaration: SymbolHandle,
+        reference: TypeReferenceHandle,
+    ) -> Option<&CleanupSelection> {
+        let identity = self.normalized_type_identity(reference);
+        self.applied_data_cleanup_selections
+            .iter()
+            .find(|application| {
+                application.declaration == declaration
+                    && self.normalized_type_identity(application.selection.subject) == identity
+            })
+            .map(|application| &application.selection)
+    }
+
     pub fn domain_arguments_for_instance(
         &self,
         symbol: SymbolHandle,

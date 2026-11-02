@@ -1,8 +1,39 @@
 //! Selected target geometry for Psi's source layout-query evaluation.
 //!
 //! Psi owns query formation, deferral and literal installation. This adapter
-//! supplies the backend layout answer and prepares one private target-family
-//! view per pass. It does not schedule evaluation or rewrite source.
+//! supplies the selected target's layout answer and prepares one private
+//! target-family view per pass. It does not schedule evaluation or rewrite
+//! source.
+//!
+//! The answer walks typed declarations, so it lives here with the other source
+//! correspondence rather than in the backend `layout` crate, which stays
+//! source-free. Start at `layout_plan.rs` for the `LayoutPlan` vocabulary;
+//! `builder.rs` turns a typed reference into a `TypeLayout` whose descriptor
+//! records packed fields, bit-field fragments and case payloads;
+//! `callback_layout` retains and checks private callback field paths and their
+//! target geometry. Pointer and descriptor words come from `layout`. Nothing
+//! here consumes check facts; callers must not manufacture a checked program
+//! to request geometry before checking.
+
+mod builder;
+mod callback_layout;
+mod layout_plan;
+mod packing;
+mod sizing;
+
+pub use builder::{
+    build_layout_plan, build_layout_plan_for_roots, layout_type_reference,
+    try_layout_type_reference,
+};
+pub use callback_layout::{PrivateCallbackInlineField, PrivateCallbackLayout};
+pub(crate) use layout::LayoutTarget;
+pub(crate) use layout_plan::{
+    BitFieldFragment, BitFieldLayout, DataLayout, DataShape, ENUM_TAG_BYTES, FieldLayout,
+    RepeatedFieldLayout, StoredIntegerLayout, TypeLayoutDescriptor, VariantLayout, type_layout,
+};
+pub use layout_plan::{
+    LayoutPlan, TargetClosedDataLayoutIdentity, TargetClosedPrivateCallbackDemand, TypeLayout,
+};
 
 use build_time_evaluation::{LayoutQueryMeasurements, LayoutQueryProvider};
 use checked_trees::typed_trees::TypedTrees;
@@ -15,14 +46,15 @@ pub struct TargetLayoutQueries<'selection> {
     pub target: target::TargetProfile,
     pub applications: Option<&'selection [build_time_evaluation::LayoutApplicationTargetInput]>,
     pub opaque_representations:
-        &'selection [representation_planning::OpaqueRepresentationSelection],
+        &'selection [representation_selections::OpaqueRepresentationSelection],
 }
 
 /// Invocation-local backend view; invariant programs borrow the caller's
 /// current program instead of copying its arenas.
 pub struct TargetLayoutMeasurements<'selection> {
     target: target::TargetProfile,
-    opaque_representations: &'selection [representation_planning::OpaqueRepresentationSelection],
+    opaque_representations:
+        &'selection [representation_selections::OpaqueRepresentationSelection],
     layout_program: Option<TypedTrees>,
 }
 
@@ -97,7 +129,7 @@ impl LayoutQueryMeasurements for TargetLayoutMeasurements<'_> {
         program: &TypedTrees,
         query: &DataLayoutQueryRequest,
     ) -> Result<Option<usize>, Diagnostic> {
-        let layout = layout::try_layout_type_reference(
+        let layout = try_layout_type_reference(
             self.layout_program.as_ref().unwrap_or(program),
             self.target.native_target(),
             self.opaque_representations,

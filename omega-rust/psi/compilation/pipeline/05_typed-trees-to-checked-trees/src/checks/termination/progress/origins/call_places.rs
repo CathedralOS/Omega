@@ -1,6 +1,6 @@
 //! call places slice of origins.
 use crate::checks::termination::progress::fact_subjects::subject_from_place;
-use crate::collections::push_unique;
+use crate::shared::collections::push_unique;
 use validation::CanonicalPlace;
 
 use super::{callee_values::*, reference_bounds::*};
@@ -8,7 +8,7 @@ use super::{callee_values::*, reference_bounds::*};
 use super::{FlowCallFact, FlowStateFact, ProgressSubject};
 use crate::flow::state_statements;
 use crate::flow::{self};
-use crate::places::place_at;
+use crate::published::places::place_at;
 use facts::{PlaceRoot, PlaceSegment};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::machine::Machine;

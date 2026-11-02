@@ -107,7 +107,7 @@ impl LinuxFilesystemImport {
         let expected: &[Formal] = if open {
             &[
                 Formal::Signed(32),
-                Formal::Bytes(4096, StructuralAccess::SharedBorrow),
+                Formal::UnsignedArray(4096, 8, StructuralAccess::SharedBorrow),
                 Formal::Signed(32),
                 Formal::Signed(32),
             ]

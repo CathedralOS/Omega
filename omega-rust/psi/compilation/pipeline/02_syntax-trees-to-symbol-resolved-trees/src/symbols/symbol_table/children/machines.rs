@@ -52,14 +52,7 @@ pub(in crate::symbols::symbol_table) fn insert_machine_symbol_children(
         let Some(binder_symbol) = machine_children.next() else {
             break;
         };
-        super::evidence::insert_evidence_children(
-            builder,
-            program,
-            binder_symbol,
-            bound,
-            has_sources,
-            sources,
-        );
+        super::evidence::insert_evidence_children(builder, program, binder_symbol, bound, sources);
     }
     for _ in program.machine_owned_data(machine.owned_data) {
         let _ = machine_children.next();

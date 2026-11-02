@@ -445,6 +445,38 @@ pub(crate) fn local_trait_application_identity(
     Some(program_intern_type_identity(program, identity))
 }
 
+/// Local derived callable-view key. Refinement promises belong to their
+/// complete source applications, independently of the base's nominal and
+/// portable identity. This key owns a checking view, never a selection or ABI
+/// commitment. Keeping the base key prevents sibling application paths from
+/// collapsing merely because they share a refinement head.
+pub(crate) fn local_trait_contract_identity(
+    program: &TypedTrees,
+    base: NormalizedTypeIdentity,
+    refinements: &[NormalizedTypeIdentity],
+) -> Option<NormalizedTypeIdentity> {
+    if refinements.is_empty() {
+        return Some(base);
+    }
+    let mut refinements = refinements.to_vec();
+    refinements.sort();
+    refinements.dedup();
+    let refinements = refinements
+        .iter()
+        .map(|identity| program.type_identity_text(*identity))
+        .collect::<Option<Vec<_>>>()?;
+    Some(program_intern_type_identity(
+        program,
+        compound(
+            CoordinateTag::LocalTraitContract,
+            [
+                program.type_identity_text(base)?,
+                compound(CoordinateTag::Refinements, refinements),
+            ],
+        ),
+    ))
+}
+
 /// Portable counterpart of the local application key. Package-owned nominal
 /// coordinates and complete scoped operands replace every arena coordinate.
 pub(crate) fn portable_trait_application_identity(

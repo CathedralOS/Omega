@@ -13,7 +13,7 @@ use target::TargetProfile;
 pub enum NativePipelineUnit {
     Application,
     /// An independently admitted callable enters the shared body sequence at
-    /// stage 01. Its earlier admission is owned by the callback/component caller.
+    /// Omega 01. Its earlier admission is owned by the callback/component caller.
     Callable,
 }
 
@@ -21,7 +21,7 @@ pub enum NativePipelineUnit {
 pub struct NativePipelineInvocation {
     pub profile: TargetProfile,
     pub unit: NativePipelineUnit,
-    /// Entry counts for numbered Omega stages 00 through 09, in order.
+    /// Entry counts for numbered Omega 00 through 09, in order.
     pub stages: [u64; 10],
     pub fragment_emission_attempts: u64,
     pub image_emission_attempts: u64,

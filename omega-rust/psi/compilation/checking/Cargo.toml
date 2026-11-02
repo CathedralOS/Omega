@@ -14,7 +14,7 @@ compiler-storage = { path = "../../foundation/compiler-storage" }
 access-plans = { path = "../../foundation/access-plans" }
 arena = { path = "../../foundation/arena" }
 checked-trees = { path = "../representations/checked-trees" }
-optimization = { path = "../../foundation/optimization-selections" }
+optimization = { path = "../../foundation/optimization" }
 semantic-vocabulary = { path = "../../foundation/semantic-vocabulary" }
 diagnostics = { path = "../../foundation/diagnostics" }
 phase-profile = { path = "../../foundation/phase-profile" }

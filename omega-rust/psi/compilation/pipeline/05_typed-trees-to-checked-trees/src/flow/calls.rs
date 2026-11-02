@@ -17,7 +17,7 @@ use crate::flow::expressions;
 use crate::flow::reference_spans;
 use crate::flow::retained_constraint_refs;
 use crate::flow::retained_flow_contexts;
-use crate::places::place_at;
+use crate::published::places::place_at;
 use arena::HandleSpan;
 use checked_trees::expression::ExpressionHandle;
 use checked_trees::{
@@ -366,13 +366,15 @@ fn append_one_to_one_call_carry_facts<'plans>(
     let [source_argument] = linear_inputs.as_slice() else {
         return;
     };
-    let Some(source_place) = crate::semantic::places::canonical_place_to_fact_place_in_state(
-        program,
-        semantic,
-        state.symbol,
-        borrow_call.statement_index,
-        *source_argument,
-    ) else {
+    let Some(source_place) =
+        crate::published::semantic::places::canonical_place_to_fact_place_in_state(
+            program,
+            semantic,
+            state.symbol,
+            borrow_call.statement_index,
+            *source_argument,
+        )
+    else {
         return;
     };
     let target_place = semantic.append_place_from_expression(program, expression);
@@ -413,7 +415,7 @@ fn append_one_to_one_call_carry_facts<'plans>(
             {
                 continue;
             }
-            crate::collections::push_unique(&mut transfers, (payload, fact.evidence));
+            crate::shared::collections::push_unique(&mut transfers, (payload, fact.evidence));
         }
     }
     if transfers.is_empty() {
@@ -506,7 +508,7 @@ fn append_call_result_field_domain_facts<'plans>(
         return;
     }
     let point = crate::flow::call_ensures_point(machine, state, borrow_call);
-    let evidence = crate::facts::propagated_evidence(borrow_call.target_symbol);
+    let evidence = crate::published::facts::propagated_evidence(borrow_call.target_symbol);
     // A call that statically realizes a boundary requirement in a checked
     // machine is a direct call to that adapter, not the admitted crossing.
     // `facts::qualification_evidence::call_contract_evidence` already refuses
@@ -643,7 +645,7 @@ fn append_call_parameter_domain_facts<'plans>(
     }
     let arguments = validation::call_site_argument_expressions(program, &site);
     let point = crate::flow::call_ensures_point(machine, state, borrow_call);
-    let evidence = crate::facts::propagated_evidence(borrow_call.target_symbol);
+    let evidence = crate::published::facts::propagated_evidence(borrow_call.target_symbol);
     for (position, domain_symbol, semantic_domain) in claims.iter() {
         // Declared child obligations belong to call_phases::referents. This
         // publisher owns authored routed ensures, never input annotations.
@@ -667,8 +669,11 @@ fn append_call_parameter_domain_facts<'plans>(
             .into_iter()
             .collect::<Vec<_>>();
         for place in &places {
-            let place =
-                crate::semantic::places::append_place(semantic, place.root, &place.segments);
+            let place = crate::published::semantic::places::append_place(
+                semantic,
+                place.root,
+                &place.segments,
+            );
             let fact = semantic.append_fact(Fact {
                 place: FactPlace::Place(place),
                 point,
@@ -926,7 +931,7 @@ fn append_ensures_result_rows(
             membership.domain_symbol,
             membership.semantic_domain,
         );
-        crate::collections::push_unique(&mut *domains, row);
+        crate::shared::collections::push_unique(&mut *domains, row);
     });
 }
 
@@ -993,7 +998,7 @@ fn parameter_identity_rows(
             membership.domain_symbol,
             membership.semantic_domain,
         );
-        crate::collections::push_unique(&mut rows, row);
+        crate::shared::collections::push_unique(&mut rows, row);
     });
     rows
 }

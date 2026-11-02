@@ -15,8 +15,8 @@ pub(crate) mod view_subslice;
 
 use crate::emission::operation_emission::buffer::scalar_result_declaration;
 use crate::emission::selected_comparison::SelectedComparisonMeaning;
-use crate::lowering_error::LoweringError;
-use crate::terminal_identities::{mint_with, value_id};
+use crate::shared::lowering_error::LoweringError;
+use crate::shared::terminal_identities::{mint_with, value_id};
 pub(crate) use boolean::emit_boolean_expression;
 use buffer::OperationBuffer;
 use calls::{CallEmissionContext, LoweredDirectCallBinding};

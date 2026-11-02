@@ -6,13 +6,13 @@
 //! identities. This module owns that join; there is no second publication of
 //! the same rows to reconcile.
 
-use crate::checked_facts::flow_facts;
+use crate::shared::checked_facts::flow_facts;
 use checked_trees::{CheckedAccessViewInput, CheckedTrees};
 use semantic_vocabulary::MachineId;
 use terminal_psi::{StructuralAccess, TerminalAccessViewInput};
 
-use crate::lowering_error::LoweringError;
 use crate::machine_lowering::declarations::nominal;
+use crate::shared::lowering_error::LoweringError;
 
 pub(crate) fn lower_access_view_input(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,

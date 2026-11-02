@@ -12,12 +12,12 @@ use super::{
     checked_scalar_call_closure_with_structural_roots, checked_unit_call_closure_including,
     checked_unit_provider_candidates, unsupported,
 };
-use crate::checked_facts::value_facts;
 use crate::expression_preparation::computation_graph::boundary_targets;
 use crate::expression_preparation::computation_graph::call_targets;
 use crate::expression_preparation::computation_graph::structural_call_targets;
 use crate::expression_preparation::computation_graph::value_call_operations;
-use crate::lowering_error::unit_machine_plan_error;
+use crate::shared::checked_facts::value_facts;
+use crate::shared::lowering_error::unit_machine_plan_error;
 pub(super) struct CheckedCallCatalog {
     pub(super) operations: Vec<symbols::SymbolHandle>,
     pub(super) source_machines: Vec<symbols::SymbolHandle>,
@@ -105,18 +105,21 @@ pub(super) fn discover(
                 .ok_or(LoweringError::Unsupported(
                     "program-root callable is absent from checked input",
                 ))?;
-        // A retained body's satisfaction edges are interface roots even
-        // when no operation invokes those requirements. The checked planner
+        // A retained body's service satisfaction edges are interface roots even
+        // when no operation invokes those requirements. Ordinary trait
+        // conformance is descriptive, not demand for all its implementations;
+        // explicit Build interfaces retain their own ordinary requirements above.
+        // The checked planner
         // owns their contracts; this join never fabricates a boundary plan
         // from an implementation's private signature or inferred effects.
         // Only its published concrete plans can join this catalog; open
         // generic and named-family applications keep their separate frontier.
         for conformance in checked.typed.machine_trait_conformances(machine) {
-            if plans
-                .boundary_machines()
-                .iter()
-                .any(|boundary| boundary.machine == conformance.requirement_symbol)
-                && !retained_boundary_roots.contains(&conformance.requirement_symbol)
+            if plans.boundary_machines().iter().any(|boundary| {
+                boundary.machine == conformance.requirement_symbol
+                    && (boundary.kind != semantic_vocabulary::BoundaryRequirementKind::Trait
+                        || boundary.owning_service.is_some())
+            }) && !retained_boundary_roots.contains(&conformance.requirement_symbol)
             {
                 retained_boundary_roots.push(conformance.requirement_symbol);
             }

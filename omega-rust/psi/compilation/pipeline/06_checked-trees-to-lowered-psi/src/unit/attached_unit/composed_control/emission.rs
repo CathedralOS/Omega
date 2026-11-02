@@ -84,7 +84,7 @@ pub(super) struct ComposedOperationCatalogs<'frame, 'catalogs> {
     service_ids: &'frame [(crate::unit::ServiceReachId, crate::unit::ServiceId)],
     signatures: &'frame [super::super::signatures::MachineSignature],
     boundary_parameters: &'frame [super::super::operation_frame::BoundaryParameters],
-    domain_ids: &'frame [crate::terminal_identities::StructuralDomainBinding],
+    domain_ids: &'frame [crate::shared::terminal_identities::StructuralDomainBinding],
     domain_declarations: &'frame [terminal_psi::StructuralDomainDeclaration],
     closure: &'frame [symbols::SymbolHandle],
     temporary_places: &'frame mut Vec<crate::unit::StructuralPlaceDeclaration>,

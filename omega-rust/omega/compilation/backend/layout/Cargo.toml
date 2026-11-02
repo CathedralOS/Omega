@@ -9,7 +9,6 @@ name = "layout"
 path = "src/lib.rs"
 
 [dependencies]
-typed-trees = { path = "../../../../psi/compilation/representations/typed-trees" }
 arena = { path = "../../../../psi/foundation/arena" }
 symbols = { path = "../../../../psi/foundation/symbols" }
 diagnostics = { path = "../../../../psi/foundation/diagnostics" }
@@ -22,10 +21,10 @@ numerics = { path = "../../../../psi/foundation/numerics" }
 runtime-abi = { path = "../runtime/runtime-abi" }
 target = { path = "../target" }
 calling-conventions = { path = "../calling-conventions" }
-representation-selections = { path = "../../../../psi/compilation/checking/representation-planning/selections" }
 
 [dev-dependencies]
-build-time-evaluation = { path = "../../../../psi/compilation/compile-time" }
+# The boundary-value tests close recipes from typed source fixtures.
+typed-trees = { path = "../../../../psi/compilation/representations/typed-trees" }
 source-files-to-tokens = { path = "../../../../psi/compilation/pipeline/00_source-files-to-tokens" }
 symbol-resolved-trees-to-typed-trees = { path = "../../../../psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees" }
 syntax-trees-to-symbol-resolved-trees = { path = "../../../../psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees" }

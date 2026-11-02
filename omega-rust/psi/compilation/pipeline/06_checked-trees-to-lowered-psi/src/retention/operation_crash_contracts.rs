@@ -48,11 +48,11 @@ use lowered_psi::{LoweredPsi, LoweredSelectedComparisonOperandOrder};
 use semantic_vocabulary::{MachineId, OperationId, ScalarTerm, ScalarType, ValueId};
 use terminal_psi::{OperationKind, TerminalMachine, TerminalOperationCrashContract};
 
-use crate::direct_calls::direct_call_parts;
 use crate::emission::scalar_types::terminal_scalar_type;
-use crate::lowering_error::{LoweringError, unsupported};
 use crate::proofs::crash_routes::lower_formal_crash_routes;
-use crate::terminal_identities::dense_identity;
+use crate::shared::direct_calls::direct_call_parts;
+use crate::shared::lowering_error::{LoweringError, unsupported};
+use crate::shared::terminal_identities::dense_identity;
 
 /// Install one operation crash contract row per checked operator crash site
 /// owned by a machine in `source_machines`, verify each named site's

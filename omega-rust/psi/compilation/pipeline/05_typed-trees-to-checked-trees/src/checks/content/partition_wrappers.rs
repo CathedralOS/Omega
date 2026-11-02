@@ -7,7 +7,7 @@ use crate::checks::multiplicity::ReturnedClaim;
 use crate::checks::multiplicity::ReturnedClaimSource::Live;
 use crate::checks::multiplicity::current_returned_claims;
 use crate::flow::{SelectionCondition, SelectionConditions};
-use crate::places::place_at;
+use crate::published::places::place_at;
 use checked_trees::{
     CheckFacts, ContentPartitionCompositionFact, ContentPartitionPlaceSubstitution,
     ContentPartitionResultRewrite,

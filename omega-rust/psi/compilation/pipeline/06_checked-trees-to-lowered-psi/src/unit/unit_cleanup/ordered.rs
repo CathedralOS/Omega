@@ -4,7 +4,7 @@
 use super::{
     CheckedNominalAffineUnitCleanupMachinePlan, CheckedTrees, LoweringError, lower_unit_closure,
 };
-use crate::producer_result::SourceMappedLowered;
+use crate::shared::producer_result::SourceMappedLowered;
 use crate::unit::attached_unit::UnitClosureRequest;
 use crate::unit::attached_unit::bodies::UnitPlans;
 

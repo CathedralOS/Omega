@@ -243,6 +243,9 @@ pub struct TypedTrees {
     /// Substituted declaration theories keyed by exact closed index instances.
     /// They are views of authored domains, not new declarations or authority.
     pub applied_domain_applications: Vec<domain::AppliedDomainApplication>,
+    /// Default-domain cleanup of generic data closed by typing or
+    /// specialization, keyed by the substituted carrier identity.
+    pub applied_data_cleanup_selections: Vec<domain::AppliedDataCleanupSelection>,
     /// Exact structured identities for external realization bindings. Typed
     /// conformance and supply rows retain ids into this table, so downstream
     /// consumers never need to rescan source syntax to recover the binding.
@@ -615,6 +618,7 @@ impl TypedTrees {
             authored_service_reach_rows: Vec::new(),
             semantic_domains: language_semantics::SemanticDomainTable::default(),
             applied_domain_applications: Vec::new(),
+            applied_data_cleanup_selections: Vec::new(),
             external_bindings: language_semantics::ExternalBindingTable::default(),
             plan_laid_layouts: Vec::new(),
             plan_laid_target_layouts: Arena::new(),

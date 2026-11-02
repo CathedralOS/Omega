@@ -14,6 +14,8 @@ use typed_trees::operator::OperatorConstBinding;
 use typed_trees::static_applications::StaticMachineBindingValue;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
+mod operations;
+
 /// Result consumers inspect this handle without a static application scope.
 /// Rejoin only existing, independently equivalent full recipes: reference
 /// shells, qualifications, policies and dependent indices remain effective.

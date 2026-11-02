@@ -1,22 +1,17 @@
-//! Native type layout: sizes, alignment, field paths, and sum materialization.
+//! Native target layout over source-free records: pointer geometry,
+//! boundary-value shapes and Terminal callback storage.
 //!
-//! Start at `layout_plan.rs`: `LayoutPlan` and the `TypeLayout`,
-//! `TypeLayoutDescriptor`, and field/data layout vocabulary it
-//! carries. `builder.rs` turns a typed reference into a `TypeLayout`
-//! whose descriptor records packed fields, bit-field fragments, and case
-//! payloads. `callback_layout` retains and checks private callback field paths and
-//! their target geometry independently of source-parameter association;
 //! `boundary_values` constructs bounded native signature graphs and selected
 //! opaque carrier occurrences from Psi's target-neutral value recipes.
-//! Layout never authorizes an access; it only fixes
-//! where a value's bytes live. General layout still consumes typed declarations
-//! and installed layout plans; boundary-value materialization does not. Neither
-//! consumes check facts; callers must not manufacture a checked program to
-//! request geometry before checking.
+//! `terminal_callback_layouts` and `terminal_layout_identity` close callback
+//! storage and nominal layout identity from canonical Terminal records.
+//! `sizing` owns the target's pointer and descriptor words. Layout never
+//! authorizes an access; it only fixes where a value's bytes live. This crate
+//! reads no source trees: source `size_of`/`align_of` measurement walks typed
+//! declarations in provider planning (`data_layout_queries`), which supplies
+//! the selected target to Psi's evaluation.
 
 mod boundary_values;
-mod builder;
-mod callback_layout;
 mod terminal_layout_identity;
 pub use terminal_layout_identity::{TerminalLayoutIdentity, terminal_layout_identity};
 mod terminal_record_storage;
@@ -26,26 +21,14 @@ pub use terminal_callback_layouts::{
     CallbackLayoutCoordinates, CallbackStorageRoot, MaterializedCallbackLayout,
     TerminalCallbackLayouts, callback_storage_has_slots,
 };
-mod layout_plan;
-mod packing;
 mod sizing;
 mod target_context;
+
+pub use sizing::{TypeLayout, fat_descriptor_layout, pointer_layout};
 
 pub use target_context::LayoutTarget;
 
 pub use boundary_values::{
     BOUNDARY_VALUE_FIELD_CAPACITY, BOUNDARY_VALUE_SHAPE_CAPACITY, BoundaryOpaqueOccurrence,
     BoundaryValueLayout, TerminalBoundaryRecipes, append_boundary_value_shape,
-};
-pub use builder::{
-    build_layout_plan, build_layout_plan_for_roots, layout_type_reference,
-    try_layout_type_reference,
-};
-pub use callback_layout::{PrivateCallbackInlineField, PrivateCallbackLayout};
-pub(crate) use layout_plan::{
-    BitFieldFragment, BitFieldLayout, DataLayout, DataShape, ENUM_TAG_BYTES, FieldLayout,
-    RepeatedFieldLayout, StoredIntegerLayout, TypeLayoutDescriptor, VariantLayout, type_layout,
-};
-pub use layout_plan::{
-    LayoutPlan, TargetClosedDataLayoutIdentity, TargetClosedPrivateCallbackDemand, TypeLayout,
 };

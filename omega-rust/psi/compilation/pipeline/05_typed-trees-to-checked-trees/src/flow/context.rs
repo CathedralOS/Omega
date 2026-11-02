@@ -3,15 +3,15 @@
 //! between sweeps, the incoming state values and dirty set that decide re-sweeps,
 //! and memo tables for lookups that depend only on the program, which survive
 //! between sweeps.
-use crate::facts::boolean_predicates;
-use crate::facts::build_dynamic_conformance_facts;
-use crate::facts::contract_occurrences::append_expression_occurrences;
-use crate::facts::contract_occurrences::fact_referenced_occurrences;
-use crate::facts::entry_parameter_place_before_statement;
 use crate::flow::StateMutationSummaryCache;
 use crate::flow::entry_origins;
 use crate::flow::place_cases_are_selected;
-use crate::places::place_at;
+use crate::published::facts::boolean_predicates;
+use crate::published::facts::build_dynamic_conformance_facts;
+use crate::published::facts::contract_occurrences::append_expression_occurrences;
+use crate::published::facts::contract_occurrences::fact_referenced_occurrences;
+use crate::published::facts::entry_parameter_place_before_statement;
+use crate::published::places::place_at;
 use checked_trees::{
     BorrowFacts, FlowBorrowLifetimeFacts, FlowBoundaryFacts, FlowContextFacts, FlowControlFacts,
     FlowFacts, FlowInvalidationFacts, FlowOwnershipFacts, ProofFacts,
@@ -1037,6 +1037,37 @@ pub(crate) fn state_statements(
     statements: arena::HandleSpan<typed_trees::statement::StatementNode>,
 ) -> &[typed_trees::statement::StatementNode] {
     program.statement_table.statements(statements)
+}
+
+/// The one value a state returns: a trailing expression, or one transition
+/// whose only target is a value. Locals may precede it. Any other statement
+/// is a different control shape and names no single returned value.
+pub(crate) fn state_returned_value(
+    program: &dyn ::validation::CheckingInput,
+    state: &typed_trees::state::State,
+) -> Option<typed_trees::expression::ExpressionHandle> {
+    use typed_trees::statement::{StatementNode, TransitionTargetNode};
+    let mut returned = None;
+    for statement in state_statements(program, state.statement_nodes) {
+        match statement {
+            StatementNode::LocalData(_) => {}
+            StatementNode::Expression(value) if returned.is_none() => returned = Some(*value),
+            StatementNode::Transition(transition) if returned.is_none() => {
+                let mut value = None;
+                for target in transition.targets() {
+                    match program.statement_table.transition_target(target) {
+                        TransitionTargetNode::Value(expression) if value.is_none() => {
+                            value = Some(*expression);
+                        }
+                        _ => return None,
+                    }
+                }
+                returned = Some(value?);
+            }
+            _ => return None,
+        }
+    }
+    returned
 }
 
 /// The statements a state's statement span names, paired with their index.

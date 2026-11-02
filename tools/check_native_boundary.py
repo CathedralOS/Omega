@@ -12,10 +12,10 @@ otherwise legitimately coexist, so a wrong import stops resolving instead of
 relying on a source-text search.
 
 The Omega firewall rules carry the edges that existed when they landed
-(2026-11-01) as `FIREWALL_ALLOWANCES`: 11 from Omega compilation crates into
-source-side Psi and 13 between Omega stages. Each row names the imports that
+(2026-11-01) as `FIREWALL_ALLOWANCES`, from Omega compilation crates into
+source-side Psi and between Omega stages. Each row names the imports that
 hold it. A row whose edge is gone fails until it is deleted, so the list only
-shrinks; two rows are sanctioned by pipeline.md and the rest are debt.
+shrinks; rows marked "Sanctioned" cite pipeline.md and the rest are debt.
 """
 
 import json
@@ -98,7 +98,7 @@ SOURCE_SIDE_PSI = (
       for trees in ("syntax", "symbol-resolved", "typed", "checked")),
     PSI_PIPELINE,
     PSI_FACADE,
-    f"{PSI}/compilation/compile-time",
+    f"{PSI}/compilation/build-time-evaluation",
     f"{PSI}/compilation/checking/representation-planning",
     f"{PSI}/interpreter",
 )
@@ -123,7 +123,6 @@ def stage(number):
 
 SELECTED_DISPATCH = f"{OMEGA}/compilation/realization/selected-dispatch"
 PROVIDER_PLANNING = f"{OMEGA}/compilation/realization/provider-planning"
-LAYOUT = f"{OMEGA}/compilation/backend/layout"
 REPRESENTATION_PLANNING = f"{PSI}/compilation/checking/representation-planning"
 STAGE_DEBT = "Debt: stage output type lives in the producing stage crate instead of compilation/representations"
 
@@ -132,11 +131,6 @@ FIREWALL_ALLOWANCES = (
     Allowance(PROVIDER_PLANNING, f"{PSI}/compilation/representations/checked-trees",
               "Sanctioned: pipeline.md:1097-1099, provider-planning \"owns source provider "
               "derivation, declaration preparation\" (TypedTrees, Machine, ServiceCatalog)"),
-    Allowance(LAYOUT, f"{REPRESENTATION_PLANNING}/selections",
-              "Sanctioned: pipeline.md:1301-1303, the selections package \"keeps consumers free "
-              "of a dependency on admission\" (OpaqueRepresentationSelection)"),
-    Allowance(LAYOUT, f"{PSI}/compilation/representations/typed-trees",
-              "Debt: builder reads TypedTrees and PlanLaidLayout from source trees"),
     Allowance(SELECTED_DISPATCH, f"{PSI}/compilation/representations/typed-trees",
               "Debt: reads TypedTrees, DeclarationSelection and TraitDefinition; pipeline.md:1113 "
               "\"imports no Psi transform\""),
@@ -144,16 +138,15 @@ FIREWALL_ALLOWANCES = (
               "Debt: reads CheckedTrees and boundary adapter dispatch from checked source"),
     Allowance(SELECTED_DISPATCH, TERMINAL_PRODUCTION,
               "Debt: prepares PreparedProviderInventory and ExternalProviderDeclarations itself"),
-    Allowance(SELECTED_DISPATCH, f"{PSI}/compilation/compile-time",
+    Allowance(SELECTED_DISPATCH, f"{PSI}/compilation/build-time-evaluation",
               "Debt: validates selected provider bodies and operators through compile-time evaluation"),
     Allowance(SELECTED_DISPATCH, REPRESENTATION_PLANNING,
               "Debt: OpaqueRepresentationSelection only, which the selections package carries"),
-    Allowance(PROVIDER_PLANNING, f"{PSI}/compilation/compile-time",
+    Allowance(PROVIDER_PLANNING, f"{PSI}/compilation/build-time-evaluation",
               "Debt: provider declarations and BuildTimeValue from compile-time evaluation"),
-    Allowance(PROVIDER_PLANNING, REPRESENTATION_PLANNING,
-              "Debt: opaque representation dispositions from the admission checker"),
-    Allowance(PROVIDER_PLANNING, f"{PSI}/interpreter/terminal-interpreter",
-              "Debt: runs calling-policy plans in the Terminal interpreter (TerminalProgram)"),
+    Allowance(PROVIDER_PLANNING, f"{REPRESENTATION_PLANNING}/selections",
+              "Sanctioned: pipeline.md:1301-1303, the selections package \"keeps consumers free "
+              "of a dependency on admission\" (OpaqueRepresentationSelection, selection_for_opaque)"),
     Allowance(stage("01"), stage("00"),
               "Debt: calls build_verified_psi_optimization_unit; VerifiedPsiOptimizationInput"),
     Allowance(stage("02"), stage("00"), f"{STAGE_DEBT} (VerifiedPsiOptimizationInput)"),
@@ -162,7 +155,7 @@ FIREWALL_ALLOWANCES = (
     Allowance(stage("03"), stage("01"), f"{STAGE_DEBT} (ValidatedOptimizedAbstractPlan)"),
     Allowance(stage("03"), stage("02"),
               "Debt: calls classified_boundary_shape and descriptor_input_guard instead of "
-              "reading them from stage 02 output"),
+              "reading them from Omega 02 output"),
     Allowance(stage("04"), stage("03"),
               "Debt: calls staging_custody_core_accessors and selected_instruction_plan_identity; "
               "ValidatedSelectedInstructions"),
@@ -243,7 +236,7 @@ FORBIDDEN_DEPENDENCIES = tuple(Rule(*rule) for rule in (
     (
         (TRUST_MODEL,),
         (
-            f"{PSI}/compilation/compile-time",
+            f"{PSI}/compilation/build-time-evaluation",
             f"{PSI}/interpreter/checked-interpreter",
             f"{PSI_PIPELINE}/05_typed-trees-to-checked-trees",
             f"{PSI}/compilation/checking/terminal-installation",
@@ -256,12 +249,12 @@ FORBIDDEN_DEPENDENCIES = tuple(Rule(*rule) for rule in (
     (
         (PSI_FACADE,),
         TERMINAL_STAGES,
-        "stages 06-08 are sequenced only by terminal-production",
+        "Psi 06-08 are sequenced only by terminal-production",
         (TERMINAL_PRODUCTION,),
     ),
     (
         (TERMINAL_PRODUCTION,),
-        (f"{PSI}/compilation/compile-time",),
+        (f"{PSI}/compilation/build-time-evaluation",),
         "Terminal production sits below compile-time evaluation, which calls it",
     ),
     (

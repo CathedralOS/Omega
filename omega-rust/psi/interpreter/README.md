@@ -12,7 +12,7 @@ on their input representations and semantic checks, not on the product compiler
 coordinator. This keeps compiler use of evaluation from creating a dependency
 cycle through an interpreter command workflow.
 
-[Compile-time admission and elaboration](../compilation/compile-time/README.md)
+[Compile-time admission and elaboration](../compilation/build-time-evaluation/README.md)
 belong to compilation. That service invokes the checked engine and installs its
 results into compiler representations; neither engine owns those transformations.
 

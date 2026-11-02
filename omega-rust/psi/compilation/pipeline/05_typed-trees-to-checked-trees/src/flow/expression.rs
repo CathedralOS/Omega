@@ -22,7 +22,7 @@ use crate::flow::canonical_place_segments_may_overlap;
 use crate::flow::filter_contexts_after_place_mutations;
 use crate::flow::project_constraint_refs_to_active_contexts;
 use crate::flow::reference_spans;
-use crate::places::place_at;
+use crate::published::places::place_at;
 
 use arena::{Handle, HandleSpan};
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -1503,7 +1503,11 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             };
             let parameters = self.program.operator_parameters(operator);
             let Some(named_operands) =
-                crate::facts::operator_crashes::named_call_operands(self.program, call, parameters)
+                crate::published::facts::operator_crashes::named_call_operands(
+                    self.program,
+                    call,
+                    parameters,
+                )
             else {
                 continue;
             };
@@ -2419,7 +2423,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                         } else {
                             place.clone()
                         };
-                        crate::collections::push_unique(&mut changed, affected);
+                        crate::shared::collections::push_unique(&mut changed, affected);
                     }
                 }
             }

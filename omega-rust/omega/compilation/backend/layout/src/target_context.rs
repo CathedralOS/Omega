@@ -36,7 +36,7 @@ impl LayoutTarget {
         self.native
     }
 
-    pub(crate) fn into_parts(self) -> (NativeTarget, Option<TargetProfile>) {
+    pub fn into_parts(self) -> (NativeTarget, Option<TargetProfile>) {
         (self.native, self.profile)
     }
 }

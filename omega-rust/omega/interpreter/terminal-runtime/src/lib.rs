@@ -14,8 +14,9 @@ mod runtime_boundary;
 
 pub use execution::{
     TerminalClockEnvironment, TerminalClockSnapshot, TerminalDomainExitDelegation,
-    TerminalFilesystemDelegation, TerminalRuntimeError, TerminalRuntimeObservation,
-    TerminalRuntimeRequest, capture_host_x86_flags, execute, execute_sliced,
+    TerminalFilesystemDelegation, TerminalNativeServiceDelegation, TerminalRuntimeError,
+    TerminalRuntimeObservation, TerminalRuntimeRequest, capture_host_x86_flags, execute,
+    execute_sliced,
 };
 pub use terminal_interpreter::{TerminalExecutionResult, TerminalExecutionStatus};
 

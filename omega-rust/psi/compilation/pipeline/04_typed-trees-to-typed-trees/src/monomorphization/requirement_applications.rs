@@ -210,6 +210,36 @@ pub(crate) fn instantiate_requirement_applications(
                 .map_err(|diagnostic| vec![diagnostic])?;
         }
     }
+    // Public signature substitution copies qualified map applications too.
+    // Retain each copy's exact selected row before closing its public result;
+    // the shared public requirement alone cannot distinguish equal-endpoint
+    // maps, and a private target is not selection authority.
+    loop {
+        let signature_count = program.prepared_callable_signatures().count();
+        crate::conformance::explicit_requirement_calls::route_explicit_requirement_calls(program)?;
+        // Closing a new selected occurrence produces its public source scope.
+        // Its logical view cannot depend on another executable demand forcing
+        // a later specialization round. New views can themselves copy calls;
+        // settle that append-only graph before publishing invocation results.
+        program
+            .prepare_closed_conformance_scopes()
+            .map_err(|message| vec![Diagnostic::error(message)])?;
+        program
+            .prepare_applied_callable_signatures()
+            .map_err(|message| {
+                vec![Diagnostic::error(format!(
+                    "applied logical signatures: {message}"
+                ))]
+            })?;
+        if program.prepared_callable_signatures().count() == signature_count {
+            break;
+        }
+    }
+    // New executable projections retain their own logical refined views before
+    // calls borrow them; the shared nominal contract is never strengthened.
+    program
+        .prepare_applied_callable_signatures()
+        .map_err(|message| vec![Diagnostic::error(message)])?;
     calls::retarget(program)?;
     super::contextual_calls::retain_closed_requirement_demands(program)?;
     Ok(())

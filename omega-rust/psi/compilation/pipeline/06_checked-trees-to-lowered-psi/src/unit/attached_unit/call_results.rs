@@ -5,8 +5,8 @@
 //! Terminal identities. Emission joins those identities and the actual claims
 //! once, after operands have completed.
 use crate::emission::claim_bindings::{self, ClaimBindings, PreparedResultClaim};
-use crate::lowering_error::{LoweringError, unsupported};
-use crate::terminal_identities::{StructuralDomainBinding, lookup_domain_id_for_carrier};
+use crate::shared::lowering_error::{LoweringError, unsupported};
+use crate::shared::terminal_identities::{StructuralDomainBinding, lookup_domain_id_for_carrier};
 use checked_trees::{CheckedTrees, CheckedUnitCallCoordinate, CheckedUnitCallPlan};
 use semantic_vocabulary::{PlaceId, StructuralTypeId};
 use terminal_psi::{StructuralOperationResult, StructuralTypeDeclaration};
@@ -102,7 +102,8 @@ pub(crate) fn prepare(
             call.target.machine,
         )
     } else {
-        let (_, state) = crate::declarations::state_declaration(checked, call.target.state)?;
+        let (_, state) =
+            crate::shared::declarations::state_declaration(checked, call.target.state)?;
         (
             module_result_qualification_domains(checked, call),
             super::parameters::result_projected_qualifications(
@@ -118,7 +119,9 @@ pub(crate) fn prepare(
             qualification_establishments: Vec::new(),
             place,
             structural_type,
-            multiplicity: crate::terminal_identities::structural_multiplicity(binding.multiplicity),
+            multiplicity: crate::shared::terminal_identities::structural_multiplicity(
+                binding.multiplicity,
+            ),
             qualifications: Vec::new(),
             projected_qualifications: Vec::new(),
             claims: Vec::new(),

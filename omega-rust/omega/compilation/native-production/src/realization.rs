@@ -33,7 +33,7 @@ pub struct RealizedNativeProduct {
 
 /// Realize one Terminal artifact using explicit image, custody, reuse, and
 /// behavior-exclusion inputs. The request's retained behavior-exclusion union
-/// is adjudicated against the mechanism-closure review by stage 00,
+/// is adjudicated against the mechanism-closure review by Omega 00,
 /// so a requested absence holds whether or not the request carries a receiver
 /// permission policy, and a violated exclusion publishes no product. The public
 /// compiler entrance retains the image request on every failure path.

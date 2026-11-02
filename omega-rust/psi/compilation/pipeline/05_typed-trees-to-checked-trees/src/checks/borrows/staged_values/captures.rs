@@ -1,7 +1,7 @@
 //! Frozen reference leaves held by completed actuals. Unknown address coverage
 //! remains unknown; lifetime dependencies never substitute for referents.
 use crate::checks::ownership_occurrences::{StatementOccurrence, StatementStep};
-use crate::places::place_at;
+use crate::published::places::place_at;
 use arena::Handle;
 use checked_trees::{BorrowAccessKind, CapturedPlace, CheckFacts, FlowOperandFact, FlowStateFact};
 

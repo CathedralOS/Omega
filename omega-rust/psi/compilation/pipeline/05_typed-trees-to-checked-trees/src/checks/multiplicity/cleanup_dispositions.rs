@@ -766,7 +766,7 @@ impl RemainingCustody {
                 // first assignment retires (`permission_production`).
                 if event.multiplicity == Multiplicity::Linear && !event.obligation_live {
                     if path.is_empty() {
-                        crate::collections::push_unique(&mut self.zero_images, event.root);
+                        crate::shared::collections::push_unique(&mut self.zero_images, event.root);
                     } else {
                         // A receiving establishment positively reports that
                         // this typed claim region never held a value. Restore

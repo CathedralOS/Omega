@@ -327,9 +327,10 @@ pub(in super::super) fn build(
     // Erased borrow carriers have no storage binding: the sequence advances
     // past their declarations while each use's planner joins the captured
     // referent's checked loan evidence.
-    let erased_locals = phase_profile::scope("psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.graph_body.erased_locals", || {
-        erased_alias_locals(program, facts, machine, state)
-    });
+    let erased_locals = phase_profile::scope(
+        "psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.graph_body.erased_locals",
+        || erased_alias_locals(program, facts, machine, state),
+    );
     let mut scalar_count = crate::flow::state_statements(program, state.statement_nodes)
         .iter()
         .take(construction_statement_count)
@@ -387,7 +388,9 @@ pub(in super::super) fn build(
     })?
     .into_iter()
     .peekable();
-    let _loop_guard = phase_profile::guard("psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.graph_body.statement_loop");
+    let _loop_guard = phase_profile::guard(
+        "psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.graph_body.statement_loop",
+    );
     // A composed state ends its sequence where its terminator begins: a
     // transition into a fused sibling is a successor edge the state graph
     // plans, not a terminal call, so the caller bounds the walk.
@@ -711,26 +714,29 @@ pub(in super::super) fn build(
     }
     drop(_loop_guard);
     trace.statement(None);
-    phase_profile::scope("psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.graph_body.completion", || {
-        completion::complete(completion::Completion {
-            construction: construction!(),
-            owner_candidates,
-            prepared_calls,
-            binders: &binders,
-            calls,
-            scalar_control,
-            operations,
-            place_loans,
-            scalar_count,
-            structural_count,
-            structural_local_symbols,
-            windows,
-            returned_call,
-            returned_scalar_call,
-            structural_results,
-            call_count,
-        })
-    })
+    phase_profile::scope(
+        "psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.graph_body.completion",
+        || {
+            completion::complete(completion::Completion {
+                construction: construction!(),
+                owner_candidates,
+                prepared_calls,
+                binders: &binders,
+                calls,
+                scalar_control,
+                operations,
+                place_loans,
+                scalar_count,
+                structural_count,
+                structural_local_symbols,
+                windows,
+                returned_call,
+                returned_scalar_call,
+                structural_results,
+                call_count,
+            })
+        },
+    )
 }
 
 /// Share scalar exit discovery while leaving operation storage with its sequence.

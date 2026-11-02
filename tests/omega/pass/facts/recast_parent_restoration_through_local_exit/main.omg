@@ -11,14 +11,16 @@ requires self.start >= 0 && self.start <= self.end,
     origin: u32;
 }
 machine retain_view<'storage>(view: &'storage mut u32) -> &'storage mut u32 { view }
+machine restore(view: &mut u32, replacement: u32)
+ensures view == replacement,
+{ view = 0xFFFFFFFFu32; view = replacement; }
 public machine inspect(pair: &mut Pair)
 {
     let replacement: u32 = 0u32;
     pair.marker = 11;
     let formed: &mut u32 = &mut pair.start as &mut u32;
     let view: &mut u32 = retain_view(formed);
-    view = 0xFFFFFFFFu32;
-    view = replacement;
+    restore(&mut view, replacement);
     pair.end = 10;
 }
 machine main() crashes Trap {

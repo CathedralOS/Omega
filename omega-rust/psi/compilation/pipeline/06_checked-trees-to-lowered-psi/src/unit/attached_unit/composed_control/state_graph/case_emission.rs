@@ -7,7 +7,7 @@ use super::super::super::{PlaceId, ValueDeclaration, terminal_scalar_type, unsup
 use super::super::{LoweringError, catalogs};
 use super::CheckedComposedUnitControlStatePlan;
 use crate::emission::operation_emission::buffer::{OperationBuffer, StructuralBinding};
-use crate::terminal_identities::fresh_field_snapshot;
+use crate::shared::terminal_identities::fresh_field_snapshot;
 
 pub(super) struct PreparedCase<'a> {
     pub outcome: &'a checked_trees::CheckedClosedSumCaseOutcomePlan,
@@ -35,7 +35,7 @@ pub(super) fn prepare<'a>(
     else {
         return Ok(None);
     };
-    // Stage 05's closed-sum planner admitted the original carrier. Its path
+    // Psi 05's closed-sum planner admitted the original carrier. Its path
     // selects the inspected sum without transferring that carrier's
     // ownership or loan.
     let (place, structural_type) = match subject.source {

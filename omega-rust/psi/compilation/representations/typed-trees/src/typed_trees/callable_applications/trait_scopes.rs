@@ -27,6 +27,7 @@ impl TypedTrees {
             call.requirement_application,
             call.authored_machine_application,
         )
+        .or_else(|| self.named_conformance_call_signature(call))
     }
 
     /// Statement calls select the same complete public logical view as an
@@ -56,6 +57,50 @@ impl TypedTrees {
     ) -> Option<&signature::StateSignature> {
         let target = dispatch.map_or(target, |dispatch| dispatch.contract_symbol());
         if let Some(closed) = self.closed_requirement_application(target) {
+            // Closing the member's shape does not erase its source evidence
+            // bound. A transparent refinement supplies a separate public
+            // promise; the shared closed nominal signature remains unchanged.
+            if dispatch.is_none() && authored_application.is_valid() {
+                let source = self.static_machine_application(authored_application);
+                let original = source.registration_operation;
+                let binder = if original.is_valid() {
+                    self.symbols.get(original).parent
+                } else {
+                    SymbolHandle::invalid()
+                };
+                if source.lexical_owner == lexical_owner
+                    && binder.is_valid()
+                    && self.symbols.get(binder).kind == symbols::SymbolKind::ConformanceParameter
+                {
+                    let mut owner = lexical_owner;
+                    let mut visited = Vec::new();
+                    while owner.is_valid() && !visited.contains(&owner) {
+                        visited.push(owner);
+                        if let Some(bound) = self
+                            .evidence_bound_requirement(owner, binder, target)
+                            .ok()?
+                        {
+                            if bound
+                                .application
+                                .callable_refinement_clauses(self, bound.signature.name.as_str())
+                                .is_empty()
+                            {
+                                break;
+                            }
+                            if let Some(signature) = self.applied_callable_signature(
+                                &bound.application,
+                                bound.signature.symbol,
+                            ) && signature.type_parameters.is_empty()
+                                && signature.lifetime_parameters.is_empty()
+                            {
+                                return Some(signature);
+                            }
+                            break;
+                        }
+                        owner = self.declaration_scope_parent(owner);
+                    }
+                }
+            }
             if requirement_application.is_valid() {
                 let scope =
                     self.applied_requirement_scope(lexical_owner, requirement_application)?;
@@ -107,9 +152,23 @@ impl TypedTrees {
         // A source evidence child is not the declaring trait's state symbol.
         // Rejoin its exact authored bound before reading the prepared public
         // view, including when its caller-owned type operands remain symbolic.
-        if let Some(machine) = self.machine_by_symbol(lexical_owner)
-            && let Some(bound) = self.conformance_target_requirement(machine, target).ok()?
-        {
+        let binder = self.symbols.get(target).parent;
+        let mut owner = lexical_owner;
+        let mut visited = Vec::new();
+        let bound = loop {
+            if !owner.is_valid() || visited.contains(&owner) {
+                break None;
+            }
+            visited.push(owner);
+            if let Some(bound) = self
+                .evidence_bound_requirement(owner, binder, target)
+                .ok()?
+            {
+                break Some(bound);
+            }
+            owner = self.declaration_scope_parent(owner);
+        };
+        if let Some(bound) = bound {
             if requirement_application.is_valid() {
                 let written = self
                     .applied_requirement_scope(lexical_owner, requirement_application)?
@@ -293,12 +352,16 @@ impl TypedTrees {
         application: &AppliedTraitScope<'_>,
         requirement: SymbolHandle,
     ) -> Option<&signature::StateSignature> {
-        if let Some(closed) = self.closed_requirement_application(requirement) {
+        if let Some(closed) = self.closed_requirement_application(requirement)
+            && application
+                .callable_refinement_clauses(self, closed.signature.name.as_str())
+                .is_empty()
+        {
             return self
                 .requirement_application_matches_scope(requirement, application)
                 .then_some(closed.signature);
         }
-        let identity = application.application_identity(self)?;
+        let (owner, identity) = application.callable_contract_key(self)?;
         self.applied_callable_signatures
             .iter()
             .find_map(|(_, prepared)| {
@@ -309,7 +372,7 @@ impl TypedTrees {
                 else {
                     return None;
                 };
-                if *declaration != application.declaration.symbol
+                if *declaration != owner
                     || *prepared_identity != identity
                     || prepared.signature.symbol != requirement
                 {
@@ -328,53 +391,88 @@ impl TypedTrees {
         for scope in roots {
             scope.visit(self, &mut |scope| {
                 for signature in self.trait_machine_signatures(scope.declaration) {
+                    let clauses = scope.callable_refinement_clauses(self, signature.name.as_str());
                     // A completely monomorphic declaration needs no view.
                     // Outer arguments still substitute contracts when the
                     // requirement has no local binders, including phantom ones.
                     if signature.type_parameters.is_empty()
                         && scope.substitutions.is_empty()
                         && scope.declaration.lifetime_parameters.is_empty()
+                        && clauses.is_empty()
                     {
                         continue;
                     }
-                    let Some(identity) = scope.application_identity(self) else {
+                    let Some((owner, identity)) = scope.callable_contract_key(self) else {
                         continue;
                     };
+                    // A refined bound supplies a logical view of a closed
+                    // invocation too. Keep its exact ordinary Value formals;
+                    // strengthening the shared nominal instance would grant
+                    // those ceilings to unrelated base-trait callers.
+                    if !clauses.is_empty() {
+                        for closed in self.closed_requirement_applications().filter(|closed| {
+                            closed.template == signature.symbol
+                                && self.requirement_application_matches_scope(
+                                    closed.signature.symbol,
+                                    scope,
+                                )
+                        }) {
+                            pending.push((
+                                scope.declaration.symbol,
+                                owner,
+                                identity,
+                                closed.signature.symbol,
+                                scope.environment(),
+                                clauses.clone(),
+                            ));
+                        }
+                    }
                     pending.push((
                         scope.declaration.symbol,
+                        owner,
                         identity,
                         signature.symbol,
                         scope.environment(),
+                        clauses,
                     ));
                 }
             });
         }
-        for (trait_symbol, identity, requirement, environment) in pending {
+        for (trait_symbol, owner, identity, requirement, environment, clauses) in pending {
             if self
                 .applied_callable_signatures.iter().any(|(_, prepared)| {
                     prepared.signature.symbol == requirement
-                        && matches!(prepared.owner, AppliedCallableOwner::Trait { application, .. } if application == identity)
+                        && matches!(prepared.owner, AppliedCallableOwner::Trait { declaration, application } if declaration == owner && application == identity)
                 })
             {
                 continue;
             }
-            let application = self.materialize_trait_application(&environment)?;
-            let arguments = self.trait_application_arguments(trait_symbol, &application)?;
-            // Ancestor substitutions resolve the final operands, but are not
-            // the declaring signature's telescope. Reusing that scratch scope
-            // would capture unrelated binders while copying local contracts.
-            let Some(applied) = CallableApplication {
-                trait_region_application: Some((environment.clone(), environment.frame_count())),
-                ..CallableApplication::default()
-            }
-            .nominal(self, trait_symbol, requirement, &arguments)?
-            else {
-                continue;
+            let mut applied = if let Some(closed) = self.closed_requirement_application(requirement)
+            {
+                closed.signature.clone()
+            } else {
+                let application = self.materialize_trait_application(&environment)?;
+                let arguments = self.trait_application_arguments(trait_symbol, &application)?;
+                // Ancestor substitutions resolve final operands without
+                // capturing the declaring signature's independent telescope.
+                let Some(applied) = CallableApplication {
+                    trait_region_application: Some((
+                        environment.clone(),
+                        environment.frame_count(),
+                    )),
+                    ..CallableApplication::default()
+                }
+                .nominal(self, trait_symbol, requirement, &arguments)?
+                else {
+                    continue;
+                };
+                applied
             };
+            self.apply_callable_refinements(&mut applied, &clauses)?;
             self.applied_callable_signatures
                 .insert(AppliedCallableSignature {
                     owner: AppliedCallableOwner::Trait {
-                        declaration: trait_symbol,
+                        declaration: owner,
                         application: identity,
                     },
                     signature: applied,

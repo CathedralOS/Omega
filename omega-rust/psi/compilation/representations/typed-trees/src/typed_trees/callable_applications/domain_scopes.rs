@@ -81,36 +81,9 @@ impl TypedTrees {
             theory.semantic_roles.denotation_dimension.map(|_| identity);
         theory.semantic_roles.arithmetic_policy =
             theory.semantic_roles.arithmetic_policy.map(|_| identity);
-        if let Some(selection) = &mut theory.cleanup_selection {
-            let original = self
-                .static_machine_application(selection.application)
-                .clone();
-            let mut arguments = self
-                .static_machine_application_arguments(selection.application)
-                .to_vec();
-            application.static_arguments(self, &mut arguments)?;
-            let selected = self.expression_table.retain_static_machine_application(
-                original.registration_operation,
-                original.target,
-                &arguments,
-            );
-            let lifetimes = self
-                .static_machine_application_lifetimes(selection.application)
-                .to_vec();
-            self.expression_table
-                .set_static_machine_application_lifetimes(
-                    selected,
-                    original.lifetime_binding_declaration,
-                    &lifetimes,
-                );
-            let row = self
-                .expression_table
-                .static_machine_application_mut(selected);
-            row.lexical_owner = declaration;
-            row.binding_declaration = original.binding_declaration;
-            selection.application = selected;
-            selection.subject = application.type_reference(self, selection.subject)?;
-            selection.executable = SymbolHandle::invalid();
+        if let Some(selection) = theory.cleanup_selection {
+            theory.cleanup_selection =
+                Some(self.apply_cleanup_selection(&mut application, selection, declaration)?);
         }
         self.applied_domain_applications
             .push(domain::AppliedDomainApplication {
@@ -119,5 +92,49 @@ impl TypedTrees {
                 theory,
             });
         Ok(true)
+    }
+
+    /// Retarget a declaration's cleanup selection through `application`. The
+    /// copy keeps the selection's registration, target, lifetimes, binding
+    /// declaration and authorization; only its static operands and subject are
+    /// substituted, and its executable stays unresolved until specialization.
+    pub(super) fn apply_cleanup_selection(
+        &mut self,
+        application: &mut CallableApplication,
+        selection: domain::CleanupSelection,
+        lexical_owner: SymbolHandle,
+    ) -> Result<domain::CleanupSelection, &'static str> {
+        let original = self
+            .static_machine_application(selection.application)
+            .clone();
+        let mut arguments = self
+            .static_machine_application_arguments(selection.application)
+            .to_vec();
+        application.static_arguments(self, &mut arguments)?;
+        let selected = self.expression_table.retain_static_machine_application(
+            original.registration_operation,
+            original.target,
+            &arguments,
+        );
+        let lifetimes = self
+            .static_machine_application_lifetimes(selection.application)
+            .to_vec();
+        self.expression_table
+            .set_static_machine_application_lifetimes(
+                selected,
+                original.lifetime_binding_declaration,
+                &lifetimes,
+            );
+        let row = self
+            .expression_table
+            .static_machine_application_mut(selected);
+        row.lexical_owner = lexical_owner;
+        row.binding_declaration = original.binding_declaration;
+        Ok(domain::CleanupSelection {
+            application: selected,
+            authorization: selection.authorization,
+            subject: application.type_reference(self, selection.subject)?,
+            executable: SymbolHandle::invalid(),
+        })
     }
 }

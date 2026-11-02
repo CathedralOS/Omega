@@ -56,7 +56,11 @@ pub(super) fn proves_exit(
             } if machine_symbol == machine.symbol)
     }) {
         let Some((declaring_trait, requirement, satisfier, scope)) =
-            crate::semantic::facts::inherited_contract_scope_parts(program, &facts.proof, contract)
+            crate::published::semantic::facts::inherited_contract_scope_parts(
+                program,
+                &facts.proof,
+                contract,
+            )
         else {
             return false;
         };

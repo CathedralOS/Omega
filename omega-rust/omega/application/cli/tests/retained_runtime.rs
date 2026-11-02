@@ -44,6 +44,7 @@ fn retained_execution_preserves_identity_and_resumes_without_decoding() {
     let request = |target| TerminalRuntimeRequest {
         entry: None,
         filesystem: Default::default(),
+        native_services: Default::default(),
         native_provider: None,
         artifact,
         target: Some(target),

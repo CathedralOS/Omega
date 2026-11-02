@@ -53,6 +53,7 @@ pub(super) fn lower(
                 })
                 .collect(),
             default_eligible: source.default_eligible,
+            physical_owner: source.physical_owner.clone(),
             formals: source.formals.clone(),
             storage,
         });

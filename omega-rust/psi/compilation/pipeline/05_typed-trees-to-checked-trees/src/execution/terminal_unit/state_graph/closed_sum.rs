@@ -31,9 +31,9 @@ use crate::execution::terminal_unit::state_graph::{
     EdgeCalls, FusedStates, SuccessorEdge, successor_bindings,
 };
 use crate::execution::terminal_unit::types::base_type_identity;
-use crate::places::place_at;
-use crate::proof::exact_outcome_case_test;
-use crate::semantic::calls::dispatch_subjects;
+use crate::published::places::place_at;
+use crate::published::proof::exact_outcome_case_test;
+use crate::published::semantic::calls::dispatch_subjects;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn build(

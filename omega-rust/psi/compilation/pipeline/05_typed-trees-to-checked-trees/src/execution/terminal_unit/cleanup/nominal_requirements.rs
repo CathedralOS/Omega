@@ -7,7 +7,7 @@ use crate::execution::terminal_unit::{
     CheckedUnitNominalAffineCleanupRequirementPlan, ContractProofFactKind, ContractProofFactOwner,
     DataMember, Diagnostic, ExpressionNode, PrimitiveType, StateParameter, SymbolHandle,
 };
-use crate::places::place_at;
+use crate::published::places::place_at;
 
 pub(crate) fn nominal_cleanup_boolean_requirements(
     program: &dyn ::validation::CheckingInput,
@@ -142,15 +142,15 @@ pub(crate) fn nominal_cleanup_missing_requirement_diagnostic(
 ) -> Diagnostic {
     let edge = format!(
         "automatic cleanup requires at Unit return edge from {} state {} after statement 0",
-        crate::labels::machine_name(program, caller_machine.symbol),
-        crate::labels::symbol_name(program, caller_state.symbol),
+        crate::published::labels::machine_name(program, caller_machine.symbol),
+        crate::published::labels::symbol_name(program, caller_state.symbol),
     );
     Diagnostic::error(format!(
         "cannot prove {edge}: missing {}.{} == {} required by {}",
         source_parameter.name.as_str(),
         missing.field_identity.spelling(),
         missing.expected,
-        crate::labels::machine_name(program, cleanup_machine.symbol),
+        crate::published::labels::machine_name(program, cleanup_machine.symbol),
     ))
 }
 

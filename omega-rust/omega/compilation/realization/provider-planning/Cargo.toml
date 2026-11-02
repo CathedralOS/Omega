@@ -16,19 +16,18 @@ calling-conventions = { path = "../../backend/calling-conventions" }
 runtime-abi = { path = "../../backend/runtime/runtime-abi" }
 backend-plan = { path = "../../backend/plans/backend-plan" }
 component-description = { path = "../../backend/artifacts/component-description" }
-effects = { path = "../../backend/plans/provider-evidence" }
+effects = { path = "../../backend/plans/effects" }
 layout = { path = "../../backend/layout" }
 package-compilation = { path = "../../../packages/compilation-inputs" }
 program-entry-plan = { path = "../../backend/plans/program-entry-plan" }
-representation-planning = { path = "../../../../psi/compilation/checking/representation-planning" }
+representation-selections = { path = "../../../../psi/compilation/checking/representation-planning/selections" }
 target = { path = "../../backend/target" }
 arena = { path = "../../../../psi/foundation/arena" }
-build-time-evaluation = { path = "../../../../psi/compilation/compile-time" }
+build-time-evaluation = { path = "../../../../psi/compilation/build-time-evaluation" }
 checked-trees = { path = "../../../../psi/compilation/representations/checked-trees" }
 terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }
 terminal-semantics = { path = "../../../../psi/compilation/representations/terminal-psi/semantics" }
 terminal-codec = { path = "../../../../psi/compilation/representations/terminal-psi/codec" }
-terminal-interpreter = { path = "../../../../psi/interpreter/terminal-interpreter" }
 terminal-fuel = { path = "../../../../psi/compilation/representations/terminal-psi/fuel" }
 terminal-installation = { path = "../../../../psi/compilation/checking/terminal-installation" }
 semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
@@ -42,5 +41,10 @@ source = { path = "../../../../psi/foundation/source" }
 symbols = { path = "../../../../psi/foundation/symbols" }
 
 [dev-dependencies]
+# Layout builder tests type small source fixtures.
+source-files-to-tokens = { path = "../../../../psi/compilation/pipeline/00_source-files-to-tokens" }
+tokens-to-syntax-trees = { path = "../../../../psi/compilation/pipeline/01_tokens-to-syntax-trees" }
+syntax-trees-to-symbol-resolved-trees = { path = "../../../../psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees" }
+symbol-resolved-trees-to-typed-trees = { path = "../../../../psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees" }
 # The source guards delegate their scan to the shared audit crate.
 source-audit = { path = "../../../../psi/foundation/source-audit" }

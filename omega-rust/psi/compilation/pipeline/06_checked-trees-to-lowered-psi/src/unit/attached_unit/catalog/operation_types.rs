@@ -2,7 +2,7 @@
 //! A descriptor temporary and an uninitialized local need their declarations
 //! even when neither type occurs in a signature or an earlier value binding.
 use super::*;
-use crate::terminal_identities::byte_view_element_identity;
+use crate::shared::terminal_identities::byte_view_element_identity;
 
 pub(in crate::unit::attached_unit) fn collect_operation_type_roots(
     checked: &CheckedTrees,
