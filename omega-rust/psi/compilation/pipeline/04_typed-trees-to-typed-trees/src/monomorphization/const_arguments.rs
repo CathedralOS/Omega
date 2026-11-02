@@ -75,6 +75,18 @@ pub(super) fn resolve_runtime_subject(
         if kind == SymbolKind::Parameter {
             return Some(argument.symbol);
         }
+        if kind == SymbolKind::TypeParameter
+            && program
+                .data_type_parameter_by_symbol(argument.symbol)
+                .is_some_and(|parameter| {
+                    matches!(
+                        parameter.kind,
+                        typed_trees::data::TypeParameterKind::Value { .. }
+                    )
+                })
+        {
+            return Some(argument.symbol);
+        }
         if kind != SymbolKind::Local {
             return None;
         }
