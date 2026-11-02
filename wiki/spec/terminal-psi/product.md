@@ -149,8 +149,8 @@ generic-substitution receipt.
 
 Callable declaration headers retain source supply and remaining type-parameter
 arity independently of emitted bodies. A concrete emitted body alone does not
-establish a nongeneric source declaration. Headers also retain checker-normalized realized synchronous
-invocations independently of emitted bodies. Each invocation target names its boundary
+establish a nongeneric source declaration. Headers also retain checker-normalized
+realized synchronous invocations. Each invocation target names its boundary
 declaration and package, with an exact application when concrete and explicit
 absence when abstract. An unavailable summary retains its refusal reason;
 it is not an empty call set. Selected-provider cycle policy consumes these
