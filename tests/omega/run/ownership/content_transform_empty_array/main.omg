@@ -4,7 +4,7 @@ use omega::language::core::content;
 use omega::language::core::extent;
 use omega::language::core::drop;
 data Units {}
-data Envelope [linear] { quantity: u64; slots: [Extent; 0]; }
+data Envelope [linear] dropped by drop_envelope { quantity: u64; slots: [Extent; 0]; }
 domain Envelope::Accounted;
 machine Accounted::content(value: &Envelope) -> CountedQuantity<Units>
 satisfies Content<Envelope, CountedQuantity<Units>>::project {
@@ -15,7 +15,7 @@ ensures Accounted::content(old(&whole)) == Accounted::content(&result) {
     Envelope { quantity: whole.quantity, slots: [] }
 }
 
-machine Envelope::drop(value: &mut Envelope) {}
+machine drop_envelope(value: &mut Envelope) {}
 machine main() crashes Trap {
     let whole: Envelope in Accounted = Envelope { quantity: 23, slots: [] };
     let renewed: Envelope in Accounted = renew(whole);

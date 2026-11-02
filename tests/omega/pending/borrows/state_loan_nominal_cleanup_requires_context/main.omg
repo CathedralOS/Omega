@@ -3,9 +3,9 @@
 // rejection rule. The state-loan storage-retention pass only relocates checked no-code
 // dispositions. Until contextual nominal cleanup can be transported through
 // this edge, refuse compilation instead of accepting with the hook omitted.
-data Token { ready: bool; }
+data Token dropped by drop_token { ready: bool; }
 
-machine Token::drop(token: &mut Token)
+machine drop_token(token: &mut Token)
 requires token.ready
 {
     token.ready = false;

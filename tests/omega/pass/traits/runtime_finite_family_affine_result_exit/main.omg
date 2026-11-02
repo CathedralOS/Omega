@@ -2,8 +2,8 @@
 // consumed while an older nominal owner remains live and readable.
 use omega_language_std::console;
 use omega::language::core::drop;
-data Token { value: u32; }
-machine Token::drop(token: &mut Token) { token.value = 0; }
+data Token dropped by drop_token { value: u32; }
+machine drop_token(token: &mut Token) { token.value = 0; }
 data Packet { token: Token; marker: u32; }
 data Item { value: u32; }
 trait Shape<T> {

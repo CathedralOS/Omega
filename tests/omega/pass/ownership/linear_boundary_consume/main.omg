@@ -1,7 +1,7 @@
 use omega::language::core::external_binding;
 // A boundary-trait requirement consumes a by-value `[linear]` parameter: the
 // call edge transfers custody and the requirement discharges the claim —
-// `Receipt` declares no `Receipt::drop` plan, so no edge cleanup may
+// `Receipt` selects no `dropped by` cleanup, so no edge cleanup may
 // retire it. Binding spellings: `DllImport::ElfVersioned` /
 // `DllImport::PeByName` / `DllImport::MachODylibSymbol`.
 data Receipt [linear] {

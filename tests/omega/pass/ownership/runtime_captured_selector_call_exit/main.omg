@@ -1,7 +1,7 @@
-data Token { value: u64; }
+data Token dropped by drop_token { value: u64; }
 data Cursor { index: u64; calls: u64 in Wrapping; }
 
-machine Token::drop(token: &mut Token) { token.value = 0; }
+machine drop_token(token: &mut Token) { token.value = 0; }
 
 machine select(cursor: &mut Cursor) -> u64 ensures result == 1 {
     cursor.calls += 1;

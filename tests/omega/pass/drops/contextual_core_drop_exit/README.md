@@ -9,7 +9,7 @@ checks both output streams as well as the exit oracle.
 
 The entry first transfers the B owner into ordinary core `drop`. It then
 transfers the A owner through `forward<T>` into the unrelated generic consuming
-helper `retire<T>`. Each death edge invokes the exact `Token::drop` hook with the
+helper `retire<T>`. Each death edge invokes the exact `drop_token` hook with the
 current owner's `ready` prerequisite; the forwarding body must not also dispose
 its moved value. Generic substitution carries the contextual cleanup obligation
 through both call chains. No rule may depend on the spelling of core `drop`,

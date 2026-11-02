@@ -10,10 +10,10 @@ machine Ledger::note(amount: i32) {
 machine Ledger::trace() {
     sweep();
 }
-data Guard {
+data Guard dropped by drop_guard {
     handle: i32;
 }
-machine Guard::drop(guard: &mut Guard) {
+machine drop_guard(guard: &mut Guard) {
     Ledger::note(guard.handle);
     Ledger::trace();
     Ledger::trace();

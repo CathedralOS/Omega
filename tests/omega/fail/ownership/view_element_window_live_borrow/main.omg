@@ -1,7 +1,7 @@
 // Replacing a view element opens a restoration window on it. A live shared
 // borrow of that element overlaps the window and rejects.
-data Token { byte: i32; }
-machine Token::drop(token: &mut Token) { token.byte = 0; }
+data Token dropped by drop_token { byte: i32; }
+machine drop_token(token: &mut Token) { token.byte = 0; }
 machine mint(byte: i32) -> Token { Token { byte: byte } }
 machine refill(tokens: &mut [Token]) -> i32
 requires tokens.len >= 2

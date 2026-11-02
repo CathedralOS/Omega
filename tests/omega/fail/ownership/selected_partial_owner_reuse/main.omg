@@ -1,7 +1,7 @@
 // A possibly moved field is unavailable even if the actual argument skips it.
-data Token { value: u64; }
+data Token dropped by drop_token { value: u64; }
 data Pair { first: Token; second: Token; }
-machine Token::drop(token: &mut Token) {}
+machine drop_token(token: &mut Token) {}
 machine consume(token: Token) -> u64 { token.value }
 machine choose(enabled: bool) -> u64 {
     let pair: Pair = Pair { first: Token { value: 9 }, second: Token { value: 10 } };

@@ -1,6 +1,6 @@
 # drop_erased_member
 
-`use omega::language::core::drop` + `drop(carrier)` on a record that owns NO `Carrier::drop` hook: the checked cleanup edge selects member hooks for live storage (`Guard::drop` on `guard`), while `proof [erased]: Evidence` carries no runtime representation — it needs no hook of its own and triggers no cleanup.
+`use omega::language::core::drop` + `drop(carrier)` on a record that selects NO `dropped by` hook: the checked cleanup edge selects member hooks for live storage (`drop_guard` on `guard`), while `proof [erased]: Evidence` carries no runtime representation — it needs no hook of its own and triggers no cleanup.
 
 ## Learnings
 

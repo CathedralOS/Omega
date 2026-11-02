@@ -1,4 +1,4 @@
-data Owner<'first, 'second> {
+data Owner<'first, 'second> dropped by drop_owner<'first, 'second> {
     first: &'first i32;
     second: &'second i32;
 }
@@ -6,6 +6,6 @@ data Other<'first, 'second> {
     first: &'first i32;
     second: &'second i32;
 }
-machine Owner::drop(owner: &mut Other<'first, 'second>) {}
+machine drop_owner<'first, 'second>(owner: &mut Other<'first, 'second>) {}
 
 machine main() {}

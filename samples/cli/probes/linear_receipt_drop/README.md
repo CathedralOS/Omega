@@ -1,12 +1,12 @@
 # Linear Receipt Drop
 
 Depend-free compile-scope probe: linear data and explicit early disposal —
-the first sample declaring `[linear]` data with an authored owner-attached
+the first sample declaring `[linear]` data with an authored `dropped by`
 drop hook.
 
 - `data Receipt [linear]` must reach a checked cleanup edge instead of
   falling out of scope — `drop(receipt)` consumes it explicitly.
-- `Receipt::drop` is the owner-attached hook the compiler selects at that
+- `drop_receipt` is the `dropped by` hook the compiler selects at that
   edge; it is never an authored call target. `observe(&receipt)` takes a
   shared borrow before disposal.
 

@@ -1,6 +1,6 @@
 use omega::language::core::drop;
-data Token [linear] { value: i32; }
-machine Token::drop(token: &mut Token) {}
+data Token [linear] dropped by drop_token { value: i32; }
+machine drop_token(token: &mut Token) {}
 machine consume(token: Token) -> i32 { drop(token); 0 }
 data Envelope { token: Token; }
 machine after(first: i32, envelope: Envelope) -> i32 { consume(envelope.token) }

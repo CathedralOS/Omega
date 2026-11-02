@@ -1,7 +1,7 @@
 use omega::language::core::drop;
 
-data Token<T> [linear] { value: u64; reference: T; }
-machine Token::drop(token: &mut Token<T>) {}
+data Token<T> [linear] dropped by drop_token<T> { value: u64; reference: T; }
+machine drop_token<T>(token: &mut Token<T>) {}
 data Holder<T> { guard: u64; token: Token<T>; }
 data Attempt<T> {
     case Success(token: Token<T>);

@@ -1,8 +1,8 @@
-data Token { value: u64; }
+data Token dropped by drop_token { value: u64; }
 data Tag [copy] { case Empty; case First; case Second; }
 data Pair { left: Token; right: Token; tag: Tag; }
 
-machine Token::drop(token: &mut Token) { token.value = 0; }
+machine drop_token(token: &mut Token) { token.value = 0; }
 
 machine replace_borrowed(pair: &mut Pair) {
     pair.right = Token { value: 13 };

@@ -1,6 +1,6 @@
 // Absent payload debt does not authorize copying the containing value.
-data Token [linear] { value: u32; }
-machine Token::drop(token: &mut Token) {}
+data Token [linear] dropped by drop_token { value: u32; }
+machine drop_token(token: &mut Token) {}
 data Slot { case Empty; case Held(token: Token); }
 machine forward(value: Slot) -> Slot { value }
 machine main() {

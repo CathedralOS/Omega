@@ -1,6 +1,6 @@
 // Expected exit: 0. Selected nested transfers and skipped owners each clean up once.
-data Ticket { drops: &mut [u64; 1]; value: u64; }
-machine Ticket::drop(ticket: &mut Ticket) {
+data Ticket dropped by drop_ticket { drops: &mut [u64; 1]; value: u64; }
+machine drop_ticket(ticket: &mut Ticket) {
     ticket.drops[0] = ((ticket.drops[0] as u64 in Wrapping) + 1) as u64;
 }
 machine issue(drops: &mut [u64; 1]) -> Ticket {

@@ -19,8 +19,8 @@ machine exclusive_field(holder: &mut Holder) -> i32 reaches Character {
     Character::echo(holder.offset)
 }
 
-data Token { value: i32; }
-machine Token::drop(token: &mut Token) reaches Character {
+data Token dropped by drop_token { value: i32; }
+machine drop_token(token: &mut Token) reaches Character {
     token.value = Character::echo(token.value);
 }
 

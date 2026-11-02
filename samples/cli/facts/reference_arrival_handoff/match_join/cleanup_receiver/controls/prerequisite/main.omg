@@ -1,8 +1,8 @@
 // An exclusive reference moves into another binding. Writing through the receiving binding changes the original backing; the following read must see 41.
 // Expected rejection: automatic cleanup requires code 41.
 data Counter { value: u64; }
-data Keeper { output: &mut Counter; code: u64; }
-machine Keeper::drop(keeper: &mut Keeper) requires keeper.code == 41 {
+data Keeper dropped by drop_keeper { output: &mut Counter; code: u64; }
+machine drop_keeper(keeper: &mut Keeper) requires keeper.code == 41 {
     keeper.output.value = keeper.code;
 }
 machine observe(keeper: &Keeper) {}

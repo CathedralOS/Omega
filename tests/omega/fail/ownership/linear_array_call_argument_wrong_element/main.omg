@@ -2,10 +2,10 @@
 // supply one element of a Receipt array merely because their layouts agree.
 use omega::language::core::drop;
 
-data Receipt [linear] { code: i32; }
-machine Receipt::drop(receipt: &mut Receipt) {}
-data Other [linear] { code: i32; }
-machine Other::drop(other: &mut Other) {}
+data Receipt [linear] dropped by drop_receipt { code: i32; }
+machine drop_receipt(receipt: &mut Receipt) {}
+data Other [linear] dropped by drop_other { code: i32; }
+machine drop_other(other: &mut Other) {}
 
 machine make(code: i32) -> Receipt {
     let receipt: Receipt = Receipt { code: code };

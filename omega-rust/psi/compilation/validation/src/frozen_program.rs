@@ -827,11 +827,6 @@ pub struct CheckingMemos {
     /// walk through specialization templates is program-fixed, so cleanup
     /// consumers that probe every machine share each declaration's walk once.
     pub(crate) nominal_cleanup_owners: Mutex<symbols::SymbolMap<Option<symbols::SymbolHandle>>>,
-    /// Effective owner -> cleanup machine candidates, built once: a machine
-    /// binds under its direct cleanup owner and under the generic base of
-    /// that owner's origin, so consumers stop scanning every machine.
-    pub(crate) nominal_cleanup_machine_index:
-        OnceLock<Arc<symbols::SymbolKeyMap<symbols::SymbolHandle, Vec<symbols::SymbolHandle>>>>,
     /// One selected-application carrier verdict per (caller machine,
     /// application target, declared result, arity); each consultation
     /// re-derives program-fixed ownership, parameter eligibility, callee
@@ -947,7 +942,6 @@ impl CheckingMemos {
             content_conservation: self.content_conservation,
             case_reference_owners: self.case_reference_owners,
             nominal_cleanup_owners: self.nominal_cleanup_owners,
-            nominal_cleanup_machine_index: self.nominal_cleanup_machine_index,
             contract_occurrences: self.contract_occurrences,
             bound_maps: self.bound_maps,
             declared_float_field_bounds: self.declared_float_field_bounds,
@@ -983,7 +977,6 @@ impl CheckingMemos {
                     .map(|guard| guard.clone())
                     .unwrap_or_default(),
             ),
-            nominal_cleanup_machine_index: self.nominal_cleanup_machine_index.clone(),
             contract_occurrences: self.contract_occurrences.clone(),
             bound_maps: self.bound_maps.clone(),
             declared_float_field_bounds: Mutex::new(

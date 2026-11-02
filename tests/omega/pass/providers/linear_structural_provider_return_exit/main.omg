@@ -2,8 +2,8 @@
 use omega_language_std::console;
 use omega::language::core::drop;
 
-public data Token [linear] { value: i32 in Wrapping; }
-machine Token::drop(token: &mut Token) { token.value = 0; }
+public data Token [linear] dropped by drop_token { value: i32 in Wrapping; }
+machine drop_token(token: &mut Token) { token.value = 0; }
 public domain Token::SuspensionSafe = Carry::AcrossSuspend;
 public domain Token::Marked;
 public data Pair { left: Token in Token::Marked; right: Token in Token::Marked; }

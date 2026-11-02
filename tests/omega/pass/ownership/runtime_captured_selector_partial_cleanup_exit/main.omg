@@ -1,6 +1,6 @@
 // Expected exit: 0. Captured result guarantees separate cleanup from moved storage.
-data Token { value: u64; }
-machine Token::drop(token: &mut Token) { token.value = 0; }
+data Token dropped by drop_token { value: u64; }
+machine drop_token(token: &mut Token) { token.value = 0; }
 machine select() -> u64 ensures result == 1 { 1 }
 
 machine main() crashes Trap {

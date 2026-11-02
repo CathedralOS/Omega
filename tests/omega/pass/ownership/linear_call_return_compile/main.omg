@@ -3,9 +3,9 @@
 // result as its new live claim, and the old handle is gone.
 use omega::language::core::drop;
 
-data Lease [linear] { tag: u64; }
+data Lease [linear] dropped by drop_lease { tag: u64; }
 
-machine Lease::drop(lease: &mut Lease) {}
+machine drop_lease(lease: &mut Lease) {}
 
 boundary trait LeaseRedeem {
     machine redeem(token: Lease) reaches;
