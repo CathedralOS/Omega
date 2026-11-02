@@ -171,6 +171,7 @@ Those historical observations do not qualify later admission changes or
 foreign-host execution.
 
 ## Canonical physical ABI association
+
 Physical ABI row association now uses the canonical declaration census, exact
 inherited receiver application and Calling root independently of the member's
 declaring application. The [shared-parent control](controls/shared_parent_roots/main.omg)
