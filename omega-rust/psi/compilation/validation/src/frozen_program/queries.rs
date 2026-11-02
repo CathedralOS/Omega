@@ -138,6 +138,10 @@ impl CheckingInput for CheckingQuery<'_> {
         self.input.prepared_effect_plans()
     }
 
+    fn storage_graph(&self) -> Option<&checked_trees::FlowControlFacts> {
+        self.input.storage_graph()
+    }
+
     fn prepared_mathematics(
         &self,
     ) -> Option<crate::mathematical_applications::PreparedMathematicalView<'_>> {

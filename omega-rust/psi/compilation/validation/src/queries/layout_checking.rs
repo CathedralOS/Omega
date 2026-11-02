@@ -72,6 +72,9 @@ impl CheckingInput for LayoutCheckingContext<'_> {
     fn prepared_effect_plans(&self) -> Option<&PreparedEffectPlans> {
         self.input.prepared_effect_plans()
     }
+    fn storage_graph(&self) -> Option<&checked_trees::FlowControlFacts> {
+        self.input.storage_graph()
+    }
     fn prepared_mathematics(&self) -> Option<PreparedMathematicalView<'_>> {
         self.input.prepared_mathematics()
     }

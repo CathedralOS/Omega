@@ -34,6 +34,7 @@ use typed_trees::data::TypeParameterKind;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::machine::Machine;
 use typed_trees::signature::StateParameter;
+use typed_trees::state::State;
 use typed_trees::statement::TableCall;
 use typed_trees::trait_definition::AppliedTraitScope;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -1116,7 +1117,7 @@ fn exclusive_result_referent(
     live_unconstrained_type(program, substituted_head(program, *referee, bindings))
 }
 
-fn boundary_result_origins(
+pub(super) fn boundary_result_origins(
     program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     machine_symbols: &MachineSymbols<'_>,
@@ -1163,7 +1164,7 @@ fn boundary_result_origins(
     }
     let parameters =
         super::type_instantiation::signature_arity_parameters(program, signature, arguments)?;
-    exclusive_boundary_result_origins(
+    match exclusive_boundary_result_origins(
         program,
         current_machine,
         machine_symbols,
@@ -1173,7 +1174,24 @@ fn boundary_result_origins(
         referent,
         &mut bindings,
         inference,
-    )
+    ) {
+        ExclusiveResultRoute::Named(mut named) => {
+            // The receiver and parameter routes are alternatives: the union
+            // is the honest may-alias set.
+            origins.append(&mut named);
+            Some(origins)
+        }
+        // No caller-storage route is admitted. Implementor storage may back
+        // the result through the receiver; otherwise the completed
+        // invocation owns its opaque referent.
+        ExclusiveResultRoute::Unrelated if origins.is_empty() => {
+            invocation_result_origin(expression, referent)
+        }
+        ExclusiveResultRoute::Unrelated => Some(origins),
+        // An input may carry exclusive storage this frame cannot name:
+        // neither the receiver nor the invocation covers caller memory.
+        ExclusiveResultRoute::Opaque => None,
+    }
 }
 
 /// The signature's admitted candidate routes canonicalized through the
@@ -1281,6 +1299,17 @@ signature_result_candidate_adapter! {
 /// may itself store the referent contributes its origins, root-only storage
 /// keeps them collection-coarse.
 #[allow(clippy::too_many_arguments)]
+/// Caller-side provenance of a returned exclusive referent. `Named` routes
+/// resolved to caller storage places; `Unrelated` means no signature
+/// parameter admitted the referent, so its backing is not caller storage;
+/// `Opaque` means an input may carry exclusive storage this frame cannot
+/// name, so the result may still alias caller memory.
+enum ExclusiveResultRoute {
+    Named(Vec<FramePlaceOrigin>),
+    Unrelated,
+    Opaque,
+}
+
 fn exclusive_boundary_result_origins(
     program: &dyn crate::CheckingInput,
     current_machine: &Machine,
@@ -1291,10 +1320,13 @@ fn exclusive_boundary_result_origins(
     referent: TypeReferenceHandle,
     bindings: &mut TypeBindings,
     inference: &mut FrameInference,
-) -> Option<Vec<FramePlaceOrigin>> {
+) -> ExclusiveResultRoute {
     let mut origins = Vec::new();
     for (parameter, actual) in parameters.into_iter().zip(arguments) {
-        let parameter_type = live_unconstrained_type(program, parameter.type_reference)?;
+        let Some(parameter_type) = live_unconstrained_type(program, parameter.type_reference)
+        else {
+            return ExclusiveResultRoute::Opaque;
+        };
         let parameter_type = substituted_head(program, parameter_type, &*bindings);
         let TypeReferenceNode::Reference {
             access, referee, ..
@@ -1303,7 +1335,7 @@ fn exclusive_boundary_result_origins(
             // A by-value carrier can still store exclusive references whose
             // referents this frame cannot name; its route stays opaque.
             if type_may_carry_write_in(program, parameter_type, &*bindings) {
-                return None;
+                return ExclusiveResultRoute::Opaque;
             }
             continue;
         };
@@ -1322,14 +1354,17 @@ fn exclusive_boundary_result_origins(
                     referent,
                     &mut *bindings,
                 );
-                for origin in boundary_argument_origins(
+                let Some(argument_origins) = boundary_argument_origins(
                     program,
                     current_machine,
                     machine_symbols,
                     symbols,
                     *actual,
                     inference,
-                )? {
+                ) else {
+                    return ExclusiveResultRoute::Opaque;
+                };
+                for origin in argument_origins {
                     push_unique_origin(
                         &mut origins,
                         if root_only {
@@ -1344,13 +1379,99 @@ fn exclusive_boundary_result_origins(
                 }
             }
             Some(false) => {}
-            None => return None,
+            None => return ExclusiveResultRoute::Opaque,
         }
     }
-    (!origins.is_empty()).then_some(origins)
+    if origins.is_empty() {
+        ExclusiveResultRoute::Unrelated
+    } else {
+        ExclusiveResultRoute::Named(origins)
+    }
 }
 
-fn requirement_result_origins(
+/// No admitted caller-storage route reaches the returned referent: a
+/// boundary/provider result may point into opaque backing owned by the
+/// completed invocation itself (provider static storage or input-derived
+/// storage the caller cannot name). Its provenance stays exact even though
+/// no declaration-relative address exists.
+fn invocation_result_origin(
+    expression: ExpressionHandle,
+    referent: TypeReferenceHandle,
+) -> Option<Vec<FramePlaceOrigin>> {
+    // The spelling is footprint-only payload; the call identity keeps every
+    // completed result's footprint distinct across a frame.
+    Some(vec![FramePlaceOrigin {
+        path: format!(
+            "invocation result @{}:{}",
+            expression.arena_index(),
+            expression.generation()
+        ),
+        precision: FramePathPrecision::Exact,
+        source: super::place_paths::FrameSourcePlace::invocation_result(
+            expression,
+            referent,
+            Vec::new(),
+        ),
+    }])
+}
+
+/// A bodyless realization (`satisfies via` binding or opaque boundary
+/// machine) has no body relation and no satisfier to borrow one from. Its
+/// declared result still admits the same exclusive-referent routes a
+/// call-site boundary query computes — already spelled in this caller's
+/// frame. The opaque route names the invocation's own result backing;
+/// hidden exclusive inputs keep the result unresolved.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn bodyless_callee_result_origins(
+    program: &dyn crate::CheckingInput,
+    current_machine: &Machine,
+    machine_symbols: &MachineSymbols<'_>,
+    symbols: &TopLevelSymbols<'_>,
+    call: &TableCallExpression,
+    expression: ExpressionHandle,
+    inference: &mut FrameInference,
+    callee_state: &State,
+) -> Option<Vec<FramePlaceOrigin>> {
+    let mut bindings = TypeBindings::new();
+    let referent = {
+        let result_type = live_unconstrained_type(program, callee_state.return_type)?;
+        let TypeReferenceNode::Reference {
+            access, referee, ..
+        } = program.type_reference_table.type_reference(result_type)
+        else {
+            return None;
+        };
+        if !access.is_exclusive() {
+            return None;
+        }
+        live_unconstrained_type(program, substituted_head(program, *referee, &bindings))?
+    };
+    let parameters: Vec<&StateParameter> =
+        program.state_parameters(callee_state).iter().collect();
+    let arguments = expression_table(program).expression_handles(call.arguments);
+    if parameters.len() != arguments.len() {
+        return None;
+    }
+    match exclusive_boundary_result_origins(
+        program,
+        current_machine,
+        machine_symbols,
+        symbols,
+        parameters,
+        arguments,
+        referent,
+        &mut bindings,
+        inference,
+    ) {
+        ExclusiveResultRoute::Named(origins) => Some(origins),
+        // A caller-relative `Unrelated` means the completed invocation owns
+        // the referent's opaque backing, exactly as at a requirement call.
+        ExclusiveResultRoute::Unrelated => invocation_result_origin(expression, referent),
+        ExclusiveResultRoute::Opaque => None,
+    }
+}
+
+pub(super) fn requirement_result_origins(
     program: &dyn crate::CheckingInput,
     current_machine: &Machine,
     machine_symbols: &MachineSymbols<'_>,
@@ -1366,7 +1487,8 @@ fn requirement_result_origins(
         &receiver,
         call.target.as_str(),
         CallerWriteSite::Expression(expression),
-    )?;
+    );
+    let signature = signature?;
     let arguments = expression_table(program).expression_handles(call.arguments);
     let parameters = program.state_signature_parameters(signature);
     let paired = parameters.iter().collect::<Vec<_>>();
@@ -1383,7 +1505,7 @@ fn requirement_result_origins(
     )?;
     let referent = exclusive_result_referent(program, signature, &bindings)?;
 
-    exclusive_boundary_result_origins(
+    match exclusive_boundary_result_origins(
         program,
         current_machine,
         machine_symbols,
@@ -1393,7 +1515,13 @@ fn requirement_result_origins(
         referent,
         &mut bindings,
         inference,
-    )
+    ) {
+        ExclusiveResultRoute::Named(origins) => Some(origins),
+        // Requirement calls carry no implementor receiver; an unadmitted
+        // referent belongs to the completed invocation's opaque backing.
+        ExclusiveResultRoute::Unrelated => invocation_result_origin(expression, referent),
+        ExclusiveResultRoute::Opaque => None,
+    }
 }
 
 signature_result_candidate_adapter! {
@@ -1449,6 +1577,11 @@ fn caller_canonical_result_origin(
     allow_isolated_local: bool,
     stored: &[StoredLocalOrigins],
 ) -> Option<FramePlaceOrigin> {
+    // An opaque result-referent home is already canonical: no caller
+    // namespace owns it, and its producing invocation is its exact identity.
+    if candidate.source.result_home().is_some() {
+        return Some(candidate);
+    }
     let mut origin = candidate;
     for _ in 0..=aliases.len() {
         let (root, suffix) = split_place_root(&origin.path);

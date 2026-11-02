@@ -202,9 +202,13 @@ fn parameter_relative_place_origins_in(
         ExpressionNode::Name(_) | ExpressionNode::SavedSubject(_) => {
             parameter_relative_declared_origins(query, expression, admit_carrier_roots)?
         }
-        ExpressionNode::Call(call) => {
-            parameter_relative_call_result_origins(query, call, inference, admit_carrier_roots)?
-        }
+        ExpressionNode::Call(call) => parameter_relative_call_result_origins(
+            query,
+            expression,
+            call,
+            inference,
+            admit_carrier_roots,
+        )?,
         ExpressionNode::Match(dispatch) => {
             // Every producing arm contributes its own candidates. Divergent
             // routes keep the exact finite union: the result may reach any
@@ -342,13 +346,14 @@ fn parameter_relative_aggregate_leaf_origins(
 /// whole call opaque because the result could reach untracked storage.
 fn parameter_relative_call_result_origins(
     query: ParameterRelativeQuery<'_>,
+    expression: ExpressionHandle,
     call: &TableCallExpression,
     inference: &mut FrameInference,
     admit_carrier_roots: bool,
 ) -> Option<Vec<ParameterRelativeFrameOrigin>> {
     let ParameterRelativeQuery {
         program,
-        current_machine: _,
+        current_machine,
         parameters: caller_parameters,
         aliases: caller_aliases,
         symbols,
@@ -400,7 +405,52 @@ fn parameter_relative_call_result_origins(
         }
         alternatives
     } else {
-        let (callee_machine, callee_state) = machine_state_by_symbol(program, call.target_symbol)?;
+        let (callee_machine, callee_state) = {
+            match machine_state_by_symbol(program, call.target_symbol) {
+                Some(resolved) => resolved,
+                // An open requirement member owns no stored state and no
+                // closed application instance: its declared signature is the
+                // complete relation, answered in this caller's frame. A
+                // boundary trait member admits its receiver routes first;
+                // a non-boundary requirement answers the same signature.
+                None => {
+                    let Some(machine_symbols) =
+                        super::demand::machine_symbols(program, current_machine)
+                    else {
+                        return None;
+                    };
+                    return super::boundary_calls::boundary_result_origins(
+                        program,
+                        current_machine,
+                        &machine_symbols,
+                        symbols,
+                        call,
+                        expression,
+                        inference,
+                    )
+                    .or_else(|| {
+                        super::boundary_calls::requirement_result_origins(
+                            program,
+                            current_machine,
+                            &machine_symbols,
+                            symbols,
+                            call,
+                            expression,
+                            inference,
+                        )
+                    })
+                    .map(|origins| {
+                        origins
+                            .into_iter()
+                            .map(|place| ParameterRelativeFrameOrigin {
+                                place,
+                                parameter_symbol: SymbolHandle::invalid(),
+                            })
+                            .collect()
+                    });
+                }
+            }
+        };
         // A receiver is owed only when the attachment names a data definition:
         // boundary-attached operations such as `Slice::range` bind the collection
         // as an ordinary positional operand and record no call receiver.
@@ -415,12 +465,44 @@ fn parameter_relative_call_result_origins(
                 program,
                 program.symbols.authored_origin(callee_machine.symbol),
             );
-            let [satisfier] = satisfiers.as_slice() else {
-                return None;
-            };
-            let satisfier_machine = program.machine_by_symbol(*satisfier)?;
-            let satisfier_state = program.machine_states(satisfier_machine).first()?;
-            (satisfier_machine, satisfier_state)
+            match satisfiers.as_slice() {
+                [satisfier] => {
+                    let satisfier_machine = program.machine_by_symbol(*satisfier)?;
+                    let satisfier_state = program.machine_states(satisfier_machine).first()?;
+                    (satisfier_machine, satisfier_state)
+                }
+                // A bodyless realization (`satisfies via` binding or opaque
+                // boundary machine) has no satisfier relation to instantiate.
+                // Its signature routes answer in this frame already, so the
+                // origins below keep them parameter-independent.
+                [] => {
+                    let Some(machine_symbols) =
+                        super::demand::machine_symbols(program, current_machine)
+                    else {
+                        return None;
+                    };
+                    return super::boundary_calls::bodyless_callee_result_origins(
+                        program,
+                        current_machine,
+                        &machine_symbols,
+                        symbols,
+                        call,
+                        expression,
+                        inference,
+                        callee_state,
+                    )
+                    .map(|origins| {
+                        origins
+                            .into_iter()
+                            .map(|place| ParameterRelativeFrameOrigin {
+                                place,
+                                parameter_symbol: SymbolHandle::invalid(),
+                            })
+                            .collect()
+                    });
+                }
+                _ => return None,
+            }
         } else {
             (callee_machine, callee_state)
         };
@@ -446,8 +528,15 @@ fn parameter_relative_call_result_origins(
             // A literal-produced image route is independent of formal inputs.
             // Preserve that authenticated route across every helper boundary;
             // an absent parameter alone never makes a local origin static.
-            if !callee_origin.parameter_symbol.is_valid() && callee_origin.place.source.is_static()
+            if !callee_origin.parameter_symbol.is_valid()
+                && (callee_origin.place.source.is_static()
+                    || callee_origin.place.source.result_home().is_some())
             {
+                // A parameter-independent route crosses this boundary
+                // unchanged — but an opaque result referent's producing
+                // invocation is this call site, not the callee's inner one.
+                let mut callee_origin = callee_origin;
+                callee_origin.place.source.rebase_invocation_home(expression);
                 push_unique_parameter_relative(&mut origins, callee_origin);
                 continue;
             }

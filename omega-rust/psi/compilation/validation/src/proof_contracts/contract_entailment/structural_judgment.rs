@@ -564,10 +564,11 @@ pub(super) struct StructuralJudge<'program> {
     normal_memberships: Arc<Vec<MembershipGuarantee>>,
     pub(super) normal_content_guarantees:
         Arc<Vec<super::content_conservation::ObservedContentEquation>>,
+    // Bindings an opaque write retired in a judge no storage graph reaches.
     invalidated_storage: Arc<Vec<SymbolHandle>>,
-    // Precise exclusive exposures of reference-free storage. An opaque record
-    // retires the whole binding; a field path retires only overlapping reads.
-    storage_exposures: Arc<storage_effects::StorageExposureRecord>,
+    // Position in the storage graph after the last observed effect; None when
+    // the program has no graph or this judge walks no runtime body.
+    storage_version: Option<storage_effects::StorageVersion>,
     // Typed storage observations retain live values and detached entry snapshots.
     stored_values: Arc<Vec<storage_effects::CapturedStorageValue>>,
     pub(super) capture_sequence: usize,
@@ -636,7 +637,7 @@ impl Clone for StructuralJudge<'_> {
             normal_memberships: Arc::clone(&self.normal_memberships),
             normal_content_guarantees: Arc::clone(&self.normal_content_guarantees),
             invalidated_storage: Arc::clone(&self.invalidated_storage),
-            storage_exposures: Arc::clone(&self.storage_exposures),
+            storage_version: self.storage_version,
             stored_values: Arc::clone(&self.stored_values),
             capture_sequence: self.capture_sequence,
             storage_write_sequence: self.storage_write_sequence,
@@ -681,7 +682,6 @@ impl<'program> StructuralJudge<'program> {
             && self.hypotheses_contradictory == base.hypotheses_contradictory
             && self.storage_write_sequence == base.storage_write_sequence
             && self.invalidated_storage.len() == base.invalidated_storage.len()
-            && self.storage_exposures == base.storage_exposures
             && self.captured_result_equations.len() == base.captured_result_equations.len()
             && self.returned_field_owners.len() == base.returned_field_owners.len()
             && self.normal_memberships.len() == base.normal_memberships.len()
@@ -807,6 +807,9 @@ impl<'program> StructuralJudge<'program> {
                 let mut matched_current = entry.current.clone();
                 let mut matched_entry = entry.entry.clone();
                 let mut matched_backing = entry.backing.clone();
+                // Equal values joined from several paths hold where every path
+                // reaches one of their establishing versions.
+                let mut matched_anchors = entry.current_anchors.clone();
                 let mut all_have_coord = true;
                 for judge in &outcomes[1..] {
                     let Some(other) = judge
@@ -819,6 +822,15 @@ impl<'program> StructuralJudge<'program> {
                     };
                     if matched_backing != other.backing {
                         matched_backing = None;
+                    }
+                    if other.anchor_state != entry.anchor_state {
+                        matched_anchors.clear();
+                    } else {
+                        for anchor in &other.current_anchors {
+                            if !matched_anchors.contains(anchor) {
+                                matched_anchors.push(*anchor);
+                            }
+                        }
                     }
                     if matched_case != other.selected_case {
                         matched_case = None;
@@ -875,6 +887,8 @@ impl<'program> StructuralJudge<'program> {
                         selected_case: matched_case,
                         completed_read: matched_read,
                         backing: matched_backing,
+                        current_anchors: matched_anchors,
+                        anchor_state: entry.anchor_state,
                     });
                 }
             }
@@ -1104,7 +1118,7 @@ impl<'program> StructuralJudge<'program> {
             normal_memberships: Arc::new(Vec::new()),
             normal_content_guarantees: Arc::new(Vec::new()),
             invalidated_storage: Arc::new(Vec::new()),
-            storage_exposures: Arc::new(storage_effects::StorageExposureRecord::default()),
+            storage_version: None,
             stored_values: Arc::new(Vec::new()),
             capture_sequence: 0,
             storage_write_sequence: 0,

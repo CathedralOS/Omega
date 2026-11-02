@@ -17,28 +17,6 @@ pub(crate) struct CapturedStorageReadBacking {
     pub(crate) bindings: Vec<String>,
 }
 
-impl CapturedStorageReadBacking {
-    pub(crate) fn survives(&self, written: &[String]) -> bool {
-        self.values.iter().all(|value| {
-            written
-                .iter()
-                .all(|write| !super::frame_paths_overlap(write, value))
-        }) && self.bindings.iter().all(|binding| {
-            written.iter().all(|write| {
-                // A write below a loaded pointer changes its referent, not
-                // the pointer slot. Whole-slot/ancestor and coarse writes do.
-                !(write == binding
-                    || write
-                        .strip_suffix("[*]")
-                        .is_some_and(|_| super::frame_paths_overlap(write, binding))
-                    || binding
-                        .strip_prefix(write)
-                        .is_some_and(|suffix| suffix.starts_with('.') || suffix.starts_with('[')))
-            })
-        })
-    }
-}
-
 impl CallFrameResolver<'_> {
     /// Public normal-result contents are observed after this exact call's
     /// effects. Returned slots use their completed actual suppliers; another

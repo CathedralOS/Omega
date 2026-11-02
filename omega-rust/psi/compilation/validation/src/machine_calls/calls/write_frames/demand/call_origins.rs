@@ -538,6 +538,7 @@ impl<'program> CallFrameResolver<'program> {
         frames::reference_subjects::validate_owned_projection(program, root_reference, &segments)?;
         Some(vec![LocalWriteSource {
             invocation_output: None,
+        invocation_result: None,
             is_image_storage: false,
             recasts: Vec::new(),
             root,

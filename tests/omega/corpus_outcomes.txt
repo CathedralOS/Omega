@@ -2354,6 +2354,12 @@ fail/facts/target_family_contract_operand/stronger_provider_requirement rejected
 	machine parameter `Selected` of provider machine `ArmChoice::choose` for trait requirement `Choosing::choose` does not refine `Callback`: its requires facts are not a conservative refinement
 fail/facts/transparent_alias_qualified_case_wrong_payload_rejected rejected 2003ms expected @6defc740839f
 	construction of `leaf::choices::Choice<u64>` field `value` stores a boolean into a `u64` field, which holds a numeric value
+fail/facts/transparent_alias_qualified_case_wrong_payload_through_call_result_rejected rejected 4327ms expected @417ca5344d79
+	construction of `leaf::choices::Choice<u64>` field `value` stores a boolean into a `u64` field, which holds a numeric value
+fail/facts/transparent_alias_qualified_case_wrong_payload_through_field_rejected rejected 2037ms expected @417ca5344d79
+	construction of `leaf::choices::Choice<u64>` field `value` stores a boolean into a `u64` field, which holds a numeric value
+fail/facts/transparent_alias_qualified_case_wrong_payload_through_parameter_rejected rejected 1939ms expected @417ca5344d79
+	construction of `leaf::choices::Choice<u64>` field `value` stores a boolean into a `u64` field, which holds a numeric value
 fail/facts/transparent_alias_rhs_captured_supplier_call_result_mismatch_rejected rejected 2345ms expected @a1964f50142c
 	argument `value` for state `forward` expects `[u8; 5]`, got `named value`; expected carrier `array(named(name(u8)),literal(5))`, declared place carrier `array(named(name(u8)),literal(4))`
 fail/facts/transparent_alias_rhs_captured_supplier_const_name_mismatch_rejected rejected 2042ms expected @df2704cb8b18
@@ -10506,6 +10512,9 @@ pass/facts/thirtytwo_arg_stack_calling_plan_through_other_state_exit checked 359
 pass/facts/thirtytwo_arg_stack_calling_plan_through_parameter_exit checked 4669ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/thirtytwo_arg_stack_calling_plan_through_target_body_exit checked 3568ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/transparent_alias_qualified_cases_exit checked 6791ms check-target:macos_arm64 @6defc740839f
+pass/facts/transparent_alias_qualified_cases_through_call_result_exit checked 11689ms check-target:macos_arm64 @417ca5344d79
+pass/facts/transparent_alias_qualified_cases_through_field_exit checked 12925ms check-target:macos_arm64 @417ca5344d79
+pass/facts/transparent_alias_qualified_cases_through_parameter_exit checked 9638ms check-target:macos_arm64 @417ca5344d79
 pass/facts/transparent_alias_rhs_captured_supplier_call_result_exit checked 7568ms check-target:macos_arm64 @a1964f50142c
 pass/facts/transparent_alias_rhs_captured_supplier_const_name_exit checked 7750ms check-target:macos_arm64 @df2704cb8b18
 pass/facts/transparent_alias_rhs_captured_supplier_exit checked 5439ms check-target:macos_arm64 @24d35f3b86c4
@@ -13052,7 +13061,7 @@ pass/providers/runtime_provider_mutable_reference_exit checked 3397ms check-targ
 pass/providers/runtime_provider_mutable_reference_forward_exit checked 2716ms check-target:linux_x86_64 @ccdb99ca2214
 pass/providers/runtime_provider_owned_reference_exit checked 4360ms check-target:linux_x86_64 @ccdb99ca2214
 pass/providers/runtime_provider_reference_alias_exit checked 3534ms check-target:linux_x86_64 @ccdb99ca2214
-pass/providers/runtime_provider_reference_allocation_exit rejected 2323ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
+pass/providers/runtime_provider_reference_allocation_exit checked 3776ms check-target:linux_x86_64 @c668038334ff+wt
 	machine `initialize_frame` state `entry` statement 4: cannot prove selected case for payload access `frame.result.value`: no captured source place is available
 pass/providers/runtime_provider_reference_computed_exit checked 3248ms check-target:linux_x86_64 @ccdb99ca2214
 pass/providers/runtime_provider_reference_deep_exit checked 3554ms check-target:linux_x86_64 @ccdb99ca2214

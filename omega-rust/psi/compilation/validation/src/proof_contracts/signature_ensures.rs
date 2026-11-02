@@ -134,6 +134,7 @@ pub fn collect_parameter_bound_comparisons(
     };
     let relative = LocalWriteSource {
         invocation_output: None,
+        invocation_result: None,
         is_image_storage: false,
         root: parameter.symbol,
         segments: place.segments,

@@ -321,7 +321,9 @@ fn resolve_steps(
     let Some(origin) = origin else {
         return vec![None];
     };
-    if origin.source.is_static() {
+    // An opaque result referent is already terminal provenance: its segments
+    // are selectors beneath the returned leaf, not slots this frame reloads.
+    if origin.source.is_static() || origin.source.result_home().is_some() {
         return vec![spatial_source(origin.clone())];
     }
     if origin.source.output_identity().is_some() {

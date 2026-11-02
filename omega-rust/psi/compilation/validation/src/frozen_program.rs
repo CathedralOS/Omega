@@ -125,6 +125,13 @@ pub trait CheckingInput: sealed::Sealed + fmt::Debug + Send + Sync {
         None
     }
 
+    /// The one storage history of the checked bodies: storage versions,
+    /// stores, joins, and the operands each read observed. Stage 04 builds it
+    /// before validation's machine loop; inputs without it supply none.
+    fn storage_graph(&self) -> Option<&checked_trees::FlowControlFacts> {
+        None
+    }
+
     fn prepared_mathematics(
         &self,
     ) -> Option<crate::mathematical_applications::PreparedMathematicalView<'_>> {
@@ -221,6 +228,7 @@ pub struct CheckingContext<'program> {
     retained_borrows: Arc<[checked_trees::RetainedBorrowCustodyFact]>,
     finalized_selections: Option<&'program AuthoredDeclarationSelections>,
     prepared_effects: Option<&'program PreparedEffectPlans>,
+    storage_graph: OnceLock<Arc<checked_trees::FlowFacts>>,
     prepared_mathematics:
         Option<crate::mathematical_applications::PreparedMathematicalView<'program>>,
     opaque_selections: Option<&'program [OpaqueRepresentationSelection]>,
@@ -269,6 +277,7 @@ impl<'program> CheckingContext<'program> {
             retained_borrows: Arc::from([]),
             finalized_selections: None,
             prepared_effects: None,
+            storage_graph: OnceLock::new(),
             prepared_mathematics: None,
             opaque_selections: None,
             memos: Arc::new(CheckingMemos::default()),
@@ -290,6 +299,13 @@ impl<'program> CheckingContext<'program> {
             self.reset_context_sensitive_memos();
         }
         self
+    }
+
+    /// Attach the storage graph that checking judgments read storage history
+    /// from, once, before they run. It changes no memoized typed-tree or
+    /// effect answer, so borrowers of this context keep their views.
+    pub fn attach_storage_graph(&self, graph: Arc<checked_trees::FlowFacts>) {
+        let _ = self.storage_graph.set(graph);
     }
 
     /// Switch to the ownership-complete execution graph. Effects participate
@@ -327,6 +343,7 @@ impl<'program> CheckingContext<'program> {
             retained_borrows: self.retained_borrows.clone(),
             finalized_selections: self.finalized_selections,
             prepared_effects: Some(plans),
+            storage_graph: self.storage_graph.clone(),
             prepared_mathematics: self.prepared_mathematics,
             opaque_selections: self.opaque_selections,
             memos,
@@ -414,6 +431,10 @@ impl CheckingInput for CheckingContext<'_> {
 
     fn prepared_effect_plans(&self) -> Option<&PreparedEffectPlans> {
         self.prepared_effects
+    }
+
+    fn storage_graph(&self) -> Option<&checked_trees::FlowControlFacts> {
+        self.storage_graph.get().map(|graph| &graph.control)
     }
 
     fn prepared_mathematics(
@@ -528,6 +549,10 @@ impl CheckingInput for CheckingProjection<'_> {
 
     fn prepared_effect_plans(&self) -> Option<&PreparedEffectPlans> {
         self.memo_source()?.prepared_effect_plans()
+    }
+
+    fn storage_graph(&self) -> Option<&checked_trees::FlowControlFacts> {
+        self.memo_source()?.storage_graph()
     }
 
     fn call_frame_tables(&self) -> Option<Arc<crate::machine_calls::calls::CallFrameTables<'_>>> {

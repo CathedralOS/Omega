@@ -40,7 +40,6 @@ struct Owners<'program> {
     normal_memberships: InputOwner<'program>,
     normal_content_guarantees: InputOwner<'program>,
     invalidated_storage: InputOwner<'program>,
-    storage_exposures: InputOwner<'program>,
     stored_values: InputOwner<'program>,
     normal_guarantees: InputOwner<'program>,
     captured_result_equations: InputOwner<'program>,
@@ -68,6 +67,8 @@ pub(super) struct ResolutionInputs<'program> {
     premise_facts: Vec<ExpressionHandle>,
     capture_sequence: usize,
     storage_write_sequence: usize,
+    // Graph validity is read at this version, so it is an input too.
+    storage_version: Option<super::storage_effects::StorageVersion>,
     owners: Owners<'program>,
     modes: Modes,
 }
@@ -81,6 +82,7 @@ impl ResolutionInputs<'_> {
             && self.premise_facts == other.premise_facts
             && self.capture_sequence == other.capture_sequence
             && self.storage_write_sequence == other.storage_write_sequence
+            && self.storage_version == other.storage_version
             && self.owners == other.owners
             && self.modes == other.modes
     }
@@ -109,7 +111,7 @@ impl<'program> StructuralJudge<'program> {
             normal_memberships,
             normal_content_guarantees,
             invalidated_storage,
-            storage_exposures,
+            storage_version,
             stored_values,
             capture_sequence,
             storage_write_sequence,
@@ -139,6 +141,7 @@ impl<'program> StructuralJudge<'program> {
             premise_facts: premise_facts.clone(),
             capture_sequence: *capture_sequence,
             storage_write_sequence: *storage_write_sequence,
+            storage_version: *storage_version,
             owners: Owners {
                 entry_machines: InputOwner::new(entry_machines),
                 declaration_parameters: InputOwner::new(declaration_parameters),
@@ -149,7 +152,6 @@ impl<'program> StructuralJudge<'program> {
                 normal_memberships: InputOwner::new(normal_memberships),
                 normal_content_guarantees: InputOwner::new(normal_content_guarantees),
                 invalidated_storage: InputOwner::new(invalidated_storage),
-                storage_exposures: InputOwner::new(storage_exposures),
                 stored_values: InputOwner::new(stored_values),
                 normal_guarantees: InputOwner::new(normal_guarantees),
                 captured_result_equations: InputOwner::new(captured_result_equations),

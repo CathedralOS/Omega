@@ -391,6 +391,7 @@ fn solve_parameter_origins<'program>(
 fn root_storage(program: &dyn ::validation::CheckingInput, root: SymbolHandle) -> LocalWriteSource {
     LocalWriteSource {
         invocation_output: None,
+        invocation_result: None,
         is_image_storage: false,
         recasts: Vec::new(),
         root,
@@ -407,6 +408,11 @@ fn transport_storage(
     rows: &[ParameterOrigins],
     source: &LocalWriteSource,
 ) -> Vec<Option<LocalWriteSource>> {
+    // A returned reference leaf's opaque referent is its own exact identity:
+    // no caller namespace substitutes it, just like performed outputs.
+    if source.invocation_result.is_some() {
+        return vec![Some(source.clone())];
+    }
     if !source.root.is_valid() {
         return vec![None];
     }

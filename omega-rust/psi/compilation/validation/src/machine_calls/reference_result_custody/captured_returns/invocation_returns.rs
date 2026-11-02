@@ -257,6 +257,7 @@ impl Captures<'_> {
             let root = referent.root.as_symbol()?;
             let source = crate::LocalWriteSource {
                 invocation_output: None,
+                invocation_result: None,
                 is_image_storage: false,
                 recasts: Vec::new(),
                 representation: None,

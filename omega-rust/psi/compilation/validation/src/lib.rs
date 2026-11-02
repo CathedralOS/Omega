@@ -33,6 +33,7 @@ pub use declarations::traits::{
 };
 pub use machine_calls::attached_method_bounds::validate_selected_attached_method_bounds;
 pub use machine_calls::{compiler_operations, contract_identities};
+pub use proof_contracts::contract_entailment::specification_calls::invocation_is_fact_only;
 pub use proof_contracts::qualification_evidence::boundary_qualification_authorization;
 pub use proof_contracts::qualification_evidence::{
     BoundaryQualificationObligation, CallQualificationContract, CallQualificationSource,
@@ -286,7 +287,7 @@ pub use crate::machine_calls::call_cycles::{
 };
 pub use crate::machine_calls::calls::{
     AssignmentStorageOrigins, AssignmentWriteTarget, CallFrameResolver, CallWriteOrigins,
-    LocalWriteOrigin, LocalWriteSource, RecastSource, ReferenceResultLeafOrigin,
+    InvocationResultHome, LocalWriteOrigin, LocalWriteSource, RecastSource, ReferenceResultLeafOrigin,
     ReferenceResultTransport, ReferenceSlotContract, ReferenceViewFormation,
     ScalarStorageCoordinate, StoredReferenceCallContext, StoredReferenceDestinationKind,
     StoredReferenceEffect, StoredReferenceRelationRefusal, ValidatedSelfCallDescent,

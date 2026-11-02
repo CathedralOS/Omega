@@ -33,6 +33,7 @@ use typed_trees::statement::{
 pub(crate) fn transparent_call_result_origins(
     program: &dyn crate::CheckingInput,
     call: &TableCallExpression,
+    expression: ExpressionHandle,
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
     resolve_actual_origins: impl Fn(
@@ -46,6 +47,7 @@ pub(crate) fn transparent_call_result_origins(
     map_call_result_origins(
         program,
         call,
+        expression,
         symbols,
         inference,
         |machine, parameter, result, actual, inference| {
@@ -65,6 +67,7 @@ pub(crate) fn transparent_call_result_origins(
 pub(crate) fn captured_call_result_origins(
     program: &dyn crate::CheckingInput,
     call: &TableCallExpression,
+    expression: ExpressionHandle,
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
     resolve_actual_origins: impl Fn(
@@ -79,6 +82,7 @@ pub(crate) fn captured_call_result_origins(
     map_call_result_origins(
         program,
         call,
+        expression,
         symbols,
         inference,
         |machine, parameter, result, actual, inference| {
@@ -116,6 +120,7 @@ fn project_result_origin(
 fn map_call_result_origins(
     program: &dyn crate::CheckingInput,
     call: &TableCallExpression,
+    expression: ExpressionHandle,
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
     resolve_actual_origins: impl Fn(
@@ -133,13 +138,15 @@ fn map_call_result_origins(
 
     let arguments = expression_table(program).expression_handles(call.arguments);
     let actual_values = inference.argument_values(program, arguments);
-    let mut result_origins = transparent_callee_result_origins(
-        program,
-        callee_machine,
-        callee_state,
-        symbols,
-        inference,
-    )?;
+    let mut result_origins = {
+        transparent_callee_result_origins(
+            program,
+            callee_machine,
+            callee_state,
+            symbols,
+            inference,
+        )?
+    };
     let parameters = program.state_parameters(callee_state);
     retain_reachable_transition_results(
         program,
@@ -153,7 +160,11 @@ fn map_call_result_origins(
         if !result_origin.parameter_symbol.is_valid() {
             // A parameter-independent route (image storage) names the same
             // backing for every caller; it crosses the boundary unchanged.
-            push_unique_origin(&mut origins, result_origin.place);
+            // An opaque result referent's producing invocation is this call
+            // site, not a call nested inside the callee's body.
+            let mut place = result_origin.place;
+            place.source.rebase_invocation_home(expression);
+            push_unique_origin(&mut origins, place);
             continue;
         }
         let result_parameter = parameters
@@ -235,6 +246,7 @@ pub(crate) fn transparent_place_expression_origins(
         ExpressionNode::Call(call) => transparent_call_result_origins(
             program,
             call,
+            expression,
             symbols,
             inference,
             |_, _, _, actual, inference| {
@@ -300,7 +312,12 @@ pub(crate) fn transparent_callee_result_origins(
             return None;
         }
         let place = leaf.origin?.into_symbolic_place()?;
-        let parameter_symbol = if place.source.is_static() {
+        let parameter_symbol = if place.source.is_static()
+            || place.source.result_home().is_some()
+        {
+            // Image storage and opaque invocation-result backing are both
+            // independent of formal inputs; the instantiator rebases the
+            // invocation identity to its own call site.
             SymbolHandle::invalid()
         } else {
             let parameter = parameters

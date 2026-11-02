@@ -376,7 +376,8 @@ impl<'program> StructuralJudge<'program> {
                 .and_then(|(prepared, guarantees)| {
                     self.capture_prepared_normal_call(prepared, guarantees, None, scope)
                 });
-        self.observe_storage_effects(scope.1, writes.complete_paths())?;
+        let version = self.call_storage_version(scope.1, expression);
+        self.observe_storage_effects(scope.1, writes.complete_paths(), version)?;
         for storage in completed
             .into_iter()
             .flat_map(|completed| completed.post_storage)

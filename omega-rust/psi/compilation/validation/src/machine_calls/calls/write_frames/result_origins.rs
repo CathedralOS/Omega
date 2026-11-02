@@ -166,6 +166,7 @@ fn call_body_result_origins(
         caller_machine,
         parameters,
         arguments,
+        Some(expression),
         &mut relative,
         symbols,
         inference,
@@ -645,7 +646,8 @@ pub(super) fn reference_result_relation(
         ));
     }
     let query = ParameterRelativeQuery::of(program, machine, parameters, &aliases, symbols);
-    let origins = parameter_relative_place_or_carrier_origins(query, result, inference)?;
+    let origins = parameter_relative_place_or_carrier_origins(query, result, inference);
+    let origins = origins?;
     let access = crate::reference_shell(program, reference)?.access;
     Some(AggregateOrigins {
         references: origins
@@ -905,6 +907,9 @@ fn instantiate_edge_origins(
             machine,
             parameters,
             arguments,
+            // A named edge enters the target state in the same machine: a
+            // producing call inside that body keeps its own identity.
+            None,
             target_relative,
             symbols,
             inference,
@@ -947,6 +952,7 @@ fn instantiate_result_origins(
     host_machine: &Machine,
     parameters: &[StateParameter],
     arguments: &[ExpressionHandle],
+    call_site: Option<ExpressionHandle>,
     relative: &mut AggregateOrigins,
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
@@ -1026,7 +1032,10 @@ fn instantiate_result_origins(
             });
             continue;
         };
-        if origin.place().source.is_static() || origin.place().source.output_identity().is_some() {
+        if origin.place().source.is_static()
+            || origin.place().source.output_identity().is_some()
+            || origin.place().source.result_home().is_some()
+        {
             // Opaque output metadata remains unavailable as an input-relative
             // result. Keeping the category preserves every alternative for the
             // rejecting consumer; it grants no caller permission or address.
@@ -1034,9 +1043,16 @@ fn instantiate_result_origins(
             // Keep its captured source and substituted lifetime debts when a
             // named state or call returns it; never infer static storage from
             // an absent parameter root.
+            let mut leaf = leaf.clone();
+            // An opaque result home minted inside the callee body names that
+            // body's call; at this boundary the caller-visible producing
+            // invocation is the call the caller made.
+            if let (Some(expression), Some(source)) = (call_site, leaf.origin.as_mut()) {
+                source.place_mut().rebase_invocation_home(expression);
+            }
             returned.references.push(ReferenceLeaf {
                 lifetime_dependencies: Some(lifetime_dependencies),
-                ..leaf.clone()
+                ..leaf
             });
             continue;
         }

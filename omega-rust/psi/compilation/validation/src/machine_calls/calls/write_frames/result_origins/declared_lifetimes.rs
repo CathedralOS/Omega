@@ -88,6 +88,9 @@ pub(super) fn call_result(
         caller,
         parameters,
         program.expression_table.expression_handles(call.arguments),
+        // The relation assembled above carries no producing call identity;
+        // its leaves have no origin to rebase.
+        None,
         &mut relative,
         symbols,
         inference,
