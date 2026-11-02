@@ -11282,7 +11282,12 @@ pass/generics/runtime_result_destination_inference_exit checked 3637ms check-tar
 pass/generics/runtime_selected_map_capture_invocation_scopes rejected 2864ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	cleanup effect preparation for `invoke$specialized$d4f0094e26d9f87c$0` requires a complete specialization of `Selected::borrow`
 pass/generics/runtime_selected_operator_body_exit checked 12412ms check-target:macos_arm64 @ccdb99ca2214
-pass/generics/runtime_static_requirement_complex_composition_exit checked 8799ms check-target:macos_arm64 @2fbf0edf0329+wt
+pass/generics/runtime_static_requirement_complex_composition_exit rejected 3477ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @167d5864712d
+	machine `NativeAccess::initialize` state `initialize` calls `Access::initialize_from_profile` with write-only input authority; an opaque selected implementation requires an admitted write-only boundary claim
+	bodyless boundary symbol `view_from_profile` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
+	bodyless boundary symbol `view_mut_from_profile` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
+	bodyless boundary symbol `initialize_from_profile` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
+	bodyless boundary symbol `extract_resident` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
 pass/generics/runtime_symbolic_receiver_extent_exit rejected 1802ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	machine `nested_window` state `entry` local `view` may read, but the source supplies only write-only authority
 pass/generics/runtime_transition_result_inference_exit checked 3433ms check-target:macos_arm64 @ccdb99ca2214
@@ -13543,11 +13548,21 @@ pass/wire/runtime_wire_encode_borrowed_scalar_slice_exit checked 61187ms check-t
 pass/wire/runtime_wire_encode_byte_slice_exit checked 59910ms check-target:macos_arm64 @1e29a538216e
 pass/wire/runtime_wire_encode_interior_scalar_slice_exit checked 65724ms check-target:macos_arm64 @1e29a538216e
 pass/wire/runtime_wire_exact_array_without_count_exit checked 72446ms check-target:macos_arm64 @1e29a538216e
-pass/wire/runtime_wire_policy_authored_plan_exit checked 103875ms check-target:macos_arm64 @0151cda77112
+pass/wire/runtime_wire_policy_authored_plan_exit rejected 2572ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @167d5864712d
+	machine `NativeAccess::initialize` state `initialize` calls `Access::initialize_from_profile` with write-only input authority; an opaque selected implementation requires an admitted write-only boundary claim
+	bodyless boundary symbol `view_from_profile` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
+	bodyless boundary symbol `view_mut_from_profile` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
+	bodyless boundary symbol `initialize_from_profile` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
+	bodyless boundary symbol `extract_resident` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
 pass/wire/runtime_wire_roundtrip_nested_and_repeated_exit checked 77728ms check-target:macos_arm64 @1e29a538216e
 pass/wire/runtime_wire_signed_extremes_roundtrip_exit checked 72202ms check-target:macos_arm64 @1e29a538216e
 pass/wire/runtime_wire_utf8_edge_verdicts_exit checked 64041ms check-target:macos_arm64 @1e29a538216e
-pass/wire/systems_wire_protocol_exit checked 97474ms check-target:macos_arm64 @0151cda77112
+pass/wire/systems_wire_protocol_exit rejected 1435ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @167d5864712d
+	machine `NativeAccess::initialize` state `initialize` calls `Access::initialize_from_profile` with write-only input authority; an opaque selected implementation requires an admitted write-only boundary claim
+	bodyless boundary symbol `view_from_profile` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
+	bodyless boundary symbol `view_mut_from_profile` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
+	bodyless boundary symbol `initialize_from_profile` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
+	bodyless boundary symbol `extract_resident` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
 pass/wire/wire_compatibility_migration_across_shapes checked 40783ms check-target:macos_arm64 @1e29a538216e
 pass/wire/wire_data_reserved_field checked 3922ms check-target:macos_arm64 @ccdb99ca2214
 pass/wire/wire_field_numbers checked 56196ms @1e29a538216e
@@ -34599,8 +34614,12 @@ fail/wire/wire_compatibility_migration_route_missing rejected 456ms expected @cc
 	wire compatibility demand `ArchiveStore` is unsatisfied for local schema `Counter` and peer schema `CounterV1`: migration coverage (no complete `CounterLineage` migration route exists from `CounterV1` to `Counter`)
 fail/wire/wire_compatibility_preservation_unmet rejected 759ms expected @ccdb99ca2214
 	wire compatibility demand `RelayChannel` is unsatisfied for local schema `LocalMessage` and peer schema `PeerMessage`: unknown preservation (compact_binary publishes strict unknown-member behavior)
-fail/wire/wire_policy_plan_disagrees rejected 52557ms expected @0151cda77112
-	cannot prove requires contract for call policy_gate from Main::main: false (needs fact `valid` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
+fail/wire/wire_policy_plan_disagrees rejected 2970ms unexpected @167d5864712d
+	machine `NativeAccess::initialize` state `initialize` calls `Access::initialize_from_profile` with write-only input authority; an opaque selected implementation requires an admitted write-only boundary claim
+	bodyless boundary symbol `view_from_profile` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
+	bodyless boundary symbol `view_mut_from_profile` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
+	bodyless boundary symbol `initialize_from_profile` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
+	bodyless boundary symbol `extract_resident` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
 run/arithmetic/anonymous_comparison_with_typed_operators checked 6136ms check-target:macos_arm64 @ccdb99ca2214
 run/arithmetic/disjoint_pressure_regions checked 34824ms check-target:macos_arm64 @ccdb99ca2214
 run/arithmetic/fixed_input_reused_across_calls checked 10309ms check-target:macos_arm64 @ccdb99ca2214
