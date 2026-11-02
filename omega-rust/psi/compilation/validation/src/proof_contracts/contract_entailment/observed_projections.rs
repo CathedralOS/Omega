@@ -529,6 +529,17 @@ fn inline_projection_source(
     reference: TypeReferenceHandle,
     value: StructuralTerm,
 ) -> Option<(TypeReferenceHandle, StructuralTerm)> {
+    // Entry admission may already have captured an incoming borrow's inline
+    // referent. Consume that exact observed carrier, not the reference shell
+    // again. All projection consumers (including domain predicates) share this
+    // crossing; reference-valued children remain descriptor-only below it.
+    if let Some(observed) = super::structural_terms::owned_observation_type(program, &value)
+        && let Some(shell) = crate::reference_shell(program, reference)
+        && shell.access.is_readable()
+        && crate::declared_carriers_match(program, shell.referee, observed)
+    {
+        return Some((observed, value));
+    }
     let Some(observed) = super::structural_terms::shared_inline_observation_type(program, &value)
     else {
         return Some((reference, value));

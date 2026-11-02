@@ -94,10 +94,13 @@ overlapping or unknown selector before preserving an untouched sibling cell.
 
 ## Evidence and remaining scope
 
-The source and oracle are frozen before compiler edits on base
-`c3ee25e981f669580c8f7f27cf2b794d44d837d8`. Producer identities, diagnostics and
-actual command observations are retained in the workbench's ignored
-`build/advance-evidence/` and summarized in the publication commit.
+The initial repeated-call probe was recorded against base
+`c3ee25e981f669580c8f7f27cf2b794d44d837d8`. The nine primary places retain the
+original record copy and indexed writeback. Additional controls were frozen as
+formation, composition and dispatch gaps were isolated, before their respective
+repairs. Producer identities, source identities, diagnostics and actual command
+observations are retained in the workbench's ignored `build/advance-evidence/`
+and summarized in the publication commit.
 
 The parent outcome remains open for the other declared call/custody mechanisms,
 remaining ranking forms, product-compiler parity and source migration.
