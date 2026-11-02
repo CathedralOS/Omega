@@ -36,6 +36,16 @@ struct StaticDeclaration<'program> {
     conformance_bounds: &'program [GenericConformanceBound],
 }
 
+/// A call executes its implementation while its saved operands belong to the
+/// public contract. Keep both identities so checking either cannot replace the
+/// other. Closed dispatch admission authenticates their selected-map relation.
+struct RetainedCallTarget {
+    application: StaticMachineApplicationHandle,
+    executable: SymbolHandle,
+    contract: SymbolHandle,
+    requirement_application: TypeReferenceHandle,
+}
+
 impl<'program> StaticDeclaration<'program> {
     fn find(program: &'program dyn crate::CheckingInput, symbol: SymbolHandle) -> Option<Self> {
         if let Some(application) = program.closed_requirement_application(symbol) {
@@ -265,11 +275,15 @@ pub fn validate_static_machine_bindings(
         .filter_map(
             |expression| match expression_table(program).expression(*expression) {
                 ExpressionNode::Call(call) => {
-                    call_targets.push((
-                        call.authored_machine_application,
-                        call.target_symbol,
-                        call.requirement_application,
-                    ));
+                    call_targets.push(RetainedCallTarget {
+                        application: call.authored_machine_application,
+                        executable: call.target_symbol,
+                        contract: call
+                            .static_requirement_dispatch
+                            .as_ref()
+                            .map_or(call.target_symbol, |dispatch| dispatch.contract_symbol()),
+                        requirement_application: call.requirement_application,
+                    });
                     Some(call.authored_machine_application)
                 }
                 _ => None,
@@ -285,11 +299,17 @@ pub fn validate_static_machine_bindings(
                     .iter()
                     .filter_map(|statement| match statement {
                         StatementNode::Call(call) => {
-                            call_targets.push((
-                                call.authored_machine_application,
-                                call.target_symbol,
-                                TypeReferenceHandle::invalid(),
-                            ));
+                            call_targets.push(RetainedCallTarget {
+                                application: call.authored_machine_application,
+                                executable: call.target_symbol,
+                                contract: call
+                                    .static_requirement_dispatch
+                                    .as_ref()
+                                    .map_or(call.target_symbol, |dispatch| {
+                                        dispatch.contract_symbol()
+                                    }),
+                                requirement_application: TypeReferenceHandle::invalid(),
+                            });
                             Some(call.authored_machine_application)
                         }
                         _ => None,
@@ -334,7 +354,12 @@ pub fn validate_static_machine_bindings(
     call_targets.extend(
         providers
             .iter()
-            .map(|(application, target)| (*application, *target, TypeReferenceHandle::invalid())),
+            .map(|(application, target)| RetainedCallTarget {
+                application: *application,
+                executable: *target,
+                contract: *target,
+                requirement_application: TypeReferenceHandle::invalid(),
+            }),
     );
     applications.extend(providers.into_iter().map(|(provider, _)| provider));
     for handle in applications {
@@ -347,7 +372,7 @@ pub fn validate_static_machine_bindings(
             bindings,
             call_targets
                 .iter()
-                .filter_map(|(source, target, _)| (*source == handle).then_some(*target)),
+                .filter_map(|call| (call.application == handle).then_some(call.executable)),
         ) {
             diagnostics.push(diagnostic);
         }
@@ -365,10 +390,11 @@ pub fn validate_static_machine_bindings(
             // trait application, not another equal tuple in an outer scope.
             let mut selected = None;
             let mut valid = true;
-            for (_, target, requirement_application) in call_targets
+            for call in call_targets
                 .iter()
-                .filter(|(source, _, _)| *source == handle)
+                .filter(|call| call.application == handle)
             {
+                let target = call.contract;
                 // Psi 05 retargets a selector call to its instantiated slot.
                 // That slot is this occurrence's exact applied requirement and
                 // names the declaration the authored tuple was written
@@ -376,7 +402,7 @@ pub fn validate_static_machine_bindings(
                 // the same rejoin the call graph, receiver topology and
                 // dynamic selector checks already perform. A slot of another
                 // requirement is not this tuple's application.
-                if let Some(slot) = program.dynamic_slot_by_symbol(*target) {
+                if let Some(slot) = program.dynamic_slot_by_symbol(target) {
                     // A closed call publishes its instantiated requirement on
                     // the slot, and a closed requirement instance retains its
                     // authored template -- the declaration the tuple was
@@ -396,7 +422,7 @@ pub fn validate_static_machine_bindings(
                     selected = Some(slot.requirement);
                     continue;
                 }
-                let Some(closed) = program.closed_requirement_application(*target) else {
+                let Some(closed) = program.closed_requirement_application(target) else {
                     // This generic call still names its source declaration.
                     // The checks below must still prove its lifetime, constant,
                     // bound and caller-supplied proof requirements.
@@ -405,8 +431,8 @@ pub fn validate_static_machine_bindings(
                             program,
                             application,
                             bindings,
-                            *requirement_application,
-                            *target,
+                            call.requirement_application,
+                            target,
                         )
                     {
                         selected = Some(application.binding_declaration);
@@ -416,18 +442,18 @@ pub fn validate_static_machine_bindings(
                     break;
                 };
                 if closed.template != application.binding_declaration
-                    || selected.is_some_and(|previous| previous != *target)
+                    || selected.is_some_and(|previous| previous != target)
                 {
                     valid = false;
                     break;
                 }
-                selected = Some(*target);
+                selected = Some(target);
             }
             let Some(selected) = selected.filter(|_| valid) else {
                 diagnostics.push(Diagnostic::error(
                     format!("retained requirement tuple lost its exact source call application: call `{}` in `{}` binds declaration {:?}, but its retained targets are {:?}", application.target,
                         program.symbols.name(application.lexical_owner), application.binding_declaration,
-                        call_targets.iter().filter(|(source, _, _)| *source == handle).map(|(_, target, requirement)| (*target, *requirement)).collect::<Vec<_>>()),
+                        call_targets.iter().filter(|call| call.application == handle).map(|call| (call.executable, call.contract, call.requirement_application)).collect::<Vec<_>>()),
                 ));
                 continue;
             };

@@ -18,19 +18,24 @@ The [local witness](local/main.omg) retains the three-byte requirement,
 arbitrary two-byte Pair, caller-owned mutable output and explicit failure.
 Reading borrows the frame while its owner retains the mutable output resource.
 Public encoder and decoder contracts state the completed byte/value relations.
-The generic caller consumes the selected round-trip promise directly. A separate runtime path uses weak TryFrom views without taking the preservation
-law as a premise. It compares both decoded fields. The law-consuming path also
-writes through the returned view and checks its extent; the caller observes the
-write and unchanged neighbors. Runtime checks use unequal 17/42 and endpoint 0/255 pairs, a short buffer, a malformed
-tag and nonzero neighboring bytes.
+The generic caller uses the selected round-trip promise directly. A separate
+runtime path uses weak TryFrom views without taking the preservation law as a
+premise. It compares both decoded fields. The path using the law also writes
+through the returned view and checks its extent; the caller observes the write
+and unchanged neighbors. Runtime checks use unequal 17/42 and endpoint 0/255
+pairs, a short buffer, a malformed tag and nonzero neighboring bytes.
 
 The [reject twin](local/invalid/main.omg) changes only the decoder's final byte
 load from slot 2 to slot 1. Its capacity, success paths and resource handling
 remain identical. It must fail semantic preservation, rather than formation or
 an unrelated obligation.
 
-Source review and optimized baseline observations are pending. No compiler
-repair or completed place is claimed. The other eight places, their reject
+The optimized baseline at `3cfc757f135a4c93fd3bdd4c356c2b55aba10a6d`
+([run 41546898552](https://github.com/CathedralOS/Omega/actions/runs/41546898552))
+refuses the valid source: it cannot form the successful payload after excluding
+the only failure case, and it loses the saved public decoder call when selecting
+its implementation. The corrupt twin fails for those same unrelated reasons, so
+that refusal is not preservation evidence. No completed place is claimed. The other eight places, their reject
 twins and corpus mirrors remain to be authored after the first failure is
 isolated. The full standard Representation interface, reflection adapters,
 other hosts and the Omega-written producer remain parent work.

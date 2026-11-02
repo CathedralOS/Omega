@@ -74,7 +74,10 @@ pub(crate) fn instantiate_requirement_applications(
             .ok_or_else(|| failed("boundary family lost its source requirement"))?;
         let name = signature.name.clone();
         let parameters = program.state_signature_type_parameters(signature).to_vec();
-        let tuples = if parameters.is_empty() {
+        // A method with borrow lifetimes still has invocation operands even
+        // when it has no type arguments. Its exact caller mapping must use
+        // the same occurrence-based path as other non-finite method tuples.
+        let tuples = if parameters.is_empty() && signature.lifetime_parameters.is_empty() {
             if !has_outer_operands {
                 continue;
             }

@@ -599,7 +599,7 @@ pub(super) struct StructuralJudge<'program> {
     // Tag predicates are not value equations: even a payload-free case may
     // have common fields. Retain exact classifier identities while ordinary
     // argument substitution acts only on the observed subject.
-    case_facts: Arc<Vec<(StructuralTerm, SymbolHandle, SymbolHandle)>>,
+    case_facts: Arc<Vec<cases::CaseFact>>,
     // Keep raw, application-free equations separate from the legacy value
     // normalizer, which can unfold a name-selected call before storing it.
     // Copying its substitutions would already have lost callable identity.
@@ -1375,53 +1375,7 @@ impl<'program> StructuralJudge<'program> {
             return;
         };
         if super::structural_terms::is_case_observation(program, fact) {
-            if !self.is_case_membership(fact, binary) {
-                return;
-            }
-            let reference = if self.runtime_body_values {
-                self.runtime_declaration_scope()
-                    .and_then(|(machine, state)| {
-                        crate::proof_contracts::bound_expression_meaning::operand_type(
-                            program,
-                            machine,
-                            Some(state),
-                            binary.left,
-                        )
-                    })
-            } else {
-                self.declaration_expression_type(binary.left)
-            };
-            let Some((definition, variant)) =
-                cases::applied_case_classifier(program, binary.right, reference)
-            else {
-                return;
-            };
-            let Some(subject) = self.declaration_term(binary.left) else {
-                return;
-            };
-            Arc::make_mut(&mut self.case_facts).push((
-                subject.clone(),
-                definition.symbol,
-                variant.symbol,
-            ));
-            // A tag fact alone establishes a complete value only when there
-            // are no common or payload fields. Other arm refinements retain
-            // their symbolic fields at the case-flow owner.
-            if program
-                .data_members(definition)
-                .iter()
-                .any(|member| matches!(member, typed_trees::data::DataMember::Field(_)))
-                || !program.data_payload_fields(variant).is_empty()
-            {
-                return;
-            }
-            let value = StructuralTerm::Constructor {
-                data: definition.name.as_str().to_owned(),
-                case: variant.name.as_str().to_owned(),
-                fields: Vec::new(),
-            };
-            self.intake_case_equation(subject.clone(), value.clone(), 0);
-            self.intake_equation(subject, value, 0);
+            self.intake_case_condition(fact, true);
             return;
         }
         match binary.operator {
@@ -1450,6 +1404,10 @@ impl<'program> StructuralJudge<'program> {
     /// independently formed. This supplies truth under that scoped path; it
     /// never admits a pending nominal value or imports its default domain.
     pub(super) fn intake_formed_condition(&mut self, fact: ExpressionHandle, holds: bool) {
+        if !holds && super::structural_terms::is_case_observation(self.program, fact) {
+            self.intake_case_condition(fact, false);
+            return;
+        }
         if holds {
             self.intake(self.program, fact);
         }
