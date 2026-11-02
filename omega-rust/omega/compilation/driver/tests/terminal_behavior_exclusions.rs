@@ -374,6 +374,7 @@ fn assert_calling_review_outlives_source(
         ),
         entries: Vec::new(),
         source_records: Arc::from([]),
+        evaluator: code.evaluator,
     };
     let mut retained = None;
     for program in [&*code, &recovered] {
