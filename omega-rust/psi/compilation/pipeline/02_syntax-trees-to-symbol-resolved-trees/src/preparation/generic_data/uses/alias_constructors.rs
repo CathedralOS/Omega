@@ -22,6 +22,9 @@ pub(super) fn select(
     payload_free: bool,
 ) -> Option<AliasConstructor> {
     let selection = selection?;
+    if payload_free && selection.constructor_prefix_is_value(syntax, authored) {
+        return None;
+    }
     let (carrier, case) = if selection.type_alias_source(syntax, authored).is_some() {
         (authored.clone(), None)
     } else {

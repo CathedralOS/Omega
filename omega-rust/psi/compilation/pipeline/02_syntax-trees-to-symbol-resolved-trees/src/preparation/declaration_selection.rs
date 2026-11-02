@@ -1204,6 +1204,19 @@ impl<'base> ConstantSelection<'base> {
     /// Bare Names retain value-prefix precedence before specialization changes
     /// their lookup metadata. The shared resolver distinguishes absence from
     /// unique or ambiguous constants; braces remain ordinary constructors.
+    pub(super) fn constructor_prefix_is_value(
+        &self,
+        syntax: &SyntaxTrees,
+        name: &Identifier,
+    ) -> bool {
+        crate::symbols::constructor_prefix_is_value(
+            &self.symbols,
+            name.as_str(syntax),
+            name.source_span(),
+        )
+        .unwrap_or(true)
+    }
+
     pub(crate) fn qualified_payload_free_case<'syntax>(
         &self,
         syntax: &'syntax SyntaxTrees,
@@ -1333,20 +1346,12 @@ impl<'base> ConstantSelection<'base> {
         declaration: &Identifier,
         requester: &Identifier,
     ) -> Option<String> {
-        let mut candidates =
-            self.symbols
-                .symbols()
-                .nodes()
-                .iter()
-                .filter_map(|(handle, symbol)| {
-                    (symbol.kind == SymbolKind::Data
-                        && self.symbols.symbol_source_span(handle)
-                            == Some(declaration.source_span())
-                        && self.symbols.name(handle) == declaration.as_str(syntax))
-                    .then_some(handle)
-                });
-        let selected = candidates.next()?;
-        if candidates.next().is_some() {
+        let selected = self.symbols.find_top_level_by_name_and_kinds_from_source(
+            declaration.as_str(syntax),
+            &[SymbolKind::Data],
+            declaration.source_span(),
+        )?;
+        if self.symbols.symbol_source_span(selected) != Some(declaration.source_span()) {
             return None;
         }
         self.lookup_path_for_selected(syntax, requester, selected, SymbolKind::Data)

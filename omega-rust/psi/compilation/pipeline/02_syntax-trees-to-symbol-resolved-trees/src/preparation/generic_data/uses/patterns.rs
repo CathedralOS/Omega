@@ -25,11 +25,15 @@ pub(in crate::preparation::generic_data) fn relabel_closed_sum_memberships_from_
     selection: Option<&declaration_selection::ConstantSelection>,
     declarations: &[ItemHandle],
 ) {
-    for (_state, local_types, statements) in concrete_state_local_types(syntax, declarations) {
+    for (state, local_types, statements) in concrete_state_local_types(syntax, declarations) {
         // Both dispatch forms retain their head as an expression until this
         // expected application can select its exact constructor. Captured
         // transition subjects read their already established local's type.
-        for statement in &statements {
+        for (position, statement) in statements.iter().enumerate() {
+            let frontier = super::ConstructorFrontier {
+                parameters: state.parameters,
+                prior_statements: &statements[..position],
+            };
             let transition = match syntax.statements.statement(*statement) {
                 syntax_trees::statement::StatementNode::Transition(transition) => Some(*transition),
                 _ => None,
@@ -40,6 +44,23 @@ pub(in crate::preparation::generic_data) fn relabel_closed_sum_memberships_from_
                     .transition_patterns(transition.patterns)
                     .to_vec();
                 for (ordinal, mut retained) in patterns.into_iter().enumerate() {
+                    if !retained.is_structural
+                        && let ExpressionNode::Name(path) =
+                            syntax.expressions.expression(retained.pattern.head)
+                        && frontier.captures(syntax, *path)
+                    {
+                        continue;
+                    }
+                    if !retained.is_structural
+                        && let ExpressionNode::Name(path) =
+                            syntax.expressions.expression(retained.pattern.head)
+                        && let Some(name) = constructor_path_name(syntax, *path)
+                        && selection.is_some_and(|selection| {
+                            selection.constructor_prefix_is_value(syntax, &name)
+                        })
+                    {
+                        continue;
+                    }
                     if let Some(expected) = subject_annotation(
                         syntax,
                         retained.subject,
