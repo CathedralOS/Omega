@@ -1,4 +1,4 @@
-use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
+use selected_instructions_to_register_homes::SelectedProgramView;
 
 use crate::function_realization::StagedFixedFrameFunctionRelativeRealization;
 

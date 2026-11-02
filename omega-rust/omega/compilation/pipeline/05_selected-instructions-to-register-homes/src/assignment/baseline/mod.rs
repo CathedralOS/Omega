@@ -19,12 +19,15 @@ use register_homes::{
     AllocationLegalityIdentity, AllocatorAvailabilityIdentity,
     PostAllocationOptimizationManifestError,
 };
+use selected_instruction_analyses::{
+    SelectedProgramRef, StagedOptimizedAllocationLegality, ValidatedAllocationLegality,
+    ValidatedLiveRanges, ValidatedLiveness,
+};
 use selected_instructions::StagedOptimizedCustodyCore;
 use selected_instructions::{LiveRangeIdentity, LivenessIdentity, SelectedInstructionPlanIdentity};
 use selected_instructions_to_selected_instructions::{
-    OptimizedSelectedReanalysisError, SelectedProgramRef, StagedOptimizedAllocationLegality,
-    StagedOptimizedSelectedReanalysis, StagedOptimizedSelectedReanalysisCustodyReceipt,
-    ValidatedAllocationLegality, ValidatedFixedViewCopies, ValidatedLiveRanges, ValidatedLiveness,
+    OptimizedSelectedReanalysisError, StagedOptimizedSelectedReanalysis,
+    StagedOptimizedSelectedReanalysisCustodyReceipt, ValidatedFixedViewCopies,
 };
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
 use terminal_psi::TerminalPsiIdentity;

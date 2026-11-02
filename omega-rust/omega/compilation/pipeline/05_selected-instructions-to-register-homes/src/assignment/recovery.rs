@@ -3,14 +3,15 @@ use crate::{
     stage_optimized_active_resident_rematerialization_pressure,
 };
 use register_homes::{RecoveryClassificationPolicy, SpillChoicePolicy};
-use selected_instructions_to_selected_instructions::{
-    FixedViewCopyPolicy, PressureRematerializationPolicy, StagedOptimizedAllocationLegality,
-    StagedOptimizedLiveRanges, StagedOptimizedSelectedReanalysis,
-    StagedPreAllocationOptimizationRun, StagedSelectedLoweringOptimizationRun,
-    probe_optimized_fixed_precolored_segment_homes,
+use selected_instruction_analyses::{
+    StagedOptimizedAllocationLegality, StagedOptimizedLiveRanges,
     stage_optimized_allocation_legality_for_active_resident_immediate_u64_multi_use_rematerialization_v1,
-    stage_optimized_fixed_precolored_segment_homes, stage_optimized_fixed_view_copies,
-    stage_optimized_selected_reanalysis,
+};
+use selected_instructions_to_selected_instructions::{
+    FixedViewCopyPolicy, PressureRematerializationPolicy, StagedOptimizedSelectedReanalysis,
+    StagedPreAllocationOptimizationRun, StagedSelectedLoweringOptimizationRun,
+    probe_optimized_fixed_precolored_segment_homes, stage_optimized_fixed_precolored_segment_homes,
+    stage_optimized_fixed_view_copies, stage_optimized_selected_reanalysis,
 };
 
 /// The shared fixed-view preflight: fixed/precolored segment-home analysis,

@@ -1,9 +1,9 @@
 use register_homes::PostAllocationSelectedTransformation;
 
+use selected_instruction_analyses::{ValidatedAllocationLegality, ValidatedLiveRanges};
 use selected_instructions_to_selected_instructions::{
     StagedPreAllocationOptimizationCustodyReceipt, StagedPreAllocationOptimizationRun,
     StagedSelectedLoweringOptimizationCustodyReceipt, StagedSelectedLoweringOptimizationRun,
-    ValidatedAllocationLegality, ValidatedLiveRanges,
 };
 
 pub(super) fn selected_lowering_final_analysis(

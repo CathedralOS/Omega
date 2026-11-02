@@ -23,9 +23,7 @@ use register_environment::baseline_target_register_environment;
 use register_homes_to_post_allocation_machine::stage_optimized_post_allocation_machine_plan;
 use resolved_layout_to_resolved_layout::execute_resolved_layout_optimization;
 use selected_form_encoding_to_resolved_layout::stage_optimized_resolved_selected_form_layout;
-use selected_instructions_to_register_homes::{
-    ValidatedSelectedAnalysis, stage_register_allocation,
-};
+use selected_instructions_to_register_homes::{SelectedProgramView, stage_register_allocation};
 use selected_instructions_to_selected_instructions::{
     SelectedOptimizationInput, optimize_selected_instructions,
 };

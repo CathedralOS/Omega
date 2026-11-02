@@ -23,7 +23,8 @@ use resolved_layout_to_resolved_layout::{
 use selected_form_encoding_to_resolved_layout::{
     StagedOptimizedResolvedSelectedFormLayout, validate_optimized_resolved_selected_form_layout,
 };
-use selected_instructions_to_register_homes::{RetainedAllocation, ValidatedSelectedAnalysis};
+use selected_instructions_to_register_homes::RetainedAllocation;
+use selected_instructions_to_register_homes::SelectedProgramView;
 
 /// Bind the pipeline's produced frame, encoding and layout to one allocation.
 /// This checks their joins and exit contract without running a compiler stage.

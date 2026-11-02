@@ -16,13 +16,16 @@ pub(crate) use recovery::{
 use register_homes::{
     PostAllocationOptimizationManifestError, PostAllocationSelectedTransformation,
 };
+use selected_instruction_analyses::{
+    AllocationLegalityError, LiveRangeError, LivenessError, SelectedProgramRef,
+    StagedOptimizedAllocationLegality, ValidatedAllocationLegality, ValidatedLiveRanges,
+    ValidatedLiveness,
+};
 use selected_instructions::SelectedInstructionPlan;
 use selected_instructions_to_selected_instructions::{
-    AllocationLegalityError, FixedOccurrencesError, FixedViewCopyPolicy, LiveRangeError,
-    LivenessError, RuntimeRematerializationError, RuntimeSpillError, RuntimeSplitError,
-    SelectedProgramRef, StagedOptimizedAllocationLegality, StagedOptimizedSelectedReanalysis,
-    StagedPreAllocationOptimizationRun, StagedSelectedLoweringOptimizationRun,
-    ValidatedAllocationLegality, ValidatedFixedOccurrences, ValidatedLiveRanges, ValidatedLiveness,
+    FixedOccurrencesError, FixedViewCopyPolicy, RuntimeRematerializationError, RuntimeSpillError,
+    RuntimeSplitError, StagedOptimizedSelectedReanalysis, StagedPreAllocationOptimizationRun,
+    StagedSelectedLoweringOptimizationRun, ValidatedFixedOccurrences,
     ValidatedRuntimeRematerialization, ValidatedRuntimeSpill, ValidatedRuntimeSplit,
 };
 

@@ -2146,6 +2146,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "selected-instruction-analyses"
+version = "0.1.0"
+dependencies = [
+ "arena",
+ "isa-aarch64",
+ "isa-x86_64",
+ "optimization-core",
+ "optimization-unit",
+ "phase-profile",
+ "register-environment",
+ "register-homes",
+ "register-model",
+ "selected-instructions",
+ "semantic-vocabulary",
+ "target",
+ "target-operations",
+ "terminal-psi",
+]
+
+[[package]]
 name = "selected-instructions"
 version = "0.1.0"
 dependencies = [
@@ -2179,6 +2199,7 @@ dependencies = [
  "register-environment",
  "register-homes",
  "register-model",
+ "selected-instruction-analyses",
  "selected-instructions",
  "selected-instructions-to-selected-instructions",
  "semantic-vocabulary",
@@ -2204,6 +2225,7 @@ dependencies = [
  "register-environment",
  "register-homes",
  "register-model",
+ "selected-instruction-analyses",
  "selected-instructions",
  "semantic-vocabulary",
  "target",
