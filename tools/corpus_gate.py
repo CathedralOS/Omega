@@ -130,7 +130,9 @@ ran, against the same golden. `--shard k/N` (or `OMEGA_CORPUS_SHARD`)
 selects a deterministic hash-slice of the corpus — stable across fixture
 additions, so shards can be recorded or diffed on separate sessions/machines.
 The full corpus is scheduled-workload cost, not loop cost — subsets are the
-iteration gate; the unfiltered diff is the baseline/scheduled gate.
+iteration gate; the unfiltered diff is the baseline/scheduled gate. A
+selection over 200 fixtures is refused before any build unless `--sweep` (or
+`OMEGA_CORPUS_SWEEP=1`) says the user or a scheduled job started it.
 
 `--audit-slice k/N` re-observes one bounded slice of the golden instead of
 accepting its pins: rows are ordered by stamp distance behind HEAD
@@ -1614,6 +1616,46 @@ def list_pinned_regressions(golden: Path) -> int:
     return 0
 
 
+# AGENTS.md: past about 200 fixtures a selection is a sweep, and sweeps are
+# the user's or a scheduled job's to start. The prose rule alone did not hold:
+# on 2026-11-02 agent comparisons of 114 native fixtures and 630-fixture
+# witness sets each held one of the host's two build slots for over half an hour.
+SELECTION_BUDGET = 200
+CORPUS_TIERS = ("pass", "fail", "run")
+
+
+def selection_size(filter_text, shard_text) -> int:
+    """Count the fixture directories a filter and shard select, before any build.
+
+    Fragments match `tier/group/name` the way the runner's filter does. A
+    `k/N` shard is counted as an even 1/N of the filtered set, which is what
+    its hash slice approximates."""
+    fragments = [part.strip() for part in filter_text.split(",") if part.strip()]
+    corpus = ROOT / "tests" / "omega"
+    count = 0
+    for tier in CORPUS_TIERS:
+        tier_directory = corpus / tier
+        if not tier_directory.is_dir():
+            continue
+        for group in os.scandir(tier_directory):
+            if not group.is_dir():
+                continue
+            for fixture in os.scandir(group.path):
+                if not fixture.is_dir():
+                    continue
+                name = f"{tier}/{group.name}/{fixture.name}"
+                if not fragments or any(fragment in name for fragment in fragments):
+                    count += 1
+    shard = shard_text.strip()
+    if shard:
+        try:
+            shards = int(shard.split("/", 1)[1])
+        except (IndexError, ValueError):
+            shards = 1
+        count = -(-count // max(shards, 1))
+    return count
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -1693,6 +1735,10 @@ def main() -> int:
                         help="exit for `git bisect run`: 1 on regressed "
                              "(bad), 125 on infrastructure failure (skip), "
                              "0 otherwise (good), 255 on usage error (abort)")
+    parser.add_argument("--sweep", action="store_true",
+                        help=f"run a selection larger than {SELECTION_BUDGET} "
+                             "fixtures; for sweeps the user started and "
+                             "scheduled jobs (also OMEGA_CORPUS_SWEEP=1)")
     parser.add_argument("--json", metavar="PATH",
                         help="write the machine-readable verdict document "
                              "to PATH on every outcome, including "
@@ -1826,6 +1872,19 @@ def main() -> int:
         # A foreign native target keeps its own cache beside the host's.
         compare_leg = f"{leg}-{options.native_target}" if options.native_target else leg
 
+    if options.sweep:
+        os.environ["OMEGA_CORPUS_SWEEP"] = "1"
+    selected = selection_size(
+        options.filter or os.environ.get("OMEGA_CORPUS_FIXTURE_FILTER", ""),
+        options.shard or os.environ.get("OMEGA_CORPUS_SHARD", ""))
+    if selected > SELECTION_BUDGET and not os.environ.get("OMEGA_CORPUS_SWEEP"):
+        runs = " twice (base and candidate)" if options.compare else ""
+        print(f"corpus_gate: this selection runs {selected} fixtures{runs}; past "
+              f"{SELECTION_BUDGET} a run is a sweep (AGENTS.md, 'Validate with "
+              "witnesses'). Name the fixtures the change can move with --filter, "
+              "or pass --sweep for a sweep the user started or a scheduled job.",
+              file=sys.stderr)
+        return usage_error
     subset = (bool(options.filter) or bool(options.shard)
               or bool(os.environ.get("OMEGA_CORPUS_FIXTURE_FILTER", "").strip())
               or bool(os.environ.get("OMEGA_CORPUS_SHARD", "").strip()))
