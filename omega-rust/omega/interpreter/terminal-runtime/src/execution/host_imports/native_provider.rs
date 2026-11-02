@@ -14,7 +14,7 @@ mod record_shape;
 mod reference_outputs;
 mod values;
 pub(super) use original_homes::{NativeContext, rejection};
-pub(super) use record_shape::matches_signed_record_array;
+pub(super) use record_shape::{matches_integer_record, matches_signed_record_array};
 use values::StorageCodec;
 
 use super::super::TerminalRuntimeError;
@@ -604,6 +604,10 @@ impl TerminalEffectHandler for NativeImport<'_> {
             Err(error) => return Err(rejection(error.to_string())),
         };
         self.references.complete(&self.native, buffers)?;
+        let scalar_result = match self.result {
+            ResultCodec::Scalar(scalar) => Some(decode(&returned, scalar, scalar)?),
+            _ => None,
+        };
         for parameter in &self.parameters {
             let Parameter::ByteView {
                 index,
@@ -668,7 +672,27 @@ impl TerminalEffectHandler for NativeImport<'_> {
                     let [field] = codec.fields.as_slice() else {
                         return Err(rejection("native scalar completion is not one scalar"));
                     };
-                    buffer.replace(decode(&observed, field.stored, field.logical)?)?;
+                    let native_value = decode(&observed, field.stored, field.logical)?;
+                    let replacement = match &self.filesystem {
+                        Some(filesystem) => {
+                            filesystem.output_scalar(*index, native_value, scalar_result)?
+                        }
+                        None => None,
+                    };
+                    if let Some(value) = replacement {
+                        // Opaque OS handle virtualization updates the SAME
+                        // authorized mutable home before publishing completion.
+                        // It never substitutes a loan or copies an allocation.
+                        let encoded = encode(value, field.stored)?;
+                        let encoded = encoded.get(..codec.extent).ok_or_else(|| {
+                            rejection("virtualized native scalar exceeds its exact mutable codec")
+                        })?;
+                        self.native
+                            .sponsor
+                            .borrow_mut()
+                            .with(|process| process.write_home(home, offset, encoded))?;
+                    }
+                    buffer.replace(replacement.unwrap_or(native_value))?;
                 }
                 TerminalBoundaryStorageBuffer::Structural(buffer) => {
                     buffer.replace(codec.decode_fields(&observed)?)?

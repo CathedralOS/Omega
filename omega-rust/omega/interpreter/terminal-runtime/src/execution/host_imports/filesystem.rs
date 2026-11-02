@@ -17,11 +17,13 @@ use super::{TerminalRuntimeError, matches_platform_c_symbol, native_provider::re
 use crate::execution::TerminalFilesystemDelegation;
 
 pub(super) mod linux;
+mod windows;
 pub(super) use linux::LinuxFilesystemWrite;
 
 #[derive(Clone)]
 pub(super) struct FilesystemContext {
     supplied: bool,
+    windows: Rc<RefCell<windows::Handles>>,
     linux: Rc<RefCell<native_provider_runtime::LinuxFilesystem>>,
     descriptors: Rc<RefCell<BTreeMap<i32, NativeDescriptor>>>,
 }
@@ -47,7 +49,7 @@ enum DescriptorEffect {
     Io,
 }
 
-pub(super) struct FilesystemCall {
+pub(super) struct DarwinFilesystemCall {
     context: FilesystemContext,
     descriptor: DescriptorEffect,
     namespace_admission: Result<(), &'static str>,
@@ -55,13 +57,77 @@ pub(super) struct FilesystemCall {
     flags_without_mode: Option<usize>,
 }
 
-#[derive(Clone, Copy)]
+pub(super) enum FilesystemCall {
+    Darwin(DarwinFilesystemCall),
+    Windows(windows::Call),
+}
+
+impl FilesystemCall {
+    pub(super) fn path_argument(&self, argument: usize) -> bool {
+        match self {
+            Self::Darwin(call) => call.path_argument(argument),
+            Self::Windows(call) => call.path_argument(argument),
+        }
+    }
+    pub(super) fn validate_path(
+        &self,
+        argument: usize,
+        bytes: &[u8],
+    ) -> Result<(), TerminalEffectRejection> {
+        match self {
+            Self::Darwin(call) => call.validate_path(argument, bytes),
+            Self::Windows(call) => call.validate_path(argument, bytes),
+        }
+    }
+    pub(super) fn descriptor_io(&self) -> bool {
+        matches!(self, Self::Darwin(call) if call.descriptor_io())
+    }
+    pub(super) fn modeled_stream(&self, arguments: &[TerminalScalarValue]) -> bool {
+        matches!(self, Self::Darwin(call) if call.modeled_stream(arguments))
+    }
+    pub(super) fn arguments(
+        &self,
+        arguments: &[TerminalScalarValue],
+    ) -> Result<Vec<TerminalScalarValue>, TerminalEffectRejection> {
+        match self {
+            Self::Darwin(call) => call.arguments(arguments),
+            Self::Windows(call) => call.arguments(arguments),
+        }
+    }
+    pub(super) fn result(
+        &self,
+        arguments: &[TerminalScalarValue],
+        result: TerminalScalarValue,
+    ) -> Result<TerminalScalarValue, TerminalEffectRejection> {
+        match self {
+            Self::Darwin(call) => call.result(arguments, result),
+            Self::Windows(call) => call.result(arguments, result),
+        }
+    }
+    pub(super) fn output_scalar(
+        &self,
+        argument: usize,
+        value: TerminalScalarValue,
+        result: Option<TerminalScalarValue>,
+    ) -> Result<Option<TerminalScalarValue>, TerminalEffectRejection> {
+        match self {
+            Self::Darwin(_) => Ok(None),
+            Self::Windows(call) => call.output_scalar(argument, value, result),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
 enum Formal {
     Signed(u16),
     Unsigned(u16),
-    Bytes(u64, StructuralAccess),
+    UnsignedArray(u64, u16, StructuralAccess),
     ByteView(StructuralAccess),
-    SignedReference(u16, StructuralAccess),
+    IntegerReference(IntegerSign, u16, StructuralAccess),
+    IntegerRecord {
+        fields: &'static [(IntegerSign, u16)],
+        access: StructuralAccess,
+    },
     SignedRecordArray {
         records: u64,
         words: usize,
@@ -75,6 +141,7 @@ impl FilesystemContext {
     pub(super) fn new(delegation: TerminalFilesystemDelegation) -> Self {
         Self {
             supplied: matches!(delegation, TerminalFilesystemDelegation::HostNamespace),
+            windows: Rc::new(RefCell::new(windows::Handles::default())),
             descriptors: Rc::new(RefCell::new(BTreeMap::new())),
             linux: Rc::new(RefCell::new(
                 native_provider_runtime::LinuxFilesystem::default(),
@@ -89,6 +156,9 @@ impl FilesystemContext {
         binding: &NormalizedForeignCallBinding,
         layouts: &[NativeBorrowedStorageLayout],
     ) -> Result<Option<FilesystemCall>, TerminalRuntimeError> {
+        if let Some(call) = windows::admit(self, program, declaration, binding, layouts)? {
+            return Ok(Some(FilesystemCall::Windows(call)));
+        }
         let Some((locator, _)) = binding.import() else {
             return Ok(None);
         };
@@ -98,12 +168,12 @@ impl FilesystemContext {
             return Ok(None);
         }
         use DescriptorEffect::{Acquire, Close, Duplicate, None as NoDescriptor, OpenAt, Use};
-        use Formal::{ByteView, Bytes, Signed, SignedReference, Unsigned};
+        use Formal::{ByteView, IntegerReference, Signed, Unsigned, UnsignedArray};
         use StructuralAccess::{MutableBorrow, SharedBorrow};
         // The SDK declares full fixed-array extents. These are exact C ABI
         // contracts, not a license to widen a one-byte loan into an allocation.
-        let path = Bytes(4096, SharedBorrow);
-        let metadata = Bytes(144, MutableBorrow);
+        let path = UnsignedArray(4096, 8, SharedBorrow);
+        let metadata = UnsignedArray(144, 8, MutableBorrow);
         let candidates: &[(&[u8], &[Formal], Formal, DescriptorEffect)] = &[
             (b"open", &[path, Signed(32)], Signed(32), Acquire),
             (
@@ -253,7 +323,7 @@ impl FilesystemContext {
                 &[
                     Signed(32),
                     ByteView(MutableBorrow),
-                    SignedReference(64, MutableBorrow),
+                    IntegerReference(IntegerSign::Signed, 64, MutableBorrow),
                 ],
                 Signed(64),
                 Use {
@@ -303,7 +373,7 @@ impl FilesystemContext {
             ));
         }
         let flags_without_mode = match (descriptor, parameters) {
-            (Acquire, Some([Bytes(4096, SharedBorrow), Signed(32)])) => Some(0),
+            (Acquire, Some([UnsignedArray(4096, 8, SharedBorrow), Signed(32)])) => Some(0),
             (OpenAt, _) => Some(1),
             _ => None,
         };
@@ -311,25 +381,26 @@ impl FilesystemContext {
         let mut paths = Vec::new();
         for formal in parameters.into_iter().flatten() {
             match formal {
-                Bytes(count, access) => {
-                    if *count == 4096 && *access == SharedBorrow {
+                UnsignedArray(count, bits, access) => {
+                    if *count == 4096 && *bits == 8 && *access == SharedBorrow {
                         paths.push(structural);
                     }
                     structural += 1;
                 }
-                ByteView(_) | SignedReference(_, _) | Formal::SignedRecordArray { .. } => {
-                    structural += 1
-                }
+                ByteView(_)
+                | IntegerReference(_, _, _)
+                | Formal::IntegerRecord { .. }
+                | Formal::SignedRecordArray { .. } => structural += 1,
                 _ => {}
             }
         }
-        Ok(Some(FilesystemCall {
+        Ok(Some(FilesystemCall::Darwin(DarwinFilesystemCall {
             context: self.clone(),
             descriptor,
             namespace_admission,
             paths,
             flags_without_mode,
-        }))
+        })))
     }
     fn admit_services(
         &self,
@@ -419,11 +490,11 @@ fn matches_parameters(
                         matches!(program.structural_type(value.structural_type).map(|row| &row.shape),
                             Some(StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView { access: ceiling })) if ceiling.is_none_or(|ceiling| ceiling == *access))
                     }
-                    (Some(value), Formal::SignedReference(bits, access))
+                    (Some(value), Formal::IntegerReference(sign, bits, access))
                         if value.access == *access =>
                     {
                         matches!(program.structural_type(value.structural_type).map(|row| &row.shape),
-                            Some(StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))) if integer.sign() == IntegerSign::Signed && integer.bits() == *bits)
+                            Some(StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))) if integer.sign() == *sign && integer.bits() == *bits)
                     }
                     (
                         Some(value),
@@ -445,7 +516,19 @@ fn matches_parameters(
                             *alignment,
                         )
                     }
-                    (Some(value), Formal::Bytes(count, access)) if value.access == *access => {
+                    (Some(value), Formal::IntegerRecord { fields, access })
+                        if value.access == *access =>
+                    {
+                        super::native_provider::matches_integer_record(
+                            program,
+                            layouts,
+                            value.structural_type,
+                            fields,
+                        )
+                    }
+                    (Some(value), Formal::UnsignedArray(count, bits, access))
+                        if value.access == *access =>
+                    {
                         match program
                             .structural_type(value.structural_type)
                             .map(|row| &row.shape)
@@ -453,7 +536,7 @@ fn matches_parameters(
                             Some(StructuralTypeShape::FixedArray { element, length })
                                 if length.literal() == Some(*count) =>
                             {
-                                matches!(program.structural_type(*element).map(|row| &row.shape), Some(StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))) if integer.sign() == IntegerSign::Unsigned && integer.bits() == 8)
+                                matches!(program.structural_type(*element).map(|row| &row.shape), Some(StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))) if integer.sign() == IntegerSign::Unsigned && integer.bits() == *bits)
                             }
                             _ => false,
                         }
@@ -470,7 +553,7 @@ fn matches_parameters(
         && structural == declaration.structural_parameters.len()
 }
 
-impl FilesystemCall {
+impl DarwinFilesystemCall {
     pub(super) fn validate_path(
         &self,
         argument: usize,
@@ -635,8 +718,8 @@ mod tests {
         }
     }
 
-    fn call(namespace_admission: Result<(), &'static str>) -> FilesystemCall {
-        FilesystemCall {
+    fn call(namespace_admission: Result<(), &'static str>) -> DarwinFilesystemCall {
+        DarwinFilesystemCall {
             context: FilesystemContext::new(TerminalFilesystemDelegation::HostNamespace),
             descriptor: DescriptorEffect::Io,
             namespace_admission,
