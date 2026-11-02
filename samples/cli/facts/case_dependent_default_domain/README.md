@@ -73,6 +73,11 @@ four ordinary named implementations through its entry roots.
 - **Soundness:** ceiling twins, the [missing type equation](controls/missing_type_equation/main.omg),
   [other bound](controls/other_default_argument/main.omg), [stale write](controls/stale_write/main.omg)
   and [stale snapshot](controls/stale_snapshot_restore/main.omg) controls reject.
+  A lower endpoint overwritten inside the window through an
+  [alias](controls/alias_sibling_restore/main.omg) or a
+  [recast view](controls/recast_sibling_restore/main.omg) formed before it
+  also rejects at state exit: an untouched entry cell needs no overlapping
+  write exposure.
   The last changes the lower endpoint to 31: restoring the saved upper 21
   cannot borrow the old ordered relation. Unknown tags/fields supply no proof.
 - **Psi 06–08:** source proof discharges restoration and scalar consumption
@@ -127,6 +132,13 @@ entry. The nine twins report the ceiling refusal at both `width_range` calls.
 A focused 204-fixture corpus subset (restoration, window, case-payload and
 recast rows) moves only by load-induced timeouts against the same subset run
 with the base runner; the 9 positive pins execute with exit 0 in both engines.
+After rebasing onto main `8d8506a6bca`, the repaired producer (CLI SHA-256
+`6b3ec882092a7e6ec3d6dc11895e41e7a2aa393e836a7e04a5e07a8f7ec9c074`) still checks the
+untouched-sibling witness, but every place, including main's unchanged sources
+run by main's own producer, now fails Terminal lowering with
+`InvalidUnitDomainPredicate` for `Ordered<32>` ("lowered domain predicate is not
+closed over its subject"). That regression entered main after `4f87c9e08b1` and
+is not yet bisected; the runtime evidence above is from the fixed base.
 Callee-restored tag postconditions, caller field reads after such a call,
 joined restoring stores and mutable payload recasts remain open in the parent.
 
