@@ -326,10 +326,8 @@ retired-syntax deletions to completion.
     write-only boundaries requiring an admitted claim for the selected implementation,
     a `&write`
     slot whose referent carries a reference leaf (`write_only_reference_store`),
-    evidence binders in requirement signatures (`selected_crash_formal`,
-    `selected_value_application`: the requirement grammar admits none), and
-    effectful performed writes (`narrowed_integer_write`: IntegerAt fit is
-    judged only from a body, so a requirement call has none). Their
+    and evidence binders in requirement signatures (`selected_crash_formal`,
+    `selected_value_application`: the requirement grammar admits none). Their
     `target_body` places keep the retired prefix until then. A requirement
     publishes `invokes` for each boundary trait its implementations invoke, and
     a public caller with an explicit ceiling names the requirement; migrated
