@@ -7609,10 +7609,11 @@ pass/traits/runtime_dyn_selector_beside_u64_field_store_exit built 5833ms exit:7
 pass/traits/runtime_dyn_selector_crash_refined_exit built 2788ms exit:0 interpreter-exit:0 interpreter:agrees @3caadfad789f+wt
 pass/traits/runtime_dyn_selector_record_field_exit built 5855ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/traits/runtime_dyn_slot_metadata_exit built 1969ms exit:0 interpreter-exit:0 interpreter:agrees @e7be0895dec5+wt
+pass/traits/runtime_dyn_statement_call_operand_positions_exit built 31584ms exit:0 interpreter-exit:0 interpreter:agrees @cb2bb7751cae+wt
 pass/traits/runtime_dyn_stored_byte_input built 7442ms exit:0 interpreter-exit:0 interpreter:agrees @ca41410e2ee2+wt
 pass/traits/runtime_dyn_structural_result_exit built 3103ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/traits/runtime_dyn_suspending_borrowed_parameter_exit built 2137ms exit:0 interpreter-exit:0 interpreter:agrees @60879b0bca31+wt
-pass/traits/runtime_dyn_suspending_unit_call_exit built 2315ms exit:0 interpreter-exit:0 interpreter:agrees @60879b0bca31+wt
+pass/traits/runtime_dyn_suspending_unit_call_exit built 29662ms exit:0 interpreter-exit:0 interpreter:agrees @cb2bb7751cae+wt
 pass/traits/runtime_dyn_two_impl_dispatch_exit built 5743ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/traits/runtime_exact_requirement_edge_exit built 5400ms exit:1 interpreter-exit:1 interpreter:agrees @a92f16431042
 pass/traits/runtime_explicit_implementation_arguments_exit rejected 848ms interpreter:unchecked regressed-from:built+exit:0+interpreter-exit:0+interpreter:agrees @a92f16431042

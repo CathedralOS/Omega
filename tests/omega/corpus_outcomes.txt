@@ -2424,8 +2424,12 @@ fail/traits/dyn_selector_leading_crash_uncovered rejected 2077ms expected @3caad
 	call from `observe` to `pass` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/traits/dyn_slot_metadata_unqualified rejected 685ms expected @e7be0895dec5+wt
 	argument `packet` for state `view` expects `&[u8][in Utf8]`, got `named value`
+fail/traits/dyn_statement_call_operand_positions_rejected rejected 16980ms expected @cb2bb7751cae+wt
+	cannot prove requires contract for call dyn PairCheck::check from main: 7 == 100 && 100 == 7 (needs fact `value == 100 && other == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/traits/dyn_suspending_borrowed_parameter_precondition rejected 1636ms expected @60879b0bca31+wt
 	cannot prove requires contract for call dyn Read::current from main: cell.value == 100 (needs fact `cell.value == 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/traits/dyn_suspending_unit_call_precondition rejected 14418ms expected @cb2bb7751cae+wt
+	cannot prove requires contract for call dyn DeferredUnit::check from main: 99 == 100 (needs fact `value == 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/traits/public_method_callback_prefix_missing rejected 930ms expected @b852a38544d0
 	static method application requires its complete invocation telescope for `NeedsMachine::choose` (found 0, expected 2)
 fail/traits/public_method_callback_prefix_wrong_contract rejected 886ms expected @b852a38544d0
@@ -13861,9 +13865,11 @@ pass/traits/runtime_dyn_selector_beside_u64_field_store_exit checked 12171ms che
 pass/traits/runtime_dyn_selector_crash_refined_exit checked 3124ms check-target:macos_arm64 @3caadfad789f+wt
 pass/traits/runtime_dyn_selector_record_field_exit checked 12666ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_dyn_selector_record_post_write_exit checked 5985ms check-target:macos_arm64 @911f6617ba9e
+pass/traits/runtime_dyn_statement_call_operand_positions_exit checked 54492ms check-target:macos_arm64 @cb2bb7751cae+wt
 pass/traits/runtime_dyn_stored_byte_input checked 9876ms check-target:macos_arm64 @ca41410e2ee2+wt
 pass/traits/runtime_dyn_structural_result_exit checked 3964ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_dyn_suspending_borrowed_parameter_exit checked 2062ms check-target:macos_arm64 @60879b0bca31+wt
+pass/traits/runtime_dyn_suspending_unit_call_exit checked 53328ms check-target:macos_arm64 @cb2bb7751cae+wt
 pass/traits/runtime_dyn_two_impl_dispatch_exit checked 12466ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_exact_requirement_edge_exit checked 12334ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_explicit_implementation_arguments_exit checked 3576ms check-target:macos_arm64 @ccdb99ca2214
