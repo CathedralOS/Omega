@@ -235,18 +235,32 @@ and its exit-70 oracle without changing the program.
 This repair addresses the named customer's comparison prerequisite. The parent
 Build scheduler, host-operation, and snapshot-output acceptance remains separate.
 
-Verified on Linux x86-64 with the optimized final producer (SHA-256
+Before integration, Linux x86-64 verification used the optimized producer (SHA-256
 `74ccf33874a71df448199e134414d1bc6b0b0e0c278a7a9b22825eb3f72e10d1`):
 all nine comparison positives exit 0 in both engines, and all nine runtime
 counterfactuals trap with agreement. All format twins reject. Nine neighboring
 boundary-provider positives and a selected integer-comparison control also run
 in both engines. The original package-aware directed-division customer exits
 70 in both engines after normal compiler-bound lock refresh; its source and
-oracle are unchanged. The matching Windows and macOS native runs remain
-unexecuted here.
+oracle are unchanged. Those historical observations cover Linux only.
 
 The active [nonnumeric contract control](controls/nonnumeric_contract/main.omg)
 invokes an ordinary boundary predicate over f64. Its boolean supplies no IEEE
 upper-bound law, so forwarding the operand into `bounded` must reject the
 unproved precondition. It is pinned in
 [`float_comparison_route_nonnumeric_contract_rejected`](../../../../tests/omega/fail/facts/float_comparison_route_nonnumeric_contract_rejected/main.omg).
+
+The integrated selector preserves Product and Invocation scopes separately.
+Matching-host verification at `46a8d4e7c64e2738a34b7bdee0a6e64ea5c18cb6`
+then runs the unchanged named directed-division customer through normal CLI
+update, pending-row review/resume, and `run --both --keep`. Each pilot freezes
+its tracked inputs and authenticates an opt-level-1 producer.
+
+| Native host | Native exit | Terminal exit | Source-bound receipt |
+| --- | --- | --- | --- |
+| Linux x86-64 | 70 | 70 | [pilot](https://github.com/CathedralOS/Omega/actions/runs/41388358019) |
+| Windows x86-64 | 70 | 70 | [pilot](https://github.com/CathedralOS/Omega/actions/runs/41388372372) |
+| macOS ARM64 | 70 | 70 | [pilot](https://github.com/CathedralOS/Omega/actions/runs/41388403769) |
+
+These observations discharge the parent's named-customer acceptance; its
+remaining Build scheduler, loan-carrier, and snapshot requirements stay open.
