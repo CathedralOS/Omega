@@ -162,12 +162,19 @@ pub(super) fn prepare(
             bodies.push(body);
         }
     }
-    let declarations = crate::prepare_native_provider_sources(
-        services.context(),
-        inputs.exact_toolchain_sources,
-        &provenance,
-    )?
-    .declarations;
+    // Semantic execution needs exact closed declarations, not native family
+    // relationships. Native handoff prepares those from its complete roster.
+    let declarations = provenance
+        .iter()
+        .map(|retained| {
+            crate::native_provider_sources::close_provider_declarations(
+                services.context(),
+                inputs.exact_toolchain_sources,
+                &retained.plan,
+                &retained.provider,
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     Ok(SelectedPolicyProviders {
         bodies,
         declarations,
