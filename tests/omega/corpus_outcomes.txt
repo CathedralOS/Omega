@@ -2624,42 +2624,42 @@ fail/facts/resident_backing_runtime_loop_wrong_origin rejected 18867ms expected 
 fail/facts/resident_backing_target_body_missing_vacancy rejected 5378ms expected @b3876048c0a2
 	cannot prove requires contract for call partition from allocated: vacant in Extent::Vacant in state `entry`
 	cannot prove initializer of `vacant` in allocated is in domain `Extent::Vacant`; an annotation cannot establish routed qualification
-fail/facts/resource_representation_buffered_call_result_capacity_rejected rejected 14965ms expected @6b941db428c6
+fail/facts/resource_representation_buffered_call_result_capacity_rejected rejected 9402ms expected @b9975b628a04
 	cannot prove requires contract for call emit from WriteFirst::try_from: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
-	cannot prove requires contract for call emit from WriteFirst::try_from$specialized$e5e2390881a2212d$0$2812: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
-	cannot prove requires contract for call emit from WriteFirst::try_from$specialized$e5e2390881a2212d$1$2824: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
-fail/facts/resource_representation_buffered_const_name_capacity_rejected rejected 15310ms expected @6b941db428c6
+	cannot prove requires contract for call emit from WriteFirst::try_from$specialized$e5e2390881a2212d$0$2813: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
+	cannot prove requires contract for call emit from WriteFirst::try_from$specialized$e5e2390881a2212d$1$2825: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
+fail/facts/resource_representation_buffered_const_name_capacity_rejected rejected 8683ms expected @b9975b628a04
 	cannot prove requires contract for call emit from WriteFirst::try_from: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
-	cannot prove requires contract for call emit from WriteFirst::try_from$specialized$e5e2390881a2212d$0$2810: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
-	cannot prove requires contract for call emit from WriteFirst::try_from$specialized$e5e2390881a2212d$1$2822: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
-fail/facts/resource_representation_buffered_field_capacity_rejected rejected 14930ms expected @6b941db428c6
+	cannot prove requires contract for call emit from WriteFirst::try_from$specialized$e5e2390881a2212d$0$2811: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
+	cannot prove requires contract for call emit from WriteFirst::try_from$specialized$e5e2390881a2212d$1$2823: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
+fail/facts/resource_representation_buffered_field_capacity_rejected rejected 10317ms expected @b9975b628a04
+	cannot prove requires contract for call emit from WriteFirst::try_from: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
+	cannot prove requires contract for call emit from WriteFirst::try_from$specialized$e5e2390881a2212d$0$2820: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
+	cannot prove requires contract for call emit from WriteFirst::try_from$specialized$e5e2390881a2212d$1$2832: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
+fail/facts/resource_representation_buffered_local_capacity_rejected rejected 8495ms expected @0f36ecb1ab02
+	cannot prove requires contract for call emit from WriteFirst::try_from: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
+	cannot prove requires contract for call emit from WriteFirst::try_from$specialized$e5e2390881a2212d$0$2805: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
+	cannot prove requires contract for call emit from WriteFirst::try_from$specialized$e5e2390881a2212d$1$2817: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
+fail/facts/resource_representation_buffered_match_join_capacity_rejected rejected 8947ms expected @b9975b628a04
+	cannot prove requires contract for call emit from WriteFirst::try_from: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
+	cannot prove requires contract for call emit from WriteFirst::try_from$specialized$e5e2390881a2212d$0$2813: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
+	cannot prove requires contract for call emit from WriteFirst::try_from$specialized$e5e2390881a2212d$1$2825: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
+fail/facts/resource_representation_buffered_other_machine_capacity_rejected rejected 8896ms expected @b9975b628a04
+	cannot prove requires contract for call emit from WriteFirst::try_from: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
+	cannot prove requires contract for call emit from WriteFirst::try_from$specialized$e5e2390881a2212d$0$2820: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
+	cannot prove requires contract for call emit from WriteFirst::try_from$specialized$e5e2390881a2212d$1$2832: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
+fail/facts/resource_representation_buffered_other_state_capacity_rejected rejected 8992ms expected @b9975b628a04
 	cannot prove requires contract for call emit from WriteFirst::try_from: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
 	cannot prove requires contract for call emit from WriteFirst::try_from$specialized$e5e2390881a2212d$0$2819: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
 	cannot prove requires contract for call emit from WriteFirst::try_from$specialized$e5e2390881a2212d$1$2831: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
-fail/facts/resource_representation_buffered_local_capacity_rejected rejected 13487ms expected @60b8f1171d45
+fail/facts/resource_representation_buffered_parameter_capacity_rejected rejected 8920ms expected @b9975b628a04
 	cannot prove requires contract for call emit from WriteFirst::try_from: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
-	cannot prove requires contract for call emit from WriteFirst::try_from$specialized$e5e2390881a2212d$0$2804: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
-	cannot prove requires contract for call emit from WriteFirst::try_from$specialized$e5e2390881a2212d$1$2816: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
-fail/facts/resource_representation_buffered_match_join_capacity_rejected rejected 14879ms expected @6b941db428c6
+	cannot prove requires contract for call emit from WriteFirst::try_from$specialized$e5e2390881a2212d$0$2815: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
+	cannot prove requires contract for call emit from WriteFirst::try_from$specialized$e5e2390881a2212d$1$2827: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
+fail/facts/resource_representation_buffered_target_body_capacity_rejected rejected 9919ms expected @b9975b628a04
 	cannot prove requires contract for call emit from WriteFirst::try_from: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
-	cannot prove requires contract for call emit from WriteFirst::try_from$specialized$e5e2390881a2212d$0$2812: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
-	cannot prove requires contract for call emit from WriteFirst::try_from$specialized$e5e2390881a2212d$1$2824: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
-fail/facts/resource_representation_buffered_other_machine_capacity_rejected rejected 14977ms expected @6b941db428c6
-	cannot prove requires contract for call emit from WriteFirst::try_from: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
-	cannot prove requires contract for call emit from WriteFirst::try_from$specialized$e5e2390881a2212d$0$2819: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
-	cannot prove requires contract for call emit from WriteFirst::try_from$specialized$e5e2390881a2212d$1$2831: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
-fail/facts/resource_representation_buffered_other_state_capacity_rejected rejected 15139ms expected @6b941db428c6
-	cannot prove requires contract for call emit from WriteFirst::try_from: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
-	cannot prove requires contract for call emit from WriteFirst::try_from$specialized$e5e2390881a2212d$0$2818: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
-	cannot prove requires contract for call emit from WriteFirst::try_from$specialized$e5e2390881a2212d$1$2830: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
-fail/facts/resource_representation_buffered_parameter_capacity_rejected rejected 15151ms expected @6b941db428c6
-	cannot prove requires contract for call emit from WriteFirst::try_from: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
-	cannot prove requires contract for call emit from WriteFirst::try_from$specialized$e5e2390881a2212d$0$2814: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
-	cannot prove requires contract for call emit from WriteFirst::try_from$specialized$e5e2390881a2212d$1$2826: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
-fail/facts/resource_representation_buffered_target_body_capacity_rejected rejected 14492ms expected @6b941db428c6
-	cannot prove requires contract for call emit from WriteFirst::try_from: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
-	cannot prove requires contract for call emit from WriteFirst::try_from$specialized$e5e2390881a2212d$0$2836: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
-	cannot prove requires contract for call emit from WriteFirst::try_from$specialized$e5e2390881a2212d$1$2848: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
+	cannot prove requires contract for call emit from WriteFirst::try_from$specialized$e5e2390881a2212d$0$2837: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
+	cannot prove requires contract for call emit from WriteFirst::try_from$specialized$e5e2390881a2212d$1$2849: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
 fail/facts/runtime_index_application_call_index_through_call_result_rejected rejected 1427ms expected @c79bb8268163+wt
 	data `Index` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 	data `Index` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
@@ -3140,10 +3140,12 @@ fail/traits/public_method_evidence_not_inferred rejected 1101ms expected @b852a3
 	a value call to generic machine `choose` cannot derive a complete type/const/machine/conformance specialization tuple from its argument and result types; add a concrete destination annotation or provide concrete argument type evidence
 fail/traits/public_method_inferred_actual_conflict rejected 1431ms expected @b852a38544d0
 	argument `right` for state `pair` expects `&u32`, got `named value`
-fail/traits/refined_borrowed_implementation_wrong_region rejected 723ms expected @60b8f1171d45
-	conformance `SelectedReading` supplies lifetime arguments that disagree with the call's ordinary borrow constraints at `select` in `observe`: argument 0: selected Some("generic(name(nominal\\\\(package-owner\\\\(32:67b903e4ce8ed27f6c0bb5ea19594a87a4f2bc805cd6dec4c7206efe2fea2712\\\\)\\\\,path\\\\(View\\\\)\\\\)),region(owner(1383:1),ordinal(1)))"), required Some("generic(name(nominal\\\\(package-owner\\\\(32:67b903e4ce8ed27f6c0bb5ea19594a87a4f2bc805cd6dec4c7206efe2fea2712\\\\)\\\\,path\\\\(View\\\\)\\\\)),region(owner(1383:1),ordinal(0)))")
+fail/traits/refined_borrowed_implementation_wrong_region rejected 705ms expected @0f36ecb1ab02
+	conformance `SelectedReading` supplies lifetime arguments that disagree with the call's ordinary borrow constraints at `select` in `observe`: argument 0: selected Some("generic(name(nominal\\\\(package-owner\\\\(32:67b903e4ce8ed27f6c0bb5ea19594a87a4f2bc805cd6dec4c7206efe2fea2712\\\\)\\\\,path\\\\(View\\\\)\\\\)),region(owner(1384:1),ordinal(1)))"), required Some("generic(name(nominal\\\\(package-owner\\\\(32:67b903e4ce8ed27f6c0bb5ea19594a87a4f2bc805cd6dec4c7206efe2fea2712\\\\)\\\\,path\\\\(View\\\\)\\\\)),region(owner(1384:1),ordinal(0)))")
 fail/traits/refinement_clause_terminators rejected 3ms expected @89956713be3d
 	tests/omega/fail/traits/refinement_clause_terminators/main.omg:4:29: expected `machine`, found identifier `terminates`
+fail/traits/requirement_evidence_wrong_region rejected 7060ms expected @b9975b628a04
+	provider `SelectedReader::read` does not refine requirement `read` evidence parameter `Evidence`: forwarded binder `Evidence` does not guarantee the exact `Reading` trait application
 fail/traits/runtime_dyn_family_local_width_requires rejected 9611ms expected @7b6988120e7e
 	cannot prove requires contract for call dyn Family::row from create: Width == 16 || Width == 32 (needs fact `Width == 16 || Width == 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/traits/runtime_dyn_family_reordered_roster_requires rejected 8930ms expected @7b6988120e7e
@@ -10173,15 +10175,15 @@ pass/facts/resident_backing_runtime_cells_exit checked 10759ms check-target:maco
 pass/facts/resident_backing_runtime_helper_loop_exit checked 19198ms check-target:macos_arm64 @4083ce80c932
 pass/facts/resident_backing_runtime_loop_exit checked 20840ms check-target:macos_arm64 @6fe30d215f49
 pass/facts/resident_backing_target_body_exit checked 9694ms check-target:macos_arm64 @b3876048c0a2
-pass/facts/resource_representation_buffered_call_result_exit checked 19183ms check-target:macos_arm64 @6b941db428c6
-pass/facts/resource_representation_buffered_const_name_exit checked 18598ms check-target:macos_arm64 @6b941db428c6
-pass/facts/resource_representation_buffered_field_exit checked 17581ms check-target:macos_arm64 @6b941db428c6
-pass/facts/resource_representation_buffered_local_exit checked 19085ms check-target:macos_arm64 @60b8f1171d45
-pass/facts/resource_representation_buffered_match_join_exit checked 16962ms check-target:macos_arm64 @6b941db428c6
-pass/facts/resource_representation_buffered_other_machine_exit checked 17692ms check-target:macos_arm64 @6b941db428c6
-pass/facts/resource_representation_buffered_other_state_exit checked 17628ms check-target:macos_arm64 @6b941db428c6
-pass/facts/resource_representation_buffered_parameter_exit checked 17265ms check-target:macos_arm64 @6b941db428c6
-pass/facts/resource_representation_buffered_target_body_exit checked 19432ms check-target:macos_arm64 @6b941db428c6
+pass/facts/resource_representation_buffered_call_result_exit checked 13469ms check-target:macos_arm64 @b9975b628a04
+pass/facts/resource_representation_buffered_const_name_exit checked 15037ms check-target:macos_arm64 @b9975b628a04
+pass/facts/resource_representation_buffered_field_exit checked 13958ms check-target:macos_arm64 @b9975b628a04
+pass/facts/resource_representation_buffered_local_exit checked 15593ms check-target:macos_arm64 @0f36ecb1ab02
+pass/facts/resource_representation_buffered_match_join_exit checked 12489ms check-target:macos_arm64 @b9975b628a04
+pass/facts/resource_representation_buffered_other_machine_exit checked 12781ms check-target:macos_arm64 @b9975b628a04
+pass/facts/resource_representation_buffered_other_state_exit checked 12676ms check-target:macos_arm64 @b9975b628a04
+pass/facts/resource_representation_buffered_parameter_exit checked 12499ms check-target:macos_arm64 @b9975b628a04
+pass/facts/resource_representation_buffered_target_body_exit checked 12490ms check-target:macos_arm64 @b9975b628a04
 pass/facts/result_cleanup_guarantees_through_call_result_exit checked 4216ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/result_cleanup_guarantees_through_const_name_exit checked 3199ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/result_cleanup_guarantees_through_field_exit checked 3393ms check-target:macos_arm64 @ccdb99ca2214
@@ -10547,7 +10549,7 @@ pass/facts/selected_scalar_initializer_through_target_body_exit checked 5265ms c
 pass/facts/selected_value_application_through_call_result_exit checked 13240ms check-target:macos_arm64 @a3f86a99de08
 pass/facts/selected_value_application_through_const_name_exit checked 13244ms check-target:macos_arm64 @a3f86a99de08
 pass/facts/selected_value_application_through_field_exit checked 11946ms check-target:macos_arm64 @a3f86a99de08
-pass/facts/selected_value_application_through_local_exit checked 11928ms check-target:macos_arm64 @a3f86a99de08
+pass/facts/selected_value_application_through_local_exit checked 11579ms check-target:macos_arm64 @0f36ecb1ab02
 pass/facts/selected_value_application_through_match_join_exit checked 11841ms check-target:macos_arm64 @a3f86a99de08
 pass/facts/selected_value_application_through_other_machine_exit checked 11822ms check-target:macos_arm64 @a3f86a99de08
 pass/facts/selected_value_application_through_other_state_exit checked 11912ms check-target:macos_arm64 @a3f86a99de08
@@ -14682,7 +14684,7 @@ pass/traits/default_row_captured_invocation_regions_exit checked 3251ms check-ta
 pass/traits/default_row_domain_region_scopes checked 2185ms @ccdb99ca2214
 pass/traits/default_row_mixed_captured_operand checked 2448ms @ccdb99ca2214
 pass/traits/default_row_nested_captured_reference_exit checked 4131ms check-target:macos_arm64 @ccdb99ca2214
-pass/traits/default_row_same_spelled_supplier_region_exit checked 3825ms check-target:macos_arm64 @ccdb99ca2214
+pass/traits/default_row_same_spelled_supplier_region_exit checked 12622ms check-target:macos_arm64 @0f36ecb1ab02
 pass/traits/default_row_shadowed_captured_operand checked 2440ms @ccdb99ca2214
 pass/traits/default_row_shadowed_captured_operand_exit checked 3328ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/dyn_finite_family checked 7996ms @05a6f6af37ec+wt
@@ -14705,7 +14707,7 @@ pass/traits/implementation_argument_category_collision checked 11458ms check-tar
 pass/traits/implementation_argument_mixed_telescope checked 2274ms @ccdb99ca2214
 pass/traits/implementation_argument_region_mapping checked 2453ms @ccdb99ca2214
 pass/traits/implementation_value_mapped_region_identity checked 5981ms check-target:macos_arm64 @68b6f6ba6c2f
-pass/traits/inherited_region_application_identity_exit checked 3431ms check-target:macos_arm64 @ccdb99ca2214
+pass/traits/inherited_region_application_identity_exit checked 12686ms check-target:macos_arm64 @0f36ecb1ab02
 pass/traits/named_contract_arithmetic_refinement checked 3221ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/nominal_generic_reference_forwarding_exit checked 13096ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/nominal_machine_binder_static_dispatch checked 11534ms check-target:macos_arm64 @ccdb99ca2214
@@ -14717,9 +14719,10 @@ pass/traits/public_method_callback_prefix_inference_exit checked 2992ms check-ta
 pass/traits/public_method_const_prefix_inference_exit checked 3056ms check-target:macos_arm64 @b852a38544d0
 pass/traits/public_nested_machine_contract_scopes checked 3933ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/public_post_write_descriptor_guarantee_exit checked 3383ms check-target:macos_arm64 @ccdb99ca2214
-pass/traits/refined_borrowed_implementation_exit checked 16499ms check-target:macos_arm64 @60b8f1171d45
+pass/traits/refined_borrowed_implementation_exit checked 11281ms check-target:macos_arm64 @0f36ecb1ab02
 pass/traits/renamed_invocation_contract_binders checked 2489ms @ccdb99ca2214
 pass/traits/repeated_structural_capture_exit checked 4355ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
+pass/traits/requirement_evidence_renamed_regions_exit checked 12215ms check-target:macos_arm64 @b9975b628a04
 pass/traits/ring_requirement_satisfies_exit checked 12063ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_dyn_array_assignments_establishment_exit checked 3214ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_dyn_array_literal_establishment_exit checked 2964ms check-target:macos_arm64 @ccdb99ca2214
@@ -29057,7 +29060,7 @@ fail/facts/selected_value_application_through_const_name_rejected rejected 5569m
 	exact arithmetic in machine `main` state `entry` local `difference` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/selected_value_application_through_field_rejected rejected 5810ms expected @a3f86a99de08
 	exact arithmetic in machine `main` state `entry` local `difference` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/selected_value_application_through_local_rejected rejected 5810ms expected @a3f86a99de08
+fail/facts/selected_value_application_through_local_rejected rejected 2597ms expected @0f36ecb1ab02
 	exact arithmetic in machine `main` state `entry` local `difference` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/selected_value_application_through_match_join_rejected rejected 5663ms expected @a3f86a99de08
 	exact arithmetic in machine `exercise` state `entry` local `difference` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
@@ -35907,7 +35910,7 @@ fail/traits/equatable_operator_ambiguous_implementations rejected 111ms expected
 	cannot compare `Coin` values with `==`: 2 Equatable implementations satisfy `Equatable<Coin>` (`CoinEquality`, `CoinValueEquality`) and the operator selects at most one -- call the intended implementation's `equals` explicitly
 fail/traits/equatable_recursive_type rejected 84ms expected @ccdb99ca2214
 	conformance `NodeEquality satisfies Equatable<Node>`: type `Node` is recursive through field `next` of `Node`: synthesized structural equality would not terminate, so recursive Equatable implementations are not supported yet
-fail/traits/evidence_binder_distinct_lifetime_arguments rejected 704ms expected @ccdb99ca2214
+fail/traits/evidence_binder_distinct_lifetime_arguments rejected 1852ms expected @0f36ecb1ab02
 	generic machine `observe` cannot bind `Operations` to conformance `IdentityMap`: expected a complete `Identity` implementation with the instantiated trait arguments
 fail/traits/evidence_binder_given_data_type rejected 656ms expected @ccdb99ca2214
 	machine `apply` static argument 2 requires its declared binder kind, not a type argument
@@ -36016,7 +36019,7 @@ fail/traits/inherited_region_application_phantom_ambiguity rejected 1821ms expec
 	closed conformance `Ambiguous satisfies Diamond` cannot instantiate inherited row `Reading::read`
 fail/traits/inherited_region_application_result_ambiguity rejected 1356ms expected @ccdb99ca2214
 	closed conformance `Ambiguous satisfies Diamond` cannot instantiate inherited row `Reading::read`
-fail/traits/inherited_region_application_telescope_ambiguity rejected 1888ms expected @ccdb99ca2214
+fail/traits/inherited_region_application_telescope_ambiguity rejected 6571ms expected @0f36ecb1ab02
 	closed conformance `Ambiguous satisfies Diamond` cannot instantiate inherited row `Reading::read`
 fail/traits/member_omits_requirement_ensures rejected 1493ms expected @ccdb99ca2214
 	machine `Grow::shrink` realizes `Shrink::shrink` but does not guarantee its `ensures result <= value`; callers of the requirement assume it

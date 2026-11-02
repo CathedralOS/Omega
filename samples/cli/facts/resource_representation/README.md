@@ -87,38 +87,55 @@ Terminal construction uses the same descriptor-transfer rule while checking the
 operand's declared type, multiplicity, backing, predicates and extent. Runtime
 custody stays explicit in every place.
 
+The [renamed-member control](../../../../tests/omega/pass/traits/requirement_evidence_renamed_regions_exit/main.omg)
+keeps a public evidence promise while renaming both invocation lifetimes. Its
+[reject twin](../../../../tests/omega/fail/traits/requirement_evidence_wrong_region/main.omg)
+changes only the provider bound to the other lifetime. Both bodies leave that
+evidence unused, so validation must enforce the public promise independently of
+body calls or the one caller's chosen lifetime arguments.
+
 ## Accepted results
 
 All nine places return **native 0 and Terminal 0 with agreement** on Linux
-x86-64. All nine capacity-only twins reject for their intended `emit` requirement.
-The eighteen sample projects meet their authored runtime or rejection oracles.
-The programs and twins are mirrored under
-`tests/omega/{pass,fail}/facts/resource_representation_buffered_*`, with actual
-records in `corpus_outcomes.txt` and `corpus_both_linux_x86_64.txt`.
+x86-64 using the integrated compiler. All nine capacity-only twins reject for
+their intended `emit` requirement. The programs and twins are mirrored under
+`tests/omega/{pass,fail}/facts/resource_representation_buffered_*`. Their actual
+records retain the observed producer revisions.
 
-[Run 41520174252](https://github.com/CathedralOS/Omega/actions/runs/41520174252)
-observed the frozen local place, exclusive byte-field control and
-borrowed-refinement pair using optimized source
-`60b8f1171d451eed48cc168832ccfc6275ae2ee2`. It passed five source outcomes,
-three native/Terminal agreements and the original two sample projects.
-[Run 41522299500](https://github.com/CathedralOS/Omega/actions/runs/41522299500)
-observed the remaining eight places and twins using
-`6b941db428c6e25d7b2556df3930f8e25d315697`. It passed sixteen source outcomes,
-eight native/Terminal agreements and sixteen sample projects. Preparation took
-361 seconds, source checking 135 seconds, both engines 73 seconds and samples
-181 seconds. Formatter output and removal of temporary workflow diagnostics
-do not change these consumers. Final cleanup also removes a redundant
-missing-declaration refusal; the successful catalog path is unchanged. Records
-retain the producer revisions actually observed.
+[Run 41527523198](https://github.com/CathedralOS/Omega/actions/runs/41527523198)
+used optimized source `0f36ecb1ab02eefdb07fb1ed8b7728eabf1b8381`. It passed ten
+source outcomes, five native/Terminal agreements and six sample projects. These
+cover the original place and twin, borrowed refinement, selected-value calls,
+inherited lifetime identity, public/default/unused evidence and the unused
+stronger-provider reject. Integration changed the Cargo inputs, so compiler
+preparation began without a matching cache and took 1,218 seconds. Source
+checking took 47 seconds, both engines 34 seconds and samples 58 seconds.
 
-Four unchanged controls retain their applicable native/Terminal agreements from
-[run 41515819925](https://github.com/CathedralOS/Omega/actions/runs/41515819925):
-shared partial-case cleanup, qualified bytes, outer references and write-only
-arrays. Its historical Terminal declines are superseded by the repaired local
-and exclusive-byte observations. Capacity, lifetime, shared-access and stored
-backing controls retain their actual rejection diagnostics. Together these
-records cover 29 source outcomes and 15 native/Terminal agreements; earlier
-result-shadowing controls retain their applicable source observations separately.
+[Run 41531563574](https://github.com/CathedralOS/Omega/actions/runs/41531563574)
+used `b9975b628a048654b6cd6f98e38d2e6c65c83512`, with identical compiler and
+library inputs. It passed eighteen source outcomes and nine native/Terminal
+agreements: the remaining eight places and twins, plus the renamed-member
+lifetime/evidence pair. The wrong-region twin rejects at the provider's exact
+public evidence promise. Preparation reused the saved cache and took 185
+seconds; source checking took 102 seconds and both engines 60 seconds. Together
+the integrated runs establish 28 source outcomes and 14 execution agreements.
+
+All eighteen buffered sample projects meet their authored oracles. The original
+pair has fresh integrated observations above. The remaining sixteen retain
+[run 41522299500](https://github.com/CathedralOS/Omega/actions/runs/41522299500)
+on `6b941db428c6e25d7b2556df3930f8e25d315697`; their programs and Build files are
+unchanged and match the mirrors executed by the integrated compiler. The
+original sample pair also exercises the current CLI review and execution path.
+
+Earlier support records retain their actual observations: shared partial-case
+cleanup, qualified bytes, outer references and write-only arrays from
+[run 41515819925](https://github.com/CathedralOS/Omega/actions/runs/41515819925),
+and exclusive byte-field cleanup from
+[run 41520174252](https://github.com/CathedralOS/Omega/actions/runs/41520174252).
+The canonical files contain 37 source records and 19 execution agreements for
+this change, including these retained controls. Earlier Terminal declines are
+historical failures superseded by the repaired observations; result-shadowing
+controls retain their separate source observations.
 
 The original program, Build files and guard-only twin remain unchanged from
 `10fba736d8eb1ed0de892a360d8fb6dba4882599`. The initial baseline refused five
