@@ -1,2 +1,2 @@
-requires 7 <= `limit`
-closes `limit` to 6
+scalar predicate is false
+requires contract for call bounded

@@ -102,6 +102,49 @@ pub(crate) enum CallerWriteSite<'query> {
     Transition(typed_trees::statement::TransitionTargetHandle),
 }
 
+impl<'query> CallerWriteSite<'query> {
+    /// Keep the actual call when reading its checked arguments and contract.
+    /// The method declaration alone cannot identify the supplied arguments.
+    pub(super) fn as_call_site(
+        self,
+        program: &'query dyn CheckingInput,
+    ) -> Option<crate::CallSite<'query>> {
+        match self {
+            Self::Call(call) => Some(crate::CallSite::Statement(call)),
+            Self::Statement(statement) => statement.as_call().map(crate::CallSite::Statement),
+            Self::Expression(expression) => Some(crate::CallSite::Expression {
+                expression,
+                call: expression_table(program).call_node(expression)?,
+            }),
+            Self::Transition(target) => match program.statement_table.transition_target(target) {
+                typed_trees::statement::TransitionTargetNode::Named {
+                    path,
+                    static_machine_parameter,
+                    arguments,
+                    evidence_arguments,
+                    source_span,
+                    authored_call_selection,
+                    ..
+                } => Some(crate::CallSite::TransitionNamed {
+                    path,
+                    static_machine_parameter: *static_machine_parameter,
+                    arguments: *arguments,
+                    evidence_arguments,
+                    source_span: *source_span,
+                    authored_call_selection: *authored_call_selection,
+                }),
+                typed_trees::statement::TransitionTargetNode::Value(expression) => {
+                    Some(crate::CallSite::Expression {
+                        expression: *expression,
+                        call: expression_table(program).call_node(*expression)?,
+                    })
+                }
+                typed_trees::statement::TransitionTargetNode::Terminal => None,
+            },
+        }
+    }
+}
+
 /// Transient caller-prefix inventory for projecting local references into
 /// another place representation. Unknown sources remain explicit rows: the
 /// consumer first selects overlapping leaves, then requires their sources.

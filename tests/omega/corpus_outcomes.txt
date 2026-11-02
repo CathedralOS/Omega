@@ -2430,6 +2430,24 @@ fail/facts/projection_receiver_call_through_target_body_rejected rejected 1442ms
 	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
 	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
 	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
+fail/facts/provider_contract_endpoint_closed_owner_through_call_result_rejected rejected 3041ms expected @390bdce3859c
+	constant checking: scalar predicate is false: requires contract for call bounded from produce state entry statement 0
+fail/facts/provider_contract_endpoint_closed_owner_through_const_name_rejected rejected 3048ms expected @390bdce3859c
+	constant checking: scalar predicate is false: requires contract for call bounded from main state entry statement 0
+fail/facts/provider_contract_endpoint_closed_owner_through_field_rejected rejected 3063ms expected @390bdce3859c
+	constant checking: scalar predicate is false: requires contract for call bounded from main state entry statement 0
+fail/facts/provider_contract_endpoint_closed_owner_through_local_rejected rejected 3051ms expected @390bdce3859c
+	constant checking: scalar predicate is false: requires contract for call bounded from main state entry statement 0
+fail/facts/provider_contract_endpoint_closed_owner_through_match_join_rejected rejected 3066ms expected @390bdce3859c
+	constant checking: scalar predicate is false: requires contract for call bounded from choose state entry statement 0
+fail/facts/provider_contract_endpoint_closed_owner_through_other_machine_rejected rejected 3044ms expected @390bdce3859c
+	constant checking: scalar predicate is false: requires contract for call bounded from main state entry statement 0
+fail/facts/provider_contract_endpoint_closed_owner_through_other_state_rejected rejected 3054ms expected @390bdce3859c
+	constant checking: scalar predicate is false: requires contract for call bounded from main state entry statement 0
+fail/facts/provider_contract_endpoint_closed_owner_through_parameter_rejected rejected 3038ms expected @390bdce3859c
+	constant checking: scalar predicate is false: requires contract for call bounded from main state entry statement 0
+fail/facts/provider_contract_endpoint_closed_owner_through_target_body_rejected rejected 3087ms expected @390bdce3859c
+	constant checking: scalar predicate is false: requires contract for call bounded from main state entry statement 0
 fail/facts/recast_parent_restoration_argument_snapshot_rejected rejected 710ms expected @0a3a759c64e3
 	machine `inspect` cannot lend restricted field `start` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
 fail/facts/recast_parent_restoration_case_backing_overlap_rejected rejected 3289ms expected @8fce926f9735
@@ -2950,6 +2968,18 @@ fail/float/constructor_case_invalid_wide_rejected rejected 3115ms expected @5de7
 	data `Choice` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/generics/closed_requirement_in_generic_body_unproved_bound rejected 2491ms expected @2484aa7758a9+wt
 	static application of requirement `Echo::echo` violates its declared requires facts: the complete tuple is structurally false
+fail/generics/closed_requirement_in_generic_owner_false_bound rejected 492ms expected @390bdce3859c
+	static application of requirement `Reading::read` violates its declared requires facts: the complete tuple is structurally false
+	static application of requirement `Reading::read` violates its declared requires facts: the complete tuple is structurally false
+	static application of requirement `Reading::read` violates its declared requires facts: the complete tuple is structurally false
+fail/generics/closed_requirement_in_generic_owner_wrong_carrier rejected 491ms expected @390bdce3859c
+	const parameter `Count` of `read` requires `u64`, but its literal already landed as `i32`
+	const parameter `Count` of `read` requires `u64`, but its literal already landed as `i32`
+	const parameter `Count` of `read` requires `u64`, but its literal already landed as `i32`
+fail/generics/closed_requirement_mutable_argument_stale_entry rejected 2331ms expected @390bdce3859c
+	cannot prove ensures contract for exit from outer at statement 1: result == 0
+	cannot prove ensures contract for exit from outer$specialized$4f3454c5bd401992$0$2660 at statement 1: result == 0
+	cannot prove ensures contract for exit from outer$specialized$cbd1d4ab3c1a1f21$1$2663 at statement 1: result == 0
 fail/generics/constructor_inferred_byte_domain_unproved rejected 2858ms expected @b852a38544d0
 	cannot prove default-domain field requirement for call consume from program::entry: parameter value.bytes[0] requires u8::Small
 	cannot prove default-domain field requirement for call consume from program::entry: parameter value.bytes[1] requires u8::Small
@@ -9908,27 +9938,32 @@ pass/facts/projection_receiver_call_through_other_machine_exit checked 2752ms ch
 pass/facts/projection_receiver_call_through_other_state_exit checked 2238ms check-target:macos_arm64 @73c70115c79e+wt
 pass/facts/projection_receiver_call_through_parameter_exit checked 2424ms check-target:macos_arm64 @73c70115c79e+wt
 pass/facts/projection_receiver_call_through_target_body_exit checked 2800ms check-target:macos_arm64 @73c70115c79e+wt
+pass/facts/provider_contract_endpoint_closed_owner_through_call_result_exit checked 3689ms check-target:macos_arm64 @390bdce3859c
+pass/facts/provider_contract_endpoint_closed_owner_through_const_name_exit checked 3413ms check-target:macos_arm64 @390bdce3859c
+pass/facts/provider_contract_endpoint_closed_owner_through_field_exit checked 3399ms check-target:macos_arm64 @390bdce3859c
+pass/facts/provider_contract_endpoint_closed_owner_through_local_exit checked 3425ms check-target:macos_arm64 @390bdce3859c
+pass/facts/provider_contract_endpoint_closed_owner_through_match_join_exit checked 3500ms check-target:macos_arm64 @390bdce3859c
+pass/facts/provider_contract_endpoint_closed_owner_through_other_machine_exit checked 3420ms check-target:macos_arm64 @390bdce3859c
+pass/facts/provider_contract_endpoint_closed_owner_through_other_state_exit checked 3384ms check-target:macos_arm64 @390bdce3859c
+pass/facts/provider_contract_endpoint_closed_owner_through_parameter_exit checked 3396ms check-target:macos_arm64 @390bdce3859c
+pass/facts/provider_contract_endpoint_closed_owner_through_target_body_exit checked 3430ms check-target:macos_arm64 @390bdce3859c
 pass/facts/provider_contract_endpoint_control_composed_endpoint checked 4993ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/provider_contract_endpoint_control_computed_composition_mode checked 4345ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/provider_contract_endpoint_control_dormant_target_endpoint_positive checked 3972ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/provider_contract_endpoint_control_field_snapshot_before_sibling_write rejected 5465ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @911f6617ba9e
-	terminal-artifact production failed: Lowering(UnpublishedScalarCondition { owner: Handle { arena_index: 1388, generation: 1 }, expression: Handle { arena_index: 982, generation: 1 }, reason: "UnpublishedScalarCondition { owner: Handle { arena_index: 1388, generation: 1 }, expression: Handle { arena_index: 981, generation: 1 }, reason: \\"pending constant expression has no retained complete evaluation entry in `main`; retained contexts: Holder (entry Handle { arena_index: 2659, generation: 1 })\\" }" })
-pass/facts/provider_contract_endpoint_control_forwarded_provider_selection checked 4463ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/provider_contract_endpoint_control_generic_forwarded_provider_selection checked 5423ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/provider_contract_endpoint_control_indirect_helper checked 3541ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/provider_contract_endpoint_control_unrelated_pending_target_contract rejected 4871ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	constant checking: retained scalar completion has no target application
-pass/facts/provider_contract_endpoint_through_call_result_exit checked 4265ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/provider_contract_endpoint_through_const_name_exit checked 4648ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/provider_contract_endpoint_through_field_exit rejected 5281ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @911f6617ba9e
-	terminal-artifact production failed: Lowering(UnpublishedScalarCondition { owner: Handle { arena_index: 1386, generation: 1 }, expression: Handle { arena_index: 982, generation: 1 }, reason: "UnpublishedScalarCondition { owner: Handle { arena_index: 1386, generation: 1 }, expression: Handle { arena_index: 981, generation: 1 }, reason: \\"pending constant expression has no retained complete evaluation entry in `main`; retained contexts: Holder (entry Handle { arena_index: 2655, generation: 1 })\\" }" })
-pass/facts/provider_contract_endpoint_through_local_exit checked 4466ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/provider_contract_endpoint_through_match_join_exit checked 4053ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/provider_contract_endpoint_through_other_machine_exit checked 4221ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/provider_contract_endpoint_through_other_state_exit checked 4436ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/provider_contract_endpoint_through_parameter_exit checked 4647ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/provider_contract_endpoint_through_target_body_exit rejected 3714ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	constant checking: retained scalar completion has no target application
+pass/facts/provider_contract_endpoint_control_computed_composition_mode checked 3449ms check-target:macos_arm64 @390bdce3859c
+pass/facts/provider_contract_endpoint_control_dormant_target_endpoint_positive checked 3256ms check-target:macos_arm64 @390bdce3859c
+pass/facts/provider_contract_endpoint_control_field_snapshot_before_sibling_write checked 3282ms check-target:macos_arm64 @390bdce3859c
+pass/facts/provider_contract_endpoint_control_forwarded_provider_selection checked 3245ms check-target:macos_arm64 @390bdce3859c
+pass/facts/provider_contract_endpoint_control_generic_forwarded_provider_selection checked 3418ms check-target:macos_arm64 @390bdce3859c
+pass/facts/provider_contract_endpoint_control_indirect_helper checked 3239ms check-target:macos_arm64 @390bdce3859c
+pass/facts/provider_contract_endpoint_control_unrelated_pending_target_contract checked 3305ms check-target:macos_arm64 @8c239a425808
+pass/facts/provider_contract_endpoint_through_call_result_exit checked 3250ms check-target:macos_arm64 @390bdce3859c
+pass/facts/provider_contract_endpoint_through_const_name_exit checked 3274ms check-target:macos_arm64 @390bdce3859c
+pass/facts/provider_contract_endpoint_through_field_exit checked 3306ms check-target:macos_arm64 @390bdce3859c
+pass/facts/provider_contract_endpoint_through_local_exit checked 3252ms check-target:macos_arm64 @390bdce3859c
+pass/facts/provider_contract_endpoint_through_match_join_exit checked 3281ms check-target:macos_arm64 @390bdce3859c
+pass/facts/provider_contract_endpoint_through_other_machine_exit checked 3247ms check-target:macos_arm64 @390bdce3859c
+pass/facts/provider_contract_endpoint_through_other_state_exit checked 3280ms check-target:macos_arm64 @390bdce3859c
+pass/facts/provider_contract_endpoint_through_parameter_exit checked 3276ms check-target:macos_arm64 @390bdce3859c
+pass/facts/provider_contract_endpoint_through_target_body_exit checked 3335ms check-target:macos_arm64 @390bdce3859c
 pass/facts/provider_descriptor_poststate_through_call_result_exit checked 7912ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/provider_descriptor_poststate_through_const_name_exit checked 8179ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/provider_descriptor_poststate_through_field_exit checked 7989ms check-target:macos_arm64 @911f6617ba9e
@@ -12340,7 +12375,7 @@ pass/generics/dependent_const_array_carrier checked 2375ms @ccdb99ca2214
 pass/generics/dependent_const_carrier_arguments checked 2386ms @ccdb99ca2214
 pass/generics/dependent_const_recursive_forwarding checked 2214ms @ccdb99ca2214
 pass/generics/erased_static_arguments_keep_lexical_scope_exit checked 5269ms check-target:macos_arm64 @911f6617ba9e
-pass/generics/folded_range_endpoint_selection_custody checked 80420ms check-target:macos_arm64 @911f6617ba9e
+pass/generics/folded_range_endpoint_selection_custody checked 26931ms check-target:macos_arm64 @390bdce3859c
 pass/generics/foreign_case_membership_dispatch_exit checked 9835ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/foreign_case_payload_reads_exit checked 11738ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/forwarded_slice_result_local_receipt checked 2744ms @ccdb99ca2214
@@ -12444,7 +12479,10 @@ pass/generics/runtime_case_qualified_reference_storage_exit rejected 2923ms chec
 	machine `joined` state `entry` statement 5: cannot prove selected case for payload access `__transition_subject#329.target`: captured source `selection::Right.target` has no live case evidence
 	machine `joined` state `entry` statement 5: cannot prove selected case for payload access `__transition_subject#329.target.value`: captured source `selection::Right.target.value` has no live case evidence
 pass/generics/runtime_closed_case_array_payload_exit checked 3375ms check-target:macos_arm64 @ccdb99ca2214
+pass/generics/runtime_closed_requirement_in_captured_owner_exit checked 3318ms check-target:macos_arm64 @390bdce3859c
 pass/generics/runtime_closed_requirement_in_generic_body_exit checked 5269ms check-target:macos_arm64 @2484aa7758a9+wt
+pass/generics/runtime_closed_requirement_in_generic_owner_exit checked 3162ms check-target:macos_arm64 @390bdce3859c
+pass/generics/runtime_closed_requirement_mutable_argument_exit checked 3306ms check-target:macos_arm64 @390bdce3859c
 pass/generics/runtime_closed_scalar_and_record_const_fields_exit checked 56028ms check-target:macos_arm64 @911f6617ba9e
 pass/generics/runtime_computed_closed_call_identity_exit checked 7364ms check-target:macos_arm64 @911f6617ba9e
 pass/generics/runtime_computed_closed_identity_exit checked 7825ms check-target:macos_arm64 @911f6617ba9e
@@ -27846,47 +27884,47 @@ fail/facts/projection_call_premise_through_target_body_rejected rejected 2964ms 
 	cannot prove requires contract for call project from observe: mark.kept (needs fact `mark.kept` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call project from observe: mark.kept (needs fact `mark.kept` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call project from observe: mark.kept (needs fact `mark.kept` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/provider_contract_endpoint_control_circular_endpoint_formation checked 4135ms @ccdb99ca2214
-fail/facts/provider_contract_endpoint_control_crashing_endpoint rejected 4414ms unexpected @ccdb99ca2214
-	constant checking: scalar evaluation did not return a normal scalar: Crashed(TerminalCrash { site: Edge(EdgeId(6)), cause: Trap, site_guard: [], frontier_lower_bound: [] })
-fail/facts/provider_contract_endpoint_control_direct_provider_protocol rejected 445ms expected @ccdb99ca2214
+fail/facts/provider_contract_endpoint_control_circular_endpoint_formation checked 3259ms @390bdce3859c
+fail/facts/provider_contract_endpoint_control_crashing_endpoint incomplete 2632ms unexpected @390bdce3859c
+	`@constant-expression-1` has no executable body: this compiler does not lower a state of it yet (statement sequence: call count agreement); in state `@constant-expression-1::@constant-expression-1`
+fail/facts/provider_contract_endpoint_control_direct_provider_protocol rejected 116ms expected @390bdce3859c
 	Build binding protocol requires source-issued designated product operands
-fail/facts/provider_contract_endpoint_control_dormant_target_endpoint_rejected rejected 4281ms unexpected @ccdb99ca2214
+fail/facts/provider_contract_endpoint_control_dormant_target_endpoint_rejected rejected 2760ms expected @8c239a425808
 	constant checking: scalar predicate is false: requires contract for call bounded from dormant_demand state entry statement 0
-fail/facts/provider_contract_endpoint_control_false_result_guarantee rejected 3842ms unexpected @ccdb99ca2214
+fail/facts/provider_contract_endpoint_control_false_result_guarantee rejected 2779ms expected @8c239a425808
 	constant checking: scalar range condition 1: bounds [1, 1] lie outside [-18446744073709551615, 0]
-fail/facts/provider_contract_endpoint_control_field_false_conjunct rejected 2013ms expected @911f6617ba9e
+fail/facts/provider_contract_endpoint_control_field_false_conjunct rejected 728ms expected @390bdce3859c
 	data `Holder` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-fail/facts/provider_contract_endpoint_control_field_snapshot_after_sibling_write rejected 2381ms expected @911f6617ba9e
+fail/facts/provider_contract_endpoint_control_field_snapshot_after_sibling_write rejected 726ms expected @390bdce3859c
 	exact arithmetic in machine `main` state `entry` local `difference` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/provider_contract_endpoint_control_machine_contract_self_forbidden rejected 304ms expected @ccdb99ca2214
 	tests/omega/fail/facts/provider_contract_endpoint_control_machine_contract_self_forbidden/main.omg:13:10: implicit `self` is retired; name the explicit parameter or domain subject
-fail/facts/provider_contract_endpoint_control_mutated_scalar_return rejected 4376ms unexpected @ccdb99ca2214
+fail/facts/provider_contract_endpoint_control_mutated_scalar_return rejected 2785ms expected @8c239a425808
 	constant checking: scalar range condition 1: bounds [1, 1] lie outside [-18446744073709551615, 0]
-fail/facts/provider_contract_endpoint_control_nested_self_forbidden rejected 526ms expected @ccdb99ca2214
+fail/facts/provider_contract_endpoint_control_nested_self_forbidden rejected 136ms expected @390bdce3859c
 	tests/omega/fail/facts/provider_contract_endpoint_control_nested_self_forbidden/main.omg:23:41: implicit `self` is retired; name the explicit parameter or domain subject
-fail/facts/provider_contract_endpoint_control_public_header_private_endpoint rejected 1702ms expected @ccdb99ca2214
+fail/facts/provider_contract_endpoint_control_public_header_private_endpoint rejected 718ms expected @390bdce3859c
 	public interface selects private machine `limit::entry`
 	public interface selects private machine `limit::entry`
-fail/facts/provider_contract_endpoint_control_runtime_self_forbidden rejected 543ms expected @ccdb99ca2214
+fail/facts/provider_contract_endpoint_control_runtime_self_forbidden rejected 136ms expected @390bdce3859c
 	tests/omega/fail/facts/provider_contract_endpoint_control_runtime_self_forbidden/main.omg:17:22: implicit `self` is retired; name the explicit parameter or domain subject
-fail/facts/provider_contract_endpoint_through_call_result_rejected rejected 3769ms unexpected @ccdb99ca2214
+fail/facts/provider_contract_endpoint_through_call_result_rejected rejected 2928ms expected @390bdce3859c
 	constant checking: scalar predicate is false: requires contract for call bounded from produce state entry statement 0
-fail/facts/provider_contract_endpoint_through_const_name_rejected rejected 4339ms unexpected @ccdb99ca2214
+fail/facts/provider_contract_endpoint_through_const_name_rejected rejected 2934ms expected @390bdce3859c
 	constant checking: scalar predicate is false: requires contract for call bounded from main state entry statement 0
-fail/facts/provider_contract_endpoint_through_field_rejected rejected 6040ms unexpected @911f6617ba9e
-	terminal-artifact production failed: Lowering(UnpublishedScalarCondition { owner: Handle { arena_index: 1386, generation: 1 }, expression: Handle { arena_index: 982, generation: 1 }, reason: "UnpublishedScalarCondition { owner: Handle { arena_index: 1386, generation: 1 }, expression: Handle { arena_index: 981, generation: 1 }, reason: \\"pending constant expression has no retained complete evaluation entry in `main`; retained contexts: Holder (entry Handle { arena_index: 2655, generation: 1 })\\" }" })
-fail/facts/provider_contract_endpoint_through_local_rejected rejected 4655ms unexpected @ccdb99ca2214
+fail/facts/provider_contract_endpoint_through_field_rejected rejected 2926ms expected @390bdce3859c
 	constant checking: scalar predicate is false: requires contract for call bounded from main state entry statement 0
-fail/facts/provider_contract_endpoint_through_match_join_rejected rejected 4548ms unexpected @ccdb99ca2214
+fail/facts/provider_contract_endpoint_through_local_rejected rejected 2921ms expected @390bdce3859c
+	constant checking: scalar predicate is false: requires contract for call bounded from main state entry statement 0
+fail/facts/provider_contract_endpoint_through_match_join_rejected rejected 2957ms expected @390bdce3859c
 	constant checking: scalar predicate is false: requires contract for call bounded from choose state entry statement 0
-fail/facts/provider_contract_endpoint_through_other_machine_rejected rejected 4409ms unexpected @ccdb99ca2214
+fail/facts/provider_contract_endpoint_through_other_machine_rejected rejected 2934ms expected @390bdce3859c
 	constant checking: scalar predicate is false: requires contract for call bounded from main state entry statement 0
-fail/facts/provider_contract_endpoint_through_other_state_rejected rejected 4092ms unexpected @ccdb99ca2214
+fail/facts/provider_contract_endpoint_through_other_state_rejected rejected 2964ms expected @390bdce3859c
 	constant checking: scalar predicate is false: requires contract for call bounded from main state entry statement 0
-fail/facts/provider_contract_endpoint_through_parameter_rejected rejected 3561ms unexpected @ccdb99ca2214
+fail/facts/provider_contract_endpoint_through_parameter_rejected rejected 2977ms expected @390bdce3859c
 	constant checking: scalar predicate is false: requires contract for call bounded from main state entry statement 0
-fail/facts/provider_contract_endpoint_through_target_body_rejected rejected 4223ms unexpected @ccdb99ca2214
+fail/facts/provider_contract_endpoint_through_target_body_rejected rejected 2982ms expected @390bdce3859c
 	constant checking: scalar predicate is false: requires contract for call bounded from main state entry statement 0
 fail/facts/provider_descriptor_poststate_through_call_result_rejected rejected 5401ms expected @911f6617ba9e
 	machine `main` state `entry` cannot prove runtime index subject equality at statement 7; an indexed value retains its captured index

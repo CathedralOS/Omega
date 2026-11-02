@@ -4,9 +4,12 @@ These controls belong to the same selected endpoint, captured bound and exact
 subtraction as the nine-place row. They challenge the prerequisites introduced
 by this repair rather than adding transport matrices.
 
-- `circular_endpoint_formation` refuses the invocation trying to establish its
-  own pending condition. `crashing_endpoint` refuses ordinary evaluation of a
-  crashing helper. Neither condition supplies its own formation evidence.
+- `circular_endpoint_formation` must reject a helper that uses its own pending
+  result to admit a call. It is currently wrongly accepted. `crashing_endpoint`
+  must reject a helper that can crash; it currently stops at an incomplete
+  lowering error. Neither is credited as enforcement of the intended obligation.
+  Both failures also occur with earlier compilers and remain open under the
+  owning scalar-range migration task.
 - `false_result_guarantee` and `mutated_scalar_return` reject an actual returned
   value outside the selected endpoint. The source-model test
   `identical_runtime_calls_do_not_identify_distinct_static_denotations` also
@@ -15,7 +18,8 @@ by this repair rather than adding transport matrices.
 - `field_snapshot_before_sibling_write` preserves the value captured before a
   sibling mutates its source. `field_snapshot_after_sibling_write` rejects the
   changed value; `field_false_conjunct` cannot discard another default-domain
-  requirement. The independent shared-handle source-model test keeps later
+  requirement. The positive also checks that the sibling call changed its
+  source to eight and left neighboring fields 31 and 47 untouched. The independent shared-handle source-model test keeps later
   scalar reevaluation distinct from an earlier captured child.
 - `dormant_target_endpoint_positive` checks the provider's authored target
   bodies. Its reject twin changes only the dormant Linux endpoint to 6 and

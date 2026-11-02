@@ -111,19 +111,10 @@ pub(crate) fn boundary_trait_signature<'program>(
     )
 }
 
-/// Statement-call validation's selection: the same exact receiver/target
-/// join as `boundary_trait_signature`, additionally admitting a requirement
-/// whose generic telescope is `machine` and `Type` binders. A `machine` binder
-/// is a compile-time selection, never a runtime formal: MP2b admits the call's
-/// static machine argument against its bound at this same call edge, and a
-/// `native callback name from Binder` destination takes its selection from
-/// that argument (private_callbacks.md, "Authored selection"). A `Type` binder
-/// is discharged by the call's own explicit operand, which may be a binder of
-/// the generic caller, or by its arguments; the caller substitutes it into the
-/// formals before comparing them, as an ordinary generic call does. The caller
-/// still validates result use and every runtime argument against the
-/// selected signature. Fact seeding (the monomorphic `boundary_trait_signature`)
-/// stays excluded: it must not read uninstantiated contracts.
+/// Validate arguments against the prepared contract for this exact boundary
+/// call. Generic selections keep their checked identities; ordinary validation
+/// still proves each argument and result. Importing contract facts remains a
+/// separate operation requiring a closed contract.
 pub(crate) fn boundary_trait_call_signature<'program>(
     program: &'program dyn crate::CheckingInput,
     current_machine: &Machine,
@@ -203,10 +194,7 @@ enum SignatureBinders {
     Monomorphic,
     /// Write analysis uses the call's saved type and constant arguments.
     AppliedStorageParameters,
-    /// Call validation admits the binders the call itself discharges: `machine`
-    /// binders, which no runtime argument supplies, and `Type` binders, which
-    /// its explicit operands or arguments pin (see
-    /// `boundary_trait_call_signature`).
+    /// Call validation uses the complete checked argument mapping.
     CallBinders,
 }
 
@@ -426,7 +414,7 @@ fn boundary_trait_signature_and_receiver_inner<'program>(
                     &receiver_scope,
                 )
             })
-        && binders != SignatureBinders::AppliedStorageParameters
+        && binders == SignatureBinders::Monomorphic
     {
         return None;
     }
@@ -439,6 +427,28 @@ fn boundary_trait_signature_and_receiver_inner<'program>(
     {
         return None;
     }
+    let signature = if binders == SignatureBinders::CallBinders {
+        // The checked call has already validated every generic argument kind.
+        // Read its prepared contract instead of maintaining a second list of
+        // allowed kinds that can disagree with ordinary call checking.
+        let call = site.as_call_site(program)?;
+        let (owner, applied) =
+            super::super::requirement_contract_signature(program, current_machine.symbol, &call)?;
+        if owner.symbol != trait_definition.symbol || applied.symbol != signature.symbol {
+            return None;
+        }
+        if !program.state_signature_type_parameters(applied).is_empty() {
+            let correspondence =
+                super::super::call_binding_correspondence(program, current_machine.symbol, &call)
+                    .ok()?;
+            if correspondence.public_owner != applied.symbol {
+                return None;
+            }
+        }
+        applied
+    } else {
+        signature
+    };
     let admitted_binder = |parameter: &typed_trees::data::TypeParameter| {
         parameter.symbol.is_valid()
             && match binders {
@@ -449,12 +459,7 @@ fn boundary_trait_signature_and_receiver_inner<'program>(
                         TypeParameterKind::Type | TypeParameterKind::Const { .. }
                     )
                 }
-                SignatureBinders::CallBinders => {
-                    matches!(
-                        parameter.kind,
-                        TypeParameterKind::Type | TypeParameterKind::Machine { .. }
-                    )
-                }
+                SignatureBinders::CallBinders => true,
             }
     };
     let exact_signature = program
