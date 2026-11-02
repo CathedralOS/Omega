@@ -16,7 +16,6 @@ use crate::expression_preparation::qualifications::received_scalar_type;
 use crate::scalar_lowering::branch_states::prepared::{
     LoweredScalarBranchState, LoweredScalarBranchTerminator, LoweredScalarEffect,
 };
-use crate::scalar_lowering::contracts::caller_erased_proof_roster;
 use crate::shared::checked_facts::{flow_facts, value_facts};
 use crate::shared::declarations::target_signature;
 use arena::HandleSpan;
@@ -692,7 +691,7 @@ impl Expansion<'_> {
                 structural_arguments,
                 claim_transfers,
                 self.structural_types,
-                caller_erased_proof_roster(self.checked, self.machine, site.state)?,
+                self.erased_proof_parameters,
                 loan_completions,
             )?)
         };
