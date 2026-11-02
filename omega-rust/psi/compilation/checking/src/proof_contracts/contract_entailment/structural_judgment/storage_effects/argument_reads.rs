@@ -15,6 +15,11 @@ impl StructuralJudge<'_> {
         path: &[facts::PlaceSegment],
         selector: impl FnMut(ExpressionHandle) -> Option<StructuralTerm>,
     ) -> Result<StructuralTerm, &'static str> {
+        if !crate::reference_shell(self.program, subject.parameter_type)
+            .is_some_and(|shell| shell.access.is_readable())
+        {
+            return Err("the arriving reference does not permit content observation");
+        }
         let geometry = crate::structural_scalar_coordinate_in_type(
             self.program,
             facts::PlaceRoot::Symbol(subject.parameter),
@@ -47,11 +52,19 @@ impl StructuralJudge<'_> {
                     "the arriving rank source has no declaration-relative current-cell namespace",
                 );
             }
-            let mut coordinate: CapturedStorageCoordinate = self
-                .capture_storage_place(crate::CanonicalPlace {
+            let scalar = self
+                .program
+                .primitive_type_reference(subject.type_reference)
+                .and_then(|_| source.scalar_storage_coordinate(self.program, state));
+            let place = scalar
+                .as_ref()
+                .map(|scalar| scalar.place.clone())
+                .unwrap_or_else(|| crate::CanonicalPlace {
                     root: facts::PlaceRoot::Symbol(source.root),
                     segments: source.segments.clone(),
-                })
+                });
+            let mut coordinate: CapturedStorageCoordinate = self
+                .capture_storage_place(place)
                 .ok_or("the arriving rank reference lost its captured address selectors")?;
             if !coordinate.has_stable_backing(self.program, state, frames)
                 && self.storage_binding_invalidated(source.root)
@@ -62,6 +75,16 @@ impl StructuralJudge<'_> {
             let value = self
                 .current_storage_value(&coordinate)
                 .ok_or("the arriving rank reference has no current cell observation")?;
+            let value = match scalar {
+                Some(scalar) if !scalar.preserves_scalar_value => {
+                    super::super::super::structural_terms::normalize_scalar_representation(
+                        scalar.source_primitive,
+                        scalar.view_primitive,
+                        value,
+                    )
+                }
+                _ => value,
+            };
             if !super::super::super::structural_terms::scalar_operand_is_observed(
                 self.program,
                 geometry.result_type_reference,

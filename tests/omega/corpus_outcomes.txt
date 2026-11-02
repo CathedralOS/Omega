@@ -1829,33 +1829,37 @@ fail/facts/projection_receiver_call_through_target_body_rejected rejected 1442ms
 	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
 	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
 	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
+fail/facts/recast_parent_restoration_argument_snapshot_rejected rejected 710ms expected @0a3a759c64e3
+	machine `inspect` cannot lend restricted field `start` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
 fail/facts/recast_parent_restoration_case_backing_overlap_rejected rejected 3289ms expected @8fce926f9735
 	machine `inspect` cannot lend restricted field `start` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
 fail/facts/recast_parent_restoration_changed_end_rejected rejected 804ms expected @8fce926f9735
 	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)
+fail/facts/recast_parent_restoration_completion_order_rejected rejected 784ms expected @0a3a759c64e3
+	machine `inspect` cannot lend restricted field `start` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
 fail/facts/recast_parent_restoration_dirty_forward_rejected rejected 800ms expected @8fce926f9735
 	data `Pair`'s default domain is still FALSE at a call: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)
 	machine `inspect` cannot lend restricted field `start` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
 fail/facts/recast_parent_restoration_forwarding_marker_rejected rejected 843ms expected @8fce926f9735
 	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)
-fail/facts/recast_parent_restoration_through_call_result_rejected rejected 827ms expected @8fce926f9735
-	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)
-fail/facts/recast_parent_restoration_through_const_name_rejected rejected 951ms expected @8fce926f9735
-	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)
-fail/facts/recast_parent_restoration_through_field_rejected rejected 1081ms expected @8fce926f9735
-	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)
-fail/facts/recast_parent_restoration_through_local_rejected rejected 1060ms expected @8fce926f9735
-	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)
-fail/facts/recast_parent_restoration_through_match_join_rejected rejected 848ms expected @8fce926f9735
-	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)
-fail/facts/recast_parent_restoration_through_other_machine_rejected rejected 858ms expected @8fce926f9735
-	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)
-fail/facts/recast_parent_restoration_through_other_state_rejected rejected 1310ms expected @8fce926f9735
-	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)
-fail/facts/recast_parent_restoration_through_parameter_rejected rejected 1155ms expected @8fce926f9735
-	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)
-fail/facts/recast_parent_restoration_through_target_body_rejected rejected 1209ms expected @8fce926f9735
-	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)
+fail/facts/recast_parent_restoration_through_call_result_rejected rejected 802ms expected @0a3a759c64e3
+	machine `inspect` cannot lend restricted field `start` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
+fail/facts/recast_parent_restoration_through_const_name_rejected rejected 955ms expected @0a3a759c64e3
+	machine `inspect` cannot lend restricted field `start` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
+fail/facts/recast_parent_restoration_through_field_rejected rejected 1816ms expected @0a3a759c64e3
+	machine `inspect` cannot lend restricted field `start` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
+fail/facts/recast_parent_restoration_through_local_rejected rejected 1674ms expected @0a3a759c64e3
+	machine `inspect` cannot lend restricted field `start` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
+fail/facts/recast_parent_restoration_through_match_join_rejected rejected 1387ms expected @0a3a759c64e3
+	machine `inspect` cannot lend restricted field `start` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
+fail/facts/recast_parent_restoration_through_other_machine_rejected rejected 986ms expected @0a3a759c64e3
+	machine `inspect` cannot lend restricted field `start` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
+fail/facts/recast_parent_restoration_through_other_state_rejected rejected 889ms expected @0a3a759c64e3
+	machine `inspect` cannot lend restricted field `start` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
+fail/facts/recast_parent_restoration_through_parameter_rejected rejected 869ms expected @0a3a759c64e3
+	machine `inspect` cannot lend restricted field `start` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
+fail/facts/recast_parent_restoration_through_target_body_rejected rejected 1542ms expected @0a3a759c64e3
+	machine `inspect` cannot lend restricted field `start` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
 fail/facts/recast_parent_restoration_unrestored_rejected rejected 917ms expected @8fce926f9735
 	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)
 fail/facts/recorded_build_role/call_result rejected 7895ms expected @1a41b8e686ed
@@ -8969,19 +8973,21 @@ pass/facts/readonly_byte_pool_relocation_bound_through_other_machine_exit checke
 pass/facts/readonly_byte_pool_relocation_bound_through_other_state_exit checked 3783ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/readonly_byte_pool_relocation_bound_through_parameter_exit checked 3869ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/readonly_byte_pool_relocation_bound_through_target_body_exit checked 2964ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/recast_parent_restoration_argument_snapshot_exit checked 6224ms check-target:macos_arm64 @0a3a759c64e3
 pass/facts/recast_parent_restoration_case_backing_exit checked 6412ms check-target:macos_arm64 @8fce926f9735
 pass/facts/recast_parent_restoration_case_backing_nonmutating_exit checked 6356ms check-target:macos_arm64 @8fce926f9735
+pass/facts/recast_parent_restoration_completion_order_exit checked 6263ms check-target:macos_arm64 @0a3a759c64e3
 pass/facts/recast_parent_restoration_forwarding_marker_exit checked 6178ms check-target:macos_arm64 @8fce926f9735
 pass/facts/recast_parent_restoration_preserved_end_exit checked 5639ms check-target:macos_arm64 @8fce926f9735
-pass/facts/recast_parent_restoration_through_call_result_exit checked 4929ms check-target:macos_arm64 @8fce926f9735
-pass/facts/recast_parent_restoration_through_const_name_exit checked 4674ms check-target:macos_arm64 @8fce926f9735
-pass/facts/recast_parent_restoration_through_field_exit checked 4643ms check-target:macos_arm64 @8fce926f9735
-pass/facts/recast_parent_restoration_through_local_exit checked 3727ms check-target:macos_arm64 @8fce926f9735
-pass/facts/recast_parent_restoration_through_match_join_exit checked 4203ms check-target:macos_arm64 @8fce926f9735
-pass/facts/recast_parent_restoration_through_other_machine_exit checked 10348ms check-target:macos_arm64 @8fce926f9735
-pass/facts/recast_parent_restoration_through_other_state_exit checked 5404ms check-target:macos_arm64 @8fce926f9735
-pass/facts/recast_parent_restoration_through_parameter_exit checked 10246ms check-target:macos_arm64 @8fce926f9735
-pass/facts/recast_parent_restoration_through_target_body_exit checked 10326ms check-target:macos_arm64 @8fce926f9735
+pass/facts/recast_parent_restoration_through_call_result_exit checked 4914ms check-target:macos_arm64 @0a3a759c64e3
+pass/facts/recast_parent_restoration_through_const_name_exit checked 7749ms check-target:macos_arm64 @0a3a759c64e3
+pass/facts/recast_parent_restoration_through_field_exit checked 3988ms check-target:macos_arm64 @0a3a759c64e3
+pass/facts/recast_parent_restoration_through_local_exit checked 5615ms check-target:macos_arm64 @0a3a759c64e3
+pass/facts/recast_parent_restoration_through_match_join_exit checked 5464ms check-target:macos_arm64 @0a3a759c64e3
+pass/facts/recast_parent_restoration_through_other_machine_exit checked 4077ms check-target:macos_arm64 @0a3a759c64e3
+pass/facts/recast_parent_restoration_through_other_state_exit checked 5097ms check-target:macos_arm64 @0a3a759c64e3
+pass/facts/recast_parent_restoration_through_parameter_exit checked 4876ms check-target:macos_arm64 @0a3a759c64e3
+pass/facts/recast_parent_restoration_through_target_body_exit checked 4926ms check-target:macos_arm64 @0a3a759c64e3
 pass/facts/record_layout_geometry_through_call_result_exit checked 3578ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/record_layout_geometry_through_const_name_exit checked 4172ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/record_layout_geometry_through_field_exit checked 3172ms check-target:macos_arm64 @ccdb99ca2214

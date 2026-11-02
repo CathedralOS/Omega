@@ -223,6 +223,14 @@ pub(super) fn validate_state_statement_node<'p>(
     let diagnostic_mark = diagnostics.len();
     if let Some(state) = current_state {
         access_views::validate_statement(program, machine, state, statement, diagnostics);
+        crate::proof_contracts::contract_entailment::validate_scalar_loan_handbacks(
+            program,
+            machine,
+            state,
+            statement_index,
+            call_frames,
+            diagnostics,
+        );
     }
     let scope = StatementScope {
         program,

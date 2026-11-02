@@ -147,10 +147,10 @@ pub(super) fn report_argument_bounds(
     }
 }
 
-/// Judge all delivered scalar loans against one normal-return valuation.
-/// A sibling loan's guarantee replaces its old snapshot; the complete write
-/// frame fences every other possibly changed field before the predicate query.
-pub(super) fn report_referent_handbacks(
+/// Retain the retired bracketed field-range gate until suffix removal. Full
+/// data predicates belong to the normal-call storage transfer, not an interval
+/// envelope of the callee's scalar formal.
+pub(super) fn report_declared_referent_ranges(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: Option<&State>,
@@ -158,144 +158,57 @@ pub(super) fn report_referent_handbacks(
     arguments: &[ExpressionHandle],
     parameters: &[StateParameter],
     target_name: &str,
-    environment: &ValueEnvironment,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let Some(state) = state else {
         return;
     };
-    if !parameters.iter().any(|parameter| {
-        crate::reference_shell(program, parameter.type_reference).is_some_and(|shell| {
-            shell.access.is_exclusive() && program.primitive_type_reference(shell.referee).is_some()
-        })
-    }) {
-        return;
-    }
     let frames = crate::CallFrameResolver::new(program);
     let statement = program
         .statement_table
         .statements(state.statement_nodes)
         .get(prior_statements.len());
-    let delivered = arguments
-        .iter()
-        .zip(parameters)
-        .filter_map(|(argument, parameter)| {
-            let shell = crate::reference_shell(program, parameter.type_reference)?;
-            if !shell.access.is_exclusive()
-                || program.primitive_type_reference(shell.referee).is_none()
-            {
-                return None;
-            }
-            let returned = arithmetic_domains::normal_return_referent_interval(program, parameter);
-            let target = expression_table(program)
-                .borrow_expression(*argument)
-                .map_or(*argument, |borrow| borrow.target);
-            let mut place = crate::canonical_place_from_expression_in_state(
-                program,
-                state.symbol,
-                prior_statements.len(),
-                target,
-            )?;
-            if place.segments.is_empty()
-                && let Some(root) = place.root.as_symbol()
-                && let Some((frames, statement)) = frames.as_ref().zip(statement)
-                && let Some((root, segments)) =
-                    frames.local_reference_origin_before_statement(machine, statement, root)
-            {
-                place.root = facts::PlaceRoot::Symbol(root);
-                place.segments = segments;
-            }
-            Some((place, returned))
-        })
-        .collect::<Vec<_>>();
-    if delivered.is_empty() {
-        return;
-    }
-    let needs_relational_frame = delivered.iter().any(|(place, _)| {
-        let Some(facts::PlaceSegment::Field { symbol }) = place.segments.last() else {
-            return false;
+    for (argument, parameter) in arguments.iter().zip(parameters) {
+        let Some(shell) = crate::reference_shell(program, parameter.type_reference) else {
+            continue;
         };
-        program
-            .any_field_owner(*symbol)
-            .is_some_and(|(definition, field)| {
-                !crate::declarations::data_queries::data_field_is_where_independent(
-                    program, definition, field,
-                )
-            })
-    });
-    let written = needs_relational_frame
-        .then_some(())
-        .and(frames.as_ref())
-        .zip(statement)
-        .and_then(|(frames, statement)| match statement {
-            StatementNode::Call(call) => frames.may_write_paths(machine, call),
-            _ => frames
-                .statement_value_write_frame(machine, statement)
-                .into_complete_paths(),
-        });
-    let guarantees = delivered
-        .iter()
-        .filter_map(|(place, returned)| returned.map(|returned| (place.clone(), returned)))
-        .collect::<Vec<_>>();
-    for (place, returned) in delivered {
-        report_referent_handback(
+        if !shell.access.is_exclusive() || program.primitive_type_reference(shell.referee).is_none()
+        {
+            continue;
+        }
+        let target = expression_table(program)
+            .borrow_expression(*argument)
+            .map_or(*argument, |borrow| borrow.target);
+        let Some(mut place) = crate::canonical_place_from_expression_in_state(
             program,
-            machine,
-            state,
+            state.symbol,
             prior_statements.len(),
-            &place,
-            returned,
-            target_name,
-            environment,
-            &guarantees,
-            written.as_deref(),
-            diagnostics,
-        );
-    }
-}
-
-/// Lending a restricted scalar field keeps the parent's invariant at handback.
-/// Its ordinary carrier is not a new unrestricted owner. Use declaration-owned
-/// bounds and the selected callee's checked normal-return guarantees; neither
-/// an arrival precondition nor a lucky caller value promises the final value.
-fn report_referent_handback(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    state: &State,
-    statement_index: usize,
-    place: &crate::value_custody::places::CanonicalPlace,
-    returned: Option<Interval>,
-    target_name: &str,
-    environment: &ValueEnvironment,
-    guarantees: &[(crate::value_custody::places::CanonicalPlace, Interval)],
-    written: Option<&[String]>,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    let Some(facts::PlaceSegment::Field {
-        symbol: field_symbol,
-    }) = place.segments.last()
-    else {
-        return;
-    };
-    let field_symbol = *field_symbol;
-    let Some((definition, field)) = program.any_field_owner(field_symbol) else {
-        return;
-    };
-    let independent = crate::declarations::data_queries::data_field_is_where_independent(
-        program, definition, field,
-    );
-    let declared =
-        arithmetic_domains::enforced_declared_range_interval(program, field.type_reference);
-    let has_declared_range =
-        arithmetic_domains::declares_bracketed_range(program, field.type_reference);
-    if independent && !has_declared_range {
-        return;
-    }
-    // Legacy range shells remain store-enforced until their source migration.
-    // Ordinary data predicates owe their complete conjunction independently;
-    // a scalar envelope is only a necessary consequence of a coupled predicate.
-    let range_preserved = !has_declared_range
-        || declared.zip(returned).is_some_and(|(required, returned)| {
+            target,
+        ) else {
+            continue;
+        };
+        if place.segments.is_empty()
+            && let Some(root) = place.root.as_symbol()
+            && let Some((frames, statement)) = frames.as_ref().zip(statement)
+            && let Some((root, segments)) =
+                frames.local_reference_origin_before_statement(machine, statement, root)
+        {
+            place.root = facts::PlaceRoot::Symbol(root);
+            place.segments = segments;
+        }
+        let Some(facts::PlaceSegment::Field { symbol }) = place.segments.last() else {
+            continue;
+        };
+        let Some((_, field)) = program.any_field_owner(*symbol) else {
+            continue;
+        };
+        if !arithmetic_domains::declares_bracketed_range(program, field.type_reference) {
+            continue;
+        }
+        let declared =
+            arithmetic_domains::enforced_declared_range_interval(program, field.type_reference);
+        let returned = arithmetic_domains::normal_return_referent_interval(program, parameter);
+        let preserved = declared.zip(returned).is_some_and(|(required, returned)| {
             required
                 .low
                 .is_none_or(|minimum| returned.low.is_some_and(|value| value >= minimum))
@@ -303,35 +216,15 @@ fn report_referent_handback(
                     .high
                     .is_none_or(|maximum| returned.high.is_some_and(|value| value <= maximum))
         });
-    let predicate_preserved = independent
-        || written.is_some_and(|written| {
-            let mut parent = place.clone();
-            parent.segments.pop();
-            arithmetic_domains::referent_predicates_preserved(
-                program,
-                machine,
-                state,
-                statement_index,
-                definition,
-                &parent,
-                field_symbol,
-                guarantees,
-                environment,
-                written,
-            )
-        });
-    let preserved = range_preserved && predicate_preserved;
-    if !preserved {
-        diagnostics.push(Diagnostic::error(format!(
-            "machine `{}` cannot lend restricted field `{}` to `{target_name}`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate",
-            machine.name, field.name,
-        )));
+        if !preserved {
+            diagnostics.push(Diagnostic::error(format!(
+                "machine `{}` cannot lend restricted field `{}` to `{target_name}`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate",
+                machine.name, field.name,
+            )));
+        }
     }
 }
 
-/// A sealed accessor's payload is received by its exact schema field. The
-/// default data predicate constrains this delivery too; the opaque accessor
-/// carrier does not turn the owning field into an unrestricted scalar.
 fn report_accessor_scalar_write_predicate(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
