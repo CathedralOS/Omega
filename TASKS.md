@@ -836,8 +836,9 @@ helper that passes does not close an item.
     covers all nine places on Rust/Linux x86_64, Linux ARM64, Mac ARM64 and
     Windows x86_64 with rejection twins.
     The [typed interior-region prerequisite](samples/cli/facts/fixed_region_byte_roundtrip/README.md)
-    additionally carries byte views through fields, parameters and returned records
-    on Mac ARM64; its other five transport places and other-host observations remain open.
+    additionally covers all nine places with rejection twins, carrying typed
+    byte-view records and exact region endpoints. Remaining host observations
+    and product-producer support remain open.
     Complete broader reference composition and other-host
     execution for [typed stored-reference readback](samples/cli/facts/fixed_layout_reference_readback/README.md)
     and [implementation-region forwarding](samples/cli/facts/implementation_region_forwarding/README.md).
