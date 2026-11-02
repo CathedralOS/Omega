@@ -108,3 +108,24 @@ oracle are unchanged. The entry wrapper and each implementation check a tag
 Linux x86-64 native and Terminal Psi agreement for the positive and source
 rejection for the twin; the other hosted targets keep their authored rows,
 unexecuted here.
+
+## Invocation-only checked extent calls
+
+`private_calls/` carries the same extent1 and selected value3 through all nine
+places. Each Build first checks an array whose extent calls a contracted helper
+while the anonymous owner is still live. Product consumers also use contracted
+extent calls; the original constant/alias oracles and target tags remain.
+The match composition exercises both incoming arrays with distinct tags.
+Every bounds twin changes its original index0 to1. The extra `unproved_call`
+control supplies2 to the helper requiring1 and must refuse that call contract.
+
+At source59f19bdc35c182c090344b74666986394009007f, the exact Build extent probe
+refuses portable declaration identity for its temporary `@array-extent` machine
+before Build effects. Temporary checked constant code uses the existing
+invocation-only Terminal product; its live owner cannot become a portable
+artifact or native input. Only the checked value returns to source compilation.
+No package owner or execution grant is inferred from the private coordinate.
+
+Owning parent `PIPELINE-ARCHITECTURE-ENFORCEMENT` remains open. This producer
+purpose repair does not close checked dependency staging, source cohort counters,
+remaining architecture debt, or the borrowed Build-record shape discrepancy.
