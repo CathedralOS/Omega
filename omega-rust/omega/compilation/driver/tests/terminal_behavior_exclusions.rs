@@ -68,18 +68,17 @@ fn calling_policies_share_product_code_across_targets_and_single_target_outputs(
             .into_iter()
             .map(|outcome| {
                 let profile = outcome.target_profile().unwrap();
-                (
-                    profile,
-                    outcome
-                        .into_result()
-                        .expect("calling policy admits the target"),
-                )
+                (profile, outcome.into_result())
             })
             .collect::<Vec<_>>()
     };
     let source_checks = counters::product_source_check_count();
     let publications = counters::terminal_production_count();
-    let reports = compile(&profiles);
+    let builds = counters::build_execution_count();
+    let reports = compile(&profiles)
+        .into_iter()
+        .map(|(profile, result)| (profile, result.expect("calling policy admits the target")))
+        .collect::<Vec<_>>();
     assert_eq!(
         counters::product_source_check_count() - source_checks,
         1,
@@ -89,6 +88,11 @@ fn calling_policies_share_product_code_across_targets_and_single_target_outputs(
         counters::terminal_production_count() - publications,
         1,
         "policy activation must not compile a second code catalog"
+    );
+    assert_eq!(
+        counters::build_execution_count() - builds,
+        1,
+        "target selection must not replay Build effects"
     );
     assert_eq!(reports.len(), 2);
     let first = reports[0]
@@ -105,10 +109,66 @@ fn calling_policies_share_product_code_across_targets_and_single_target_outputs(
         std::ptr::eq(first, second),
         "targets borrow the same published artifact, not equal copies"
     );
+
+    // The same authored Build has no UEFI entry. Put that target first so its
+    // realization refusal cannot silently abort the later supported target.
+    let uefi = target::TargetProfile::from_omega_target_name(Some("uefi_x86_64")).unwrap();
+    let source_checks = counters::product_source_check_count();
+    let publications = counters::terminal_production_count();
+    let builds = counters::build_execution_count();
+    let mut mixed = compile(&[uefi, profiles[0]]).into_iter();
+    assert_eq!(
+        counters::product_source_check_count() - source_checks,
+        1,
+        "a refused target cannot restart the shared source judgment"
+    );
+    assert_eq!(
+        counters::terminal_production_count() - publications,
+        1,
+        "the surviving target publishes code once"
+    );
+    assert_eq!(
+        counters::build_execution_count() - builds,
+        1,
+        "a refused target cannot replay Build effects"
+    );
+    let (profile, failed) = mixed.next().expect("first target outcome");
+    assert_eq!(profile, uefi);
+    let diagnostics = match failed {
+        Ok(_) => panic!("the fixture has no authored UEFI root binding"),
+        Err(diagnostics) => diagnostics,
+    };
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("selected target `uefi_x86_64` has no bound required root slot")),
+        "the refused target must reach its missing entry obligation: {diagnostics:?}"
+    );
+    let (profile, survived) = mixed.next().expect("later supported target outcome");
+    assert_eq!(profile, profiles[0]);
+    let survived = survived.expect("earlier target failure must not poison this target");
+    assert!(mixed.next().is_none(), "one outcome per requested target");
+    assert_eq!(
+        survived
+            .retained_native_artifact()
+            .unwrap()
+            .image()
+            .output()
+            .bytes,
+        reports[0]
+            .1
+            .retained_native_artifact()
+            .unwrap()
+            .image()
+            .output()
+            .bytes,
+        "a failed sibling must not change the supported target's bytes"
+    );
     for (profile, report) in reports {
         let mut single = compile(&[profile]);
         assert_eq!(single.len(), 1);
         let (_, single) = single.pop().unwrap();
+        let single = single.expect("single-target policy execution");
         let actual = report.retained_native_artifact().unwrap();
         let expected = single.retained_native_artifact().unwrap();
         assert_eq!(
