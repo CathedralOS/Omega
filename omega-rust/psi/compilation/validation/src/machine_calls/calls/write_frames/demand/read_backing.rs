@@ -32,7 +32,9 @@ impl CallFrameResolver<'_> {
             .read_backing(self.program, path)
     }
 
-    /// Exact address retained by an observed reference value. Immutable names
+    /// Complete supplier frontier retained by an observed reference value. Its
+    /// coarse mutation footprints are not equations with any one supplier.
+    /// Immutable names
     /// and saved subjects select their authenticated production cut, even when
     /// normalization reuses their syntax in several later statements. Neither
     /// mutable selectors nor subsequently loaded pointers are replayed there.
