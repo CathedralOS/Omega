@@ -10037,6 +10037,7 @@ pass/facts/resident_backing_other_state_exit checked 9185ms check-target:macos_a
 pass/facts/resident_backing_parameter_exit checked 9413ms check-target:macos_arm64 @b3876048c0a2
 pass/facts/resident_backing_plain_ram_exit checked 7289ms check-target:macos_arm64 @c6b8285077a8+wt
 pass/facts/resident_backing_runtime_cells_exit checked 10759ms check-target:macos_arm64 @c6b8285077a8+wt
+pass/facts/resident_backing_runtime_loop_exit checked 20840ms check-target:macos_arm64 @6fe30d215f49
 pass/facts/resident_backing_target_body_exit checked 9694ms check-target:macos_arm64 @b3876048c0a2
 pass/facts/result_cleanup_guarantees_through_call_result_exit checked 4216ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/result_cleanup_guarantees_through_const_name_exit checked 3199ms check-target:macos_arm64 @ccdb99ca2214
