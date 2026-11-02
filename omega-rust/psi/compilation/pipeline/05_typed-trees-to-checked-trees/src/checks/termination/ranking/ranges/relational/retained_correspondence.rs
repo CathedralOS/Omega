@@ -241,6 +241,9 @@ impl RankArrivalAdmission {
                     calls: plan
                         .application_calls
                         .insert_many(application.calls().iter().copied()),
+                    dispatches: plan
+                        .application_dispatches
+                        .insert_many(application.dispatches().iter().copied()),
                 },
                 None => Default::default(),
             };

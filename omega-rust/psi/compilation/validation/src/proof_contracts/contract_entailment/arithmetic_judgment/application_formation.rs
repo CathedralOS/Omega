@@ -11,6 +11,7 @@ mod dispatch;
 struct ApplicationDecisions {
     casts: Vec<crate::ExactIntegerCastFact>,
     calls: Vec<checked_trees::CheckedDeclarationCall>,
+    dispatches: Vec<checked_trees::CheckedDeclarationDispatchArm>,
 }
 use crate::frozen_program::expression_table;
 use numerics::arithmetic::ArithmeticDomain;
@@ -26,6 +27,7 @@ pub struct IntegerApplicationFormation {
     body: ExpressionHandle,
     casts: Vec<crate::ExactIntegerCastFact>,
     calls: Vec<checked_trees::CheckedDeclarationCall>,
+    dispatches: Vec<checked_trees::CheckedDeclarationDispatchArm>,
 }
 
 impl IntegerApplicationFormation {
@@ -45,6 +47,10 @@ impl IntegerApplicationFormation {
         &self.calls
     }
 
+    pub fn dispatches(&self) -> &[checked_trees::CheckedDeclarationDispatchArm] {
+        &self.dispatches
+    }
+
     /// Rehydrate decisions already retained by checking, not a new proof.
     /// The enclosing runtime row and executable application authenticate the
     /// state, declaration and complete coordinate bindings separately.
@@ -53,6 +59,7 @@ impl IntegerApplicationFormation {
         body: ExpressionHandle,
         casts: Vec<crate::ExactIntegerCastFact>,
         calls: Vec<checked_trees::CheckedDeclarationCall>,
+        dispatches: Vec<checked_trees::CheckedDeclarationDispatchArm>,
     ) -> Option<Self> {
         if !owner.is_valid() || !body.is_valid() {
             return None;
@@ -75,11 +82,18 @@ impl IntegerApplicationFormation {
         }) {
             return None;
         }
+        if dispatches
+            .iter()
+            .any(|arm| !arm.expression.is_valid() || !arm.source_arm.is_valid())
+        {
+            return None;
+        }
         Some(Self {
             owner,
             body,
             casts,
             calls,
+            dispatches,
         })
     }
 }
@@ -127,6 +141,7 @@ impl Engine<'_> {
             body,
             casts: decisions.casts,
             calls: decisions.calls,
+            dispatches: decisions.dispatches,
         });
         *self = admitted;
         Some(FormedIntegerApplication { value, formation })
@@ -261,6 +276,7 @@ impl Engine<'_> {
             body: *body,
             casts: decisions.casts,
             calls: decisions.calls,
+            dispatches: decisions.dispatches,
         });
         *self = admitted;
         Some(FormedIntegerApplication { value, formation })

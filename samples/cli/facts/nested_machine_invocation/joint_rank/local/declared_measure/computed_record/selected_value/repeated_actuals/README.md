@@ -103,3 +103,8 @@ The parent outcome remains open for the other declared call/custody mechanisms,
 remaining ranking forms, product-compiler parity and source migration.
 
 The optimized baseline producer has SHA-256 `7e90bff12392df03f23785f20f85d4d3de425845b41c1105ea4bae18b01a0245` and opt-level 1. Its one-call control checks; the unchanged two-call positive refuses with `a computed natural rank application has no independent entry formation`. The earlier copy-predicate probe and environment setup refusals remain separate historical attempts.
+
+The [unformed-arm control](controls/invalid_unformed_arm/main.omg) changes only
+the zero-input arm selector from 1 to 2. The private positive-input state
+cannot donate its unreachable-arm decision to the public entry application,
+which admits zero and must form that arm independently.
