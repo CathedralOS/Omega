@@ -1463,10 +1463,7 @@ impl<'program> StructuralJudge<'program> {
                     if work.engine.integer_projection_registrations().1 != base_engine_reg.1 {
                         phase_profile::count("psi.05.numeric.prove.fork.existing_atoms.opaque", 1);
                     } else if !goal_only_linear_ops {
-                        phase_profile::count(
-                            "psi.05.numeric.prove.fork.existing_atoms.non_linear",
-                            1,
-                        );
+                        phase_profile::count("psi.05.numeric.prove.fork.existing_atoms.non_linear", 1);
                     } else if work.carrier_bounds.len() != base_bounds {
                         phase_profile::count(
                             "psi.05.numeric.prove.fork.existing_atoms.carrier_bounds",
@@ -1603,48 +1600,13 @@ impl<'program> StructuralJudge<'program> {
             return None;
         }
         let mut observations = IntegerObservations::empty(self.program);
-        let tracing = super::super::struct_trace() && trace_has_captured_value(predicate);
-        if tracing {
-            eprintln!(
-                "NUMERIC prefix predicate={predicate:?} captured={:?} normal={:?} rewrites={:?}",
-                self.captured_result_equations,
-                self.normal_results,
-                self.rewrites.iter().collect::<Vec<_>>()
-            );
-        }
-        let comparison = self.integer_comparison(predicate, &mut observations);
-        if tracing {
-            eprintln!(
-                "NUMERIC projection comparison={comparison:?} atoms={:?}",
-                observations.atoms
-            );
-        }
-        let comparison = comparison?;
+        let comparison = self.integer_comparison(predicate, &mut observations)?;
         let goal_operations = 0..observations.operations.len();
         let mut comparisons = self.observed_integer_premises(&mut observations);
         let retained = comparisons.clone();
-        let installed = observations.install_premises(&mut comparisons);
-        let admitted = observations.admitted(goal_operations);
-        if tracing {
-            eprintln!(
-                "NUMERIC admission installed={installed} admitted={admitted} remaining={comparisons:?} retained={retained:?} atoms={:?} operations={:?}",
-                observations.atoms,
-                observations
-                    .operations
-                    .iter()
-                    .map(|operation| (
-                        operation.operator,
-                        operation.meaning,
-                        &operation.operands,
-                        &operation.value,
-                        &operation.children,
-                        operation.admitted,
-                        operation.formation == OperationFormation::CompletedValue
-                    ))
-                    .collect::<Vec<_>>()
-            );
-        }
-        if !installed || !admitted {
+        if !observations.install_premises(&mut comparisons)
+            || !observations.admitted(goal_operations)
+        {
             return None;
         }
         let admitted = retained
@@ -2302,14 +2264,4 @@ mod tests {
             assert_eq!(work.operand_resolutions.as_ref().unwrap().len(), 1);
         }
     }
-}
-
-// Temporary diagnostic: execution and proof choices are unchanged.
-fn trace_has_captured_value(term: &StructuralTerm) -> bool {
-    if matches!(term, StructuralTerm::CapturedValue { .. }) {
-        return true;
-    }
-    let mut found = false;
-    term.for_each_child(|child| found |= trace_has_captured_value(child));
-    found
 }

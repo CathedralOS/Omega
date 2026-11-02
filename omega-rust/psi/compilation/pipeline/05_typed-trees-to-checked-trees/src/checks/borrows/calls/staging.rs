@@ -102,6 +102,38 @@ impl InvocationBoundary {
         })
     }
 
+    /// Retain the evaluated routes of each staged operand before this exact
+    /// invocation. Opposite arms of one decision never form simultaneous
+    /// loans. A missing occurrence remains unknown, rather than authorizing
+    /// omission of its ordinary conflict check.
+    pub(in crate::checks::borrows) fn argument_routes(
+        &self,
+        accesses: &[&BorrowArgumentAccessFact],
+    ) -> Option<Vec<Vec<&[crate::checks::ownership_occurrences::EvaluationBranch]>>> {
+        use crate::checks::ownership_occurrences::{StatementStep, routes_compatible};
+        let prefix = &self.occurrences[..self.completion];
+        if prefix.iter().all(|occurrence| occurrence.route.is_empty()) {
+            return None;
+        }
+        let invocation_route = &self.occurrences[self.completion].route;
+        Some(
+            accesses
+                .iter()
+                .map(|access| {
+                    prefix
+                        .iter()
+                        .filter_map(|occurrence| {
+                            (matches!(occurrence.step, StatementStep::Complete(expression)
+                                if expression == access.expression)
+                                && routes_compatible(&occurrence.route, invocation_route))
+                            .then_some(occurrence.route.as_slice())
+                        })
+                        .collect()
+                })
+                .collect(),
+        )
+    }
+
     /// A finished nested invocation releases its direct input window. Its
     /// stored descendants remain live and independently constrain later uses.
     /// A copied descriptor read is not such an invocation completion.

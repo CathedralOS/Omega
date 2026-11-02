@@ -197,8 +197,10 @@ execution still owes provider admission, completion and every recorded bound.
 Accepted package roles enter source preparation before checking instead.
 Psi owns their declaration admission and confined nomination before matching
 retained checks. Realization only rejoins the resulting source declarations to
-selected provider rows. Source-only synchronous provider-cycle checks consume
-Psi's checked invocation facts. Receiving provider admission independently
+selected provider rows. Selected-provider cycle policy consumes Psi's checked
+realized invocation summaries from canonical declaration headers, including
+dormant declarations, rather than reopening source or substituting permission
+ceilings for actual calls. Receiving provider admission independently
 checks every installed canonical instance, including uncalled closed tuples,
 using the same whole-plan graph rule. Opaque rows contribute their declared
 ceilings; uninstantiated source templates grant no executable instance.
@@ -466,17 +468,17 @@ foundations, product reports and publication keep independent ownership.
 | Entrance | Responsibility |
 | --- | --- |
 | `omega/application/cli/src/main.rs` | Parse, route to the command's owner, display outcomes |
-| `omega/application/build/src/build.rs` | Request admission, Build lifecycle, requested products, required tests and publication |
-| `omega/application/build/src/build_execution.rs` | Dependency jobs and Build activation readiness; mandatory final join |
-| `omega/application/build/src/source_compilation.rs` | One-shot source consumers: prepare an opaque compiler invocation, execute Build, complete the requested products |
-| `omega/application/build/src/build_session.rs` | Invocation compiler lifetime beside independently package-owned staging and aggregate sponsors |
-| `omega/application/build/src/package_commands.rs` | Admitted install/update target-review work; complete findings returned to package-owned publication |
-| `omega/application/build/src/package_review.rs` | Admitted review dependency passes, compiler calls and suspended-Build cache recovery, shared with audit |
-| `omega/application/build/src/package_inspection.rs` | Read-only audit session lifetime and ordered target execution; package-owned pinned resolution and reporting |
+| `omega/compilation/build/src/build.rs` | Request admission, Build lifecycle, requested products, required tests and publication |
+| `omega/compilation/build/src/build_execution.rs` | Dependency jobs and Build activation readiness; mandatory final join |
+| `omega/compilation/build/src/source_compilation.rs` | One-shot source consumers: prepare an opaque compiler invocation, execute Build, complete the requested products |
+| `omega/compilation/build/src/build_session.rs` | Invocation compiler lifetime beside independently package-owned staging and aggregate sponsors |
+| `omega/compilation/build/src/package_commands.rs` | Admitted install/update target-review work; complete findings returned to package-owned publication |
+| `omega/compilation/build/src/package_review.rs` | Admitted review dependency passes, compiler calls and suspended-Build cache recovery, shared with audit |
+| `omega/compilation/build/src/package_inspection.rs` | Read-only audit session lifetime and ordered target execution; package-owned pinned resolution and reporting |
 | `psi/compilation/driver/src/compiler.rs` | Source processing and checking through Terminal Psi |
 | `omega/compilation/driver/src/compiler.rs` | Terminal plus explicit realization inputs through native emission |
 | Terminal interpreter entrance | Load or borrow code, execute, suspend, install admitted bindings, resume |
-| `omega/application/native-provider-runtime/src/native_provider_runtime.rs` | Sponsor isolated native provider incarnations, immutable mapped homes and exact compiled frame adapters; consume source-free products |
+| `omega/interpreter/native-provider-runtime/src/native_provider_runtime.rs` | Sponsor isolated native provider incarnations, immutable mapped homes and exact compiled frame adapters; consume source-free products |
 
 These are destination owners, not extra facades above the current compiler.
 Dismantle the existing product coordinator into its actual owners. Reuse the
@@ -767,7 +769,7 @@ Native preparation first determines the work and scalar demand for the root and
 its components. The application completes that demand; native compilation consumes
 the same preparation and completed inputs. Native production has no interpreter
 dependency or evaluator callback, and cannot silently recompute a missing value.
-`application/build/src/native_completion.rs` owns this lifecycle for standalone
+`compilation/build/src/native_completion.rs` owns this lifecycle for standalone
 and package products. Source compilation transfers an owned `PendingNativeProduct`
 after admission and Terminal preparation, releasing its checked source. The shared
 `build-evaluation` scalar operation also serves descriptive Check, inspection and
@@ -981,9 +983,11 @@ Shared foundations and utilities retain independent library ownership. Do not
 absorb them into a producing stage or the application crate to reduce crate
 count or directory depth. Subsystem folders expose their coordinators and
 supporting packages without merging their APIs or dependency boundaries.
-Omega groups packages under four domains: `application/`, `compilation/`,
-`packages/` and `foundation/`. Compiler machinery, including `pipeline/`,
-`representations/`, `realization/` and `backend/`, lives within `compilation/`.
+Omega groups packages under five domains: `application/`, `compilation/`,
+`interpreter/`, `packages/` and `foundation/`. Compiler machinery, including
+`pipeline/`, `representations/`, `realization/`, `backend/` and the Build
+coordinator `build/`, lives within `compilation/`. Hosted execution, the
+Terminal runtime and the native-provider runtime, lives within `interpreter/`.
 The domains are directory groupings; they do not merge package boundaries.
 
 Psi groups its packages under `compilation/`, `interpreter/` and `foundation/`.
@@ -1337,10 +1341,9 @@ turn checking into IR data or justify a general `verification/` bucket.
 The compiler owns component descriptions, candidates, emitted products and
 generic installation evidence. Live deployment, replacement, entry routing,
 era retirement and update policy belong to an ordinary runtime/library package
-or Cathedral; no compiler runtime crate models them. The package-defined
-topology implementation lives at `source/library/topology/`: its graph policies,
-plan codec, verifier and installer are ordinary Omega library responsibilities,
-not compiler primitives or backend realization plans.
+or Cathedral; no compiler runtime crate models them. A topology package's graph
+policies, plan codec, verifier and installer are ordinary Omega library
+responsibilities, not compiler primitives or backend realization plans.
 
 Omega `foundation/` owns shared host primitives and native compiler vocabulary:
 bounded process execution, filesystem custody, function identities and optimization

@@ -11,6 +11,7 @@ use language_core::ReferenceAccess;
 use symbols::{SymbolKind, SymbolTableBuilder};
 use typed_trees::data::{DataDefinition, DataField, DataMember};
 mod active_case;
+mod expression_calls;
 use typed_trees::expression::{
     ExpressionHandle, ExpressionNode, TableBorrowExpression, TableMemberExpression, TableNamePath,
     TableStructLiteral, TableStructLiteralField,
@@ -68,18 +69,30 @@ pub(super) fn elaborate_calls(
             "visit_runtime_fields_mut" | "visit_active_fields_mut" => ReferenceAccess::Mutable,
             _ => continue,
         };
-        let CallSite::Statement(site) = selection.site else {
-            return Err(error(
-                "typed field visitation requires a unit statement invocation",
-            ));
-        };
-        let StatementNode::Call(call) = program.statement_table.statement(site).clone() else {
-            return Err(error("typed field visitation lost its call occurrence"));
-        };
         let [Some(subject), Some(context)] = candidate.type_bindings.as_slice() else {
             return Err(error(
                 "typed field visitation requires its exact subject and context types",
             ));
+        };
+        let site = match selection.site {
+            CallSite::Statement(site) => site,
+            CallSite::Expression(expression) => {
+                expression_calls::materialize(
+                    program,
+                    selection.lexical_owner,
+                    selection.lexical_state,
+                    expression,
+                    *subject,
+                    *context,
+                    inspection,
+                    field_access,
+                )?;
+                changed_owners.push(selection.lexical_owner);
+                return Ok(true);
+            }
+        };
+        let StatementNode::Call(call) = program.statement_table.statement(site).clone() else {
+            return Err(error("typed field visitation lost its call occurrence"));
         };
         let (case_callback, callback) = match candidate.machine_bindings.as_slice() {
             [Some(case_callback), Some(callback)] if active => (Some(case_callback), callback),

@@ -13,7 +13,7 @@ relying on a source-text search.
 
 The Omega firewall rules carry the edges that existed when they landed
 (2026-11-01) as `FIREWALL_ALLOWANCES`: 11 from Omega compilation crates into
-source-side Psi and 20 between Omega stages. Each row names the imports that
+source-side Psi and 16 between Omega stages. Each row names the imports that
 hold it. A row whose edge is gone fails until it is deleted, so the list only
 shrinks; two rows are sanctioned by pipeline.md and the rest are debt.
 """
@@ -41,8 +41,8 @@ PERMITTED_OWNERS = (
     "omega-rust/psi/compilation/checking/terminal-installation",
     "omega-rust/psi/compilation/proof/admission",
 )
-RUNTIME_ROOT = "omega-rust/omega/application/terminal-runtime"
-NATIVE_PROVIDER_RUNTIME_ROOT = "omega-rust/omega/application/native-provider-runtime"
+RUNTIME_ROOT = "omega-rust/omega/interpreter/terminal-runtime"
+NATIVE_PROVIDER_RUNTIME_ROOT = "omega-rust/omega/interpreter/native-provider-runtime"
 NATIVE_PROVIDER_RUNTIME_OWNERS = (NATIVE_PROVIDER_RUNTIME_ROOT, *PERMITTED_OWNERS[1:])
 PROVIDER_SELECTION_OWNERS = PERMITTED_OWNERS[1:]
 TRUST_OWNERS = (TRUST_ROOT, *PERMITTED_OWNERS[1:])
@@ -63,7 +63,7 @@ PACKAGE_MANAGER = f"{PACKAGES}/package-manager"
 PRODUCT_COORDINATOR = f"{OMEGA}/compilation/driver"
 PRODUCTS = f"{OMEGA}/compilation/products"
 BUILD_EVALUATION = f"{OMEGA}/compilation/build-evaluation"
-BUILD_APPLICATION = f"{OMEGA}/application/build"
+BUILD_COORDINATOR = f"{OMEGA}/compilation/build"
 CLI_APPLICATION = f"{OMEGA}/application/cli"
 TRUST_MODEL = f"{OMEGA}/compilation/realization/trust-model"
 REVIEW_EVIDENCE = f"{PACKAGES}/review-evidence"
@@ -178,10 +178,6 @@ FIREWALL_ALLOWANCES = (
     Allowance(stage("08"), stage("05"), f"{STAGE_DEBT} (ValidatedSelectedAnalysis)"),
     Allowance(stage("08"), stage("06"), f"{STAGE_DEBT} (StagedOptimizedPostAllocationMachinePlan)"),
     Allowance(stage("08"), stage("07"), f"{STAGE_DEBT} (StagedOptimizedSelectedFormEncoding)"),
-    Allowance(stage("09"), stage("05"), f"{STAGE_DEBT} (ValidatedSelectedAnalysis)"),
-    Allowance(stage("09"), stage("06"), f"{STAGE_DEBT} (StagedOptimizedPostAllocationMachinePlan)"),
-    Allowance(stage("09"), stage("07"), f"{STAGE_DEBT} (StagedOptimizedSelectedFormEncoding)"),
-    Allowance(stage("09"), stage("08"), f"{STAGE_DEBT} (StagedOptimizedResolvedSelectedFormLayout)"),
 )
 
 
@@ -205,7 +201,7 @@ FORBIDDEN_DEPENDENCIES = tuple(Rule(*rule) for rule in (
         "application operations call compiler facades, not numbered transforms",
     ),
     (
-        (BUILD_APPLICATION,),
+        (BUILD_COORDINATOR,),
         (
             PSI_PIPELINE,
             OMEGA_PIPELINE,

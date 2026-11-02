@@ -50,7 +50,20 @@ pub(super) fn observe_portable(
                         .map_err(|_| "component input observation count")?,
                 )
             };
-            component_inputs::inspect(artifact, requirement, observations, nested)
+            let (host_mutations, nested) = match nested.split_first() {
+                Some((first, rest)) if first.starts_with("mutations=") => (
+                    Some(
+                        first
+                            .strip_prefix("mutations=")
+                            .ok_or("component host mutation count")?
+                            .parse()
+                            .map_err(|_| "component host mutation count")?,
+                    ),
+                    rest,
+                ),
+                _ => (None, nested),
+            };
+            component_inputs::inspect(artifact, requirement, observations, host_mutations, nested)
         }
         ["calling-policy", target, accepted, rejected] => {
             calling_policy::observe(artifact, target, accepted, rejected)

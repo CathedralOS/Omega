@@ -184,7 +184,13 @@ fn derive_contents(
 
     let mut rows = Vec::with_capacity(SECTION_COUNT);
     let mut region_spans = ElfRelativeSectionPayloadRegionSpans::default();
-    for (ordinal, (payload, descriptor)) in payload_rows.iter().zip(roster_rows).enumerate() {
+    // Section indexes identify the roster, independently of physical packing.
+    // General RELA precedes PLT RELA, including when its zero-length interval
+    // shares the PLT start. A zero-length suffix at the PLT end can make loaders
+    // treat that table as the prefix of an empty combined relocation range.
+    for ordinal in physical_section_order() {
+        let payload = &payload_rows[ordinal];
+        let descriptor = &roster_rows[ordinal];
         let byte_size = u64::try_from(payload.bytes.len())
             .map_err(|_| Diagnostic::error("ELF payload size exceeds Elf64_Xword"))?;
         let (region, relative_file_offset) = if ordinal == 0 {
@@ -212,6 +218,7 @@ fn derive_contents(
             alignment: descriptor.alignment,
         });
     }
+    rows.sort_unstable_by_key(|row| row.index);
     Ok(ElfRelativeSectionPayloadLayoutContents { rows, region_spans })
 }
 
@@ -238,13 +245,10 @@ fn validate_contents(
     )?;
 
     let mut region_spans = ElfRelativeSectionPayloadRegionSpans::default();
-    for (ordinal, ((placement, payload), descriptor)) in contents
-        .rows
-        .iter()
-        .zip(payload_rows)
-        .zip(roster_rows)
-        .enumerate()
-    {
+    for ordinal in physical_section_order() {
+        let placement = &contents.rows[ordinal];
+        let payload = &payload_rows[ordinal];
+        let descriptor = &roster_rows[ordinal];
         let byte_size = u64::try_from(payload.bytes.len())
             .map_err(|_| Diagnostic::error("replayed ELF payload size exceeds Elf64_Xword"))?;
         let (expected_region, expected_offset) = if ordinal == 0 {
@@ -288,6 +292,11 @@ fn validate_contents(
         contents.region_spans == region_spans,
         "relative ELF region spans do not exactly cover the packed rows",
     )
+}
+
+/// Canonical ELF relocation packing is independent of section-header indexes.
+fn physical_section_order() -> [usize; SECTION_COUNT] {
+    [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 10, 12, 13]
 }
 
 fn classify_region(flags: u64) -> Result<ElfRelativeSectionPayloadRegion, Diagnostic> {
@@ -439,7 +448,8 @@ mod tests {
                 assert_ne!(layout.region_span(region), 0);
             }
             let mut prior_ends = ElfRelativeSectionPayloadRegionSpans::default();
-            for row in &layout.contents.rows[1..] {
+            for ordinal in super::physical_section_order().into_iter().skip(1) {
+                let row = &layout.contents.rows[ordinal];
                 let region = row.region.expect("non-null row must select one region");
                 let prior_end = prior_ends.cursor_mut(region);
                 assert!(*prior_end <= row.relative_file_offset);

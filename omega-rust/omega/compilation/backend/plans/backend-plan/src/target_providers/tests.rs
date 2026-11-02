@@ -107,6 +107,233 @@ fn fixture() -> (TerminalTargetProviderPlan, TerminalModule) {
     (selected, module)
 }
 
+fn invocation_fixture() -> (TerminalTargetProviderPlan, TerminalModule) {
+    let (selected, mut module) = fixture();
+    let candidates = module.provider_candidates[..2].to_vec();
+    module
+        .provider_instance_requirements
+        .push(terminal_psi::ProviderInstanceRequirements {
+            template: candidates[0].source_requirement_identity,
+            package: None,
+            selecting_declaration: Some(candidates[0].provider_declaration.clone()),
+            source_candidate_identity: candidates[0].source_candidate_identity,
+            required_instances: candidates
+                .iter()
+                .map(|candidate| terminal_psi::RequiredProviderInstance {
+                    requirement_identity: candidate.requirement_identity,
+                    candidate_identity: candidate.candidate_identity,
+                    receiving_application: candidate.receiving_application,
+                    receiving_region_arguments: candidate.receiving_region_arguments.clone(),
+                })
+                .collect(),
+        });
+    let scope = &mut module.scalar_applications.proof_scope;
+    for (index, candidate) in candidates.iter().enumerate() {
+        let declaration = terminal_psi::ProofDeclarationId(index as u32 + 1);
+        scope
+            .callables
+            .insert(terminal_psi::ProofCallableAssociation::Callable {
+                declaration,
+                callable: terminal_psi::TargetMachineCallable::Machine(candidate.candidate),
+            });
+        scope
+            .callable_headers
+            .insert(terminal_psi::ProofCallableHeader {
+                declaration,
+                callable: Ok(candidate.candidate_identity),
+                package: None,
+                source_target: Some("macos_arm64".into()),
+                product_eligible: true,
+                supplies_checked_body: true,
+                synchronous_invocations: Ok(Vec::new()),
+            });
+    }
+    // The source template is independently retained, but its formal telescope
+    // cannot describe the invocation of either closed application.
+    scope
+        .callable_headers
+        .insert(terminal_psi::ProofCallableHeader {
+            declaration: terminal_psi::ProofDeclarationId(3),
+            callable: Ok(candidates[0].source_candidate_identity),
+            package: None,
+            source_target: None,
+            product_eligible: true,
+            supplies_checked_body: true,
+            synchronous_invocations: Err("open template invocation".into()),
+        });
+    (selected, module)
+}
+
+#[test]
+fn invocation_rows_consume_all_closed_headers_instead_of_the_open_template() {
+    let (selected, mut module) = invocation_fixture();
+    let plans = [selected];
+    let rows = selected_checked_invocation_rows(&plans, &module).unwrap();
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].headers.len(), 2);
+    assert_eq!(
+        rows[0].headers[1].declaration,
+        terminal_psi::ProofDeclarationId(2)
+    );
+    crate::synchronous_invocations::validate_declared_synchronous_invocation_cycles(
+        &plans, &module,
+    )
+    .unwrap();
+    // Instance8 is not the entry, but its missing summary still refuses.
+    let handle = module
+        .scalar_applications
+        .proof_scope
+        .callable_headers
+        .iter()
+        .find_map(|(handle, header)| {
+            (header.declaration == terminal_psi::ProofDeclarationId(2)).then_some(handle)
+        })
+        .unwrap();
+    module
+        .scalar_applications
+        .proof_scope
+        .callable_headers
+        .get_mut(handle)
+        .synchronous_invocations = Err("missing uncalled summary".into());
+    let errors = crate::synchronous_invocations::validate_declared_synchronous_invocation_cycles(
+        &plans, &module,
+    )
+    .unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.message == "missing uncalled summary")
+    );
+}
+
+#[test]
+fn an_uncalled_closed_invocation_still_forms_a_selected_cycle() {
+    let (selected, mut module) = invocation_fixture();
+    let mut identities = module.identities.clone().into_builder();
+    let declaration = identities.intern("Parent");
+    let application = identities.intern("Parent<u64>");
+    module.identities = identities.build();
+    let headers = &mut module.scalar_applications.proof_scope.callable_headers;
+    let handle = headers
+        .iter()
+        .find_map(|(handle, header)| {
+            (header.declaration == terminal_psi::ProofDeclarationId(2)).then_some(handle)
+        })
+        .unwrap();
+    headers.get_mut(handle).synchronous_invocations =
+        Ok(vec![terminal_psi::DeclaredSynchronousBoundaryTarget {
+            declaration,
+            package: None,
+            application: Some(application),
+        }]);
+    let errors = crate::synchronous_invocations::validate_declared_synchronous_invocation_cycles(
+        &[selected],
+        &module,
+    )
+    .unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.message.contains("cyclic synchronous"))
+    );
+}
+
+#[test]
+fn closed_invocation_headers_retain_selected_eligibility_and_instance_obligations() {
+    let (selected, module) = invocation_fixture();
+    for mismatch in [
+        "origin",
+        "package",
+        "target",
+        "callable",
+        "product",
+        "body",
+        "header",
+        "association",
+        "instance",
+        "duplicate",
+    ] {
+        let mut selected = selected.clone();
+        let mut changed = module.clone();
+        let header = changed
+            .scalar_applications
+            .proof_scope
+            .callable_headers
+            .iter()
+            .next()
+            .unwrap()
+            .0;
+        match mismatch {
+            "origin" => {
+                selected.plan.origin_package_identity =
+                    semantic_vocabulary::PackageKeyIdentity::from_digest([9; 32])
+            }
+            "package" => {
+                changed
+                    .scalar_applications
+                    .proof_scope
+                    .callable_headers
+                    .get_mut(header)
+                    .package = semantic_vocabulary::PackageKeyIdentity::from_digest([9; 32])
+            }
+            "target" => {
+                changed
+                    .scalar_applications
+                    .proof_scope
+                    .callable_headers
+                    .get_mut(header)
+                    .source_target = Some("windows_x86_64".into())
+            }
+            "callable" => {
+                changed
+                    .scalar_applications
+                    .proof_scope
+                    .callable_headers
+                    .get_mut(header)
+                    .callable = Ok(TerminalIdentityIndex::ABSENT)
+            }
+            "product" => {
+                changed
+                    .scalar_applications
+                    .proof_scope
+                    .callable_headers
+                    .get_mut(header)
+                    .product_eligible = false
+            }
+            "body" => {
+                changed
+                    .scalar_applications
+                    .proof_scope
+                    .callable_headers
+                    .get_mut(header)
+                    .supplies_checked_body = false
+            }
+            "header" => {
+                changed.scalar_applications.proof_scope.callable_headers = Default::default()
+            }
+            "association" => changed.scalar_applications.proof_scope.callables = Default::default(),
+            "instance" => changed.provider_candidates.clear(),
+            _ => {
+                let duplicate = changed
+                    .scalar_applications
+                    .proof_scope
+                    .callable_headers
+                    .get(header)
+                    .clone();
+                changed
+                    .scalar_applications
+                    .proof_scope
+                    .callable_headers
+                    .insert(duplicate);
+            }
+        }
+        assert!(
+            selected_checked_invocation_rows(&[selected], &changed).is_err(),
+            "{mismatch}"
+        );
+    }
+}
+
 #[test]
 fn canonical_instances_replace_source_rows_and_keep_uncalled_inherited_coordinates() {
     let (declaration, module) = fixture();

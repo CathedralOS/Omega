@@ -18,3 +18,4 @@ terminal-codec = { path = "../../../../../psi/compilation/representations/termin
 terminal-installation = { path = "../../../../../psi/compilation/checking/terminal-installation" }
 effects = { path = "../provider-evidence" }
 optimization-core = { path = "../../../../foundation/optimization-core" }
+target = { path = "../../target" }

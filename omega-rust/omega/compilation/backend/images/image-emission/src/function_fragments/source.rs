@@ -529,6 +529,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 AbstractOperation::BoundaryCall { psi_operation, boundary, .. } => selected.boundary_settlements.iter().any(|row| row.settlement.invocation_site() == (*psi_operation).into())
                     || program_image_retained(psi_operation, boundary, targeted, selected)
                     || ieee_float_builtin_retained(psi_operation, boundary, targeted, selected)
+                    || access_lifecycle_retained(operation, targeted)
                     || placed_scalar_retained(operation, targeted, selected)
                     || selected.calls.iter().any(|row| row.owner.operation() == Some(*psi_operation) && matches!(row.call.source, legalized_operations::NativeCallOrigin::InstalledProvider { .. } | legalized_operations::NativeCallOrigin::TargetFamily { .. } | legalized_operations::NativeCallOrigin::ProgramEntry { .. }))
                     || selected.normalized_foreign_calls.iter().any(|row| row.invocation_site == semantic_vocabulary::InvocationSite::Operation(*psi_operation)),
@@ -1169,6 +1170,52 @@ pub(super) fn call_target_matches(
         ) => selector == actual_selector && interface == actual_interface && slot == actual_slot,
         _ => false,
     }
+}
+
+/// Lifecycle lowering produces a whole-value operation, not an ABI call or
+/// scalar accessor event. The audit must compare that operation's retained
+/// operands and result, rather than demand a foreign-call settlement for it.
+/// The target audit checks the canonical lifecycle kind and operand roles;
+/// downstream replay checks instruction encoding, layout and frames. Runtime
+/// falsifiers separately exercise the selected lifecycle's behavior.
+fn access_lifecycle_retained(
+    operation: &AbstractOperation,
+    targeted: &target_operations::TargetFunction,
+) -> bool {
+    let AbstractOperation::BoundaryCall {
+        psi_operation,
+        boundary,
+        arguments,
+        structural_arguments,
+        result,
+        ..
+    } = operation
+    else {
+        return false;
+    };
+    let abstract_operations::AbstractBoundaryResult::Structural(result) = result else {
+        return false;
+    };
+    if !arguments.is_empty() {
+        return false;
+    }
+    let mut rows = targeted.graph.operations().filter_map(|row| match row {
+        target_operations::TargetUnitOperation::AccessLifecycle {
+            psi_operation: actual,
+            boundary: actual_boundary,
+            operands,
+            result_home,
+        } if actual == psi_operation => Some((actual_boundary, operands, result_home)),
+        _ => None,
+    });
+    let (Some((actual_boundary, operands, result_home)), None) = (rows.next(), rows.next()) else {
+        return false;
+    };
+    actual_boundary == boundary
+        && operands.arguments().eq(structural_arguments.iter())
+        && result_home
+            .operation_result()
+            .is_some_and(|(actual, returned)| actual == *psi_operation && returned == result)
 }
 
 /// Rejoin one observable event, rather than accepting an ordinary memory row.

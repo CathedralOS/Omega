@@ -86,7 +86,8 @@ pub(crate) fn evaluate_default_calling_applications(
     Ok(applications)
 }
 /// Prepare Source invocation admission and exact review coordinates only.
-/// Canonical publication owns declaration storage; target activation reads it.
+/// Shared inert Terminal publication precedes invocation-scoped helper choice.
+/// Psi's original Source admission remains required before target activation.
 pub fn prepare_boundary_calling_plans(
     checked: &Arc<checked_trees::CheckedTrees>,
     services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'_>,
@@ -94,7 +95,10 @@ pub fn prepare_boundary_calling_plans(
     opaque_representation_selections: &[OpaqueRepresentationSelection],
     package_inputs: Option<&package_compilation::PackageCompilationInputs>,
     provider_inputs: super::CallingPolicyProviderInputs<'_>,
+    code: &super::CallingProgram,
 ) -> Result<PreparedBoundaryCallingPlans, Vec<Diagnostic>> {
+    code.require_owner(&Arc::downgrade(checked))
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
     if !std::ptr::eq(&*checked.typed, services.context().typed)
         || services.context().scope != source::DependencyScope::Product
     {
@@ -195,8 +199,8 @@ pub fn prepare_boundary_calling_plans(
                 .iter()
                 .map(|policy| policy.policy_symbol)
                 .collect::<Vec<_>>(),
-            &machine_bodies,
             &provider_inputs,
+            code,
         )?;
         let admissions = build_time_evaluation::SelectedBuildTimeClosureAdmission {
             program: checked,
@@ -217,9 +221,8 @@ pub fn prepare_boundary_calling_plans(
             )
         }))
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        // Refuse inadmissible execution before asking the driver to publish
-        // its code. Otherwise an unrelated lowering refusal can hide the
-        // selected closure's missing termination or authority obligation.
+        // Publication is inert. Every selected closure must pass the existing
+        // Psi admission floor before any scalar or calling-policy activation.
         for (policy, admission) in pending.iter().zip(admissions) {
             admission.map_err(|reason| {
                 vec![Diagnostic::error(reason).with_source_span(policy.relationship_span)]

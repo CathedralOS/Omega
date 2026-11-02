@@ -353,7 +353,7 @@ fn transparent_call_result_length(
     ) {
         return None;
     }
-    let callee = crate::machine_calls::calls::callee_entry_contract(program, call.target_symbol)?;
+    let callee = crate::machine_calls::calls::call_contract(program, call)?;
     let parameters = program.state_parameters(callee_state);
     let call_arguments = expression_table(program).expression_handles(call.arguments);
     let total_operands = usize::from(call.receiver.is_valid()) + call_arguments.len();

@@ -117,7 +117,9 @@ pub use program::{
     TerminalInstantiation, TerminalProgram, TerminalProgramEntry, TerminalScalarApplicationRequest,
 };
 pub use provider_storage::{
-    TerminalProviderStorageInput, TerminalProviderStorageRejection, TerminalReturnedProviderStorage,
+    TerminalProviderBacking, TerminalProviderStorageInput, TerminalProviderStorageRejection,
+    TerminalProviderStorageRequest, TerminalProviderStorageResolver, TerminalProviderStorageSupply,
+    TerminalReturnedProviderStorage,
 };
 pub use results::{
     TerminalCrash, TerminalCrashSite, TerminalEffectWait, TerminalExecutionResult,

@@ -69,8 +69,8 @@ pub(crate) fn validate_indexed_qualification_arguments(
 /// Bind every retained open index operator to the consuming machine's
 /// explicit conformance bound — `Alg: T satisfies IndexAdd<u64>` — whose
 /// carrier trait declares the spelled requirement and the checked
-/// commutativity/associativity law slots, before type identity or
-/// compatibility checking consumes it. The bound's trait argument at the
+/// commutativity, associativity and distributivity law slots, before type
+/// identity or compatibility checking consumes it. The bound's trait argument at the
 /// requirement's operand parameter position names the index type the
 /// operation is licensed for.
 /// Const-typed domain parameters' `(expression, expected)` sites zipped from
@@ -400,6 +400,7 @@ fn bound_index_operations(
             algebra_alias: Some(bound.binder_name.as_str().to_owned()),
             commutativity_licensed: !laws.commutativity.is_empty(),
             associativity_licensed: !laws.associativity.is_empty(),
+            distributes_over: laws.distributivity,
         })
     })
     .collect()

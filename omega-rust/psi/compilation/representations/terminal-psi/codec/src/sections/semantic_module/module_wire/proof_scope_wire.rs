@@ -96,6 +96,21 @@ pub(super) fn encode(writer: &mut Writer, scope: &ProofApplicationScope) -> Resu
         target(writer, &header.source_target)?;
         writer.boolean(header.product_eligible);
         writer.boolean(header.supplies_checked_body);
+        writer.boolean(header.synchronous_invocations.is_ok());
+        match &header.synchronous_invocations {
+            Ok(targets) => {
+                writer.len("declared synchronous targets", targets.len())?;
+                for target in targets {
+                    writer.u32(target.declaration.0);
+                    ProviderPackage::write(writer, &target.package)?;
+                    writer.boolean(target.application.is_some());
+                    if let Some(application) = target.application {
+                        writer.u32(application.0);
+                    }
+                }
+            }
+            Err(reason) => writer.string("unavailable synchronous invocation facts", reason)?,
+        }
     }
     writer.len("proof scope callables", scope.callables.len())?;
     for (_, row) in scope.callables.iter() {
@@ -239,13 +254,33 @@ pub(super) fn decode(reader: &mut Reader<'_>) -> Result<ProofApplicationScope, C
         } else {
             Err(reader.string("unavailable callable header")?)
         };
+        let package = ProviderPackage::read(reader)?;
+        let source_target = read_target(reader)?;
+        let product_eligible = reader.boolean()?;
+        let supplies_checked_body = reader.boolean()?;
+        let synchronous_invocations = if reader.boolean()? {
+            Ok(decode_counted(reader, |reader| {
+                Ok(terminal_psi::DeclaredSynchronousBoundaryTarget {
+                    declaration: TerminalIdentityIndex(reader.u32()?),
+                    package: ProviderPackage::read(reader)?,
+                    application: if reader.boolean()? {
+                        Some(TerminalIdentityIndex(reader.u32()?))
+                    } else {
+                        None
+                    },
+                })
+            })?)
+        } else {
+            Err(reader.string("unavailable synchronous invocation facts")?)
+        };
         result.callable_headers.insert(ProofCallableHeader {
             declaration,
             callable,
-            package: ProviderPackage::read(reader)?,
-            source_target: read_target(reader)?,
-            product_eligible: reader.boolean()?,
-            supplies_checked_body: reader.boolean()?,
+            package,
+            source_target,
+            product_eligible,
+            supplies_checked_body,
+            synchronous_invocations,
         });
     }
     for _ in 0..reader.count()? {

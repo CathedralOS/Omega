@@ -132,7 +132,7 @@ pub(super) fn record(
                 };
                 declaration_bindings.extend(inputs);
                 if admitted.application_formations.is_valid(formation)
-                    && let Some(input) = admitted.application_formations.get(formation).owned_copy
+                    && let Some(input) = admitted.application_formations.get(formation).owned_input
                 {
                     let coordinate = admitted.coordinates.get(input.actual);
                     let Some(path) = admitted.path_segments.span(coordinate.path) else {
