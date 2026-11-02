@@ -1834,7 +1834,7 @@ defines the complete product bar.
   - Carry core's critical service catalog and root `Build::audit_service<R>`
     selections through install/update review and compact lock acceptance.
   - Settle demanded Linux x86-64 filesystem `BoundaryCall`s (`set_len`) in
-    `omega-rust/omega/compilation/realization/provider-planning/src/provider_settlement/canonical_filesystem_host.rs`,
+    ordinary selected raw-family providers and native settlement,
     replace equality-based receiver checks in
     `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/providers/provider_admission/terminal_authority_permissions.rs`
     with demand-based containment, and replace the broad filesystem arm in

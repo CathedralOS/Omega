@@ -13562,6 +13562,7 @@ pass/providers/qualified_foreign_result_forwarding rejected 2865ms regressed-fro
 	cannot prove ensures contract for exit from state_forward at statement 0: result.code == 0
 pass/providers/qualified_foreign_structural_arguments checked 11436ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/reference_dispatch_on_demand checked 7928ms check-target:macos_arm64 @ccdb99ca2214
+pass/providers/requirement_service_unsupplied_linux checked 15010ms check-target:linux_x86_64 provider-choice-controls:match terminal-inspections:match @61e05af8c148
 pass/providers/resource_profile_initialization_coverage_exit incomplete 11961ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	`main` calls `full_profile`, which calls `fill_profile`; `fill_profile` has no executable body: this compiler does not lower a state of it yet (temporary cleanup actions); in state `fill_profile::write::entry`
 pass/providers/resource_profile_roles checked 12696ms check-target:macos_arm64 @ccdb99ca2214
@@ -13606,6 +13607,7 @@ pass/providers/runtime_provider_reference_nested_exit checked 3181ms check-targe
 pass/providers/runtime_provider_reference_state_exit checked 3908ms check-target:linux_x86_64 @ccdb99ca2214
 pass/providers/runtime_provider_reference_view_exit checked 3462ms check-target:linux_x86_64 @ccdb99ca2214
 pass/providers/runtime_qualified_fixed_array_foreign_exit checked 3368ms check-target:macos_arm64 @ccdb99ca2214
+pass/providers/runtime_requirement_service_declared_exit checked 15003ms check-target:macos_arm64 provider-choice-controls:match terminal-inspections:match @61e05af8c148
 pass/providers/runtime_result_domain_requirement_overload_exit checked 14397ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/runtime_transitive_provider_slot_exit checked 12946ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/same_name_requirement_dispatch_exit rejected 11911ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214

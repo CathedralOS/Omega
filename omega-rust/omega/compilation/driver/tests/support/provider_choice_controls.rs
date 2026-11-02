@@ -14,6 +14,7 @@ mod provider_instance_controls;
 
 pub(super) struct PreparedProviderChoices {
     publication: PreparedTargetProviderPublication,
+    selected_plans: Vec<effects::provider_plan::ProviderPlan>,
     expected_instances: Vec<provider_instance_controls::ExpectedInstance>,
     callback_bodies: callback_body_controls::PreparedCallbackBodies,
 }
@@ -44,6 +45,7 @@ pub(super) fn prepare(
         Default::default(),
     )
     .map_err(|errors| format!("provider choices checking: {errors:?}"))?;
+    let selected_plans = checked.execution().provider_source.plans().plans().to_vec();
     let publication = checked.providers().provider_publication.prepare(
         &[profile.target_name().to_owned()],
         None,
@@ -60,6 +62,7 @@ pub(super) fn prepare(
     drop(prepared);
     Ok(PreparedProviderChoices {
         publication,
+        selected_plans,
         expected_instances,
         callback_bodies,
     })
@@ -72,6 +75,7 @@ pub(super) fn inspect(
 ) -> Result<(), String> {
     let PreparedProviderChoices {
         publication,
+        selected_plans,
         expected_instances,
         callback_bodies,
     } = prepared;
@@ -86,6 +90,19 @@ pub(super) fn inspect(
         .selection
         .as_ref()
         .map_err(|errors| format!("provider choice original selection refused: {errors:?}"))?;
+    let published_plans = &original
+        .selection
+        .as_ref()
+        .map_err(|errors| format!("provider choice original selection refused: {errors:?}"))?
+        .plans;
+    if !selected_plans
+        .iter()
+        .eq(published_plans.iter().map(|row| &row.plan))
+    {
+        return Err(
+            "checked provider choices differ from the complete published plan roster".into(),
+        );
+    }
     let loaded = CanonicalTerminalArtifact::from_bytes(&retained.artifact().to_bytes())
         .map_err(|error| format!("provider choice transport: {error:?}"))?;
     for artifact in [retained.artifact().view(), loaded.view()] {
