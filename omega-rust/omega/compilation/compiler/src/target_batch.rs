@@ -131,10 +131,8 @@ impl crate::CompilationSession {
     }
 }
 
-/// Select provider custody without installation. The portable producer still
-/// reads source-selected entries, callbacks and exclusion policy from this
-/// record.
-/// @Incomplete: provider selection is not yet handed off through Terminal alone.
+/// Select this target's providers and entry against the shared Terminal program,
+/// then retain its requested output.
 fn select_target_product(
     shared: &SharedCompileInputs,
     target: ValidatedTargetCompilation,

@@ -1,8 +1,7 @@
-//! Select each target's whole providers over the shared Terminal artifact, then
-//! prepare remaining source review and Build correspondence. Converting that
-//! result to a checked compilation assembles custody, not another compiler phase.
-//! Source-dependent selection remains migration work. Actual artifact demand,
-//! receiving permissions and native realization belong to the later native join.
+//! Choose the code and calling plans for each requested target.
+//! Selection reads saved declarations and the shared Terminal program. This
+//! module then assembles the completed choices and separate source-inspection
+//! access; executable admission and native emission consume the saved result.
 
 use crate::checked::CheckedCompilation;
 use crate::checked::checking::{attribute_diagnostics, timed};
@@ -25,8 +24,7 @@ fn one_refusal<T>(refused: Result<T, Diagnostic>) -> Result<T, Vec<Diagnostic>> 
     refused.map_err(|error| vec![error])
 }
 
-/// One target's complete provider selection beside shared portable publication
-/// and remaining source correspondence.
+/// One target's completed choices beside shared code and explicit inspection access.
 /// Selection and native declaration preparation are complete; no later
 /// installation phase reopens source or fills in this result. Source-only
 /// consumers request their checked-instance projection at their own boundary.
@@ -430,8 +428,8 @@ fn prepare_target_provider_selection(
     )
 }
 
-/// Select this target over shared portable code and prepare remaining source
-/// review inputs, without installing or admitting native execution.
+/// Select this target from saved declarations and shared code, then assemble
+/// source-inspection access for review. Execution admission follows separately.
 fn select_product_providers(
     source: &CheckedProductSource,
     prepared: PreparedProductTarget,
