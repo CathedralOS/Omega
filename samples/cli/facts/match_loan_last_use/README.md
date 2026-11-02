@@ -36,7 +36,7 @@ same requirements and still replace a source while its selected loan is live.
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | the flag is the named constant `DECIDE` |
 | a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine receives the source and performs the death/replace sequence |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a forwarding machine supplies the source to the computing machine |
-| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of four target bodies performs the sequence |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each Build-selected `apply` implementation performs the sequence |
 
 ## Execution
 
@@ -161,3 +161,31 @@ Remaining open scope: the parent item's broader borrowed-join acceptance
 element-view selections, ranges, computed roots, join-place reads/projections)
 is carried by the other rows of the same family; this row closes only the
 match-selected exclusive-loan last-use death and its successor source write.
+
+## Build-owned target-body migration
+
+The `target_body` place and its twin carry no source target prefix.
+`BUILD-OWNED-TARGET-SELECTION` replaces the prefixed `apply` family with
+ordinary named implementations (`X86Apply`, `ArmApply`) of a boundary-trait
+requirement `SelectedApply`, selected by explicit target-keyed Build rows. The
+operation, inputs, contracts and exit oracle are unchanged; the requirement
+publishes the same `requires` clauses the bodies declared. The entry wrapper and
+each implementation check a tag (17 for x86-64, 29 for AArch64), so a wrong
+Build row traps. The tag call is the body's first statement, so the twin's
+borrow diagnostic names statements one later than the prefixed bodies did.
+
+Base `4f87c9e08b1` refused the migrated positive at Terminal lowering:
+`SelectedApply::apply has no executable body ... (boundary requirement: scalar
+precondition representation)`. A requirement signature's own case-membership
+precondition (`chosen in Slot::Present`) had no lowering: the case test rejoined
+its scope through a machine state with the same parameters, and a requirement
+has none. It now also lowers in the declaration's own telescope, as a tag
+observation of the parameter referent
+(`tests/omega/pass/boundary/requirement_case_precondition_exit`; its twin
+`tests/omega/fail/boundary/requirement_case_precondition_unproved` passes the
+payload-free case and still rejects at the caller). Observed on macOS x86-64:
+the migrated positive exits 0 under `omega run --both` (native and Terminal Psi
+agree) and its twin rejects for the live loan. The other hosted targets keep
+their authored rows, unexecuted here.
+
+All nine places run with native and Terminal Psi exit 0 on that host (scratch copies add a `macos_x86_64::ProgramEntry` row where a place lacks one), and all nine twins reject.
