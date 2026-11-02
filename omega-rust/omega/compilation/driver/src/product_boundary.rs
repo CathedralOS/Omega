@@ -137,7 +137,7 @@ fn product_provider_request_admission_belongs_to_psi() {
 
 #[test]
 fn selected_constant_evaluation_belongs_to_psi() {
-    let selection = include_str!("../../realization/selected-dispatch/src/constant_evaluation.rs");
+    let selection = include_str!("../../build-evaluation/src/admission/selected_constants.rs");
     assert_absent(&[selection], "selection drives", &[".finish(typed)"]);
     let geometry = include_str!("../../realization/provider-planning/src/data_layout_queries.rs");
     assert_absent(

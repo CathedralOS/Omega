@@ -5,4 +5,5 @@
 
 pub(crate) mod checking;
 pub(crate) mod program;
+mod selected_constants;
 pub(crate) mod target_helpers;
