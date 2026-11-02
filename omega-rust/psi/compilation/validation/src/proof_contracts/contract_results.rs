@@ -141,10 +141,13 @@ pub fn reserved_result_place(
         };
         let receiver =
             crate::value_custody::places::unwrapped_type_reference(program, type_reference)?;
-        // Resolve the complete closed application, not just a named node or
-        // a generic base. The type owner retains concrete specializations and
-        // lifetime-only applications without manufacturing a field telescope.
-        let data = program.closed_data_definition(receiver)?;
+        // Result coordinates also belong to universal headers. Their exact
+        // producer-retained application supplies substituted fields even when
+        // executable storage/layout closure is unavailable. A bare generic
+        // base cannot supply that application or its field telescope.
+        let data = program
+            .closed_data_definition(receiver)
+            .or_else(|| program.data_application_definition(receiver))?;
         if !data.symbol.is_valid() || program.symbols.get(data.symbol).kind != SymbolKind::Data {
             return None;
         }
