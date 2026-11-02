@@ -853,6 +853,7 @@ pub(crate) fn validate_data_machine_selection(
     selected_symbol: SymbolHandle,
     selected_name: &str,
     generic_types: &[&TypeParameter],
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     validate_declaration_machine_selection(
@@ -865,7 +866,7 @@ pub(crate) fn validate_data_machine_selection(
         generic_types,
         typed_trees::static_applications::StaticMachineApplicationHandle::invalid(),
         0,
-        &[],
+        substitutions,
         diagnostics,
     );
 }
@@ -976,6 +977,15 @@ fn machine_parameter_contract_definition(
         if let Some(found) = machine_parameter_contract_definition_in(
             program,
             program.machine_type_parameters(machine),
+            symbol,
+        ) {
+            return Some(found);
+        }
+    }
+    for declaration in program.traits() {
+        if let Some(found) = machine_parameter_contract_definition_in(
+            program,
+            program.trait_type_parameters(declaration),
             symbol,
         ) {
             return Some(found);

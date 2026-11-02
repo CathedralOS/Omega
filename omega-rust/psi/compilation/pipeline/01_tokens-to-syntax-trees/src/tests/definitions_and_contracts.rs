@@ -1221,6 +1221,54 @@ fn parse_domain_facts(source: &str) -> (syntax_trees::SyntaxTrees, Vec<ProofFact
 }
 
 #[test]
+fn compound_proof_membership_keeps_ordinary_boolean_precedence() {
+    use syntax_trees::expression::BinaryOperator;
+    for (source, membership_on_left) in [
+        (
+            "domain Value::D requires false || self in Value::Case",
+            false,
+        ),
+        (
+            "domain Value::D requires self in Value::Case || false",
+            true,
+        ),
+    ] {
+        let (parsed, facts) = parse_domain_facts(source);
+        let [ProofFact::Expression(root)] = facts.as_slice() else {
+            panic!("compound fact must retain its Boolean operation: {facts:?}");
+        };
+        let ExpressionNode::Binary(binary) = parsed.expressions.expression(*root) else {
+            panic!("expected Boolean operation");
+        };
+        assert_eq!(binary.operator, BinaryOperator::Or);
+        let (membership, boolean) = if membership_on_left {
+            (binary.left, binary.right)
+        } else {
+            (binary.right, binary.left)
+        };
+        assert!(matches!(
+            parsed.expressions.expression(boolean),
+            ExpressionNode::Boolean(false)
+        ));
+        let ExpressionNode::Membership(membership) = parsed.expressions.expression(membership)
+        else {
+            panic!("membership must apply to its operand, not the Boolean operation");
+        };
+        assert!(matches!(
+            parsed.expressions.expression(membership.value),
+            ExpressionNode::Name(_)
+        ));
+        let path = parsed
+            .expressions
+            .name_path_members(membership.domain)
+            .iter()
+            .map(|part| part.as_str(&parsed))
+            .collect::<Vec<_>>();
+        assert_eq!(path, ["Value", "Case"]);
+    }
+}
+
+#[test]
 fn proof_fact_membership_carries_indexed_domain_application_by_argument() {
     let (parsed, facts) = parse_domain_facts(
         r#"

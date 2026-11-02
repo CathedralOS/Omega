@@ -178,7 +178,7 @@ pub(super) fn validate(
                     program, alias.name.as_str(), parameter, AppliedValueCarrier::applied(*type_reference, parameters, arguments),
                     *argument, scope, &prior_facts, local_formation, diagnostics, obligations,
                 ),
-                TypeParameterKind::Machine { contract } => validate_machine_data_argument(program, alias.symbol, alias.name.as_str(), parameter, contract, *argument, scope, diagnostics),
+                TypeParameterKind::Machine { contract } => validate_machine_data_argument(program, alias.symbol, alias.name.as_str(), parameter, contract, *argument, arguments, scope, diagnostics),
                 TypeParameterKind::Proposition { .. } => diagnostics.push(Diagnostic::error(format!("proposition parameter `{}` of type alias `{}` requires a proposition-family argument", parameter.name, alias.name))),
                 TypeParameterKind::Type => {
                     if machine_argument_name(program, *argument, scope).is_some() {

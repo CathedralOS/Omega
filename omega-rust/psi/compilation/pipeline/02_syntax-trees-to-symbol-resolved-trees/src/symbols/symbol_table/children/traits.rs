@@ -40,13 +40,27 @@ pub(in crate::symbols::symbol_table) fn insert_trait_symbol_children(
     let mut trait_children = SymbolTableBuilder::child_handles(trait_children);
     for parameter in program.trait_type_parameters(trait_definition) {
         let parameter_symbol = trait_children.next();
-        if let (Some(parameter_symbol), TypeParameterKind::Proposition { contract }) =
-            (parameter_symbol, &parameter.kind)
-        {
-            builder.insert_children(
-                parameter_symbol,
-                parameter_seeds(program.state_parameters(contract.parameters), has_sources),
-            );
+        if let Some(parameter_symbol) = parameter_symbol {
+            match &parameter.kind {
+                TypeParameterKind::Machine { contract } => {
+                    if let Some(signature) = contract.structural() {
+                        super::insert_machine_parameter_signature_children(
+                            builder,
+                            program,
+                            parameter_symbol,
+                            signature,
+                            has_sources,
+                        );
+                    }
+                }
+                TypeParameterKind::Proposition { contract } => {
+                    builder.insert_children(
+                        parameter_symbol,
+                        parameter_seeds(program.state_parameters(contract.parameters), has_sources),
+                    );
+                }
+                _ => {}
+            }
         }
         if let Some(parameter_symbol) = parameter_symbol
             && let Some(bound) = trait_definition

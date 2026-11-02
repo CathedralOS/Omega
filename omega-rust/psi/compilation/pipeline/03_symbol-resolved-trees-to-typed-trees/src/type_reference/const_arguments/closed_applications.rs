@@ -17,7 +17,7 @@ enum ConstArgumentInput {
 }
 
 pub(super) fn normalize(program: &mut TypedTrees, frontier: usize) -> Result<(), Diagnostic> {
-    let applications = program
+    let mut applications = program
         .type_reference_table
         .type_reference_rows()
         .filter_map(|(reference, node)| {
@@ -32,10 +32,81 @@ pub(super) fn normalize(program: &mut TypedTrees, frontier: usize) -> Result<(),
             else {
                 return None;
             };
-            Some((reference, *base_symbol, *arguments))
+            Some((
+                *base_symbol,
+                program
+                    .type_reference_table
+                    .type_reference_handles(*arguments)
+                    .to_vec(),
+                program
+                    .type_reference_table
+                    .operand_lifetime_owner(reference),
+            ))
         })
         .collect::<Vec<_>>();
-    for (application, declaration, arguments) in applications {
+    // Declaration-owned applications have the same receiving telescope as
+    // Generic type nodes. Their argument occurrences still own source recipes;
+    // header storage does not make a raw ConstExpression a canonical actual.
+    applications.extend(program.conformances().iter().map(|declaration| {
+        (
+            declaration.trait_symbol,
+            program
+                .type_reference_handles(declaration.arguments)
+                .to_vec(),
+            declaration.symbol,
+        )
+    }));
+    for declaration in program.traits() {
+        applications.extend(
+            program
+                .trait_requirements(declaration)
+                .iter()
+                .map(|parent| {
+                    (
+                        parent.symbol,
+                        program.type_reference_handles(parent.arguments).to_vec(),
+                        declaration.symbol,
+                    )
+                }),
+        );
+        if let Some(base) = &declaration.refines {
+            applications.push((
+                base.symbol,
+                program.type_reference_handles(base.arguments).to_vec(),
+                declaration.symbol,
+            ));
+        }
+    }
+    let bounds = program
+        .machines()
+        .iter()
+        .map(|item| (item.symbol, &item.conformance_bounds))
+        .chain(
+            program
+                .traits()
+                .iter()
+                .map(|item| (item.symbol, &item.conformance_bounds)),
+        )
+        .chain(
+            program
+                .data_definitions()
+                .iter()
+                .map(|item| (item.symbol, &item.conformance_bounds)),
+        )
+        .chain(
+            program
+                .type_aliases()
+                .iter()
+                .map(|item| (item.symbol, &item.conformance_bounds)),
+        );
+    for (owner, bounds) in bounds {
+        applications.extend(
+            bounds
+                .iter()
+                .map(|bound| (bound.trait_symbol, bound.arguments.clone(), owner)),
+        );
+    }
+    for (declaration, arguments, owner) in applications {
         let parameters = if let Some(data) = program.unique_data_definition_by_symbol(declaration) {
             program.data_type_parameters(data).to_vec()
         } else if let Some(interface) = program.trait_definition_by_symbol(declaration) {
@@ -71,10 +142,6 @@ pub(super) fn normalize(program: &mut TypedTrees, frontier: usize) -> Result<(),
         } else {
             continue;
         };
-        let arguments = program
-            .type_reference_table
-            .type_reference_handles(arguments)
-            .to_vec();
         if parameters.len() != arguments.len() {
             continue;
         }
@@ -83,9 +150,6 @@ pub(super) fn normalize(program: &mut TypedTrees, frontier: usize) -> Result<(),
             .zip(&arguments)
             .map(|(parameter, argument)| (parameter.symbol, *argument))
             .collect::<Vec<_>>();
-        let owner = program
-            .type_reference_table
-            .operand_lifetime_owner(application);
         for (parameter, argument) in parameters.iter().zip(arguments.iter().copied()) {
             if argument.arena_index() as usize <= frontier {
                 continue;
