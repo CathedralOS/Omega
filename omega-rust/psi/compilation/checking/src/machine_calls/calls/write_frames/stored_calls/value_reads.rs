@@ -97,6 +97,51 @@ impl CompletedValueReads {
             .collect()
     }
 
+    /// Possible interpretation issuers of the completed descriptor. Unlike a
+    /// storage read, phase tracking must retain coarse coordinates and lifetime
+    /// suppliers too: either may carry an unestablished recast. This grants no
+    /// primitive address, value equality, read permission or reference validity.
+    pub(in crate::machine_calls::calls::write_frames) fn interpretation_sources(
+        &self,
+        program: &dyn crate::CheckingInput,
+    ) -> Result<Vec<frames::LocalWriteSource>, &'static str> {
+        crate::reference_shell(program, self.reference)
+            .ok_or("interpretation query has no reference descriptor type")?;
+        let mut sources = Vec::new();
+        for leaf in &self.returned.references {
+            if !leaf.local_segments.is_empty() {
+                continue;
+            }
+            if !matches!(leaf.kind, stored_origins::StoredOriginKind::Reference(_)) {
+                return Err("completed descriptor has a non-reference interpretation leaf");
+            }
+            // Selection and lifetime debts cannot authorize a storage read.
+            // Interpretation tracking instead retains every possible issuer;
+            // the ordinary loan and access owners still check those debts.
+            let origin = match leaf
+                .origin
+                .as_ref()
+                .ok_or("completed reference has an unavailable interpretation issuer")?
+            {
+                ReferenceSource::Captured(observed) => observed.source.origin.clone(),
+                ReferenceSource::Symbolic(origin) => origin.clone(),
+            };
+            let source: frames::LocalWriteSource = origin.into();
+            if !source.root.is_valid()
+                && source.invocation_output.is_none()
+                && !source.is_image_storage
+                && source.recasts.is_empty()
+            {
+                return Err("completed reference retains an unknown interpretation supplier");
+            }
+            sources.push(source);
+        }
+        if sources.is_empty() {
+            return Err("completed reference has no interpretation leaves");
+        }
+        Ok(sources)
+    }
+
     pub(in crate::machine_calls::calls::write_frames) fn read_backing(
         &self,
         program: &dyn crate::CheckingInput,

@@ -657,39 +657,10 @@ pub fn reference_storage_region_source_compatible<'types>(
     reference: StructuralTypeId,
     stored: Option<ScalarType>,
 ) -> bool {
-    if stored.is_some() {
-        return false;
-    }
-    let Some(region) = crate::reference_storage_region(types.clone(), source, path) else {
-        return false;
-    };
-    let Some(array) = region.array else {
-        return false;
-    };
-    let Some(StructuralTypeShape::Reference { referent, .. }) =
-        crate::structural_shape(types.clone(), reference)
-    else {
-        return false;
-    };
-    if !plain_storage(types.clone(), array.declaration, &mut Vec::new())
-        || !plain_storage(types.clone(), *referent, &mut Vec::new())
-    {
-        return false;
-    }
-    let Some((source_size, source_align)) = reference_storage_layout(types.clone(), source) else {
-        return false;
-    };
-    let Some((target_size, target_align)) = reference_storage_layout(types, *referent) else {
-        return false;
-    };
-    target_align != 0
-        && source_align.is_multiple_of(target_align)
-        && region.byte_offset.is_multiple_of(target_align)
-        && region.byte_length == target_size
-        && region
-            .byte_offset
-            .checked_add(region.byte_length)
-            .is_some_and(|end| end <= source_size)
+    crate::ReferenceStorageGeometry::new(types, |application| {
+        Err(crate::StorageGeometryError::UnresolvedExtent(application))
+    })
+    .region_source_compatible(source, path, reference, stored)
 }
 
 pub fn reference_storage_source_compatible<'types>(
@@ -751,7 +722,7 @@ pub fn reference_storage_source_compatible<'types>(
 /// A checked aggregate re-view retains geometry, not another permission
 /// representation. Psi owns its validity-set judgment; Terminal keeps nested
 /// references, atomics and dynamic descriptors out of the plain byte route.
-fn plain_storage<'types>(
+pub(crate) fn plain_storage<'types>(
     types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
     active: &mut Vec<StructuralTypeId>,

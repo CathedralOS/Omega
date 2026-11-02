@@ -37,6 +37,8 @@ pass/facts/finite_family_input_index/other_machine built 12204ms exit:0 interpre
 pass/facts/finite_family_input_index/other_state built 11537ms exit:0 interpreter-exit:0 interpreter:agrees @7b6988120e7e
 pass/facts/finite_family_input_index/parameter built 13939ms exit:0 interpreter-exit:0 interpreter:agrees @7b6988120e7e
 pass/facts/finite_family_input_index/target_body built 16042ms exit:0 interpreter-exit:0 interpreter:agrees @7b6988120e7e
+pass/facts/fixed_layout_byte_roundtrip_rejected_payload_exit built 5495ms exit:0 interpreter-exit:0 interpreter:agrees @70ba9ee572b42c4d7f6ffe7d3051217e0906221c
+pass/facts/fixed_layout_byte_roundtrip_through_local_exit built 5591ms exit:0 interpreter-exit:0 interpreter:agrees @70ba9ee572b42c4d7f6ffe7d3051217e0906221c
 pass/facts/inline_member_helper_through_call_result_exit built 8987ms exit:0 interpreter-exit:0 interpreter:agrees @12a8c9de0dff
 pass/facts/inline_member_helper_through_const_name_exit built 8668ms exit:0 interpreter-exit:0 interpreter:agrees @12a8c9de0dff
 pass/facts/inline_member_helper_through_field_exit built 15819ms exit:0 interpreter-exit:0 interpreter:agrees @12a8c9de0dff

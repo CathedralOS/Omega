@@ -459,6 +459,14 @@ pub(crate) fn stored_field_where_interval(
         }
     }
     let member = expression_table(program).member_node(target)?;
+    if crate::value_custody::recasts::pending_views::withholds_default_predicate(
+        program,
+        machine,
+        state,
+        member.receiver,
+    ) {
+        return None;
+    }
     let definition =
         data_definition_for_expression(program, machine, Some(state), member.receiver)?;
     let field = program

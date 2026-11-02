@@ -2,12 +2,12 @@
 public boundary trait Parent<Value> {
     machine echo<const Count: u64>(value: Value) -> Value
     reaches
-    where Count == 4 || Count == 8;
+    requires Count == 4 || Count == 8;
     machine spare() -> i32 reaches;
 }
 public boundary trait Child: Parent<i32> { machine choose() -> i32 reaches; }
 ChildMap satisfies Child {
-    machine echo<const Count: u64>(value: i32) -> i32 where Count == 4 || Count == 8 { echo_realization<Count>(value) }
+    machine echo<const Count: u64>(value: i32) -> i32 requires Count == 4 || Count == 8 { echo_realization<Count>(value) }
     machine spare() -> i32 { spare_realization() }
     machine choose() -> i32 { choose_realization() }
 }

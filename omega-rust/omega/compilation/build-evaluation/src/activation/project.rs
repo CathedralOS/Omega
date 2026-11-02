@@ -5,7 +5,7 @@ use build_declarations::{
     WorkspaceDeclaration,
 };
 
-use crate::terminal_requests::IssuedBuildRequest;
+use crate::host::requests::IssuedBuildRequest;
 
 pub(super) fn declaration(requests: &[IssuedBuildRequest]) -> Result<BuildDeclaration, String> {
     let mut role = None;

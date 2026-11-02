@@ -6,7 +6,7 @@
 //! an integer nor a matching debug name grants selection authority. Records
 //! remain inert until the product owner resolves and admits them.
 
-use crate::terminal_requests::build_facet;
+use crate::host::requests::build_facet;
 use language_semantics::declaration_selection::{
     BuildOperation, BuildSelectionRequest, CompositionMode, ExecutedBuildSelection,
     ExecutedProductSelection, ExecutedRootBinding, NativeBindingFormation,

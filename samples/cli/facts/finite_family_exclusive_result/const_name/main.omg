@@ -7,15 +7,15 @@ machine settle(token: Token) {
 }
 data Ticket { token: Token; marker: u32; }
 trait Family {
-    machine row<Width: u32>(ticket: Ticket) -> Ticket where Width == 16 || Width == 32;
+    machine row<Width: u32>(ticket: Ticket) -> Ticket requires Width == 16 || Width == 32;
 }
 First satisfies Family {
-    machine row<Width: u32>(ticket: Ticket) -> Ticket where Width == 16 || Width == 32 {
+    machine row<Width: u32>(ticket: Ticket) -> Ticket requires Width == 16 || Width == 32 {
         Ticket { token: ticket.token, marker: Width }
     }
 }
 Second satisfies Family {
-    machine row<Width: u32>(ticket: Ticket) -> Ticket where Width == 16 || Width == 32 {
+    machine row<Width: u32>(ticket: Ticket) -> Ticket requires Width == 16 || Width == 32 {
         Ticket { token: ticket.token, marker: Width }
     }
 }

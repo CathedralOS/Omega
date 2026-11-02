@@ -720,8 +720,9 @@ helper that passes does not close an item.
   [unified requirement clauses](wiki/spec/language/state_contracts.md#requirement-clauses)
   end to end and retire `where` from Omega source syntax, without a permanent
   compatibility spelling or weaker proof obligations.
-  - Implement `requires` for generic predicates and type equations on machines
-    and traits, quotient equivalence selection (`where equivalent satisfies`),
+  - Implement `requires` for machine type equations (the Rust producer still
+    recovers generic arguments only from a machine header's `where` facts),
+    quotient equivalence selection (`where equivalent satisfies`),
     `where proposition` premises, and structural/nominal `requires machine`
     contracts in both Rust and Omega producers. Preserve logical `self`, binder-kind
     inference, static/runtime distinctions, specialization and exact subjects;
@@ -1770,7 +1771,7 @@ defines the complete product bar.
     (`omega-rust/omega/packages/compilation-inputs/src/build_execution/build_value/configuration.rs`),
     with package-local satisfaction discovery, separate runner roots, and
     Terminal Psi + native execution in `omega-rust/omega/compilation/driver/`.
-  - Extend `omega-rust/omega/compilation/build-evaluation/src/admitted_build_program.rs`
+  - Extend `omega-rust/omega/compilation/build-evaluation/src/admission/program.rs`
     and `omega-rust/omega/packages/package-manager/src/review/restricted_build_grants.rs`
     to carry group-scoped providers, ordinary fixture storage, fresh mock state,
     and lock-reviewed test authority without automatic mutable context

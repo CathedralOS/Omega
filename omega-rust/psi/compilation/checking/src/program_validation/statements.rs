@@ -114,6 +114,16 @@ pub(super) fn validate_completion_value(
         &return_owner,
         diagnostics,
     );
+    crate::value_custody::recasts::pending_views::report_consumption(
+        program,
+        machine,
+        state,
+        scope.statement_index,
+        value,
+        state.return_type,
+        &return_owner,
+        diagnostics,
+    );
     struct_literals::validate_array_literal_elements(
         program,
         machine,

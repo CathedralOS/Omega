@@ -163,91 +163,219 @@ impl CapturedPredicate<'_> {
         state: &State,
         judge: super::structural_judgment::StructuralJudge<'_>,
     ) {
-        let mut parameters = Vec::new();
-        let mut bindings = Vec::new();
-        // Restoring a value judges the same applied predicate as constructing
-        // it. Its static arguments are part of that complete telescope, even
-        // when the field captures themselves are runtime scalars.
-        let type_bindings = judge.data_application_type_bindings(self.application);
-        for (parameter, value) in judge.data_application_static_bindings(self.application) {
-            bindings.push((parameter.name.to_string(), value));
-            parameters.push(parameter);
-        }
-        for field in program
-            .data_members(self.definition)
-            .iter()
-            .filter_map(|member| member.as_field())
-        {
-            let mut place = self.place.clone();
-            crate::value_custody::places::push_field_place_segments(
-                program,
-                &mut place.segments,
-                field.symbol,
-            );
-            if let Some(value) =
-                judge.captured_place_projection(&place, ContentPlaceVersion::Current)
-            {
-                parameters.push(StateParameter {
-                    symbol: field.symbol,
-                    name: field.name.clone(),
-                    type_reference: field.type_reference,
-                    ..Default::default()
-                });
-                bindings.push((field.name.to_string(), value));
+        self.proven &= predicate_holds_on_current_storage(
+            program,
+            machine,
+            state,
+            &judge,
+            &self.place,
+            self.application,
+            self.definition,
+            self.predicate,
+        );
+    }
+}
+
+/// Establish a predicate at this completed operand occurrence, including its
+/// selected guard and earlier sibling effects. A descriptor supplies no value
+/// premise: the fields are captured from current storage by the prefix owner.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn completed_data_predicate_holds(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    statement_index: usize,
+    expression: ExpressionHandle,
+    place: &crate::CanonicalPlace,
+    definition: &DataDefinition,
+    predicate: ExpressionHandle,
+) -> bool {
+    let Some(reference) =
+        crate::expression_result_type_reference(program, machine, state, expression)
+    else {
+        return false;
+    };
+    let Some(application) = predicate_application(program, place, definition) else {
+        return false;
+    };
+    let result = super::completed_observations::fold_completed_values(
+        program,
+        machine,
+        state,
+        statement_index,
+        expression,
+        reference,
+        true,
+        |proven| *proven,
+        |proven, observation| {
+            *proven &= observation.is_some_and(|(judge, _)| {
+                predicate_holds_on_current_storage(
+                    program,
+                    machine,
+                    state,
+                    judge,
+                    place,
+                    application,
+                    definition,
+                    predicate,
+                )
+            });
+            if *proven {
+                std::ops::ControlFlow::Continue(())
+            } else {
+                std::ops::ControlFlow::Break(())
             }
-        }
-        let subject_demanded = self.definition.predicate_subject_symbol.is_valid()
-            && crate::expression_traversal::visit_pre_order(
-                program,
-                vec![self.predicate],
-                |_, node| {
-                    matches!(node, typed_trees::expression::ExpressionNode::Name(path)
-                    if path.symbol == self.definition.predicate_subject_symbol)
-                },
-            );
-        if subject_demanded {
-            let Some(subject) = judge.captured_data_subject(&self.place, self.definition) else {
-                self.proven = false;
-                return;
-            };
-            if !self.definition.predicate_subject_type.is_valid() {
-                self.proven = false;
-                return;
-            }
-            let name = format!(
-                "\0stored_subject_{}_{}",
-                self.definition.predicate_subject_symbol.arena_index(),
-                self.definition.predicate_subject_symbol.generation()
-            );
+        },
+    );
+    result.is_some_and(|result| result.complete && result.state)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn predicate_holds_on_current_storage(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    judge: &super::structural_judgment::StructuralJudge<'_>,
+    place: &crate::CanonicalPlace,
+    application: TypeReferenceHandle,
+    definition: &DataDefinition,
+    predicate: ExpressionHandle,
+) -> bool {
+    let mut parameters = Vec::new();
+    let mut bindings = Vec::new();
+    // Static actuals belong to this exact applied predicate, for both stored
+    // restoration and consumption of a completed operand.
+    let type_bindings = judge.data_application_type_bindings(application);
+    for (parameter, value) in judge.data_application_static_bindings(application) {
+        bindings.push((parameter.name.to_string(), value));
+        parameters.push(parameter);
+    }
+    for field in program
+        .data_members(definition)
+        .iter()
+        .filter_map(|member| member.as_field())
+    {
+        let Some(place) = predicate_field_place(program, place, definition, field.symbol) else {
+            return false;
+        };
+        if let Some(value) = judge.captured_place_projection(&place, ContentPlaceVersion::Current) {
             parameters.push(StateParameter {
-                symbol: self.definition.predicate_subject_symbol,
-                name: name.as_str().into(),
-                // The declaration subject can name its generic origin's field
-                // view. The performed store retains this exact receiving
-                // carrier, whose current constructor supplies these fields.
-                type_reference: self.application,
+                symbol: field.symbol,
+                name: field.name.clone(),
+                type_reference: field.type_reference,
                 ..Default::default()
             });
-            bindings.push((name, subject));
+            bindings.push((field.name.to_string(), value));
         }
-        let judgment = instantiated_selected_fact_judgment(
-            program,
-            &judge,
-            self.definition.symbol,
-            &parameters,
-            self.predicate,
-            &bindings,
-            &[],
-            &type_bindings,
-            Some((machine, state)),
-        );
-        if super::struct_trace() {
-            eprintln!(
-                "STRUCT captured-predicate data={} predicate={} parameters={parameters:?} bindings={bindings:?} judgment={judgment:?}",
-                self.definition.name,
-                program.expression_table.display_name(self.predicate),
-            );
-        }
-        self.proven &= matches!(judgment, StructuralJudgment::Proven);
     }
+    let subject_demanded = definition.predicate_subject_symbol.is_valid()
+        && crate::expression_traversal::visit_pre_order(program, vec![predicate], |_, node| {
+            matches!(node, typed_trees::expression::ExpressionNode::Name(path)
+                    if path.symbol == definition.predicate_subject_symbol)
+        });
+    if subject_demanded {
+        let subject = judge.captured_data_subject(place, definition, |field| {
+            predicate_field_place(program, place, definition, field)
+        });
+        let Some(subject) = subject else {
+            return false;
+        };
+        if !definition.predicate_subject_type.is_valid() {
+            return false;
+        }
+        let name = format!(
+            "\0stored_subject_{}_{}",
+            definition.predicate_subject_symbol.arena_index(),
+            definition.predicate_subject_symbol.generation()
+        );
+        parameters.push(StateParameter {
+            symbol: definition.predicate_subject_symbol,
+            name: name.as_str().into(),
+            type_reference: application,
+            ..Default::default()
+        });
+        bindings.push((name, subject));
+    }
+    let judgment = instantiated_selected_fact_judgment(
+        program,
+        &judge,
+        definition.symbol,
+        &parameters,
+        predicate,
+        &bindings,
+        &[],
+        &type_bindings,
+        Some((machine, state)),
+    );
+    matches!(judgment, StructuralJudgment::Proven)
+}
+
+/// Predicates name semantic fields; a selected layout owns distinct physical
+/// field symbols. Join them through that exact plan before capturing contents,
+/// retaining semantic binders in the predicate instantiation itself.
+fn predicate_field_place(
+    program: &dyn crate::CheckingInput,
+    place: &crate::CanonicalPlace,
+    definition: &DataDefinition,
+    semantic_field: symbols::SymbolHandle,
+) -> Option<crate::CanonicalPlace> {
+    let mut symbol = semantic_field;
+    if let Some(reference) = place
+        .root
+        .as_symbol()
+        .and_then(|root| crate::declaration_type_reference(program, root))
+        .and_then(|reference| {
+            crate::project_type_reference_from_segments(program, reference, &place.segments)
+        })
+    {
+        let carrier = crate::value_custody::places::assignment_value_type(program, reference);
+        if let Some(physical) = program.closed_data_field_definition(carrier)
+            && let Some(plan) = program.plan_laid_layout_for_data(physical)
+        {
+            let semantic = program.closed_data_field_definition(plan.semantic_type)?;
+            if (semantic.symbol, semantic.generic_instance)
+                != (definition.symbol, definition.generic_instance)
+            {
+                return None;
+            }
+            let mut matches = plan
+                .schema_field_symbols
+                .iter()
+                .enumerate()
+                .filter(|(_, candidate)| **candidate == semantic_field);
+            let (index, _) = matches.next()?;
+            if matches.next().is_some() {
+                return None;
+            }
+            symbol = *plan.field_symbols.get(index)?;
+        }
+    }
+    let mut place = place.clone();
+    crate::value_custody::places::push_field_place_segments(program, &mut place.segments, symbol);
+    Some(place)
+}
+
+/// Preserve the complete semantic application when storage is presented by a
+/// named layout. No receiving annotation supplies a value or predicate premise.
+fn predicate_application(
+    program: &dyn crate::CheckingInput,
+    place: &crate::CanonicalPlace,
+    definition: &DataDefinition,
+) -> Option<TypeReferenceHandle> {
+    let reference = place
+        .root
+        .as_symbol()
+        .and_then(|root| crate::declaration_type_reference(program, root))?;
+    let projected =
+        crate::project_type_reference_from_segments(program, reference, &place.segments)?;
+    let carrier = crate::value_custody::places::assignment_value_type(program, projected);
+    let application = match program
+        .closed_data_field_definition(carrier)
+        .and_then(|physical| program.plan_laid_layout_for_data(physical))
+    {
+        Some(plan) => plan.semantic_type,
+        None => carrier,
+    };
+    program.data_constructor_definition(application, definition.symbol)?;
+    Some(application)
 }

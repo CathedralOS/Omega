@@ -47,14 +47,14 @@ impl AdmittedBuildProgram {
         &self,
         packages: Option<&package_compilation::PackageCompilationInputs>,
         snapshot: Option<&package_compilation::BuildSnapshotRequest>,
-    ) -> Option<crate::completed_pure_build::CompletedPureBuildInputs> {
+    ) -> Option<crate::activation::completed_pure_build::CompletedPureBuildInputs> {
         if self.machine.filesystem_reachable
             || self.machine.execution_mode != build_time_evaluation::BuildMachineExecutionMode::Pure
             || !self.restricted_build_requests().is_empty()
         {
             return None;
         }
-        crate::completed_pure_build::CompletedPureBuildInputs::from_admitted(
+        crate::activation::completed_pure_build::CompletedPureBuildInputs::from_admitted(
             self.prepared.checked_program()?,
             self.machine.symbol,
             self.machine.initial_build.clone(),
@@ -62,7 +62,7 @@ impl AdmittedBuildProgram {
             snapshot,
             &self.filesystem_scope,
             self.artifact_only,
-            crate::terminal_execution::measurement(),
+            crate::activation::measurement(),
             self.evaluation_sponsor.as_ref(),
         )
     }
