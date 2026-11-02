@@ -1260,7 +1260,7 @@ fn compound_proof_membership_keeps_ordinary_boolean_precedence() {
         ));
         let path = parsed
             .expressions
-            .name_path_members(membership.domain)
+            .identifier_path_members(membership.domain)
             .iter()
             .map(|part| part.as_str(&parsed))
             .collect::<Vec<_>>();
