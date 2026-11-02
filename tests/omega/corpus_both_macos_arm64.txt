@@ -91,6 +91,8 @@ pass/facts/aggregate_storage_address_identity_through_other_machine_exit built 3
 pass/facts/aggregate_storage_address_identity_through_other_state_exit built 3716ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/aggregate_storage_address_identity_through_parameter_exit built 3304ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/aggregate_storage_address_identity_through_target_body_exit built 3794ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
+pass/facts/applied_requirement_indices_through_match_join_exit built 6833ms exit:0 interpreter-exit:0 interpreter:agrees @283bf8fab936
+pass/facts/applied_requirement_indices_through_target_body_exit built 14021ms exit:0 interpreter-exit:0 interpreter:agrees declared-invocation-controls:match terminal-inspections:match @283bf8fab936
 pass/facts/array_element_default_domain/call_result built 4905ms exit:0 interpreter-exit:0 interpreter:agrees @89d5d2d7655c
 pass/facts/array_element_default_domain/const_name built 5735ms exit:0 interpreter-exit:0 interpreter:agrees @89d5d2d7655c
 pass/facts/array_element_default_domain/field built 2789ms exit:0 interpreter-exit:0 interpreter:agrees @89d5d2d7655c
