@@ -262,29 +262,45 @@ pub(super) fn assign_statement_symbols(
                     expression_table.match_field_mut(handle).field_symbol = symbol;
                 }
                 assign_expr!(retained.pattern.condition);
-                let test =
-                    if selected.is_valid() && symbols.get(selected).kind == SymbolKind::Variant {
-                        let head = head.as_ref().expect("selected named case");
-                        Some(expression_table.insert(ExpressionNode::Membership(
-                            TableMembershipExpression {
-                                value: retained.subject,
-                                domain: head.members,
-                                domain_symbol: SymbolHandle::invalid(),
-                                case_type_symbol: symbols.get(selected).parent,
-                                case_symbol: selected,
+                let test = if selected.is_valid()
+                    && matches!(
+                        symbols.get(selected).kind,
+                        SymbolKind::Variant | SymbolKind::Domain
+                    ) {
+                    let head = head.as_ref().expect("selected pattern head");
+                    let is_case = symbols.get(selected).kind == SymbolKind::Variant;
+                    Some(expression_table.insert(ExpressionNode::Membership(
+                        TableMembershipExpression {
+                            value: retained.subject,
+                            domain: head.members,
+                            domain_symbol: if is_case {
+                                SymbolHandle::invalid()
+                            } else {
+                                selected
                             },
-                        )))
-                    } else if !retained.is_structural && retained.pattern.head.is_valid() {
-                        Some(expression_table.insert(ExpressionNode::Binary(
-                            TableBinaryExpression {
-                                left: retained.subject,
-                                operator: BinaryOperator::Equal,
-                                right: retained.pattern.head,
+                            case_type_symbol: if is_case {
+                                symbols.get(selected).parent
+                            } else {
+                                SymbolHandle::invalid()
                             },
-                        )))
-                    } else {
-                        None
-                    };
+                            case_symbol: if is_case {
+                                selected
+                            } else {
+                                SymbolHandle::invalid()
+                            },
+                        },
+                    )))
+                } else if !retained.is_structural && retained.pattern.head.is_valid() {
+                    Some(
+                        expression_table.insert(ExpressionNode::Binary(TableBinaryExpression {
+                            left: retained.subject,
+                            operator: BinaryOperator::Equal,
+                            right: retained.pattern.head,
+                        })),
+                    )
+                } else {
+                    None
+                };
                 let axis = if let Some(test) = test {
                     expression_table.insert(ExpressionNode::Binary(TableBinaryExpression {
                         left: test,

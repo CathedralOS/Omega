@@ -493,6 +493,7 @@ fn parse_struct_literal_handle<'tokens, 'source>(
     let expression = syntax_trees
         .expressions
         .insert(ExpressionNode::StructLiteral(TableStructLiteral {
+            application_type: Default::default(),
             constructor_name,
             fields,
         }));
