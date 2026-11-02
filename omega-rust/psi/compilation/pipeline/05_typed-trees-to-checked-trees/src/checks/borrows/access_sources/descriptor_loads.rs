@@ -136,7 +136,10 @@ fn resolve_loads(
         formal_root,
     }];
     let mut resolved = Vec::new();
-    while let Some(cursor) = pending.pop() {
+    while let Some(mut cursor) = pending.pop() {
+        cursor.remaining =
+            validation::corresponding_place_projection(program, cursor.carrier, &cursor.remaining)
+                .ok_or("the descriptor path does not correspond to its current carrier")?;
         // Only owned prefixes can precede the next reference. This common
         // projector retains the supplying generic application at every prefix.
         let (prefix, descriptor_type) =

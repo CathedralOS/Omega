@@ -740,6 +740,46 @@ impl TypeReferenceTable {
         fresh
     }
 
+    /// Re-use one complete inferred alias application at another authored
+    /// head. Only the head's occurrence changes: every argument and supplying
+    /// coordinate remains the original operand, and formation is still owed.
+    pub fn alias_use_at(
+        &mut self,
+        source: TypeReferenceHandle,
+        declaration: source::SourceSpan,
+        head: Identifier,
+    ) -> Option<TypeReferenceHandle> {
+        let mut applications = self
+            .type_alias_applications(source)
+            .filter(|row| row.declaration == declaration)
+            .cloned();
+        let original = applications.next()?;
+        if applications.next().is_some() {
+            return None;
+        }
+        drop(applications);
+        let application = self.fresh_type_occurrence(original.application);
+        let mut node = self.type_reference(application).clone();
+        match &mut node {
+            TypeReferenceNode::Named(name) => *name = head,
+            TypeReferenceNode::Generic { base_name, .. } => *base_name = head,
+            _ => return None,
+        }
+        self.replace_type_reference(application, node);
+        let instance = self.fresh_type_occurrence(source);
+        let row = self
+            .type_alias_applications
+            .iter()
+            .find_map(|(handle, row)| {
+                (row.instance == instance
+                    && row.declaration == declaration
+                    && row.application == original.application)
+                    .then_some(handle)
+            })?;
+        self.type_alias_applications.get_mut(row).application = application;
+        Some(instance)
+    }
+
     /// Replace an occurrence by an already prepared occurrence in this same
     /// forest, retaining its exact normalization and supplying metadata. The
     /// old authored application must be retained separately before this call.

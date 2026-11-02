@@ -346,7 +346,6 @@ fn boundary_candidates(
         .typed
         .traits()
         .iter()
-        .filter(|definition| definition.is_boundary)
         .flat_map(|definition| {
             checked
                 .typed

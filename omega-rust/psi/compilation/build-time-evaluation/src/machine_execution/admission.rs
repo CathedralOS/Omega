@@ -38,9 +38,7 @@ pub(crate) use concrete_invocation::{
 };
 pub(crate) use supplied_values::require_established_arguments;
 pub(crate) mod const_evaluable;
-mod selected_closures;
 mod selection_authority;
-pub use selected_closures::SelectedBuildTimeClosureAdmission;
 
 use closure_validation::checked_closure_violation;
 use const_evaluable::require_const_evaluable_result;
@@ -877,42 +875,22 @@ impl BuildTimeAdmissionPlan {
             &self.selected_provider_bodies,
             input.operator_facts(),
         );
-        if services.is_empty()
-            && !transitive_may_suspend
-            && !transitive_may_block
-            && closure_violation.is_none()
-            && selection_violation.is_none()
-        {
-            return Ok(());
-        }
-
-        let source_span = selection_violation
-            .as_ref()
-            .and_then(|violation| violation.source_span);
-        let mut violations = Vec::new();
-        if !services.is_empty() {
-            violations.push(format!("service reach [{}]", services.join(", ")));
-        }
-        if transitive_may_suspend {
-            violations.push("may suspend".to_owned());
-        }
-        if transitive_may_block {
-            violations.push("may block".to_owned());
-        }
-        if let Some(violation) = closure_violation {
-            violations.push(violation);
-        }
-        if let Some(violation) = selection_violation {
-            violations.push(violation.message);
-        }
-
-        Err(BuildTimeAdmissionRejection {
-            reason: format!(
-                "machine `{}` is not build-time admissible: {}; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure",
-                machine.name,
-                violations.join("; ")
-            ),
-            source_span,
+        let effects = semantic_vocabulary::compiler_evaluation::CompilerEvaluationEffects {
+            services: services.into_iter().map(str::to_owned).collect(),
+            may_suspend: transitive_may_suspend,
+            may_block: transitive_may_block,
+        };
+        semantic_vocabulary::compiler_evaluation::require_compiler_evaluation_floor(
+            machine.name.as_str(),
+            &effects,
+            closure_violation.as_deref(),
+            selection_violation
+                .as_ref()
+                .map(|violation| violation.message.as_str()),
+        )
+        .map_err(|reason| BuildTimeAdmissionRejection {
+            reason,
+            source_span: selection_violation.and_then(|violation| violation.source_span),
         })
     }
 

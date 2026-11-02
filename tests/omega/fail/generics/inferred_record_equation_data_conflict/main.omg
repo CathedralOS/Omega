@@ -8,7 +8,7 @@ data Package<Item [copy], const Setting: Configuration> [copy]
 requires Item == Token<Setting>
 { item: Item; }
 machine read<Item [copy], const Setting: Configuration>(item: Item) -> u64
-where Item == Token<Setting>
+requires Item == Token<Setting>
 { Setting.minimum }
 machine main() crashes Trap {
     let item: Token<SEVEN> = Token { marker: 1 };

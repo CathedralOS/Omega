@@ -52,7 +52,6 @@ use syntax::item::Item;
 use syntax::item::SatisfiesClause;
 use syntax::item::StateHandle;
 use syntax_trees::item::CapabilityContractKind;
-use syntax_trees::item::ProofFact;
 use syntax_trees::{self as syntax, SyntaxTrees};
 
 /// Prepared syntax bound to the one declaration roster that indexed it.
@@ -205,22 +204,8 @@ fn lower_lexical_machine_parts(
     let type_equations::MachineTypeEquations {
         definitions: declared_type_equations,
         requires_argument_recovery,
+        declares_equations,
     } = type_equations::lower(lowerer, syntax_trees, machine)?;
-    let mut predicates = Vec::new();
-    for fact in syntax_trees.items.proof_facts(machine.where_facts) {
-        let ProofFact::Expression(expression) = fact else {
-            return Err(Diagnostic::error(
-                "machine static type predicate lacks an expression owner",
-            )
-            .with_source_span(machine.name.source_span()));
-        };
-        predicates.push(crate::lowering::expression::lower_expression_into_table(
-            lowerer,
-            syntax_trees,
-            *expression,
-        )?);
-    }
-    let declared_type_predicates = expression_table(lowerer).insert_expression_handles(predicates);
 
     // Each member keeps its own conformances and target-owned `via` locators.
     // Provider selection joins an exact member without promoting it into the
@@ -337,7 +322,7 @@ fn lower_lexical_machine_parts(
     // that selected telescope too: its substituted result is type evidence even
     // when the producing machine declares no equation of its own.
     if let Some(sources) = &mut lowerer.equation_sources
-        && (!machine.where_facts.is_empty() || !machine.type_parameters.is_empty())
+        && !machine.type_parameters.is_empty()
     {
         sources.declarations.push((
             lowerer.symbol_resolved_trees.machines.len(),
@@ -374,7 +359,7 @@ fn lower_lexical_machine_parts(
         target_family_contracts_prepared: false,
         target_symbol_name,
         has_structural_type_equations: requires_argument_recovery,
-        structural_type_equations_pending: !machine.where_facts.is_empty()
+        structural_type_equations_pending: declares_equations
             && (lowerer.structural_type_equations_pending || !requires_argument_recovery),
         // TPR2: the termination plan's ONE population site (see
         // build_termination_plan below).
@@ -390,7 +375,6 @@ fn lower_lexical_machine_parts(
             lifetime_parameters: lower_names(syntax_trees, &machine.lifetime_parameters),
             type_parameters,
             declared_type_equations,
-            declared_type_predicates,
             owned_data: HandleSpan::empty(),
             satisfies,
             conformance_bounds,

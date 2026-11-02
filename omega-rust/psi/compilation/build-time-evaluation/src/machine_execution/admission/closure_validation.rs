@@ -374,70 +374,9 @@ pub(super) fn has_authored_requires(contracts: &[SignatureContract]) -> bool {
 fn machine_linear_carrier_violation(
     program: &TypedTrees,
     machine: &Machine,
-    path: &[String],
+    _path: &[String],
 ) -> Option<String> {
-    let describe = |context: &str, type_reference| {
-        (program.type_multiplicity(type_reference)
-            == Multiplicity::Linear)
-            .then(|| {
-                format!(
-                    "{context} has linear runtime type `{}` along `{}`; semantic evaluation has no proof/build-admission for that resource carrier",
-                    program.display_type_reference(type_reference),
-                    path.join(" -> ")
-                )
-            })
-    };
-
-    if let Some(attached_data) = machine.attached_data.as_ref()
-        && program
-            .attached_data_definition(machine)
-            .is_some_and(|definition| definition.properties.multiplicity == Multiplicity::Linear)
-    {
-        return Some(format!(
-            "machine instance `{}` has linear runtime type `{}` along `{}`; semantic evaluation has no proof/build-admission for that resource carrier",
-            machine.name,
-            attached_data,
-            path.join(" -> ")
-        ));
-    }
-
-    for owned in program.machine_owned_data(machine) {
-        if let Some(violation) = describe(
-            &format!("machine-owned value `{}`", owned.name),
-            owned.type_reference,
-        ) {
-            return Some(violation);
-        }
-    }
-
-    for state in program.machine_states(machine) {
-        for parameter in program.state_parameters(state) {
-            if let Some(violation) = describe(
-                &format!("state `{}` parameter `{}`", state.name, parameter.name),
-                parameter.type_reference,
-            ) {
-                return Some(violation);
-            }
-        }
-        if let Some(violation) =
-            describe(&format!("state `{}` result", state.name), state.return_type)
-        {
-            return Some(violation);
-        }
-        for statement in program.statement_table.statements(state.statement_nodes) {
-            let Some(local) = statement.as_local_data() else {
-                continue;
-            };
-            if let Some(violation) = describe(
-                &format!("state `{}` local `{}`", state.name, local.name),
-                local.type_reference,
-            ) {
-                return Some(violation);
-            }
-        }
-    }
-
-    None
+    validation::compiler_evaluation::linear_carrier_violation(program, machine)
 }
 
 fn callable_signature(program: &TypedTrees, symbol: SymbolHandle) -> Option<&StateSignature> {

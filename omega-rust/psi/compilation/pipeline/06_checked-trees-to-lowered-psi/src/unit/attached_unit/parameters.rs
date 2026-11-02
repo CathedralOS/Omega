@@ -7,7 +7,7 @@ use super::super::{
     StructuralTypeDeclaration,
 };
 use super::{
-    CheckedBoundaryMachinePlan, CheckedTrees, LoweringError, Multiplicity, PlaceId, ScalarType,
+    CheckedBoundaryMachinePlan, CheckedTrees, LoweringError, PlaceId, ScalarType,
     ServiceReachSummary, StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId,
     ValueDeclaration, allocate_dense, lookup_service_id, lookup_type_id, place_id,
     require_valid_service_row, terminal_scalar_type, unsupported,
@@ -52,21 +52,6 @@ pub(crate) fn structural_carrier_type(
                 reference = *base_type
             }
             _ => return Ok(reference),
-        }
-    }
-}
-
-/// A borrowed Binding is an ordinary reference parameter, not an owned affine
-/// binding. Provider storage never changes source access or multiplicity.
-fn service_parameter_multiplicity(
-    access: checked_trees::CheckedStructuralAccess,
-) -> Result<Multiplicity, LoweringError> {
-    match access {
-        checked_trees::CheckedStructuralAccess::Owned => Ok(Multiplicity::Affine),
-        checked_trees::CheckedStructuralAccess::SharedBorrow
-        | checked_trees::CheckedStructuralAccess::MutableBorrow => Ok(Multiplicity::Unrestricted),
-        checked_trees::CheckedStructuralAccess::WriteOnlyBorrow => {
-            unsupported("Binding parameter cannot use write-only access")
         }
     }
 }
@@ -220,15 +205,6 @@ pub(crate) fn lower_unit_parameters(
             if qualifications.len() != parameter.qualifications.len() {
                 return Err(LoweringError::Unsupported(
                     "Unit structural parameter repeats a qualification",
-                ));
-            }
-            if parameter.binding_carrier.is_some()
-                && (parameter.multiplicity != service_parameter_multiplicity(parameter.access)?
-                    || !parameter.qualifications.is_empty()
-                    || !parameter.projected_qualifications.is_empty())
-            {
-                return Err(LoweringError::Unsupported(
-                    "fused Service parameter has an invalid checked structural shape",
                 ));
             }
             Ok(StructuralParameterDeclaration {

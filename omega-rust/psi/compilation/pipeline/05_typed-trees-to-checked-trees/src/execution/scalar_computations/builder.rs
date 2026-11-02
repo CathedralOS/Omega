@@ -87,6 +87,32 @@ pub(super) struct Builder<'program, 'plans> {
 }
 
 impl Builder<'_, '_> {
+    /// Flow records each short-circuit occurrence's evaluation roster: the
+    /// left capture, then the right capture only when some route selected it.
+    /// When every evaluation of this occurrence at this statement captured
+    /// the left operand alone, the left result already chose the skipping
+    /// route, so the right operand never runs and owns no call fact. That
+    /// recorded roster, not a literal spelling of the left operand, decides
+    /// the skip; a local, field, call result, join or state input proved
+    /// false skips exactly like `false`. No roster keeps both operands.
+    fn right_operand_never_evaluated(&self, expression: ExpressionHandle) -> bool {
+        let control = &self.flow.control;
+        control.with_expression_operands(expression, |operands| {
+            let mut evaluations = operands
+                .iter()
+                .map(|operand| control.operands.get(*operand))
+                .filter(|operand| {
+                    operand.state_symbol == self.state
+                        && operand.statement_index == self.statement_index
+                })
+                .peekable();
+            evaluations.peek().is_some()
+                && evaluations.all(|operand| {
+                    operand.evaluated_inputs.len() == 1 && operand.conditional_inputs_from.is_none()
+                })
+        })
+    }
+
     pub(super) fn record_root(
         &mut self,
         pure: &CheckedScalarExpressionPlans,
@@ -864,7 +890,9 @@ impl Builder<'_, '_> {
                         Some(condition)
                     };
                 }
-                if normal_return::boolean_result(self.plans, condition) == Some(!evaluate_when) {
+                if normal_return::boolean_result(self.plans, condition) == Some(!evaluate_when)
+                    || self.right_operand_never_evaluated(expression)
+                {
                     // Unlike replacing this with a constant, returning the
                     // original graph preserves every effect leading to its result.
                     return Some(condition);

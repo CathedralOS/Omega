@@ -93,7 +93,7 @@ not mutate the caller's scalar. A borrowed parameter has no such separation.
 A result fact describes the value returned by that invocation, not an expression
 to reevaluate against newer caller arguments. Unknown mutation cannot be treated
 as no mutation. See [subject identity](../spec/language/state_contracts.md#mutation-and-subject-identity)
-and the [current proof implementation](../../omega-rust/psi/compilation/checking/README.md).
+and the [current proof implementation](../../omega-rust/psi/compilation/validation/README.md).
 
 ## Generic Contracts
 

@@ -87,6 +87,7 @@ pub(crate) fn hoist_membership_match_subject(
         lowerer,
         guard_expression,
         ExpressionNode::Membership(TableMembershipExpression {
+            is_pattern: membership.is_pattern,
             value: name_reference,
             domain: membership.domain,
             domain_symbol: membership.domain_symbol,

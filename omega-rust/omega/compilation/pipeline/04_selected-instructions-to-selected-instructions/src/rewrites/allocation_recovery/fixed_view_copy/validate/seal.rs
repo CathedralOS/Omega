@@ -1,6 +1,4 @@
-use target_operations_to_selected_instructions::{
-    ValidatedSelectedInstructions, selected_instruction_plan_identity,
-};
+use selected_instructions::{SelectedProgram, selected_instruction_plan_identity};
 
 use crate::{
     FixedViewCopyPlan, FixedViewCopyValidationReceipt, ValidatedFixedViewCopies,
@@ -8,7 +6,7 @@ use crate::{
 };
 
 pub(crate) fn seal_validation(
-    selected: &ValidatedSelectedInstructions,
+    selected: &SelectedProgram,
     plan: FixedViewCopyPlan,
 ) -> ValidatedFixedViewCopies {
     let receipt = FixedViewCopyValidationReceipt {
@@ -20,8 +18,8 @@ pub(crate) fn seal_validation(
         allocator_availability: plan.allocator_availability,
         source_evidence: plan.source_evidence,
         transformed_selected: selected_instruction_plan_identity(&plan.transformed),
-        optimization_unit: selected.receipt().optimization_unit(),
-        fuel_schedule: selected.receipt().fuel_schedule(),
+        optimization_unit: selected.optimization_unit(),
+        fuel_schedule: selected.fuel_schedule(),
         policy: plan.policy,
         usage: plan.usage,
         function_count: plan.transformed.functions.len(),

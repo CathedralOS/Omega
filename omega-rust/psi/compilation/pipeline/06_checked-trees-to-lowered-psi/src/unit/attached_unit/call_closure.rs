@@ -214,7 +214,6 @@ pub(crate) fn checked_unit_boundary_identity(
         .typed
         .traits()
         .iter()
-        .filter(|definition| definition.is_boundary)
         .flat_map(|definition| {
             checked
                 .typed

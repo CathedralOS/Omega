@@ -240,12 +240,6 @@ fn visit_machine(
     if binders.is_empty() {
         return;
     }
-    visit_facts(
-        syntax,
-        syntax.items.proof_facts(machine.where_facts),
-        &binders,
-        deferred,
-    );
     visit_contracts(
         syntax,
         syntax.items.capability_contracts(machine.contracts),

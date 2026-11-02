@@ -45,7 +45,7 @@ use facts::{
 use typed_trees::expression::{ExpressionHandle, TableCallExpression};
 use validation::{
     CanonicalPlace, canonical_place_type_reference, captured_integer_value,
-    declared_place_type_raw, effective_member_symbol, find_state,
+    declared_place_type_raw, effective_member_symbol,
     has_builtin_bound_expression_meaning, indexed_operation_has_builtin_meaning,
     owned_projection_type_reference, reference_shell,
 };
@@ -276,11 +276,23 @@ impl Execution<'_, '_, '_> {
         if paths.is_empty() {
             return None;
         }
-        let Some((_, state)) = find_state(self.program, call.target_symbol) else {
+        let entered_target = validation::call_target_entry_symbol(
+            self.program,
+            validation::call_target_symbol(self.program, call),
+        );
+        let Some(parameters) = validation::find_state(self.program, entered_target)
+            .map(|(_, state)| self.program.state_parameters(state))
+            .or_else(|| {
+                validation::selected_requirement_signature(self.program, entered_target)
+                    .map(|(_, signature)| {
+                        self.program.state_signature_parameters(signature)
+                    })
+            })
+        else {
             return Some(HandleSpan::empty());
         };
         let Some(indices) = self.captured_argument_indices(
-            self.program.state_parameters(state),
+            parameters,
             inputs
                 .iter()
                 .skip(usize::from(call.receiver.is_valid()))
@@ -342,39 +354,79 @@ impl Execution<'_, '_, '_> {
                     }
                 };
                 matched = true;
-                let Some(actual) = inputs
-                    .get(source.argument_index + usize::from(call.receiver.is_valid()))
-                    .map(|(_, actual)| actual)
-                else {
-                    complete = false;
-                    break;
-                };
-                let selected = crate::borrow::structural_owner_path(
-                    self.program,
-                    &crate::borrow::owner_path_from_place_segments(self.program, &source.segments),
-                )
-                .and_then(|mut path| {
-                    path.extend_from_slice(&suffix);
-                    loan_place_segments(self.program, actual.type_reference, &path)
-                });
-                let Some(selected) = selected else {
-                    complete = false;
-                    break;
-                };
-                let Some(projected) = self.capture_reference_projection(
-                    actual,
-                    &selected,
-                    ReferenceProjection::Value,
-                ) else {
-                    complete = false;
-                    break;
-                };
-                if projected.places.is_empty() {
-                    complete = false;
-                    break;
-                }
-                for place in projected.places {
-                    crate::shared::collections::push_unique(&mut places, place);
+                match source.backing {
+                    super::super::reference_places::ReferenceResultBacking::CallerArgument {
+                        argument_index,
+                        ..
+                    } => {
+                        let Some(actual) = inputs
+                            .get(argument_index + usize::from(call.receiver.is_valid()))
+                            .map(|(_, actual)| actual)
+                        else {
+                            complete = false;
+                            break;
+                        };
+                        let selected = crate::borrow::structural_owner_path(
+                            self.program,
+                            &crate::borrow::owner_path_from_place_segments(
+                                self.program,
+                                &source.segments,
+                            ),
+                        )
+                        .and_then(|mut path| {
+                            path.extend_from_slice(&suffix);
+                            loan_place_segments(self.program, actual.type_reference, &path)
+                        });
+                        let Some(selected) = selected else {
+                            complete = false;
+                            break;
+                        };
+                        let Some(projected) = self.capture_reference_projection(
+                            actual,
+                            &selected,
+                            ReferenceProjection::Value,
+                        ) else {
+                            complete = false;
+                            break;
+                        };
+                        if projected.places.is_empty() {
+                            complete = false;
+                            break;
+                        }
+                        for place in projected.places {
+                            crate::shared::collections::push_unique(&mut places, place);
+                        }
+                    }
+                    super::super::reference_places::ReferenceResultBacking::InvocationResult(
+                        home,
+                    ) => {
+                        // The completed invocation owns this referent: its
+                        // identity is the call site itself, not a formal's
+                        // storage. The leaf path replays beneath the opaque
+                        // referent it names.
+                        let selected = crate::borrow::structural_owner_path(
+                            self.program,
+                            &crate::borrow::owner_path_from_place_segments(
+                                self.program,
+                                &source.segments,
+                            ),
+                        )
+                        .and_then(|mut path| {
+                            path.extend_from_slice(&suffix);
+                            loan_place_segments(self.program, home.referent, &path)
+                        });
+                        let Some(segments) = selected else {
+                            complete = false;
+                            break;
+                        };
+                        crate::shared::collections::push_unique(
+                            &mut places,
+                            CapturedReferencePlace::unformed(CanonicalPlace {
+                                root: PlaceRoot::Expression(expression),
+                                segments,
+                            }),
+                        );
+                    }
                 }
             }
             let referents = if complete && matched {
@@ -637,11 +689,23 @@ impl Execution<'_, '_, '_> {
         // A produced unknown result is authoritative, just as an unresolved
         // saved descriptor is. No initializer supplies a replacement address.
         *referents = Some(HandleSpan::empty());
-        let Some((_, state)) = find_state(self.program, call.target_symbol) else {
+        let entered_target = validation::call_target_entry_symbol(
+            self.program,
+            validation::call_target_symbol(self.program, call),
+        );
+        let Some(parameters) = validation::find_state(self.program, entered_target)
+            .map(|(_, state)| self.program.state_parameters(state))
+            .or_else(|| {
+                validation::selected_requirement_signature(self.program, entered_target)
+                    .map(|(_, signature)| {
+                        self.program.state_signature_parameters(signature)
+                    })
+            })
+        else {
             return;
         };
         let Some(indices) = self.captured_argument_indices(
-            self.program.state_parameters(state),
+            parameters,
             inputs
                 .iter()
                 .skip(usize::from(call.receiver.is_valid()))
@@ -659,21 +723,40 @@ impl Execution<'_, '_, '_> {
             if !source.result_path.is_empty() {
                 return;
             }
-            let Some((_, actual)) =
-                inputs.get(source.argument_index + usize::from(call.receiver.is_valid()))
-            else {
-                return;
-            };
-            let Some(projected) = self.capture_reference_projection(
-                actual,
-                &source.segments,
-                ReferenceProjection::Value,
-            ) else {
-                return;
-            };
-            let places = projected.places;
-            for place in places {
-                crate::shared::collections::push_unique(&mut origins, place);
+            match source.backing {
+                super::super::reference_places::ReferenceResultBacking::CallerArgument {
+                    argument_index,
+                    ..
+                } => {
+                    let Some((_, actual)) =
+                        inputs.get(argument_index + usize::from(call.receiver.is_valid()))
+                    else {
+                        return;
+                    };
+                    let Some(projected) = self.capture_reference_projection(
+                        actual,
+                        &source.segments,
+                        ReferenceProjection::Value,
+                    ) else {
+                        return;
+                    };
+                    let places = projected.places;
+                    for place in places {
+                        crate::shared::collections::push_unique(&mut origins, place);
+                    }
+                }
+                super::super::reference_places::ReferenceResultBacking::InvocationResult(_) => {
+                    // An opaque result referent names its producing call
+                    // site; the leaf path already replays beneath its declared
+                    // referent, so no argument operand is substituted.
+                    crate::shared::collections::push_unique(
+                        &mut origins,
+                        CapturedReferencePlace::unformed(CanonicalPlace {
+                            root: PlaceRoot::Expression(expression),
+                            segments: source.segments,
+                        }),
+                    );
+                }
             }
         }
         *referents = Some(self.append_captured_references(&origins));

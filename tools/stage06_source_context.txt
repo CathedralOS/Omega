@@ -7,7 +7,7 @@
 4 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/shared/declarations/state_selection_tests.rs
 5 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/emission/borrowed_window.rs
 10 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/emission/call_qualifications.rs
-9 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/emission/claim_bindings.rs
+5 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/emission/claim_bindings.rs
 1 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/emission/claim_bindings/selections.rs
 6 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/emission/loan_completions.rs
 1 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/emission/operation_emission/boundary_calls.rs
@@ -58,11 +58,11 @@
 2 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/projections/task_activation/target_layouts.rs
 2 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/shared/terminal_identities.rs
 2 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/argument_evaluation.rs
-12 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/boundaries.rs
+7 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/boundaries.rs
 1 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/byte_locals.rs
 5 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/call_catalog.rs
 12 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/call_closure.rs
-16 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/catalog.rs
+15 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/catalog.rs
 2 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/claims.rs
 2 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/completion_cleanup/owner_order.rs
 1 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/composed_control/callable.rs

@@ -1,5 +1,5 @@
 machine capacity<Storage, const Capacity: u64>() -> u64
-where Storage == [u8; Capacity]
+requires Storage == [u8; Capacity]
 { Capacity }
 
 machine selected_helper() -> u64 {

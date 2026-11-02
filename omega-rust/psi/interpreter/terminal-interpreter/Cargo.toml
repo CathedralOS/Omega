@@ -23,4 +23,4 @@ terminal-fuel = { path = "../../compilation/representations/terminal-psi/fuel" }
 terminal-semantics = { path = "../../compilation/representations/terminal-psi/semantics" }
 proof-admission = { path = "../../compilation/proof/admission" }
 
-terminal-installation = { path = "../../compilation/checking/terminal-installation" }
+terminal-installation = { path = "../../compilation/validation/terminal-installation" }

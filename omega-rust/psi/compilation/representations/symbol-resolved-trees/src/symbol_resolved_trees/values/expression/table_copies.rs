@@ -241,6 +241,7 @@ impl ExpressionTable {
                 let value = self.copy_graph(source, membership.value, copies);
                 let domain = self.copy_name_path_members(source, membership.domain);
                 self.insert(ExpressionNode::Membership(TableMembershipExpression {
+                    is_pattern: membership.is_pattern,
                     value,
                     domain,
                     domain_symbol: membership.domain_symbol,
@@ -287,6 +288,7 @@ impl ExpressionTable {
             ExpressionNode::StructLiteral(literal) => {
                 let fields = self.copy_struct_literal_fields(source, literal.fields, copies);
                 self.insert(ExpressionNode::StructLiteral(TableStructLiteral {
+                    application_type: literal.application_type,
                     type_name: literal.type_name,
                     type_symbol: literal.type_symbol,
                     case_name: literal.case_name,
@@ -384,6 +386,23 @@ impl ExpressionTable {
         span
     }
 
+    pub(crate) fn copy_transition_pattern(
+        &mut self,
+        source: ExpressionSource<'_>,
+        retained: crate::statement::TransitionPattern,
+    ) -> crate::statement::TransitionPattern {
+        let copies = &mut CopyGraph::default();
+        let subject = self.copy_graph(source, retained.subject, copies);
+        let capture = self.copy_match_subject(source, retained.capture, copies);
+        let pattern = self.copy_destructure_pattern(source, retained.pattern, copies);
+        crate::statement::TransitionPattern {
+            is_structural: retained.is_structural,
+            subject,
+            capture,
+            pattern,
+        }
+    }
+
     fn copy_match_subject(
         &mut self,
         source: ExpressionSource<'_>,
@@ -401,7 +420,10 @@ impl ExpressionTable {
         }
         let subject = source.table(self).match_subject(capture).subject;
         let subject = self.copy_graph(source, subject, copies);
-        let copied = self.insert_match_subject(subject);
+        let copied = match source.table(self).match_subject(capture).purpose {
+            super::SubjectCapturePurpose::Match => self.insert_match_subject(subject),
+            super::SubjectCapturePurpose::Transition => self.insert_transition_subject(subject),
+        };
         if copies.subjects.len() <= position {
             copies
                 .subjects
@@ -433,6 +455,7 @@ impl ExpressionTable {
             .to_vec();
         let proof_selectors = self.insert_match_proof_selectors(selectors);
         super::TableDestructurePattern {
+            application_type: pattern.application_type,
             head,
             fields,
             has_rest: pattern.has_rest,

@@ -31,13 +31,20 @@ impl RetainedAllocation {
         self.current.view()
     }
 
+    /// The current program and its admitted facts as representation data,
+    /// for the post-allocation machine stage.
+    pub fn facts(&self) -> register_homes::AllocatedProgramFacts<'_> {
+        self.current.facts()
+    }
+
     fn capture(
         current: &AllocationOutput<'_>,
         runtime_spill_prefix_selection: Option<optimization_core::Optimization>,
     ) -> Result<Self, AllocationAdmissionError> {
         validate_recovery_selection(current, runtime_spill_prefix_selection)?;
         Ok(Self {
-            current: super::current::CurrentAllocation::capture(current),
+            current: super::current::CurrentAllocation::capture(current)
+                .map_err(AllocationAdmissionError::MachineEffects)?,
         })
     }
 }

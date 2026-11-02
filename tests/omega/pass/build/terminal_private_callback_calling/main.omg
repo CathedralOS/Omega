@@ -96,9 +96,17 @@ public SlotCalling satisfies CallingPolicy {
             plan.call.result.location_count = 1;
             plan.call.result.locations[0] = ValueLocation::Register { register: MachineRegister::Aarch64X { index: 0 }, value_byte_offset: 0, byte_size: 8 };
             plan.call.callback_materialization_count = signature.callback_demand_count;
-            plan.call.callback_materializations[0].binder = signature.callback_binders[0].binder;
+            // Binder declaration order and native-place order are independent.
+            // Join the exact required contract, never their array positions.
+            plan.call.callback_materializations[0].binder = match signature.callback_binders[0].requirement == signature.callback_demands[0].requirement {
+                true -> signature.callback_binders[0].binder
+                _ -> signature.callback_binders[1].binder
+            };
             plan.call.callback_materializations[0].destination = signature.callback_demands[0].destination;
-            plan.call.callback_materializations[1].binder = signature.callback_binders[1].binder;
+            plan.call.callback_materializations[1].binder = match signature.callback_binders[0].requirement == signature.callback_demands[1].requirement {
+                true -> signature.callback_binders[0].binder
+                _ -> signature.callback_binders[1].binder
+            };
             plan.call.callback_materializations[1].destination = signature.callback_demands[1].destination;
             plan.call.stack_alignment = 16;
             plan.call.entry_control = EntryControl::CallReturn;

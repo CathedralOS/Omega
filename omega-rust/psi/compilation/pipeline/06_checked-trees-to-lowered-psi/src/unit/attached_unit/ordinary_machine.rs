@@ -239,7 +239,6 @@ pub(super) fn emit(
             checked,
             attachment,
             attachment_declaration,
-            structural_types,
             &plan.provider_attachment_requirements,
             &provider_boundaries,
             &mut next_place,

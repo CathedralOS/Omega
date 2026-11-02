@@ -5,7 +5,7 @@ const Flags::ENABLED: bool = true;
 data Mode<const Enabled: bool> [copy] { value: u64; }
 
 machine enabled<Payload, const Enabled: bool>() -> bool
-where Payload == Mode<Enabled>
+requires Payload == Mode<Enabled>
 { Enabled }
 
 data Main { disabled: bool; enabled: bool; }
