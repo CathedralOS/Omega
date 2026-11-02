@@ -678,7 +678,18 @@ fn foreign_scalar_argument_custody<F>(
 where
     F: Fn(&selected_instructions::SelectedOperand, target_operations::MachineRegister) -> bool,
 {
-    let invalid = || ObjectError::InvalidForeignCallArgument { caller, owner };
+    let invalid_argument = |reason, parameter| ObjectError::InvalidForeignCallArgument {
+        caller,
+        owner,
+        import: record
+            .call
+            .binding
+            .symbolic_import()
+            .map(|(locator, _)| format!("{locator:?}")),
+        parameter,
+        reason,
+    };
+    let invalid = |reason| invalid_argument(reason, None);
     let plan = &record.call.binding.boundary_entry_plan.call;
     let placements = record.call.binding.operand_placements();
     // Only a parameter-destination materialization mints a plan slot; a
@@ -699,7 +710,9 @@ where
             + record.call.structural_arguments.len()
             + parameter_slot_materializations
     {
-        return Err(invalid());
+        return Err(invalid(
+            "argument roster does not match evaluated operand placements",
+        ));
     }
     // Parameter identities are not operand offsets: an aggregate may
     // contribute multiple fragments or one owned-copy pointer.
@@ -707,33 +720,49 @@ where
         selected_instructions::calls::constraints::foreign_argument_registers(&record.call);
     let register_arguments = register_positions.len();
     if instruction.operands.len()
-        != register_arguments + foreign_result_operand_count(record).ok_or_else(invalid)?
+        != register_arguments
+            + foreign_result_operand_count(record)
+                .ok_or_else(|| invalid("argument roster has no valid result operand count"))?
     {
-        return Err(invalid());
+        return Err(invalid(
+            "selected call operand count does not match argument and result roster",
+        ));
     }
     if let target_operations::TargetBoundaryResult::Structural(_) = record.call.result {
-        let placement = plan.result.as_ref().ok_or_else(invalid)?;
+        let placement = plan
+            .result
+            .as_ref()
+            .ok_or_else(|| invalid("structural result placement is missing"))?;
         for (location, operand) in placement
             .locations
             .iter()
             .zip(&instruction.operands[register_arguments..])
         {
-            let register = location.direct_register().ok_or_else(invalid)?;
+            let register = location
+                .direct_register()
+                .ok_or_else(|| invalid("structural result location has no direct register"))?;
             if !fixed_view(operand, register) {
-                return Err(invalid());
+                return Err(invalid(
+                    "structural result operand lost its fixed ABI register",
+                ));
             }
         }
     }
     let mut scalar_arguments = Vec::new();
     for (scalar_ordinal, argument) in record.call.scalar_arguments.iter().enumerate() {
-        let native_position = usize::try_from(argument.parameter_index).map_err(|_| invalid())?;
-        let shape = scalar_shape(argument.source.scalar_type()).ok_or_else(invalid)?;
+        let invalid = |reason| invalid_argument(reason, Some(argument.parameter_index));
+        let native_position = usize::try_from(argument.parameter_index)
+            .map_err(|_| invalid("parameter index is not addressable"))?;
+        let shape = scalar_shape(argument.source.scalar_type())
+            .ok_or_else(|| invalid("argument scalar type has no ABI shape"))?;
         if scalar_ordinal.checked_sub(1).is_some_and(|previous| {
             record.call.scalar_arguments[previous].parameter_index >= argument.parameter_index
         }) || placements.get(native_position) != Some(&argument.placement)
             || argument.placement.shape != shape
         {
-            return Err(invalid());
+            return Err(invalid(
+                "argument order, placement or scalar shape differs from evaluated plan",
+            ));
         }
         let register_operand = register_positions
             .iter()
@@ -753,7 +782,8 @@ where
                     scalar_type: source.scalar_type(),
                     instruction: record.instruction,
                 },
-                fragment_instruction_span(fragment, record.instruction).ok_or_else(invalid)?,
+                fragment_instruction_span(fragment, record.instruction)
+                    .ok_or_else(|| invalid("selected argument call has no emitted span"))?,
             ),
             target_operations::TargetUnitScalarArgumentSource::IntegerImmediate {
                 defining_operation,
@@ -762,7 +792,9 @@ where
                 value,
             } => {
                 if semantic_vocabulary::ScalarTerm::integer(scalar_type, value).is_err() {
-                    return Err(invalid());
+                    return Err(invalid(
+                        "integer immediate is outside its declared scalar type",
+                    ));
                 }
                 let span = scalar_immediate_span(
                     function,
@@ -774,7 +806,9 @@ where
                     register_operand,
                     &fixed_view,
                 )
-                .ok_or_else(invalid)?;
+                .ok_or_else(|| {
+                    invalid("integer immediate lost its exact emitted argument transport")
+                })?;
                 (
                     machine_code::InternalUnitScalarArgumentSourceRecord::IntegerImmediate {
                         defining_operation,
@@ -789,13 +823,15 @@ where
                 if home.shape != argument.placement.shape
                     || !scalar_call_result_producer(function, &home)
                 {
-                    return Err(invalid());
+                    return Err(invalid(
+                        "scalar home shape or exact producer does not match",
+                    ));
                 }
                 let byte_offset = home_offsets
                     .iter()
                     .find(|(operation, _)| *operation == home.defining_operation)
                     .map(|(_, offset)| *offset)
-                    .ok_or_else(invalid)?;
+                    .ok_or_else(|| invalid("scalar home has no allocated durable offset"))?;
                 let span = scalar_immediate_span(
                     function,
                     block,
@@ -806,7 +842,7 @@ where
                     register_operand,
                     &fixed_view,
                 )
-                .ok_or_else(invalid)?;
+                .ok_or_else(|| invalid("scalar home lost its exact emitted argument transport"))?;
                 (
                     machine_code::InternalUnitScalarArgumentSourceRecord::Home(
                         machine_code::UnitScalarHomeRecord {
@@ -1134,14 +1170,24 @@ fn foreign_scalar_result_custody(
     caller: MachineId,
     owner: CallSiteOwner,
 ) -> Result<Option<machine_code::ForeignCallScalarResultRecord>, ObjectError> {
-    let invalid = || ObjectError::InvalidForeignCallArgument { caller, owner };
+    let invalid = |reason| ObjectError::InvalidForeignCallArgument {
+        caller,
+        owner,
+        import: record
+            .call
+            .binding
+            .symbolic_import()
+            .map(|(locator, _)| format!("{locator:?}")),
+        parameter: None,
+        reason,
+    };
     let plan = &record.call.binding.boundary_entry_plan.call;
     if matches!(
         record.call.result,
         target_operations::TargetBoundaryResult::Structural(_)
     ) {
         structural_result_capture(function, block, fragment, record, instruction)
-            .ok_or_else(invalid)?;
+            .ok_or_else(|| invalid("structural result lost its exact storage capture"))?;
         return Ok(None);
     }
     let (Some(home), Some(placement)) = (record.call.result.scalar_home(), &plan.result) else {
@@ -1152,24 +1198,29 @@ fn foreign_scalar_result_custody(
         {
             return Ok(None);
         }
-        return Err(invalid());
+        return Err(invalid(
+            "scalar result home and placement disagree about Unit",
+        ));
     };
-    let shape = scalar_shape(home.scalar_type).ok_or_else(invalid)?;
+    let shape = scalar_shape(home.scalar_type)
+        .ok_or_else(|| invalid("result scalar type has no ABI shape"))?;
     if Some(home.defining_operation) != record.invocation_site.operation()
         || home.shape != shape
         || placement.shape != home.shape
         || !placement.is_complete_scalar_result()
     {
-        return Err(invalid());
+        return Err(invalid(
+            "scalar result owner, shape or complete placement differs from evaluated plan",
+        ));
     }
     let transport = selected_instructions::calls::normalized_foreign::return_transport::resolve(
         function, block, record,
     )
-    .ok_or_else(invalid)?;
+    .ok_or_else(|| invalid("scalar result has no exact selected return transport"))?;
     let normalization = block
         .instructions
         .get(transport.normalization_position)
-        .ok_or_else(invalid)?;
+        .ok_or_else(|| invalid("scalar result normalization instruction is missing"))?;
     let Some(kind) = scalar_result_normalization_kind(
         home.scalar_type,
         matches!(
@@ -1177,10 +1228,12 @@ fn foreign_scalar_result_custody(
             [ValueLocation::Indirect { .. }]
         ),
     ) else {
-        return Err(invalid());
+        return Err(invalid("scalar result has no supported normalization kind"));
     };
     let [input, output] = normalization.operands.as_slice() else {
-        return Err(invalid());
+        return Err(invalid(
+            "scalar result normalization does not have input and output operands",
+        ));
     };
     let output_origin = function
         .virtual_registers
@@ -1189,7 +1242,10 @@ fn foreign_scalar_result_custody(
     if normalization.kind != kind
         || transport.result_registers.as_slice() != [input.virtual_register]
         || normalization.provenance.operations.as_slice()
-            != [record.invocation_site.operation().ok_or_else(invalid)?]
+            != [record
+                .invocation_site
+                .operation()
+                .ok_or_else(|| invalid("scalar result has no operation owner"))?]
         || normalization.provenance.values.as_slice() != [home.source_value]
         || output_origin
             != Some(
@@ -1199,10 +1255,12 @@ fn foreign_scalar_result_custody(
                 },
             )
     {
-        return Err(invalid());
+        return Err(invalid(
+            "scalar result normalization lost its kind, value or source provenance",
+        ));
     }
     let Some((offset, byte_count)) = fragment_instruction_span(fragment, normalization.id) else {
-        return Err(invalid());
+        return Err(invalid("scalar result normalization has no emitted span"));
     };
     let transported_end = transported_span_end(
         fragment,
@@ -1210,16 +1268,18 @@ fn foreign_scalar_result_custody(
         transport.call_position,
         transport.normalization_position,
     )
-    .ok_or_else(invalid)?;
+    .ok_or_else(|| invalid("scalar return transport spans are not contiguous"))?;
     if transported_end != offset {
-        return Err(invalid());
+        return Err(invalid(
+            "scalar result normalization does not immediately follow return transport",
+        ));
     }
     let Some(byte_offset) = home_offsets
         .iter()
         .find(|(operation, _)| *operation == home.defining_operation)
         .map(|(_, offset)| *offset)
     else {
-        return Err(invalid());
+        return Err(invalid("scalar result has no allocated durable offset"));
     };
     Ok(Some(machine_code::ForeignCallScalarResultRecord {
         home: machine_code::UnitScalarHomeRecord {
