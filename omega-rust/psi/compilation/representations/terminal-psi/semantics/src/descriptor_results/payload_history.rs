@@ -29,10 +29,14 @@ struct PremiseDependencies {
     proposition: semantic_vocabulary::Proposition,
     values: Vec<semantic_vocabulary::ValueId>,
     closed: bool,
+    // One exact empty-substitution result per immutable premise, not one
+    // expanded theory per cut. None means the original is already normalized;
+    // storing a clone of self there would create an Arc cycle.
+    normalized: std::sync::OnceLock<Option<SharedPremise>>,
 }
 
 impl SharedPremise {
-    fn new(proposition: semantic_vocabulary::Proposition) -> Self {
+    pub(super) fn new(proposition: semantic_vocabulary::Proposition) -> Self {
         let mut values = Vec::new();
         let closed = proposition.visit_value_ids(|value| values.push(value));
         values.sort_unstable();
@@ -41,7 +45,49 @@ impl SharedPremise {
             proposition,
             values,
             closed,
+            normalized: Default::default(),
         }))
+    }
+
+    /// Edge rebinding reads the complete original premise. Prepared value IDs
+    /// answer only retirement and disjointness; they never establish a fact.
+    /// Even a disjoint/empty substitution can normalize raw IEEE operand order,
+    /// so retain that exact result once rather than skipping the transform.
+    pub(super) fn at_arrival(
+        &self,
+        substitutions: &BTreeMap<semantic_vocabulary::ValueId, semantic_vocabulary::ScalarTerm>,
+        parameters: &[semantic_vocabulary::ValueId],
+    ) -> Option<Self> {
+        if self
+            .0
+            .values
+            .iter()
+            .any(|value| parameters.contains(value) && !substitutions.contains_key(value))
+        {
+            return None;
+        }
+        // Incomplete walks can hide identities in opaque vocabulary. Only an
+        // empty map is known disjoint there; otherwise preserve the full walk.
+        if substitutions.is_empty()
+            || (self.0.closed
+                && self
+                    .0
+                    .values
+                    .iter()
+                    .all(|value| !substitutions.contains_key(value)))
+        {
+            let normalized = self.0.normalized.get_or_init(|| {
+                let value = crate::substitution::substitute_proposition_values(
+                    &self.0.proposition,
+                    &BTreeMap::new(),
+                );
+                (value != self.0.proposition).then(|| Self::new(value))
+            });
+            return Some(normalized.as_ref().unwrap_or(self).clone());
+        }
+        Some(Self::new(
+            crate::substitution::substitute_proposition_values(&self.0.proposition, substitutions),
+        ))
     }
 
     fn mentions_any(&self, definitions: &[semantic_vocabulary::ValueId]) -> bool {
@@ -1224,12 +1270,12 @@ fn payload_contract_at_cut(
                         // Rebinding can return the complete incoming theory
                         // unchanged. Appending it would detach and deep-clone
                         // a snapshot only to deduplicate it immediately below.
-                        // Still compute every substitution: even an empty map
-                        // can normalize a proposition into a genuinely new row.
+                        // at_arrival retains exact normalization, including an
+                        // empty map, while sharing disjoint immutable premises.
                         if !contains_rebound_premises(&arrival.scalar_requirements, &rebound) {
                             Arc::make_mut(&mut arrival.scalar_requirements)
                                 .rows_mut()
-                                .extend(rebound.into_iter().map(SharedPremise::new));
+                                .extend(rebound);
                         }
                         canonicalize_snapshot(&mut arrival.scalar_requirements);
                     }
@@ -1339,18 +1385,13 @@ fn payload_contract_at_cut(
 /// before testing its complete theory by a single ordered scan. Normalization
 /// can reorder IEEE/math propositions, so unordered results retain the exact
 /// binary-search path. Equal duplicates reuse one retained row; no input moves.
-fn contains_rebound_premises(
-    retained: &[SharedPremise],
-    rebound: &[semantic_vocabulary::Proposition],
-) -> bool {
+fn contains_rebound_premises(retained: &[SharedPremise], rebound: &[SharedPremise]) -> bool {
     if rebound.windows(2).any(|pair| pair[0] > pair[1]) {
-        return rebound.iter().all(|premise| {
-            retained
-                .binary_search_by(|stored| stored.as_ref().cmp(premise))
-                .is_ok()
-        });
+        return rebound
+            .iter()
+            .all(|premise| retained.binary_search(premise).is_ok());
     }
-    let mut remaining = retained.iter().map(AsRef::as_ref).peekable();
+    let mut remaining = retained.iter().peekable();
     rebound
         .iter()
         .all(|premise| next_premise_is(&mut remaining, premise))
@@ -1746,6 +1787,94 @@ mod tests {
             ScalarTerm::Boolean(true),
             ScalarTerm::value(ValueId::new(value).unwrap(), ScalarType::Boolean),
         )
+    }
+
+    #[test]
+    fn disjoint_arrivals_share_complete_premises_without_a_self_cycle() {
+        let premise = SharedPremise::new(condition(1));
+        let lifetime = Arc::downgrade(&premise.0);
+        let unrelated = BTreeMap::from([(
+            ValueId::new(2).unwrap(),
+            ScalarTerm::value(ValueId::new(3).unwrap(), ScalarType::Boolean),
+        )]);
+        let first = premise.at_arrival(&unrelated, &[]).unwrap();
+        let second = premise.at_arrival(&BTreeMap::new(), &[]).unwrap();
+        assert_eq!(first.as_ref(), &condition(1));
+        assert!(Arc::ptr_eq(&premise.0, &first.0));
+        assert!(Arc::ptr_eq(&first.0, &second.0));
+        drop((premise, first, second));
+        assert!(lifetime.upgrade().is_none());
+    }
+
+    #[test]
+    fn cached_empty_arrival_still_normalizes_symmetric_ieee_operands() {
+        use semantic_vocabulary::{IeeeFloatComparisonKind, IeeeFloatFormat};
+        let format = IeeeFloatFormat::Binary64;
+        let value =
+            |id| ScalarTerm::value(ValueId::new(id).unwrap(), ScalarType::IeeeFloat(format));
+        let original = Proposition::ScalarIeeeFloatComparison {
+            kind: IeeeFloatComparisonKind::Equal,
+            format,
+            left: value(2),
+            right: value(1),
+        };
+        let expected = Proposition::ScalarIeeeFloatComparison {
+            kind: IeeeFloatComparisonKind::Equal,
+            format,
+            left: value(1),
+            right: value(2),
+        };
+        let premise = SharedPremise::new(original.clone());
+        let lifetime = Arc::downgrade(&premise.0);
+        let first = premise.at_arrival(&BTreeMap::new(), &[]).unwrap();
+        let second = premise.at_arrival(&BTreeMap::new(), &[]).unwrap();
+        assert_eq!(premise.as_ref(), &original);
+        assert_eq!(first.as_ref(), &expected);
+        assert!(Arc::ptr_eq(&first.0, &second.0));
+        assert!(!Arc::ptr_eq(&premise.0, &first.0));
+        drop(premise);
+        assert!(lifetime.upgrade().is_none());
+        assert_eq!(second.as_ref(), &expected);
+    }
+
+    #[test]
+    fn prepared_arrival_retires_old_formals_and_rebinds_simultaneously() {
+        let old = SharedPremise::new(condition(1));
+        let incoming = SharedPremise::new(condition(2));
+        // Populate the disjoint cache before two distinct overlapping maps.
+        assert_eq!(
+            incoming.at_arrival(&BTreeMap::new(), &[]).unwrap().as_ref(),
+            &condition(2)
+        );
+        let target = ValueId::new(1).unwrap();
+        let source = ValueId::new(2).unwrap();
+        let substitutions =
+            BTreeMap::from([(source, ScalarTerm::value(target, ScalarType::Boolean))]);
+        assert!(old.at_arrival(&substitutions, &[target]).is_none());
+        assert_eq!(
+            incoming
+                .at_arrival(&substitutions, &[target])
+                .unwrap()
+                .as_ref(),
+            &condition(1)
+        );
+        let other = BTreeMap::from([(
+            source,
+            ScalarTerm::value(ValueId::new(3).unwrap(), ScalarType::Boolean),
+        )]);
+        assert_eq!(
+            incoming.at_arrival(&other, &[]).unwrap().as_ref(),
+            &condition(3)
+        );
+        assert_eq!(incoming.as_ref(), &condition(2));
+        let swap = BTreeMap::from([
+            (source, ScalarTerm::value(target, ScalarType::Boolean)),
+            (target, ScalarTerm::value(source, ScalarType::Boolean)),
+        ]);
+        assert_eq!(
+            old.at_arrival(&swap, &[target, source]).unwrap().as_ref(),
+            &condition(2)
+        );
     }
 
     #[test]
