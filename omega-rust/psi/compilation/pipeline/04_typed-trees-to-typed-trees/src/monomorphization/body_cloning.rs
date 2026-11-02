@@ -53,6 +53,84 @@ impl From<TypeCopyError> for String {
     }
 }
 
+/// One declared domain a specialized formal carries in addition to its
+/// authored qualifications.
+type SubstitutedDomain = (
+    SymbolHandle,
+    String,
+    Vec<TypeReferenceHandle>,
+    language_semantics::SemanticDomainId,
+);
+
+/// The declared domains of `applied` that substitution introduced into the
+/// authored formal `authored`. Authored qualifications already restate their
+/// membership through copied contracts; carry permissions are not domains.
+fn substituted_parameter_domains(
+    source: &dyn ::validation::CheckingInput,
+    authored: TypeReferenceHandle,
+    program: &dyn ::validation::CheckingInput,
+    applied: TypeReferenceHandle,
+) -> Vec<SubstitutedDomain> {
+    let mut authored = validation::parameter_domain_constraints(source, authored, &[]);
+    validation::parameter_domain_constraints(program, applied, &[])
+        .into_iter()
+        .filter(|(domain, ..)| domain.is_valid())
+        .filter(|(domain, ..)| {
+            let Some(position) = authored
+                .iter()
+                .position(|(declared, ..)| declared == domain)
+            else {
+                return true;
+            };
+            authored.swap_remove(position);
+            false
+        })
+        .collect()
+}
+
+/// A type argument can carry a declared domain into a formal that named only
+/// its type parameter. The instance's state boundary then states that
+/// qualification exactly as an authored constrained formal does; substitution
+/// never weakens the caller's obligation or grants the callee a membership.
+fn restate_substituted_parameter_domains(
+    source: Option<&dyn ::validation::CheckingInput>,
+    program: &mut TypedTrees,
+    source_states: &[typed_trees::state::State],
+    cloned: &typed_trees::machine::Machine,
+) {
+    let states = program.machine_states(cloned).to_vec();
+    for (index, (source_state, mut state)) in source_states.iter().zip(states).enumerate() {
+        let source_parameters = source
+            .unwrap_or(program)
+            .state_parameters(source_state)
+            .to_vec();
+        let parameters = program.state_parameters(&state).to_vec();
+        let mut restated = false;
+        for (source_parameter, parameter) in source_parameters.iter().zip(&parameters) {
+            for (domain, domain_name, arguments, semantic_domain) in substituted_parameter_domains(
+                source.unwrap_or(program),
+                source_parameter.type_reference,
+                program,
+                parameter.type_reference,
+            ) {
+                let contract = program.parameter_domain_membership_contract(
+                    parameter.symbol,
+                    parameter.name.clone(),
+                    domain,
+                    &domain_name,
+                    arguments,
+                    semantic_domain,
+                );
+                program.push_state_contract(&mut state, contract);
+                restated = true;
+            }
+        }
+        if restated {
+            program.machine_states_mut(cloned)[index] = state;
+        }
+    }
+}
+
 fn bound_type_displays(
     bindings: &[Option<TypeReferenceHandle>],
     source: Option<&dyn ::validation::CheckingInput>,
@@ -939,6 +1017,7 @@ pub(super) fn clone_single_specialized_machine(
         cloned.symbol,
     )
     .map_err(|diagnostic| vec![diagnostic])?;
+    restate_substituted_parameter_domains(source, program, &source_states, &cloned);
     // Range endpoints are value positions, not static positions: a binder
     // surviving in one names the realized trailing parameter so the clone's
     // declared `-> u64[0..=Bound]` keeps qualifying the captured subject.
