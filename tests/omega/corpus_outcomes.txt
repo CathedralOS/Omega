@@ -1711,6 +1711,15 @@ fail/facts/recorded_build_role/parameter rejected 1541ms expected @1a41b8e686ed
 	failed to resolve tests/omega/fail/facts/recorded_build_role/parameter/my_library/values.omg: captured entry is absent: my_library
 fail/facts/recorded_build_role/target_body rejected 1250ms expected @1a41b8e686ed
 	failed to resolve tests/omega/fail/facts/recorded_build_role/target_body/my_library/values.omg: captured entry is absent: my_library
+fail/facts/representation_agreement_through_field_rejected rejected 8676ms expected @e97ed21415d9
+	cannot prove ensures contract for exit from FirstAgreement::round_trip at statement 0: ReadFirst.try_from(frame) == Result
+	cannot prove requires contract for call require_round_trip$specialized$83bef77b6488ea6e$0$2910 from use_agreement$specialized$7b9c19879c8e3482$0$2884: try_from(frame) == constructor:17:toolchain::Result8:schema:118:payload:name:value5:value (needs fact `try_from(frame) == Result` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/representation_agreement_through_local_rejected rejected 9591ms expected @e97ed21415d9
+	cannot prove ensures contract for exit from FirstAgreement::round_trip at statement 0: ReadFirst.try_from(frame) == Result
+	cannot prove requires contract for call require_round_trip$specialized$db466956a03ed055$0$2908 from use_agreement$specialized$5a6c880882cc713b$0$2882: try_from(frame) == constructor:17:toolchain::Result8:schema:118:payload:name:value5:value (needs fact `try_from(frame) == Result` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/representation_agreement_through_parameter_rejected rejected 8469ms expected @e97ed21415d9
+	cannot prove ensures contract for exit from FirstAgreement::round_trip at statement 0: ReadFirst.try_from(frame) == Result
+	cannot prove requires contract for call require_round_trip$specialized$1d6acb26af11fe16$0$2911 from use_agreement$specialized$c4e69be4bb704c3a$0$2885: try_from(frame) == constructor:17:toolchain::Result8:schema:118:payload:name:value5:value (needs fact `try_from(frame) == Result` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/representation_conversion_primitive_shadow_rejected rejected 3051ms expected @dde0f3a03bcd
 	data `Int` shadows the builtin type of the same name -- references would silently bind to the builtin and this definition would never be used (its contracts would go unvalidated). Pick a different name.
 fail/facts/representation_conversion_stored_output_source_write_rejected rejected 6488ms expected @dde0f3a03bcd
@@ -2004,9 +2013,21 @@ fail/proofs/completed_guard_private_boolean_without_condition rejected 1893ms ex
 	exact arithmetic in machine `subtract_seven` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/proofs/completed_guard_two_call_identities_without_refinement rejected 640ms expected @2cede9e14eca
 	exact arithmetic in machine `invoke` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `echo(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
+fail/proofs/distinct_selected_map_law_not_interchangeable rejected 4704ms expected @e97ed21415d9
+	cannot prove ensures contract for exit from distinct_maps at statement 0: Right.try_from(value) == Result
 fail/proofs/exact_widening_without_source_bound rejected 991ms expected @b80d7416b671+wt
 	data `Reading` case `Byte` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 	data `Reading` case `Byte` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/proofs/linear_result_not_repeatable_denotation rejected 4918ms expected @8c2fec05b2ca
+	specification call `mint` has no observation-free, reach-free, crash-free value denotation: the application carries forbidden denotational content
+	specification call `mint` has no observation-free, reach-free, crash-free value denotation: the application carries forbidden denotational content
+fail/proofs/refined_conversion_does_not_strengthen_base_view rejected 4347ms expected @e97ed21415d9
+	specification call `try_from` is not denotational: the selected machine is not unconditionally terminating
+	specification call `try_from` is not denotational: the selected machine is not unconditionally terminating
+fail/proofs/representation_agreement_empty_encoder rejected 5249ms expected @e97ed21415d9
+	cannot prove ensures contract for exit from FalseAgreement::encode_covers at statement 0: RefuseEveryValue.try_from(value) == Result::Ok
+fail/proofs/selected_law_citation_linear_resource_reuse rejected 4194ms expected @8c2fec05b2ca
+	cannot use `token` in machine `main` state `entry` (statement 2) after `token` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `token` first
 fail/providers/applied_calling_surface_incomplete_result rejected 8128ms expected @d9073fc2214b
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
 fail/providers/boundary_guarded_array_requires_false rejected 1400ms expected @a889c2d8b84c
@@ -2052,6 +2073,8 @@ fail/traits/public_method_evidence_not_inferred rejected 1101ms expected @b852a3
 	a value call to generic machine `choose` cannot derive a complete type/const/machine/conformance specialization tuple from its argument and result types; add a concrete destination annotation or provide concrete argument type evidence
 fail/traits/public_method_inferred_actual_conflict rejected 1431ms expected @b852a38544d0
 	argument `right` for state `pair` expects `&u32`, got `named value`
+fail/traits/refinement_clause_terminators rejected 3ms expected @89956713be3d
+	tests/omega/fail/traits/refinement_clause_terminators/main.omg:4:29: expected `machine`, found identifier `terminates`
 fail/traits/runtime_dyn_family_local_width_requires rejected 9611ms expected @7b6988120e7e
 	cannot prove requires contract for call dyn Family::row from create: Width == 16 || Width == 32 (needs fact `Width == 16 || Width == 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/traits/runtime_dyn_family_reordered_roster_requires rejected 8930ms expected @7b6988120e7e
@@ -8868,6 +8891,9 @@ pass/facts/replaced_field_loan_through_other_machine_exit checked 3619ms check-t
 pass/facts/replaced_field_loan_through_other_state_exit checked 3876ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/replaced_field_loan_through_parameter_exit checked 4088ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/replaced_field_loan_through_target_body_exit checked 3472ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/representation_agreement_through_field_exit checked 13390ms check-target:macos_arm64 @e97ed21415d9
+pass/facts/representation_agreement_through_local_exit checked 13984ms check-target:macos_arm64 @e97ed21415d9
+pass/facts/representation_agreement_through_parameter_exit checked 13340ms check-target:macos_arm64 @e97ed21415d9
 pass/facts/representation_conversion_through_call_result_exit checked 9102ms check-target:macos_arm64 @1763580d3498
 pass/facts/representation_conversion_through_const_name_exit checked 9493ms check-target:macos_arm64 @1763580d3498
 pass/facts/representation_conversion_through_field_exit checked 9828ms check-target:macos_arm64 @dde0f3a03bcd
@@ -12109,8 +12135,7 @@ pass/proofs/declaration_call_requires rejected 31ms regressed-from:checked @911f
 	tests/omega/pass/proofs/declaration_call_requires/main.omg:8:30: implicit `self` is retired; name the explicit parameter or domain subject
 pass/proofs/declaration_constructed_data_identity checked 2695ms @ccdb99ca2214
 pass/proofs/declaration_predicate_calls_exit checked 7959ms check-target:macos_arm64 @911f6617ba9e
-pass/proofs/declaration_synthesized_equality_value_context rejected 332ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	tests/omega/pass/proofs/declaration_synthesized_equality_value_context/main.omg:13:22: implicit `self` is retired; name the explicit parameter or domain subject
+pass/proofs/declaration_synthesized_equality_value_context checked 10681ms check-target:macos_arm64 @8c2fec05b2ca
 pass/proofs/declaration_view_call_requirement checked 3764ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/defined_proposition_premises checked 3151ms @ccdb99ca2214
 pass/proofs/descriptor_bound_after_element_call rejected 1755ms regressed-from:checked @ccdb99ca2214
@@ -12220,6 +12245,7 @@ pass/proofs/quotient_lift_managed_compile rejected 273ms check-target:linux_x86_
 pass/proofs/quotient_mutual_cycle checked 3754ms @ccdb99ca2214
 pass/proofs/quotient_symbolic_endpoint checked 3783ms @ccdb99ca2214
 pass/proofs/recursive_terminal_erased_evidence checked 2610ms @ccdb99ca2214
+pass/proofs/representation_agreement_corrupt_decode_traps checked 10879ms check-target:macos_arm64 @e97ed21415d9
 pass/proofs/requires_bridge_telescope checked 3084ms @ccdb99ca2214
 pass/proofs/ring_full_polynomial_compile checked 11534ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/ring_law_conformance checked 12155ms check-target:macos_arm64 @ccdb99ca2214
@@ -12263,6 +12289,7 @@ pass/proofs/scalar_field_snapshot_selector_writes_payload rejected 2369ms check-
 pass/proofs/scalar_state_return_keeps_byte_class rejected 2042ms regressed-from:checked @ccdb99ca2214
 	cannot prove requires contract for call consume from Main::main: main.bytes in [u8]::Utf8 (invalidated by prior mutation of main.bytes[0]; main.bytes is part of [u8]::Utf8) in state `main`
 	cannot prove default-domain field requirement for return from Main::main at statement 4: main.bytes requires [u8; N]::Utf8
+pass/proofs/selected_map_law_application_exit checked 10385ms check-target:macos_arm64 @d38849d4cb02
 pass/proofs/selected_specification_requires_composition rejected 1567ms regressed-from:checked @ccdb99ca2214
 	specification call `Right` is not denotational: the selected machine is not unconditionally terminating
 	specification call `Left` is not denotational: the selected machine is not unconditionally terminating
@@ -13497,7 +13524,7 @@ pass/traits/trait_generic_bound_static_dispatch checked 11552ms check-target:mac
 pass/traits/trait_member_effects checked 3379ms @ccdb99ca2214
 pass/traits/trait_operator_token checked 3208ms @ccdb99ca2214
 pass/traits/trait_parent_inherit checked 4132ms @ccdb99ca2214
-pass/traits/transparent_refinement_declaration checked 3725ms check-target:macos_arm64 @ccdb99ca2214
+pass/traits/transparent_refinement_declaration checked 6187ms check-target:macos_arm64 @89956713be3d
 pass/traits/unused_trait_implementation_member_exit checked 3798ms check-target:macos_arm64 @ccdb99ca2214
 pass/types/address_comparison_symbolic_bound_compile checked 2390ms @ccdb99ca2214
 pass/types/address_model_conversion rejected 995ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @911f6617ba9e
@@ -17011,7 +17038,7 @@ fail/core/content_conservation_interval_overlap rejected 2287ms expected @ccdb99
 fail/core/content_conservation_interval_reversed rejected 2173ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from RegionSplitProvider::split at statement 3: Owned.content(old(&whole)) == separate(Owned.content(&result.left), Owned.content(&result.right))
 	cannot prove ensures contract for exit from RegionSplitProvider::split at statement 3: Owned.content(old(&whole)) == separate(Owned.content(&result.left), Owned.content(&result.right))
-fail/core/content_conservation_local_projection_lookalike rejected 929ms expected @ccdb99ca2214
+fail/core/content_conservation_local_projection_lookalike rejected 1343ms expected @e97ed21415d9
 	callable `InvalidSplit::split` has an invalid content-conservation contract: call `Owned.content(old(&whole))` is not the exact owner-unique `Content<Owner, A>::project` conformance machine; there is no generic `content(...)` intrinsic
 fail/core/content_conservation_mixed_call_results rejected 17044ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from Main::split_proved at statement 5: Owned.content(old(&whole)) == separate(Owned.content(&result.left), Owned.content(&result.right))
@@ -32252,7 +32279,7 @@ fail/proofs/declaration_call_requires rejected 850ms expected @ccdb99ca2214
 	cannot prove requires contract for specification call `guarded` in domain `Input::Invalid` predicate: establish its selected precondition in an independently formed prior requires fact
 	cannot prove requires contract for specification call `guarded` in data `InvalidCase` case `Cell` predicate: establish its selected precondition in an independently formed prior requires fact
 	cannot prove requires contract for specification call `guarded` in data `SiblingCases` case `Unestablished` predicate: establish its selected precondition in an independently formed prior requires fact
-fail/proofs/declaration_identity_call_value_context rejected 84ms expected @ccdb99ca2214
+fail/proofs/declaration_identity_call_value_context rejected 127ms expected @e97ed21415d9
 	cannot compare against payload-bearing case `Choice::Cell` with `==`: structural equality is synthesized only through a named implementation -- match on the case in a transition to bind its payload, or declare `ChoiceEquality satisfies Equatable<Choice> { }` to synthesize structural equality
 fail/proofs/declaration_predicate_all_paths rejected 1791ms expected @ccdb99ca2214
 	construction value is not proven in domain `Bounded::Small` in choose state `entry` at statement 2; a construction value must establish the domain's predicates and any required provenance
@@ -32349,7 +32376,7 @@ fail/proofs/fact_only_proof_value_citation_linear_resource rejected 4036ms expec
 	linear value `value::Node.token` reaches scope exit without being consumed or transferred in machine `reflexive` state `entry`
 fail/proofs/fact_only_proof_value_citation_missing_premise rejected 2548ms expected @ccdb99ca2214
 	cannot prove requires contract for call zero from main: constructor:81:package:5969e414a725f007040b2897d6213fd3156bef64c55786a5fd0c76ffbf122926::Ordinal9:name:Step21:payload:name:previous107:constructor:81:package:5969e414a725f007040b2897d6213fd3156bef64c55786a5fd0c76ffbf122926::Ordinal9:name:Zero == constructor:81:package:5969e414a725f007040b2897d6213fd3156bef64c55786a5fd0c76ffbf122926::Ordinal9:name:Zero (needs fact `value == Ordinal` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/proofs/fact_only_proof_value_citation_mutable rejected 1126ms expected @ccdb99ca2214
+fail/proofs/fact_only_proof_value_citation_mutable rejected 2185ms expected @8c2fec05b2ca
 	machine `reflexive` state `entry` parameter `value` mentions proof-only `Ordinal`, which has no runtime layout
 	mutable argument for state `entry` must be a named place
 fail/proofs/family_carrier_relation_extra_premise_rejected rejected 1756ms expected @ccdb99ca2214
@@ -32557,7 +32584,7 @@ fail/proofs/ordinary_denotational_requirement_requires_normal_return rejected 28
 	specification call `value` has no observation-free, reach-free, crash-free value denotation
 	specification call `value` has no observation-free, reach-free, crash-free value denotation
 	specification call `value` has no observation-free, reach-free, crash-free value denotation
-fail/proofs/ordinary_denotational_requirement_requires_termination rejected 3351ms expected @ccdb99ca2214
+fail/proofs/ordinary_denotational_requirement_requires_termination rejected 7387ms expected @e97ed21415d9
 	specification call `value` is not denotational: the selected machine is not unconditionally terminating
 	specification call `value` is not denotational: the selected machine is not unconditionally terminating
 	specification call `value` is not denotational: the selected machine is not unconditionally terminating
@@ -32635,8 +32662,8 @@ fail/proofs/quotient_lift_missing_respect rejected 842ms expected @ccdb99ca2214
 	machine `bad_lift` state `entry` expects the `EquivalenceClass` data type but got `Representative` in the `return value` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
 fail/proofs/quotient_lift_surplus_role_rejected rejected 121ms expected @ccdb99ca2214
 	`Quotient::lift` requires `F, Congruence` or `F, Congruence, Transport` in canonical role order
-fail/proofs/quotient_linear_property rejected 3ms expected @ccdb99ca2214
-	tests/omega/fail/proofs/quotient_linear_property/main.omg:1:24: a quotient data declaration cannot declare linear or carry properties; the initial quotient surface excludes custody
+fail/proofs/quotient_linear_property rejected 17ms expected @e97ed21415d9
+	tests/omega/fail/proofs/quotient_linear_property/main.omg:1:34: a quotient data declaration cannot declare linear or carry properties; the initial quotient surface excludes custody
 fail/proofs/quotient_missing_symmetry rejected 823ms expected @ccdb99ca2214
 	quotient data `EquivalenceClass` conformance `RepresentativeEquivalence` row `Symmetric::symmetric` strengthens or changes the sealed equivalence law premises; quotient formation requires the exact inherited contract
 fail/proofs/quotient_pattern_rejected rejected 690ms expected @ccdb99ca2214
@@ -32645,16 +32672,17 @@ fail/proofs/quotient_private_crash_rejected rejected 543ms unexpected @ccdb99ca2
 	fixture linux_x86_64 admission: reviewed native production requires application root `quotient_private_crash_rejected`; found Package
 fail/proofs/quotient_representative_admitted_closure_rejected rejected 693ms expected @ccdb99ca2214
 	bodyless boundary symbol `observe` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
-fail/proofs/quotient_runtime_affine_carrier rejected 287ms unexpected @ccdb99ca2214
-	fixture linux_x86_64 admission: reviewed native production requires application root `quotient_runtime_affine_carrier`; found Package
+fail/proofs/quotient_runtime_affine_carrier rejected 1721ms expected @8c2fec05b2ca
+	quotient data `EquivalenceClass` carrier `Representative` contains non-copy Type content `Representative`; the initial quotient surface cannot identify affine or linear occurrences
 fail/proofs/quotient_runtime_equality_rejected rejected 136ms expected @ccdb99ca2214
 	cannot compare quotient `EquivalenceClass` values with `==`/`!=`: retained representatives are opaque and have no synthesized structural equality; call a named lifted equality operation
 fail/proofs/quotient_runtime_false_relation rejected 421ms unexpected @ccdb99ca2214
 	fixture linux_x86_64 admission: reviewed native production requires application root `quotient_runtime_false_relation`; found Package
 fail/proofs/quotient_runtime_false_result rejected 764ms unexpected @ccdb99ca2214
 	fixture linux_x86_64 admission: reviewed native production requires application root `quotient_runtime_false_result`; found Package
-fail/proofs/quotient_runtime_routed_carrier rejected 454ms unexpected @ccdb99ca2214
-	fixture linux_x86_64 admission: reviewed native production requires application root `quotient_runtime_routed_carrier`; found Package
+fail/proofs/quotient_runtime_routed_carrier rejected 1746ms expected @8c2fec05b2ca
+	quotient data `EquivalenceClass` carrier `Representative` contains routed qualification `Issued`; the initial quotient surface cannot identify exact custody occurrences
+	implicit domain weakening in machine `representative_value` state `entry` drops `Issued`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
 fail/proofs/quotient_struct_literal_rejected rejected 819ms expected @ccdb99ca2214
 	cannot construct quotient `EquivalenceClass` with a struct or case literal: retained representatives are opaque and quotient values may be minted only from the exact carrier with `as EquivalenceClass`
 fail/proofs/quotient_theorem_admitted_closure_rejected rejected 2082ms expected @ccdb99ca2214
@@ -32768,7 +32796,7 @@ fail/proofs/scalar_state_return_outside_byte_class rejected 1935ms expected @ccd
 	cannot prove default-domain field requirement for return from Main::write_byte at statement 3: main.bytes requires [u8; N]::Utf8
 fail/proofs/selected_specification_requires_false_result rejected 791ms expected @ccdb99ca2214
 	machine `identity` ensures contract proof fact `selected_identity<Modulus>(value) == Nat` speaks about proof-only `Nat`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
-fail/proofs/selected_specification_requires_missing_premise rejected 706ms expected @ccdb99ca2214
+fail/proofs/selected_specification_requires_missing_premise rejected 1121ms expected @e97ed21415d9
 	cannot prove requires contract for specification call `selected_identity` in machine `identity` ensures contract: establish its selected precondition in an independently formed prior requires fact
 fail/proofs/selected_specification_requires_wrong_machine rejected 692ms expected @ccdb99ca2214
 	cannot prove requires contract for specification call `selected_identity` in machine `identity` ensures contract: establish its selected precondition in an independently formed prior requires fact
@@ -32971,7 +32999,7 @@ fail/providers/consuming_requirement_without_provider rejected 44280ms expected 
 	no provider is selected for boundary requirement `ReceiptAck::ack`, which the program entry reaches on target `windows_x86_64`
 fail/providers/consuming_trait_requirement_without_provider rejected 3975ms expected @ccdb99ca2214
 	no provider is selected for boundary requirement `Acknowledgement::ack`, which the program entry reaches on target `windows_x86_64`
-fail/providers/cross_package_private_slot_rejected rejected 1546ms expected @ccdb99ca2214
+fail/providers/cross_package_private_slot_rejected rejected 1873ms expected @e97ed21415d9
 	Product provider operand `support::values::Hidden` does not resolve to one visible declaration of role BoundarySubject
 fail/providers/demanded_unavailable_target_provider rejected 10692ms expected @ccdb99ca2214
 	no provider is selected for boundary requirement `Value::read`, which the program entry reaches on target `macos_arm64`

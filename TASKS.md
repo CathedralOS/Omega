@@ -828,8 +828,12 @@ helper that passes does not close an item.
     and [implementation-region forwarding](samples/cli/facts/implementation_region_forwarding/README.md).
   - Complete remaining schema/case composition support and platform ABI
     migrations; retain explicit named policies for sparse views.
-  - Supply ordinary Representation agreement contracts and reflection-specialized
-    library adapters with explicit resources, failures, full supported-value
+  - Finish call-result, match-join, const-name, nested-machine, other-machine and
+    selected-target transports of the concrete
+    [selected representation agreement](samples/cli/facts/representation_agreement/README.md).
+    Generalize the fixed-owned agreement bundle to ordinary resource-backed
+    Representation contracts and reflection-specialized library adapters with
+    explicit resources, failures, full supported-value
     coverage, round-trip/preservation obligations and optional proved-total
     forwarding. Demonstrate a separately authored encoded format family and
     composed cross-representation conversion without compiler format recognition.
