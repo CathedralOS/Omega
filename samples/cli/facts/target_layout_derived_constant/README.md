@@ -146,6 +146,14 @@ matching SDK. Four-target Source acceptance is not foreign-host execution. Older
 partial `8316f371bf8` observations and the historical Linux qualification retain
 their own producer identities.
 
+After integrating the published provider/ABI route, optimized CLI
+`0571669b5195` freshly prepares, checks and runs the unchanged public-alias and
+target-body programs with native/Terminal exits 0. Its provider-3 control refuses
+the exact `[-1, -1]` range outside `u64`, and the unused ground-4 control refuses
+its promised result bound. This four-project follow-up uses that producer's own
+SDK; the full-row and fixture observations above retain their `d6c89b306726`
+identity.
+
 The broader capability remains open. Late aggregate/qualified constants,
 provider-free observation receipts, arithmetic layout predicates in ordinary
 call preconditions, and package generic application review still need connected
