@@ -9,13 +9,18 @@ replacing a caller's evidence with a Build provider, or dropping returned facts.
 
 The Build-selection migration is under execution validation. All nine places
 select ordinary providers through Build, retaining their explicit implementation
-evidence. Optimized producer `31929612cef` passes the sample gate for the target
-place, unused evidence, and header observation order; all four selected reject
-controls still reject. Its nominal callable probe reaches provider emission but
-has no exact emitted public candidate, while its explicitly disambiguated member
-still fails Source lookup. The successors repair those two correspondence paths.
-Full row, source-free policy recovery, and explicit native/Terminal exit captures
-remain pending. Earlier ordinary-wrapper execution does not qualify these sources.
+evidence. Producer `8697cb6e141` executes eight places with native and Terminal
+exit 0. Producer `157d5fc5e2b` checks those eight and all nine fact-sensitive reject
+twins; the field positive still loses the returned equality needed by exact
+subtraction. That remaining proof transport failure keeps this row open.
+
+The nominal callable, explicitly disambiguated member and public-evidence probes
+execute with native and Terminal exit 0 under `157d5fc5e2b` on Linux x86-64.
+The public-evidence package's exact bound also survives checked policy projection
+and canonical encode/recover/reencode under producer `3cd963a412e`. Full fixture
+execution and preservation of inferred descriptor argument capture remain pending.
+Historical producer identities retain their own observations; they do not claim
+execution by a later candidate.
 
 Fact: A selected member preserves runtime index 9 below bound 10, so exact
 10 - right yields 1, while returning the second Cell and closed left 7.
@@ -23,7 +28,7 @@ Fact: A selected member preserves runtime index 9 below bound 10, so exact
 Acceptance: run each positive below with `omega run --both <main.omg>` on a
 matching hosted target; each must produce native and Terminal exit 0. Every
 positive binds all four hosted targets. Runtime evidence is host-specific;
-the qualification for this repair executes on `macos_arm64`, not all four hosts.
+retained observations cover `macos_arm64` and `linux_x86_64`, not all four hosts.
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
@@ -85,12 +90,12 @@ The additional producers stay in this fact folder:
   evidence namespace through synthesis.
 - [A nominal callable](probes/nominal_evidence/main.omg) exercises the same full
   telescope through an explicitly selected callable parameter. Its exact
-  satisfaction admission and executable public demand remain under validation.
+  satisfaction admission and executable public demand execute under `157d5fc5e2b`.
 - [Header observation order](probes/header_observation_order/main.omg) reads
   runtime index 9 before a later ordinary argument changes its storage to 3.
   The returned right field must retain 9, and its invalid twin changes only
-  the initial index to 11. Producer `31929612cef` passes this sample and its
-  reject control; explicit engine-exit capture is still pending.
+  the initial index to 11. Producer `8697cb6e141` records native and Terminal
+  exit 0 and the intended reject diagnostic.
 - [Wrong argument](probes/wrong_evidence_argument/main.omg) and
   [wrong nominal trait](probes/wrong_evidence_trait/main.omg) controls retain
   complete static admission.
