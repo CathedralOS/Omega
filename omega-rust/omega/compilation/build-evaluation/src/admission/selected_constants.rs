@@ -3,7 +3,6 @@
 //! its value in the typed program once; final checking consumes that program
 //! and the compile does not replay the folds against its own checked result
 //! (pipeline.md, "Verification placement").
-use crate::derive_selected_primitive_float_binary_execution;
 use build_time_evaluation::validate_selected_provider_bodies;
 use build_time_evaluation::{
     PreCheckEvaluation, SelectedBuildTimeBinaryOperator, SelectedBuildTimeOperators,
@@ -13,10 +12,11 @@ use checked_trees::CheckedProviderPlanCommitment;
 use diagnostics::Diagnostic;
 use effects::SelectedProviderPlanFacts;
 use provider_planning::target_machines::selected_constant_target_bodies;
+use selected_dispatch::derive_selected_primitive_float_binary_execution;
 use typed_trees::TypedTrees;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SelectedConstantEvaluation {
+pub(super) struct SelectedConstantEvaluation {
     operators: Vec<SelectedBuildTimeBinaryOperator>,
     /// Selected uses whose meaning is the selected provider's ordinary checked
     /// machine body. Each row carries the exact provider entry the semantic

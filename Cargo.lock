@@ -184,6 +184,7 @@ dependencies = [
  "build-declarations",
  "build-output",
  "build-time-evaluation",
+ "checked-trees",
  "compilation-products",
  "diagnostics",
  "effects",
@@ -2112,7 +2113,6 @@ version = "0.1.0"
 dependencies = [
  "arena",
  "backend-plan",
- "build-time-evaluation",
  "checked-trees",
  "diagnostics",
  "effects",
@@ -2124,7 +2124,6 @@ dependencies = [
  "provider-planning",
  "provider-selection",
  "psi-terminal-production",
- "representation-planning",
  "semantic-vocabulary",
  "source",
  "symbols",

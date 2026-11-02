@@ -43,6 +43,11 @@ explicit Build dependency context and admitted execution profile. Selected
 comparison facts follow their exact declaration provenance into the same
 pure/granted interpreter; runtime adapter dispatch and service grants do not.
 Missing comparison execution custody rejects before Build effects.
+[Deferred constants](src/admission/selected_constants.rs) are prepared and resumed
+by this same admission owner before checking its settled program. Selected dispatch
+supplies only the exact selected numeric identity; Psi performs evaluation and
+validates its source execution plans. The source continuation is consumed once,
+in order, against its original declaration selection and admitted target context.
 The preliminary check still covers the whole provisional program:
 removing that duplicate product work requires a sound Build-helper projection
 and a separately frozen authored-selection frontier. The interpreter's general

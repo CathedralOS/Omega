@@ -4,4 +4,5 @@
 //! the checker-transformed program, without preparing another copy.
 
 pub(crate) mod checking;
+mod selected_constants;
 pub(crate) mod target_helpers;

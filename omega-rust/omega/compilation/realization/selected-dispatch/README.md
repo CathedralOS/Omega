@@ -78,10 +78,6 @@ ambiguate Product adapters.
 
 The narrower operations are:
 
-- [Constant evaluation](src/constant_evaluation.rs): join exact selected execution
-  for admitted Build evaluation. Product constants depending on runtime provider
-  selection reject until portable recipes can cross the Psi boundary; they do
-  not fold a target's choice back into shared checked source.
 - [Operator selection](src/selected_dispatch.rs): exact operator realizations
   and Build comparison facts. It retains Psi's checked execution plans.
 - [Reference boundary dispatch](src/checked_interpreter_dispatch/boundary_dispatch.rs):
@@ -95,3 +91,9 @@ This is still a checked-tree realization seam, not the completed Terminal-only
 architecture. Its source-dependent inputs must ultimately become retained
 Terminal evidence. Moving this owner out of the compiler does not claim that
 provider installation already occurs after Terminal production.
+
+Build admission owns [deferred constant evaluation](../../build-evaluation/src/admission/selected_constants.rs).
+It consumes selected numeric identities from this owner and invokes Psi evaluation
+under the exact admitted Build context. Product constants depending on runtime
+provider selection still require portable recipes; a target choice is never
+folded back into shared checked Product source.
