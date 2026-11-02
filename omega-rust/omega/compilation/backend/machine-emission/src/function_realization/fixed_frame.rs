@@ -102,8 +102,8 @@ pub(crate) fn validate_fixed_frame_function_relative_realization(
     let environment = current.register_environment();
     let physical = environment.physical();
     validate_optimized_layout_independent_selected_form_encoding(
-        selected,
-        &staged.machine,
+        selected.current_program(),
+        staged.machine.machine().plan(),
         physical,
         Some(staged.frame.layout().plan()),
         &staged.encoding,

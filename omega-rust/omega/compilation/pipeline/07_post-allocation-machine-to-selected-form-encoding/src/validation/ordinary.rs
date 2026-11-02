@@ -1,21 +1,20 @@
 use register_model::ValidatedPhysicalRegisterModel;
-use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
+use selected_instructions::CurrentSelectedProgram;
 
-use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
+use physical_instructions::PostAllocationMachinePlan;
 
 use super::{super::OptimizedSelectedFormEncodingError, row};
 use machine_code::{SelectedFormEncodedRowStore, SelectedFormEncodingRow};
 
-pub(super) fn validate<S: ValidatedSelectedAnalysis>(
-    selected: &S,
-    staged: &StagedOptimizedPostAllocationMachinePlan,
+pub(super) fn validate(
+    selected: CurrentSelectedProgram<'_>,
+    machine: &PostAllocationMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,
     frame: Option<&machine_code::TargetFrameLayoutPlan>,
     rows: &[SelectedFormEncodingRow],
     encoded: &SelectedFormEncodedRowStore,
 ) -> Result<(), OptimizedSelectedFormEncodingError> {
-    let machine = staged.machine().plan();
-    let target = selected.selected_plan().target;
+    let target = selected.plan.target;
     let mut candidate_rows = rows.iter();
     crate::rows::for_each_row(
         selected,
