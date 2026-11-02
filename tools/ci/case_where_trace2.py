@@ -42,7 +42,7 @@ def both(project,label):
  command=[str(producer.cli),'run','--both',str(project/'main.omg')];r,seconds=run(command,label);lines=r.stderr.splitlines();passed=r.returncode==0 and 'native exit 0' in lines and 'interp exit: 0' in lines
  locks(project,label);return dict(project=str(project),command=command,returncode=r.returncode,seconds=seconds,native_zero='native exit 0' in lines,Terminal_zero='interp exit: 0' in lines,passed=passed,inputs={p.name:h(p) for p in project.iterdir() if p.name in ['main.omg','build.omg','expected_native_exit.txt']})
 revision=git('rev-parse','HEAD');assert revision=='dd14ab50fba0851df9a58a5208e6bce2b8e936ef' and not git('status','--porcelain')
-previous=json.loads((INPUT/'summary.json').read_text())['producer'];original=json.loads((INPUT/'case-where-repair1/source-inputs.json').read_text());assert previous['revision']==revision
+previous=json.loads((INPUT/'summary.json').read_text())['actual_producer'];original=json.loads((INPUT/'case-where-repair1/source-inputs.json').read_text());assert previous['revision']==revision
 inputs={p:h(ROOT/p) for p in git('ls-files','--','Cargo.toml','Cargo.lock','rust-toolchain.toml','omega-rust','source/library').splitlines()};assert original['files']==inputs
 save('source-inputs.json',dict(revision=revision,tree=git('rev-parse','HEAD^{tree}'),files=inputs));sdk={k:v for k,v in inputs.items() if k.startswith('source/library/')};save('sdk-inputs.json',sdk)
 for p in sdk:
