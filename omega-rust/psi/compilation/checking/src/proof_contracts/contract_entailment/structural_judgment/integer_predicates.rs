@@ -121,6 +121,35 @@ pub(super) struct PreparedIntegerPremises<'program> {
     goal_work: std::sync::Mutex<Option<IntegerObservations<'program>>>,
 }
 
+/// One exact prefix's preparation, including an incomplete projection. A
+/// contradiction may still follow from its independently admitted subset;
+/// retain that answer once per identical context rather than rebuilding and
+/// discarding the numeric engine for every visitor at the same prefix.
+struct IntegerPremisePreparation<'program> {
+    complete: Option<std::sync::Arc<PreparedIntegerPremises<'program>>>,
+    independent_contradictory: std::sync::Mutex<Option<bool>>,
+}
+
+impl IntegerPremisePreparation<'_> {
+    fn independent_contradiction(&self, check: impl FnOnce() -> bool) -> bool {
+        if let Some(answer) = self
+            .independent_contradictory
+            .lock()
+            .ok()
+            .and_then(|answer| *answer)
+        {
+            return answer;
+        }
+        // Projection can perform nested queries. Hold no cache lock while it
+        // runs; concurrent first readers may each compute the same answer.
+        let answer = check();
+        if let Ok(mut cached) = self.independent_contradictory.lock() {
+            *cached = Some(answer);
+        }
+        answer
+    }
+}
+
 // Leaf retention also depends on nonprojected current value facts and the
 // complete admitted-call class. Keep those immutable COW owners alive: pointer
 // equality is an exact epoch, including equal-length sibling histories. These
@@ -150,7 +179,7 @@ impl PartialEq for PreparedIntegerPremisesCacheKey {
 pub(super) struct PreparedIntegerPremisesCache<'program> {
     entries: Vec<(
         PreparedIntegerPremisesCacheKey,
-        Option<std::sync::Arc<PreparedIntegerPremises<'program>>>,
+        std::sync::Arc<IntegerPremisePreparation<'program>>,
     )>,
 }
 
@@ -158,7 +187,7 @@ impl<'program> PreparedIntegerPremisesCache<'program> {
     fn get(
         &mut self,
         state: &PreparedIntegerPremisesCacheKey,
-    ) -> Option<Option<std::sync::Arc<PreparedIntegerPremises<'program>>>> {
+    ) -> Option<std::sync::Arc<IntegerPremisePreparation<'program>>> {
         let index = self.entries.iter().position(|(key, _)| key == state)?;
         let entry = self.entries.remove(index);
         let result = entry.1.clone();
@@ -169,7 +198,7 @@ impl<'program> PreparedIntegerPremisesCache<'program> {
     fn insert(
         &mut self,
         state: PreparedIntegerPremisesCacheKey,
-        prepared: Option<std::sync::Arc<PreparedIntegerPremises<'program>>>,
+        prepared: std::sync::Arc<IntegerPremisePreparation<'program>>,
     ) {
         if let Some(index) = self.entries.iter().position(|(key, _)| key == &state) {
             self.entries.remove(index);
@@ -467,11 +496,14 @@ impl<'program> StructuralJudge<'program> {
         {
             return false;
         }
-        if let Some(prepared) = self.cached_prepared_integer_premises() {
+        let preparation = self.cached_integer_premise_preparation();
+        if let Some(prepared) = &preparation.complete {
             return prepared.is_contradictory();
         }
-        let observations = IntegerObservations::empty(self.program);
-        self.independent_integer_premises(observations).is_some()
+        preparation.independent_contradiction(|| {
+            let observations = IntegerObservations::empty(self.program);
+            self.independent_integer_premises(observations).is_some()
+        })
     }
 
     /// Ask about one completed operand, before introducing its cast result.
@@ -1510,10 +1542,19 @@ impl<'program> StructuralJudge<'program> {
     fn cached_prepared_integer_premises(
         &self,
     ) -> Option<std::sync::Arc<PreparedIntegerPremises<'program>>> {
+        self.cached_integer_premise_preparation().complete.clone()
+    }
+
+    fn cached_integer_premise_preparation(
+        &self,
+    ) -> std::sync::Arc<IntegerPremisePreparation<'program>> {
         // A dependency trace is mutable output. Do not reuse a completed
         // premise preparation or retain opaque leaves while it is active.
         if self.has_resolution_dependency_collector() {
-            return self.prepare_integer_premises().map(std::sync::Arc::new);
+            return std::sync::Arc::new(IntegerPremisePreparation {
+                complete: self.prepare_integer_premises().map(std::sync::Arc::new),
+                independent_contradictory: std::sync::Mutex::new(None),
+            });
         }
         let potential_len = self.rewrites.potential_integer_premises_len();
         let state = if potential_len == 0 {
@@ -1543,7 +1584,10 @@ impl<'program> StructuralJudge<'program> {
             return cached;
         }
         phase_profile::count("psi.05.numeric.prove.prep.miss", 1);
-        let prepared = self.prepare_integer_premises().map(std::sync::Arc::new);
+        let prepared = std::sync::Arc::new(IntegerPremisePreparation {
+            complete: self.prepare_integer_premises().map(std::sync::Arc::new),
+            independent_contradictory: std::sync::Mutex::new(None),
+        });
         if let Ok(mut cache) = self.prepared_integer_premises_cache.lock() {
             cache.insert(state, prepared.clone());
         }
@@ -2232,6 +2276,38 @@ mod carrier_bound_tests {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn premise_preparation_shares_fallback_only_with_the_exact_epoch() {
+        use std::sync::Arc;
+        let program = typed_trees::TypedTrees::default();
+        let judge = StructuralJudge::from_declaration_requires(
+            &program,
+            symbols::SymbolHandle::invalid(),
+            &[],
+            &[],
+            true,
+        );
+        let first = judge.cached_integer_premise_preparation();
+        assert!(!first.independent_contradiction(|| false));
+        let mut sibling = judge.clone();
+        let same = sibling.cached_integer_premise_preparation();
+        assert!(Arc::ptr_eq(&first, &same));
+        assert!(!same.independent_contradiction(|| panic!("same prefix recomputed")));
+        // Equal-length substitutions in sibling histories are distinct input
+        // owners. Neither a false nor a positive cached answer may cross them.
+        for result in [1, 2] {
+            sibling.substitutions = Arc::new(vec![(
+                "value".into(),
+                StructuralTerm::Integer(BigInt::from_i64(result)),
+            )]);
+            let changed = sibling.cached_integer_premise_preparation();
+            assert!(!Arc::ptr_eq(&first, &changed));
+            assert!(changed.independent_contradictory.lock().unwrap().is_none());
+            assert!(changed.independent_contradiction(|| true));
+            assert!(!first.independent_contradictory.lock().unwrap().unwrap());
+        }
+    }
 
     #[test]
     fn operand_resolutions_preserve_payload_and_end_with_batch() {
