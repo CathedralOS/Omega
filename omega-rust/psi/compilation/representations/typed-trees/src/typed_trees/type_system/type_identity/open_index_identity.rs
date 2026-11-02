@@ -6,6 +6,7 @@ use crate::typed_trees::type_system::type_identity::constraint_identity::{atom, 
 use crate::typed_trees::type_system::type_identity::identity_context::{
     TypeIdentityContext, TypeIdentityQualification, normalize_index_expression,
 };
+use language_semantics::type_identity::vocabulary::{IndexForm, Label};
 
 pub(crate) fn open_index_operation_selection(
     program: &TypedTrees,
@@ -20,10 +21,10 @@ pub(crate) fn open_index_algebra_identity(
     context: &TypeIdentityContext<'_>,
 ) -> String {
     compound(
-        "open-index-algebra",
+        Label::OpenIndexAlgebra,
         [
             atom(
-                "provider",
+                Label::Provider,
                 &super::substitution::index_argument(
                     program,
                     selection.application.as_ref().map_or(
@@ -34,14 +35,14 @@ pub(crate) fn open_index_algebra_identity(
                 ),
             ),
             atom(
-                "trait",
+                Label::Trait,
                 &context.name(
                     program,
                     selection.algebra_trait,
                     "<unresolved-algebra-trait>",
                 ),
             ),
-            atom("requirement", &selection.algebra_requirement),
+            atom(Label::Requirement, &selection.algebra_requirement),
         ],
     )
 }
@@ -56,13 +57,13 @@ pub(crate) fn open_index_operation_identity(
         return contract;
     }
     compound(
-        "open-index-operation",
+        Label::OpenIndexOperation,
         [
             atom(
-                "symbol",
+                Label::Symbol,
                 &context.name(program, selection.operator, &contract),
             ),
-            atom("contract", &contract),
+            atom(Label::Contract, &contract),
         ],
     )
 }
@@ -165,26 +166,26 @@ fn collect_licensed_ac_operands(
     }
 }
 
-pub(crate) fn index_binary_operator_name(operator: BinaryOperator) -> &'static str {
+pub(crate) fn index_binary_operator_name(operator: BinaryOperator) -> IndexForm {
     match operator {
-        BinaryOperator::Add => "add",
-        BinaryOperator::And => "and",
-        BinaryOperator::BitwiseAnd => "bitwise-and",
-        BinaryOperator::BitwiseOr => "bitwise-or",
-        BinaryOperator::BitwiseXor => "bitwise-xor",
-        BinaryOperator::Divide => "divide",
-        BinaryOperator::Equal => "equal",
-        BinaryOperator::Greater => "greater",
-        BinaryOperator::GreaterOrEqual => "greater-or-equal",
-        BinaryOperator::Less => "less",
-        BinaryOperator::LessOrEqual => "less-or-equal",
-        BinaryOperator::Modulo => "modulo",
-        BinaryOperator::Multiply => "multiply",
-        BinaryOperator::NotEqual => "not-equal",
-        BinaryOperator::Or => "or",
-        BinaryOperator::ShiftLeft => "shift-left",
-        BinaryOperator::ShiftRight => "shift-right",
-        BinaryOperator::Subtract => "subtract",
-        BinaryOperator::CaseMembership => "case_membership",
+        BinaryOperator::Add => IndexForm::Add,
+        BinaryOperator::And => IndexForm::And,
+        BinaryOperator::BitwiseAnd => IndexForm::BitwiseAnd,
+        BinaryOperator::BitwiseOr => IndexForm::BitwiseOr,
+        BinaryOperator::BitwiseXor => IndexForm::BitwiseXor,
+        BinaryOperator::Divide => IndexForm::Divide,
+        BinaryOperator::Equal => IndexForm::Equal,
+        BinaryOperator::Greater => IndexForm::Greater,
+        BinaryOperator::GreaterOrEqual => IndexForm::GreaterOrEqual,
+        BinaryOperator::Less => IndexForm::Less,
+        BinaryOperator::LessOrEqual => IndexForm::LessOrEqual,
+        BinaryOperator::Modulo => IndexForm::Modulo,
+        BinaryOperator::Multiply => IndexForm::Multiply,
+        BinaryOperator::NotEqual => IndexForm::NotEqual,
+        BinaryOperator::Or => IndexForm::Or,
+        BinaryOperator::ShiftLeft => IndexForm::ShiftLeft,
+        BinaryOperator::ShiftRight => IndexForm::ShiftRight,
+        BinaryOperator::Subtract => IndexForm::Subtract,
+        BinaryOperator::CaseMembership => IndexForm::CaseMembership,
     }
 }

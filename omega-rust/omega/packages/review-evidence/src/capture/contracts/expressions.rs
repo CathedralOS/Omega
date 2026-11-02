@@ -10,6 +10,7 @@ mod case_membership;
 pub(in crate::capture) mod casts;
 pub(in crate::capture) mod constructors;
 pub(in crate::capture) mod evidence;
+pub(in crate::capture) mod layout_queries;
 pub(in crate::capture) mod members;
 pub(in crate::capture) mod names;
 pub(in crate::capture) mod operators;

@@ -66,10 +66,14 @@ impl RuntimeProviderStorage {
             .offset
             .checked_add(binding.length)
             .ok_or_else(malformed)?;
+        let bytes = allocation
+            .bytes
+            .read()
+            .map_err(TerminalInterpretError::ResidentStorage)?;
         if end > allocation.extent.length()
             || usize::try_from(end)
                 .ok()
-                .is_none_or(|end| end > allocation.bytes.len())
+                .is_none_or(|end| end > bytes.len())
         {
             return Err(TerminalInterpretError::ContentTransformationMismatch(
                 "initialization window exceeds its original allocation",

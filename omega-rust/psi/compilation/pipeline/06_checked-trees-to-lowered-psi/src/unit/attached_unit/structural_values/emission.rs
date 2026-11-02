@@ -144,10 +144,7 @@ pub(crate) fn emit<'source>(
             flow_facts(checked)
                 .ownership
                 .selection_sources
-                .span(receipt.sources)
-                .ok_or(LoweringError::Unsupported(
-                    "owned selection source span is stale",
-                ))?
+                .span_or_empty(receipt.sources)
                 .iter()
                 .enumerate()
                 // The checked roster already carries reverse declaration
@@ -2464,19 +2461,11 @@ impl Emission<'_, '_, '_> {
                 }
             }
             CheckedStructuralValueKind::Case(construction) => {
-                let source = validation::scalar_case_constructor(
-                    &self.checked.typed,
-                    construction.expression,
-                )
-                .ok_or(LoweringError::Unsupported(
-                    "structural case lost its authored constructor",
-                ))?;
                 let place = place_id(allocate_dense(self.environment.next_place)?);
                 let slot = crate::scalar_lowering::computations::cases::reserve(
                     identities,
                     self.checked,
-                    construction.expression,
-                    &source,
+                    &construction,
                     self.structural_types,
                     place,
                 )?;

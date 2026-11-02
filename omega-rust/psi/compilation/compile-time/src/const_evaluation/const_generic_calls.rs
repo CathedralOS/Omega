@@ -3,12 +3,12 @@
 //! before the ordinary frontend runs, while the established build-time
 //! evaluator needs typed trees. Prepare a retained declaration frontier,
 //! complete only the probe's exact implementation dependencies, type it,
-//! reuse the const-initializer admission gate and scalar evaluator, then
+//! reuse the const-initializer admission and result evaluation, then
 //! substitute the complete canonical argument before monomorphization.
 //!
 //! Calls with closed scalar arguments (`Buffer<sized(4)>`) are ordinary
 //! applications of the same kind: the whole authored expression is evaluated
-//! as a scalar probe on a checked program so each named call goes through
+//! as a probe on a checked program so each named call goes through
 //! exact selected-entry resolution, concrete argument snapshots, and
 //! premise/failure discharge — the same admission as const-initializer calls —
 //! before its canonical result replaces the entire argument expression.
@@ -32,7 +32,7 @@ use numerics::literals::{IntegerLiteral, IntegerRadix};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 use syntax_trees::identifier::Identifier;
-use syntax_trees::types::{TypeConstraintNode, TypeReferenceNode};
+use syntax_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 use syntax_trees_to_symbol_resolved_trees::pre_resolution::{
     closed_array_extent_expressions, resolve_deferred_initializer_probe,
 };
@@ -41,8 +41,37 @@ mod dependencies;
 mod extent_entries;
 
 pub fn evaluate_const_generic_calls(
+    syntax: SyntaxTrees,
+    context: crate::BuildTimeSources<'_>,
+) -> Result<SyntaxTrees, Vec<Diagnostic>> {
+    evaluate_requested_calls(syntax, context, None)
+}
+
+/// Settle only a ready initializer layer's static arguments in the original
+/// syntax. Keeping the original handles publishes both canonical values and
+/// authored-computation custody for final replay; probe-only folding loses it.
+pub(super) fn evaluate_declaration_calls(
+    syntax: SyntaxTrees,
+    context: crate::BuildTimeSources<'_>,
+    declarations: &[syntax_trees::item::ItemHandle],
+) -> Result<SyntaxTrees, Vec<Diagnostic>> {
+    let mut syntax = syntax;
+    let arguments =
+        syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_declaration_const_arguments(
+            &mut syntax,
+            context.sources.clone(),
+            context.source_scoped_top_level_bindings.to_vec(),
+            context.retained_base(),
+            context.declaration_syntax,
+            declarations,
+        )?;
+    evaluate_requested_calls(syntax, context, Some(&arguments))
+}
+
+fn evaluate_requested_calls(
     mut syntax: SyntaxTrees,
     context: crate::BuildTimeSources<'_>,
+    requested: Option<&[(TypeReferenceHandle, TypeReferenceHandle, bool)]>,
 ) -> Result<SyntaxTrees, Vec<Diagnostic>> {
     let _profile = phase_profile::guard("pre_resolution.constant_calls");
     loop {
@@ -50,7 +79,7 @@ pub fn evaluate_const_generic_calls(
         // dependencies but must not supply an executable layout. Every layer
         // settles original argument handles, so at most N layers can progress.
         // Provider-waiting leaves (and their dependants) remain authored.
-        let (evaluated, progress) = evaluate_application_group(syntax, context.clone())?;
+        let (evaluated, progress) = evaluate_application_group(syntax, context.clone(), requested)?;
         syntax = evaluated;
         if !progress {
             return Ok(syntax);
@@ -61,13 +90,16 @@ pub fn evaluate_const_generic_calls(
 fn evaluate_application_group(
     mut syntax: SyntaxTrees,
     context: crate::BuildTimeSources<'_>,
+    requested: Option<&[(TypeReferenceHandle, TypeReferenceHandle, bool)]>,
 ) -> Result<(SyntaxTrees, bool), Vec<Diagnostic>> {
     let mut progress = false;
     let sources = context.sources.clone();
     let source_scoped_top_level_bindings = context.source_scoped_top_level_bindings;
     let selection_authority = context.selection_authority.clone();
     let mut endpoint_leaves = Vec::new();
-    collect_generic_range_endpoint_call_leaves(&syntax, &mut endpoint_leaves);
+    if requested.is_none() {
+        collect_generic_range_endpoint_call_leaves(&syntax, &mut endpoint_leaves);
+    }
     let has_call_const_expression = type_references(&syntax)
         .const_expression_nodes()
         .into_iter()
@@ -75,25 +107,30 @@ fn evaluate_application_group(
     if endpoint_leaves.is_empty() && !has_call_const_expression {
         return Ok((syntax, false));
     }
-    let mut const_arguments =
+    let (const_arguments, extent_uses) = if let Some(requested) = requested {
+        (requested.to_vec(), Vec::new())
+    } else {
+        let mut const_arguments =
         syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_data_const_argument_expressions(
             &mut syntax, sources.clone(), source_scoped_top_level_bindings.to_vec(), context.retained_base(), context.declaration_syntax,
         )?;
-    const_arguments.extend(
-        syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_machine_const_arguments(
-            &mut syntax,
-            sources.clone(),
-            source_scoped_top_level_bindings.to_vec(),
-            context.retained_base(),
-            context.declaration_syntax,
-        )?,
-    );
-    let extent_arguments = closed_array_extent_expressions(&mut syntax);
-    let extent_uses = extent_arguments
-        .iter()
-        .map(|(use_handle, ..)| *use_handle)
-        .collect::<Vec<_>>();
-    const_arguments.extend(extent_arguments);
+        const_arguments.extend(
+            syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_machine_const_arguments(
+                &mut syntax,
+                sources.clone(),
+                source_scoped_top_level_bindings.to_vec(),
+                context.retained_base(),
+                context.declaration_syntax,
+            )?,
+        );
+        let extent_arguments = closed_array_extent_expressions(&mut syntax);
+        let extent_uses = extent_arguments
+            .iter()
+            .map(|(use_handle, ..)| *use_handle)
+            .collect::<Vec<_>>();
+        const_arguments.extend(extent_arguments);
+        (const_arguments, extent_uses)
+    };
     // Work belongs to reachable closed uses. Open templates and detached
     // expression arena entries retain recipes without execution demand.
     let mut applications = Vec::new();
@@ -313,7 +350,7 @@ fn evaluate_application_group(
                 .evaluate_application_probe(
                     reference,
                     *public,
-                    &syntax,
+                    &mut syntax,
                     extent_uses.contains(argument),
                 )
                 .map_err(&failure)?;
@@ -334,10 +371,10 @@ fn evaluate_application_group(
             }
             let folded = match evaluated.value.decode_encoding() {
                 Some(DecodedCanonicalConstValue::Integer { value, .. }) => value.to_string(),
-                Some(DecodedCanonicalConstValue::Boolean(_)) => evaluated.value.atom(),
+                Some(_) => evaluated.value.atom(),
                 _ => {
                     return Err(failure(
-                        "application probe returned a non-scalar canonical value".to_owned(),
+                        "application probe returned an invalid canonical value".to_owned(),
                     ));
                 }
             };
@@ -351,6 +388,19 @@ fn evaluate_application_group(
                 evaluated.origins,
                 evaluated.operators,
             );
+            // The canonical payload retains its complete source computation,
+            // including aggregate construction and the exact selected calls.
+            if evaluated.materialized_expression.is_valid() {
+                syntax
+                    .type_references
+                    .retain_const_argument_expression(*argument, *expression);
+                syntax
+                    .type_references
+                    .retain_const_argument_materialized_expression(
+                        *argument,
+                        evaluated.materialized_expression,
+                    );
+            }
             syntax.type_references.replace_type_reference(
                 *argument,
                 TypeReferenceNode::Named(Identifier::generated(folded)),

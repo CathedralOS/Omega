@@ -15,9 +15,13 @@ Each public `inspect` receives `pair: &mut Pair` and forms its own
 `let view: &mut u32 = &mut pair.start as &mut u32`. It first stores
 `0xFFFFFFFFu32` (signed -1), then the transported restoration scalar.
 `pair.end = 10` independently supplies the upper-bound witness before handback;
-there is no direct restoring store to `pair.start`. Helpers carry only scalars,
-finish before the window opens, and promise ordinary `ensures result == value`.
-No helper receives a raw view with the parent origin erased.
+there is no direct restoring store to `pair.start`. Restoration-value helpers finish before the window opens and promise ordinary
+`ensures result == value`.
+Each place now also forwards the already formed reference through
+`retain_view<'storage>`, which returns it unchanged before the corrupting store.
+The helper's plain `u32` formal does not promise the signed parent's predicate.
+Its complete noninterfering frame preserves the caller's exact current facts;
+the returned reference must retain the source origin for the later stores.
 
 `main` starts two valid parents at start 3 and 5, end 10, then checks restored
 start 0/end 10, both neighboring hex canaries, markers and origin
@@ -110,7 +114,94 @@ receipts, raw observations, and independent review.
 Other-host native execution, broader scalar-range migration and GUI qualification
 remain open under the owning task.
 
-This row transports the restoring scalar into a locally formed view. It proves
-the bounded scalar-store restoration requirement, not general provenance and
-handback transport of a formed view through stored or returned references.
-That broader recast acceptance remains open with the parent task.
+The strengthened row transports the same restoring scalar into a formed view
+that returns through an ordinary nonmutating invocation. The
+[forwarding-marker composition](controls/forwarding_marker/main.omg) also writes
+19 to a disjoint marker during that invocation; its twin changes only the
+restoration scalar. The [dirty-forward control](controls/dirty_forward/main.omg)
+opens the parent window before borrowing/calling: an empty frame cannot
+establish a predicate that is already false.
+
+On fixed base `446a86f964ce9c6f9a19317aa08e454ae7b4bd01`, optimized CLI SHA-256
+`e8a618c30e2beb09604ee7663e27bffb343c3782f56931e7f772560160707c4e`
+wrongly refuses all nine strengthened positives at `retain_view`'s call. All
+nine twins also report that unrelated handback refusal alongside the intended
+parent debt. The marker composition wrongly refuses too; stored-view Source
+contrasts already distinguish valid restoration from its invalid twin.
+
+The repair shares the declaration-owned predicate read set between field
+independence and mutation-frame consumers. It proves the complete current
+predicate at the pre-statement prefix only when the complete invocation frame
+preserves its inline scalar dependencies. Borrowed/recursive read footprints
+remain unproved without their own backing inventory; unknown frames supply no
+preservation. Changed storage still owes checked normal-return evidence.
+Post-store checks use that same captured-predicate operation at the completed
+store prefix. A scalar interval envelope cannot substitute for a coupled data
+predicate.
+
+Optimized CLI SHA-256
+`d116c7f72037033678dfcad7e12441a2823a0294d55b94196964587ee57e3718`
+(base plus compiler patch retained in the PR evidence) executes all nine new
+canonical positives with native/Terminal exits 0/0; all nine twins now reject
+only the intended unclosed parent domain. These observations retain their
+actual producer identity. The focused final-source corpus and independent
+review are recorded separately in the owning PR.
+
+General changed-source representation guarantees, common-field case-predicate
+rosters, recursive/read-through-reference dependencies, other formed-view
+productions and other-host execution remain open with the parent task.
+GUI qualification remains pending.
+
+Final-source checkpoint `4a65db8ea7a55553ea8e77d11678d6c129bd5335` builds
+optimized corpus producer SHA-256
+`e9c31754f6e35f95da96a1b7469e41e669b96de2da5f24a42df50b05679e4517`.
+Its focused check leg accepts 26 positives and rejects 28 intended controls;
+one additional positive has the attributed baseline lowering refusal.
+The execution leg observes 25 native/Terminal agreements, including all nine
+strengthened places and forwarding-marker composition. One additional fixture
+is compile-only. The existing `runtime_scalar_field_local_loan_handback_exit`
+control refuses Terminal production with `computed borrow lost its established
+local`; the exact-source baseline CLI reproduces that refusal before execution.
+The original failed gate, its new measured row and the baseline replay remain
+retained. This is not a claim that the whole execution selection passed.
+
+
+## Case-bearing backing coordinates
+
+The [case-backed marker control](controls/case_backing/main.omg) and its
+[nonmutating sibling](controls/case_backing/nonmutating/main.omg) wrap the same
+`Pair` in `Envelope::Some`. Explicit incoming facts establish the current parent
+predicate independently of the later stores. The helpers preserve its scalar
+read set, and both parents' neighbors and markers remain observable.
+
+The [overlapping-call control](controls/case_backing/invalid/main.omg) changes
+only the helper by inserting an all-one scalar store. It must refuse the scalar
+handback immediately, even though a later caller store restores zero. Canonical
+case selectors distinguish semantic paths; write frames project them into
+physical storage, where different case names cannot prove disjointness.
+The retained R2 CLI wrongly source-checks all three controls. R4's coordinate
+repair checks the two valid controls and rejects the overlapping helper for its
+intended scalar-handback obligation.
+
+Initial native production then refused the two valid controls at the native
+reference source's duplicate path whitelist. Terminal's canonical typed
+projection geometry already represents case-qualified storage; source lookup
+must use that owner while retaining access and active-case obligations.
+The frozen failed attempts remain in the evidence record. The optimized R5 CLI
+then executes both valid case-backed controls with native/Terminal exits 0/0,
+rejects the overlapping helper at handback, and repeats all nine original
+places/twins plus the marker and dirty-forward controls successfully. Its actual
+producer is `d1bc08fc53210f0fddffec513b887a9d3686ca44` plus compiler patch
+`453b9476fa0e86ebb9d7f31f5288688e157d164570c22949e62df71be5ec9daa`,
+executable SHA-256
+`734b7cf202544897579aa655310bd9dc21248b06d2fdb7bad675d69efb7bc2fb`.
+
+
+Final-code corpus qualification uses clean checkpoint
+`8fce926f97351853c0165602a991352592ef43e6`, optimized runner SHA-256
+`0a6461f6c5460dd3513139405eeb30a6a4627190acba54fd0f9668d82925ea9c`.
+Its 66-fixture check records 32 checked positives, 33 intended rejects, and
+one attributed baseline lowering refusal. The execution selection records
+31 native/Terminal agreements, one compile-only result, and that same refused
+local-loan fixture. The execution gate exits 3 for the retained baseline failure;
+no execution or repaired acceptance is claimed for it.

@@ -21,7 +21,7 @@ boundary trait PosixFilesystemLinuxArm64ByteViews: Calling<LinuxArm64ByteViewCal
 use filesystem_host;
 use targets::linux_x86_64::posix_filesystem_impl;
 
-linux_arm64 machine PosixFilesystemLinuxSyscalls::openat(dirfd: i32, path: &u8, flags: i32, mode: i32) -> i32
+linux_arm64 machine PosixFilesystemLinuxSyscalls::openat(dirfd: i32, path: &[u8; 4096], flags: i32, mode: i32) -> i32
     satisfies PosixFilesystemLinux::openat
     via ForeignBinding::Syscall(56);
 linux_arm64 machine PosixFilesystemLinuxSyscalls::read(fd: i32, buffer: &mut [u8]) -> i64
@@ -106,7 +106,7 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
 {
     let mut terminated: [u8; 4096];
     let fits: bool = posix_terminated_path(path, &mut terminated);
-    let outcome: i32 = PosixFilesystemLinuxSyscalls::openat(-100, &terminated[0], flags, 0);
+    let outcome: i32 = PosixFilesystemLinuxSyscalls::openat(-100, &terminated, flags, 0);
     transition fits {
         true -> settle(outcome)
         _ -> (-36)
@@ -123,7 +123,7 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
 {
     let mut terminated: [u8; 4096];
     let fits: bool = posix_terminated_path(path, &mut terminated);
-    let outcome: i32 = PosixFilesystemLinuxSyscalls::openat(-100, &terminated[0], flags, mode);
+    let outcome: i32 = PosixFilesystemLinuxSyscalls::openat(-100, &terminated, flags, mode);
     transition fits {
         true -> settle(outcome)
         _ -> (-36)
@@ -140,7 +140,7 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
 {
     let mut terminated: [u8; 4096];
     let fits: bool = posix_terminated_path(path, &mut terminated);
-    let outcome: i32 = PosixFilesystemLinuxSyscalls::openat(-100, &terminated[0], 577, mode);
+    let outcome: i32 = PosixFilesystemLinuxSyscalls::openat(-100, &terminated, 577, mode);
     transition fits {
         true -> settle(outcome)
         _ -> (-36)
@@ -271,7 +271,7 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
 {
     let mut terminated: [u8; 4096];
     let fits: bool = posix_terminated_path(name, &mut terminated);
-    let outcome: i32 = PosixFilesystemLinuxSyscalls::openat(dirfd, &terminated[0], flags, 0);
+    let outcome: i32 = PosixFilesystemLinuxSyscalls::openat(dirfd, &terminated, flags, 0);
     transition fits {
         true -> settle(outcome)
         _ -> (-36)

@@ -15,8 +15,8 @@
 //! Two children run after the typed trees are complete, from
 //! `lowerer::finish` and the seeded continuation: `domain_constraints` binds
 //! and expands declared-domain constraints, and `generic_origins` supplies
-//! `validate_range_arguments`, which completes the range equality checks that
-//! structural type construction deferred for generic applications.
+//! `validate_computed_arguments`, which replays range and materialized-value
+//! equality deferred by structural generic application construction.
 //! `domain_aliases` expands transparent domain aliases for domain
 //! constraints, proof facts and domain membership expressions.
 
@@ -80,7 +80,7 @@ pub(super) fn retain_supplied_operand_owner(
 pub(crate) use arithmetic_results::retain_arithmetic_result_type;
 pub(crate) use computed_results::retain_computed_result_types;
 pub(crate) use const_arguments::normalize_const_argument_carriers;
-pub(crate) use generic_origins::validate_range_arguments;
+pub(crate) use generic_origins::validate_computed_arguments;
 
 use direct::lower_type_reference_handle_with_context;
 use table::lower_type_reference_handle_from_table_with_context;

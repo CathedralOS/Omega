@@ -63,7 +63,7 @@ pub(super) fn rejoin_system_call(
                 .schema
                 .identity_text(selected_plan.schema.declaration.trait_name)
         || external.method != selected_row.method
-        || external.table_type != selected_plan.provider_type
+        || external.provider_type != selected_plan.provider_type
     {
         return Err(invalid(&format!(
             "does not rejoin the exact selected external row: retained binding {:?}, target `{}`, trait `{}`, method `{}`, provider `{}`; selected binding {:?}, target `{}`, trait `{}`, method `{}`, provider `{}`",
@@ -71,7 +71,7 @@ pub(super) fn rejoin_system_call(
             external.target_name,
             external.trait_name,
             external.method,
-            external.table_type,
+            external.provider_type,
             selected_row.binding,
             selected_plan.target,
             selected_plan

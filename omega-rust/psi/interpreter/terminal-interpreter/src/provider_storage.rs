@@ -1,10 +1,11 @@
 //! Actual provider-supplied bytes, distinct from the Extent descriptor's cells.
 //!
 //! This owner consumes both an already admitted extent and its supplied storage.
-//! Moving it moves neither the allocation nor its bytes. The numeric base is
-//! checked geometry, never a host pointer or a key used to discover an allocation.
-//! Unlike immutable byte values, provider storage has no clone or copy-on-write
-//! operation.
+//! Moving it moves neither the allocation nor its bytes. A numeric base is never
+//! dereferenced as a host pointer. At a selected profile crossing, an explicitly
+//! installed host resolver may join checked geometry to storage it already owns;
+//! geometry alone creates neither storage nor guest authority. Shared host handles
+//! retain the same bytes and retirement state, not copies or copy-on-write data.
 //! Each live arena record and descriptor/profile row owns a logical cell.
 //! This accounts records, not the host-supplied byte buffer's allocation or
 //! compiler-owned image scratch payloads; it is not a bound on RSS.
@@ -23,7 +24,14 @@ use evaluation_accounting::{EvaluationInvocationAccount, EvaluationStorageLease}
 use extents::Extent;
 use terminal_psi::TerminalAccessLifecyclePlan;
 
+mod backing;
+use backing::ProviderBytes;
+pub use backing::TerminalProviderBacking;
 mod entry;
+mod supply;
+pub use supply::{
+    TerminalProviderStorageRequest, TerminalProviderStorageResolver, TerminalProviderStorageSupply,
+};
 mod extraction;
 pub(crate) mod field_access;
 pub(crate) mod initialization;
@@ -190,49 +198,11 @@ impl TerminalExecution<'_> {
 #[derive(Debug)]
 pub(crate) struct ProviderByteAllocation {
     extent: Extent,
-    bytes: Vec<u8>,
-}
-
-/// Admission failure returns both owned inputs. In particular, a bad byte
-/// capacity cannot silently discard the provider's linear extent.
-#[derive(Debug)]
-pub(crate) struct ProviderByteAllocationRejection {
-    pub(crate) extent: Extent,
-    pub(crate) bytes: Vec<u8>,
-    pub(crate) reason: &'static str,
+    bytes: ProviderBytes,
 }
 
 impl ProviderByteAllocation {
-    /// The admitted provider supplies the allocation explicitly. This does
-    /// not allocate storage from a numeric address or establish vacant content.
-    pub(crate) fn from_admitted_provider(
-        extent: Extent,
-        bytes: Vec<u8>,
-    ) -> Result<Self, ProviderByteAllocationRejection> {
-        let reason = if extent.provider_issuance().is_none() {
-            Some("provider byte storage requires an admitted provider-issued extent")
-        } else if usize::try_from(extent.length()).ok() != Some(bytes.len()) {
-            Some("provider byte storage must cover the exact complete extent")
-        } else {
-            None
-        };
-        if let Some(reason) = reason {
-            return Err(ProviderByteAllocationRejection {
-                extent,
-                bytes,
-                reason,
-            });
-        }
-        Ok(Self { extent, bytes })
-    }
-
     pub(crate) fn extent(&self) -> &Extent {
         &self.extent
-    }
-
-    /// Return the exact original extent and allocation to the completion owner.
-    /// This performs no release, vacancy transition, or resident extraction.
-    pub(crate) fn into_parts(self) -> (Extent, Vec<u8>) {
-        (self.extent, self.bytes)
     }
 }

@@ -1,6 +1,6 @@
 use super::HistoricalPackagePolicyError;
 use crate::resolution::graph::CanonicalSourceClosureSubjectError;
-use package_evidence::encoding::{PackagePolicyMembershipError, PackageReviewEncodingError};
+use package_evidence::encoding::{PackagePolicyMembershipFailure, PackageReviewEncodingError};
 use std::fmt;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -24,7 +24,7 @@ pub(crate) enum PackageLockError {
     Source(CanonicalSourceClosureSubjectError),
     Decisions(HistoricalPackagePolicyError),
     Encoding(PackageReviewEncodingError),
-    PolicySourceMembership(PackagePolicyMembershipError),
+    PolicySourceMembership(PackagePolicyMembershipFailure),
     BoundaryApplicationMismatch,
 }
 
