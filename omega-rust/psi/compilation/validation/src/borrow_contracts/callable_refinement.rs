@@ -436,6 +436,8 @@ fn contract_frontier(
             &regions.arguments,
             &regions.applications,
             &regions.bindings,
+            contract.application_scopes,
+            contract.argument_owner,
             contract.lexical_owner,
             true,
             frontier,
