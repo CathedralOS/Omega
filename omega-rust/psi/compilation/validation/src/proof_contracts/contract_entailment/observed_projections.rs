@@ -45,6 +45,7 @@ pub(super) fn project_observed_value(
         value,
         path,
         |_| None,
+        |value| value,
         |value, _, variant| {
             matches!(value.semantic_value(), StructuralTerm::Constructor { case, .. }
             if case.as_str() == program.symbols.name(variant))
@@ -68,6 +69,7 @@ pub(super) fn project_observed_value_in_scope(
         value,
         path,
         |_| None,
+        |value| judge.completed_nominal_projection_source(value),
         |value, data, variant| {
             matches!(
                 judge.judge_case(value.clone(), data, variant),
@@ -93,6 +95,7 @@ pub(super) fn project_observed_value_with_selectors(
         value,
         path,
         selector,
+        |value| judge.completed_nominal_projection_source(value),
         |value, data, variant| {
             matches!(
                 judge.judge_case(value.clone(), data, variant),
@@ -108,9 +111,11 @@ fn project_observed_value_under_cases(
     mut value: StructuralTerm,
     path: &[PlaceSegment],
     mut selector: impl FnMut(typed_trees::expression::ExpressionHandle) -> Option<StructuralTerm>,
+    mut completed: impl FnMut(StructuralTerm) -> StructuralTerm,
     mut case_is_proved: impl FnMut(&StructuralTerm, SymbolHandle, SymbolHandle) -> bool,
 ) -> Option<StructuralTerm> {
     for segment in path {
+        value = completed(value);
         (reference, value) = inline_projection_source(program, reference, value)?;
         let owned = super::structural_terms::owned_observation_type(program, &value).is_some();
         if owned && !super::structural_terms::scalar_operand_is_observed(program, reference, &value)
@@ -237,6 +242,7 @@ pub(super) fn project_declared_field(
     value: StructuralTerm,
     field_name: &str,
 ) -> Option<StructuralTerm> {
+    let value = judge.completed_nominal_projection_source(value);
     let Some(reference) = super::structural_terms::owned_observation_type(program, &value)
         .or_else(|| super::structural_terms::shared_inline_observation_type(program, &value))
     else {

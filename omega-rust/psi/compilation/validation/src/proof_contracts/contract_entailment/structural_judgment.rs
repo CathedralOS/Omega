@@ -2437,7 +2437,8 @@ impl<'program> StructuralJudge<'program> {
             // Runtime projections retain the producing operation tree. A
             // completed constructor's arithmetic is not folded merely because
             // a later member read observes it through a public identity.
-            self.completed_value_identity(receiver_term)
+            let value = self.completed_value_identity(receiver_term);
+            self.completed_nominal_projection_source(value)
         } else {
             self.resolve_at(receiver_term, depth + 1)
         };

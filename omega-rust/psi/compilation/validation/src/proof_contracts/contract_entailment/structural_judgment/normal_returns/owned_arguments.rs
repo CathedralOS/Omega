@@ -67,8 +67,9 @@ impl StructuralJudge<'_> {
                         source,
                     )?;
                     path.reverse();
-                    return super::super::super::observed_projections::project_observed_value(
+                    return super::super::super::observed_projections::project_observed_value_in_scope(
                         self.program,
+                        self,
                         reference,
                         arguments.get(position)?.clone(),
                         &path,
