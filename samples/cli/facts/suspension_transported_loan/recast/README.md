@@ -61,19 +61,29 @@ original backing's forbidden suspension policy. A [separate regression fixture](
 executes both returning branches: one reads 73 through the saved reference, and
 the other leaves the record unused and returns 19.
 
-The recorded producer is source `fedee10e523` plus compiler patch SHA-256
-`1807520ca9f0be4e3d3fddf3b8a40183f64055d9a4e36f6934e7635ba345f8c8`,
-binary SHA-256 `3aa99c3a3a3c7df9dc3fcf7eb2549e63d17a6fdd47568462720226840bea288f`.
-The 18-project sample gate took 72 seconds. Source, producer/profile records,
-the patch, independent read-only review and raw branch observations are retained
-under `build/recast-loan/completion-4/` and `build/recast-loan/control-evidence/`.
-Later comment changes clarify the examples without changing their operations or
-oracles.
+Source `56ac2516672d` has all 19 new source fixtures recorded: ten positives
+check, and nine twins reject for their intended policy. All ten positive
+fixtures also record native exit 0, Terminal exit 0 and agreement. The optimized
+CLI SHA-256 is `e998e1b81fc8099745d4c3698f71454b94aefc0ad9a13768eea11bafbffa7a8e`;
+the fresh corpus runner SHA-256 is
+`8ca10590e71f116d74fdf70f391186916bfc6c2210dbfef9bfbc037594210080`.
+Records and producer profiles are retained under `build/recast-loan/final/`.
+The earlier 18-project sample gate took 72 seconds. Its producer, independent
+read-only review and raw branch observations remain under
+`build/recast-loan/completion-4/` and `build/recast-loan/control-evidence/`.
 
-Copied or projected source descriptors still fail to supply the required
-retained permission; joined source permissions and other derived lineages remain
-under the parent task. This row does not establish product-compiler parity or
-complete that task's acceptance.
+Wider controls exposed three existing failures: the callee-alias replacement
+and returned stored-view programs reject, and the element-extent negative
+example rejects before its intended index diagnostic. Each reproduces with
+identical diagnostics on the frozen original compiler. Their authored expected
+results and historical golden rows are unchanged. The focused run reports retain
+the failures; none counts as successful validation here.
+
+The field place stores the recast result in a record. Recasting a source
+reference first copied into another variable or record still lacks the required
+retained permission. Joined source permissions and other derived lineages also
+remain under the parent task. This production does not establish
+product-compiler parity or complete that task's acceptance.
 
 The inline scheduler can establish retention across a possibly suspending call;
 it does not demonstrate an actual parked activation or another host's runtime.

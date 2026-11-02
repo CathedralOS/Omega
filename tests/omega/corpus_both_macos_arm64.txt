@@ -23,6 +23,7 @@ pass/borrows/nested_machine_unit_output_completed_operand_exit built 6686ms exit
 pass/borrows/nested_machine_unit_output_local_destination_exit built 6582ms exit:0 interpreter-exit:0 interpreter:agrees @1e18830ea024+wt
 pass/borrows/nested_machine_unit_output_long_cycle_exit built 7027ms exit:0 interpreter-exit:0 interpreter:agrees @1e18830ea024+wt
 pass/borrows/nested_machine_unit_output_ordinary_forward_exit built 4823ms exit:0 interpreter-exit:0 interpreter:agrees @1e18830ea024+wt
+pass/borrows/recast_suspension_branch_cleanup_exit built 5473ms exit:0 interpreter-exit:0 interpreter:agrees @56ac2516672d
 pass/borrows/returned_slice_record_reference_custody_exit built 2464ms exit:0 interpreter-exit:0 interpreter:agrees @f2a7605fca26
 pass/borrows/runtime_nested_byte_field_capture_exit built 1142ms exit:0 interpreter-exit:0 interpreter:agrees @cc9fb68fb407
 pass/borrows/runtime_reference_result_alias_case_payload_exit built 7010ms exit:0 interpreter-exit:0 interpreter:agrees @00e93f641615+wt
@@ -1264,6 +1265,15 @@ pass/facts/structural_issuer_forwarding_other_machine built 2730ms exit:0 interp
 pass/facts/structural_issuer_forwarding_other_state built 2334ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/structural_issuer_forwarding_parameter built 2891ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/structural_issuer_forwarding_target_body built 2606ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
+pass/facts/suspension_transported_loan_recast_through_call_result_exit built 5164ms exit:0 interpreter-exit:0 interpreter:agrees @56ac2516672d
+pass/facts/suspension_transported_loan_recast_through_const_name_exit built 5565ms exit:0 interpreter-exit:0 interpreter:agrees @56ac2516672d
+pass/facts/suspension_transported_loan_recast_through_field_exit built 5321ms exit:0 interpreter-exit:0 interpreter:agrees @56ac2516672d
+pass/facts/suspension_transported_loan_recast_through_local_exit built 5360ms exit:0 interpreter-exit:0 interpreter:agrees @56ac2516672d
+pass/facts/suspension_transported_loan_recast_through_match_join_exit built 5365ms exit:0 interpreter-exit:0 interpreter:agrees @56ac2516672d
+pass/facts/suspension_transported_loan_recast_through_other_machine_exit built 5398ms exit:0 interpreter-exit:0 interpreter:agrees @56ac2516672d
+pass/facts/suspension_transported_loan_recast_through_other_state_exit built 5375ms exit:0 interpreter-exit:0 interpreter:agrees @56ac2516672d
+pass/facts/suspension_transported_loan_recast_through_parameter_exit built 5354ms exit:0 interpreter-exit:0 interpreter:agrees @56ac2516672d
+pass/facts/suspension_transported_loan_recast_through_target_body_exit built 5334ms exit:0 interpreter-exit:0 interpreter:agrees @56ac2516672d
 pass/facts/target_family_callback_guarantee/bare_interleaved built 4535ms exit:0 interpreter-exit:0 interpreter:agrees @45fb2a705c96
 pass/facts/target_family_callback_guarantee/call_result built 3113ms exit:0 interpreter-exit:0 interpreter:agrees @45fb2a705c96
 pass/facts/target_family_callback_guarantee/const_name built 4076ms exit:0 interpreter-exit:0 interpreter:agrees @45fb2a705c96
