@@ -12,11 +12,11 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode, StaticMachineArg
 use typed_trees::name::Identifier;
 use typed_trees::statement::{StatementHandle, StatementNode};
 use typed_trees::static_applications::StaticMachineLifetimeBinding;
-use typed_trees::trait_definition::AppliedTraitScope;
 use typed_trees::type_identity::{AppliedTypeIdentityScope, IndexIdentityArgument};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 mod argument_scopes;
+mod inherited_arguments;
 
 #[derive(Clone, Copy)]
 enum ElisionCallSite {
@@ -109,9 +109,10 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
         let mut conflicting_call_lifetime = false;
         let skip = parameters.len().saturating_sub(call.arguments.len());
         for (argument, parameter) in call.arguments.iter().zip(parameters.iter().skip(skip)) {
-            let Some((actual, applications)) = caller_state
-                .and_then(|state| argument_scopes::source_application(program, state, *argument))
-            else {
+            let Some((actual, applications)) = caller_state.and_then(|state| {
+                let machine = program.machine_by_symbol(caller_machine)?;
+                argument_scopes::source_application(program, machine, state, *argument)
+            }) else {
                 continue;
             };
             // A formed borrow presents the declared place as its referent.
@@ -203,22 +204,6 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
             if conformance.lifetime_parameters.is_empty() {
                 continue;
             }
-            // The selected map can satisfy this bound through an inherited
-            // trait with a different telescope. Borrow the exact parent scope,
-            // then materialize its declaration-relative operands through the
-            // existing source-preserving application owner. Its own supplying
-            // arguments and regions still apply below; this grants no bound.
-            let environment = AppliedTraitScope::from_conformance(program, &conformance)
-                .and_then(|scope| scope.declaring_scope(program, bound.trait_symbol))
-                .map(|scope| scope.environment());
-            let Some(environment) = environment else {
-                diagnostics.push(Diagnostic::error(format!(
-                    "conformance `{}` has no unique inherited application of `{}` for call lifetime constraints",
-                    program.symbols.name(conformance.symbol),
-                    program.symbols.name(bound.trait_symbol),
-                )));
-                continue;
-            };
             let Some(callee_declaration) = program.machine_by_symbol(callee_machine) else {
                 diagnostics.push(Diagnostic::error(
                     "call lifetime constraints lost their exact callee declaration",
@@ -226,9 +211,12 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
                 continue;
             };
             let machine_parameters = program.machine_type_parameters(callee_declaration).to_vec();
-            let declared_arguments = match program
-                .materialize_trait_application_arguments(&environment)
-            {
+            let (declared_arguments, expected_arguments) = match inherited_arguments::materialize(
+                program,
+                &conformance,
+                bound,
+                callee_machine,
+            ) {
                 Ok(arguments) => arguments,
                 Err(reason) => {
                     diagnostics.push(Diagnostic::error(format!(
@@ -240,7 +228,7 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
             };
             let mut inferred = Vec::<(String, String)>::new();
             let mut conflict = false;
-            for (declared, expected) in declared_arguments.iter().zip(&bound.arguments) {
+            for (declared, expected) in declared_arguments.iter().zip(&expected_arguments) {
                 collect_conformance_lifetime_bindings(
                     program,
                     *declared,
@@ -293,10 +281,10 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
                 .map(|(parameter, argument)| (parameter.as_str().to_owned(), argument.clone()))
                 .collect::<Vec<_>>();
             let mut mismatched_argument = None;
-            let shapes_match = declared_arguments.len() == bound.arguments.len()
+            let shapes_match = declared_arguments.len() == expected_arguments.len()
                 && declared_arguments
                     .iter()
-                    .zip(&bound.arguments)
+                    .zip(&expected_arguments)
                     .enumerate()
                     .all(|(ordinal, (declared, expected))| {
                         let declared_identity =
@@ -343,7 +331,7 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
                             format!(
                                 "argument count {} instead of {}",
                                 declared_arguments.len(),
-                                bound.arguments.len()
+                                expected_arguments.len()
                             )
                         },
                         |(ordinal, declared, expected)| {
