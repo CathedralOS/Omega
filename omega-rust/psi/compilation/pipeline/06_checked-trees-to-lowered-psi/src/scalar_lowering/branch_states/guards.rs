@@ -3,7 +3,6 @@ use super::{
     CheckedScalarExpressionRole, CheckedTrees, LoweringError, QualifiedScalarType, ScalarType,
     computations, scalar_carriers, storage, unsupported, validate_boolean_parameter_types,
 };
-use crate::checked_facts::value_facts;
 use crate::emission::expression_validation::validate_short_circuit_expression;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
@@ -11,6 +10,7 @@ use crate::scalar_lowering::branch_states::prepared::{
     LoweredScalarBranchState, LoweredScalarBranchTerminator,
 };
 use crate::scalar_lowering::contracts::LoweredProofTerm;
+use crate::shared::checked_facts::value_facts;
 
 /// Whether the guard at `statement` replays a checked computation root (a
 /// selected IEEE or boundary comparison) rather than a pure expression. A

@@ -64,13 +64,13 @@ embed producer-stage objects or replace the distinct current roots above.
 Shared identity and optimization vocabulary lives in
 [Omega foundation](../../foundation/README.md). Target descriptions, calling
 conventions, and physical register models live under `backend/`; provider-plan
-evidence lives in [`backend/plans/provider-evidence/`](../backend/plans/provider-evidence/src/lib.rs),
+evidence lives in [`backend/plans/effects/`](../backend/plans/effects/src/lib.rs),
 and artifact boundary coverage in
 [`backend/artifacts/boundary-applications/`](../backend/artifacts/boundary-applications/src/lib.rs).
 Installation evidence and task activation plans have separate packages under
 `backend/runtime/`. Opaque representation-selection records live beside
-[representation planning](../../../psi/compilation/checking/representation-planning/README.md) in its
-independent [`selections/` package](../../../psi/compilation/checking/representation-planning/selections/src/lib.rs).
+[representation planning](../../../psi/compilation/validation/representation-planning/README.md) in its
+independent [`selections/` package](../../../psi/compilation/validation/representation-planning/selections/src/lib.rs).
 These remain directly consumable library packages; moving them out of
 `representations/` does not make callers depend on a coordinator or grant their
 raw records authority.

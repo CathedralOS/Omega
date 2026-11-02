@@ -559,7 +559,7 @@ fn lower_proof_output_runtime_call(
     // Ordinary direct-call custody records the selected state from the exact
     // checked coordinate, independently of result role. Rejoin its selected
     // machine, state and static dispatch before authenticating the emitted callee.
-    let target = crate::call_sites::selected_module_target(checked, occurrence)?;
+    let target = crate::shared::call_sites::selected_module_target(checked, occurrence)?;
     let caller = semantic_module
         .machine(terminal_machine)
         .ok_or(LoweringError::Unsupported(
@@ -610,12 +610,14 @@ fn lower_proof_output_runtime_call(
         .ok_or(LoweringError::Unsupported(
             "runtime proof-output call has no emitted terminal operation",
         ))?;
-    let parts = crate::direct_calls::direct_call_parts(&operation.kind).ok_or(
+    let parts = crate::shared::direct_calls::direct_call_parts(&operation.kind).ok_or(
         LoweringError::Unsupported("runtime proof-output operation is not a direct call"),
     )?;
     let result = match (parts.role, expected, operation.result.scalar()) {
-        (crate::direct_calls::DirectCallRole::Unit, None, None) => ProofOutputRuntimeResult::Unit,
-        (crate::direct_calls::DirectCallRole::Scalar, Some(expected), Some(result))
+        (crate::shared::direct_calls::DirectCallRole::Unit, None, None) => {
+            ProofOutputRuntimeResult::Unit
+        }
+        (crate::shared::direct_calls::DirectCallRole::Scalar, Some(expected), Some(result))
             if result.scalar_type == expected =>
         {
             ProofOutputRuntimeResult::Scalar(expected)

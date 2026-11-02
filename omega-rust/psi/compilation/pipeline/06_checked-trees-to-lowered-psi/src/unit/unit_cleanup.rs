@@ -17,9 +17,9 @@ use super::{
     StructuralTypeId, StructuralTypeShape, TerminalMachine, lookup_machine_id, lookup_type_id,
     lower_unit_closure, obligation_id, unsupported,
 };
-use crate::checked_facts::value_facts;
 use crate::expression_preparation::computation_graph::reachable_nodes;
 use crate::machine_lowering::nominal_cleanup_subject;
+use crate::shared::checked_facts::value_facts;
 use checked_trees::CheckedUnitNominalAffineCleanupPlan;
 use symbols::SymbolHandle;
 pub(crate) mod contexts;
@@ -102,14 +102,15 @@ pub(crate) fn lower_cleanup_conditions(
                     ))?
             };
             let (place, path) = storage(identities, path)?;
-            let structural_type = crate::terminal_identities::structural_declaration_by_identity(
-                types,
-                identities,
-                checked,
-                condition.type_identity,
-                "cleanup condition has no structural type",
-            )?
-            .id;
+            let structural_type =
+                crate::shared::terminal_identities::structural_declaration_by_identity(
+                    types,
+                    identities,
+                    checked,
+                    condition.type_identity,
+                    "cleanup condition has no structural type",
+                )?
+                .id;
             let (_, case) = crate::expression_preparation::bindings::structural_cases::resolve_at(
                 identities,
                 types,
@@ -136,7 +137,7 @@ pub(crate) fn lower_nominal_affine_unit_cleanup_machine(
     nominal: &CheckedNominalAffineUnitCleanupMachinePlan,
     program_roots: crate::TerminalProgramRoots<'_>,
     exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
-) -> Result<crate::producer_result::SourceMappedLowered, LoweringError> {
+) -> Result<crate::shared::producer_result::SourceMappedLowered, LoweringError> {
     lower_ordered_nominal_affine_unit_cleanup_machine(
         identities,
         checked,
@@ -509,7 +510,9 @@ pub(crate) fn lower_nominal_cleanup_action(
             (*source == cleanup.cleanup_machine).then_some(*receiver)
         }),
         requirement_count(requirement_counts, cleanup.cleanup_machine)?,
-        &mut || crate::terminal_identities::allocate_dense(next_obligation).map(obligation_id),
+        &mut || {
+            crate::shared::terminal_identities::allocate_dense(next_obligation).map(obligation_id)
+        },
     )
 }
 
@@ -528,7 +531,7 @@ pub(crate) fn bind_consumed_claims(
 ) -> Result<(), LoweringError> {
     action.consumed_claims = consumed_claims
         .iter()
-        .map(|identity| crate::terminal_identities::lookup_claim_id(bindings, *identity))
+        .map(|identity| crate::shared::terminal_identities::lookup_claim_id(bindings, *identity))
         .collect::<Result<Vec<_>, _>>()?;
     action.consumed_claims.sort_unstable();
     if action

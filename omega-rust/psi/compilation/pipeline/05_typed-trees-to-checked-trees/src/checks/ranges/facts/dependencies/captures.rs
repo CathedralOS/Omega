@@ -7,7 +7,7 @@ use crate::checks::ranges::facts::dependencies::ExpressionDependencies;
 use crate::checks::ranges::facts::dependencies::reads;
 use crate::checks::ranges::facts::dependencies::same_reads;
 use crate::flow::expressions;
-use crate::places::place_at;
+use crate::published::places::place_at;
 use facts::PlaceRoot;
 use facts::PlaceSegment;
 use validation::ImmutableBoundLookup;

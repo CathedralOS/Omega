@@ -38,7 +38,7 @@ PERMITTED_OWNERS = (
     "omega-rust/omega/foundation",
     "omega-rust/psi/foundation",
     "omega-rust/psi/compilation/representations/terminal-psi",
-    "omega-rust/psi/compilation/checking/terminal-installation",
+    "omega-rust/psi/compilation/validation/terminal-installation",
     "omega-rust/psi/compilation/proof/admission",
 )
 RUNTIME_ROOT = "omega-rust/omega/interpreter/terminal-runtime"
@@ -98,8 +98,8 @@ SOURCE_SIDE_PSI = (
       for trees in ("syntax", "symbol-resolved", "typed", "checked")),
     PSI_PIPELINE,
     PSI_FACADE,
-    f"{PSI}/compilation/compile-time",
-    f"{PSI}/compilation/checking/representation-planning",
+    f"{PSI}/compilation/build-time-evaluation",
+    f"{PSI}/compilation/validation/representation-planning",
     f"{PSI}/interpreter",
 )
 OMEGA_STAGES = tuple(
@@ -123,7 +123,7 @@ def stage(number):
 
 SELECTED_DISPATCH = f"{OMEGA}/compilation/realization/selected-dispatch"
 PROVIDER_PLANNING = f"{OMEGA}/compilation/realization/provider-planning"
-REPRESENTATION_PLANNING = f"{PSI}/compilation/checking/representation-planning"
+REPRESENTATION_PLANNING = f"{PSI}/compilation/validation/representation-planning"
 STAGE_DEBT = "Debt: stage output type lives in the producing stage crate instead of compilation/representations"
 
 # Frozen on 2026-11-01. Delete a row with the edge; never add one.
@@ -138,16 +138,11 @@ FIREWALL_ALLOWANCES = (
               "Debt: reads CheckedTrees and boundary adapter dispatch from checked source"),
     Allowance(SELECTED_DISPATCH, TERMINAL_PRODUCTION,
               "Debt: prepares PreparedProviderInventory and ExternalProviderDeclarations itself"),
-    Allowance(SELECTED_DISPATCH, f"{PSI}/compilation/compile-time",
-              "Debt: validates selected provider bodies and operators through compile-time evaluation"),
-    Allowance(SELECTED_DISPATCH, REPRESENTATION_PLANNING,
-              "Debt: OpaqueRepresentationSelection only, which the selections package carries"),
-    Allowance(PROVIDER_PLANNING, f"{PSI}/compilation/compile-time",
+    Allowance(PROVIDER_PLANNING, f"{PSI}/compilation/build-time-evaluation",
               "Debt: provider declarations and BuildTimeValue from compile-time evaluation"),
-    Allowance(PROVIDER_PLANNING, REPRESENTATION_PLANNING,
-              "Debt: opaque representation dispositions from the admission checker"),
-    Allowance(PROVIDER_PLANNING, f"{PSI}/interpreter/terminal-interpreter",
-              "Debt: runs calling-policy plans in the Terminal interpreter (TerminalProgram)"),
+    Allowance(PROVIDER_PLANNING, f"{REPRESENTATION_PLANNING}/selections",
+              "Sanctioned: pipeline.md:1301-1303, the selections package \"keeps consumers free "
+              "of a dependency on admission\" (OpaqueRepresentationSelection, selection_for_opaque)"),
     Allowance(stage("01"), stage("00"),
               "Debt: calls build_verified_psi_optimization_unit; VerifiedPsiOptimizationInput"),
     Allowance(stage("02"), stage("00"), f"{STAGE_DEBT} (VerifiedPsiOptimizationInput)"),
@@ -237,10 +232,10 @@ FORBIDDEN_DEPENDENCIES = tuple(Rule(*rule) for rule in (
     (
         (TRUST_MODEL,),
         (
-            f"{PSI}/compilation/compile-time",
+            f"{PSI}/compilation/build-time-evaluation",
             f"{PSI}/interpreter/checked-interpreter",
             f"{PSI_PIPELINE}/05_typed-trees-to-checked-trees",
-            f"{PSI}/compilation/checking/terminal-installation",
+            f"{PSI}/compilation/validation/terminal-installation",
             f"{PSI}/compilation/representations/terminal-psi",
             f"{OMEGA}/compilation/backend/target",
             f"{PSI}/foundation/semantic-vocabulary",
@@ -255,7 +250,7 @@ FORBIDDEN_DEPENDENCIES = tuple(Rule(*rule) for rule in (
     ),
     (
         (TERMINAL_PRODUCTION,),
-        (f"{PSI}/compilation/compile-time",),
+        (f"{PSI}/compilation/build-time-evaluation",),
         "Terminal production sits below compile-time evaluation, which calls it",
     ),
     (
@@ -388,7 +383,7 @@ def realization_checker_entry_violations(metadata):
     """
     root = Path(metadata["workspace_root"]).resolve()
     realization = root / "omega-rust/omega/compilation/realization"
-    checker = root / "omega-rust/psi/compilation/checking"
+    checker = root / "omega-rust/psi/compilation/validation"
     violations = []
     for package in metadata["packages"]:
         source = Path(package["manifest_path"]).resolve().parent

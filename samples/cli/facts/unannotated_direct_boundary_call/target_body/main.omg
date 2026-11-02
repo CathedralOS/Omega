@@ -7,20 +7,49 @@ public boundary trait Mark {
 MarkerMark satisfies Mark {
     machine read() -> u64 { 7 }
 }
-linux_x86_64 machine read_mark() -> u64 {
-    Mark::read()
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
-linux_arm64 machine read_mark() -> u64 {
-    Mark::read()
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
-macos_arm64 machine read_mark() -> u64 {
-    Mark::read()
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
-windows_x86_64 machine read_mark() -> u64 {
-    Mark::read()
+boundary trait SelectedReadMark {
+    machine read_mark() -> u64
+        reaches Mark, SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
+}
+X86ReadMark satisfies SelectedReadMark {
+    machine read_mark() -> u64 {
+        SelectedBodyCheck::require_tag(17u64);
+        Mark::read()
+    }
+}
+ArmReadMark satisfies SelectedReadMark {
+    machine read_mark() -> u64 {
+        SelectedBodyCheck::require_tag(29u64);
+        Mark::read()
+    }
 }
 machine main() crashes Trap {
-    transition read_mark() == 7 { true -> done() _ -> bad() }
+    transition SelectedReadMark::read_mark() == 7 { true -> done() _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

@@ -27,7 +27,7 @@ mod target_families;
 
 use crate::checking::program_validation::prepare_typed_program;
 use crate::checks;
-use crate::facts::build_check_facts;
+use crate::published::facts::build_check_facts;
 use checked_trees::CheckedTrees;
 use representation_selections::OpaqueRepresentationSelection;
 use typed_trees_to_typed_trees::TypedPreparation;
@@ -237,13 +237,7 @@ fn admit_declaration_authority(
     request: &CheckingRequest<'_>,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     if let Some(authority) = request.declaration_authority {
-        let descriptor_occurrences =
-            validation::execution_projection::descriptor_selection_occurrences(&checked.typed);
-        validation::validate_authored_declaration_selections(
-            checked,
-            authority,
-            &descriptor_occurrences,
-        )?;
+        validation::validate_authored_declaration_selections(checked, authority)?;
     }
     Ok(())
 }
@@ -280,13 +274,33 @@ fn check_program(
     validation::validate_selected_attached_method_bounds(&program)?;
     let declared_content = checks::prepare_retained_content_custody(
         &program,
-        crate::facts::build_content_facts(&program),
+        crate::published::facts::build_content_facts(&program),
     )?;
     let program = program
         .with_retained_borrow_custodies(declared_content.retained_borrow_custodies.clone().into());
+    let proof_plan = phase_profile::scope("psi.05.build_proof_plan", || {
+        proof::obligations::build_proof_plan(&program)
+    });
+    // Storage history first: validation's judgments read it instead of
+    // keeping their own. Its inputs are program-only effect plans.
+    let storage_graph = phase_profile::scope("psi.05.storage_graph", || {
+        let operational = validation::infer_operational_may(&program);
+        let service_reaches = validation::infer_service_reaches(&program, &operational);
+        crate::published::facts::build_storage_graph(
+            &program,
+            &proof_plan,
+            declared_content.clone(),
+            operational,
+            service_reaches,
+        )
+    });
+    if let Some(graph) = storage_graph {
+        program.attach_storage_graph(std::sync::Arc::new(graph));
+    }
     let mut validated = phase_profile::scope("psi.05.prepare_typed_program", || {
         prepare_typed_program(
             &program,
+            proof_plan,
             &opaque_property_receipts,
             admits_pending_inputs,
             prior_dependency_bodies,
@@ -397,7 +411,7 @@ fn check_program(
     })?;
     phase_profile::checkpoint("after checked-fact checks", "psi.05.check_checked_facts");
     let late_guard = phase_profile::guard("psi.05.finalize_execution_identities");
-    crate::quotient_eligibility::check(&program, &facts)?;
+    crate::products::quotient_eligibility::check(&program, &facts)?;
     checks::validate_selected_cleanup_guarantees(&program, &facts)?;
     validation::validate_runtime_proof_citations(&program, &|machine| {
         facts
@@ -408,7 +422,7 @@ fn check_program(
     facts
         .constant_recipe_obligations
         .extend(proof_recipe_obligations);
-    crate::facts::refresh_realized_contract_envelopes(&mut facts);
+    crate::published::facts::refresh_realized_contract_envelopes(&mut facts);
 
     let mut facts = phase_profile::scope(
         "psi.05.finalize_execution_identities.finalize_execution",
@@ -469,8 +483,10 @@ fn check_program(
     facts.finalized_selections = phase_profile::scope(
         "psi.05.selections_custody_types_boundaries.finalize_selections",
         || {
-            crate::authored_selections::finalize_checked_authored_selections(&program, &mut facts)
-                .map_err(|diagnostic| vec![diagnostic])
+            crate::shared::authored_selections::finalize_checked_authored_selections(
+                &program, &mut facts,
+            )
+            .map_err(|diagnostic| vec![diagnostic])
         },
     )?;
     // Visibility and cleanup consume checked choices over the same immutable
@@ -508,26 +524,29 @@ fn check_program(
     // generated bodies; lowering must not repair an incomplete table itself.
     facts.resolved_types = phase_profile::scope(
         "psi.05.selections_custody_types_boundaries.resolved_types",
-        || crate::facts::resolved_types::resolve_program_types(&finalized),
+        || crate::published::facts::resolved_types::resolve_program_types(&finalized),
     );
     facts.state_locals = phase_profile::scope(
         "psi.05.selections_custody_types_boundaries.state_locals",
-        || crate::facts::state_locals::record_state_locals(&finalized),
+        || crate::published::facts::state_locals::record_state_locals(&finalized),
     );
     facts.provider_closed_requirements = phase_profile::scope(
         "psi.05.selections_custody_types_boundaries.provider_closed_requirements",
         || {
-            crate::facts::provider_closed_requirements::record_provider_closed_requirements(
+            crate::published::facts::provider_closed_requirements::record_provider_closed_requirements(
                 &finalized,
             )
         },
     );
     facts.executable_bindings = phase_profile::scope(
         "psi.05.selections_custody_types_boundaries.executable_bindings",
-        || crate::facts::executable_bindings::record(&finalized),
+        || crate::published::facts::executable_bindings::record(&finalized),
     );
-    crate::facts::executable_bindings::freeze_contract_subjects(&finalized, &mut facts.proof);
-    crate::facts::executable_bindings::freeze_declaration_arguments(
+    crate::published::facts::executable_bindings::freeze_contract_subjects(
+        &finalized,
+        &mut facts.proof,
+    );
+    crate::published::facts::executable_bindings::freeze_declaration_arguments(
         &finalized,
         &mut facts.termination.rank_arrivals,
     );
@@ -612,9 +631,9 @@ fn check_program(
         || -> Result<(), Vec<diagnostics::Diagnostic>> {
             validation::validate_boundary_calls(&checked)?;
             target_families::validate_portable_references(&checked)?;
-            crate::operators::retain_boundary_body_candidates(&mut checked)
+            crate::shared::operators::retain_boundary_body_candidates(&mut checked)
                 .map_err(|message| vec![diagnostics::Diagnostic::error(message)])?;
-            crate::operators::retain_provider_requirements(&mut checked);
+            crate::shared::operators::retain_provider_requirements(&mut checked);
             Ok(())
         },
     )?;
@@ -623,8 +642,11 @@ fn check_program(
         "after final selections/custody/boundaries",
         "psi.05.selections_custody_types_boundaries",
     );
-    crate::facts::declaration_descriptions::retain_declaration_descriptions(&mut checked);
-    crate::facts::provider_instance_publication::retain(&mut checked);
-    checked.facts.proof_applications = crate::facts::proof_applications::retain(&checked);
+    crate::published::facts::declaration_descriptions::retain_declaration_descriptions(
+        &mut checked,
+    );
+    crate::published::facts::provider_instance_publication::retain(&mut checked);
+    checked.facts.proof_applications =
+        crate::published::facts::proof_applications::retain(&checked);
     Ok((checked, dependency_body_judgments, frozen_dependency_bodies))
 }

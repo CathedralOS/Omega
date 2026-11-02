@@ -10,7 +10,7 @@ use super::{
 };
 use checked_trees::typed_trees::SourceRecordCorrespondence;
 use checked_trees::typed_trees::service_declarations::signatures::BoundarySignatureDeclaration;
-use representation_planning::OpaqueRepresentationSelection;
+use representation_selections::OpaqueRepresentationSelection;
 use std::sync::Arc;
 
 #[cfg(test)]

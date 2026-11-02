@@ -257,7 +257,7 @@ impl Denotations<'_> {
                 root: facts::PlaceRoot::Symbol(root),
                 segments,
             };
-            crate::collections::push_unique(&mut storages, place);
+            crate::shared::collections::push_unique(&mut storages, place);
         }
         match storages.len() {
             0 => LoanStorage::Unknown,
@@ -304,7 +304,7 @@ impl Denotations<'_> {
     }
 
     fn builtin(&self, expression: ExpressionHandle) -> bool {
-        crate::authored_selections::typed_operator_has_no_authored_selection(
+        crate::shared::authored_selections::typed_operator_has_no_authored_selection(
             self.program,
             expression,
         )

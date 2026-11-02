@@ -1,3 +1,4 @@
+// Expected exit: 0
 // Transparent trait refinement: `trait R = Base` declares a structural bound
 // over an existing base conformance, narrowed by `machine` clauses carrying
 // operational axes only. A refinement is never a `satisfies` target itself —
@@ -9,7 +10,7 @@ trait Logger<T> {
 }
 
 trait LocalLogger<T> = Logger<T> {
-    machine * suspends false; blocks false; terminates;
+    machine * suspends false blocks false terminates;
     machine Logger::flush terminates;
 }
 

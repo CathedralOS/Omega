@@ -451,6 +451,17 @@ impl ItemTable {
             .span_or_empty(span)
     }
 
+    /// Every fact of a machine header's `requires` clauses, in authored order.
+    /// They are its entry obligations; those over generic binders also carry
+    /// the declaration's type equations.
+    pub fn requirement_facts(&self, contracts: HandleSpan<CapabilityContract>) -> Vec<ProofFact> {
+        self.capability_contracts(contracts)
+            .iter()
+            .filter(|contract| contract.kind == CapabilityContractKind::Requires)
+            .flat_map(|contract| self.proof_facts(contract.facts).iter().cloned())
+            .collect()
+    }
+
     pub fn data_members(&self, span: HandleSpan<DataMember>) -> &[DataMember] {
         self.declaration_storage.data_members.span_or_empty(span)
     }

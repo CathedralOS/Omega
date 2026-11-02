@@ -4,7 +4,7 @@ use models::Configuration;
 const SEVEN: Configuration = Configuration { minimum: 8 };
 data Token<const Setting: Configuration> [copy] { marker: u8; }
 machine read<Item [copy], const Setting: Configuration>(item: Item) -> u64
-where Item == Token<Setting>
+requires Item == Token<Setting>
 { Setting.minimum }
 machine main() crashes Trap {
     let item: Token<models::SEVEN> = Token { marker: 1 };

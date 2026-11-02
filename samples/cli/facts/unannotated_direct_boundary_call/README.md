@@ -482,3 +482,7 @@ Producer `8ad1ae9751330a18ef4c670205524d579342a510` records 78 checked positives
 product-parser probe's initial-storage failures were also replayed on the exact
 published `daf76df20a9d` compiler and archived Psi/library sources. They remain
 attributed product-pipeline limitations, before the changed parser branch.
+
+## Build-owned target-body migration
+
+The `target_body` place and its twins carry no source target prefix. `BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected by explicit target-keyed Build rows. The operation, inputs, contracts and exit oracle are unchanged. The entry wrapper and each implementation check a tag (17 for x86-64, 29 for AArch64), so a wrong Build row traps. The requirement publishes `reaches Mark`; each implementation's own body stays unannotated, and the twin's empty implementation ceiling still rejects for the hidden `Mark` reach. Observed on macOS x86-64 with optimized producers for base 4f87c9e08b1 and for the #1378 head: the migrated positive exits 0 under `omega run --both` (native and Terminal Psi agree) and every twin and control in the place still rejects with its authored fragment. No compiler change was needed. The other hosted targets keep their authored rows, unexecuted here.

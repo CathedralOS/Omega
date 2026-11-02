@@ -1,6 +1,6 @@
 //! Unit construction supplies completed operands to the shared call emitter.
 use super::*;
-use crate::terminal_identities::stored_structural_identity;
+use crate::shared::terminal_identities::stored_structural_identity;
 use crate::unit::attached_unit::structural_values::ValueOutcome;
 impl Emission<'_, '_, '_> {
     pub(super) fn quotient_call(

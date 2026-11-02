@@ -114,7 +114,7 @@ pub fn candidate_service_bindings(
             })
             .collect::<BTreeSet<_>>();
         // A root-bound ProgramEntry is not a package callable, so its own
-        // reach and carrier fields nominate through the entry's service
+        // checked service reach nominates through the entry's service
         // requirements instead of callable reaches.
         for requirement in checked.execution().program_entry_service_requirements() {
             let definitions = checked

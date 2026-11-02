@@ -2,7 +2,7 @@ use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression
 use crate::emission::operation_emission::expressions::{
     LoweredDirectExpression, LoweredElementPathSegment,
 };
-use crate::lowering_error::{LoweringError, unsupported};
+use crate::shared::lowering_error::{LoweringError, unsupported};
 use semantic_vocabulary::ScalarType;
 
 pub(crate) fn validate_boolean_parameter_types(

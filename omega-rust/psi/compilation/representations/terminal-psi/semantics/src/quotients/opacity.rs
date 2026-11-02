@@ -98,7 +98,6 @@ fn contains_quotient_storage(module: &TerminalModule, root: StructuralTypeId) ->
             S::Reference { .. }
             | S::ElementView { .. }
             | S::ByteSequence(_)
-            | S::BindingCarrier
             | S::PrimitiveScalar(_) => {}
         }
     }

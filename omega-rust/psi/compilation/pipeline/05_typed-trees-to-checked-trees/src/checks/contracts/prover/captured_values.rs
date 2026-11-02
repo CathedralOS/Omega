@@ -67,7 +67,7 @@ pub(in crate::checks::contracts) fn scalar_at_path(
             } else {
                 consumer_statement
             };
-            let predicates = crate::facts::boolean_predicates::retained(
+            let predicates = crate::published::facts::boolean_predicates::retained(
                 program,
                 &facts.operators,
                 &facts.semantic,

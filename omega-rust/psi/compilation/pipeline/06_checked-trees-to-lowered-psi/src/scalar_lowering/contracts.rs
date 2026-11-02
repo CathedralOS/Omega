@@ -16,7 +16,7 @@ use crate::proofs::crash_routes::checked_boolean_scalar_term;
 use crate::proofs::crash_routes::checked_scalar_term_with_views;
 use crate::proofs::crash_routes::lowered_direct_scalar_term;
 use crate::proofs::integer_predicates::lower;
-use crate::terminal_identities::{allocate_dense, value_id};
+use crate::shared::terminal_identities::{allocate_dense, value_id};
 use crate::unit::attached_unit::scalar_applications::SourceScalarApplications;
 use checked_trees::{
     CheckedErasedProofParameterPlan, CheckedMathematicalArgument, CheckedProofTerm,

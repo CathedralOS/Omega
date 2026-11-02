@@ -48,7 +48,7 @@ use super::{
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::types::retain_scalar_field;
 use crate::execution::terminal_unit::types::{byte_sequence_carrier, terminal_field_identity};
-use crate::places::place_at;
+use crate::published::places::place_at;
 use crate::values::occupies_scalar_position;
 use crate::values::resolve_structural_parameter_path;
 use destination::{Destination, Root, StoreRoots, plain_record};
@@ -746,7 +746,6 @@ fn case_field_store(
     ) || value_plan.multiplicity != Multiplicity::Unrestricted
         || !value_plan.qualifications.is_empty()
         || !value_plan.projected_qualifications.is_empty()
-        || value_plan.binding_carrier.is_some()
     {
         return None;
     }

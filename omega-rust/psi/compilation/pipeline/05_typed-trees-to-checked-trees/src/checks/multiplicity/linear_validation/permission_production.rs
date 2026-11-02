@@ -24,7 +24,7 @@ use crate::checks::multiplicity::{projected_affine, projected_replacements, temp
 use crate::checks::ownership_occurrences::{StatementOccurrence, StatementStep};
 use crate::flow::FlowOwnershipEventSource;
 use crate::flow::expressions;
-use crate::places::place_at;
+use crate::published::places::place_at;
 use checked_trees::{CheckFacts, FlowPermissionEventFact};
 use language_semantics::{
     Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,

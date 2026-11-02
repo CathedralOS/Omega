@@ -88,6 +88,13 @@ fn validate_census(module: &TerminalModule) -> Result<(), CodecError> {
         "declaration ABI applications",
     )?;
     for row in &module.calling_abi_signatures {
+        if row
+            .physical_owner
+            .as_ref()
+            .is_err_and(|reason| reason.is_empty())
+        {
+            return malformed("declaration ABI has an empty physical-owner refusal");
+        }
         let requirement = module
             .identities
             .text(row.requirement_identity)
@@ -254,6 +261,33 @@ fn validate_census(module: &TerminalModule) -> Result<(), CodecError> {
             Err(_) => return malformed("calling policy request has an empty deferred refusal"),
         };
         for instance in instances {
+            match &instance.policy_declaration {
+                Ok(declaration)
+                    if module
+                        .scalar_applications
+                        .proof_scope
+                        .declaration(*declaration)
+                        .is_some() =>
+                {
+                    if let Ok(callable) = instance.policy
+                        && module
+                            .scalar_applications
+                            .proof_scope
+                            .callable_declaration(callable)
+                            != Some(*declaration)
+                    {
+                        return malformed(
+                            "calling policy executable differs from its checked declaration",
+                        );
+                    }
+                }
+                Err(reason) if !reason.is_empty() => {}
+                _ => {
+                    return malformed(
+                        "calling policy instance lost its checked declaration or refusal",
+                    );
+                }
+            }
             if module
                 .identities
                 .text(instance.declaring_application)

@@ -2211,6 +2211,8 @@ pub fn visit_expression(
             visit_expression(program, retained, range.end);
         }
         ExpressionNode::StructLiteral(literal) => {
+            visit_type_reference(program, retained, literal.application_type);
+
             visit_symbol(retained, literal.type_symbol);
             if let Some(case_symbol) = literal.case_symbol {
                 visit_symbol(retained, case_symbol);
@@ -2231,18 +2233,26 @@ pub fn visit_expression(
 
 /// Retain machines referenced by one match arm pattern and value.
 fn visit_match_arm(program: &TypedTrees, retained: &mut impl TypedReferences, arm: &TableMatchArm) {
-    for pattern in program
-        .expression_table
-        .match_pattern_dependencies(arm.pattern)
-    {
-        visit_expression(program, retained, pattern);
+    visit_match_pattern(program, retained, arm.pattern);
+    visit_expression(program, retained, arm.value);
+}
+
+/// A retained pattern owns its conditional predicate and exact declaration
+/// references, independently of whether its arm returns a value or transfers.
+fn visit_match_pattern(
+    program: &TypedTrees,
+    retained: &mut impl TypedReferences,
+    pattern: crate::expression::MatchPattern,
+) {
+    for expression in program.expression_table.match_pattern_dependencies(pattern) {
+        visit_expression(program, retained, expression);
     }
-    if let crate::expression::MatchPattern::Destructure(pattern) = arm.pattern {
+    if let crate::expression::MatchPattern::Destructure(pattern) = pattern {
+        visit_type_reference(program, retained, pattern.application_type);
         for field in program.expression_table.match_fields(pattern.fields) {
             visit_symbol(retained, field.field_symbol);
         }
     }
-    visit_expression(program, retained, arm.value);
 }
 
 /// Retain machines named by a resolved name path (head, member, and final
@@ -2431,6 +2441,21 @@ fn visit_statement(
             }
         }
         StatementNode::Transition(transition) => {
+            for pattern in program
+                .statement_table
+                .transition_patterns(transition.patterns)
+            {
+                // Descriptor operands must remain in the current expression
+                // roster: preparation rewrites their exact captured subject
+                // before retiring its local. They add no executable roots.
+                visit_expression(program, retained, pattern.subject);
+                visit_match_pattern(
+                    program,
+                    retained,
+                    crate::expression::MatchPattern::Destructure(pattern.pattern),
+                );
+            }
+
             for target in transition.targets() {
                 if let TransitionTargetNode::Named {
                     path,
@@ -2640,12 +2665,6 @@ fn visit_machine_with_sidecars(
     {
         visit_type_reference(program, retained, equation.parameter);
         visit_type_reference(program, retained, equation.definition);
-    }
-    for &predicate in program
-        .expression_table
-        .expression_handles(machine.declared_type_predicates)
-    {
-        visit_expression(program, retained, predicate);
     }
     visit_type_reference(program, retained, machine.attached_data_application);
     for contract in program

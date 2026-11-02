@@ -231,18 +231,7 @@ pub(super) fn clone_single_specialized_machine(
                     .filter_map(|((formal, _, _), actual)| actual.map(|actual| (*formal, actual))),
             )
             .collect::<Vec<_>>();
-        let predicates =
-            expressions_of(input).expression_handles(source_machine.declared_type_predicates);
-        let mut complete = true;
-        for &predicate in predicates {
-            match input.applied_static_type_predicate_value(predicate, &substitutions) {
-                Some(true) => {}
-                Some(false) => return Err(vec![Diagnostic::error(format!(
-                    "machine `{}` where type predicate does not hold for the supplied arguments", source_machine.name
-                )).with_source_span(expressions_of(input).source_span(predicate))]),
-                None => complete = false,
-            }
-        }
+        let complete = true;
         // A closed static entry requirement must admit this exact tuple before
         // it acquires executable storage. Otherwise an impossible application
         // reaches body checking and produces unrelated postcondition failures.
@@ -599,15 +588,6 @@ pub(super) fn clone_single_specialized_machine(
         })
         .collect::<Result<Vec<_>, TypeCopyError>>()?;
     cloned.declared_type_equations = program.declared_type_equations.insert_many(equations);
-    let predicates = expressions_of(source.unwrap_or(program))
-        .expression_handles(source_machine.declared_type_predicates)
-        .to_vec();
-    let predicates = predicates
-        .into_iter()
-        .map(|expression| copy_expression(source, program, expression, rebinding))
-        .collect::<Vec<_>>();
-    cloned.declared_type_predicates =
-        expressions_of_mut(program).insert_expression_handles(predicates);
 
     if capture.is_none() {
         cloned.conformance_bounds.clear();

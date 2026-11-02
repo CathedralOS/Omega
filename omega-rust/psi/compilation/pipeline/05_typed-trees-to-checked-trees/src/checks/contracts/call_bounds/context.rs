@@ -11,8 +11,8 @@ use super::{
     OperatorSpelling,
 };
 use crate::checks::termination::proves_ranked_entry_requirement;
-use crate::facts::contract_occurrences::append_expression_occurrences;
 use crate::flow::shared_call_frames_or;
+use crate::published::facts::contract_occurrences::append_expression_occurrences;
 use crate::values::scalar_expression_type;
 use symbols::SymbolHandle;
 use typed_trees::signature::StateParameter;

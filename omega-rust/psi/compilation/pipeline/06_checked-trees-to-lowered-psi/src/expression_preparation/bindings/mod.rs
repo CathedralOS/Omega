@@ -13,12 +13,12 @@ use super::{
     StructuralParameterDeclaration, StructuralTypeDeclaration, StructuralTypeId,
     terminal_scalar_type, unsupported,
 };
-use crate::checked_facts::value_facts;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::calls::PreparedStructuralArgument;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::emission::operation_emission::expressions::PrimitiveReadSource;
 use crate::expression_preparation::bindings::place_observations::PlaceObservation;
+use crate::shared::checked_facts::value_facts;
 use terminal_psi::find_structural_type;
 
 mod published_types;
@@ -1624,7 +1624,7 @@ impl ScalarBindings {
                     nearby_plans.push((expression.statement_ordinal, expression.role));
                 }
             }
-            let (machine, _) = crate::declarations::state_declaration(checked, state)?;
+            let (machine, _) = crate::shared::declarations::state_declaration(checked, state)?;
             return Err(LoweringError::InvalidUnitMachinePlan {
                 machine: checked.symbols.display_path(machine.symbol, "::"),
                 reason: "scalar computation needs one checked expression and one source binding",

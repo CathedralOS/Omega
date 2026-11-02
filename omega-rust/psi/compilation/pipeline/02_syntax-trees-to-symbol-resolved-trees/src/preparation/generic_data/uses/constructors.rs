@@ -216,21 +216,42 @@ pub(in crate::preparation::generic_data) fn relabel_data_literal_for_expected_ty
     let Some(authored_name) = authored_name else {
         return;
     };
-    let selected = if matches!(
+    let payload_free = matches!(
         syntax.expressions.expression(expression),
         ExpressionNode::Name(_)
-    ) {
-        selected_case_value(syntax, selection, &authored_name)
-    } else {
-        selected_constructor(syntax, selection, &authored_name)
-    };
+    );
+    let alias = instance.and_then(|instance| {
+        super::alias_constructors::select(
+            syntax,
+            selection,
+            expected_type,
+            instance,
+            &authored_name,
+            payload_free,
+        )
+    });
+    let selected = alias
+        .as_ref()
+        .map(|alias| (alias.template, alias.case.clone()))
+        .or_else(|| {
+            if matches!(
+                syntax.expressions.expression(expression),
+                ExpressionNode::Name(_)
+            ) {
+                selected_case_value(syntax, selection, &authored_name)
+            } else {
+                selected_constructor(syntax, selection, &authored_name)
+            }
+        });
     let Some((owner, case)) = selected else {
         return;
     };
     if owner != instance.map_or(expected_owner, |instance| instance.template) {
         return;
     }
-    let closed = if let Some(instance) = instance {
+    let closed = if let Some(alias) = &alias {
+        alias.carrier.clone()
+    } else if let Some(instance) = instance {
         let Some(closed) =
             closed_constructor_carrier(syntax, selection, instance, &authored_name, case.is_some())
         else {
@@ -240,6 +261,24 @@ pub(in crate::preparation::generic_data) fn relabel_data_literal_for_expected_ty
     } else {
         Identifier::new(definition.name.as_str(syntax), authored_name.source_span())
     };
+    if let Some(alias) = &alias
+        && matches!(
+            syntax.expressions.expression(expression),
+            ExpressionNode::Name(_)
+        )
+        && let Some(case) = &case
+    {
+        let name = format!("{}::{}", closed.as_str(syntax), case.as_str(syntax));
+        syntax.expressions.replace_expression(
+            expression,
+            ExpressionNode::StructLiteral(syntax_trees::expression::TableStructLiteral {
+                application_type: alias.application,
+                constructor_name: Identifier::new(name, authored_name.source_span()),
+                fields: HandleSpan::empty(),
+            }),
+        );
+        return;
+    }
     if let ExpressionNode::Name(path) = syntax.expressions.expression(expression) {
         if instance.is_some()
             && let Some(case) = case
@@ -257,6 +296,9 @@ pub(in crate::preparation::generic_data) fn relabel_data_literal_for_expected_ty
     else {
         return;
     };
+    if let Some(alias) = &alias {
+        literal.application_type = alias.application;
+    }
     let case_name = case.as_ref().map(|case| case.as_str(syntax).to_owned());
     if instance.is_some() {
         let name = case_name.as_ref().map_or_else(

@@ -208,12 +208,12 @@ pub fn prepare_typed_trees(
     // concrete machine here. Validation permits unused template bodies but the
     // generic-value-call fence still rejects any emitted concrete caller whose
     // callee remains generic (an incomplete specialization).
-    // A Binding<R> selects R's callable, not a method on its data carrier.
-    // Settle authored service calls before specialization reads their targets.
+    // Settle authored requirement calls before specialization reads their
+    // targets.
     // Cloning binds only its newly produced instance after substitution; no
     // final whole-program receiver repair or data-method search is needed.
     validation::resolve_dynamic_call_targets(&mut program)?;
-    selections::retain_static_argument_contexts(&mut program);
+    program.retain_static_argument_contexts();
     // Executable specialization retains each consumed source application;
     // immutable checking judges its requirement -> implementation edge once.
     // Indexed-domain identities participate in static tuple selection. Bind
@@ -257,44 +257,53 @@ pub fn prepare_typed_trees(
         // so all rounds return through this same specialization entrypoint.
         // Specialization retains authored machines and only appends instances.
         let first_new_machine = program.machines().len();
-        let mut changed_roots = phase_profile::scope("psi.04.specialization_loop.specialize_machine_calls", || {
-            specialize_machine_calls(&mut program, true)
-        })?;
+        let mut changed_roots = phase_profile::scope(
+            "psi.04.specialization_loop.specialize_machine_calls",
+            || specialize_machine_calls(&mut program, true),
+        )?;
         let mut materialized = match &provider_templates {
-            Some(templates) => phase_profile::scope("psi.04.specialization_loop.operator_candidates", || {
-                crate::monomorphization::specialize_operator_candidates(
-                    templates,
-                    &mut program,
-                    &provider_candidates,
-                )
-            })?,
+            Some(templates) => {
+                phase_profile::scope("psi.04.specialization_loop.operator_candidates", || {
+                    crate::monomorphization::specialize_operator_candidates(
+                        templates,
+                        &mut program,
+                        &provider_candidates,
+                    )
+                })?
+            }
             None => 0,
         };
-        materialized += phase_profile::scope("psi.04.specialization_loop.dynamic_families", || {
-            crate::monomorphization::generate_dynamic_family_specializations(&mut program)
-        })?;
-        phase_profile::scope("psi.04.specialization_loop.requirement_applications", || {
-            crate::monomorphization::instantiate_requirement_applications(&mut program)
-        })?;
-        materialized += phase_profile::scope("psi.04.specialization_loop.provider_specializations", || {
-            crate::monomorphization::generate_requirement_provider_specializations(&mut program)
-        })?;
+        materialized +=
+            phase_profile::scope("psi.04.specialization_loop.dynamic_families", || {
+                crate::monomorphization::generate_dynamic_family_specializations(&mut program)
+            })?;
+        phase_profile::scope(
+            "psi.04.specialization_loop.requirement_applications",
+            || crate::monomorphization::instantiate_requirement_applications(&mut program),
+        )?;
+        materialized += phase_profile::scope(
+            "psi.04.specialization_loop.provider_specializations",
+            || crate::monomorphization::generate_requirement_provider_specializations(&mut program),
+        )?;
         // Public requirement application can settle a result without creating
         // another executable body. Refresh its inferred consumers before token
         // binding reads them and include that change in the same fixed point.
-        let unavailable = phase_profile::scope("psi.04.specialization_loop.constructed_results", || {
-            crate::constructed_results::retain_constructed_result_types(&mut program)
-        })?;
-        let result_owners = phase_profile::scope("psi.04.specialization_loop.inferred_result_locals", || {
-            crate::monomorphization::refresh_inferred_result_locals(&mut program, &unavailable)
-        })?;
+        let unavailable =
+            phase_profile::scope("psi.04.specialization_loop.constructed_results", || {
+                crate::constructed_results::retain_constructed_result_types(&mut program)
+            })?;
+        let result_owners =
+            phase_profile::scope("psi.04.specialization_loop.inferred_result_locals", || {
+                crate::monomorphization::refresh_inferred_result_locals(&mut program, &unavailable)
+            })?;
         materialized += result_owners.len();
         for owner in result_owners {
             changed_roots.include(owner);
         }
-        materialized += phase_profile::scope("psi.04.specialization_loop.constant_entries", || {
-            constant_entries::materialize(&mut program)
-        })?;
+        materialized +=
+            phase_profile::scope("psi.04.specialization_loop.constant_entries", || {
+                constant_entries::materialize(&mut program)
+            })?;
         // Bind only complete producer outputs: newly cloned bodies and callers
         // whose calls or inferred results changed. The ordinary fixed point
         // settles targets and dependent temporaries before binding reads them;
@@ -302,9 +311,10 @@ pub fn prepare_typed_trees(
         for machine in &program.machines()[first_new_machine..] {
             changed_roots.include(machine.symbol);
         }
-        materialized += phase_profile::scope("psi.04.specialization_loop.bind_operator_calls", || {
-            crate::operators::bind_selected_operator_calls(&mut program, &changed_roots)
-        })?;
+        materialized +=
+            phase_profile::scope("psi.04.specialization_loop.bind_operator_calls", || {
+                crate::operators::bind_selected_operator_calls(&mut program, &changed_roots)
+            })?;
         if materialized == 0 {
             break;
         }
@@ -316,25 +326,28 @@ pub fn prepare_typed_trees(
     phase_profile::scope("psi.04.post_specialization.assembly_normalize", || {
         crate::assembly_control::normalize(&mut program)
     })?;
-    phase_profile::scope("psi.04.post_specialization.settle_value_destinations", || {
-        settle_value_destinations(&mut program)
-    })?;
+    phase_profile::scope(
+        "psi.04.post_specialization.settle_value_destinations",
+        || settle_value_destinations(&mut program),
+    )?;
     phase_profile::scope("psi.04.post_specialization.default_domain_zero", || {
         default_domain_zero::refine_default_domain_zero(&mut program)
     });
     // Constructed result types finish the source roster that field elaboration reads;
     // substituted member edges do not become new application demands.
-    phase_profile::scope("psi.04.post_specialization.constructed_result_types", || {
-        crate::constructed_results::retain_constructed_result_types(&mut program)
+    phase_profile::scope(
+        "psi.04.post_specialization.constructed_result_types",
+        || crate::constructed_results::retain_constructed_result_types(&mut program),
+    )?;
+    phase_profile::scope("psi.04.post_specialization.data_applications", || {
+        elaborate(&mut program)
     })?;
-    phase_profile::scope("psi.04.post_specialization.data_applications", || elaborate(&mut program))?;
     phase_profile::scope("psi.04.post_specialization.runtime_index_fields", || {
         runtime_index_fields::materialize(&mut program)
     })?;
     // A projected receiver reads its elaborated field telescope. Binding it
     // before that producer would borrow the declaration's open field instead
-    // of the caller's exact application. This is the ordinary dependency order,
-    // not a separate path for nested Binding carriers.
+    // of the caller's exact application. This is the ordinary dependency order.
     phase_profile::scope("psi.04.post_specialization.dynamic_call_targets", || {
         validation::resolve_dynamic_call_targets(&mut program)
     })?;
@@ -342,9 +355,10 @@ pub fn prepare_typed_trees(
     phase_profile::scope("psi.04.post_specialization.dynamic_slots", || {
         crate::monomorphization::instantiate_dynamic_slots(&mut program)
     })?;
-    phase_profile::scope("psi.04.post_specialization.requirement_applications", || {
-        crate::monomorphization::instantiate_requirement_applications(&mut program)
-    })?;
+    phase_profile::scope(
+        "psi.04.post_specialization.requirement_applications",
+        || crate::monomorphization::instantiate_requirement_applications(&mut program),
+    )?;
     // The public signatures above own newly instantiated carrier occurrences.
     // Complete their field views just as for source types, without revisiting
     // the unchanged source roster or electing a private realization's fields.
@@ -377,9 +391,10 @@ pub fn prepare_typed_trees(
     // checking before preparation would capture an incomplete source value.
     // This remains one kernel-checked signature, carried into the proof facts.
     crate::monomorphization::require_complete_dispatch_subjects(&program)?;
-    let mathematics = phase_profile::scope("psi.04.post_specialization.mathematical_declarations", || {
-        proof::mathematical_declarations::check_mathematical_declarations(&program)
-    })?;
+    let mathematics = phase_profile::scope(
+        "psi.04.post_specialization.mathematical_declarations",
+        || proof::mathematical_declarations::check_mathematical_declarations(&program),
+    )?;
     Ok((
         program.into(),
         TypedPreparation {
@@ -400,17 +415,19 @@ fn settle_value_destinations(program: &mut TypedTrees) -> Result<(), Vec<Diagnos
     // same-named symbol during early resolution. Rebind them now, after domain
     // normalization and destination typing, before validation/backend facts
     // consume the call identity.
-    phase_profile::scope("psi.04.post_specialization.settle_value_destinations.named_result_overloads", || {
-        validation::resolve_named_result_overloads(program)
-    })?;
+    phase_profile::scope(
+        "psi.04.post_specialization.settle_value_destinations.named_result_overloads",
+        || validation::resolve_named_result_overloads(program),
+    )?;
     // Float casts select their destination-owned conversion by the cast's
     // result qualification. Derived calls retain the authored Exact target;
     // occurrence checking proves unchanged denotation from live value facts.
     // Bind after named rebinding above, which would otherwise reselect the
     // unqualified overload for a call whose context expects no result domain.
-    phase_profile::scope("psi.04.post_specialization.settle_value_destinations.float_conversion_casts", || {
-        validation::bind_float_conversion_casts(program)
-    })?;
+    phase_profile::scope(
+        "psi.04.post_specialization.settle_value_destinations.float_conversion_casts",
+        || validation::bind_float_conversion_casts(program),
+    )?;
     // Overload rebinding changes existing call targets, and cast elaboration
     // produces exact ordinary calls. Neither introduces token syntax to bind.
     // Land anonymous float values once, against final destinations. Provisional
@@ -420,9 +437,10 @@ fn settle_value_destinations(program: &mut TypedTrees) -> Result<(), Vec<Diagnos
     // their destination is known; no provisional default-f64 landing is needed.
     // Both execution engines consume this same rounded tree. Source-suffixed
     // literals keep their declared format and its agreement checks.
-    phase_profile::scope("psi.04.post_specialization.settle_value_destinations.float_literal_destinations", || {
-        validation::land_float_literal_destinations(program)
-    });
+    phase_profile::scope(
+        "psi.04.post_specialization.settle_value_destinations.float_literal_destinations",
+        || validation::land_float_literal_destinations(program),
+    );
     Ok(())
 }
 
@@ -453,7 +471,7 @@ fn normalize_open_index_identities(program: &mut TypedTrees) -> Result<(), Vec<D
 /// authoritative checking pass enforces the complete-tuple gate itself.
 pub fn prepare_execution_applications(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
     let type_frontier = program.type_reference_table.type_reference_count();
-    selections::retain_static_argument_contexts(program);
+    program.retain_static_argument_contexts();
     loop {
         let signatures = program.closed_requirement_applications().count();
         specialize_machine_calls(program, false)?;
@@ -491,7 +509,7 @@ pub fn prepare_constant_execution(mut program: TypedTrees) -> Result<TypedTrees,
     let type_frontier = program.type_reference_table.type_reference_count();
     elaborate(&mut program)?;
     validation::resolve_dynamic_call_targets(&mut program)?;
-    selections::retain_static_argument_contexts(&mut program);
+    program.retain_static_argument_contexts();
     selections::bind_pre_specialization_authored_selections(&mut program)
         .map_err(|diagnostic| vec![diagnostic])?;
     prepare_execution_applications(&mut program)?;
@@ -507,21 +525,33 @@ fn specialize_machine_calls(
     program: &mut TypedTrees,
     enforce_complete_concrete_selections: bool,
 ) -> Result<DeclarationSelection, Vec<Diagnostic>> {
-    phase_profile::scope("psi.04.specialization_loop.specialize_machine_calls.declared_field_scopes", || {
-        data_applications::retain_declared_field_scopes(program)
-    })?;
-    phase_profile::scope("psi.04.specialization_loop.specialize_machine_calls.elided_conformance_lifetimes", || {
-        crate::conformance::conformance_application_lifetimes::resolve_elided_conformance_lifetimes(
+    phase_profile::scope(
+        "psi.04.specialization_loop.specialize_machine_calls.declared_field_scopes",
+        || data_applications::retain_declared_field_scopes(program),
+    )?;
+    phase_profile::scope(
+        "psi.04.specialization_loop.specialize_machine_calls.elided_conformance_lifetimes",
+        || {
+            crate::conformance::conformance_application_lifetimes::resolve_elided_conformance_lifetimes(
             program,
         )
-    })?;
-    phase_profile::scope("psi.04.specialization_loop.specialize_machine_calls.explicit_requirement_calls", || {
-        crate::conformance::explicit_requirement_calls::route_explicit_requirement_calls(program)
-    })?;
-    phase_profile::scope("psi.04.specialization_loop.specialize_machine_calls.generic_value_calls", || {
-        crate::monomorphization::monomorphize_generic_machine_value_calls(
-            program,
-            enforce_complete_concrete_selections,
-        )
-    })
+        },
+    )?;
+    phase_profile::scope(
+        "psi.04.specialization_loop.specialize_machine_calls.explicit_requirement_calls",
+        || {
+            crate::conformance::explicit_requirement_calls::route_explicit_requirement_calls(
+                program,
+            )
+        },
+    )?;
+    phase_profile::scope(
+        "psi.04.specialization_loop.specialize_machine_calls.generic_value_calls",
+        || {
+            crate::monomorphization::monomorphize_generic_machine_value_calls(
+                program,
+                enforce_complete_concrete_selections,
+            )
+        },
+    )
 }

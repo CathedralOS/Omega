@@ -52,13 +52,17 @@ pub(in crate::checks::contracts) fn proves_with(
     }
     if let ExpressionNode::Unary(unary) = program.expression_table.expression(guard)
         && unary.operator == UnaryOperator::LogicalNot
-        && crate::authored_selections::typed_operator_has_no_authored_selection(program, guard)
+        && crate::shared::authored_selections::typed_operator_has_no_authored_selection(
+            program, guard,
+        )
     {
         return prove_guard!(unary.operand, !guard_value, required, required_value);
     }
     if let ExpressionNode::Unary(unary) = program.expression_table.expression(required)
         && unary.operator == UnaryOperator::LogicalNot
-        && crate::authored_selections::typed_operator_has_no_authored_selection(program, required)
+        && crate::shared::authored_selections::typed_operator_has_no_authored_selection(
+            program, required,
+        )
     {
         return prove_guard!(guard, guard_value, unary.operand, !required_value);
     }
@@ -101,7 +105,7 @@ fn boolean_comparison(
     if !matches!(
         binary.operator,
         BinaryOperator::Equal | BinaryOperator::NotEqual
-    ) || !crate::authored_selections::typed_operator_has_no_authored_selection(
+    ) || !crate::shared::authored_selections::typed_operator_has_no_authored_selection(
         program, expression,
     ) {
         return None;

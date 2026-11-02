@@ -2,7 +2,7 @@
 //! The same dynamic field computations retain their calls, traps and selected
 //! operators; knowing the constructed case does not erase their evaluation.
 use super::{Builder, CheckedScalarComputationHandle, ExpressionHandle, PrimitiveType};
-use crate::places::place_at;
+use crate::published::places::place_at;
 use checked_trees::{
     CheckedScalarCaseComputationField, CheckedScalarCaseConstruction,
     CheckedScalarComputationStructuralArgument,

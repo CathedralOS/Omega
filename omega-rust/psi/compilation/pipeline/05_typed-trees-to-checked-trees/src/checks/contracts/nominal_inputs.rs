@@ -7,16 +7,16 @@
 //! Conditional payload validity does not select an active case; only the
 //! authored source access carries that separate selection obligation.
 
-use crate::collections::UniqueRoster;
 use crate::flow::CapturedResultMemberships;
 use crate::flow::OperandContextSelection;
 use crate::flow::OperandContextSelections;
 use crate::flow::captured_observation_places;
 use crate::flow::captured_value_places;
 use crate::flow::literal_value_path_is_inactive;
-use crate::labels::call_target_label;
-use crate::labels::machine_name;
-use crate::labels::symbol_name;
+use crate::published::labels::call_target_label;
+use crate::published::labels::machine_name;
+use crate::published::labels::symbol_name;
+use crate::shared::collections::UniqueRoster;
 use checked_trees::{CheckFacts, FlowCallFact, FlowStateFact};
 use diagnostics::Diagnostic;
 use facts::{FactOrigin, FactPayload, FactPlan, PlaceRoot, PlaceSegment, ProgramPoint};
@@ -337,19 +337,22 @@ fn prove_declared_field_domain(
     domain_symbol: SymbolHandle,
     semantic_domain: language_semantics::SemanticDomainId,
 ) -> bool {
-    phase_profile::scope("psi.05.check_checked_facts.check_flow_call_contracts.nominal_inputs.domain", || {
-        if validation::field_domains::domain_requires_provenance(program, domain_symbol)
-            || !typed_trees::domain::has_symbol_only_proof(program, domain_symbol)
-        {
-            selection.has_membership(subject, domain_symbol, semantic_domain)
-        } else {
-            super::prover::prove_domain_at_place(
-                program,
-                &facts.semantic,
-                &selection.contexts,
-                subject,
-                domain_symbol,
-            )
-        }
-    })
+    phase_profile::scope(
+        "psi.05.check_checked_facts.check_flow_call_contracts.nominal_inputs.domain",
+        || {
+            if validation::field_domains::domain_requires_provenance(program, domain_symbol)
+                || !typed_trees::domain::has_symbol_only_proof(program, domain_symbol)
+            {
+                selection.has_membership(subject, domain_symbol, semantic_domain)
+            } else {
+                super::prover::prove_domain_at_place(
+                    program,
+                    &facts.semantic,
+                    &selection.contexts,
+                    subject,
+                    domain_symbol,
+                )
+            }
+        },
+    )
 }

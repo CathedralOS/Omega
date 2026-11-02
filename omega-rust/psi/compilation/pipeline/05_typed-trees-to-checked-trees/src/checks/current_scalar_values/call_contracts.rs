@@ -381,7 +381,7 @@ impl CurrentScalarValues<'_> {
                 result_observations: &result_observations,
             },
         ) {
-            crate::collections::push_unique(&mut self.hypotheses, hypothesis);
+            crate::shared::collections::push_unique(&mut self.hypotheses, hypothesis);
         }
     }
 

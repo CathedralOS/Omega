@@ -26,22 +26,24 @@ pub(crate) mod float_meanings;
 pub(crate) mod guarded_exits;
 pub(crate) mod machine_dispatch;
 
-use crate::checked_facts::flow_facts;
+use crate::shared::checked_facts::flow_facts;
 use checked_trees::{CheckedTerminalSignatureEligibility, CheckedTrees};
 use lowered_psi::LoweredPsi;
 
-use crate::lowering_error::{LoweringError, unsupported};
 use crate::machine_lowering::debug_map::build_debug_map;
 use crate::machine_lowering::float_meanings::retain_float_meanings;
 use crate::machine_lowering::guarded_exits::reject_unguarded_outcome_guarantees;
 use crate::machine_lowering::machine_dispatch::{
     TerminalMachineSelection, lower_selected_machine, select_terminal_machine,
 };
-use crate::producer_result::{DebugPublication, LoweredSelectedMachine, LoweringCompletion};
 use crate::proofs::evidence_lowering::lower_and_install_evidence_artifacts;
 use crate::retention::{
     closed_reach_applications, operation_crash_contracts, reborrow_restored_call_use,
     retained_borrow_custody, suspension_call_plan,
+};
+use crate::shared::lowering_error::{LoweringError, unsupported};
+use crate::shared::producer_result::{
+    DebugPublication, LoweredSelectedMachine, LoweringCompletion,
 };
 use crate::unit::attached_unit;
 
@@ -172,25 +174,28 @@ pub fn lower_machine(
     // boundary/callback applications and the final interned identity table.
     // Construct it only after those producers finish; stamping the body's
     // earlier table prefix makes even a constant entry's companion stale.
-    lowered.debug_map = phase_profile::scope("psi.06.debug_map", || -> Result<_, LoweringError> {
-        if let Some(selection) = selection
-            && selection.signature == CheckedTerminalSignatureEligibility::Eligible
-            && completion.debug == DebugPublication::FromCheckedPlan
-        {
-            let live_states = flow_facts(checked)
-                .terminal_unit_effects
-                .composed_for_machine(selection.machine)
-                .map(attached_unit::unit_graph_live_states)
-                .transpose()?;
-            flow_facts(checked)
-                .terminal_debug
-                .for_machine(selection.machine)
-                .map(|plan| build_debug_map(plan, &lowered.semantic_module, live_states.as_deref()))
-                .transpose()
-        } else {
-            Ok(None)
-        }
-    })?;
+    lowered.debug_map =
+        phase_profile::scope("psi.06.debug_map", || -> Result<_, LoweringError> {
+            if let Some(selection) = selection
+                && selection.signature == CheckedTerminalSignatureEligibility::Eligible
+                && completion.debug == DebugPublication::FromCheckedPlan
+            {
+                let live_states = flow_facts(checked)
+                    .terminal_unit_effects
+                    .composed_for_machine(selection.machine)
+                    .map(attached_unit::unit_graph_live_states)
+                    .transpose()?;
+                flow_facts(checked)
+                    .terminal_debug
+                    .for_machine(selection.machine)
+                    .map(|plan| {
+                        build_debug_map(plan, &lowered.semantic_module, live_states.as_deref())
+                    })
+                    .transpose()
+            } else {
+                Ok(None)
+            }
+        })?;
     Ok(lowered)
 }
 
@@ -448,6 +453,7 @@ fn lower_terminal_selection(
                 checked,
                 &source_machines,
                 &lowered.source_call_occurrences,
+                &lowered.state_blocks,
                 &mut lowered.semantic_module,
             )?;
             retain_float_meanings(identities, checked, &source_machine_ids, &mut lowered)?;
@@ -473,12 +479,14 @@ fn lower_terminal_selection(
             phase_profile::scope("psi.06.reconcile_and_residences.reconcile_places", || {
                 reconcile_leaf_copy_place_declarations(&mut lowered.semantic_module);
             });
-            phase_profile::scope("psi.06.reconcile_and_residences.descriptor_residences", || {
-                crate::emission::descriptor_residences::complete(&mut lowered.semantic_module)
-            })?;
-            phase_profile::scope("psi.06.reconcile_and_residences.payload_memberships", || {
-                crate::retention::payload_memberships::retain(&mut lowered.semantic_module)
-            })?;
+            phase_profile::scope(
+                "psi.06.reconcile_and_residences.descriptor_residences",
+                || crate::emission::descriptor_residences::complete(&mut lowered.semantic_module),
+            )?;
+            phase_profile::scope(
+                "psi.06.reconcile_and_residences.payload_memberships",
+                || crate::retention::payload_memberships::retain(&mut lowered.semantic_module),
+            )?;
             Ok(())
         },
     )?;

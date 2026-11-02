@@ -48,8 +48,8 @@ pub(super) fn check_used_calls(
         if let Err(reason) = result {
             diagnostics.push(diagnostics::Diagnostic::error(format!(
                 "cannot derive content custody in `{}`, state `{}` at statement {}: {reason}",
-                crate::labels::symbol_name(program, equation.machine_symbol),
-                crate::labels::symbol_name(program, equation.state_symbol),
+                crate::published::labels::symbol_name(program, equation.machine_symbol),
+                crate::published::labels::symbol_name(program, equation.state_symbol),
                 completed.statement_index,
             )));
         }
@@ -185,7 +185,7 @@ fn call_parents(
             if inputs.next().is_some() {
                 return Err("callee result lineage has ambiguous conserved actual inputs");
             }
-            crate::collections::push_unique(&mut candidate, input.claim_identity);
+            crate::shared::collections::push_unique(&mut candidate, input.claim_identity);
         }
         if candidate.is_empty()
             || parents
@@ -304,7 +304,7 @@ fn qualified_roots(
                     qualified_roots(facts, parent, projection, traversal)?
                 };
                 for ancestor in ancestors {
-                    crate::collections::push_unique(&mut candidate, ancestor);
+                    crate::shared::collections::push_unique(&mut candidate, ancestor);
                 }
             }
             if roots

@@ -4,7 +4,7 @@
 //! no consumer reconstructs them from the shape of a Match or Boolean tree.
 
 use super::ConstructorMemberships;
-use crate::places::place_at;
+use crate::published::places::place_at;
 use checked_trees::{CheckFacts, FlowStateFact};
 use diagnostics::Diagnostic;
 use typed_trees::expression::ExpressionHandle;

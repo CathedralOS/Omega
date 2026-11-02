@@ -143,7 +143,6 @@ pub(crate) fn parse_machine<'tokens, 'source>(
             type_parameters,
             satisfies,
             conformance_bounds,
-            where_facts: clauses.where_facts,
             terminates_guarantee: clauses.terminates_guarantee,
             ranking_subjects: clauses.ranking_subjects,
             ranking_view: clauses.ranking_view,

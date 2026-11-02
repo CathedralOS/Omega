@@ -91,6 +91,7 @@
 mod activation;
 mod admission;
 mod build_evaluation;
+mod calling_policy_execution;
 pub mod host;
 pub mod settings;
 
@@ -111,6 +112,7 @@ pub use build_evaluation::{
 };
 pub use build_output::BuildStagedOutputEntryKind;
 pub use build_time_evaluation::WireCompatibilityDemand;
+pub use calling_policy_execution::evaluate_terminal_calling_policy;
 pub use compilation_products::{BuildConfig, ComputedBuildConfig};
 pub use effects::AuthoredBehaviorExclusion;
 pub use package_compilation::build_execution::{

@@ -191,7 +191,7 @@ impl<'a> PreparedTerminalProduct<'a> {
     ) -> Result<Self, Vec<Diagnostic>> {
         let view = &request.view;
         if request.use_kind != TerminalProductUse::Application {
-            let provider_publication = prepare_target_provider_publication(view)?;
+            let provider_publication = prepare_target_provider_publication(view, request.use_kind)?;
             return Ok(Self {
                 position,
                 request,
@@ -214,7 +214,7 @@ impl<'a> PreparedTerminalProduct<'a> {
         // Firmware starts in the selected adapter, not the semantic continuation.
         // Admit its behavior and callbacks while retaining the semantic receipt.
         let physical_adapter = entry.physical_adapter().unwrap_or_default();
-        let provider_publication = prepare_target_provider_publication(view)?;
+        let provider_publication = prepare_target_provider_publication(view, request.use_kind)?;
         Ok(Self {
             position,
             request,
@@ -439,6 +439,7 @@ fn admit_terminal_production<'a>(
 /// deferred refusal rows, never cohort failures.
 fn prepare_target_provider_publication(
     source: &TerminalProductionView<'_>,
+    use_kind: TerminalProductUse<'_>,
 ) -> Result<provider_planning::target_machines::PreparedTargetProviderPublication, Vec<Diagnostic>>
 {
     let mut targets = source
@@ -522,7 +523,14 @@ fn prepare_target_provider_publication(
             overrides: &source.build.config.provider_selections,
             assumed_bindings: source.plan_facts.assumed_bindings(),
             independent_components: &source.provider_settlement.verified_independent_components,
-            selected: Some(&source.provider_settlement.selected_provider_publication),
+            // A named inspection has its own requested root and semantic
+            // publication. It must select against that catalog, not replay a
+            // receipt bound to the shared Product artifact. Ordinary Product
+            // publication keeps its already-settled exact choice unchanged.
+            selected: match use_kind {
+                TerminalProductUse::Inspection(_) => None,
+                _ => Some(&source.provider_settlement.selected_provider_publication),
+            },
             targets: &targets,
         }
         .prepare(),

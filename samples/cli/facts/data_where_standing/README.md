@@ -48,6 +48,10 @@ The [private-write production](private_write/README.md) establishes the same fac
 when every private helper arrival supplies the receiving store's bound, including
 scalar snapshots evaluated before later argument mutations.
 
+The [borrowed-field production](borrowed_field/README.md) carries the same fact
+through stored shared references and checked normal-call result equations,
+including a match-selected record.
+
 ## Establishment and preservation
 
 - **Establishment:** construction and the checked borrowed write establish the

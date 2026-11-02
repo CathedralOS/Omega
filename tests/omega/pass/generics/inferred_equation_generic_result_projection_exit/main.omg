@@ -1,7 +1,7 @@
 data Box<Value [copy]> [copy] { value: Value; }
 machine wrap<Value [copy]>(value: Value) -> Box<Value> { Box { value: value } }
 machine capacity<Value [copy], const Size: u64>(value: Value) -> u64
-where Value == [u8; Size]
+requires Value == [u8; Size]
 { Size }
 // Expected exit: 0
 machine main() crashes Trap {

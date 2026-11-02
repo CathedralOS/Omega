@@ -18,7 +18,7 @@ use super::structural_sources::{
     ContentSource, ContentSourceExpansion, domain_sources, parameter_sources,
 };
 use super::{DomainApplication, domain_name};
-use crate::collections::push_unique;
+use crate::shared::collections::push_unique;
 use checked_trees::{CheckFacts, RetainedBorrowCustodyFact};
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;

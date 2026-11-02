@@ -4,7 +4,7 @@
 //! origins and refuses unresolved reference endpoints. Lifetime dependencies
 //! alone identify no pointer, and geometry never grants ancestry or access.
 //! Incoming parameters retain their separately admitted joint namespace.
-use crate::places::place_at;
+use crate::published::places::place_at;
 use arena::Handle;
 use checked_trees::{CapturedPlace, CheckFacts, FlowOperandFact, FlowStateFact};
 

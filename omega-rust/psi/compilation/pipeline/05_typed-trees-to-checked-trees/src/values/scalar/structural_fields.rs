@@ -7,7 +7,7 @@ use super::scalar_lowering::storage_projection;
 use crate::execution::terminal_unit::types::borrowed_slice_view_element;
 use crate::execution::terminal_unit::types::parameter_is_root;
 use crate::flow::expressions;
-use crate::places::place_at;
+use crate::published::places::place_at;
 use checked_trees::CheckedOperatorFacts;
 use checked_trees::CheckedOperatorResolutionStatus;
 use checked_trees::CheckedScalarExpression;

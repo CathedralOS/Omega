@@ -1,0 +1,339 @@
+//! Capture an invocation's entry subjects, then judge return preservation.
+//! Entry correspondence is established after actual operands and before callee
+//! execution. Future write summaries affect normal return, never entry origin.
+
+use super::super::caller_aliases::{CallerWriteSite, caller_statement_owner};
+use super::super::{LocalWriteSource, reference_subjects, stored_origins};
+use super::CallFrameResolver;
+use symbols::SymbolHandle;
+use typed_trees::expression::ExpressionHandle;
+use typed_trees::machine::Machine;
+use typed_trees::signature::StateParameter;
+use typed_trees::types::TypeReferenceHandle;
+
+#[derive(Debug)]
+pub(crate) struct InvocationEntrySubject {
+    pub parameter: SymbolHandle,
+    pub argument: ExpressionHandle,
+    pub parameter_type: TypeReferenceHandle,
+    pub sources: Vec<LocalWriteSource>,
+    pub type_reference: TypeReferenceHandle,
+}
+
+impl InvocationEntrySubject {
+    /// The borrowed declaration and its scalar presentation share storage,
+    /// not necessarily numerical values. The existing recast owner authenticates
+    /// the complete chain before either direction can transfer observations.
+    pub(crate) fn scalar_storage_coordinate(
+        &self,
+        program: &dyn crate::CheckingInput,
+        state: &typed_trees::state::State,
+    ) -> Option<super::super::ScalarStorageCoordinate> {
+        program.primitive_type_reference(self.type_reference)?;
+        let [source] = self.sources.as_slice() else {
+            return None;
+        };
+        if source.invocation_output.is_some() || source.is_image_storage {
+            return None;
+        }
+        let scalar = source.scalar_storage_coordinate(program, state)?;
+        (scalar.preserves_scalar_value || scalar.preserves_primitive_bits).then_some(scalar)
+    }
+}
+
+pub(crate) struct InvocationReferenceSubject {
+    pub entry: InvocationEntrySubject,
+    pub stable_on_return: bool,
+    pub preserved_on_return: bool,
+}
+
+impl<'program> CallFrameResolver<'program> {
+    pub(crate) fn call_reference_subjects(
+        &self,
+        machine: &'program Machine,
+        site: crate::CallSite<'program>,
+        parameters: &[StateParameter],
+        writes: &facts::NormalizedWriteFrame,
+    ) -> Option<Vec<InvocationReferenceSubject>> {
+        let entries = match site {
+            crate::CallSite::Expression { expression, .. } => {
+                self.expression_entry_reference_subjects(machine, expression, parameters)
+            }
+            crate::CallSite::Statement(call) => {
+                self.statement_entry_reference_subjects(machine, call, parameters)
+            }
+            _ => return None,
+        };
+        if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            eprintln!(
+                "STRUCT invocation-entry-subjects caller={:?} entries={entries:?}",
+                machine.symbol
+            );
+        }
+        let entries = entries?;
+        let writes = writes.complete_paths();
+        entries
+            .into_iter()
+            .map(|entry| {
+                let parameter = parameters
+                    .iter()
+                    .find(|parameter| parameter.symbol == entry.parameter)?;
+                let shell = crate::reference_shell(self.program, parameter.type_reference)?;
+                // Entry origins were captured before invocation. An unknown
+                // future frame withholds return correspondence, not those
+                // independently established incoming subjects.
+                let stable_on_return =
+                    writes.is_some() && (!parameter.is_mutable || shell.access.is_exclusive());
+                let preserved_on_return = stable_on_return
+                    && writes.as_ref().is_some_and(|writes| {
+                        !writes.iter().any(|written| {
+                            entry
+                                .sources
+                                .iter()
+                                .any(|source| super::frame_paths_overlap(written, &source.path))
+                        })
+                    });
+                Some(InvocationReferenceSubject {
+                    entry,
+                    stable_on_return,
+                    preserved_on_return,
+                })
+            })
+            .collect()
+    }
+
+    pub(crate) fn expression_entry_reference_subjects(
+        &self,
+        machine: &'program Machine,
+        expression: ExpressionHandle,
+        parameters: &[StateParameter],
+    ) -> Option<Vec<InvocationEntrySubject>> {
+        self.entry_reference_subjects(machine, CallerWriteSite::Expression(expression), parameters)
+    }
+
+    pub(crate) fn statement_entry_reference_subjects(
+        &self,
+        machine: &'program Machine,
+        call: &'program typed_trees::statement::TableCall,
+        parameters: &[StateParameter],
+    ) -> Option<Vec<InvocationEntrySubject>> {
+        self.entry_reference_subjects(machine, CallerWriteSite::Call(call), parameters)
+    }
+
+    pub(crate) fn transition_entry_reference_subjects(
+        &self,
+        machine: &'program Machine,
+        target: typed_trees::statement::TransitionTargetHandle,
+        parameters: &[StateParameter],
+    ) -> Option<Vec<InvocationEntrySubject>> {
+        self.entry_reference_subjects(machine, CallerWriteSite::Transition(target), parameters)
+    }
+
+    fn entry_reference_subjects(
+        &self,
+        machine: &'program Machine,
+        site: CallerWriteSite<'program>,
+        parameters: &[StateParameter],
+    ) -> Option<Vec<InvocationEntrySubject>> {
+        let program = self.program;
+        let (arguments, leading_operands) = match site {
+            CallerWriteSite::Expression(expression) => {
+                let call = program.expression_table.call_node(expression)?;
+                let arguments = program.expression_table.expression_handles(call.arguments);
+                let leading = if let Some(slot) = program.dynamic_slot_by_symbol(call.target_symbol)
+                {
+                    let contract =
+                        crate::machine_calls::calls::callee_entry_contract(program, slot.symbol)?;
+                    let declared = contract.parameters;
+                    let instantiated = slot.data_parameters();
+                    if declared.len() != parameters.len()
+                        || instantiated.len() != parameters.len()
+                        || !parameters.iter().zip(declared).zip(instantiated).all(
+                            |((parameter, declared), instantiated)| {
+                                parameter.symbol == declared.symbol
+                                    && parameter.type_reference == instantiated.type_reference
+                            },
+                        )
+                        || slot.parameters.len() != arguments.len()
+                    {
+                        return None;
+                    }
+                    contract.leading_operands
+                } else {
+                    0
+                };
+                (arguments, leading)
+            }
+            CallerWriteSite::Call(call) => (
+                program.statement_table.expression_handles(call.arguments),
+                0,
+            ),
+            CallerWriteSite::Transition(target) => {
+                let typed_trees::statement::TransitionTargetNode::Named { arguments, .. } =
+                    program.statement_table.transition_target(target)
+                else {
+                    return None;
+                };
+                (program.statement_table.expression_handles(*arguments), 0)
+            }
+            _ => return None,
+        };
+        if parameters.len() != arguments.get(leading_operands..)?.len() {
+            return None;
+        }
+        if !parameters
+            .iter()
+            .any(|parameter| crate::reference_shell(program, parameter.type_reference).is_some())
+        {
+            return parameters
+                .iter()
+                .all(|parameter| self.proof_value_is_caller_isolated(parameter.type_reference))
+                .then(Vec::new);
+        }
+        let origins = match site {
+            CallerWriteSite::Expression(expression) => {
+                self.expression_call_write_origins(machine, expression)?
+            }
+            CallerWriteSite::Call(call) => self.call_write_origins(machine, call)?,
+            CallerWriteSite::Transition(target) => {
+                self.transition_write_origins(machine, target)?
+            }
+            _ => return None,
+        };
+        if origins.arguments.len() != arguments.len() {
+            return None;
+        }
+        let (state, _, index) = caller_statement_owner(program, machine, site)?;
+        Some(
+            parameters
+                .iter()
+                .zip(arguments.get(leading_operands..)?)
+                .zip(origins.arguments.get(leading_operands..)?)
+                .filter_map(|((parameter, argument), origins)| {
+                    let shell = crate::reference_shell(program, parameter.type_reference)?;
+                    let origins = origins.as_ref()?;
+                    if origins.is_empty() {
+                        return None;
+                    }
+                    for source in origins {
+                        if !source.root.is_valid()
+                            || (source.collection_coarse
+                                && !source.segments.iter().any(|segment| {
+                                    matches!(segment, facts::PlaceSegment::FixedIndex { .. })
+                                }))
+                        {
+                            return None;
+                        }
+                        let root_type = reference_subjects::source_root_type(
+                            program,
+                            state,
+                            index,
+                            source.root,
+                        )?;
+                        let root_type =
+                            reference_subjects::carrier_storage_type(program, root_type)?;
+                        let reference = if let Some(expected) =
+                            program.primitive_type_reference(shell.referee)
+                        {
+                            if source.invocation_output.is_some() || source.is_image_storage {
+                                return None;
+                            }
+                            let scalar = source.scalar_storage_coordinate(program, state)?;
+                            if scalar.view_primitive != expected
+                                || !(scalar.preserves_scalar_value
+                                    || scalar.preserves_primitive_bits)
+                            {
+                                return None;
+                            }
+                            // The captured origin may name an incoming reference
+                            // leaf, rather than an inline scalar field. The
+                            // scalar owner validates that complete read geometry;
+                            // an owned-only projection would discard the leaf
+                            // before the invocation can observe its referent.
+                            // This selects its carrier, not access or contents.
+                            let reference = match &source.representation {
+                                Some((carrier, path)) => {
+                                    stored_origins::projected_storage_type(program, *carrier, path)?
+                                }
+                                None => stored_origins::projected_storage_type(
+                                    program,
+                                    root_type,
+                                    &source.segments,
+                                )?,
+                            };
+                            crate::value_custody::places::assignment_value_type(program, reference)
+                        } else {
+                            reference_subjects::validate_owned_projection(
+                                program,
+                                root_type,
+                                &source.segments,
+                            )?;
+                            declaration_preserving_views(program, root_type, source)?;
+                            stored_origins::projected_type(program, root_type, &source.segments)?
+                        };
+                        if !crate::declared_carriers_match(program, reference, shell.referee)
+                            || program.arithmetic_domain_for_type_reference(reference)
+                                != program.arithmetic_domain_for_type_reference(shell.referee)
+                        {
+                            return None;
+                        }
+                    }
+                    Some(InvocationEntrySubject {
+                        parameter: parameter.symbol,
+                        argument: *argument,
+                        parameter_type: parameter.type_reference,
+                        sources: origins.clone(),
+                        type_reference: shell.referee,
+                    })
+                })
+                .collect(),
+        )
+    }
+}
+
+/// A qualification view observes the original declaration, not a new byte
+/// interpretation. Authenticate the complete retained chain before using its
+/// declaration selectors. Recast provenance remains on the source for other
+/// consumers; this grants neither formation validity nor additional access.
+fn declaration_preserving_views(
+    program: &dyn crate::CheckingInput,
+    root_type: TypeReferenceHandle,
+    source: &LocalWriteSource,
+) -> Option<()> {
+    let mut presentation = None;
+    let mut prefix: &[facts::PlaceSegment] = &[];
+    for recast in &source.recasts {
+        if recast.root != source.root {
+            return None;
+        }
+        match (presentation, &recast.representation) {
+            (None, None) => {}
+            (Some(previous), Some((reference, selectors)))
+                if previous == *reference && recast.segments.strip_prefix(prefix)? == selectors => {
+            }
+            _ => return None,
+        }
+        reference_subjects::validate_owned_projection(program, root_type, &recast.segments)?;
+        let backing = stored_origins::projected_type(program, root_type, &recast.segments)?;
+        let formation = crate::reference_formation_source(program, recast.formation.expression())?;
+        if formation.interpretation != crate::ReferenceFormationInterpretation::RepresentationView
+            || !formation.view_type.is_valid()
+            || formation.view_type != recast.target_type
+            || crate::reference_view_storage(program, backing, recast.target_type)?
+                != checked_trees::CheckedReferenceStorage::Declared
+        {
+            return None;
+        }
+        presentation = Some(recast.target_type);
+        prefix = &recast.segments;
+    }
+    match (presentation, &source.representation) {
+        (None, None) => Some(()),
+        (Some(previous), Some((reference, selectors)))
+            if previous == *reference && source.segments.strip_prefix(prefix)? == selectors =>
+        {
+            Some(())
+        }
+        _ => None,
+    }
+}
