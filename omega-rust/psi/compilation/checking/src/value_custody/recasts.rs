@@ -68,6 +68,7 @@ mod slice_views;
 mod source_regions;
 use language_core::ReferenceAccess;
 pub(crate) use record_representation::recast_representations_equivalent;
+pub(crate) use record_representation::recast_scalar_source_leaf_in_array_region;
 pub use record_representation::{
     RecastLeafSegment, RecastRecordSourceLeaf, RecastRuntimeIndexGeometry, RecastScalarGeometry,
     RecastScalarLayout, RecastScalarProjection, recast_record_source_leaf, recast_scalar_layout,

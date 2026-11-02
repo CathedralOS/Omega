@@ -89,19 +89,39 @@ impl LocalWriteSource {
                     recast.segments.clone(),
                 ),
             };
+            let range = match previous_path.last() {
+                Some(PlaceSegment::FixedRange { start, end }) => Some((*start, *end)),
+                _ => None,
+            };
+            let prefix_length = previous_path
+                .len()
+                .checked_sub(usize::from(range.is_some()))?;
             let previous_type = crate::project_type_reference_from_segments(
                 program,
                 previous_carrier,
-                &previous_path,
+                &previous_path[..prefix_length],
             )?;
-            let translated = crate::value_custody::recasts::recast_scalar_source_leaf(
-                program,
-                previous_type,
-                carrier,
-                &path,
-            )?;
+            let translated = match range {
+                Some((start, end)) => {
+                    crate::value_custody::recasts::recast_scalar_source_leaf_in_array_region(
+                        program,
+                        crate::value_custody::places::assignment_value_type(program, previous_type),
+                        start,
+                        end,
+                        carrier,
+                        &path,
+                    )
+                }
+                None => crate::value_custody::recasts::recast_scalar_source_leaf(
+                    program,
+                    previous_type,
+                    carrier,
+                    &path,
+                ),
+            }?;
             preserves_scalar_value &= translated.preserves_scalar_value;
             preserves_primitive_bits &= translated.preserves_primitive_bits;
+            previous_path.truncate(prefix_length);
             previous_path.extend(translated.path.into_iter().map(|segment| match segment {
                 crate::RecastLeafSegment::Field(symbol) => PlaceSegment::Field { symbol },
                 crate::RecastLeafSegment::Element(index) => PlaceSegment::FixedIndex { index },

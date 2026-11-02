@@ -479,9 +479,9 @@ pub enum RecastLeafSegment {
     Element(usize),
 }
 
-/// The source leaf a typed record recast view's direct field observes, and
-/// the carriers on both sides: an admitted view keeps the leaf's width but
-/// may name an integer of the other sign.
+/// The original cell containing a recast scalar projection and both carriers.
+/// A smaller view identifies invalidation storage; the flags independently
+/// decide whether a complete scalar value or primitive bits can be reused.
 pub struct RecastRecordSourceLeaf {
     pub path: Vec<RecastLeafSegment>,
     pub primitive: typed_trees::types::PrimitiveType,
@@ -494,13 +494,10 @@ pub struct RecastRecordSourceLeaf {
     pub preserves_primitive_bits: bool,
 }
 
-/// Rejoin a typed record view's direct scalar field to the source leaf it
-/// re-views. An admitted record recast has identical geometry on both sides
-/// (the judgment above compares leaves at equal offsets and widths), so the
-/// one source leaf at the target leaf's offset and width is the storage the
-/// view's field names. `None` when either side has no normalized
-/// representation, the field is not a direct scalar leaf of the target, or no
-/// single source leaf matches; the caller then keeps its refusal.
+/// Rejoin a direct scalar field to its uniquely containing original cell.
+/// A partial scalar projection supplies only that cell's identity; numerical
+/// facts still require the complete value-preserving interpretation. Unknown
+/// geometry or coverage across multiple cells retains the caller's refusal.
 pub fn recast_record_source_leaf(
     program: &dyn crate::CheckingInput,
     source: TypeReferenceHandle,
@@ -527,6 +524,35 @@ pub fn recast_scalar_source_leaf(
     target: TypeReferenceHandle,
     target_path: &[facts::PlaceSegment],
 ) -> Option<RecastRecordSourceLeaf> {
+    scalar_source_leaf(
+        &type_representation(program, source)?,
+        &type_representation(program, target)?,
+        target_path,
+    )
+}
+
+/// A selected array region retains the original element paths. Its rebased
+/// geometry does not introduce an owned array type or shorten the source loan.
+pub(crate) fn recast_scalar_source_leaf_in_array_region(
+    program: &dyn crate::CheckingInput,
+    source: TypeReferenceHandle,
+    start: usize,
+    end: usize,
+    target: TypeReferenceHandle,
+    target_path: &[facts::PlaceSegment],
+) -> Option<RecastRecordSourceLeaf> {
+    scalar_source_leaf(
+        &array_region_representation(program, source, start, end)?,
+        &type_representation(program, target)?,
+        target_path,
+    )
+}
+
+fn scalar_source_leaf(
+    source_representation: &MutableRecordRepresentation,
+    target_representation: &MutableRecordRepresentation,
+    target_path: &[facts::PlaceSegment],
+) -> Option<RecastRecordSourceLeaf> {
     let target_path = target_path
         .iter()
         .map(|segment| match segment {
@@ -537,25 +563,33 @@ pub fn recast_scalar_source_leaf(
             _ => None,
         })
         .collect::<Option<Vec<_>>>()?;
-    let source_representation = type_representation(program, source)?;
-    let target_representation = type_representation(program, target)?;
-    if source_representation.size != target_representation.size
-        || source_representation.leaves.len() != target_representation.leaves.len()
-    {
+    if source_representation.size != target_representation.size {
         return None;
     }
     let target_leaf = target_representation
         .leaves
         .iter()
         .find(|leaf| leaf.path == target_path)?;
-    let mut matching = source_representation
-        .leaves
-        .iter()
-        .filter(|leaf| leaf.offset == target_leaf.offset && leaf.size == target_leaf.size);
+    let mut matching = source_representation.leaves.iter().filter(|leaf| {
+        (leaf.offset == target_leaf.offset && leaf.size == target_leaf.size)
+            || (leaf.byte_projection
+                && target_leaf.byte_projection
+                && leaf.offset <= target_leaf.offset
+                && leaf.offset.checked_add(leaf.size).is_some_and(|end| {
+                    target_leaf
+                        .offset
+                        .checked_add(target_leaf.size)
+                        .is_some_and(|target_end| target_end <= end)
+                }))
+    });
     let source_leaf = matching.next()?;
     if matching.next().is_some() {
         return None;
     }
+    // A partial write invalidates its original cell, but cannot replace the
+    // cell's numerical value or supply a complete primitive bit observation.
+    let same_extent =
+        source_leaf.offset == target_leaf.offset && source_leaf.size == target_leaf.size;
     Some(RecastRecordSourceLeaf {
         path: source_leaf
             .path
@@ -567,9 +601,11 @@ pub fn recast_scalar_source_leaf(
             .collect(),
         primitive: source_leaf.primitive,
         view_primitive: target_leaf.primitive,
-        preserves_primitive_bits: primitive_bit_representation(source_leaf)
+        preserves_primitive_bits: same_extent
+            && primitive_bit_representation(source_leaf)
             && primitive_bit_representation(target_leaf),
-        preserves_scalar_value: source_leaf.primitive == target_leaf.primitive
+        preserves_scalar_value: same_extent
+            && source_leaf.primitive == target_leaf.primitive
             && source_leaf.byte_projection
             && target_leaf.byte_projection
             && stored_integer_interpretation(source_leaf)
