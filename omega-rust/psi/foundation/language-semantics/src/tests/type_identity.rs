@@ -1,7 +1,8 @@
 //! Canonical type identity grammar: package-owner visits over rendered identities.
 
 use crate::type_identity::{
-    TypeIdentityPackageOwnerVisitor, TypeIdentityVisitError, visit_type_identity_package_owners,
+    TypeIdentityPackageOwnerVisitor, TypeIdentityVisitError, malformed_identity_offset,
+    visit_type_identity_package_owners,
 };
 
 /// Counts the package owners a canonical type identity names.
@@ -69,4 +70,22 @@ fn generic_identity_reads_const_index_arguments() {
         .expect("type and const arguments may share one application");
     let malformed = r"generic(name(compiler-type\(atom\(u8\)\)),conformance(x))";
     assert!(visit_type_identity_package_owners(malformed, &mut counter).is_err());
+}
+
+/// A failed package review reports where the grammar stopped, so the report can
+/// show the text around the unreadable part instead of only naming the rule.
+#[test]
+fn malformed_identity_offset_names_the_byte_the_grammar_stopped_on() {
+    let readable = "ref(compiler-type(atom(u8)))";
+    assert_eq!(malformed_identity_offset(readable), None);
+    let trailing = format!("{readable},elided-region");
+    assert_eq!(malformed_identity_offset(&trailing), Some(readable.len()));
+    // `ref` takes one operand: the second one is where the grammar gave up.
+    let second_operand = "ref(compiler-type(atom(u8)),elided-region)";
+    assert_eq!(
+        malformed_identity_offset(second_operand),
+        second_operand.find(",elided")
+    );
+    assert_eq!(malformed_identity_offset(""), Some(0));
+    assert_eq!(malformed_identity_offset("unknown(x)"), Some(8));
 }

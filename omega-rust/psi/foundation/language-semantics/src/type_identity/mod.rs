@@ -61,6 +61,36 @@ pub fn visit_type_identity_package_owners(
     reader.finish()
 }
 
+/// Byte offset at which the grammar stopped reading `identity`, for failure
+/// reports. `None` when the whole identity reads. The walk charges no budget and
+/// never descends into embedded names, so it goes no deeper than a budgeted
+/// visit that already failed; call it only after one has. Atoms decoded into
+/// their own text (range bounds, qualified names) are read by a nested reader,
+/// so for a failure inside one the offset is where the enclosing atom ended.
+pub fn malformed_identity_offset(identity: &str) -> Option<usize> {
+    struct Unbudgeted;
+    impl TypeIdentityPackageOwnerVisitor for Unbudgeted {
+        fn enter(&mut self) -> Result {
+            Ok(())
+        }
+        fn leave(&mut self) {}
+        fn reserve(&mut self, _: usize) -> Result {
+            Ok(())
+        }
+        fn package_owner(&mut self, _: [u8; 32]) -> Result {
+            Ok(())
+        }
+        fn embedded_name(&mut self, _: &str) -> Result {
+            Ok(())
+        }
+    }
+    let mut reader = framing::Reader::new(identity);
+    match grammar::type_identity(&mut reader, &mut Unbudgeted).and_then(|()| reader.finish()) {
+        Err(Error::MalformedIdentity) => Some(reader.position()),
+        _ => None,
+    }
+}
+
 type Error = TypeIdentityVisitError;
 type Result<T = (), E = Error> = std::result::Result<T, E>;
 

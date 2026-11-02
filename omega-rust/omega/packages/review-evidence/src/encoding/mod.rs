@@ -5,7 +5,10 @@
 
 mod encode;
 mod recovery;
-pub use encode::membership::{PackagePolicyMembershipError, PackagePolicyMembershipLimits};
+pub use encode::membership::{
+    MalformedIdentityExcerpt, PackagePolicyMembershipError, PackagePolicyMembershipFailure,
+    PackagePolicyMembershipLimits,
+};
 pub use encode::restricted_build_request_acceptance_text;
 
 pub use recovery::PackagePolicyRecoveryLimits;
