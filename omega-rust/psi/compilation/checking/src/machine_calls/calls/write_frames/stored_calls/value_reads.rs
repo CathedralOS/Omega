@@ -105,26 +105,41 @@ impl CompletedValueReads {
         &self,
         program: &dyn crate::CheckingInput,
     ) -> Result<Vec<frames::LocalWriteSource>, &'static str> {
-        let (boundary, sources) = self
-            .sources_at_boundary(program, &[])
-            .ok_or("completed reference has no complete descriptor suppliers")?;
-        if boundary != 0 || sources.is_empty() {
-            return Err("completed reference has no initial descriptor boundary");
+        crate::reference_shell(program, self.reference)
+            .ok_or("interpretation query has no reference descriptor type")?;
+        let mut sources = Vec::new();
+        for leaf in &self.returned.references {
+            if !leaf.local_segments.is_empty() {
+                continue;
+            }
+            if !matches!(leaf.kind, stored_origins::StoredOriginKind::Reference(_)) {
+                return Err("completed descriptor has a non-reference interpretation leaf");
+            }
+            // Selection and lifetime debts cannot authorize a storage read.
+            // Interpretation tracking instead retains every possible issuer;
+            // the ordinary loan and access owners still check those debts.
+            let origin = match leaf
+                .origin
+                .as_ref()
+                .ok_or("completed reference has an unavailable interpretation issuer")?
+            {
+                ReferenceSource::Captured(observed) => observed.source.origin.clone(),
+                ReferenceSource::Symbolic(origin) => origin.clone(),
+            };
+            let source: frames::LocalWriteSource = origin.into();
+            if !source.root.is_valid()
+                && source.invocation_output.is_none()
+                && !source.is_image_storage
+                && source.recasts.is_empty()
+            {
+                return Err("completed reference retains an unknown interpretation supplier");
+            }
+            sources.push(source);
         }
-        sources
-            .into_iter()
-            .map(|source| {
-                let source: frames::LocalWriteSource = source.origin.into();
-                if !source.root.is_valid()
-                    && source.invocation_output.is_none()
-                    && !source.is_image_storage
-                    && source.recasts.is_empty()
-                {
-                    return Err("completed reference retains an unknown interpretation supplier");
-                }
-                Ok(source)
-            })
-            .collect()
+        if sources.is_empty() {
+            return Err("completed reference has no interpretation leaves");
+        }
+        Ok(sources)
     }
 
     pub(in crate::machine_calls::calls::write_frames) fn read_backing(
