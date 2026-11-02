@@ -99,8 +99,8 @@ with native and Terminal exit 0, but rejects the second example at the final
 string-length call. Both missing-contract twins and both mutation controls
 reject for the missing terminator guarantee. The compiler was treating a
 read-only call with a constant generic argument as having unknown writes.
-The repaired optimized producer `4cbcecdf2332841c7e1f3a579fc74deca1c54d71`
-(SHA-256 `0a9b7490f6164e95b57779ec1d2c1a8ac72f8c77ef2a5bfe98d4f75e02ad9034`)
+The repaired optimized producer `6271352bf00defae77ffcf708f5f11e55f7daf7a`
+(SHA-256 `a6771cee35b9a45ad3b666a8366ed29136dfaf193b996fa5a1f8d1497626bc3c`)
 runs the matching corpus fixtures for both probes with native and Terminal
 exit 0 on macOS arm64. All four
 controls reject for the missing terminator guarantee. An existing generic
