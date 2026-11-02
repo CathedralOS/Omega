@@ -102,3 +102,10 @@ Existing guard-effects, literal restoration, named coverage, zero, invalid-case
 and stale-type controls remain under [controls/](controls/). The parent retains
 other predicate productions, source/product migration, other-host execution and
 suffix retirement. GUI qualification stays pending.
+
+After resolving the stage-numbering conflict in integration checkpoint
+`a7b775a623459ea459c1484310aee38803a06f2f`, the focused 30-fixture check and
+11-fixture native/Terminal leg pass again with the freshly built optimized
+corpus producer SHA-256
+`80b323f981456412a7deb46e7c211fff73060ec3761beb8136826e080891b2e1`.
+The earlier CLI observations retain their original producer identities.
