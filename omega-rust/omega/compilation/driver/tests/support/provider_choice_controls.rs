@@ -11,8 +11,7 @@ use provider_planning::target_machines::{
 use terminal_codec::CanonicalTerminalArtifact;
 use terminal_psi_to_abstract_operations::RetainedTerminalArtifact;
 
-#[path = "callback_body_controls.rs"]
-mod callback_body_controls;
+use super::callback_body_controls;
 #[path = "provider_instance_controls.rs"]
 mod provider_instance_controls;
 

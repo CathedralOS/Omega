@@ -3,6 +3,21 @@
 
 use effects::provider_plan::ProviderBinding;
 
+pub(super) fn produce(
+    checked: compiler::CheckedCompilation,
+    root: &std::path::Path,
+) -> Result<(), String> {
+    let expected = prepare(&checked, root)?;
+    // Use the same shared publication target callback planning consumed. Do not
+    // start another source producer or replay unrelated whole-provider choice.
+    let artifact = std::sync::Arc::clone(&checked.providers().calling_program.artifact);
+    drop(checked);
+    let decoded = terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes())
+        .map_err(|error| format!("callback body header transport: {error:?}"))?;
+    expected.inspect(artifact.semantic_module())?;
+    expected.inspect(decoded.semantic_module())
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 struct Header {
     callable: Option<String>,
