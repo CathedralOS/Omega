@@ -124,16 +124,28 @@ impl<'a> FloatObservations<'a> {
                     let recorded = places.and_then(|places| {
                         let mut possibilities = Vec::new();
                         for place in places {
-                            let spelling = crate::values::ieee_equal_spelling_at_place(
+                            let observed = match crate::values::ieee_equal_spelling_at_place(
                                 self.program,
                                 self.semantic,
                                 contexts
                                     .iter()
                                     .map(|handle| self.semantic.contexts.get(*handle)),
                                 &place.projected,
-                            )?;
-                            let observed = numerics::literals::FloatLiteral::parse(&spelling)?;
-                            let observed = FloatMeaning::from_f64(observed.landed_f64());
+                            ) {
+                                Some(spelling) => FloatMeaning::from_f64(
+                                    numerics::literals::FloatLiteral::parse(&spelling)?
+                                        .landed_f64(),
+                                ),
+                                // A live view into integer storage reports
+                                // that storage, not its recast: the float it
+                                // observes is the stored integer's bits.
+                                None => self.viewed_integer_bits(
+                                    capture.row(),
+                                    reference,
+                                    &place.projected,
+                                    &contexts,
+                                )?,
+                            };
                             if observed.is_zero() {
                                 extend_values(
                                     &mut possibilities,
@@ -348,15 +360,9 @@ impl<'a> FloatObservations<'a> {
         cast: &typed_trees::expression::TableCastExpression,
         contexts: &[FactContextHandle],
     ) -> Option<FloatMeaning> {
-        let peeled = self
+        let target = self
             .program
-            .type_reference_table
-            .peeled_type_reference(cast.target_type);
-        let carrier = match self.program.type_reference_table.type_reference(peeled) {
-            TypeReferenceNode::Reference { referee, .. } => *referee,
-            _ => peeled,
-        };
-        let target = self.program.primitive_type_reference(carrier)?;
+            .primitive_type_reference(observed_carrier(self.program, cast.target_type))?;
         if !target.accepts_float_literal() {
             return None;
         }
@@ -381,11 +387,6 @@ impl<'a> FloatObservations<'a> {
                     body,
                     source,
                 )?)?;
-        if !source_type.is_fixed_integer()
-            || source_type.scalar_byte_size() != target.scalar_byte_size()
-        {
-            return None;
-        }
         let place = place_at(
             self.program,
             operand.state_symbol,
@@ -398,13 +399,54 @@ impl<'a> FloatObservations<'a> {
         if !crate::flow::operand_entry_origin_is_stable(self.program, self.flow, epoch, &place) {
             return None;
         }
+        self.integer_bits(source_type, target, &place, contexts)
+    }
+
+    /// A captured view's place is its backing storage. When that storage is
+    /// an equal-width fixed integer while the observation is a float, only a
+    /// representation view can connect them, so the observation is the
+    /// stored integer's bits. The place is the flow's own snapshot, read under
+    /// the same contexts as a recorded IEEE equality would be.
+    fn viewed_integer_bits(
+        &self,
+        operand: &FlowOperandFact,
+        reference: TypeReferenceHandle,
+        place: &validation::CanonicalPlace,
+        contexts: &[FactContextHandle],
+    ) -> Option<FloatMeaning> {
+        let target = self
+            .program
+            .primitive_type_reference(observed_carrier(self.program, reference))?;
+        let storage = validation::canonical_place_type_reference(
+            self.program,
+            operand.state_symbol,
+            operand.statement_index,
+            place,
+        )?;
+        let source_type = self.program.primitive_type_reference(storage)?;
+        self.integer_bits(source_type, target, place, contexts)
+    }
+
+    fn integer_bits(
+        &self,
+        source_type: PrimitiveType,
+        target: PrimitiveType,
+        place: &validation::CanonicalPlace,
+        contexts: &[FactContextHandle],
+    ) -> Option<FloatMeaning> {
+        if !target.accepts_float_literal()
+            || !source_type.is_fixed_integer()
+            || source_type.scalar_byte_size() != target.scalar_byte_size()
+        {
+            return None;
+        }
         let facts::ScalarValue::Integer(integer) = crate::values::scalar_value_at_place(
             self.program,
             self.semantic,
             contexts
                 .iter()
                 .map(|handle| self.semantic.contexts.get(*handle)),
-            &place,
+            place,
         )?
         else {
             return None;
@@ -420,6 +462,20 @@ impl<'a> FloatObservations<'a> {
             PrimitiveType::F64 => FloatMeaning::from_f64(f64::from_bits(bits as u64)),
             _ => return None,
         })
+    }
+}
+
+/// The scalar a value or a shared view of it observes.
+fn observed_carrier(
+    program: &dyn validation::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> TypeReferenceHandle {
+    let peeled = program
+        .type_reference_table
+        .peeled_type_reference(reference);
+    match program.type_reference_table.type_reference(peeled) {
+        TypeReferenceNode::Reference { referee, .. } => *referee,
+        _ => peeled,
     }
 }
 
