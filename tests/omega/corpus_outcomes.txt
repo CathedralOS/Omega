@@ -1695,6 +1695,33 @@ fail/facts/representation_conversion_through_target_body_wrong_endpoint_rejected
 	generic machine `compose` cannot bind `First` to conformance `ReadSecond`: expected a complete `TryFrom` implementation with the instantiated trait arguments
 	generic machine `inspect` cannot bind `Reader` to conformance `ReadSecond`: expected a complete `TryFrom` implementation with the instantiated trait arguments
 	generic machine `decoded` cannot bind `Reader` to conformance `ReadSecond`: expected a complete `TryFrom` implementation with the instantiated trait arguments
+fail/facts/resident_backing_call_result_missing_vacancy rejected 11245ms expected @9f1ea2b3a8e1
+	cannot prove requires contract for call partition from allocated: vacant in Extent::Vacant in state `entry`
+	cannot prove initializer of `vacant` in allocated is in domain `Extent::Vacant`; an annotation cannot establish routed qualification
+fail/facts/resident_backing_const_name_missing_vacancy rejected 10644ms expected @9f1ea2b3a8e1
+	cannot prove requires contract for call partition from allocated: vacant in Extent::Vacant in state `entry`
+	cannot prove initializer of `vacant` in allocated is in domain `Extent::Vacant`; an annotation cannot establish routed qualification
+fail/facts/resident_backing_field_missing_vacancy rejected 11916ms expected @9f1ea2b3a8e1
+	cannot prove requires contract for call partition from allocated: vacant in Extent::Vacant in state `entry`
+	cannot prove initializer of `vacant` in allocated is in domain `Extent::Vacant`; an annotation cannot establish routed qualification
+fail/facts/resident_backing_local_missing_vacancy rejected 13864ms expected @9f1ea2b3a8e1
+	cannot prove requires contract for call partition from allocated: vacant in Extent::Vacant in state `entry`
+	cannot prove initializer of `vacant` in allocated is in domain `Extent::Vacant`; an annotation cannot establish routed qualification
+fail/facts/resident_backing_match_join_missing_vacancy rejected 8021ms expected @9f1ea2b3a8e1
+	cannot prove requires contract for call partition from allocated: vacant in Extent::Vacant in state `entry`
+	cannot prove initializer of `vacant` in allocated is in domain `Extent::Vacant`; an annotation cannot establish routed qualification
+fail/facts/resident_backing_other_machine_missing_vacancy rejected 7083ms expected @9f1ea2b3a8e1
+	cannot prove requires contract for call partition from allocated: vacant in Extent::Vacant in state `entry`
+	cannot prove initializer of `vacant` in allocated is in domain `Extent::Vacant`; an annotation cannot establish routed qualification
+fail/facts/resident_backing_other_state_missing_vacancy rejected 8872ms expected @9f1ea2b3a8e1
+	cannot prove requires contract for call partition from allocated: vacant in Extent::Vacant in state `entry`
+	cannot prove initializer of `vacant` in allocated is in domain `Extent::Vacant`; an annotation cannot establish routed qualification
+fail/facts/resident_backing_parameter_missing_vacancy rejected 8910ms expected @9f1ea2b3a8e1
+	cannot prove requires contract for call partition from allocated: vacant in Extent::Vacant in state `entry`
+	cannot prove initializer of `vacant` in allocated is in domain `Extent::Vacant`; an annotation cannot establish routed qualification
+fail/facts/resident_backing_target_body_missing_vacancy rejected 6436ms expected @9f1ea2b3a8e1
+	cannot prove requires contract for call partition from allocated: vacant in Extent::Vacant in state `entry`
+	cannot prove initializer of `vacant` in allocated is in domain `Extent::Vacant`; an annotation cannot establish routed qualification
 fail/facts/saved_observation_snapshot_indexed_handback_call_result_rejected rejected 5494ms expected @755b31d334ff
 	cannot prove ensures contract for exit from preserve at statement 2: holder.items[kept_index] == 7 && holder.items[changed] == value
 fail/facts/saved_observation_snapshot_indexed_handback_const_name_rejected rejected 5593ms expected @755b31d334ff
@@ -8707,6 +8734,16 @@ pass/facts/representation_conversion_through_other_machine_exit checked 7444ms c
 pass/facts/representation_conversion_through_other_state_exit checked 7782ms check-target:macos_arm64 @1763580d3498
 pass/facts/representation_conversion_through_parameter_exit checked 10497ms check-target:macos_arm64 @dde0f3a03bcd
 pass/facts/representation_conversion_through_target_body_exit checked 7815ms check-target:macos_arm64 @1763580d3498
+pass/facts/resident_backing_call_result_exit checked 21964ms check-target:macos_arm64 @9f1ea2b3a8e1
+pass/facts/resident_backing_coexisting_exit checked 21851ms check-target:macos_arm64 @9f1ea2b3a8e1
+pass/facts/resident_backing_const_name_exit checked 17803ms check-target:macos_arm64 @9f1ea2b3a8e1
+pass/facts/resident_backing_field_exit checked 17840ms check-target:macos_arm64 @9f1ea2b3a8e1
+pass/facts/resident_backing_local_exit checked 12744ms check-target:macos_arm64 @9f1ea2b3a8e1
+pass/facts/resident_backing_match_join_exit checked 12742ms check-target:macos_arm64 @9f1ea2b3a8e1
+pass/facts/resident_backing_other_machine_exit checked 9819ms check-target:macos_arm64 @9f1ea2b3a8e1
+pass/facts/resident_backing_other_state_exit checked 9629ms check-target:macos_arm64 @9f1ea2b3a8e1
+pass/facts/resident_backing_parameter_exit checked 16755ms check-target:macos_arm64 @9f1ea2b3a8e1
+pass/facts/resident_backing_target_body_exit checked 17143ms check-target:macos_arm64 @9f1ea2b3a8e1
 pass/facts/result_cleanup_guarantees_through_call_result_exit checked 4216ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/result_cleanup_guarantees_through_const_name_exit checked 3199ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/result_cleanup_guarantees_through_field_exit checked 3393ms check-target:macos_arm64 @ccdb99ca2214
