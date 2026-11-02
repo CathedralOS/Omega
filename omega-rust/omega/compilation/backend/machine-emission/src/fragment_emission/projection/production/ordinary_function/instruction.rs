@@ -78,9 +78,9 @@ pub(super) fn emit(
                 },
             ))
         }),
-        internal_machine_fixup,
-        normalized_foreign_call_fixup,
-        image_address_fixup,
+        internal_machine_fixup: internal_machine_fixup.map(Box::new),
+        normalized_foreign_call_fixup: normalized_foreign_call_fixup.map(Box::new),
+        image_address_fixup: image_address_fixup.map(Box::new),
         provenance: instruction.provenance.clone(),
         control,
     })
@@ -97,7 +97,7 @@ fn translate_byte_literal_fixup(
         SelectedInstructionKind::ImageAddress { reference } => Some(reference),
         _ => None,
     };
-    match (row.image_address_fixup, reference) {
+    match (row.image_address_fixup(), reference) {
         (None, None) => Ok(None),
         (Some(fixup), Some(reference)) if fixup.reference == reference && row.branch.is_none() => {
             Ok(Some(machine_code::FunctionFragmentImageAddressFixup {
@@ -116,7 +116,7 @@ fn translate_fixup(
     row: &ResolvedSelectedFormRow,
     instruction: &SelectedInstruction,
 ) -> Result<Option<FunctionFragmentInternalMachineFixup>, ResolvedFragmentEmissionError> {
-    let Some(fixup) = row.internal_machine_fixup else {
+    let Some(fixup) = row.internal_machine_fixup() else {
         if instruction.kind.machine_callee().is_some() {
             return Err(ResolvedFragmentEmissionError::RootMismatch);
         }
@@ -309,7 +309,7 @@ mod tests {
             offset: 37,
             bytes,
             branch: None,
-            internal_machine_fixup: Some(fixup),
+            internal_machine_fixup: Some(Box::new(fixup)),
             normalized_foreign_call_fixup: None,
             image_address_fixup: None,
         }

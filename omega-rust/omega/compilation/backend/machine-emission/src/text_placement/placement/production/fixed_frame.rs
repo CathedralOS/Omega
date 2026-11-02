@@ -70,7 +70,7 @@ pub(in crate::text_placement::placement) fn place(
         let mut function_bytes = function.bytes.clone();
         for block in &function.blocks {
             for instruction in &block.instructions {
-                if let Some(fixup) = instruction.internal_machine_fixup {
+                if let Some(fixup) = instruction.internal_machine_fixup() {
                     let FunctionFragmentControlProvenance::InternalCall {
                         target: selected_instructions::SelectedCallTarget::Machine(callee),
                         owner,
@@ -122,7 +122,7 @@ pub(in crate::text_placement::placement) fn place(
                         &mut function_bytes,
                     )?);
                 }
-                if let Some(fixup) = instruction.normalized_foreign_call_fixup.clone() {
+                if let Some(fixup) = instruction.normalized_foreign_call_fixup().cloned() {
                     let FunctionFragmentControlProvenance::NormalizedForeignCall {
                         invocation_site,
                         boundary,
@@ -152,7 +152,7 @@ pub(in crate::text_placement::placement) fn place(
                         &function_bytes,
                     )?);
                 }
-                if let Some(fixup) = instruction.image_address_fixup {
+                if let Some(fixup) = instruction.image_address_fixup() {
                     unresolved_addresses.push(place_image_address(
                         function.machine,
                         block.block,

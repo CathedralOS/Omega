@@ -1200,7 +1200,7 @@ pub(super) fn recognize_structural_state_leaves<'a>(
     recognize_structural_state_leaves_from(
         program,
         machine,
-        judge,
+        judge.clone(),
         classification,
         diagnostics,
         states,
@@ -1221,19 +1221,28 @@ pub(super) fn recognize_structural_state_leaves<'a>(
     )
 }
 
+enum StateLeafStep<'program> {
+    Complete(Vec<StructuralCaseArm<'program>>),
+    Continue {
+        outcomes: Vec<(Option<StructuralTerm>, StructuralJudge<'program>)>,
+        local_binding: Option<usize>,
+        next_statement: usize,
+    },
+}
+
 #[allow(clippy::too_many_arguments)]
 fn recognize_structural_state_leaves_from<'a>(
     program: &'a dyn crate::CheckingInput,
     machine: &Machine,
-    judge: &StructuralJudge<'a>,
+    judge: StructuralJudge<'a>,
     classification: &typed_trees::proof_only::ProofOnlyClassification,
     diagnostics: &mut Vec<Diagnostic>,
     states: &[typed_trees::state::State],
     state: &typed_trees::state::State,
     parameter_names: &[String],
-    environment: Vec<(String, StructuralTerm)>,
-    case_hypotheses: Vec<(String, StructuralTerm)>,
-    case_equations: Vec<(StructuralTerm, StructuralTerm)>,
+    mut environment: Vec<(String, StructuralTerm)>,
+    mut case_hypotheses: Vec<(String, StructuralTerm)>,
+    mut case_equations: Vec<(StructuralTerm, StructuralTerm)>,
     mut pending_citations: Vec<PendingStructuralCitation>,
     collect_citations: bool,
     path: &mut Vec<SymbolHandle>,
@@ -1258,13 +1267,16 @@ fn recognize_structural_state_leaves_from<'a>(
     // Ancestry above is the actual recursion boundary. Optional work reuse
     // remains cyclic-only, and requires the complete proof/observation cut:
     // identical forwarded values under different guards are different inputs.
-    let dedup_applies = state_lies_on_prefix_cycle(program, invocation, state);
+    // Only genuine arrivals are eligible. A statement continuation advances
+    // through finite execution order and traverses its unchanged body; omitting
+    // optional reuse does not cover or suppress any incoming path.
+    let dedup_applies = start_index == 0 && state_lies_on_prefix_cycle(program, invocation, state);
     let arrival = dedup_applies.then(|| StructuralArrival {
         state: state.symbol,
         start_index,
         collect_citations,
         parent: arrival_parent,
-        judge: judge.clone(),
+        inputs: judge.traversal_inputs(),
         parameter_names: parameter_names.to_vec(),
         environment: environment.clone(),
         hypotheses: case_hypotheses.clone(),
@@ -1291,13 +1303,16 @@ fn recognize_structural_state_leaves_from<'a>(
     // A state arrival still establishes its incoming refinements, and the
     // requested premise visitor checks contradiction in its final context.
     let mut path_judge = if start_index == 0 {
-        structural_arm_judge(program, judge, &case_hypotheses, &case_equations)
+        let refined = structural_arm_judge(program, &judge, &case_hypotheses, &case_equations);
+        drop(judge);
+        refined
     } else {
-        judge.clone()
+        judge
     };
     let judge = &mut path_judge;
 
-    let result = (|| {
+    let runtime_body_values = judge.has_runtime_body_values();
+    let step = (|| {
         // Assembly headers and labels carry control metadata; their ordinary
         // lowered instructions own the effects. Follow the shared finite
         // execution order, not lexical windows that may be skipped or reordered.
@@ -1395,7 +1410,7 @@ fn recognize_structural_state_leaves_from<'a>(
                     .iter()
                     .any(|visitor| member_live_in_statements(visitor, execution_position, path))
             {
-                return Some(Vec::new());
+                return Some(StateLeafStep::Complete(Vec::new()));
             }
             if !matches!(statement, StatementNode::Transition(_)) && !visitors.is_empty() {
                 // This observes callee entry before the statement completes or
@@ -1438,32 +1453,11 @@ fn recognize_structural_state_leaves_from<'a>(
                     .get(execution_position + 1)
                     .copied()
                     .unwrap_or(statements.len());
-                let mut leaves = Vec::new();
-                for completed in outcomes {
-                    leaves.extend(recognize_structural_state_leaves_from(
-                        program,
-                        machine,
-                        &completed,
-                        classification,
-                        diagnostics,
-                        states,
-                        state,
-                        parameter_names,
-                        environment.clone(),
-                        case_hypotheses.clone(),
-                        case_equations.clone(),
-                        pending_citations.clone(),
-                        collect_citations,
-                        path,
-                        arrivals,
-                        frame_id,
-                        fresh,
-                        &mut *visitors,
-                        established_guarantees.clone(),
-                        next_statement,
-                    )?);
-                }
-                return Some(leaves);
+                return Some(StateLeafStep::Continue {
+                    outcomes: outcomes.into_iter().map(|judge| (None, judge)).collect(),
+                    local_binding: None,
+                    next_statement,
+                });
             }
             // Statement calls and their operands own separate write frames.
             // Retire affected storage without discarding unrelated captures.
@@ -1636,59 +1630,11 @@ fn recognize_structural_state_leaves_from<'a>(
                             outcomes = vec![(Some(captured), rejoined)];
                         }
                     }
-                    let mut leaves = Vec::new();
-                    for (value, mut outcome_judge) in outcomes {
-                        let mut pending_citations = pending_citations.clone();
-                        if collect_citations
-                            && !judge.has_runtime_body_values()
-                            && let Some((target, argument_handles)) =
-                                citation_call_in_statement(program, invocation.symbol, statement)
-                        {
-                            stage_citation_argument_terms(
-                                program,
-                                &outcome_judge,
-                                invocation,
-                                state,
-                                &environment,
-                                &target,
-                                &argument_handles,
-                                &mut pending_citations,
-                            )?;
-                        }
-                        let mut environment = environment.clone();
-                        environment.retain(|(name, _)| name != local.name.as_str());
-                        if let Some(value) = value {
-                            outcome_judge.observe_completed_binding(
-                                local.symbol,
-                                local.type_reference,
-                                value.clone(),
-                            );
-                            environment.push((local.name.as_str().to_owned(), value));
-                        }
-                        leaves.extend(recognize_structural_state_leaves_from(
-                            program,
-                            machine,
-                            &outcome_judge,
-                            classification,
-                            diagnostics,
-                            states,
-                            state,
-                            parameter_names,
-                            environment,
-                            case_hypotheses.clone(),
-                            case_equations.clone(),
-                            pending_citations,
-                            collect_citations,
-                            path,
-                            arrivals,
-                            frame_id,
-                            fresh,
-                            &mut *visitors,
-                            established_guarantees.clone(),
-                            next_statement,
-                        )?);
-                    }
-                    return Some(leaves);
+                    return Some(StateLeafStep::Continue {
+                        outcomes,
+                        local_binding: Some(statement_index),
+                        next_statement,
+                    });
                 }
                 StatementNode::Assignment(_)
                     if !saw_transition && judge.has_runtime_body_values() =>
@@ -1700,32 +1646,14 @@ fn recognize_structural_state_leaves_from<'a>(
                             (invocation, state, state.return_type),
                         )
                     })?;
-                    let mut leaves = Vec::new();
-                    for outcome in outcomes {
-                        leaves.extend(recognize_structural_state_leaves_from(
-                            program,
-                            machine,
-                            &outcome.judge,
-                            classification,
-                            diagnostics,
-                            states,
-                            state,
-                            parameter_names,
-                            environment.clone(),
-                            case_hypotheses.clone(),
-                            case_equations.clone(),
-                            pending_citations.clone(),
-                            collect_citations,
-                            path,
-                            arrivals,
-                            frame_id,
-                            fresh,
-                            &mut *visitors,
-                            established_guarantees.clone(),
-                            next_statement,
-                        )?);
-                    }
-                    return Some(leaves);
+                    return Some(StateLeafStep::Continue {
+                        outcomes: outcomes
+                            .into_iter()
+                            .map(|outcome| (None, outcome.judge))
+                            .collect(),
+                        local_binding: None,
+                        next_statement,
+                    });
                 }
                 StatementNode::Expression(expression) if !saw_transition => {
                     // A terminal expression and an authored terminal arm have
@@ -1766,32 +1694,11 @@ fn recognize_structural_state_leaves_from<'a>(
                         let rejoined = judge.rejoin_pure_outcomes(&judge_refs, Some(*expression));
                         outcomes = vec![rejoined];
                     }
-                    let mut leaves = Vec::new();
-                    for completed in outcomes {
-                        leaves.extend(recognize_structural_state_leaves_from(
-                            program,
-                            machine,
-                            &completed,
-                            classification,
-                            diagnostics,
-                            states,
-                            state,
-                            parameter_names,
-                            environment.clone(),
-                            case_hypotheses.clone(),
-                            case_equations.clone(),
-                            pending_citations.clone(),
-                            collect_citations,
-                            path,
-                            arrivals,
-                            frame_id,
-                            fresh,
-                            &mut *visitors,
-                            established_guarantees.clone(),
-                            next_statement,
-                        )?);
-                    }
-                    return Some(leaves);
+                    return Some(StateLeafStep::Continue {
+                        outcomes: outcomes.into_iter().map(|judge| (None, judge)).collect(),
+                        local_binding: None,
+                        next_statement,
+                    });
                 }
                 StatementNode::Call(call) if !saw_transition => {
                     if judge.requires_value_preservation() {
@@ -1887,14 +1794,14 @@ fn recognize_structural_state_leaves_from<'a>(
                 }
             }
             if !visitors.is_empty() {
-                return Some(Vec::new());
+                return Some(StateLeafStep::Complete(Vec::new()));
             }
             let completions = judge.terminal_completion_paths(
                 &TransitionTargetNode::Terminal,
                 &environment,
                 (invocation, state, state.return_type),
             )?;
-            return Some(
+            return Some(StateLeafStep::Complete(
                 completions
                     .into_iter()
                     .map(|outcome| {
@@ -1912,7 +1819,7 @@ fn recognize_structural_state_leaves_from<'a>(
                         )
                     })
                     .collect(),
-            );
+            ));
         }
         // Arms test their guards in order. A later arm observes each earlier
         // Boolean guard as false, while the chosen arm alone receives its
@@ -2136,7 +2043,7 @@ fn recognize_structural_state_leaves_from<'a>(
                     member_live_in_transitions(visitor, transition_position, true, path)
                 })
             {
-                return Some(Vec::new());
+                return Some(StateLeafStep::Complete(Vec::new()));
             }
             remaining_paths = next_remaining;
             for (captured, branch_environment, branch_hypotheses, branch_equations) in
@@ -2362,11 +2269,117 @@ fn recognize_structural_state_leaves_from<'a>(
                 // All normal guard outcomes at the requested occurrence were
                 // visited above. Later arms cannot establish or invalidate it;
                 // in particular, do not unroll their recurrent successors.
-                return Some(leaves);
+                return Some(StateLeafStep::Complete(leaves));
             }
         }
-        Some(leaves)
+        Some(StateLeafStep::Complete(leaves))
     })();
+
+    // The completed statement owns the successor context. Release its
+    // predecessor before evaluating later statements, so optional history and
+    // suspended statement frames cannot pin every COW storage/result epoch.
+    drop(path_judge);
+    let result = match step {
+        None => None,
+        Some(StateLeafStep::Complete(leaves)) => Some(leaves),
+        Some(StateLeafStep::Continue {
+            outcomes,
+            local_binding,
+            next_statement,
+        }) => (|| {
+            let mut leaves = Vec::new();
+            let mut outcomes = outcomes.into_iter().peekable();
+            while let Some((value, mut completed)) = outcomes.next() {
+                // Only pending siblings need a copy. The last successor takes
+                // the context, leaving no predecessor value roster suspended
+                // across its entire remaining statement sequence.
+                let last = outcomes.peek().is_none();
+                let mut next_environment = if last {
+                    std::mem::take(&mut environment)
+                } else {
+                    environment.clone()
+                };
+                let mut next_citations = if last {
+                    std::mem::take(&mut pending_citations)
+                } else {
+                    pending_citations.clone()
+                };
+                if let Some(index) = local_binding {
+                    let StatementNode::LocalData(local) =
+                        &program.statement_table.statements(state.statement_nodes)[index]
+                    else {
+                        return None;
+                    };
+                    if collect_citations
+                        && !runtime_body_values
+                        && let Some((target, handles)) = citation_call_in_statement(
+                            program,
+                            invocation.symbol,
+                            &program.statement_table.statements(state.statement_nodes)[index],
+                        )
+                    {
+                        stage_citation_argument_terms(
+                            program,
+                            &completed,
+                            invocation,
+                            state,
+                            &next_environment,
+                            &target,
+                            &handles,
+                            &mut next_citations,
+                        )?;
+                    }
+                    next_environment.retain(|(name, _)| name != local.name.as_str());
+                    if let Some(value) = value {
+                        completed.observe_completed_binding(
+                            local.symbol,
+                            local.type_reference,
+                            value.clone(),
+                        );
+                        next_environment.push((local.name.as_str().to_owned(), value));
+                    }
+                }
+                let next_hypotheses = if last {
+                    std::mem::take(&mut case_hypotheses)
+                } else {
+                    case_hypotheses.clone()
+                };
+                let next_equations = if last {
+                    std::mem::take(&mut case_equations)
+                } else {
+                    case_equations.clone()
+                };
+                let next_guarantees = if last {
+                    std::mem::take(&mut established_guarantees)
+                } else {
+                    established_guarantees.clone()
+                };
+                leaves.extend(recognize_structural_state_leaves_from(
+                    program,
+                    machine,
+                    completed,
+                    classification,
+                    diagnostics,
+                    states,
+                    state,
+                    parameter_names,
+                    next_environment,
+                    next_hypotheses,
+                    next_equations,
+                    next_citations,
+                    collect_citations,
+                    path,
+                    arrivals,
+                    frame_id,
+                    fresh,
+                    &mut *visitors,
+                    next_guarantees,
+                    next_statement,
+                )?);
+            }
+            Some(leaves)
+        })(),
+    };
 
     if result.is_none() && super::struct_trace() && !visitors.is_empty() {
         eprintln!(
@@ -2421,12 +2434,10 @@ pub(super) fn prefix_site_is_reachable(
 }
 
 /// True when `state` lies on a cycle of the prefix reachability graph: some
-/// one-hop destination of it can reach it again. Arrival deduplication is a
-/// cycle-bound mechanism -- a cyclic machine's pump regenerates the same
-/// provable arrival, while an acyclic state's repeat entries are convergent
-/// alternatives whose different judges legitimately produce different leaves.
-/// Indeterminate destinations answer cyclic: dedup is the termination
-/// mechanism, never a source of leaves.
+/// one-hop destination of it can reach it again. This selects optional reuse
+/// of completed entries; ancestry remains the traversal's recursion boundary.
+/// Indeterminate destinations conservatively enable the same exact-input
+/// memoization without claiming that their call graph is known to be cyclic.
 fn state_lies_on_prefix_cycle(
     program: &dyn crate::CheckingInput,
     owner: &Machine,
