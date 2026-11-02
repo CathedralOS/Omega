@@ -9,7 +9,7 @@ data Main {
 machine mark_coordinate(value: i32 in Wrapping, route: &mut u64, tag: u64) -> i32 in Wrapping
 ensures result == value
 {
-    *route = tag;
+    route = tag;
     value
 }
 
