@@ -49,26 +49,35 @@ the time goes and remove the cause rather than waiting on it or working around i
 
 ## Explain the change
 
+Write for a programmer who has not read the diff or worked on this subsystem.
 Use an inverted pyramid in PR descriptions, commit bodies, progress/final
-reports, task notes, explanatory documentation and comments. Start with one or
-two sentences that let someone unfamiliar with the subsystem picture the problem and the
-result. Name what the program or developer needs to do, what went wrong, and
-what changes. For an internal repair, explain its effect on a program or the
-development workflow before describing the compiler's bookkeeping.
+reports, explanatory documentation and comments. The first one or two sentences
+explain the concrete problem and what changes, in ordinary language. A reader
+who stops there should understand why the change matters.
 
-For example, a repair involving references and suspension could open with:
-"A program should be able to keep reading the same data after a function call
-that may pause. This fixes cases where the compiler wrongly rejected that safe
-use." Explain which cases next. A test value such as 73 illustrates the behavior
-after the reader understands what keeping that value demonstrates.
+Next, explain a small before/after example in words. Use code when it helps the
+reader see that behavior; unfamiliar syntax also needs an introduction. Explain
+why the change produces the result, then add implementation detail as the reader
+gains the context to follow it.
+A plain opening followed by a wall of internal terms still fails this reading
+order. Each paragraph should answer a question raised by the preceding one,
+rather than assume the reader already knows the implementation.
 
-Build each explanation on what the reader already knows. Show the previous and
-resulting behavior, then explain the mechanism. Introduce a technical term with
-its meaning when it becomes useful, and use the canonical term consistently
-afterward. Words such as "lineage", "carrier" and "retirement" need that context;
-replacing them with an unexplained phrase such as "permission information"
-still leaves the reader guessing. In source comments, establish the local
-purpose before explaining the invariant or implementation detail.
+For example, "Preserve post-call facts through returned scalar views" names a
+mechanism. "Keep value information after calls" is simpler but still explains
+little. Instead: "A caller can rely on a function's promise about the number it
+writes when doing later calculations. This fixes cases where the compiler
+forgot that promise and rejected safe subtraction." The next paragraph can show
+why a promise to write 9 makes subtracting 9 safe, while an earlier copy keeps
+its old value. Explain saved references and collection slots afterward. Test
+values illustrate the purpose; they do not supply it.
+
+Introduce a technical term with its meaning when it becomes useful, then use the
+canonical term consistently. Replacing "lineage" with "permission information"
+does not explain which data may be used or why. For an internal repair, state
+the real effect on a program or development workflow; do not invent a user
+benefit. Source comments start with the local purpose or failure they prevent,
+then explain the invariant. Match their detail to the surrounding code.
 
 Put validation and detailed provenance after the explanation, linking existing
 evidence or using a details section for long records. Keep any limitation that
@@ -76,12 +85,12 @@ materially qualifies the result beside that result. Preserve exact evidence
 identities, failures and unverified cases. A small change may need only one
 paragraph; this is a reading order, not a form to fill with headings.
 
-Before publishing, read only the opening. Can a reader explain what the program
-or developer can do differently and why it matters, without asking for a
-definition or reading the diff? Rewrite until they can. Then check the whole
-explanation against the final diff and observed behavior. If the purpose is
-unclear, inspect the code and witness before making a claim. Rewrite when the
-scope changes rather than appending the session's history.
+Before publishing, read only the opening, then read through one paragraph at a
+time. Does each stopping point leave a useful, accurate understanding without
+requiring a definition from later in the text? Rewrite where it does not. Check
+the explanation against the final diff and observed behavior. If the purpose
+is unclear, inspect the code and witness before making a claim. Rewrite when
+the scope changes rather than appending the session's history.
 
 ## Law of completion
 
@@ -715,9 +724,9 @@ The rules that touch every edit:
   diagnostic, and debug payload roles.
 - Entrypoints stay prominent: `main.rs` owns startup and visible dispatch
   to real subsystems. Split at responsibility boundaries.
-- Comments explain non-obvious intent; `lib.rs` headers carry the reasoning
-  signatures cannot — mechanism, justification, honest boundaries,
-  provenance.
+- Comments explain non-obvious intent. A `lib.rs` header first says what the
+  module does for its caller, then explains the reasoning signatures cannot
+  carry. Follow [Explain the change](#explain-the-change).
 - Commit subjects are `lane: statement` — pick the lane by changed
   responsibility per [commit naming](#commit-naming) below.
 - `TASKS.md` supplies capability priorities and remaining acceptance; the
