@@ -5,12 +5,11 @@
 //! behind the closed normalized-plan validator.
 //!
 //! `boundary_signatures.rs` associates geometry with Source review coordinates.
-//! `plan_computation.rs` prepares authored admission and publishes default or
-//! authored plans from canonical storage. `selected_providers.rs` applies the
-//! canonical invocation-scoped provider choice and rejoins its exact checked
-//! bodies for Psi admission; it does not run another Source selection graph.
-//! `calling_program.rs` owns the
-//! exact source-entry association and finite invocation accounting;
+//! `plan_computation.rs` retains request/review correspondence and publishes
+//! plans from canonical storage. `selected_providers.rs` applies the one
+//! canonical invocation-scoped provider choice. `calling_program.rs` owns
+//! finite invocation accounting; terminal-installation admits each exact
+//! canonical declaration and selected call closure before evaluation.
 //! `terminal_execution.rs` runs the canonical code without source,
 //! `policy_signature.rs` encodes canonical ABI input and validates the result,
 //! `terminal_signature.rs` constructs that input from the canonical catalog;
@@ -42,7 +41,10 @@ pub use policy_signature::CallingPolicySignature;
 pub use selected_application::component_calling_applications;
 pub(crate) use selected_application::selected_source_calling_applications;
 pub use selected_providers::CallingPolicyProviderInputs;
-pub use terminal_execution::{TerminalCallingPolicyInvocation, evaluate_terminal_calling_policy};
+pub use terminal_execution::{
+    TerminalCallingPolicyAdmission, TerminalCallingPolicyInvocation, admit_terminal_calling_policy,
+    evaluate_terminal_calling_policy,
+};
 pub use terminal_signature::{CanonicalCallingSignature, CanonicalOpaqueUse};
 
 pub use boundary_signatures::{

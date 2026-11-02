@@ -89,6 +89,7 @@ impl<'a> TerminalProductionRequest<'a> {
                 &mut lowered.semantic_module,
                 &lowered.source_boundary_declarations,
                 &lowered.source_machine_declarations,
+                &lowered.source_proof_declarations,
             )
             .map_err(TerminalArtifactProductionError::BuildContext)?;
         }

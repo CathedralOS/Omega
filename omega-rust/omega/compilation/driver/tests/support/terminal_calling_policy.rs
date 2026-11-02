@@ -7,9 +7,21 @@ use evaluation_accounting::{
 };
 use provider_planning::calling_policy_plans::{
     CallingPolicySignature, CanonicalCallingSignature, TerminalCallingPolicyInvocation,
-    evaluate_terminal_calling_policy,
+    admit_terminal_calling_policy, evaluate_terminal_calling_policy,
 };
 use terminal_codec::CanonicalTerminalArtifact;
+
+fn policy_declaration(
+    artifact: &CanonicalTerminalArtifact,
+    entry: terminal_psi::TargetMachineCallable,
+) -> Result<terminal_psi::ProofDeclarationId, String> {
+    artifact
+        .semantic_module()
+        .scalar_applications
+        .proof_scope
+        .callable_declaration(entry)
+        .ok_or_else(|| "calling inspection entry lost its exact checked declaration".into())
+}
 
 pub(super) fn observe(
     artifact: &CanonicalTerminalArtifact,
@@ -242,13 +254,24 @@ pub(super) fn observe(
         let account = sponsor
             .begin_invocation(measurement, 1_000_000)
             .map_err(|error| error.to_string())?;
+        let admission = admit_terminal_calling_policy(
+            artifact,
+            policy_declaration(
+                artifact,
+                module.entry.ok_or("calling fixture has no policy entry")?,
+            )?,
+            target,
+            &[],
+            semantic_vocabulary::compiler_evaluation::DeclarationCustody::Missing,
+            None,
+        )?;
         let (plan, usage) = evaluate_terminal_calling_policy(TerminalCallingPolicyInvocation {
             artifact,
             entry: module.entry.ok_or("calling fixture has no policy entry")?,
             target,
             signature: &signature,
             account,
-            providers: &[],
+            admission,
         })?;
         let expected_locations = [0, 1].map(|index| ValueLocation::Register {
             register: MachineRegister::Aarch64X(index),
@@ -311,6 +334,20 @@ pub(super) fn observe(
         let account = sponsor
             .begin_invocation(measurement, 1_000_000)
             .map_err(|error| error.to_string())?;
+        let false_admission = admit_terminal_calling_policy(
+            &false_artifact,
+            policy_declaration(
+                &false_artifact,
+                false_artifact
+                    .semantic_module()
+                    .entry
+                    .ok_or("false calling fixture has no policy entry")?,
+            )?,
+            target,
+            &[],
+            semantic_vocabulary::compiler_evaluation::DeclarationCustody::Missing,
+            None,
+        )?;
         let error = evaluate_terminal_calling_policy(TerminalCallingPolicyInvocation {
             artifact: &false_artifact,
             entry: false_artifact
@@ -320,7 +357,7 @@ pub(super) fn observe(
             target,
             signature: &false_signature,
             account,
-            providers: &[],
+            admission: false_admission,
         })
         .err()
         .ok_or("calling policy accepted a false retained scalar predicate")?;
@@ -352,7 +389,17 @@ pub(super) fn observe(
             target,
             signature: &wrong_class,
             account,
-            providers: &[],
+            admission: admit_terminal_calling_policy(
+                artifact,
+                policy_declaration(
+                    artifact,
+                    module.entry.ok_or("calling fixture has no policy entry")?,
+                )?,
+                target,
+                &[],
+                semantic_vocabulary::compiler_evaluation::DeclarationCustody::Missing,
+                None,
+            )?,
         })
         .err()
         .ok_or("calling policy accepted an integer placement for a float input")?;
@@ -383,7 +430,17 @@ pub(super) fn observe(
                 target: selected_target,
                 signature: &signature,
                 account,
-                providers: &[],
+                admission: admit_terminal_calling_policy(
+                    artifact,
+                    policy_declaration(
+                        artifact,
+                        module.entry.ok_or("calling fixture has no policy entry")?,
+                    )?,
+                    target,
+                    &[],
+                    semantic_vocabulary::compiler_evaluation::DeclarationCustody::Missing,
+                    None,
+                )?,
             })
             .err()
             .ok_or_else(|| format!("calling policy accepted {control} control"))?;

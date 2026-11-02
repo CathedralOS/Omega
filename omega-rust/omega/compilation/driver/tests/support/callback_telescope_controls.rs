@@ -334,13 +334,25 @@ fn execute_policy(
     let account = sponsor
         .begin_invocation(measurement, 1_000_000)
         .map_err(|error| error.to_string())?;
+    let admission = provider_planning::calling_policy_plans::admit_terminal_calling_policy(
+        artifact,
+        module
+            .scalar_applications
+            .proof_scope
+            .callable_declaration(entry)
+            .ok_or("callback inspection policy lost its checked declaration")?,
+        target,
+        &[],
+        semantic_vocabulary::compiler_evaluation::DeclarationCustody::Missing,
+        None,
+    )?;
     let (plan, fuel) = evaluate_terminal_calling_policy(TerminalCallingPolicyInvocation {
         artifact,
         entry,
         target,
         signature,
         account,
-        providers: &[],
+        admission,
     })?;
     if plan != application.plan || fuel.total_units() == 0 {
         return Err(

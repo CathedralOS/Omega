@@ -48,6 +48,8 @@ pub struct ProofCallableHeader {
     pub source_target: Option<String>,
     pub product_eligible: bool,
     pub supplies_checked_body: bool,
+    pub compiler_evaluation:
+        Result<semantic_vocabulary::compiler_evaluation::CompilerEvaluationDeclaration, String>,
     /// Checker-normalized realized calls, including explicit abstract edges.
     /// Neither public permission ceilings nor emitted calls replace this list.
     pub synchronous_invocations: Result<Vec<DeclaredSynchronousBoundaryTarget>, String>,
@@ -69,6 +71,7 @@ impl Default for ProofCallableHeader {
             source_target: None,
             product_eligible: false,
             supplies_checked_body: false,
+            compiler_evaluation: Err("checked compiler-evaluation facts are absent".into()),
             synchronous_invocations: Err("checked synchronous invocation facts are absent".into()),
         }
     }
@@ -83,6 +86,28 @@ pub struct ProofApplicationScope {
     pub callables: Arena<ProofCallableAssociation>,
     pub plan: ProofApplicationPlan<ProofDeclarationId>,
     pub calls: ProofCallGraph<ProofDeclarationId>,
+    pub recursive_components: Arena<ProofCheckedRecursiveComponent>,
+    pub recursive_members: Arena<ProofDeclarationId>,
+    pub recursive_calls: Arena<ProofCheckedRecursiveCall>,
+    /// Still-partial invocation formation cannot execute to justify itself.
+    /// Zero records an unknown owner and therefore fences every invocation.
+    pub pending_evaluation_conditions: Arena<ProofDeclarationId>,
+}
+
+/// A complete checked body component. Members are exact published bodies and
+/// call ordinals refer to their retained operational summaries, not emitted
+/// instructions or a name-based call graph.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ProofCheckedRecursiveComponent {
+    pub members: arena::HandleSpan<ProofDeclarationId>,
+    pub calls: arena::HandleSpan<ProofCheckedRecursiveCall>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ProofCheckedRecursiveCall {
+    pub caller: ProofDeclarationId,
+    pub call_ordinal: u32,
+    pub callee: ProofDeclarationId,
 }
 
 impl ProofApplicationScope {

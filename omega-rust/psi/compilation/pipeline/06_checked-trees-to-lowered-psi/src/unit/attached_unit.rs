@@ -721,24 +721,26 @@ pub(crate) fn lower_unit_closure(
         crate::scalar_lowering::contracts::mathematical_carriers(&checked, identities)?;
     let indexed_theorems =
         indexed_theorems(checked, identities, exact_toolchain_sources, &machine_ids)?;
+    let (scalar_applications, source_proof_declarations) = scalar_applications.publish(
+        &type_ids,
+        &machine_ids,
+        &lowered_boundary_parameters,
+        scalar_applications::EmittedScalars {
+            checked,
+            identities,
+            sources: exact_toolchain_sources,
+            calls: &occurrences.source_calls,
+            machines: &machines,
+        },
+    )?;
     let lowered = LoweredPsi {
+        source_proof_declarations,
         source_records,
         source_boundary_declarations: Vec::new(),
         source_machine_declarations: Vec::new(),
         build_provider_requirements: Vec::new(),
         semantic_module: TerminalModule {
-            scalar_applications: scalar_applications.publish(
-                &type_ids,
-                &machine_ids,
-                &lowered_boundary_parameters,
-                scalar_applications::EmittedScalars {
-                    checked,
-                    identities,
-                    sources: exact_toolchain_sources,
-                    calls: &occurrences.source_calls,
-                    machines: &machines,
-                },
-            )?,
+            scalar_applications,
             folded_constants,
             indexed_theorems,
             mathematical_carriers,

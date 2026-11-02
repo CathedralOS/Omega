@@ -139,6 +139,13 @@ impl Captures<'_> {
         state: &State,
         active: &mut Vec<SymbolHandle>,
     ) -> Option<Vec<CheckedReturnedReferencePlan>> {
+        // An admitted closed nonreturning control graph has no normal result
+        // whose descriptors could escape. This is the empty return relation,
+        // not evidence that a possibly returning descriptor is inactive.
+        // Unknown completion and unavailable captures remain unavailable.
+        if crate::normal_completion_possible(self.program, state) == Some(false) {
+            return Some(Vec::new());
+        }
         if active.contains(&state.symbol) || active.len() >= super::MAX_REFERENCE_ORIGIN_DEPTH {
             return None;
         }

@@ -100,7 +100,29 @@ recorded separately.
    Terminal execution at exit 0. The native row tests final emitted behavior;
    it does not claim unmeasured instruction encodings or cross-host execution.
 
-## Canonical helper-selection evidence
+## Canonical invocation admission
+
+Psi retains each declaration's checked compiler-evaluation facts independently
+of executable-signature availability: effects, local termination, linear/static
+closure, entry premises and normalized package-selection requests. Calling
+admits the exact target/provider/static-binder closure over the shared Terminal
+artifact before evaluating ABI scalars or the policy. Recurrent edges require
+the retained complete-component proof at the same body/call coordinates;
+successful execution and fuel are not termination evidence. Package obligations
+are rechecked against live authority, including predicates with no persisted
+comparison scope. Decoding alone grants no authority.
+
+The [ranked helper](controls/ranked_helper/main.omg) is a smaller rung inside
+this fact, pinned as `generic_calling_policy/ranked_helper_exit`. Its selected
+helper computes the same Width-8 placement through mutually recursive ordinary
+machines. Both branches have distinct runtime results, checked by `Main`.
+The [invalid twin](controls/ranked_helper/invalid/main.omg), pinned as
+`generic_calling_policy/ranked_helper_unproved`, removes only their ranking
+clauses and must reject for missing ordinary recursive termination. The original
+unranked nested helper and entry-premise controls remain independent falsifiers.
+The nine placement witnesses and Width-4 twins remain unchanged.
+
+## Historical canonical helper-selection evidence
 
 Exact optimized producer `002791b61f14404bcf6ce65e5376131ca16e1efe` selects
 Calling helpers through the same canonical provider fixed point as Product,
@@ -108,8 +130,8 @@ using the policy invocation's exact roots. Calling metadata and unrelated
 Product choices do not create executable demand. A selected child map can
 supply an inherited parent requirement; merely having an unused child map
 does not demand it. Selecting competing parent and child maps still rejects.
-The Source adapter rejoins the chosen exact checked bodies for the original
-Psi build-time admission, which remains mandatory before execution.
+That producer's Source adapter rejoined the chosen exact checked bodies for
+the original Psi build-time admission before execution.
 
 The frozen candidate records 13 native/Terminal exit-0 agreements and 16
 intended rejections on macOS arm64, including the complete nine-place row and
@@ -134,9 +156,10 @@ the public CLI SHA-256 is
 Raw records remain in the active claim's `build/calling-helper-choice-r3-*`
 files; checked-in corpus rows retain the actual producer revision.
 
-Source invocation admission, request enumeration and checked target-body
-correspondence still prevent full Source-free target planning. This component
-does not close that parent outcome or qualify foreign-host execution.
+At that checkpoint, Source invocation admission, request enumeration and checked
+target-body correspondence still prevented full Source-free target planning.
+Those historical observations do not qualify later admission changes or
+foreign-host execution.
 
 ## Retained Build-selection evidence
 

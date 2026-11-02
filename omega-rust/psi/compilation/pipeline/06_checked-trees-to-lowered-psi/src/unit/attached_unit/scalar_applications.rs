@@ -544,7 +544,13 @@ impl SourceScalarApplications {
         machines: &[(symbols::SymbolHandle, semantic_vocabulary::MachineId)],
         boundaries: &[super::operation_frame::BoundaryParameters],
         emitted: conditions::EmittedScalars<'_>,
-    ) -> Result<ScalarApplications, LoweringError> {
+    ) -> Result<
+        (
+            ScalarApplications,
+            Vec<(symbols::SymbolHandle, terminal_psi::ProofDeclarationId)>,
+        ),
+        LoweringError,
+    > {
         let mut result = ScalarApplications::default();
         let scope = proof_scope::publish(
             emitted.checked,
@@ -581,7 +587,7 @@ impl SourceScalarApplications {
             &scope.coordinates,
             emitted,
         )?;
-        Ok(result)
+        Ok((result, scope.coordinates))
     }
 }
 

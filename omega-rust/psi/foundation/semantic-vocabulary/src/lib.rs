@@ -33,6 +33,7 @@ pub use callback_identities::{
     nominal_callback_native_parameter_id,
 };
 pub mod byte_predicates;
+pub mod compiler_evaluation;
 mod content;
 pub mod fnv1a;
 mod identity;

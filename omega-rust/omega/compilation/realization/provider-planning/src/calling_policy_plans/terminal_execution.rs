@@ -15,7 +15,36 @@ use terminal_interpreter::{
 };
 use terminal_psi::TargetMachineCallable;
 
-/// Explicit source-free inputs of a policy activation. The producer's checked
+/// One activation's complete pre-effect admission. Provider receiving
+/// admission (including whole-map synchronous cycles) precedes the shared
+/// compiler-evaluation floor. Neither record can be supplied from Source.
+pub type TerminalCallingPolicyAdmission = terminal_installation::AdmittedCompilerEvaluation;
+
+pub fn admit_terminal_calling_policy(
+    artifact: &CanonicalTerminalArtifact,
+    declaration: terminal_psi::ProofDeclarationId,
+    target: target::TargetProfile,
+    providers: &[backend_plan::TerminalTargetProviderPlan],
+    requester: semantic_vocabulary::compiler_evaluation::DeclarationCustody,
+    authority: Option<&dyn semantic_vocabulary::compiler_evaluation::DeclarationSelectionAuthority>,
+) -> Result<TerminalCallingPolicyAdmission, String> {
+    let providers = backend_plan::TerminalTargetProviderSelection::from_plans(
+        providers.to_vec(),
+        artifact.view(),
+    )?
+    .admit(artifact.view(), target.target_name())?;
+    let floor = terminal_installation::admit_compiler_evaluation(
+        artifact.view(),
+        target.target_name(),
+        declaration,
+        providers,
+        requester,
+        authority,
+    )?;
+    Ok(floor)
+}
+
+/// Explicit source-free inputs of a policy activation. The single-use canonical
 /// invocation admission precedes this request; neither entry selection nor
 /// successful interpretation grants provider, callback or native authority.
 pub struct TerminalCallingPolicyInvocation<'input> {
@@ -24,7 +53,7 @@ pub struct TerminalCallingPolicyInvocation<'input> {
     pub target: target::TargetProfile,
     pub signature: &'input CallingPolicySignature,
     pub account: EvaluationInvocationAccount,
-    pub providers: &'input [backend_plan::TerminalTargetProviderPlan],
+    pub admission: TerminalCallingPolicyAdmission,
 }
 
 /// Execute the selected callable on the supplied signature, decode its actual
@@ -41,7 +70,7 @@ pub fn evaluate_terminal_calling_policy(
         target,
         signature,
         account,
-        providers,
+        admission,
     } = invocation;
     if signature.target != target.native_target() {
         return Err("calling policy target differs from its materialized signature".into());
@@ -55,18 +84,21 @@ pub fn evaluate_terminal_calling_policy(
         .ok_or("calling policy target has no layout facts")?;
     let layouts = terminal_installation::admit_target_layouts(artifact.view(), &selected, &facts)
         .map_err(|error| format!("calling policy target layouts: {error:?}"))?;
-    let providers = backend_plan::TerminalTargetProviderSelection::from_plans(
-        providers.to_vec(),
+    let selected_entry = selected
+        .entry(selected.terminal_psi(), artifact.semantic_module(), entry)
+        .map_err(|error| format!("calling policy canonical selection: {error}"))?;
+    admission.require_invocation(
         artifact.view(),
-    )?
-    .admit(artifact.view(), target.target_name())
-    .map_err(|error| format!("calling policy providers: {error}"))?;
+        target.target_name(),
+        TargetMachineCallable::Machine(selected_entry),
+    )?;
+    let providers = admission.providers();
     let program = TerminalProgram::borrow(artifact.view());
     let installation = program
         .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
             x86_flags: None,
             memory_ordering: None,
-            installation: Some(&providers),
+            installation: Some(providers),
             host_imports: &[],
             entry: Some(entry),
             target_machines: Some(&selected),
@@ -100,14 +132,14 @@ pub fn evaluate_terminal_calling_policy(
             declaration,
             applications: &demanded,
         },
-        &providers,
+        providers,
         &mut meter,
     )?;
     let installation = program
         .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
             x86_flags: None,
             memory_ordering: None,
-            installation: Some(&providers),
+            installation: Some(providers),
             host_imports: &[],
             entry: Some(entry),
             target_machines: Some(&selected),

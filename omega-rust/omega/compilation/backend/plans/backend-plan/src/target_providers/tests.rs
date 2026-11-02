@@ -146,6 +146,7 @@ fn invocation_fixture() -> (TerminalTargetProviderPlan, TerminalModule) {
                 product_eligible: true,
                 supplies_checked_body: true,
                 synchronous_invocations: Ok(Vec::new()),
+                compiler_evaluation: Err("not an evaluation fixture".into()),
             });
     }
     // The source template is independently retained, but its formal telescope
@@ -160,6 +161,7 @@ fn invocation_fixture() -> (TerminalTargetProviderPlan, TerminalModule) {
             product_eligible: true,
             supplies_checked_body: true,
             synchronous_invocations: Err("open template invocation".into()),
+            compiler_evaluation: Err("not an evaluation fixture".into()),
         });
     (selected, module)
 }

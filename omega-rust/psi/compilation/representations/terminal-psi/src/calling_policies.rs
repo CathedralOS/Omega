@@ -107,6 +107,9 @@ pub struct CallingPolicyRequest {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CallingPolicyInstance {
     pub declaring_application: TerminalIdentityIndex,
+    /// The exact checked declaration remains demandable before executable
+    /// lowering succeeds. Admission never needs a body just to refuse it.
+    pub policy_declaration: Result<crate::ProofDeclarationId, String>,
     pub policy: Result<crate::TargetMachineCallable, String>,
     pub signatures: Result<Vec<CallingSignatureId>, String>,
 }

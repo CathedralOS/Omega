@@ -12,6 +12,7 @@
 //! granting a checked judgment; compile-time evaluation and checking share it.
 
 pub use declarations::traits::conformance_applications;
+pub mod compiler_evaluation;
 pub mod execution_projection;
 pub mod product_entries;
 pub mod product_queries;
@@ -268,7 +269,7 @@ pub use value_custody::intrinsic_boundaries::validate_boundary_completion_declar
 
 pub use crate::declarations::declaration_visibility::validate_declaration_visibility;
 pub use crate::declarations::selection_authority::{
-    DeclarationSelectionAuthority, RecordedDeclarationAuthority,
+    DeclarationSelectionAuthority, RecordedDeclarationAuthority, checked_selection_requirements,
     validate_authored_declaration_selections,
 };
 pub use crate::machine_calls::call_cycles::{

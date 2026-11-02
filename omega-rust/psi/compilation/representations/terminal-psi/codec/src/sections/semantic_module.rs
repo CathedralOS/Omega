@@ -153,7 +153,8 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // nominal data/field associations and selected Source-v4 slot applications.
 // Record applications also retain the independent semantic-argument identity;
 // private slots cannot infer their owner from another slot's claimed role.
-pub(crate) const FORMAT_MARKER: u16 = 232;
+// Retains the checked compiler-evaluation floor independently of signatures.
+pub(crate) const FORMAT_MARKER: u16 = 234;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 
