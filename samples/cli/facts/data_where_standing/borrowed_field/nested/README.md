@@ -72,7 +72,7 @@ changing the bound or consuming arithmetic.
 Prepare each positive with `omega update --project <place> --target macos_arm64
 --offline`, then run `omega run --both <place>/main.omg`. Producer revisions,
 binary digests, original refusals and measured engine outcomes are retained in
-the PR evidence. Four existing descriptor, recast and ownership neighbors also
+the PR evidence. Five existing descriptor, recast and ownership neighbors also
 pass the focused corpus check.
 
 This qualifies replacement of a local reference binding. Replacing an ancestor
