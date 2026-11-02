@@ -8,7 +8,7 @@ use crate::record::PackageReviewCallableContract;
 use diagnostics::Diagnostic;
 
 pub(super) fn project(input: &PackageReviewInput<'_>) -> Result<Vec<String>, Vec<Diagnostic>> {
-    let facts = input.custody.execution().provider_source.plans();
+    let facts = input.custody.execution().plans();
     if facts.assumed_bindings().is_empty() {
         return Ok(Vec::new());
     }

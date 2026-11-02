@@ -35,7 +35,7 @@ fn produce(
     let checked = omega_build::check_source(&mut CompilationSession::default(), request)
         .result
         .unwrap_or_else(|error| panic!("{machine}: {error:?}"));
-    let typed = &checked.execution().provider_source.program().typed;
+    let typed = &checked.source_inspection().program().typed;
     let admission =
         package_compilation::build_execution::build_value::BuildValueAdmission::admit(typed)
             .unwrap();
@@ -57,7 +57,7 @@ fn produce(
     .unwrap();
     let initial = admission.initial_value(typed, selected, &scope);
     let artifact = psi_compiler::TerminalProductionRequest::new(
-        checked.execution().provider_source.program(),
+        checked.source_inspection().program(),
         psi_compiler::TerminalMachineSelection::Name(machine),
         checked.sources().exact_toolchain_sources(),
     )
@@ -515,8 +515,7 @@ fn completed_helpers_return_original_entry_storage_to_the_embedding() {
                 ));
             } else {
                 let (settings, report) =
-                    build_evaluation::settings::extract(&instance, admission, &initial)
-                        .unwrap();
+                    build_evaluation::settings::extract(&instance, admission, &initial).unwrap();
                 let expected =
                     package_compilation::build_execution::build_value::EvaluatedBuildSettings {
                         application_identifier: Some(
@@ -736,11 +735,9 @@ fn build_settings_use_the_existing_validator_after_terminal_execution() {
                 match instance.invoke(&mut fuel).unwrap() {
                     TerminalExecutionStatus::SponsorExhausted(_) => {
                         assert!(
-                            build_evaluation::settings::extract(
-                                &instance, admission, &initial
-                            )
-                            .unwrap_err()
-                            .contains("NormalReturnRequired")
+                            build_evaluation::settings::extract(&instance, admission, &initial)
+                                .unwrap_err()
+                                .contains("NormalReturnRequired")
                         );
                         fuel.replenish(1).unwrap();
                     }
@@ -749,8 +746,7 @@ fn build_settings_use_the_existing_validator_after_terminal_execution() {
                 }
             }
             assert!(instance.result().is_some(), "{machine} did not complete");
-            let result =
-                build_evaluation::settings::extract(&instance, admission, &initial);
+            let result = build_evaluation::settings::extract(&instance, admission, &initial);
             if let Some(rejection) = rejection {
                 let error = result.unwrap_err();
                 assert!(error.contains(rejection), "{machine}: {error}");
@@ -889,8 +885,7 @@ fn full_build_pays_its_shared_sponsor_before_each_semantic_site() {
                 TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
             );
             let (settings, _) =
-                build_evaluation::settings::extract(&instance, admission, &initial)
-                    .unwrap();
+                build_evaluation::settings::extract(&instance, admission, &initial).unwrap();
             assert_eq!(
                 settings.application_identifier,
                 Some(target::ApplicationIdentifier::new(b"com.example.omega").unwrap())
@@ -1043,8 +1038,7 @@ fn full_build_reserves_owned_storage_and_retains_storage_faults() {
                 TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
             );
             let (settings, _) =
-                build_evaluation::settings::extract(&instance, admission, &initial)
-                    .unwrap();
+                build_evaluation::settings::extract(&instance, admission, &initial).unwrap();
             assert_eq!(
                 settings.application_identifier,
                 Some(target::ApplicationIdentifier::new(b"com.example.omega").unwrap())

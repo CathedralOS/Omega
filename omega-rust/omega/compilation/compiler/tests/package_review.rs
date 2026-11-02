@@ -301,7 +301,7 @@ fn review_retains_installation_reach_across_staggered_dependency_resolution() {
     let checked = session
         .check_package_build(build)
         .expect("checked installation closure");
-    let selected = checked.execution().provider_source.plans();
+    let selected = checked.execution().plans();
     let reach = |provider: &str| {
         let plan = selected
             .plans()

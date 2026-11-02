@@ -29,13 +29,17 @@ use std::sync::{Arc, Weak};
 use symbols::SymbolHandle;
 
 type SourceChoices = PreparedTargetChoices<ProviderPlanProvenance, ProviderSelection>;
-type ProductChoices = PreparedTargetChoices<PreparedProviderCompletion, ProviderSelection>;
+type ProductChoices = PreparedTargetChoices<PreparedProviderMetadata, ProviderSelection>;
 
 #[derive(Clone)]
-pub(crate) struct PreparedProviderCompletion {
+pub(crate) struct PreparedProviderMetadata {
     pub provenance: ProviderPlanProvenance,
     pub completion: Result<Vec<Vec<SymbolHandle>>, Vec<Diagnostic>>,
     pub role: Option<PreparedCompletionRole>,
+    pub declarations:
+        Result<language_semantics::provider_declarations::ProviderDeclarations, Diagnostic>,
+    pub families:
+        Result<Vec<crate::native_provider_sources::PreparedFamilyRealization>, Vec<Diagnostic>>,
 }
 
 type ApplicationRoots = Result<Option<Vec<CanonicalProviderDeclaration>>, Vec<Diagnostic>>;
@@ -257,11 +261,13 @@ pub(crate) struct SettledProductProviders {
 impl PreparedProductProviders {
     pub(crate) fn attach_calling(
         self,
-        checked: &checked_trees::CheckedTrees,
+        program: &crate::calling_policy_plans::CallingProgram,
         planning_target: Option<target::TargetProfile>,
         calling: &[BoundaryCallingPlanRealization],
     ) -> Result<SettledProductProviders, Vec<Diagnostic>> {
-        if !std::ptr::eq(self.owner.as_ptr(), checked) || self.planning_target != planning_target {
+        if !Weak::ptr_eq(&self.owner, &program.source_owner)
+            || self.planning_target != planning_target
+        {
             return Err(vec![Diagnostic::error(
                 "provider preparation belongs to another Product program or planning target",
             )]);
@@ -474,7 +480,18 @@ impl ProductProviderPreparation<'_> {
                     &original_candidates,
                 );
                 let role = PreparedCompletionRole::capture(&self.checked.typed, plan, &provenance);
-                PreparedProviderCompletion {
+                PreparedProviderMetadata {
+                    declarations:
+                        crate::provider_planning::selected_declarations::capture_plan_declarations(
+                            self.checked,
+                            plan,
+                            &provenance,
+                        ),
+                    families: crate::native_provider_sources::capture_family_realizations(
+                        self.services.context(),
+                        plan,
+                        &provenance,
+                    ),
                     provenance,
                     completion,
                     role,

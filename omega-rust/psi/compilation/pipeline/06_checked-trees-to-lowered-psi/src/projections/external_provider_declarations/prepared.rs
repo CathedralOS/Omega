@@ -89,7 +89,25 @@ impl PreparedExternalProviderDeclarations {
         checked: &CheckedTrees,
         sources: &[(source::SourceId, [u8; 32])],
     ) -> Result<(), crate::LoweringError> {
-        if !std::ptr::eq(self.checked.as_ptr(), checked) || self.sources.as_ref() != sources {
+        self.require_owner_address(checked, sources)
+    }
+
+    /// Match saved declarations to the program being compiled without reading
+    /// its source trees. The exact toolchain file identities must also match.
+    pub fn require_prepared_owner(
+        &self,
+        checked: &Weak<CheckedTrees>,
+        sources: &[(source::SourceId, [u8; 32])],
+    ) -> Result<(), crate::LoweringError> {
+        self.require_owner_address(checked.as_ptr(), sources)
+    }
+
+    fn require_owner_address(
+        &self,
+        checked: *const CheckedTrees,
+        sources: &[(source::SourceId, [u8; 32])],
+    ) -> Result<(), crate::LoweringError> {
+        if self.checked.as_ptr() != checked || self.sources.as_ref() != sources {
             return Err(crate::LoweringError::Unsupported(
                 "external declarations belong to another checked program or source custody",
             ));

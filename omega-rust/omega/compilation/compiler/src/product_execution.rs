@@ -223,15 +223,7 @@ impl ProductRequest {
                 },
             )))
         } else {
-            if realization
-                .custody
-                .execution
-                .provider_source
-                .program()
-                .facts
-                .proof_applications
-                .has_obligations
-            {
+            if realization.custody.execution.has_proof_obligations {
                 return Ok(CompilationWork::Terminal(TerminalCompilation::Checking(
                     checking::CheckingCompilation::new(realization, report, permissions),
                 )));
@@ -309,8 +301,9 @@ impl RequestedTerminalCompilation {
         )?;
         // Product eligibility precedes application completion, as it did before
         // batching. Both production halves consume the same settled choices.
-        let product =
-            phase_profile::scope("omega.product.report_prepare", || self.report.prepare(&checked))?;
+        let product = phase_profile::scope("omega.product.report_prepare", || {
+            self.report.prepare(&checked)
+        })?;
         let report = match product {
             CheckedProductReport::Complete(_) => {
                 return Err(vec![Diagnostic::error(
@@ -334,11 +327,12 @@ impl RequestedTerminalCompilation {
                 request,
                 rollback,
             } => {
-                let terminal = phase_profile::scope("omega.product.finish_terminal_application", || {
-                    let request =
-                        checked.terminal_native_proposal_request(rollback.effective(), &[])?;
-                    produced.prepare(request)
-                })?;
+                let terminal =
+                    phase_profile::scope("omega.product.finish_terminal_application", || {
+                        let request =
+                            checked.terminal_native_proposal_request(rollback.effective(), &[])?;
+                        produced.prepare(request)
+                    })?;
                 let accepted_package_permissions =
                     native_inputs::accepted_terminal_authority_permission_policy(&checked)
                         .map_err(|diagnostics| CompilationProductError::ProductionAttempt {
@@ -379,12 +373,7 @@ fn admit_permissions(
     let evaluated_rows = if runtime_product
         && permissions.is_none()
         && checked.sources().package_identity().is_some()
-        && !checked
-            .execution()
-            .provider_source
-            .plans()
-            .assumed_bindings()
-            .is_empty()
+        && !checked.execution().plans().assumed_bindings().is_empty()
     {
         Some(
             TerminalPermissionAcceptance::from_public_build(checked)
