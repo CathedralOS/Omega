@@ -1122,6 +1122,19 @@ impl StructuralJudge<'_> {
                 case: selected.symbol,
             });
         }
+        self.intake_storage_field_observations(&coordinate, reference, value);
+    }
+
+    /// Attach surviving child observations to a fresh aggregate identity. Both
+    /// whole reads and normal-call handback must perform this join: replacing
+    /// the whole observation alone would hide unchanged fields behind an opaque
+    /// new value. The write footprint has already retired overlapping children.
+    fn intake_storage_field_observations(
+        &mut self,
+        coordinate: &CapturedStorageCoordinate,
+        reference: TypeReferenceHandle,
+        value: &super::StructuralTerm,
+    ) {
         let equations = self
             .stored_values
             .iter()

@@ -747,7 +747,10 @@ impl<'program> StructuralJudge<'program> {
                             return StructuralJudgment::Proven;
                         }
                     }
-                    return StructuralJudgment::Unknown;
+                    // A scalar comparison can depend on retained alternatives
+                    // just as a compound Boolean goal can. Failure of the
+                    // conjunctive query is not failure of those premises;
+                    // continue through the bounded alternative-world query.
                 }
                 if self.proves_observed_integer_boolean(&resolved, depth) == Some(true) {
                     StructuralJudgment::Proven

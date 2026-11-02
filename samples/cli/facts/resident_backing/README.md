@@ -77,3 +77,10 @@ The [package allocator customer](../../../../tests/omega/pass/memory/bump_alloca
 extends this lifecycle through the ordinary Bump package: exhausted allocation,
 release without cursor rewind, checked recomposition, full reset, and reuse.
 Vec growth/reallocation/drop remains the parent outcome's acceptance.
+
+The [runtime-cell production](runtime_cells/README.md) partitions at runtime,
+updates actual backing through a qualification-erasing view, and rejoins the
+original descriptor. Its bounds twin rejects a cell extending past the end.
+The accompanying ordinary-RAM control preserves an untouched neighbor but
+rejects a stale fact about the written field; content-only writes must not
+accidentally become the rule for every access view.

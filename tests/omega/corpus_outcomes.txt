@@ -695,6 +695,8 @@ fail/facts/generic_calling_policy/missing_nested_provider rejected 19466ms expec
 	calling-policy helper requires an exact Build or target-default provider selection
 fail/facts/generic_calling_policy/missing_policy_provider rejected 18177ms expected @002791b61f14
 	slot `ValuePlan` has 3 covering provider plans for the selected target: `<selected target>::SysVValuePlan::satisfies::ValuePlan` [<fingerprint>], `<selected target>::MicrosoftValuePlan::satisfies::ValuePlan` [<fingerprint>], `<selected target>::AapcsValuePlan::satisfies::ValuePlan` [<fingerprint>] -- choose one in build.omg with `Build::select_provider<ValuePlan, ProviderType>(b);`
+fail/facts/generic_calling_policy/shared_parent_roots_rejected rejected 29645ms expected @27df46d55c29
+	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
 fail/facts/generic_calling_policy/unused_descendant_rejected rejected 20322ms expected @002791b61f14
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
 fail/facts/generic_nonempty_array_changed_to_zero rejected 619ms expected @a889c2d8b84c
@@ -2071,6 +2073,16 @@ fail/facts/resident_backing_other_state_missing_vacancy rejected 5284ms expected
 fail/facts/resident_backing_parameter_missing_vacancy rejected 5353ms expected @b3876048c0a2
 	cannot prove requires contract for call partition from allocated: vacant in Extent::Vacant in state `entry`
 	cannot prove initializer of `vacant` in allocated is in domain `Extent::Vacant`; an annotation cannot establish routed qualification
+fail/facts/resident_backing_plain_ram_stale_field_rejected rejected 5188ms expected @c6b8285077a8+wt
+	cannot prove ensures contract for exit from check at statement 1: result == 17
+fail/facts/resident_backing_runtime_cells_unbounded_rejected rejected 8432ms expected @c6b8285077a8+wt
+	cannot prove requires contract for call split_vacant_extent from exchange: 4 <= prefix.rest.length (needs fact `requested <= whole.length` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call merge_vacant_extents from exchange: embed(cell.length) + embed(element.rest.length) <= 18446744073709551615 (needs fact `embed(left.length) + embed(right.length) <= 18446744073709551615` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call merge_vacant_extents from exchange: cell.length == 0 || element.rest.length == 0 || embed(element.rest.base) == embed(cell.base) + embed(cell.length) (needs fact `left.length == 0 || right.length == 0 || embed(right.base) == embed(left.base) + embed(left.length)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call merge_vacant_extents from exchange: embed(prefix.taken.length) + embed(suffix.length) <= 18446744073709551615 (needs fact `embed(left.length) + embed(right.length) <= 18446744073709551615` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call merge_vacant_extents from exchange: prefix.taken.length == 0 || suffix.length == 0 || embed(suffix.base) == embed(prefix.taken.base) + embed(prefix.taken.length) (needs fact `left.length == 0 || right.length == 0 || embed(right.base) == embed(left.base) + embed(left.length)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove ensures contract for exit from exchange at statement 6: result.storage.base == storage.base
+	cannot prove ensures contract for exit from exchange at statement 6: result.storage.length == storage.length
 fail/facts/resident_backing_target_body_missing_vacancy rejected 5378ms expected @b3876048c0a2
 	cannot prove requires contract for call partition from allocated: vacant in Extent::Vacant in state `entry`
 	cannot prove initializer of `vacant` in allocated is in domain `Extent::Vacant`; an annotation cannot establish routed qualification
@@ -2412,8 +2424,12 @@ fail/traits/dyn_selector_leading_crash_uncovered rejected 2077ms expected @3caad
 	call from `observe` to `pass` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/traits/dyn_slot_metadata_unqualified rejected 685ms expected @e7be0895dec5+wt
 	argument `packet` for state `view` expects `&[u8][in Utf8]`, got `named value`
+fail/traits/dyn_statement_call_operand_positions_rejected rejected 16980ms expected @cb2bb7751cae+wt
+	cannot prove requires contract for call dyn PairCheck::check from main: 7 == 100 && 100 == 7 (needs fact `value == 100 && other == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/traits/dyn_suspending_borrowed_parameter_precondition rejected 1636ms expected @60879b0bca31+wt
 	cannot prove requires contract for call dyn Read::current from main: cell.value == 100 (needs fact `cell.value == 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/traits/dyn_suspending_unit_call_precondition rejected 14418ms expected @cb2bb7751cae+wt
+	cannot prove requires contract for call dyn DeferredUnit::check from main: 99 == 100 (needs fact `value == 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/traits/public_method_callback_prefix_missing rejected 930ms expected @b852a38544d0
 	static method application requires its complete invocation telescope for `NeedsMachine::choose` (found 0, expected 2)
 fail/traits/public_method_callback_prefix_wrong_contract rejected 886ms expected @b852a38544d0
@@ -6956,6 +6972,8 @@ pass/facts/generic_calling_policy/literal_arguments_exit checked 21185ms check-t
 pass/facts/generic_calling_policy/nested_argument_exit rejected 17926ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
 	executed provider choice lost its complete static application
 pass/facts/generic_calling_policy/nested_data_const_exit checked 19027ms check-target:linux_x86_64 @ccdb99ca2214
+pass/facts/generic_calling_policy/ordinary_parent_fused_exit checked 31930ms check-target:macos_arm64 @89b79a0458c8
+pass/facts/generic_calling_policy/shared_parent_roots_exit checked 29706ms check-target:macos_arm64 @89b79a0458c8
 pass/facts/generic_calling_policy/unused_descendant_exit checked 22124ms check-target:macos_arm64 @002791b61f14
 pass/facts/generic_calling_policy_through_call_result_exit checked 22159ms check-target:macos_arm64 @6416b0fdfbe3
 pass/facts/generic_calling_policy_through_const_name_exit checked 19953ms check-target:macos_arm64 @6416b0fdfbe3
@@ -9247,6 +9265,8 @@ pass/facts/resident_backing_match_join_exit checked 9155ms check-target:macos_ar
 pass/facts/resident_backing_other_machine_exit checked 9156ms check-target:macos_arm64 @b3876048c0a2
 pass/facts/resident_backing_other_state_exit checked 9185ms check-target:macos_arm64 @b3876048c0a2
 pass/facts/resident_backing_parameter_exit checked 9413ms check-target:macos_arm64 @b3876048c0a2
+pass/facts/resident_backing_plain_ram_exit checked 7289ms check-target:macos_arm64 @c6b8285077a8+wt
+pass/facts/resident_backing_runtime_cells_exit checked 10759ms check-target:macos_arm64 @c6b8285077a8+wt
 pass/facts/resident_backing_target_body_exit checked 9694ms check-target:macos_arm64 @b3876048c0a2
 pass/facts/result_cleanup_guarantees_through_call_result_exit checked 4216ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/result_cleanup_guarantees_through_const_name_exit checked 3199ms check-target:macos_arm64 @ccdb99ca2214
@@ -12093,6 +12113,7 @@ pass/modules/computed_nominal_constants checked 2435ms @ccdb99ca2214
 pass/modules/conformance_reference_scope checked 3734ms check-target:macos_arm64 @ccdb99ca2214
 pass/modules/constant_argument_projected_record_dependency checked 2657ms @ccdb99ca2214
 pass/modules/continued_domain_membership checked 3250ms check-target:macos_arm64 @ccdb99ca2214
+pass/modules/direct_file_import_exit checked 70526ms check-target:macos_arm64 @c79bb8268163+wt
 pass/modules/direct_file_import_process_exit checked 11490ms check-target:macos_arm64 @ccdb99ca2214
 pass/modules/direct_file_imports checked 2669ms @ccdb99ca2214
 pass/modules/domain_constant_indices checked 2497ms @ccdb99ca2214
@@ -13844,9 +13865,11 @@ pass/traits/runtime_dyn_selector_beside_u64_field_store_exit checked 12171ms che
 pass/traits/runtime_dyn_selector_crash_refined_exit checked 3124ms check-target:macos_arm64 @3caadfad789f+wt
 pass/traits/runtime_dyn_selector_record_field_exit checked 12666ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_dyn_selector_record_post_write_exit checked 5985ms check-target:macos_arm64 @911f6617ba9e
+pass/traits/runtime_dyn_statement_call_operand_positions_exit checked 54492ms check-target:macos_arm64 @cb2bb7751cae+wt
 pass/traits/runtime_dyn_stored_byte_input checked 9876ms check-target:macos_arm64 @ca41410e2ee2+wt
 pass/traits/runtime_dyn_structural_result_exit checked 3964ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_dyn_suspending_borrowed_parameter_exit checked 2062ms check-target:macos_arm64 @60879b0bca31+wt
+pass/traits/runtime_dyn_suspending_unit_call_exit checked 53328ms check-target:macos_arm64 @cb2bb7751cae+wt
 pass/traits/runtime_dyn_two_impl_dispatch_exit checked 12466ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_exact_requirement_edge_exit checked 12334ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_explicit_implementation_arguments_exit checked 3576ms check-target:macos_arm64 @ccdb99ca2214
@@ -23429,23 +23452,23 @@ fail/facts/generic_calling_policy/unresolved_argument rejected 9217ms expected @
 	conformance `GenericPolicy` parameter `Width` requires a const argument, but `UnknownWidth` has another static category
 fail/facts/generic_calling_policy/wrong_argument_kind rejected 8686ms expected @ccdb99ca2214
 	conformance `GenericPolicy` parameter `Width` requires a const argument, but `<structural type>` has another static category
-fail/facts/generic_calling_policy_through_call_result_rejected rejected 22548ms expected @002791b61f14
+fail/facts/generic_calling_policy_through_call_result_rejected rejected 37610ms expected @f6ed16a77b4e+wt
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
-fail/facts/generic_calling_policy_through_const_name_rejected rejected 22548ms expected @002791b61f14
+fail/facts/generic_calling_policy_through_const_name_rejected rejected 37016ms expected @f6ed16a77b4e+wt
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
-fail/facts/generic_calling_policy_through_field_rejected rejected 19620ms expected @002791b61f14
+fail/facts/generic_calling_policy_through_field_rejected rejected 39061ms expected @f6ed16a77b4e+wt
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
-fail/facts/generic_calling_policy_through_local_rejected rejected 17529ms expected @002791b61f14
+fail/facts/generic_calling_policy_through_local_rejected rejected 36537ms expected @f6ed16a77b4e+wt
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
-fail/facts/generic_calling_policy_through_match_join_rejected rejected 19472ms expected @002791b61f14
+fail/facts/generic_calling_policy_through_match_join_rejected rejected 42758ms expected @f6ed16a77b4e+wt
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
-fail/facts/generic_calling_policy_through_other_machine_rejected rejected 19626ms expected @002791b61f14
+fail/facts/generic_calling_policy_through_other_machine_rejected rejected 37031ms expected @f6ed16a77b4e+wt
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
-fail/facts/generic_calling_policy_through_other_state_rejected rejected 19477ms expected @002791b61f14
+fail/facts/generic_calling_policy_through_other_state_rejected rejected 45970ms expected @f6ed16a77b4e+wt
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
-fail/facts/generic_calling_policy_through_parameter_rejected rejected 19600ms expected @002791b61f14
+fail/facts/generic_calling_policy_through_parameter_rejected rejected 39203ms expected @f6ed16a77b4e+wt
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
-fail/facts/generic_calling_policy_through_target_body_rejected rejected 19598ms expected @002791b61f14
+fail/facts/generic_calling_policy_through_target_body_rejected rejected 39158ms expected @f6ed16a77b4e+wt
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
 fail/facts/generic_case_subject_through_call_result_rejected rejected 1886ms expected @ccdb99ca2214
 	case membership must test a value of the exact declaring data type (machine `observe`, state `entry`)
