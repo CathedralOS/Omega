@@ -193,11 +193,43 @@ fn resolve_descriptor_places_with_loans(
     state_flow: &FlowStateFact,
     loans: impl Iterator<Item = Handle<BorrowLoanFact>>,
     incoming: impl Iterator<Item = Handle<checked_trees::IncomingReferenceIdentity>>,
-    place: CapturedPlace,
+    mut place: CapturedPlace,
 ) -> Option<Vec<ResolvedPlace>> {
     let borrow = &facts.borrow;
     let (_, state_borrow) =
         borrow.first_state_borrow(state_flow.machine_symbol, state_flow.state_symbol)?;
+    let carrier = place.root.as_symbol().and_then(|root| {
+        validation::state_root_type(
+            program,
+            program.state_by_symbol(state_flow.state_symbol)?,
+            root,
+        )
+    });
+    if let Some(carrier) = carrier {
+        place.segments =
+            validation::corresponding_place_projection(program, carrier, &place.segments)?;
+    }
+    let matches_owner = |owner: &[BorrowLoanOwnerSegment]| {
+        let selected;
+        let owner = if let Some(carrier) = carrier {
+            let Some(path) = validation::corresponding_place_projection(
+                program,
+                carrier,
+                &crate::borrow::owner_place_segments(owner),
+            ) else {
+                return false;
+            };
+            selected = crate::borrow::owner_path_from_place_segments(program, &path);
+            selected.as_slice()
+        } else {
+            owner
+        };
+        owner.len() <= place.segments.len()
+            && owner.iter().zip(&place.segments).all(|(owner, selected)| {
+                crate::borrow::owner_segment_matches_place_segment(program, owner, selected)
+                    == Some(true)
+            })
+    };
     // A stored descriptor can be a whole reference binding or a reference
     // leaf inside a completed carrier. The live loan's exact owner path names
     // that descriptor; an access to its enclosing owned record is independent.
@@ -210,11 +242,7 @@ fn resolve_descriptor_places_with_loans(
                 // checking, but supplies no descriptor address or ancestry.
                 && loan.lineage != BorrowLoanLineage::LifetimeDependency
                 && loan.storage_owner == place.root
-                && owner.len() <= place.segments.len()
-                && owner.iter().zip(&place.segments).all(|(owner, selected)| {
-                    crate::borrow::owner_segment_matches_place_segment(program, owner, selected)
-                        == Some(true)
-                })
+                && matches_owner(owner)
         })
         .collect::<Vec<_>>();
     let incoming = incoming.collect::<Vec<_>>();
@@ -230,12 +258,7 @@ fn resolve_descriptor_places_with_loans(
     let matches_incoming = |identity| {
         let incoming = borrow.incoming_references.get(identity);
         let owner = borrow.owner_segments.span_or_empty(incoming.owner_path);
-        incoming.place_root() == place.root
-            && owner.len() <= place.segments.len()
-            && owner.iter().zip(&place.segments).all(|(owner, selected)| {
-                crate::borrow::owner_segment_matches_place_segment(program, owner, selected)
-                    == Some(true)
-            })
+        incoming.place_root() == place.root && matches_owner(owner)
     };
     let incoming = incoming
         .into_iter()

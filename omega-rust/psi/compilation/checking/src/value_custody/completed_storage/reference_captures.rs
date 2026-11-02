@@ -139,7 +139,7 @@ impl Resolver<'_> {
         if !self.control.operands.is_valid(value) {
             return Selection::Unavailable;
         }
-        let Some(path) = super::captures::captured_projection(
+        let Some(path) = crate::corresponding_place_projection(
             self.program,
             self.control.operands.get(value).type_reference,
             path,
@@ -377,7 +377,7 @@ impl Resolver<'_> {
         let mut whole_path = prefix.to_vec();
         whole_path.extend_from_slice(path);
         let Some(whole_path) =
-            super::captures::captured_projection(self.program, reference, &whole_path)
+            crate::corresponding_place_projection(self.program, reference, &whole_path)
         else {
             return Some(Selection::Unavailable);
         };
@@ -391,7 +391,7 @@ impl Resolver<'_> {
                     .operand_child_paths
                     .span(leaf.path)
                     .and_then(|path| {
-                        super::captures::captured_projection(self.program, reference, path)
+                        crate::corresponding_place_projection(self.program, reference, path)
                     })
             else {
                 return Some(Selection::Unavailable);
@@ -499,7 +499,8 @@ impl Resolver<'_> {
         reference: typed_trees::types::TypeReferenceHandle,
         path: &[PlaceSegment],
     ) -> Option<Selection> {
-        let Some(path) = super::captures::captured_projection(self.program, reference, path) else {
+        let Some(path) = crate::corresponding_place_projection(self.program, reference, path)
+        else {
             return Some(Selection::Unavailable);
         };
         let path = path.as_slice();
@@ -577,7 +578,7 @@ impl Resolver<'_> {
             .span_or_empty(profile.leaves)
             .iter()
             .filter_map(|leaf| {
-                let prefix = super::captures::captured_projection(
+                let prefix = crate::corresponding_place_projection(
                     self.program,
                     reference,
                     self.control.operand_retained_paths.span_or_empty(leaf.path),

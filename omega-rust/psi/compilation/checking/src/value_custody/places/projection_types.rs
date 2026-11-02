@@ -165,6 +165,9 @@ pub fn observed_storage_type_references(
     })
 }
 
+mod applied_members;
+pub use applied_members::corresponding_place_projection;
+
 mod qualification_paths;
 pub use qualification_paths::{canonical_qualification_path, qualification_storage_path};
 
