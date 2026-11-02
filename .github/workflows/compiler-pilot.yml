@@ -87,6 +87,7 @@ jobs:
       - name: Optional executable smoke, exact fixtures, or fact samples
         if: github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '')
         env:
+          OMEGA_STRUCT_TRACE: '1'
           OMEGA_COMPILER_PILOT_FIXTURES: ${{ inputs.fixtures }}
           OMEGA_COMPILER_PILOT_SAMPLES: ${{ inputs.samples }}
         run: python tools/ci/compiler_pilot.py
