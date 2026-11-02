@@ -34,7 +34,8 @@ use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 use syntax_trees::identifier::Identifier;
 use syntax_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 use syntax_trees_to_symbol_resolved_trees::pre_resolution::{
-    closed_array_extent_expressions, resolve_deferred_initializer_probe,
+    ClosedDeclarationConstantUses, closed_array_extent_expressions,
+    resolve_deferred_initializer_probe,
 };
 
 mod dependencies;
@@ -56,8 +57,8 @@ pub(super) fn evaluate_declaration_calls(
     declarations: &[syntax_trees::item::ItemHandle],
 ) -> Result<SyntaxTrees, Vec<Diagnostic>> {
     let mut syntax = syntax;
-    let arguments =
-        syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_declaration_const_arguments(
+    let uses =
+        syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_declaration_constant_uses(
             &mut syntax,
             context.sources.clone(),
             context.source_scoped_top_level_bindings.to_vec(),
@@ -65,13 +66,13 @@ pub(super) fn evaluate_declaration_calls(
             context.declaration_syntax,
             declarations,
         )?;
-    evaluate_requested_calls(syntax, context, Some(&arguments))
+    evaluate_requested_calls(syntax, context, Some(&uses))
 }
 
 fn evaluate_requested_calls(
     mut syntax: SyntaxTrees,
     context: crate::BuildTimeSources<'_>,
-    requested: Option<&[(TypeReferenceHandle, TypeReferenceHandle, bool)]>,
+    requested: Option<&ClosedDeclarationConstantUses>,
 ) -> Result<SyntaxTrees, Vec<Diagnostic>> {
     let _profile = phase_profile::guard("pre_resolution.constant_calls");
     loop {
@@ -90,7 +91,7 @@ fn evaluate_requested_calls(
 fn evaluate_application_group(
     mut syntax: SyntaxTrees,
     context: crate::BuildTimeSources<'_>,
-    requested: Option<&[(TypeReferenceHandle, TypeReferenceHandle, bool)]>,
+    requested: Option<&ClosedDeclarationConstantUses>,
 ) -> Result<(SyntaxTrees, bool), Vec<Diagnostic>> {
     let mut progress = false;
     let sources = context.sources.clone();
@@ -108,7 +109,21 @@ fn evaluate_application_group(
         return Ok((syntax, false));
     }
     let (const_arguments, extent_uses) = if let Some(requested) = requested {
-        (requested.to_vec(), Vec::new())
+        // Retention changes each exact owner's length from an expression to a
+        // checked job. Inventory live uses again so that job is not recreated
+        // on the next readiness round; ordinary static arguments keep their
+        // separate value demand even if a source child serves both roles.
+        let live_extents = closed_array_extent_expressions(&mut syntax);
+        let extents = requested
+            .array_extents
+            .iter()
+            .filter(|(argument, ..)| live_extents.iter().any(|(live, ..)| live == argument))
+            .copied()
+            .collect::<Vec<_>>();
+        let extent_uses = extents.iter().map(|(argument, ..)| *argument).collect();
+        let mut arguments = requested.arguments.clone();
+        arguments.extend(extents);
+        (arguments, extent_uses)
     } else {
         let mut const_arguments =
         syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_data_const_argument_expressions(

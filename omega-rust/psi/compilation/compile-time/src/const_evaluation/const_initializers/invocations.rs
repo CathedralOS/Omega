@@ -68,15 +68,43 @@ impl CheckedInitializers {
         prepared: &crate::PreparedBuildMachineProgram,
         authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
         probe_symbols: &[SymbolHandle],
-        accounting: &crate::evaluation_accounting::EvaluationAccounting,
+        domain: &crate::build_time_evaluation::EvaluationDomain,
         operators: &[crate::SelectedBuildTimeBinaryOperator],
     ) -> Result<Self, Vec<Diagnostic>> {
+        let probes = prepared
+            .typed()
+            .machines()
+            .iter()
+            .filter(|machine| probe_symbols.contains(&machine.symbol))
+            .count();
+        if probes != probe_symbols.len() {
+            return Err(super::failure(
+                SourceSpan::default(),
+                "initializer preparation lost an exact probe owner",
+            ));
+        }
+        let references = typed_trees::references::collect_program_references(prepared.typed());
+        let operators = operators
+            .iter()
+            .filter(|row| {
+                references.expressions.contains(&row.expression)
+                    && row
+                        .origin
+                        .machine_symbol()
+                        .is_some_and(|owner| prepared.typed().machine(owner).is_some())
+            })
+            .cloned()
+            .collect::<Vec<_>>();
         // Helper checking and result-carrier comparison consume concrete type
-        // dependencies too. Settle their length jobs on this private arena
-        // before projecting probe bodies; removing a probe must not leave a
-        // helper's declared array carrier symbolic beside a literal result.
-        let domain = crate::build_time_evaluation::EvaluationDomain::all()
-            .with_accounting(accounting.clone());
+        // dependencies too. Keep the caller's layout, Product frontier and
+        // execution selection while demanding these exact private probes.
+        // Removing a probe must not leave a helper's declared array carrier
+        // symbolic beside a literal result.
+        let mut domain = domain.clone();
+        for &symbol in probe_symbols {
+            domain.include(symbol);
+        }
+        let domain = domain.demanded_roots(prepared.typed(), probe_symbols);
         let settled = if crate::const_evaluation::const_lengths::pending_array_lengths(
             prepared.typed(),
             &domain,
@@ -90,7 +118,7 @@ impl CheckedInitializers {
                 &mut execution,
                 authority.clone(),
                 crate::SelectedBuildTimeOperators {
-                    operators,
+                    operators: &operators,
                     provider_bodies: &[],
                 },
                 &domain,
@@ -98,30 +126,6 @@ impl CheckedInitializers {
             Some(execution)
         };
         let execution = settled.as_ref().unwrap_or_else(|| prepared.typed());
-        let references = typed_trees::references::collect_program_references(execution);
-        let operators = operators
-            .iter()
-            .filter(|row| {
-                references.expressions.contains(&row.expression)
-                    && row
-                        .origin
-                        .machine_symbol()
-                        .is_some_and(|owner| prepared.typed().machine(owner).is_some())
-            })
-            .cloned()
-            .collect::<Vec<_>>();
-        let probes = prepared
-            .typed()
-            .machines()
-            .iter()
-            .filter(|machine| probe_symbols.contains(&machine.symbol))
-            .count();
-        if probes != probe_symbols.len() {
-            return Err(super::failure(
-                SourceSpan::default(),
-                "initializer preparation lost an exact probe owner",
-            ));
-        }
         // The private scalar evaluator owns probe expressions. The projection
         // removes their unused generated context as well as their roots, while
         // preserving every helper or descriptive operand that actually uses it.
@@ -142,7 +146,7 @@ impl CheckedInitializers {
             .map_err(|reason| super::failure(SourceSpan::default(), reason))?
             .unwrap_or(typed);
         let admission = BuildTimeAdmissionPlan::infer(&typed, authority.clone())
-            .with_accounting(accounting.clone())
+            .with_accounting(domain.accounting.clone())
             .with_selected_operators(&typed, &operators)
             .map_err(|reason| super::failure(SourceSpan::default(), reason))?;
         Ok(Self {

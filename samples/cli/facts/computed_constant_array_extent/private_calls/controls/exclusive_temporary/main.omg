@@ -1,5 +1,4 @@
 // Computed constant array extents preserve the selected value 3 through an alias.
-// Expected exit: 0
 const BASE: u64 = 1 + 0;
 const SIZE: u64 = BASE + 0;
 const SOURCE: [u64; SIZE] = [3 + 0];
