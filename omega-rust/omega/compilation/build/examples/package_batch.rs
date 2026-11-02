@@ -359,6 +359,7 @@ fn produce(
             let observed = terminal_runtime::execute(terminal_runtime::TerminalRuntimeRequest {
                 entry: Some(companion.program_entry().checked_entry()),
                 filesystem: Default::default(),
+                native_services: Default::default(),
                 native_provider: None,
                 artifact,
                 target: Some(profile.target_name()),
@@ -550,6 +551,7 @@ fn observe_native_products(
         let observed = terminal_runtime::execute(terminal_runtime::TerminalRuntimeRequest {
             entry: None,
             filesystem: Default::default(),
+            native_services: Default::default(),
             native_provider: None,
             x86_flags: None,
             memory_ordering: None,

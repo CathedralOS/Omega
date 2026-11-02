@@ -310,10 +310,11 @@ impl<'host> HostContext<'host> {
         input: Option<Box<dyn std::io::Read + Send + 'host>>,
         clock: Option<clock::TerminalClockEnvironment>,
         native_provider: Option<std::process::Command>,
+        native_services: super::TerminalNativeServiceDelegation,
         filesystem: super::TerminalFilesystemDelegation,
     ) -> Self {
         Self {
-            native: native_provider::NativeContext::new(native_provider),
+            native: native_provider::NativeContext::new(native_provider, native_services),
             filesystem: filesystem::FilesystemContext::new(filesystem),
             output: buffered_output::BufferedStreams::new(),
             input: input.map(|reader| std::sync::Arc::new(std::sync::Mutex::new(reader))),
@@ -534,6 +535,7 @@ pub(super) fn bind<'host>(
                     continue;
                 }
                 if let Some(adapter) = clock::ClockImport::admit(
+                    program,
                     declaration,
                     binding,
                     provisions.map_or(&[], TerminalRuntimeHostProvisions::borrowed_storage_layouts),

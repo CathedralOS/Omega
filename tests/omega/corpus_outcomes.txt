@@ -602,6 +602,24 @@ fail/facts/fixed_region_byte_roundtrip_through_local_overlap_rejected rejected 4
 	statement 4 mutates `destination[2]` while local borrow `output` is still active (borrowed at statement 3; its last use is at statement 5)
 fail/facts/fixed_region_byte_roundtrip_through_local_short_region_rejected rejected 763ms expected @70ba9ee572b42c4d7f6ffe7d3051217e0906221c
 	machine `main` state `entry`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `[u8; 40]` are not representation-compatible
+fail/facts/foreign_package_service_reach_through_call_result_rejected rejected 29835ms expected @c03602bad609
+	machine `lettered` publishes service reach `<none>` but its checked body reaches undeclared service `Lettering`
+fail/facts/foreign_package_service_reach_through_const_name_rejected rejected 25207ms expected @c03602bad609
+	machine `start` publishes service reach `<none>` but its checked body reaches undeclared service `Lettering`
+fail/facts/foreign_package_service_reach_through_field_rejected rejected 29984ms expected @c03602bad609
+	machine `start` publishes service reach `<none>` but its checked body reaches undeclared service `Lettering`
+fail/facts/foreign_package_service_reach_through_local_rejected rejected 16891ms expected @c03602bad609
+	machine `start` publishes service reach `<none>` but its checked body reaches undeclared service `Lettering`
+fail/facts/foreign_package_service_reach_through_match_join_rejected rejected 15020ms expected @c03602bad609
+	machine `joined` publishes service reach `<none>` but its checked body reaches undeclared service `Lettering`
+fail/facts/foreign_package_service_reach_through_other_machine_rejected rejected 14410ms expected @c03602bad609
+	machine `relay` publishes service reach `<none>` but its checked body reaches undeclared service `Lettering`
+fail/facts/foreign_package_service_reach_through_other_state_rejected rejected 14247ms expected @c03602bad609
+	machine `receive` publishes service reach `<none>` but its checked body reaches undeclared service `Lettering`
+fail/facts/foreign_package_service_reach_through_parameter_rejected rejected 10492ms expected @c03602bad609
+	machine `shout` publishes service reach `<none>` but its checked body reaches undeclared service `Lettering`
+fail/facts/foreign_package_service_reach_through_target_body_rejected rejected 9994ms expected @c03602bad609
+	machine `UpperShouting::shout` publishes service reach `<none>` but its checked body reaches undeclared service `Lettering`
 fail/facts/foreign_retained_shared_borrow_borrowed_slot_swap rejected 2053ms expected @13c1304502d6
 	statement 13 mutates `first_buffer.value` while local borrow `state` is still active (borrowed at statement 7; its last use is at statement 14)
 fail/facts/foreign_retained_shared_borrow_persistent_restore rejected 2021ms expected @13c1304502d6
@@ -6691,6 +6709,15 @@ pass/facts/foreign_owned_array_record_through_other_machine_exit checked 3619ms 
 pass/facts/foreign_owned_array_record_through_other_state_exit checked 4692ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/foreign_owned_array_record_through_parameter_exit checked 3804ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/foreign_owned_array_record_through_target_body_exit checked 4238ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/foreign_package_service_reach_through_call_result_exit checked 38180ms check-target:macos_arm64 @c03602bad609
+pass/facts/foreign_package_service_reach_through_const_name_exit checked 30588ms check-target:macos_arm64 @c03602bad609
+pass/facts/foreign_package_service_reach_through_field_exit checked 32241ms check-target:macos_arm64 @c03602bad609
+pass/facts/foreign_package_service_reach_through_local_exit checked 29345ms check-target:macos_arm64 @c03602bad609
+pass/facts/foreign_package_service_reach_through_match_join_exit checked 22380ms check-target:macos_arm64 @c03602bad609
+pass/facts/foreign_package_service_reach_through_other_machine_exit checked 32844ms check-target:macos_arm64 @c03602bad609
+pass/facts/foreign_package_service_reach_through_other_state_exit checked 27997ms check-target:macos_arm64 @c03602bad609
+pass/facts/foreign_package_service_reach_through_parameter_exit checked 24221ms check-target:macos_arm64 @c03602bad609
+pass/facts/foreign_package_service_reach_through_target_body_exit checked 28703ms check-target:macos_arm64 @c03602bad609
 pass/facts/foreign_retained_mutable_borrow_call_result checked 3634ms check-target:macos_arm64 @9ec611f35574
 pass/facts/foreign_retained_mutable_borrow_const_name checked 2997ms check-target:macos_arm64 @9ec611f35574
 pass/facts/foreign_retained_mutable_borrow_field checked 2978ms check-target:macos_arm64 @9ec611f35574

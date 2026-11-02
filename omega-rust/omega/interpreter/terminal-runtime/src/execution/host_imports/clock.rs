@@ -1,4 +1,4 @@
-//! Explicit snapshot or live host time for admitted Darwin/Linux calls.
+//! Explicit snapshot or live host time for admitted Darwin/Linux/Windows calls.
 //!
 //! Admission selects a complete locator or target/syscall and validates the
 //! retained declaration and evaluated ABI. This is an explicit host embedding
@@ -17,6 +17,10 @@
 //! Darwin nanosleep uses this same signal-free timespec wait. Its invalid-request
 //! path depends on libc errno state, which this snapshot does not provision;
 //! reject that path rather than borrowing Linux's raw error convention.
+//! Windows kernel32 time reads one 64-bit word through a scalar loan: the
+//! performance counter in modeled nanoseconds with its matching frequency, and
+//! the FILETIME count of 100-nanosecond intervals since 1601. `Sleep` waits
+//! finite milliseconds; `INFINITE` needs an indefinite-wait model.
 
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -27,7 +31,7 @@ use target_operations::NormalizedForeignCallBinding;
 use terminal_interpreter::{
     TerminalBoundaryByteBuffer, TerminalBoundaryStorageBuffer, TerminalEffect,
     TerminalEffectHandler, TerminalEffectRejection, TerminalEffectResult, TerminalImportAdapter,
-    TerminalImportSignature, TerminalScalarValue,
+    TerminalImportSignature, TerminalProgram, TerminalScalarValue,
 };
 use terminal_psi::BoundaryMachineDeclaration;
 
@@ -36,6 +40,7 @@ use native_provider_runtime::read_host_clock_nanoseconds;
 
 mod admission;
 mod timespec;
+mod windows;
 
 /// An invocation's explicitly supplied elapsed and epoch origins. This licenses
 /// private modeled time, not access to live host clocks or native equivalence.
@@ -63,12 +68,16 @@ impl From<TerminalClockSnapshot> for TerminalClockEnvironment {
 enum ClockNamespace {
     Darwin,
     Linux,
+    Windows,
 }
 
 impl ClockNamespace {
     fn validate_selector(self, selector: u128) -> Result<(), TerminalEffectRejection> {
         match (self, selector) {
-            (_, 0) | (Self::Darwin, 4 | 5 | 6 | 8 | 9) | (Self::Linux, 1 | 4 | 7) => Ok(()),
+            (_, 0)
+            | (Self::Darwin, 4 | 5 | 6 | 8 | 9)
+            | (Self::Linux, 1 | 4 | 7)
+            | (Self::Windows, windows::MONOTONIC) => Ok(()),
             _ => Err(TerminalEffectRejection::new(
                 "clock selector requires an unavailable clock environment",
             )),
@@ -160,6 +169,8 @@ enum ClockImplementation {
     ReadTimespec,
     Poll,
     Nanosleep,
+    WindowsWord(windows::WindowsWord),
+    WindowsSleep,
 }
 
 enum ClockOperation {
@@ -167,6 +178,8 @@ enum ClockOperation {
     ReadTimespec(NativeBorrowedStorageLayout),
     Poll,
     Nanosleep(NativeBorrowedStorageLayout),
+    WindowsWord(windows::WindowsWord),
+    WindowsSleep,
 }
 
 pub(super) struct ClockImport {
@@ -180,6 +193,7 @@ impl ClockImport {
     /// Absence means no exact implementation is offered. A matching offer with
     /// an incompatible declaration is an error, not another adapter's fallback.
     pub(super) fn admit(
+        program: &TerminalProgram,
         declaration: &BoundaryMachineDeclaration,
         binding: &NormalizedForeignCallBinding,
         storage_layouts: &[NativeBorrowedStorageLayout],
@@ -190,6 +204,7 @@ impl ClockImport {
         };
         let signature = TerminalImportSignature::from(declaration);
         let operation = admission::validate(
+            program,
             declaration,
             binding,
             &signature,
@@ -340,6 +355,9 @@ impl TerminalEffectHandler for ClockImport {
                 &self.clock,
                 self.namespace,
             ),
+            ClockOperation::WindowsWord(word) => {
+                windows::write_word(effect, storage_buffers, &self.signature, &self.clock, *word)
+            }
             _ if storage_buffers.is_empty() => self.handle_effect_result(effect),
             _ => Err(TerminalEffectRejection::new(
                 "scalar clock imports do not accept borrowed storage",
@@ -380,10 +398,26 @@ impl TerminalEffectHandler for ClockImport {
                     value: IntegerValue::Unsigned(u128::from(reading)),
                 }))
             }
-            ClockOperation::ReadTimespec(_) | ClockOperation::Nanosleep(_) => {
-                Err(TerminalEffectRejection::new(
-                    "timespec operations require authenticated borrowed storage",
-                ))
+            ClockOperation::ReadTimespec(_)
+            | ClockOperation::Nanosleep(_)
+            | ClockOperation::WindowsWord(_) => Err(TerminalEffectRejection::new(
+                "clock storage operations require authenticated borrowed storage",
+            )),
+            ClockOperation::WindowsSleep => {
+                let [
+                    TerminalScalarValue::Integer {
+                        value: IntegerValue::Unsigned(milliseconds),
+                        ..
+                    },
+                ] = call.arguments
+                else {
+                    return Err(invalid());
+                };
+                wait(
+                    &self.clock,
+                    &self.signature,
+                    windows::sleep_nanoseconds(*milliseconds)?,
+                )
             }
             ClockOperation::Poll => {
                 let [
