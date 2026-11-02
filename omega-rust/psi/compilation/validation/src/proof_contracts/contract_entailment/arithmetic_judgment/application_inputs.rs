@@ -234,15 +234,21 @@ impl super::Engine<'_> {
                 // telescopes. Select this call's entries before substituting
                 // its formals; the same helper projection can belong to
                 // several different invocations of that helper.
-                parameters
+                // Fixed fields name the same captured value independently of
+                // unrelated arguments. Discovery shares those reads by exact
+                // root/path. Only a dynamic selector requires its supplying
+                // telescope to distinguish observations of the same syntax.
+                (!read
+                    .coordinate
+                    .path
                     .iter()
-                    .zip(arguments)
-                    .all(|(formal, actual)| {
+                    .any(|step| matches!(step, facts::PlaceSegment::Index { .. }))
+                    || parameters.iter().zip(arguments).all(|(formal, actual)| {
                         read.selector_arguments
                             .iter()
                             .any(|(bound, supplied)| *bound == formal.symbol && supplied == actual)
-                    })
-                    .then_some(())?;
+                    }))
+                .then_some(())?;
                 let mut read = read.clone();
                 read.coordinate.path = path.to_vec();
                 Some((read, value.clone()))
