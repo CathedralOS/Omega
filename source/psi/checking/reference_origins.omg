@@ -20,16 +20,16 @@ public data ReferenceOrigin [copy] {
 
 public machine Checker::exact_reference_origin(place: u64 in Trapping) -> ReferenceOrigin {
     transition place > 0 {
-        true -> { ReferenceOrigin::Exact { place: place } }
-        false -> { ReferenceOrigin::Unknown }
+        true -> ReferenceOrigin::Exact { place: place }
+        false -> ReferenceOrigin::Unknown
     }
 }
 
 public machine Checker::reference_origin_place(origin: ReferenceOrigin) -> u64 in Trapping {
     transition origin {
-        ReferenceOrigin::Exact { place } -> { place }
-        ReferenceOrigin::Footprint { place } -> { place }
-        _ -> { 0 }
+        ReferenceOrigin::Exact { place } -> place
+        ReferenceOrigin::Footprint { place } -> place
+        _ -> 0
     }
 }
 
@@ -38,7 +38,7 @@ crashes Trap
 {
     transition place > 0 && place <= 256 {
         true -> read(checker, place - 1)
-        false -> { ReferenceOrigin::Unknown }
+        false -> ReferenceOrigin::Unknown
     }
     machine read(checker: &Checker, index: u64 in Trapping) -> ReferenceOrigin
     requires index < 256
@@ -54,27 +54,30 @@ crashes Trap
     let previous: ReferenceOrigin = checker.reference_origins[index];
     let same: bool = Checker::same_reference_origin(previous, origin);
     transition checker.saved_count == 0 || same {
-        true -> { checker.reference_origins[index] = origin; }
-        false -> { checker.reference_origins[index] = ReferenceOrigin::Unknown; }
+        true -> capture(checker, index, origin)
+        false -> capture(checker, index, ReferenceOrigin::Unknown)
     }
+    machine capture(checker: &mut Checker, index: u64 in Trapping, origin: ReferenceOrigin)
+    requires index < 256
+    { checker.reference_origins[index] = origin; }
 }
 
 machine Checker::same_reference_origin(left: ReferenceOrigin, right: ReferenceOrigin) -> bool {
     transition left {
         ReferenceOrigin::Exact { place } -> exact(place, right)
         ReferenceOrigin::Footprint { place } -> footprint(place, right)
-        _ -> { false }
+        _ -> false
     }
     machine exact(place: u64 in Trapping, right: ReferenceOrigin) -> bool {
         transition right {
-            ReferenceOrigin::Exact { place as other } -> { place == other }
-            _ -> { false }
+            ReferenceOrigin::Exact { place as other } -> (place == other)
+            _ -> false
         }
     }
     machine footprint(place: u64 in Trapping, right: ReferenceOrigin) -> bool {
         transition right {
-            ReferenceOrigin::Footprint { place as other } -> { place == other }
-            _ -> { false }
+            ReferenceOrigin::Footprint { place as other } -> (place == other)
+            _ -> false
         }
     }
 }
@@ -88,18 +91,18 @@ crashes Trap
     machine next(checker: &Checker, place: u64 in Trapping, depth: u64 in Trapping) -> bool {
         transition place > 0 && depth < 256 {
             true -> inspect(checker, place, depth)
-            false -> { false }
+            false -> false
         }
     }
     machine inspect(checker: &Checker, place: u64 in Trapping, depth: u64 in Trapping) -> bool {
         let entry: Place = Checker::place_at(checker, place - 1);
         transition entry.kind {
-            PlaceKind::Parameter -> { true }
-            PlaceKind::Call -> { true }
-            PlaceKind::ContractResult -> { true }
+            PlaceKind::Parameter -> true
+            PlaceKind::Call -> true
+            PlaceKind::ContractResult -> true
             PlaceKind::Field -> next(checker, entry.parent, depth + 1)
             PlaceKind::Referent -> next(checker, entry.parent, depth + 1)
-            _ -> { false }
+            _ -> false
         }
     }
 }
@@ -145,12 +148,12 @@ crashes Trap
     machine next(checker: &Checker, typing: &Typing, root: u64 in Trapping, current: u64 in Trapping, depth: u64 in Trapping) -> bool {
         transition current > 0 && root > 0 && depth < 256 {
             true -> inspect(checker, typing, root, current, depth)
-            false -> { false }
+            false -> false
         }
     }
     machine inspect(checker: &Checker, typing: &Typing, root: u64 in Trapping, current: u64 in Trapping, depth: u64 in Trapping) -> bool {
         transition current == root {
-            true -> { true }
+            true -> true
             false -> parent(checker, typing, root, current, depth)
         }
     }
@@ -158,7 +161,7 @@ crashes Trap
         let entry: Place = Checker::place_at(checker, current - 1);
         transition entry.parent > 0 && (entry.kind == PlaceKind::Field || entry.kind == PlaceKind::Length) {
             true -> owner(checker, typing, root, entry.parent, depth)
-            false -> { false }
+            false -> false
         }
     }
     machine owner(checker: &Checker, typing: &Typing, root: u64 in Trapping, parent: u64 in Trapping, depth: u64 in Trapping) -> bool {
@@ -166,14 +169,24 @@ crashes Trap
         let row: TypeRow = TypeTable::row(&typing.types, owner.type_handle);
         transition parent == root || row.kind != TypeKind::Reference {
             true -> next(checker, typing, root, parent, depth + 1)
-            false -> { false }
+            false -> false
         }
     }
 }
 
 public machine Checker::forget_reference_origins(checker: &mut Checker, typing: &Typing, root: u64 in Trapping)
 crashes Trap
-{ Checker::forget_reference_storage(checker, typing, root, true); }
+{
+    transition root > 0 && root <= 256 {
+        true -> typed(checker, typing, root)
+        false -> {}
+    }
+    machine typed(checker: &mut Checker, typing: &Typing, root: u64 in Trapping) {
+        let entry: Place = Checker::place_at(checker, root - 1);
+        let row: TypeRow = TypeTable::row(&typing.types, entry.type_handle);
+        Checker::forget_reference_storage(checker, typing, root, row.kind != TypeKind::Reference);
+    }
+}
 
 machine Checker::forget_reference_descendants(checker: &mut Checker, typing: &Typing, root: u64 in Trapping)
 crashes Trap
@@ -193,12 +206,17 @@ crashes Trap
     requires index < 256
     {
         let replace: bool = (include_root || index + 1 != root) && Checker::owned_below(checker, typing, root, index + 1);
-        transition replace {
-            true -> { checker.reference_origins[index] = ReferenceOrigin::Unknown; }
-            false -> {}
-        }
+        clear(checker, index, replace);
         transition { _ -> next(checker, typing, root, include_root, index + 1) }
     }
+    machine clear(checker: &mut Checker, index: u64 in Trapping, replace: bool)
+    requires index < 256
+    {
+        transition replace { true -> forget(checker, index) false -> {} }
+    }
+    machine forget(checker: &mut Checker, index: u64 in Trapping)
+    requires index < 256
+    { checker.reference_origins[index] = ReferenceOrigin::Unknown; }
 }
 
 // Place-index scratch for the transitive storage a container's exclusive
@@ -290,14 +308,20 @@ crashes Trap
     requires head < 256
     {
         let root: u64 in Trapping = writes.pending[head];
-        let entry: Place = Checker::place_at(checker, index);
-        let row: TypeRow = TypeTable::row(&typing.types, entry.type_handle);
-        let within: bool = index + 1 != root && Checker::within(checker, index + 1, root);
-        transition within && row.kind == TypeKind::Reference && row.access != ReferenceAccess::Shared {
-            true -> origin(checker, syntax, writes, release, index + 1, entry.parent)
-            false -> {}
-        }
+        Checker::collect_reference_descriptor(checker, syntax, typing, writes, release, root, index);
         transition { _ -> scan(checker, syntax, typing, writes, release, head, index + 1) }
+    }
+}
+
+machine Checker::collect_reference_descriptor(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, writes: &mut ReferenceWrites, release: ReferenceRelease, root: u64 in Trapping, index: u64 in Trapping)
+crashes Trap
+{
+    let entry: Place = Checker::place_at(checker, index);
+    let row: TypeRow = TypeTable::row(&typing.types, entry.type_handle);
+    let within: bool = index + 1 != root && Checker::within(checker, index + 1, root);
+    transition within && row.kind == TypeKind::Reference && row.access != ReferenceAccess::Shared {
+        true -> origin(checker, syntax, writes, release, index + 1, entry.parent)
+        false -> {}
     }
     machine origin(checker: &mut Checker, syntax: &SyntaxTrees, writes: &mut ReferenceWrites, release: ReferenceRelease, descriptor: u64 in Trapping, parent: u64 in Trapping) {
         let origin: ReferenceOrigin = Checker::reference_origin(checker, descriptor);
@@ -360,11 +384,24 @@ crashes Trap
     machine inspect(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, writes: &ReferenceWrites, release: ReferenceRelease, snapshotting: bool, index: u64 in Trapping)
     requires index < 256
     {
-        transition writes.written[index] {
-            true -> apply(checker, syntax, typing, writes, release, snapshotting, index)
+        Checker::apply_reference_write(checker, syntax, typing, writes, release, snapshotting, index);
+        transition { _ -> next(checker, syntax, typing, writes, release, snapshotting, index + 1) }
+    }
+    machine finished(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, writes: &ReferenceWrites, release: ReferenceRelease, snapshotting: bool) {
+        transition snapshotting {
+            true -> next(checker, syntax, typing, writes, release, false, 0)
             false -> {}
         }
-        transition { _ -> next(checker, syntax, typing, writes, release, snapshotting, index + 1) }
+    }
+}
+
+machine Checker::apply_reference_write(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, writes: &ReferenceWrites, release: ReferenceRelease, snapshotting: bool, index: u64 in Trapping)
+requires index < 256
+crashes Trap
+{
+    transition writes.written[index] {
+        true -> apply(checker, syntax, typing, writes, release, snapshotting, index)
+        false -> {}
     }
     machine apply(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, writes: &ReferenceWrites, release: ReferenceRelease, snapshotting: bool, index: u64 in Trapping)
     requires index < 256
@@ -388,16 +425,17 @@ crashes Trap
     machine retire(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, contents: bool) {
         Checker::forget_reference_descendants(checker, typing, place);
         transition contents {
-            true -> { Checker::forget_contents(checker, typing, place); }
-            false -> { Checker::forget_place(checker, typing, place); }
+            true -> footprint(checker, typing, place)
+            false -> whole(checker, typing, place)
         }
     }
-    machine finished(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, writes: &ReferenceWrites, release: ReferenceRelease, snapshotting: bool) {
-        transition snapshotting {
-            true -> next(checker, syntax, typing, writes, release, false, 0)
-            false -> {}
-        }
+    machine footprint(checker: &mut Checker, typing: &Typing, place: u64 in Trapping) {
+        Checker::forget_contents(checker, typing, place);
     }
+    machine whole(checker: &mut Checker, typing: &Typing, place: u64 in Trapping) {
+        Checker::forget_place(checker, typing, place);
+    }
+
 }
 
 machine Checker::reject_reference_release(checker: &mut Checker, source_span: SourceSpan)

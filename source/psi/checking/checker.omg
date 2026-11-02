@@ -1274,12 +1274,16 @@ crashes Trap
         let row: TypeRow = TypeTable::row(&typing.types, entry.type_handle);
         // A reference-typed target writes its referent. Replacing owned
         // storage can instead replace the descriptors contained in it.
-        transition row.kind != TypeKind::Reference {
-            true -> { Checker::forget_reference_origins(checker, typing, index + 1); }
-            false -> {}
-        }
+        replace_origins(checker, typing, index + 1, row.kind != TypeKind::Reference);
         Checker::forget_place(checker, typing, index + 1);
         transition { _ -> next(checker, typing, place, callee, index + 1) }
+    }
+
+    machine replace_origins(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, replace: bool) {
+        transition replace { true -> replaced(checker, typing, place) false -> {} }
+    }
+    machine replaced(checker: &mut Checker, typing: &Typing, place: u64 in Trapping) {
+        Checker::forget_reference_origins(checker, typing, place);
     }
 
     machine done() {}
