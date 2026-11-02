@@ -15,8 +15,9 @@ machine earlier(view: &mut u32, marker: &mut u32, replacement: u32) -> u32
 ensures view == replacement && marker == 17 && result == 17,
 { view = 0xFFFFFFFFu32; view = replacement; marker = 17; 17 }
 machine later(view: &mut u32, marker: &mut u32) -> u32
+requires marker == 17,
 ensures view == 0 && marker == 23 && result == 23,
-{ view = 0; marker = 23; 23 }
+{ view = 0; marker = marker + 6; 23 }
 machine combine(first: u32, second: u32) -> u32
 requires first == 17 && second == 23,
 ensures result == 40,

@@ -50,7 +50,7 @@ Each twin changes only the restoration scalar from `0u32` to `0xFFFFFFFFu32`.
 The parameter twin also changes its exact input contract and both call inputs
 together, so no input requirement is intentionally violated. Identity contracts,
 parent construction, first corrupting store and runtime oracles stay unchanged.
-The current production's intended refusal is **`cannot lend restricted field `start``**
+The current production's intended refusal is **cannot lend restricted field `start`**
 with **`normal-return guarantees do not preserve the field's standing predicate`**
 at the helper's normal-return handback. A formation failure or an unrelated input-contract refusal
 does not establish this obligation.
@@ -249,7 +249,8 @@ omitted or repeated evaluation in both engines.
 The [completion-order control](controls/completion_order/main.omg) restores zero
 in the first nested call and again in a later sibling. Its twin makes only the
 first restoration invalid; the later sibling cannot excuse that earlier handback.
-Distinct returned values and marker writes expose reversed/omitted calls. Each
+Distinct returned values and a marker chain (17 then +6 to 23) expose
+reversed/omitted calls, including omission of the first marker store. Each
 control has an exact reject twin and matching corpus pins in this same fact.
 
 A separate exploratory attempt borrowed both `start` and its coupled `end` as
@@ -261,3 +262,30 @@ valid production or a passing runtime claim. Write-only specification equality
 probes likewise refuse formation on both baseline and repair; they establish
 no new write-only guarantee API. Existing write-only/read-authority controls
 remain in the focused regression selection.
+
+
+The first qualified compiler-code checkpoint `d9d514812f0962d653beab0534266aa9cfad353a`
+builds optimized corpus runner SHA-256
+`0fa9cdc6b12fe972216549efc9738dea4336e16a953de6e861554d9396a5c4a7`.
+The focused 70-fixture source selection checks 34 positives and rejects 35
+intended invalid controls; the additional local-loan fixture retains its
+attributed baseline lowering refusal. The 35-fixture execution selection
+observes 33 native/Terminal agreements, one compile-only result, and that same
+refusal (`computed borrow lost its established local`). Its gate exits 3; it
+is not an all-green claim. After strengthening only completion_order's marker
+chain, its positive and twin were rechecked separately and its positive again
+executes with exits 0/0 using the unchanged compiler inputs. Other successful
+observations are reused on identical source/oracle/producer inputs.
+
+This closes the checked normal-call production for this exact scalar-restoration
+row. Broader scalar-range migration, other representation/origin requirements,
+common-field case rosters and recursive/reference predicate inventories remain
+open under the parent task. Other-host runtime is unverified and GUI
+qualification stays pending.
+
+
+The replacement also removes the now unreferenced literal-field consequence
+chain left behind by the old handback checker. Complete interval-only field
+contracts and representation bounds remain with their existing consumers.
+The final compiler build and source results are recorded separately from
+those earlier observations.
