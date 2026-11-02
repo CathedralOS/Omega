@@ -10,6 +10,18 @@ use typed_trees::type_identity::{CallableIdentityId, TypeIdentityId};
 
 use super::MachineContractCommitment;
 
+/// Independently decidable callable facts, even when its full description is
+/// unavailable. These describe source supply, never executable installation.
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+pub struct CheckedCallableHeader {
+    pub machine: SymbolHandle,
+    pub callable: CallableIdentityId,
+    pub package: Option<semantic_vocabulary::PackageKeyIdentity>,
+    pub source_target: Option<String>,
+    pub product_eligible: bool,
+    pub supplies_checked_body: bool,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedDeclarationParameter {
     pub normalized: TypeIdentityId,
@@ -67,6 +79,7 @@ impl CheckedDeclarationDescription {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedDeclarationDescriptions {
+    pub headers: Arena<CheckedCallableHeader>,
     pub machines: Arena<CheckedDeclarationDescription>,
     pub parameters: Arena<CheckedDeclarationParameter>,
 }

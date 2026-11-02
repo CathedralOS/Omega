@@ -11,12 +11,15 @@ use provider_planning::target_machines::{
 use terminal_codec::CanonicalTerminalArtifact;
 use terminal_psi_to_abstract_operations::RetainedTerminalArtifact;
 
+#[path = "callback_body_controls.rs"]
+mod callback_body_controls;
 #[path = "provider_instance_controls.rs"]
 mod provider_instance_controls;
 
 pub(super) struct PreparedProviderChoices {
     publication: PreparedTargetProviderPublication,
     expected_instances: Vec<provider_instance_controls::ExpectedInstance>,
+    callback_bodies: callback_body_controls::PreparedCallbackBodies,
 }
 
 pub(super) fn prepare(
@@ -93,12 +96,14 @@ pub(super) fn prepare(
     }
     .prepare();
     let expected_instances = provider_instance_controls::prepare(&checked, root)?;
+    let callback_bodies = callback_body_controls::prepare(&checked)?;
     drop(targets);
     drop(checked);
     drop(prepared);
     Ok(PreparedProviderChoices {
         publication,
         expected_instances,
+        callback_bodies,
     })
 }
 
@@ -110,6 +115,7 @@ pub(super) fn inspect(
     let PreparedProviderChoices {
         publication,
         expected_instances,
+        callback_bodies,
     } = prepared;
     let original = retained
         .native_realization_proposal()
@@ -125,6 +131,7 @@ pub(super) fn inspect(
     let loaded = CanonicalTerminalArtifact::from_bytes(&retained.artifact().to_bytes())
         .map_err(|error| format!("provider choice transport: {error:?}"))?;
     for artifact in [retained.artifact().view(), loaded.view()] {
+        callback_bodies.inspect(artifact.module())?;
         let actual = publication
             .clone()
             .publish(artifact, original.optimization_selection);

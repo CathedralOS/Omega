@@ -3,6 +3,7 @@
 
 use super::super::machine_declaration_wire;
 use super::super::wire::{Reader, Writer, decode_counted};
+use super::super::wire_fields::{Field, ProviderPackage};
 use super::super::{CodecError, MAX_PROPOSITION_DEPTH};
 use super::boundary_application_wire::{decode_requirement, encode_requirement};
 use arena::{Arena, HandleSpan};
@@ -11,8 +12,8 @@ use semantic_vocabulary::proof_applications::{
     ProofCallMachine, ProofDeclarationDependencies, ProofStaticBinding,
 };
 use terminal_psi::{
-    ProofApplicationScope, ProofCallableAssociation, ProofDeclarationId, ProofScopeDeclaration,
-    TerminalIdentityIndex,
+    ProofApplicationScope, ProofCallableAssociation, ProofCallableHeader, ProofDeclarationId,
+    ProofScopeDeclaration, TerminalIdentityIndex,
 };
 
 fn references(
@@ -82,6 +83,19 @@ pub(super) fn encode(writer: &mut Writer, scope: &ProofApplicationScope) -> Resu
                 encode_requirement(writer, requirement)?;
             }
         }
+    }
+    writer.len("proof scope callable headers", scope.callable_headers.len())?;
+    for (_, header) in scope.callable_headers.iter() {
+        writer.u32(header.declaration.0);
+        writer.boolean(header.callable.is_ok());
+        match &header.callable {
+            Ok(callable) => writer.u32(callable.0),
+            Err(reason) => writer.string("unavailable callable header", reason)?,
+        }
+        ProviderPackage::write(writer, &header.package)?;
+        target(writer, &header.source_target)?;
+        writer.boolean(header.product_eligible);
+        writer.boolean(header.supplies_checked_body);
     }
     writer.len("proof scope callables", scope.callables.len())?;
     for (_, row) in scope.callables.iter() {
@@ -217,6 +231,22 @@ pub(super) fn decode(reader: &mut Reader<'_>) -> Result<ProofApplicationScope, C
             tag => return Err(CodecError::InvalidTag("ProofScopeDeclaration", tag)),
         };
         result.declarations.insert(declaration);
+    }
+    for _ in 0..reader.count()? {
+        let declaration = ProofDeclarationId(reader.u32()?);
+        let callable = if reader.boolean()? {
+            Ok(TerminalIdentityIndex(reader.u32()?))
+        } else {
+            Err(reader.string("unavailable callable header")?)
+        };
+        result.callable_headers.insert(ProofCallableHeader {
+            declaration,
+            callable,
+            package: ProviderPackage::read(reader)?,
+            source_target: read_target(reader)?,
+            product_eligible: reader.boolean()?,
+            supplies_checked_body: reader.boolean()?,
+        });
     }
     for _ in 0..reader.count()? {
         result.callables.insert(ProofCallableAssociation::Callable {
