@@ -3,8 +3,8 @@
 data Storage { left_canary: u32; value: u32; right_canary: u32; }
 domain Storage::Issued established by issue;
 domain Storage::Reissued established by reissue;
-machine issue(value: u32) -> Storage in Issued { Storage { left_canary: 17; value: value; right_canary: 23 } }
-machine reissue(value: u32) -> Storage in Reissued { Storage { left_canary: 17; value: value; right_canary: 23 } }
+machine issue(value: u32) -> Storage in Issued { Storage { left_canary: 17, value: value, right_canary: 23 } }
+machine reissue(value: u32) -> Storage in Reissued { Storage { left_canary: 17, value: value, right_canary: 23 } }
 machine write(first: &write Storage in Issued, second: &write Storage in Issued, choose: bool) {
     let view: &write Storage in Reissued = match choose { true -> first as &write Storage in Reissued, false -> second as &write Storage in Reissued };
     view.value = 73;
