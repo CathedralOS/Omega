@@ -92,19 +92,13 @@ impl Builder<'_, '_> {
             let (source, _) = self.call_ordinal(expression, authored_target)?;
             let source = self.flow.control.calls.get(source);
             let site = validation::CallSite::Expression { expression, call };
-            use crate::execution::terminal_unit::calls::{
-                BoundaryTraitReceiver, boundary_trait_receiver_source,
-            };
-            let receiver =
-                boundary_trait_receiver_source(program, state, source, &site, owner.symbol)?;
-            if let BoundaryTraitReceiver::Parameters(sources) = receiver
-                && sources.iter().any(|source| {
-                    !self
-                        .authored_parameters
-                        .iter()
-                        .any(|parameter| parameter.symbol == *source)
-                })
-            {
+            if !crate::execution::terminal_unit::calls::boundary_trait_receiver_is_namespace(
+                program,
+                state,
+                source,
+                &site,
+                owner.symbol,
+            ) {
                 return None;
             }
             let machine = program.machine_by_symbol(self.machine)?;

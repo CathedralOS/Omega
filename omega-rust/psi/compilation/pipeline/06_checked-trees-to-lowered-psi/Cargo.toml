@@ -14,7 +14,7 @@ diagnostics = { path = "../../../foundation/diagnostics" }
 lowered-psi = { path = "../../representations/lowered-psi" }
 arena = { path = "../../../foundation/arena" }
 checked-trees = { path = "../../representations/checked-trees" }
-optimization = { path = "../../../foundation/optimization-selections" }
+optimization = { path = "../../../foundation/optimization" }
 typed-trees = { path = "../../representations/typed-trees" }
 semantic-vocabulary = { path = "../../../foundation/semantic-vocabulary" }
 facts = { path = "../../representations/checked-trees/facts" }

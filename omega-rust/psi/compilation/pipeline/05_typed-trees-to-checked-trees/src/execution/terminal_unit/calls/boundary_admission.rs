@@ -1,49 +1,24 @@
 //! Which boundary scalar targets, argument presentations and
 //! mutable byte-array views a structural call may admit.
 
-use super::argument_paths::projected_argument_path;
 use crate::checks::type_multiplicity;
 use crate::execution::terminal_unit::types::mutable_boundary_trait_symbol;
 use crate::execution::terminal_unit::{
-    Multiplicity, PrimitiveType, StateParameter, SymbolHandle, TypeReferenceNode,
+    Multiplicity, PrimitiveType, SymbolHandle, TypeReferenceNode,
 };
-use crate::published::places::place_at;
 
-/// The source of boundary authority is independent of operand scheduling.
-/// Consumers retain the ordinary parameter in their own signature. Selecting
-/// a provider and establishing an entry context belong to realization; this
-/// query neither provisions a value nor invents implicit `self` authority.
-pub(crate) enum BoundaryTraitReceiver {
-    Namespace,
-    Parameters(Vec<SymbolHandle>),
-}
-
-pub(crate) fn boundary_trait_receiver_source(
+/// A boundary requirement call answers to its static namespace: the exact
+/// declaring trait. Selecting a provider and establishing an entry context
+/// belong to realization; no parameter, field or value supplies a provider,
+/// and this query invents no implicit `self` authority.
+pub(crate) fn boundary_trait_receiver_is_namespace(
     program: &dyn ::validation::CheckingInput,
     state: &typed_trees::state::State,
     call: &checked_trees::FlowCallFact,
     call_site: &validation::CallSite<'_>,
     requirement: SymbolHandle,
-) -> Option<BoundaryTraitReceiver> {
-    if !call.has_receiver {
-        return None;
-    }
-    if namespace_receiver_matches(program, state, call, call_site, requirement) {
-        return Some(BoundaryTraitReceiver::Namespace);
-    }
-    let sources = parameter_binding_receiver_sources(
-        program,
-        state,
-        call.statement_index,
-        call_site,
-        requirement,
-    )?;
-    Some(BoundaryTraitReceiver::Parameters(
-        sources
-            .into_iter()
-            .map(|(source, _)| source.symbol)
-            .collect(),
-    ))
+) -> bool {
+    call.has_receiver && namespace_receiver_matches(program, state, call, call_site, requirement)
 }
 
 /// A static namespace is the exact declaring trait. Runtime selectors resolve
@@ -84,147 +59,6 @@ fn namespace_receiver_matches(
             })
 }
 
-/// Resolve the ordinary source parameter whose Binding or projection has an exact
-/// declared requirement. This identifies a receiver, not a call admission: the
-/// call planner separately requires its structural parameter, and attachment
-/// collection uses this only for an already-planned matching boundary call.
-pub(crate) fn parameter_binding_receiver_sources<'program>(
-    program: &'program dyn ::validation::CheckingInput,
-    state: &typed_trees::state::State,
-    statement_index: usize,
-    call_site: &validation::CallSite<'_>,
-    requirement: SymbolHandle,
-) -> Option<Vec<(&'program StateParameter, validation::CanonicalPlace)>> {
-    resolve_parameter_binding_receiver_sources(
-        program,
-        state,
-        statement_index,
-        call_site,
-        requirement,
-    )
-    .ok()
-}
-
-fn resolve_parameter_binding_receiver_sources<'program>(
-    program: &'program dyn ::validation::CheckingInput,
-    state: &typed_trees::state::State,
-    statement_index: usize,
-    call_site: &validation::CallSite<'_>,
-    requirement: SymbolHandle,
-) -> Result<Vec<(&'program StateParameter, validation::CanonicalPlace)>, &'static str> {
-    let place = match call_site {
-        validation::CallSite::Expression { call, .. } => {
-            place_at(program, state.symbol, statement_index, call.receiver)
-        }
-        validation::CallSite::Statement(call) => {
-            validation::projected_statement_receiver_place(program, state, statement_index, call)
-                .map(|(root, segments)| validation::CanonicalPlace {
-                    root: facts::PlaceRoot::Symbol(root),
-                    segments,
-                })
-        }
-        validation::CallSite::TransitionNamed { .. } => None,
-    };
-    let place = place.ok_or("boundary authority: operand has no retained source place")?;
-    let machine = program
-        .machine_holding_state(state.symbol)
-        .ok_or("boundary authority: missing caller machine")?;
-    let before = program
-        .statement_table
-        .statement_at(state, statement_index)
-        .ok_or("boundary authority: missing call statement")?;
-    let resolver = validation::CallFrameResolver::new(program)
-        .ok_or("boundary authority: caller reference analysis unavailable")?;
-    let places = match place.root {
-        facts::PlaceRoot::Expression(expression) => resolver
-            .reference_expression_origins_before_statement(machine, before, expression)
-            .ok_or("boundary authority: returned reference has no exact caller-owned origin")?
-            .into_iter()
-            .map(|(root, mut segments)| {
-                segments.extend_from_slice(&place.segments);
-                validation::CanonicalPlace {
-                    root: facts::PlaceRoot::Symbol(root),
-                    segments,
-                }
-            })
-            .collect(),
-        facts::PlaceRoot::Symbol(root)
-            if program.symbols.get(root).kind == symbols::SymbolKind::Local =>
-        {
-            resolver
-                .local_reference_origins_before_statement(machine, before, root)
-                .ok_or("boundary authority: local reference has no exact live caller-owned origin")?
-                .into_iter()
-                .map(|(root, mut segments)| {
-                    segments.extend_from_slice(&place.segments);
-                    validation::CanonicalPlace {
-                        root: facts::PlaceRoot::Symbol(root),
-                        segments,
-                    }
-                })
-                .collect()
-        }
-        _ => vec![place],
-    };
-    if places.is_empty() {
-        return Err("boundary authority: reference has no possible caller-owned origin");
-    }
-    places
-        .into_iter()
-        .map(|place| {
-            let root = place
-                .root
-                .as_symbol()
-                .ok_or("boundary authority: origin has no declaration identity")?;
-            let source = program
-                .state_parameters(state)
-                .iter()
-                .find(|parameter| parameter.symbol == root && !parameter.relevance.is_erased())
-                .ok_or("boundary authority: origin is not a retained caller parameter")?;
-            let (reference, _) =
-                projected_argument_path(program, state.symbol, statement_index, &place, None, None)
-                    .ok_or("boundary authority: origin projection is not representable")?;
-            // A Binding member identifies the requirement through its own carrier.
-            // Provider selection and entry establishment are realization obligations.
-            let target = match call_site {
-                validation::CallSite::Expression { call, .. } => call.target_symbol,
-                validation::CallSite::Statement(call) => call.target_symbol,
-                validation::CallSite::TransitionNamed { .. } => {
-                    return Err("boundary authority: terminal receiver is not retained");
-                }
-            };
-            typed_trees::service::classify_exact_service_parameter_carrier(
-                program,
-                typed_trees::service::ServiceCarrierOccurrence {
-                    type_reference: reference,
-                    lexical_owner: state.symbol,
-                    enclosing_data_applications: &[],
-                },
-            )
-            .ok()
-            .flatten()
-            .filter(|carrier| {
-                carrier
-                    .carrier
-                    .application(program, state.symbol, &[])
-                    .is_some_and(|scope| {
-                        scope.declaring_scope(program, requirement).is_some()
-                            && program.closed_requirement_application(target).is_none_or(
-                                |application| {
-                                    program.requirement_application_matches_scope(
-                                        application.signature.symbol,
-                                        &scope,
-                                    )
-                                },
-                            )
-                    })
-            })
-            .map(|_| (source, place))
-            .ok_or("boundary authority: origin does not carry the exact selected requirement")
-        })
-        .collect()
-}
-
 /// Failure-only explanation for an unclaimed boundary occurrence. This uses
 /// the same admission relation as planning; it never supplies missing custody.
 pub(crate) fn boundary_authority_refusal(
@@ -246,17 +80,8 @@ pub(crate) fn boundary_authority_refusal(
         call.statement_index,
         call.call_ordinal,
     )?;
-    if namespace_receiver_matches(program, state, call, &site, owner.symbol) {
-        return None;
-    }
-    resolve_parameter_binding_receiver_sources(
-        program,
-        state,
-        call.statement_index,
-        &site,
-        owner.symbol,
-    )
-    .err()
+    (!namespace_receiver_matches(program, state, call, &site, owner.symbol))
+        .then_some("boundary authority: receiver is not the requirement's declaring namespace")
 }
 
 /// A fixed array lends its initialized extent as the borrowed element view a
@@ -431,22 +256,19 @@ pub(crate) fn provider_attachment_receiver_matches(
 }
 
 /// Whether `type_reference` presents `provider_symbol` as a direct boundary
-/// carrier: an exact `Binding<requirement>` slot, or the provider field spelled
-/// `&'a mut <boundary trait>` (unwrapping qualifications and the mutable
-/// borrow to the trait symbol; a shared `&` borrow is not a provider handle).
+/// carrier: the provider field spelled `&'a mut <boundary trait>` (unwrapping
+/// qualifications and the mutable borrow to the trait symbol; a shared `&`
+/// borrow is not a provider handle).
 fn field_type_carries_requirement(
     program: &dyn ::validation::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
     provider_symbol: SymbolHandle,
 ) -> bool {
-    typed_trees::service::service_requirement_declaration(program, type_reference)
-        == Some(provider_symbol)
-        || mutable_boundary_trait_symbol(program, type_reference) == Some(provider_symbol)
+    mutable_boundary_trait_symbol(program, type_reference) == Some(provider_symbol)
 }
 
 /// The ergonomic service-record spelling: `self.fs` is a `data` record that
-/// holds the raw boundary binding as a member (`host: Binding<FilesystemHost>`)
-/// rather than being the binding itself. The `self.<field>` receiver reaches
+/// holds the provider field as a member rather than being that field itself. The `self.<field>` receiver reaches
 /// the requirement when the field's record type carries it exactly one level
 /// down; deeper nesting stays refused so a named member cannot launder an
 /// indirect boundary path past the attachment rule.

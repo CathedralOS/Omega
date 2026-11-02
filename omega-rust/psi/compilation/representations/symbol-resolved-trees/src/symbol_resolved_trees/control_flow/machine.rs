@@ -159,7 +159,6 @@ pub struct MachineStorage {
     pub lifetime_parameters: Vec<DiagnosticName>,
     pub type_parameters: HandleSpan<crate::data::TypeParameter>,
     pub declared_type_equations: HandleSpan<DeclaredTypeEquation>,
-    pub declared_type_predicates: HandleSpan<crate::expression::ExpressionHandle>,
     pub owned_data: HandleSpan<OwnedData>,
     pub satisfies: HandleSpan<TraitConformance>,
     pub conformance_bounds: Vec<GenericConformanceBound>,
@@ -250,6 +249,8 @@ pub(crate) fn test_program_with_guarded_transition()
         ));
     let statements = program.declarations_mut().state_statements.insert_many([
         crate::statement::Statement::Transition(crate::statement::Transition {
+            source_guard: None,
+            patterns: Default::default(),
             target: crate::statement::TransitionTarget::Terminal,
             continuation: None,
             guard: crate::statement::TransitionGuard::When(guard),
@@ -306,7 +307,6 @@ pub(crate) fn test_machine(states: HandleSpan<Handle<State>>) -> Machine {
             lifetime_parameters: Vec::new(),
             type_parameters: HandleSpan::empty(),
             declared_type_equations: HandleSpan::empty(),
-            declared_type_predicates: HandleSpan::empty(),
             owned_data: HandleSpan::empty(),
             satisfies: HandleSpan::empty(),
             conformance_bounds: Vec::new(),

@@ -1,8 +1,7 @@
 //! Package authority for authored declaration selections.
 //!
-//! The caller supplies reconciled dependency authority and the exact selection
-//! occurrences excluded by its target-sibling checkpoint. Psi rejoins source
-//! custody, resolved declaration identity, visibility and direct dependencies.
+//! Checking normalizes exact finalized occurrence custody and exclusions once.
+//! The caller supplies reconciled live dependency authority for those requests.
 //! Loading a transitive package does not make its declarations selectable.
 
 use checked_trees::CheckedTrees;
@@ -10,7 +9,6 @@ use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget;
 use semantic_vocabulary::PackageKeyIdentity;
 use source::SourceOrigin;
-use std::collections::HashSet;
 use symbols::FixedCoreDeclaration;
 
 /// Package-neutral authority consulted before the compiler executes an
@@ -19,181 +17,183 @@ use symbols::FixedCoreDeclaration;
 /// Psi owns provenance and call-closure discovery. Omega supplies the exact
 /// reconciled direct-dependency predicate without leaking resolver or lockfile
 /// structures into the language layer.
-pub trait DeclarationSelectionAuthority: Send + Sync {
-    fn allows_declaration_selection(
-        &self,
-        requester: PackageKeyIdentity,
-        owner: PackageKeyIdentity,
-    ) -> bool;
-
-    fn package_label(&self, identity: PackageKeyIdentity) -> String;
-
-    /// Complete allowed-owner sets for known requesters, for comparing private
-    /// source checkpoints only. A custom predicate may decline persistence.
-    /// This metadata never replaces the live predicate during admission.
-    fn declaration_selection_scope(
-        &self,
-    ) -> Option<std::collections::BTreeMap<PackageKeyIdentity, Vec<PackageKeyIdentity>>> {
-        None
-    }
-}
+pub use semantic_vocabulary::compiler_evaluation::DeclarationSelectionAuthority;
 
 /// Validate exact checked declaration selections under supplied package authority.
-/// The caller derives `skipped` from target-sibling bodies excluded by its
-/// checkpoint, whether pruned provisionally or retained through settled checking.
-/// This checks the supplied scope; it does not authorize that scope or derive
-/// package admission from loaded source.
+/// The producer retained exact Product exclusions and normalized requests once.
+/// This asks the live authority; loaded source or a stored scope grants nothing.
 pub fn validate_authored_declaration_selections(
     program: &CheckedTrees,
     packages: &dyn DeclarationSelectionAuthority,
-    skipped: &HashSet<typed_trees::AuthoredDeclarationSelectionOccurrenceId>,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
-
-    for selection in program.facts.authored_declaration_selections() {
-        if skipped.contains(&selection.occurrence_id()) {
-            continue;
-        }
-        let source_span = selection.source_span();
-        let Some(source_file) = program.symbols.source_file(source_span) else {
-            diagnostics.push(
-                Diagnostic::error(
-                    "authored declaration selection has no compiler-owned source custody",
-                )
-                .with_source_span(source_span),
-            );
-            continue;
+    if program
+        .facts
+        .authored_declaration_selections()
+        .into_iter()
+        .len()
+        != program.facts.declaration_descriptions.selections.len()
+    {
+        return Err(vec![Diagnostic::error(
+            "checked declaration selections lost their normalized authority obligations",
+        )]);
+    }
+    for (_, selection) in program.facts.declaration_descriptions.selections.iter() {
+        let checked_trees::CheckedSelectionRequirement::Selection {
+            source_span,
+            excluded,
+            request,
+            ..
+        } = selection
+        else {
+            return Err(vec![Diagnostic::error(
+                "checked declaration-selection requirement is absent",
+            )]);
         };
-        // Toolchain source is not a managed package requester. Its own
-        // selections remain compiler-TCB input and must not be projected as
-        // dependency authority of the package being compiled.
-        if source_file.origin == SourceOrigin::Toolchain {
+        if *excluded {
             continue;
         }
-        let Some(requester) = source_file.package_identity else {
-            diagnostics.push(
-                Diagnostic::error(format!(
-                    "authored declaration selection in {} has no reconciled requesting package identity",
-                    source_file.path.display()
-                ))
-                .with_source_span(source_span),
-            );
-            continue;
-        };
-
-        let selected = match selection.target() {
-            AuthoredDeclarationSelectionTarget::Intrinsic(_) => continue,
-            AuthoredDeclarationSelectionTarget::LateBound(binding) => {
-                diagnostics.push(
-                    Diagnostic::error(format!(
-                        "package-authored declaration selection `{}` remained unresolved after successful checking: {:?} ({binding:?})",
-                        program.symbols.source_text(source_span),
-                        selection.kind(),
-                    ))
-                    .with_source_span(source_span),
-                );
-                continue;
+        match request {
+            Ok(Some(request))
+                if !packages.allows_declaration_selection(request.requester, request.owner) =>
+            {
+                diagnostics.push(Diagnostic::error(format!(
+                    "package {} selects a declaration owned by package {} without declaring that package as a direct dependency",
+                    packages.package_label(request.requester), packages.package_label(request.owner),
+                )).with_source_span(*source_span));
             }
-            AuthoredDeclarationSelectionTarget::Resolved(selected) => selected.selected_symbol(),
-        };
-        // A closed public requirement is a derived signature, not a new source
-        // declaration. Its retained template owns visibility and package
-        // custody; the occurrence's other operand selections remain independent.
-        let selected = program
-            .closed_requirement_application(selected)
-            .map_or(selected, |application| application.template);
-        // A selection recorded inside a target sibling's body was checked for
-        // that target and pruned with it; it is not a selection this
-        // realization admits.
-        let declarations = program.product_declarations();
-        if !typed_trees::visibility::owning_machine_is_retained(declarations, selected) {
-            continue;
-        }
-
-        // Installed primitive and mathematical declarations have exact
-        // compiler identity but intentionally no authored source/package owner.
-        // Slot queries retain the installed handle, including a type member's
-        // fixed parent; a user declaration with the same spelling gains no
-        // authority. The fixed core vocabulary is mathematical, so its symbol
-        // kind alone cannot distinguish it from an authored definition.
-        if program.symbols.builtin_type_atom(selected).is_some()
-            || program
-                .symbols
-                .builtin_function_for_symbol(selected)
-                .is_some()
-            || program.symbols.builtin_type_member(selected).is_some()
-            || FixedCoreDeclaration::ALL.into_iter().any(|declaration| {
-                program.symbols.fixed_core_declaration_symbol(declaration) == Some(selected)
-            })
-        {
-            continue;
-        }
-
-        let selected_kind = program.symbols.get(selected).kind;
-        if typed_trees::visibility::requires_declaration_visibility(selected_kind) {
-            let Some(visibility) =
-                typed_trees::visibility::authored_selection_visibility(declarations, selected)
-            else {
-                diagnostics.push(
-                    Diagnostic::error(format!(
-                        "selected {:?} `{}` has no retained declaration visibility",
-                        selected_kind,
-                        program.symbols.display_path(selected, "::")
-                    ))
-                    .with_source_span(source_span),
-                );
-                continue;
-            };
-            let owner = program.symbols.symbol_package_identity(selected);
-            if !visibility.is_public() && owner != Some(requester) {
-                diagnostics.push(
-                    Diagnostic::error(format!(
-                        "package {} selects private {} `{}`",
-                        packages.package_label(requester),
-                        visibility.kind(),
-                        program.symbols.display_path(selected, "::"),
-                    ))
-                    .with_source_span(source_span),
-                );
-                continue;
+            Err(reason) => {
+                diagnostics.push(Diagnostic::error(reason.clone()).with_source_span(*source_span))
             }
-        }
-
-        if let Some(owner) = program.symbols.symbol_package_identity(selected) {
-            if !packages.allows_declaration_selection(requester, owner) {
-                diagnostics.push(
-                    Diagnostic::error(format!(
-                        "package {} selects declaration `{}` owned by package {} without declaring that package as a direct dependency",
-                        packages.package_label(requester),
-                        program.symbols.display_path(selected, "::"),
-                        packages.package_label(owner),
-                    ))
-                    .with_source_span(source_span),
-                );
-            }
-            continue;
-        }
-
-        match program.symbols.symbol_source_origin(selected) {
-            Some(SourceOrigin::Toolchain) => {}
-            Some(SourceOrigin::User) => diagnostics.push(
-                Diagnostic::error(format!(
-                    "selected user declaration `{}` has no reconciled owning package identity",
-                    program.symbols.display_path(selected, "::")
-                ))
-                .with_source_span(source_span),
-            ),
-            None => diagnostics.push(
-                Diagnostic::error(format!(
-                    "selected declaration `{}` has no package or toolchain provenance",
-                    program.symbols.display_path(selected, "::")
-                ))
-                .with_source_span(source_span),
-            ),
+            _ => {}
         }
     }
-
     crate::program_validation::finish_strict_diagnostics(diagnostics)
+}
+
+/// Normalize finalized occurrence custody once while checking owns the exact
+/// declarations. The resulting package pairs are obligations, not authority;
+/// every execution consumer still asks its live predicate. Excluded Product
+/// descriptors remain explicitly uncovered rather than silently authorized.
+pub fn checked_selection_requirements(
+    program: &CheckedTrees,
+) -> arena::Arena<checked_trees::CheckedSelectionRequirement> {
+    let skipped = crate::execution_projection::descriptor_selection_occurrences(&program.typed);
+    let mut result = Vec::new();
+    for selection in program.facts.authored_declaration_selections() {
+        let selected_is_pruned = match selection.target() {
+            AuthoredDeclarationSelectionTarget::Resolved(selected) => {
+                let selected = program
+                    .closed_requirement_application(selected.selected_symbol())
+                    .map_or(selected.selected_symbol(), |application| {
+                        application.template
+                    });
+                !typed_trees::visibility::owning_machine_is_retained(
+                    program.product_declarations(),
+                    selected,
+                )
+            }
+            _ => false,
+        };
+        let excluded = skipped.contains(&selection.occurrence_id()) || selected_is_pruned;
+        result.push(checked_trees::CheckedSelectionRequirement::Selection {
+            occurrence: selection.occurrence_id(),
+            source_span: selection.source_span(),
+            excluded,
+            request: normalize_checked_selection(program, *selection),
+        });
+    }
+    result.sort_by_key(checked_trees::CheckedSelectionRequirement::occurrence_ordinal);
+    let mut retained = arena::Arena::new();
+    retained.insert_many(result);
+    retained
+}
+
+fn normalize_checked_selection(
+    program: &CheckedTrees,
+    selection: typed_trees::AuthoredDeclarationSelection,
+) -> Result<Option<semantic_vocabulary::compiler_evaluation::DeclarationAuthorityRequest>, String> {
+    let source_span = selection.source_span();
+    let source_file = program
+        .symbols
+        .source_file(source_span)
+        .ok_or("authored declaration selection has no compiler-owned source custody")?;
+    if source_file.origin == SourceOrigin::Toolchain {
+        return Ok(None);
+    }
+    let requester = source_file.package_identity.ok_or_else(|| {
+        format!(
+            "authored declaration selection in {} has no reconciled requesting package identity",
+            source_file.path.display()
+        )
+    })?;
+    let selected = match selection.target() {
+        AuthoredDeclarationSelectionTarget::Intrinsic(_) => return Ok(None),
+        AuthoredDeclarationSelectionTarget::LateBound(binding) => {
+            return Err(format!(
+                "package-authored declaration selection remained unresolved after successful checking: {:?} ({binding:?})",
+                selection.kind()
+            ));
+        }
+        AuthoredDeclarationSelectionTarget::Resolved(selected) => selected.selected_symbol(),
+    };
+    let selected = program
+        .closed_requirement_application(selected)
+        .map_or(selected, |application| application.template);
+    if program.symbols.builtin_type_atom(selected).is_some()
+        || program
+            .symbols
+            .builtin_function_for_symbol(selected)
+            .is_some()
+        || program.symbols.builtin_type_member(selected).is_some()
+        || FixedCoreDeclaration::ALL.into_iter().any(|declaration| {
+            program.symbols.fixed_core_declaration_symbol(declaration) == Some(selected)
+        })
+    {
+        return Ok(None);
+    }
+    let selected_kind = program.symbols.get(selected).kind;
+    if typed_trees::visibility::requires_declaration_visibility(selected_kind) {
+        let visibility = typed_trees::visibility::authored_selection_visibility(
+            program.product_declarations(),
+            selected,
+        )
+        .ok_or_else(|| {
+            format!(
+                "selected {:?} `{}` has no retained declaration visibility",
+                selected_kind,
+                program.symbols.display_path(selected, "::")
+            )
+        })?;
+        if !visibility.is_public()
+            && program.symbols.symbol_package_identity(selected) != Some(requester)
+        {
+            return Err(format!(
+                "package {requester:?} selects private {} `{}`",
+                visibility.kind(),
+                program.symbols.display_path(selected, "::")
+            ));
+        }
+    }
+    if let Some(owner) = program.symbols.symbol_package_identity(selected) {
+        return Ok(Some(
+            semantic_vocabulary::compiler_evaluation::DeclarationAuthorityRequest {
+                requester,
+                owner,
+            },
+        ));
+    }
+    match program.symbols.symbol_source_origin(selected) {
+        Some(SourceOrigin::Toolchain) => Ok(None),
+        Some(SourceOrigin::User) => Err(format!(
+            "selected user declaration `{}` has no reconciled owning package identity",
+            program.symbols.display_path(selected, "::")
+        )),
+        None => Err(format!(
+            "selected declaration `{}` has no package or toolchain provenance",
+            program.symbols.display_path(selected, "::")
+        )),
+    }
 }
 
 /// Comparison data from a source checkpoint. It deliberately implements no

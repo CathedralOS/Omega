@@ -601,6 +601,28 @@ impl TerminalExecution<'_> {
         original: &TerminalStructuralValue,
         storage: &PrimitiveStorage,
     ) -> Result<Vec<TerminalOriginalScalarValue>, TerminalInterpretError> {
+        // A frame array is its own whole allocation, and its cells live in
+        // the activation's packed array rather than in structural leaves.
+        // The image is every sibling cell of that same packed array.
+        if let Some(ArrayCell::Frame { home, index }) = self.array_cell(storage)? {
+            let (depth, place, _) = home.scalar_array_frame();
+            let length = self.frame_array(depth, place).ok_or_else(malformed)?.len();
+            return (0..length)
+                .filter(|cell| *cell != index)
+                .map(|cell| {
+                    self.original_scalar(
+                        original,
+                        &PrimitiveStorage {
+                            endpoint: PrimitiveStorageEndpoint::OwnedArrayElement {
+                                home,
+                                index: cell,
+                            },
+                            encoding: None,
+                        },
+                    )
+                })
+                .collect();
+        }
         let leaves = crate::storage::structural_storage::contents::describe(
             self,
             original,

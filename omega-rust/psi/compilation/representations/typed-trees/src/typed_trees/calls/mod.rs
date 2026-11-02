@@ -4,7 +4,6 @@ pub mod application_graph;
 pub mod boundary;
 pub mod dynamic_traits;
 pub mod finite_family;
-pub mod service;
 pub mod signature;
 pub mod static_applications;
 use crate::expression::ExpressionNode::Name;

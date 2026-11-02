@@ -11,7 +11,7 @@ use symbols::SymbolHandle;
 
 /// Build-time comparison evaluation asks only for the primitive binary lane;
 /// named operations do not become primitive expressions.
-pub(crate) fn derive_selected_primitive_float_binary_execution(
+pub fn derive_selected_primitive_float_binary_execution(
     typed: &typed_trees::TypedTrees,
     plan: &ProviderPlan,
     requirement: SymbolHandle,

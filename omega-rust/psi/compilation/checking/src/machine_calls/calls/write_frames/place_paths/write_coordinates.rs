@@ -38,6 +38,36 @@ pub(in crate::machine_calls::calls::write_frames) fn project_write_path(
         };
     }
     let source = &origin.source;
+    // Content borrowed through an extent lives behind its descriptor. Use the
+    // existing coarse backing footprint (also used by collection views), not
+    // a write to the descriptor's inline fields. Typed mutation consumers keep
+    // the formation and its separate content region; this label grants neither
+    // geometry nor access. Ordinary RAM Access views still write their lender.
+    for recast in &source.recasts {
+        let external_content =
+            matches!(
+                recast.formation,
+                super::ReferenceViewFormation::ExtentView(_)
+            ) || crate::reference_formation_source(program, recast.formation.expression())
+                .is_some_and(|formation| {
+                    matches!(
+                        formation.interpretation,
+                        crate::ReferenceFormationInterpretation::ResidentAccess { .. }
+                    )
+                });
+        if external_content && recast.root.is_valid() && recast.representation.is_none() {
+            let (path, precision) = coordinate_storage_path(
+                program,
+                program.symbols.name(recast.root),
+                &recast.segments,
+            );
+            return if precision == FramePathPrecision::Exact {
+                format!("{path}[*]")
+            } else {
+                path
+            };
+        }
+    }
     let exact = || {
         if origin.precision != FramePathPrecision::Exact || !source.builtin_coordinates {
             return None;

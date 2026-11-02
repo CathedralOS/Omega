@@ -4,7 +4,7 @@ Omega realization prepares source provider declarations and calling/component
 plans here, beside selected execution settlement. Shared whole-provider choice
 and admission live in [provider-selection](../provider-selection/src/provider_selection.rs).
 Exact provider-grant resolution
-belongs to [backend provider evidence](../../backend/plans/provider-evidence/src/provider_grants.rs),
+belongs to [backend provider evidence](../../backend/plans/effects/src/provider_grants.rs),
 not compiler trust-report reconstruction.
 
 This still consumes checked trees and package-input custody for compile-time

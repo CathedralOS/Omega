@@ -21,7 +21,7 @@ class NativeBoundaryTests(unittest.TestCase):
         self.metadata = {"workspace_root": str(self.root), "packages": []}
         self.native = self.package("native-production", NATIVE_ROOT)
         self.evidence = self.package(
-            "effects", "omega-rust/omega/compilation/backend/plans/provider-evidence"
+            "effects", "omega-rust/omega/compilation/backend/plans/effects"
         )
         self.edge(self.native, self.evidence)
 

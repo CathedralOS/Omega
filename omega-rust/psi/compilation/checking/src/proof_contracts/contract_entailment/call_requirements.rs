@@ -541,8 +541,13 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
             };
             entries
         } else {
+            // A statement evaluates its complete operand roster, including a
+            // selected slot's dispatch prefix, exactly like an expression call.
+            let operands = self.call_site.map_or(self.arguments, |site| {
+                crate::call_site_argument_expressions(program, &site)
+            });
             let Some(entries) = judge.normal_argument_entries(
-                self.arguments,
+                operands,
                 self.parameters,
                 environment,
                 (machine, state, state.return_type),
@@ -659,13 +664,7 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
                 Some(Vec::new())
             };
             let subjects = subjects.unwrap_or_default();
-            // Statement entries already evaluate the public data-only telescope.
-            let leading_operands = if self.call_expression.is_valid() {
-                self.leading_operands
-            } else {
-                0
-            };
-            let Some(arguments) = observed_arguments.get(leading_operands..) else {
+            let Some(arguments) = observed_arguments.get(self.leading_operands..) else {
                 self.proven = false;
                 return;
             };

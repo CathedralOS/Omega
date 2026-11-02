@@ -25,16 +25,114 @@ pub(in crate::preparation::generic_data) fn relabel_closed_sum_memberships_from_
     selection: Option<&declaration_selection::ConstantSelection>,
     declarations: &[ItemHandle],
 ) {
-    for (_state, local_types, statements) in concrete_state_local_types(syntax, declarations) {
+    for (state, local_types, statements) in concrete_state_local_types(syntax, declarations) {
+        // Both dispatch forms retain their head as an expression until this
+        // expected application can select its exact constructor. Captured
+        // transition subjects read their already established local's type.
+        for (position, statement) in statements.iter().enumerate() {
+            let frontier = super::ConstructorFrontier {
+                parameters: state.parameters,
+                prior_statements: &statements[..position],
+            };
+            let transition = match syntax.statements.statement(*statement) {
+                syntax_trees::statement::StatementNode::Transition(transition) => Some(*transition),
+                _ => None,
+            };
+            if let Some(transition) = transition {
+                let patterns = syntax
+                    .statements
+                    .transition_patterns(transition.patterns)
+                    .to_vec();
+                for (ordinal, mut retained) in patterns.into_iter().enumerate() {
+                    if !retained.is_structural
+                        && let ExpressionNode::Name(path) =
+                            syntax.expressions.expression(retained.pattern.head)
+                        && frontier.captures(syntax, *path)
+                    {
+                        continue;
+                    }
+                    if !retained.is_structural
+                        && let ExpressionNode::Name(path) =
+                            syntax.expressions.expression(retained.pattern.head)
+                        && let Some(name) = constructor_path_name(syntax, *path)
+                        && selection.is_some_and(|selection| {
+                            selection.constructor_prefix_is_value(syntax, &name)
+                        })
+                    {
+                        continue;
+                    }
+                    if let Some(expected) = subject_annotation(
+                        syntax,
+                        retained.subject,
+                        &local_types,
+                        &statements,
+                        &mut Vec::new(),
+                    ) {
+                        let application = relabel_pattern_head(
+                            syntax,
+                            instances,
+                            selection,
+                            expected,
+                            retained.pattern.head,
+                        );
+                        if application.is_valid() {
+                            retained.pattern.application_type = application;
+                        }
+                    }
+                    *syntax
+                        .statements
+                        .transition_pattern_mut(transition.patterns.handle_at(ordinal as u32)) =
+                        retained;
+                }
+            }
+        }
         let mut reachable = HashSet::new();
-        for statement in statements {
-            collect_statement_expression_handles(syntax, statement, &mut reachable);
+        for statement in &statements {
+            collect_statement_expression_handles(syntax, *statement, &mut reachable);
         }
         // Collection already identifies this state's work. Scanning the whole
         // expression arena again makes each unrelated state multiply preparation
         // cost. Retain arena order so synthesized paths stay deterministic.
         let mut reachable = reachable.into_iter().collect::<Vec<_>>();
         reachable.sort_unstable_by_key(|handle| (handle.generation(), handle.arena_index()));
+        for expression in reachable.iter().copied() {
+            if let ExpressionNode::Match(dispatch) =
+                syntax.expressions.expression(expression).clone()
+                && let Some(expected) = subject_annotation(
+                    syntax,
+                    dispatch.subject,
+                    &local_types,
+                    &statements,
+                    &mut Vec::new(),
+                )
+            {
+                let mut arms = syntax.expressions.match_arms(dispatch.arms).to_vec();
+                for arm in &mut arms {
+                    if let syntax_trees::expression::MatchPattern::Destructure(pattern) =
+                        &mut arm.pattern
+                    {
+                        let application = relabel_pattern_head(
+                            syntax,
+                            instances,
+                            selection,
+                            expected,
+                            pattern.head,
+                        );
+                        if application.is_valid() {
+                            pattern.application_type = application;
+                        }
+                    }
+                }
+                let arms = syntax.expressions.insert_match_arms(arms);
+                syntax.expressions.replace_expression(
+                    expression,
+                    ExpressionNode::Match(syntax_trees::expression::TableMatchExpression {
+                        arms,
+                        ..dispatch
+                    }),
+                );
+            }
+        }
         let replacements = reachable
             .into_iter()
             .filter_map(|handle| {
@@ -62,11 +160,6 @@ pub(in crate::preparation::generic_data) fn relabel_closed_sum_memberships_from_
                     return None;
                 }
                 let instance = expected_instance(syntax, instances, selection, closed)?;
-                // Destructure lowering currently retains the two-part case path.
-                let [_, _] = syntax_expressions(&syntax).identifier_path_members(membership.domain)
-                else {
-                    return None;
-                };
                 let name = constructor_path_name(syntax, membership.domain)?;
                 let (owner, case) = selected_constructor(syntax, selection, &name)?;
                 if owner != instance.template {
@@ -142,4 +235,114 @@ pub(in crate::preparation::generic_data) fn closed_sum_path(
         .expressions
         .append_identifier_path_member_to_span(&mut path, case);
     path
+}
+
+/// Read only declared source carriers and completed dispatch-local aliases.
+/// This supplies type inference, never a value, case fact or access grant.
+fn subject_annotation(
+    syntax: &SyntaxTrees,
+    expression: syntax_trees::expression::ExpressionHandle,
+    types: &super::super::HashMap<String, TypeReferenceHandle>,
+    statements: &[syntax_trees::statement::StatementHandle],
+    active: &mut Vec<syntax_trees::expression::ExpressionHandle>,
+) -> Option<TypeReferenceHandle> {
+    if active.contains(&expression) {
+        return None;
+    }
+    active.push(expression);
+    let result = match syntax.expressions.expression(expression) {
+        ExpressionNode::Name(path) => {
+            let [name] = syntax.expressions.identifier_path_members(*path) else {
+                return None;
+            };
+            if let Some(reference) = types
+                .get(name.as_str(syntax))
+                .filter(|reference| reference.is_valid())
+            {
+                Some(membership_subject_type(syntax, *reference))
+            } else {
+                statements.iter().find_map(|statement| {
+                    let syntax_trees::statement::StatementNode::LocalData(local) =
+                        syntax.statements.statement(*statement)
+                    else {
+                        return None;
+                    };
+                    (local.role == language_core::LocalBindingRole::DispatchSubject
+                        && local.name.as_str(syntax) == name.as_str(syntax))
+                    .then(|| {
+                        subject_annotation(syntax, local.initial_value, types, statements, active)
+                    })
+                    .flatten()
+                })
+            }
+        }
+        ExpressionNode::SavedSubject(saved) => subject_annotation(
+            syntax,
+            syntax.expressions.match_subject(saved.capture).subject,
+            types,
+            statements,
+            active,
+        ),
+        ExpressionNode::Borrow(borrow) => {
+            subject_annotation(syntax, borrow.target, types, statements, active)
+        }
+        ExpressionNode::StructLiteral(literal) if literal.application_type.is_valid() => {
+            Some(membership_subject_type(syntax, literal.application_type))
+        }
+        _ => None,
+    };
+    active.pop();
+    result
+}
+
+fn relabel_pattern_head(
+    syntax: &mut SyntaxTrees,
+    instances: &[Instantiation],
+    selection: Option<&declaration_selection::ConstantSelection>,
+    expected: TypeReferenceHandle,
+    head: syntax_trees::expression::ExpressionHandle,
+) -> TypeReferenceHandle {
+    let ExpressionNode::Name(path) = syntax.expressions.expression(head) else {
+        return Default::default();
+    };
+    let original_path = *path;
+    let Some(name) = constructor_path_name(syntax, original_path) else {
+        return Default::default();
+    };
+    let Some(instance) = expected_instance(syntax, instances, selection, expected) else {
+        return Default::default();
+    };
+    let alias =
+        super::alias_constructors::select(syntax, selection, expected, instance, &name, false);
+    let (carrier, case, application) = if let Some(alias) = alias {
+        (alias.carrier, alias.case, alias.application)
+    } else {
+        let Some((owner, case)) = selected_constructor(syntax, selection, &name) else {
+            return Default::default();
+        };
+        if owner != instance.template {
+            return Default::default();
+        }
+        let Some(carrier) =
+            closed_constructor_carrier(syntax, selection, instance, &name, case.is_some())
+        else {
+            return Default::default();
+        };
+        (carrier, case, Default::default())
+    };
+    let selected = if let Some(case) = case {
+        closed_sum_path(
+            syntax,
+            carrier,
+            constructor_carrier_span(syntax, original_path).unwrap_or(name.source_span()),
+            case,
+        )
+    } else {
+        let start = syntax.expressions.append_identifier_path_member(carrier);
+        HandleSpan::from_parts(start, 1)
+    };
+    syntax
+        .expressions
+        .replace_expression(head, ExpressionNode::Name(selected));
+    application
 }

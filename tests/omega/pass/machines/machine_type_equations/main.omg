@@ -3,7 +3,7 @@
 // declared structure — no runtime value supplies layout. The caller
 // closes it with a concrete array `[u8; 257]`.
 machine capacity<Length, const Capacity: u64>() -> u64
-where Length == [u8; Capacity]
+requires Length == [u8; Capacity]
 { Capacity }
 data Main { size: u64; }
 machine Main::main(main: &mut Main) {

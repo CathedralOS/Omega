@@ -99,7 +99,15 @@ fn parse_postfix_suffixes_handle<'tokens, 'source>(
     context: ExpressionContext,
 ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
     loop {
-        if input.at_punctuation(PunctuationKind::Less)
+        // Only names and members can own an invocation. A completed call may
+        // still be indexed or projected below, but another `(` belongs to the
+        // enclosing grammar rather than an unsupported call-on-call suffix.
+        let can_call = matches!(
+            exprs_of(syntax_trees).expression(expression),
+            ExpressionNode::Name(_) | ExpressionNode::Member(_)
+        );
+        if can_call
+            && input.at_punctuation(PunctuationKind::Less)
             && let Some((machine_arguments, rest)) =
                 try_parse_static_machine_arguments(syntax_trees, input)?
         {
@@ -117,7 +125,7 @@ fn parse_postfix_suffixes_handle<'tokens, 'source>(
             continue;
         }
 
-        if input.at_punctuation(PunctuationKind::LeftParen) {
+        if can_call && input.at_punctuation(PunctuationKind::LeftParen) {
             input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
             let ((arguments, evidence_arguments), rest) =
                 parse_arguments_in(syntax_trees, input, context)?;

@@ -142,6 +142,16 @@ impl Captures<'_> {
         if active.contains(&state.symbol) || active.len() >= super::MAX_REFERENCE_ORIGIN_DEPTH {
             return None;
         }
+        if !crate::normal_completion_possible(self.program, state)? {
+            // A machine proved never to complete normally publishes no result,
+            // so it owes no returned reference origins. Its own state graph and
+            // every caller capture read this same empty roster; a caller arm
+            // that forwards completion here contributes no descriptors. The
+            // proof follows completion through nested and other machines, so
+            // the declaration owner of a crash-only destination does not
+            // matter. Potentially returning machines keep the full capture.
+            return Some(Vec::new());
+        }
         active.push(state.symbol);
         let result = self.normal_returns(state, active, None);
         active.pop();
@@ -188,6 +198,9 @@ impl Captures<'_> {
                 StatementNode::Expression(expression)
                     if statement_index + 1 == statements.len() =>
                 {
+                    if !crate::expression_normal_completion_possible(self.program, *expression)? {
+                        continue;
+                    }
                     let target = Default::default();
                     let call = self.ordinary_return_call(
                         state,
@@ -208,6 +221,19 @@ impl Captures<'_> {
                         }
                         match self.program.statement_table.transition_target(target) {
                             TransitionTargetNode::Value(expression) => {
+                                // A terminal call proved never to complete
+                                // normally (into a nested or other machine
+                                // that only crashes) yields no result. Its
+                                // call-site loan would otherwise publish an
+                                // invocation-owned origin for a value that is
+                                // never produced. Potentially returning calls
+                                // keep their full capture obligation.
+                                if !crate::expression_normal_completion_possible(
+                                    self.program,
+                                    *expression,
+                                )? {
+                                    continue;
+                                }
                                 let call = self.ordinary_return_call(
                                     state,
                                     statement_index,
@@ -1075,9 +1101,18 @@ impl Captures<'_> {
             } else {
                 crate::reference_view_storage(self.program, selected, recast.target_type)?
             };
+            // Formation publishes the selected storage declaration. Routing
+            // qualifications remain on its checked reference and contract;
+            // storage joins use the same complete identity as registration,
+            // retaining scalar receiving restrictions and nested reference shape.
+            let backing_identity =
+                crate::stored_structural_type_identity(self.program, backing_type, &[], &[]);
+            let selected_identity =
+                crate::stored_structural_type_identity(self.program, selected, &[], &[]);
             if formations.next().is_some()
-                || self.program.normalized_type_identity(backing_type)
-                    != self.program.normalized_type_identity(selected)
+                || !backing_identity.is_valid()
+                || !selected_identity.is_valid()
+                || backing_identity != selected_identity
                 || storage != expected_storage
                 || self.program.normalized_type_identity(
                     crate::reference_shell(self.program, formation.type_reference)?.referee,

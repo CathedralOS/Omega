@@ -159,8 +159,7 @@ impl StorageRecipes<'_> {
                 self.fields
                     .push((path.clone(), repetitions.clone(), offset, *scalar, *scalar))
             }
-            StructuralTypeShape::BindingCarrier
-            | StructuralTypeShape::Reference { .. }
+            StructuralTypeShape::Reference { .. }
             | StructuralTypeShape::ByteSequence(_)
             | StructuralTypeShape::ElementView { .. } => {
                 let shape = structural_layout::structural_shape(

@@ -1204,6 +1204,19 @@ impl<'base> ConstantSelection<'base> {
     /// Bare Names retain value-prefix precedence before specialization changes
     /// their lookup metadata. The shared resolver distinguishes absence from
     /// unique or ambiguous constants; braces remain ordinary constructors.
+    pub(super) fn constructor_prefix_is_value(
+        &self,
+        syntax: &SyntaxTrees,
+        name: &Identifier,
+    ) -> bool {
+        crate::symbols::constructor_prefix_is_value(
+            &self.symbols,
+            name.as_str(syntax),
+            name.source_span(),
+        )
+        .unwrap_or(true)
+    }
+
     pub(crate) fn qualified_payload_free_case<'syntax>(
         &self,
         syntax: &'syntax SyntaxTrees,
@@ -1324,6 +1337,33 @@ impl<'base> ConstantSelection<'base> {
             &[kind],
             name.source_span(),
         )?;
+        self.lookup_path_for_selected(syntax, name, selected, kind)
+    }
+
+    pub(super) fn data_lookup_path_for_declaration(
+        &self,
+        syntax: &SyntaxTrees,
+        declaration: &Identifier,
+        requester: &Identifier,
+    ) -> Option<String> {
+        let selected = self.symbols.find_top_level_by_name_and_kinds_from_source(
+            declaration.as_str(syntax),
+            &[SymbolKind::Data],
+            declaration.source_span(),
+        )?;
+        if self.symbols.symbol_source_span(selected) != Some(declaration.source_span()) {
+            return None;
+        }
+        self.lookup_path_for_selected(syntax, requester, selected, SymbolKind::Data)
+    }
+
+    fn lookup_path_for_selected(
+        &self,
+        syntax: &SyntaxTrees,
+        name: &Identifier,
+        selected: symbols::SymbolHandle,
+        kind: SymbolKind,
+    ) -> Option<String> {
         let path = self.symbols.display_path(selected, "::");
         let declaration = self.symbols.symbol_source_span(selected)?;
         let selects = |path: &str| {
@@ -1367,7 +1407,7 @@ impl<'base> ConstantSelection<'base> {
         // import can expose this exact carrier without making any qualified
         // spelling valid. Preserve that authored lookup only after trying the
         // qualified paths; declaration/argument custody still owns identity.
-        Some(name.as_str(syntax).to_owned())
+        selects(name.as_str(syntax)).then(|| name.as_str(syntax).to_owned())
     }
 
     /// Return exact declaration custody, not a handle from the header table.

@@ -128,9 +128,6 @@ fn terminal_summary(selected_machine: &str, module: &TerminalModule) -> String {
                 .text(declaration.identity)
                 .unwrap_or_default(),
             match &declaration.shape {
-                terminal_psi::StructuralTypeShape::BindingCarrier => {
-                    "binding_carrier".to_owned()
-                }
                 terminal_psi::StructuralTypeShape::Reference { referent, access } => {
                     format!(
                         "reference(referent=type:{},access={access:?})",

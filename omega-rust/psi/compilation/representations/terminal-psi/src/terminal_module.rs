@@ -20,7 +20,8 @@ pub mod scalar_applications;
 pub mod scalar_conditions;
 pub use proof_application_scope::{
     DeclaredSynchronousBoundaryTarget, ProofApplicationScope, ProofCallableAssociation,
-    ProofCallableHeader, ProofDeclarationId, ProofScopeDeclaration,
+    ProofCallableHeader, ProofCheckedRecursiveCall, ProofCheckedRecursiveComponent,
+    ProofDeclarationId, ProofScopeDeclaration,
 };
 pub use scalar_applications::{
     ArrayExtent, LayoutMeasurement, ScalarApplication, ScalarApplications,

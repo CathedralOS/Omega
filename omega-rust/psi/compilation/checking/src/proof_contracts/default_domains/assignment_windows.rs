@@ -243,30 +243,20 @@ pub(crate) fn handle_assignment<'program>(
     };
     let definite = origins.destinations.len() == 1;
     for origin in origins.destinations {
-        let coordinate = origin.scalar_storage_coordinate_result(program, state);
-        let (destination, preserves_scalar_value) = if let Ok(scalar) = coordinate {
-            (scalar.place, definite && scalar.preserves_scalar_value)
-        } else if origin.recasts.is_empty()
-            && origin.representation.is_none()
-            && origin.root.is_valid()
-        {
-            (
-                crate::CanonicalPlace {
-                    root: facts::PlaceRoot::Symbol(origin.root),
-                    segments: origin.segments,
-                },
-                definite,
-            )
-        } else {
-            diagnostics.push(Diagnostic::error(format!(
-                "cannot establish assignment invariants: source storage interpretation is unavailable: {} (machine `{}` state `{}` statement {statement_index}, source `{}`, path {:?}, view {:?})",
-                coordinate.err().unwrap_or("unknown scalar interpretation"), machine.name, state.name,
-                program.symbols.name(origin.root), origin.segments,
-                origin.representation.as_ref().map(|(reference, path)|
-                    (program.display_type_reference(*reference), path)),
-            )));
-            continue;
+        let coordinate = match origin.storage_coordinate(program, state) {
+            Ok(coordinate) => coordinate,
+            Err(reason) => {
+                diagnostics.push(Diagnostic::error(format!(
+                    "cannot establish assignment invariants: source storage interpretation is unavailable: {reason} (machine `{}` state `{}` statement {statement_index}, source `{}`, path {:?}, view {:?})",
+                    machine.name, state.name, program.symbols.name(origin.root), origin.segments,
+                    origin.representation.as_ref().map(|(reference, path)|
+                        (program.display_type_reference(*reference), path)),
+                )));
+                continue;
+            }
         };
+        let destination = coordinate.place;
+        let preserves_scalar_value = definite && coordinate.preserves_scalar_value;
         let store = match field_store(
             program,
             state,

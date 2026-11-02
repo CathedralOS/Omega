@@ -58,7 +58,7 @@ rediscovering their enclosing statement trees for each call. The collected
 subjects preserve the first lexical owner and exact generational handles.
 Separate saved operator-provider templates retain their distinct-source path.
 
-Service calls through `Binding<R>` bind to R's exact requirement before
+Boundary requirement calls bind to the exact requirement before
 specialization. A newly substituted instance binds only its own service calls
 at publication. Static call targets are copied and remapped with the body;
 there is no projected data-method search, clone-time receiver rescan, or final

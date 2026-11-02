@@ -34,7 +34,7 @@ pub fn evaluate_terminal_calling_policy(
         target,
         signature,
         account,
-        providers,
+        admission,
     } = invocation;
     if signature.target != target.native_target() {
         return Err("calling policy target differs from its materialized signature".into());
@@ -48,18 +48,21 @@ pub fn evaluate_terminal_calling_policy(
         .ok_or("calling policy target has no layout facts")?;
     let layouts = terminal_installation::admit_target_layouts(artifact.view(), &selected, &facts)
         .map_err(|error| format!("calling policy target layouts: {error:?}"))?;
-    let providers = backend_plan::TerminalTargetProviderSelection::from_plans(
-        providers.to_vec(),
+    let selected_entry = selected
+        .entry(selected.terminal_psi(), artifact.semantic_module(), entry)
+        .map_err(|error| format!("calling policy canonical selection: {error}"))?;
+    admission.require_invocation(
         artifact.view(),
-    )?
-    .admit(artifact.view(), target.target_name())
-    .map_err(|error| format!("calling policy providers: {error}"))?;
+        target.target_name(),
+        TargetMachineCallable::Machine(selected_entry),
+    )?;
+    let providers = admission.providers();
     let program = TerminalProgram::borrow(artifact.view());
     let installation = program
         .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
             x86_flags: None,
             memory_ordering: None,
-            installation: Some(&providers),
+            installation: Some(providers),
             host_imports: &[],
             entry: Some(entry),
             target_machines: Some(&selected),
@@ -93,14 +96,14 @@ pub fn evaluate_terminal_calling_policy(
             declaration,
             applications: &demanded,
         },
-        &providers,
+        providers,
         &mut meter,
     )?;
     let installation = program
         .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
             x86_flags: None,
             memory_ordering: None,
-            installation: Some(&providers),
+            installation: Some(providers),
             host_imports: &[],
             entry: Some(entry),
             target_machines: Some(&selected),
