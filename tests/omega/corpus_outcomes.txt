@@ -2038,6 +2038,33 @@ fail/facts/resident_backing_parameter_missing_vacancy rejected 5353ms expected @
 fail/facts/resident_backing_target_body_missing_vacancy rejected 5378ms expected @b3876048c0a2
 	cannot prove requires contract for call partition from allocated: vacant in Extent::Vacant in state `entry`
 	cannot prove initializer of `vacant` in allocated is in domain `Extent::Vacant`; an annotation cannot establish routed qualification
+fail/facts/runtime_index_application_call_index_through_call_result_rejected rejected 1427ms expected @c79bb8268163+wt
+	data `Index` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	data `Index` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/runtime_index_application_call_index_through_const_name_rejected rejected 1062ms expected @c79bb8268163+wt
+	data `Index` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	data `Index` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/runtime_index_application_call_index_through_field_rejected rejected 1362ms expected @c79bb8268163+wt
+	data `Index` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	data `Index` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/runtime_index_application_call_index_through_local_rejected rejected 1133ms expected @c79bb8268163+wt
+	data `Index` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	data `Index` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/runtime_index_application_call_index_through_match_join_rejected rejected 1073ms expected @c79bb8268163+wt
+	data `Index` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	data `Index` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/runtime_index_application_call_index_through_other_machine_rejected rejected 953ms expected @c79bb8268163+wt
+	data `Index` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	data `Index` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/runtime_index_application_call_index_through_other_state_rejected rejected 884ms expected @c79bb8268163+wt
+	data `Index` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	data `Index` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/runtime_index_application_call_index_through_parameter_rejected rejected 812ms expected @c79bb8268163+wt
+	data `Index` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	data `Index` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/runtime_index_application_call_index_through_target_body_rejected rejected 1258ms expected @c79bb8268163+wt
+	data `Index` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	data `Index` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/facts/saved_observation_snapshot_indexed_handback_call_result_rejected rejected 5494ms expected @755b31d334ff
 	cannot prove ensures contract for exit from preserve at statement 2: holder.items[kept_index] == 7 && holder.items[changed] == value
 fail/facts/saved_observation_snapshot_indexed_handback_const_name_rejected rejected 5593ms expected @755b31d334ff
@@ -2226,6 +2253,8 @@ fail/generics/native_locator_undefined_user_coordinate rejected 516ms expected @
 	quoted byte literal cannot initialize owned fixed byte array `[u8; N]`: its width must be a compile-known resolved integer literal
 fail/generics/native_locator_wrong_explicit_extent rejected 306ms expected @b852a38544d0
 	quoted byte literal has 26 source byte(s), but owned fixed byte array `[u8; 25]` requires exactly 25; fixed-array literal copying neither truncates nor pads
+fail/generics/runtime_call_index_wrong_result rejected 2275ms expected @c79bb8268163+wt
+	machine `probe` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
 fail/generics/static_dispatch_private_ensures_explicit_requirement rejected 2985ms expected @24bfc5388538+wt
 	cannot prove requires contract for call hold from main: picked == 7 (needs fact `picked == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/generics/static_dispatch_private_ensures_nested_generic rejected 2984ms expected @24bfc5388538+wt
@@ -9217,6 +9246,15 @@ pass/facts/runtime_count_index_through_other_machine_exit checked 3335ms check-t
 pass/facts/runtime_count_index_through_other_state_exit checked 3839ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/runtime_count_index_through_parameter_exit checked 3725ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/runtime_count_index_through_target_body_exit checked 3568ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/runtime_index_application_call_index_through_call_result_exit checked 8960ms check-target:macos_arm64 @c79bb8268163+wt
+pass/facts/runtime_index_application_call_index_through_const_name_exit checked 10490ms check-target:macos_arm64 @c79bb8268163+wt
+pass/facts/runtime_index_application_call_index_through_field_exit checked 9256ms check-target:macos_arm64 @c79bb8268163+wt
+pass/facts/runtime_index_application_call_index_through_local_exit checked 9250ms check-target:macos_arm64 @c79bb8268163+wt
+pass/facts/runtime_index_application_call_index_through_match_join_exit checked 8975ms check-target:macos_arm64 @c79bb8268163+wt
+pass/facts/runtime_index_application_call_index_through_other_machine_exit checked 6080ms check-target:macos_arm64 @c79bb8268163+wt
+pass/facts/runtime_index_application_call_index_through_other_state_exit checked 6025ms check-target:macos_arm64 @c79bb8268163+wt
+pass/facts/runtime_index_application_call_index_through_parameter_exit checked 10452ms check-target:macos_arm64 @c79bb8268163+wt
+pass/facts/runtime_index_application_call_index_through_target_body_exit checked 6103ms check-target:macos_arm64 @c79bb8268163+wt
 pass/facts/runtime_index_application_computed_result_through_call_result_exit checked 3501ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/runtime_index_application_computed_result_through_const_name_exit checked 3857ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/runtime_index_application_computed_result_through_field_exit checked 4131ms check-target:macos_arm64 @ccdb99ca2214
@@ -11451,7 +11489,7 @@ pass/generics/runtime_closed_case_array_payload_exit checked 3375ms check-target
 pass/generics/runtime_closed_scalar_and_record_const_fields_exit checked 56028ms check-target:macos_arm64 @911f6617ba9e
 pass/generics/runtime_computed_closed_call_identity_exit checked 7364ms check-target:macos_arm64 @911f6617ba9e
 pass/generics/runtime_computed_closed_identity_exit checked 7825ms check-target:macos_arm64 @911f6617ba9e
-pass/generics/runtime_computed_const_forwarded_call_exit checked 4026ms check-target:macos_arm64 @ccdb99ca2214
+pass/generics/runtime_computed_const_forwarded_call_exit checked 10380ms check-target:macos_arm64 @c79bb8268163+wt
 pass/generics/runtime_computed_data_subject_exit checked 18779ms check-target:macos_arm64 @911f6617ba9e
 pass/generics/runtime_computed_direct_result_exit checked 3410ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/runtime_computed_initializer_capture_exit checked 15089ms check-target:macos_arm64 @911f6617ba9e
