@@ -16,6 +16,32 @@ import compiler_retained_foreign as retained
 
 
 class CompilerPilotTests(unittest.TestCase):
+    def test_ordinary_cli_copy_loop_retains_the_actual_project_directory(self):
+        sample = "samples/cli/systems/journal"
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.sample_root(root, sample)
+            library = root / "source/library/std/last.omg"
+            library.parent.mkdir(parents=True)
+            library.write_text("data Last {}")
+            paths = [sample + "/main.omg", sample + "/build.omg", "source/library/std/last.omg"]
+            output = root / "observation"
+            producer = Mock(cli=Path("/retained/omega"), target="windows_x86_64")
+            expected_project = output / "workspace" / sample
+
+            def refuse_update(arguments, **kwargs):
+                self.assertEqual(arguments[1:4], ["update", "--project", expected_project])
+                self.assertTrue((expected_project / "build.omg").is_file())
+                self.assertTrue((output / "workspace/source/library/std/last.omg").is_file())
+                return Mock(returncode=1)
+
+            with patch.object(pilot.ordinary_cli_fixture.subprocess, "check_output", return_value="\n".join(paths)), \
+                    patch.object(pilot.ordinary_cli_fixture.subprocess, "run", side_effect=refuse_update) as run:
+                row = pilot.ordinary_cli_fixture.observe(root, producer, sample, output)
+                run.assert_called_once()
+                self.assertEqual(row["stages"][0]["arguments"][3], str(expected_project))
+                self.assertFalse(row["passed"])
+
     def test_ordinary_cli_uses_exact_product_sample_and_its_authored_exit(self):
         sample = "samples/cli/systems/journal"
         with tempfile.TemporaryDirectory() as temporary:

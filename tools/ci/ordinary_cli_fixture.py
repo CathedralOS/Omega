@@ -97,11 +97,11 @@ def observe(root, producer, fixture, output):
     expected = expected_exit(root, fixture, producer.target)
     output.mkdir(parents=True, exist_ok=False)
     workspace = output / "workspace"
-    relative = relative_project(root, fixture)
+    project_relative = relative_project(root, fixture)
     paths = subprocess.check_output(
-        ["git", "ls-files", "source/library", relative.as_posix()],
+        ["git", "ls-files", "source/library", project_relative.as_posix()],
         cwd=root, text=True).splitlines()
-    if not {(relative / "main.omg").as_posix(), (relative / "build.omg").as_posix()}.issubset(paths):
+    if not {(project_relative / "main.omg").as_posix(), (project_relative / "build.omg").as_posix()}.issubset(paths):
         raise ValueError("ordinary CLI project entry and build must retain tracked source custody")
     inputs = {}
     for relative in paths:
@@ -114,7 +114,7 @@ def observe(root, producer, fixture, output):
     record = dict(fixture=fixture, target=producer.target, producer=producer.record(),
                   expected_exit=expected, passed=False, inputs=inputs, stages=[])
     env = dict(os.environ, OMEGA_LIBRARY_ROOT=str(workspace / "source/library"))
-    project = workspace / relative
+    project = workspace / project_relative
 
     def verify():
         producer.verify()
