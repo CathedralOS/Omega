@@ -142,6 +142,12 @@ pub(crate) fn validate_specification_calls(
                             signature.name,
                         )));
                     }
+                    if !super::signature_value_content_is_observable(program, signature) {
+                        diagnostics.push(Diagnostic::error(format!(
+                            "specification call `{}` carries forbidden denotational content",
+                            signature.name,
+                        )));
+                    }
                     continue;
                 }
             }

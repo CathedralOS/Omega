@@ -37,22 +37,6 @@ pub(crate) fn abstract_value_call_signature(
     if !signature_has_closed_value_contract(program, signature) {
         return None;
     }
-    let proof_only = crate::proof_only_classification(program);
-    let forbidden = |reference| {
-        crate::proof_contracts::quotients::type_has_forbidden_denotational_content(
-            program,
-            &proof_only,
-            reference,
-        )
-    };
-    if program
-        .state_signature_parameters(signature)
-        .iter()
-        .any(|parameter| forbidden(parameter.type_reference))
-        || (signature.return_type.is_valid() && forbidden(signature.return_type))
-    {
-        return None;
-    }
     Some(signature)
 }
 
@@ -67,6 +51,25 @@ pub(crate) fn signature_has_closed_value_contract(
         language_semantics::TerminationGuarantee::Terminates { premises }
             if premises.is_empty()
     ) && specification::signature_has_closed_value_effects(program, signature)
+        && signature_value_content_is_observable(program, signature)
+}
+
+/// Exact logical value shapes do not identify resource occurrences. Affine
+/// checked data is observable without copying; unknown/borrowed authority is not.
+pub(crate) fn signature_value_content_is_observable(
+    program: &dyn crate::CheckingInput,
+    signature: &typed_trees::signature::StateSignature,
+) -> bool {
+    let forbidden = |reference| {
+        crate::proof_contracts::carrier_contents::type_has_forbidden_value_observation_content(
+            program, reference,
+        )
+    };
+    !program
+        .state_signature_parameters(signature)
+        .iter()
+        .any(|parameter| forbidden(parameter.type_reference))
+        && (!signature.return_type.is_valid() || !forbidden(signature.return_type))
 }
 
 /// A concrete value application's operational eligibility, before its checked
@@ -104,6 +107,19 @@ fn unchecked_value_call_candidate(
     operational: &flow_effects::OperationalPlan,
     service_reaches: &flow_effects::ServiceReachInferencePlan,
 ) -> Result<(), &'static str> {
+    let forbidden = |reference| {
+        crate::proof_contracts::carrier_contents::type_has_forbidden_value_observation_content(
+            program, reference,
+        )
+    };
+    if (state.return_type.is_valid() && forbidden(state.return_type))
+        || program
+            .state_parameters(state)
+            .iter()
+            .any(|parameter| forbidden(parameter.type_reference))
+    {
+        return Err("the application carries forbidden denotational content");
+    }
     if !has_pure_effect_closure(
         program,
         machine.symbol,

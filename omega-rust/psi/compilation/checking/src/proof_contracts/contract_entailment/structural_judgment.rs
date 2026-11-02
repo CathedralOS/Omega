@@ -74,20 +74,6 @@ pub(super) fn specification_application_candidate(
         .machine_states(machine)
         .first()
         .ok_or("the selected machine has no entry state")?;
-    let proof_only = crate::proof_only_classification(program);
-    if crate::proof_contracts::quotients::type_has_forbidden_denotational_content(
-        program,
-        &proof_only,
-        state.return_type,
-    ) || program.state_parameters(state).iter().any(|parameter| {
-        crate::proof_contracts::quotients::type_has_forbidden_denotational_content(
-            program,
-            &proof_only,
-            parameter.type_reference,
-        )
-    }) {
-        return Err("the application carries forbidden denotational content");
-    }
     let plans = crate::machine_calls::calls::operand_call_plans(program, frames);
     crate::machine_calls::denotational_calls::checked_value_call_candidate(
         program, machine, state, &plans.0, &plans.1,
