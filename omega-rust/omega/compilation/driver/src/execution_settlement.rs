@@ -423,7 +423,6 @@ fn prepare_target_provider_selection(
     deployment?;
     provider_planning::settle_checked_providers(
         &source.program,
-        one_refusal(source.provider_inventory.services_for(&source.program))?,
         selected_target_profile,
         package_inputs,
         prepared_providers,

@@ -1,0 +1,6 @@
+// Expected exit: 0.
+// Classifying the reached service must preserve exactly the authored provider roster.
+public boundary trait FilesystemHost {
+    machine close(descriptor: i32) -> i32 reaches;
+}
+machine main() reaches FilesystemHost {}
