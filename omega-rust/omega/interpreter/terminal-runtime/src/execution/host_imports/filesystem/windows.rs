@@ -221,6 +221,13 @@ impl Call {
             b"SetFilePointerEx" => {
                 arguments.len() == 3 && (0..=2).any(|method| scalar(arguments[2], method))
             }
+            b"GetFinalPathNameByHandleW" => {
+                // Capacity counts UTF-16 code units, including room for NUL.
+                // The complete captured array is the destination; zero flags
+                // request the normalized DOS spelling. Query the owned object
+                // without replacing its handle or manufacturing a path.
+                arguments.len() == 3 && scalar(arguments[1], 4096) && scalar(arguments[2], 0)
+            }
             b"CloseHandle" | b"GetFileType" | b"FlushFileBuffers" => arguments.len() == 1,
             b"CreateDirectoryW" => arguments.len() == 1 && scalar(arguments[0], 0),
             b"SetFileAttributesW" => arguments.len() == 1,

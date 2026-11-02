@@ -259,6 +259,18 @@ pub(super) fn select(
         ),
         (
             b"kernel32.dll",
+            b"GetFinalPathNameByHandleW",
+            &[
+                Signed(64),
+                UnsignedArray(4096, 16, MutableBorrow),
+                Unsigned(32),
+                Unsigned(32),
+            ],
+            Unsigned(32),
+            Effect::Use,
+        ),
+        (
+            b"kernel32.dll",
             b"SetFileAttributesW",
             &[path, Unsigned(32)],
             Signed(32),
