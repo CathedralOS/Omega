@@ -87,6 +87,7 @@ pub(super) fn lower_match(
 
 pub(super) fn lower_saved_subject(
     lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
     saved: syntax::TableSavedSubject,
 ) -> Result<ExpressionHandle, Diagnostic> {
     let binding = lowerer
@@ -98,7 +99,20 @@ pub(super) fn lower_saved_subject(
         })
         .copied()
         .ok_or_else(|| {
-            Diagnostic::error("saved match subject read has no enclosing arm capture")
+            let head = match syntax_trees.expressions.expression(saved.pattern_head) {
+                syntax::ExpressionNode::Name(path) => syntax_trees.expressions
+                    .identifier_path_members(*path).iter()
+                    .map(|name| name.as_str(syntax_trees)).collect::<Vec<_>>().join("::"),
+                _ => "<non-name>".to_owned(),
+            };
+            Diagnostic::error(format!(
+                "saved match subject read has no enclosing arm capture in `{}::{}` for `{head}`: capture {:?}, head {:?}, purpose {:?}, enclosing {:?}",
+                lowerer.current_machine_name.as_deref().unwrap_or("<declaration>"),
+                lowerer.current_state_name.as_deref().unwrap_or("<signature>"),
+                saved.capture, saved.pattern_head,
+                syntax_trees.expressions.match_subject(saved.capture).purpose,
+                lowerer.expression_match_captures.iter().map(|binding| (binding.syntax_capture,binding.syntax_head)).collect::<Vec<_>>(),
+            ))
         })?;
     Ok(
         expression_table(lowerer).insert(ExpressionNode::SavedSubject(TableSavedSubject {

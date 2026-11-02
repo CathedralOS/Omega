@@ -157,7 +157,7 @@ fn lower_nonbinary_expression_node_into_table(
             match_dispatch::lower_match(lowerer, syntax_trees, *dispatch)
         }
         syntax::expression::ExpressionNode::SavedSubject(saved) => {
-            match_dispatch::lower_saved_subject(lowerer, *saved)
+            match_dispatch::lower_saved_subject(lowerer, syntax_trees, *saved)
         }
         syntax::expression::ExpressionNode::ArrayLiteral(values) => {
             let span = expression_table(lowerer).reserve_expression_handles(values.count());
