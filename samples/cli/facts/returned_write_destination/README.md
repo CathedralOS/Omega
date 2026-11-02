@@ -18,7 +18,7 @@ The nine places are:
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | named constant selects the caller array element |
 | a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | returned descriptor becomes a successor parameter |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a forwarding machine calls the replacement machine |
-| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each target body returns the caller destination |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each target's Build row selects an ordinary implementation that returns the caller destination |
 
 ## Execution
 
@@ -77,3 +77,25 @@ Each place has an `invalid/` reject twin (and corresponding `controls/read_desti
 6. **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** `ProgramEntry` settles uniformly across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`). Scalar types (`i32`, `u64`) and reference pointers (`&write T`) evaluate target layout geometry (`size_of` 8-byte pointer, 4-byte `i32`). `CallPlan` and `StatePlan` allocate `&write` destination pointer arguments and returns into standard ABI parameter/return registers according to target calling conventions.
 7. **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects target ISA instructions (`x86_64` and `arm64`) for pointer passing, address calculation, indirect store (`mov [rdi], 42` or `str w0, [x1]`), and subsequent direct loads of caller storage (`value`, `neighbor`). Lowering assigns register homes and disjoint activation stack-frame slots for caller locals, inserting standard entry prologues and epilogues honoring `StatePlan` frame ceilings.
 8. **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic stack displacements for caller variables resolve in final binary instruction encodings, basic blocks relax with offset reflow, machine-state footprint evidence validates transitive usage, and direct native PE/ELF/Mach-O emission produces functioning executables in complete agreement with Terminal Psi (`omega run --both` exit 0) across platforms.
+
+## Build-owned target-body migration
+
+The `target_body` place and its twin carry no source target prefix.
+`BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named
+implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected
+by explicit target-keyed Build rows. The operation, inputs, contracts and exit
+oracle are unchanged. The entry wrapper and each implementation check a tag
+(17 for x86-64, 29 for AArch64), so a wrong Build row traps.
+
+Base `4f87c9e08b1` refused the migrated positive: an opaque selected
+implementation required an admitted write-only boundary claim, because the
+write-only checker counted only machine-level `satisfies` clauses as
+implementations. #1361 (`b7d254d952a`) counts named-implementation rows and
+still requires each selected implementation to supply a checked body, so this
+migration needs no compiler change. Observed with the optimized producer at
+`11bdd2fe41f` on macOS x86-64: all nine positives and the root exit 0 under
+`omega run --both` (native and Terminal Psi agree), and the nine twins plus
+the `target_body` read control reject because `main` reads write-only
+parameter `destination` (`&write` permits replacement or exact forwarding,
+never observation). The other hosted targets keep their authored rows,
+unexecuted here.

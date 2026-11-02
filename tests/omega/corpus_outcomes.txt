@@ -10309,7 +10309,7 @@ pass/facts/returned_write_destination_through_match_join_exit checked 4166ms che
 pass/facts/returned_write_destination_through_other_machine_exit checked 3686ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/returned_write_destination_through_other_state_exit checked 3339ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/returned_write_destination_through_parameter_exit checked 3805ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/returned_write_destination_through_target_body_exit checked 3576ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/returned_write_destination_through_target_body_exit checked 11004ms check-target:macos_arm64 @f81c32a49890
 pass/facts/runtime_compound_guard_stored_call_result_exit rejected 2743ms check-target:macos_arm64 @ccdb99ca2214
 	cannot prove index `main.b * 20 + main.saved` is within length 200 in put::entry
 pass/facts/runtime_count_index_through_call_result_exit checked 3959ms check-target:macos_arm64 @ccdb99ca2214
@@ -28453,7 +28453,7 @@ fail/facts/returned_write_destination_through_other_state_rejected rejected 1687
 	machine `later` state `entry` reads write-only parameter `destination`; `&write` permits replacement or exact `&write` forwarding, never observation
 fail/facts/returned_write_destination_through_parameter_rejected rejected 1481ms expected @ccdb99ca2214
 	machine `replace` state `entry` reads write-only parameter `destination`; `&write` permits replacement or exact `&write` forwarding, never observation
-fail/facts/returned_write_destination_through_target_body_rejected rejected 2192ms expected @ccdb99ca2214
+fail/facts/returned_write_destination_through_target_body_rejected rejected 2224ms expected @f81c32a49890
 	machine `main` state `entry` reads write-only parameter `destination`; `&write` permits replacement or exact `&write` forwarding, never observation
 fail/facts/runtime_count_index_through_call_result_rejected rejected 2647ms expected @ccdb99ca2214
 	cannot prove requires contract for call read_at$specialized$721fe5e54906d435$0 from indexed: count < items.len (needs fact `Index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
