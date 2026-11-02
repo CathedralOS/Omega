@@ -33,7 +33,7 @@ use validation::{
 use crate::flow::indexed_statements;
 use crate::flow::jump_loans::{HeldAccesses, TargetRun, held_accesses, target_run};
 use crate::flow::mutation::{CallMutationWrite, StorageRegion, WritePlaceNamespace};
-use crate::places::place_at;
+use crate::published::places::place_at;
 
 use checked_trees::expression::ExpressionNode;
 use checked_trees::{BorrowCallFact, BorrowFacts, StateBorrowFact};

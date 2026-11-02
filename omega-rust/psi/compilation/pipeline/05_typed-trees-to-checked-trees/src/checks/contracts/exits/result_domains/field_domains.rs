@@ -507,7 +507,8 @@ pub(crate) fn exclusive_referent_field_requirements(
         // Entry facts also include additional root qualifications. Returning
         // an exclusive referent restores its declaration-owned children, not
         // every precondition the caller established on the incoming value.
-        let Some(carrier) = crate::semantic::facts::declared_field_domain_carrier(program, referee)
+        let Some(carrier) =
+            crate::published::semantic::facts::declared_field_domain_carrier(program, referee)
         else {
             continue;
         };
