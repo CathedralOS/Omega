@@ -53,6 +53,10 @@ pub struct CheckFacts {
     /// Exact nonnegative coordinates agreed by every range check of an indexed
     /// occurrence. Evaluation and bounds remain on the executable selector.
     pub scalar_index_coordinates: Vec<(ExpressionHandle, u64)>,
+    /// The same agreed coordinates keyed by each occurrence's selector
+    /// expression, ordered by handle position. A completed call operand names
+    /// its selector evaluation rather than the enclosing `[]` occurrence.
+    pub scalar_selector_coordinates: Vec<(ExpressionHandle, u64)>,
     /// Indexed byte assignments whose live bound and declared byte predicates
     /// were established at the store itself, ordered by target handle position.
     /// A later restoration of an invariant does not establish this decision.
@@ -282,6 +286,18 @@ impl CheckFacts {
             .binary_search_by_key(&key, ProvenAssignmentIndex::key)
             .ok()?;
         self.proven_assignment_indexes[position].coordinate
+    }
+
+    /// The proven singleton value of this selector expression, agreed by
+    /// every bounds check of its `[]` occurrence. Its evaluation still runs.
+    pub fn selector_coordinate(&self, selector: ExpressionHandle) -> Option<u64> {
+        let position = self
+            .scalar_selector_coordinates
+            .binary_search_by_key(&handle_position(selector), |(expression, _)| {
+                handle_position(*expression)
+            })
+            .ok()?;
+        Some(self.scalar_selector_coordinates[position].1)
     }
 
     /// Whether every bounds check of this `[]` occurrence proved its scalar
