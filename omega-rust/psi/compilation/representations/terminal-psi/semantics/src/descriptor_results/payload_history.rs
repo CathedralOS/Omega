@@ -232,36 +232,49 @@ impl State {
     /// Newly produced or rebound payloads remain raw until this publication;
     /// their transfer suffix has no premise reader before this point.
     fn publish_requirements(&mut self) {
+        // Many payloads share the same immutable input theory. Filter it once
+        // against this publication's fixed ambient roster and share the result,
+        // rather than cloning its proposition trees separately for every root.
+        // Keep the input alive beside its result so allocator address reuse
+        // cannot alias another roster during this publication. This table is
+        // local to this cut: no result survives a changed ambient theory.
+        let mut compacted = BTreeMap::new();
         for contract in self.values.values_mut() {
-            // Publication removes only local premises already in the ambient
-            // roster. Do not detach a shared row when that intersection is empty.
-            if !contract.scalar_requirements.iter().any(|premise| {
-                self.scalar_requirements
-                    .binary_search_by(|candidate| candidate.as_ref().cmp(premise))
-                    .is_ok()
-            }) {
-                continue;
-            }
-            let contract = Arc::make_mut(contract);
-            let mut common = self
-                .scalar_requirements
-                .iter()
-                .map(Borrow::<semantic_vocabulary::Proposition>::borrow)
-                .peekable();
-            contract.scalar_requirements = (contract
-                .scalar_requirements
-                .iter()
-                .filter(|premise| {
-                    while common.peek().is_some_and(|candidate| *candidate < *premise) {
-                        common.next();
+            let (_, requirements) = compacted
+                .entry(contract.scalar_requirements.storage_key())
+                .or_insert_with(|| {
+                    let original = contract.scalar_requirements.clone();
+                    // Leave a contract shared when no local premise is ambient.
+                    if !original.iter().any(|premise| {
+                        self.scalar_requirements
+                            .binary_search_by(|candidate| candidate.as_ref().cmp(premise))
+                            .is_ok()
+                    }) {
+                        return (original, None);
                     }
-                    !common
-                        .peek()
-                        .is_some_and(|candidate| *candidate == *premise)
-                })
-                .cloned()
-                .collect::<Vec<_>>())
-            .into();
+                    let mut common = self
+                        .scalar_requirements
+                        .iter()
+                        .map(Borrow::<semantic_vocabulary::Proposition>::borrow)
+                        .peekable();
+                    let retained: PayloadScalarRequirements = original
+                        .iter()
+                        .filter(|premise| {
+                            while common.peek().is_some_and(|candidate| *candidate < *premise) {
+                                common.next();
+                            }
+                            !common
+                                .peek()
+                                .is_some_and(|candidate| *candidate == *premise)
+                        })
+                        .cloned()
+                        .collect::<Vec<_>>()
+                        .into();
+                    (original, Some(retained))
+                });
+            if let Some(requirements) = requirements {
+                Arc::make_mut(contract).scalar_requirements = requirements.clone();
+            }
         }
         self.shared_requirements = self.scalar_requirements.clone();
     }
@@ -2227,6 +2240,78 @@ mod tests {
         assert_eq!(
             state.values[&root].scalar_requirements.capacity(),
             compact_capacity
+        );
+    }
+
+    #[test]
+    fn publication_shares_filtered_theories_without_crossing_inputs_or_cuts() {
+        let roots = [1, 2, 3, 4].map(|id| PlaceId::new(id).unwrap());
+        let make = |mut rows: Vec<_>| {
+            rows.sort();
+            PayloadMembershipContract {
+                carrier: StructuralTypeId::new(1).unwrap(),
+                scalar_observations: Vec::new(),
+                scalar_requirements: rows.into(),
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+            }
+        };
+        let shared = make(vec![condition(1), condition(2)]);
+        let mut state = State {
+            values: PayloadContracts::from([
+                (roots[0], shared.clone()),
+                (roots[1], shared),
+                (roots[2], make(vec![condition(1), condition(3)])),
+                (roots[3], make(vec![condition(4)])),
+            ]),
+            scalar_requirements: Arc::new(vec![SharedPremise::new(condition(1))].into()),
+            ..Default::default()
+        };
+        let before = state.clone();
+        state.publish_requirements();
+        for root in roots {
+            let mut expected = before.contract(root, None).unwrap();
+            if !expected.scalar_requirements.contains(&condition(1)) {
+                expected.scalar_requirements.make_mut().push(condition(1));
+                expected.scalar_requirements.make_mut().sort();
+            }
+            assert_eq!(state.contract(root, None).unwrap(), expected);
+        }
+        assert!(
+            state.values[&roots[0]]
+                .scalar_requirements
+                .shares_storage(&state.values[&roots[1]].scalar_requirements)
+        );
+        assert_eq!(
+            state.values[&roots[0]].scalar_requirements.to_vec(),
+            vec![condition(2)]
+        );
+        assert_eq!(
+            state.values[&roots[2]].scalar_requirements.to_vec(),
+            vec![condition(3)]
+        );
+        assert!(Arc::ptr_eq(
+            &state.values.0[&roots[3]],
+            &before.values.0[&roots[3]]
+        ));
+        assert_eq!(
+            before.values[&roots[0]].scalar_requirements.to_vec(),
+            vec![condition(1), condition(2)]
+        );
+        Arc::make_mut(&mut state.scalar_requirements)
+            .rows_mut()
+            .push(SharedPremise::new(condition(2)));
+        canonicalize_snapshot(&mut state.scalar_requirements);
+        state.publish_requirements();
+        assert!(state.values[&roots[0]].scalar_requirements.is_empty());
+        assert!(state.values[&roots[1]].scalar_requirements.is_empty());
+        assert_eq!(
+            state.values[&roots[2]].scalar_requirements.to_vec(),
+            vec![condition(3)]
+        );
+        assert_eq!(
+            before.values[&roots[0]].scalar_requirements.to_vec(),
+            vec![condition(1), condition(2)]
         );
     }
 
