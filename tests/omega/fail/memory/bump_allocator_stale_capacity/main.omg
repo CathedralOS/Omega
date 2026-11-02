@@ -10,7 +10,7 @@ data Held {
 machine invalid(whole: Extent in Granted & Vacant) -> Held
 requires whole.length == 48
 {
-    let mut strategy: Bump = Bump { tail: whole, remaining: 48 };
+    let mut strategy: Bump = Bump::open(whole);
     let first: Extent in Granted & Vacant = allocate(&mut strategy, 16, 48);
     let second: Extent in Granted & Vacant = allocate(&mut strategy, 8, 48);
     Held { strategy: strategy, first: first, second: second }

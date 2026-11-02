@@ -991,11 +991,20 @@ impl ContractPredicates<'_, '_> {
             );
         }
         if let Some(membership) =
-            super::case_membership::lower(program, self.parameters, expression).or_else(|| {
-                self.allow_result
-                    .then(|| lower_result(program, self.owner, self.result_type, expression))
-                    .flatten()
-            })
+            super::case_membership::lower(program, self.parameters, expression)
+                .or_else(|| {
+                    super::case_membership::lower_in_declaration(
+                        program,
+                        self.owner,
+                        self.parameters,
+                        expression,
+                    )
+                })
+                .or_else(|| {
+                    self.allow_result
+                        .then(|| lower_result(program, self.owner, self.result_type, expression))
+                        .flatten()
+                })
         {
             return Some(membership);
         }

@@ -35,11 +35,12 @@
 //! A definition is *carried* (`declaration_facts_carried`) when every fact
 //! has one of these forms and each collection consequence is exact: exploring
 //! `P` again over the consequence intervals decides `true`, so the rows imply
-//! the fact. Only a carried definition's storage accepts Terminal stores,
-//! because then the rows Terminal re-proves before relying on the facts are
-//! the complete default domain. Machines publish this roster independently of
-//! their body topology. Failure to establish a row at a state arrival, call,
-//! or normal return rejects the proof instead of weakening the contract.
+//! the fact. This reports completeness of this bounded roster, not whether
+//! checked storage may be written: source checking proves the full default
+//! domain, including mathematical facts outside this spelling. Machines
+//! publish supported rows independently of their body topology. A consumer
+//! relying on such a row still owes its exact arrival/call/return obligation;
+//! the roster does not replace source invariant-window restoration checking.
 //! Zero-excluding definitions carry the same obligations once established;
 //! zero provisioning remains a separate construction judgment. A conservative
 //! declaration flag cannot erase an incoming value's default domain or refuse

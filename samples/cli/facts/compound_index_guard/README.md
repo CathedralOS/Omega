@@ -166,7 +166,7 @@ final compiler bytes, including the same 176 SDK files. Temporary hosted probe
 orchestration is removed before landing. Normal CI and exact final semantic
 review remain publication gates.
 
-Only this fact's target-body frontier is subtracted (51 to 50). Both Build-owned
+Only this fact's target-body frontier is subtracted (47 to 46). Both Build-owned
 parent capabilities, broader target-family retirement, other-host runtime, and
 mutable retained-completion footprint closure remain open.
 

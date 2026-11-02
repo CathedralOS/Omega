@@ -245,7 +245,8 @@ pub use value_custody::places::{
 };
 
 pub use proof_contracts::bound_expression_meaning::{
-    applied_case_membership_variant, exact_case_reference_owner, exact_domain_subject_type,
+    applied_case_membership_variant, applied_declaration_case_membership_variant,
+    exact_case_reference_owner, exact_domain_subject_type,
     has_builtin_binary_expression_meaning, has_builtin_bound_expression_meaning,
     has_builtin_decomposed_guard_meaning, has_builtin_domain_decomposed_guard_meaning,
     has_builtin_or_sealed_float_comparison_meaning, has_exact_case_membership_meaning,
@@ -301,7 +302,8 @@ pub use crate::machine_calls::denotational_calls::{
 pub use crate::machine_calls::fact_call_projections::has_checked_denotational_call_identity;
 pub use crate::proof_contracts::slice_ranking::slice_tail_strictly_decreases;
 pub use crate::value_custody::cleanup::{
-    nominal_cleanup_machine_for_type, nominal_cleanup_owner, validate_reserved_cleanup_selections,
+    nominal_cleanup_machine_for_type, nominal_cleanup_owner, nominal_cleanup_target,
+    validate_reserved_cleanup_selections,
 };
 pub use crate::value_custody::content_conservation::{
     ContentBoundaryBodyRequirement, ContentConservationSourcePlan,
