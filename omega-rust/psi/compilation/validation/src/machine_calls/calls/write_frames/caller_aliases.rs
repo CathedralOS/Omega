@@ -356,14 +356,10 @@ pub(super) fn assignment_write_paths(
     statement: &StatementNode,
     state_assignments: &StateAssignments<'_>,
 ) -> Option<Vec<String>> {
-    let evidence = assignment_evidence(program, machine, symbols, statement, state_assignments);
-    match evidence.map(|evidence| evidence.target) {
-        Some(AssignmentWriteTarget::LocalBindingReplacement { path }) => Some(vec![path]),
-        Some(AssignmentWriteTarget::Storage { .. }) | None => {
-            // The destination owner can establish a declared inline home even
-            // when an earlier call made the reference inventory unavailable.
-            // Missing inventory still cannot establish an interior reference
-            // load; assignment_storage_origins retains that distinction.
+    let evidence = assignment_evidence(program, machine, symbols, statement, state_assignments)?;
+    match evidence.target {
+        AssignmentWriteTarget::LocalBindingReplacement { path } => Some(vec![path]),
+        AssignmentWriteTarget::Storage { .. } => {
             let destinations = assignment_storage_origins(
                 program,
                 machine,

@@ -519,6 +519,17 @@ impl<'program> StructuralJudge<'program> {
                         &[cut],
                     ))
         };
+        // An observed value anchored at a completed cut remains current when
+        // every later path preserves its contents. Its older reaching source
+        // may still be Incoming (or a predecessor union); that source does not
+        // invalidate the observation made at this newer cut.
+        if stored
+            .current_anchors
+            .iter()
+            .any(|anchor| matches!(anchor, StorageAnchor::After(cut) if preserved(*cut)))
+        {
+            return true;
+        }
         let reached = |reaching: &crate::completed_storage::StoredOperand| match reaching {
             crate::completed_storage::StoredOperand::Incoming(_) => stored
                 .current_anchors
