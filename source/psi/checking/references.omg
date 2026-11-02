@@ -357,6 +357,9 @@ crashes Trap
             PlaceKind::Parameter -> parameter(checker, typing, place, entry.type_handle)
             PlaceKind::Field -> parameter(checker, typing, place, entry.type_handle)
             PlaceKind::Call -> parameter(checker, typing, place, entry.type_handle)
+            // A logical arbitrary referent in the isolated refinement world.
+            // This is not added to storage_origin or any borrow authority.
+            PlaceKind::ContractResult -> parameter(checker, typing, place, entry.type_handle)
             _ -> unknown()
         }
     }

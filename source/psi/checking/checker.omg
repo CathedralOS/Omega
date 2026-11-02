@@ -236,7 +236,7 @@ crashes Trap
     machine settle(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing) {
         Checker::settle_routes(checker, syntax);
         Checker::settle_termination(checker, syntax, resolution);
-        Checker::check_supply(checker, syntax, resolution);
+        Checker::check_supply(checker, syntax, resolution, typing);
         Checker::project_slots(checker, syntax, typing);
     }
 }
@@ -557,13 +557,21 @@ crashes Trap
     }
 
     machine enter(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, index: u64 in Trapping, end: u64 in Trapping) {
-        let parameter: Parameter = SyntaxTrees::parameter(syntax, index);
-        let type_handle: u64 in Trapping = Typing::reference_type(typing, parameter.type_reference);
-        let place: u64 in Trapping = Checker::place(checker, typing, PlaceKind::Parameter, index, 0, type_handle);
+        let place: u64 in Trapping = Checker::parameter_place(checker, syntax, typing, index);
         transition { _ -> next(checker, syntax, typing, index + 1, end) }
     }
 
     machine done() {}
+}
+
+// Authenticate a parameter coordinate through its actual declared type. This
+// is also the root of arbitrary formal values in universal contract checking.
+public machine Checker::parameter_place(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, parameter: u64 in Trapping) -> u64 in Trapping
+crashes Trap
+{
+    let written: Parameter = SyntaxTrees::parameter(syntax, parameter);
+    let type_handle: u64 in Trapping = Typing::reference_type(typing, written.type_reference);
+    Checker::place(checker, typing, PlaceKind::Parameter, parameter, 0, type_handle)
 }
 
 // Machine-local declaration tables, guarded by the declaration's offset.

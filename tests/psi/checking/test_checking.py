@@ -17,7 +17,7 @@ DIAGNOSTICS = (
     "DomainUnproven", "CrashNotDeclared", "GuaranteeUnproven", "RankUnproven",
     "ProgressUnproven", "UseAfterMove", "MoveOutOfBorrow", "LinearUnconsumed",
     "LinearOverwritten", "OverlappingArguments", "LoanConflict", "LoanEscapes",
-    "RepresentationUnproven", "WriteOnlyObservation", "RankRangeUnproven",
+    "RepresentationUnproven", "WriteOnlyObservation", "RankRangeUnproven", "RefinementUnproven",
 )
 
 

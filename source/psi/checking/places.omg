@@ -42,6 +42,9 @@ public data PlaceKind [copy] {
     case Snapshot;
     // Immutable invocation-entry ranking coordinates and range endpoints.
     case RankEntry;
+    // The one arbitrary typed result in a fresh universal-refinement world.
+    // It is not an authored call or an executable/borrow authority.
+    case ContractResult;
 }
 
 public data Place [copy] {
@@ -587,6 +590,7 @@ crashes Trap
         ValueBinding::Field { field } -> field_name(checker, typing, field, type_handle)
         ValueBinding::PayloadField { field } -> payload_name(checker, field)
         ValueBinding::ReturnedValue { machine } -> returned(checker)
+        ValueBinding::ContractReturnedValue { contract as _ } -> returned(checker)
         ValueBinding::DomainSubject { domain } -> subject(checker)
         _ -> unbounded()
     }
