@@ -133,31 +133,23 @@ pub(super) fn applied_call_write_signature<'program>(
             bindings,
         });
     }
-    let call = match site {
-        CallerWriteSite::Call(call) => CallSite::Statement(call),
-        CallerWriteSite::Expression(expression) => CallSite::Expression {
-            expression,
-            call: expression_table(program).call_node(expression)?,
-        },
-        // Named transitions have no saved application header. Keep their
-        // existing type-only inference until they retain one, too. A failed
-        // saved call above must never fall back to guessing from its operands.
-        CallerWriteSite::Transition(_) => {
-            let bindings = transition_signature_type_bindings(
-                program,
-                current_machine,
-                signature,
-                site,
-                arguments,
-                bindings,
-            )?;
-            return Some(AppliedCallWriteSignature {
-                signature,
-                bindings,
-            });
-        }
-        CallerWriteSite::Statement(_) => return None,
-    };
+    let call = site.as_call_site(program)?;
+    if matches!(call, CallSite::TransitionNamed { .. }) {
+        // Internal named edges have no saved generic-argument header. Preserve
+        // their type inference; calls with a header must use that exact header.
+        let bindings = transition_signature_type_bindings(
+            program,
+            current_machine,
+            signature,
+            site,
+            arguments,
+            bindings,
+        )?;
+        return Some(AppliedCallWriteSignature {
+            signature,
+            bindings,
+        });
+    }
     let (_, applied) = requirement_contract_signature(program, current_machine.symbol, &call)?;
     if applied.symbol != signature.symbol {
         return None;
