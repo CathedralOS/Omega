@@ -1281,6 +1281,15 @@ pass/facts/unsigned_8bit_saturating_subtraction_bound_through_match_join_exit bu
 pass/facts/unsigned_8bit_saturating_subtraction_bound_through_other_machine_exit built 2657ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/unsigned_8bit_saturating_subtraction_bound_through_other_state_exit built 2020ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/unsigned_8bit_saturating_subtraction_bound_through_parameter_exit built 1551ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
+pass/facts/write_only_match_join_through_call_result_exit built 36661ms exit:0 interpreter-exit:0 interpreter:agrees @c79bb8268163+wt
+pass/facts/write_only_match_join_through_const_name_exit built 36144ms exit:0 interpreter-exit:0 interpreter:agrees @c79bb8268163+wt
+pass/facts/write_only_match_join_through_field_exit built 41470ms exit:0 interpreter-exit:0 interpreter:agrees @c79bb8268163+wt
+pass/facts/write_only_match_join_through_local_exit built 36588ms exit:0 interpreter-exit:0 interpreter:agrees @c79bb8268163+wt
+pass/facts/write_only_match_join_through_match_join_exit built 30738ms exit:0 interpreter-exit:0 interpreter:agrees @c79bb8268163+wt
+pass/facts/write_only_match_join_through_other_machine_exit built 30618ms exit:0 interpreter-exit:0 interpreter:agrees @c79bb8268163+wt
+pass/facts/write_only_match_join_through_other_state_exit built 36940ms exit:0 interpreter-exit:0 interpreter:agrees @c79bb8268163+wt
+pass/facts/write_only_match_join_through_parameter_exit built 36359ms exit:0 interpreter-exit:0 interpreter:agrees @c79bb8268163+wt
+pass/facts/write_only_match_join_through_target_body_exit built 36327ms exit:0 interpreter-exit:0 interpreter:agrees @c79bb8268163+wt
 pass/generics/constructor_inferred_cooked_byte_extent_exit built 2269ms exit:0 interpreter-exit:0 interpreter:agrees @b852a38544d0
 pass/generics/runtime_captured_map_two_method_tuples built 6142ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @f6273e83f99c
 pass/generics/runtime_computed_direct_result_exit built 1003ms exit:0 interpreter-exit:0 interpreter:agrees @ba4c5b471bb8

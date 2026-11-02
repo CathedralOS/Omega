@@ -1945,6 +1945,25 @@ fail/facts/typed_reflection_mutation_completion_unit_value_rejected rejected 135
 	machine `maybe` state `entry`: `entry(..)` does not return a value but is used in a VALUE position; Unit cannot supply a scalar operand or local
 	machine `maybe` state `entry`: `done(..)` does not return a value but is used in a VALUE position; Unit cannot supply a scalar operand or local
 	machine `maybe` state `entry` transition returns a value, but the state declares no result; a terminal arm is `_ -> {}`
+fail/facts/write_only_match_join_through_call_result_rejected rejected 2267ms expected @c79bb8268163+wt
+	machine `store` state `entry` reads write-only parameter `selected`; `&write` permits replacement or exact `&write` forwarding, never observation
+fail/facts/write_only_match_join_through_const_name_rejected rejected 10893ms expected @c79bb8268163+wt
+	machine `store` state `entry` reads write-only parameter `selected`; `&write` permits replacement or exact `&write` forwarding, never observation
+fail/facts/write_only_match_join_through_field_rejected rejected 4212ms expected @c79bb8268163+wt
+	machine `store` state `entry` reads write-only parameter `selected`; `&write` permits replacement or exact `&write` forwarding, never observation
+fail/facts/write_only_match_join_through_local_rejected rejected 2699ms expected @c79bb8268163+wt
+	machine `store` state `entry` reads write-only parameter `selected`; `&write` permits replacement or exact `&write` forwarding, never observation
+fail/facts/write_only_match_join_through_match_join_rejected rejected 8567ms expected @c79bb8268163+wt
+	machine `store` state `entry` reads write-only parameter `selected`; `&write` permits replacement or exact `&write` forwarding, never observation
+fail/facts/write_only_match_join_through_other_machine_rejected rejected 2942ms expected @c79bb8268163+wt
+	machine `apply` state `entry` reads write-only parameter `selected`; `&write` permits replacement or exact `&write` forwarding, never observation
+fail/facts/write_only_match_join_through_other_state_rejected rejected 2384ms expected @c79bb8268163+wt
+	machine `pick` state `entry` reads write-only parameter `selected`; `&write` permits replacement or exact `&write` forwarding, never observation
+fail/facts/write_only_match_join_through_parameter_rejected rejected 2363ms expected @c79bb8268163+wt
+	machine `apply` state `entry` reads write-only parameter `selected`; `&write` permits replacement or exact `&write` forwarding, never observation
+fail/facts/write_only_match_join_through_target_body_rejected rejected 2579ms expected @c79bb8268163+wt
+	machine `X86Apply::apply` state `apply` reads write-only parameter `selected`; `&write` permits replacement or exact `&write` forwarding, never observation
+	machine `ArmApply::apply` state `apply` reads write-only parameter `selected`; `&write` permits replacement or exact `&write` forwarding, never observation
 fail/facts/write_only_scalar_entry_observation rejected 5920ms expected @3bd254ac6193
 	machine `read` state `entry` reads write-only parameter `value`; `&write` permits replacement or exact `&write` forwarding, never observation
 fail/float/constructor_case_invalid_narrow_widen_rejected rejected 3180ms expected @f9df9c1404e3
@@ -10389,6 +10408,15 @@ pass/facts/write_only_indexed_reborrow_through_other_state_exit checked 3358ms c
 pass/facts/write_only_indexed_reborrow_through_parameter_exit checked 4143ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/write_only_indexed_reborrow_through_target_body_exit checked 4526ms check-target:macos_arm64 terminal-target.linux_arm64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
 pass/facts/write_only_indexed_reborrow_unary_selector_exit checked 3936ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/write_only_match_join_through_call_result_exit checked 42871ms check-target:macos_arm64 @c79bb8268163+wt
+pass/facts/write_only_match_join_through_const_name_exit checked 37490ms check-target:macos_arm64 @c79bb8268163+wt
+pass/facts/write_only_match_join_through_field_exit checked 43846ms check-target:macos_arm64 @c79bb8268163+wt
+pass/facts/write_only_match_join_through_local_exit checked 37515ms check-target:macos_arm64 @c79bb8268163+wt
+pass/facts/write_only_match_join_through_match_join_exit checked 30386ms check-target:macos_arm64 @c79bb8268163+wt
+pass/facts/write_only_match_join_through_other_machine_exit checked 24182ms check-target:macos_arm64 @c79bb8268163+wt
+pass/facts/write_only_match_join_through_other_state_exit checked 42831ms check-target:macos_arm64 @c79bb8268163+wt
+pass/facts/write_only_match_join_through_parameter_exit checked 38176ms check-target:macos_arm64 @c79bb8268163+wt
+pass/facts/write_only_match_join_through_target_body_exit checked 43098ms check-target:macos_arm64 @c79bb8268163+wt
 pass/facts/write_only_recast_through_call_result_exit checked 3577ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/write_only_recast_through_const_name_exit checked 3884ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/write_only_recast_through_field_exit checked 10064ms check-target:macos_arm64 @8fce926f9735
