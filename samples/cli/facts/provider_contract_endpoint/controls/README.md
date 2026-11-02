@@ -37,6 +37,13 @@ by this repair rather than adding transport matrices.
 - `composed_endpoint` and `indirect_helper` execute ordinary transitive checked
   calls rather than a recognized endpoint spelling.
 
+The [earlier-operand preservation control](earlier_operand/README.md) keeps an
+unused constant's provider call and later exact addition in the same evaluation
+entry. Its [source](earlier_operand/main.omg) and [Build](earlier_operand/build.omg)
+match the frozen passing R6 probe. The constant still owes formation, while main
+checks the original bound seven; it does not directly observe the resulting eight.
+Current-candidate qualification remains pending.
+
 Historical generic-endpoint/static-actual and portable-family circular source
 experiments reached earlier unsupported formation. Their exit codes are not
 credited as enforcement of their later intended obligations. Their raw inputs

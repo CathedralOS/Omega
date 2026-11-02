@@ -458,6 +458,7 @@ impl ExitScalars<'_, '_> {
             Some(checked_trees::IntegerRangeObligation::retain(
                 expression,
                 self.machine.symbol,
+                semantic_vocabulary::ScalarConditionRole::Result,
                 difference,
                 minimum,
                 maximum,

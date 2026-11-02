@@ -130,6 +130,7 @@ pub(super) fn recipe_requirements(
             return Some(vec![
                 ConstantRecipeObligation::retain(
                     owner,
+                    semantic_vocabulary::ScalarConditionRole::Prerequisite,
                     recipe,
                     ConstantRecipeRequirement::AtLeast(BigInt::from_i64(interval.high?)),
                     program.expression_table.source_span(requirement),
@@ -138,6 +139,7 @@ pub(super) fn recipe_requirements(
                 .with_recipe_owner(recipe_owner),
                 ConstantRecipeObligation::retain(
                     owner,
+                    semantic_vocabulary::ScalarConditionRole::Prerequisite,
                     recipe,
                     ConstantRecipeRequirement::AtMost(BigInt::from_i64(interval.low?)),
                     program.expression_table.source_span(requirement),
@@ -151,6 +153,7 @@ pub(super) fn recipe_requirements(
     Some(vec![
         ConstantRecipeObligation::retain(
             owner,
+            semantic_vocabulary::ScalarConditionRole::Prerequisite,
             recipe,
             relation,
             program.expression_table.source_span(requirement),

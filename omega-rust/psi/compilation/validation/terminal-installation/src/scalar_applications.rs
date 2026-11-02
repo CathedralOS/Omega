@@ -24,7 +24,9 @@ use crate::{
 };
 
 mod conditions;
+mod prerequisites;
 pub use conditions::ScalarConditionSelection;
+pub use prerequisites::{AdmittedScalarEntry, ScalarEntryChecks, ScalarEntryPrerequisites};
 #[cfg(test)]
 mod abi_storage_tests;
 mod closure;

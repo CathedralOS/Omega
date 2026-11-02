@@ -46,6 +46,7 @@ mod reflection;
 mod scalar_applications;
 pub use scalar_applications::{
     ScalarScopeEvaluation, complete_scalar_applications, evaluate_scalar_applications,
+    evaluate_scalar_applications_with_address_model,
 };
 mod syntax_probes;
 mod unique;

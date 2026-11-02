@@ -354,6 +354,7 @@ fn check_recipe_extent_index(
         if let Some(end) = end {
             obligations.push(checked_trees::ConstantRecipeObligation::retain(
                 machine.symbol,
+                semantic_vocabulary::ScalarConditionRole::Prerequisite,
                 recipe,
                 checked_trees::ConstantRecipeRequirement::AtLeast(
                     numerics::bignum::BigInt::from_i64(end),
@@ -396,6 +397,7 @@ fn check_recipe_extent_index(
         Some(high) if lower_bound_proven => {
             obligations.push(checked_trees::ConstantRecipeObligation::retain(
                 machine.symbol,
+                semantic_vocabulary::ScalarConditionRole::Prerequisite,
                 recipe,
                 checked_trees::ConstantRecipeRequirement::ExceedsBound(
                     numerics::bignum::BigInt::from_i64(high),

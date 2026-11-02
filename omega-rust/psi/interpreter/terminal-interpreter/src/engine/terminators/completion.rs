@@ -183,6 +183,7 @@ impl TerminalExecution<'_> {
             }
             if let Err(error) = self
                 .require_entry_results_complete()
+                .and_then(|()| self.require_scalar_entry_checks_complete())
                 .and_then(|()| self.charge_completed_result(&completed))
             {
                 self.failed_return = Some(FailedReturn {

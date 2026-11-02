@@ -59,7 +59,7 @@ its logical result and obligations; an encoded proof cannot select them.
 Scalar declarations encode a qualification-set identity after their payload
 type. Zero denotes the bare set and has no catalog row. The module's scalar
 qualification catalog follows the entry identity as six counted tables, in the
-order below. This layout uses semantic format marker 236 even when every table
+order below. This layout uses semantic format marker 237 even when every table
 is empty; older markers reject rather than selecting an optional dialect:
 
 | Catalog table | Row fields |
@@ -146,8 +146,26 @@ or execution authority. The migration's unresolved-execution fences remain
 until a receiving target can discharge the complete requirements.
 
 The condition section encodes counted integer-range rows, counted predicate
-rows, then counted completion rows. A predicate row contains its subject, diagnostic description,
-counted graph nodes and root coordinate. Node tags are integer literal (1),
+rows, then counted completion rows:
+
+| Condition | Row fields |
+| --- | --- |
+| integer range | subject + role tag + range requirement + counted bound steps |
+| predicate | subject + role tag + diagnostic description + counted graph nodes + root coordinate |
+| completion | subject + scalar-application identity |
+
+The role is one byte immediately after the subject: prerequisite (1) or
+completed-result judgment (2). Other tags reject. A prerequisite must be
+discharged before the call or operation it protects. Independent calculations
+close before entry execution; an earlier captured operand inside the entry is
+checked when it becomes available, before execution resumes. An entry with an
+unresolved prerequisite cannot return a publishable result. A completed-result
+judgment may use observations from independently admitted execution; it cannot
+justify that execution's own prerequisites. The role is explicit and does not
+follow from the observation kind or diagnostic description. Completion remains
+separate work debt and carries no role tag.
+
+Predicate node tags are integer literal (1),
 Boolean literal (2), scalar observation (3), forwarding (4), negation (5), and
 binary operator (6). Binary operators are `and`, `or`, equality, inequality,
 less, less-or-equal, greater, greater-or-equal (tags 1 through 8). Child and
@@ -792,7 +810,7 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 236 + `u16` vocabulary
+Module bytes are `PSITERM\0` + `u16` format marker 237 + `u16` vocabulary
 marker 130 + a Boolean default-entry presence flag, followed by the entry
 callable when present and the module tables in the declaration order below.
 The entry callable uses its ordinary machine-or-boundary tag and identifier
@@ -904,6 +922,11 @@ Older markers are rejected before their payload is read.
 | 43 | callback applications | counted checked registrar occurrences |
 | 44 | boundary application candidates | counted checked bodies for closed applications |
 | 45 | task activation demands | counted task activation demand rows |
+
+Marker 237 adds the explicit prerequisite/result role byte after the subject
+of every integer-range and predicate condition. Completion rows keep their
+separate work-debt encoding. Marker 236 lacks these role bytes and rejects
+rather than defaulting a condition's role.
 
 Marker 236 additionally retains the remaining source type-parameter count in
 each callable header, as a `u32` after the checked-body flag and before the

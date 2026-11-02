@@ -68,25 +68,12 @@ pub fn admit_compiler_evaluation(
             root_facts.name
         ));
     }
-    let mut selected = Vec::new();
-    for (requirement, body) in providers.providers().chain(
-        providers
-            .assumed_bindings()
-            .iter()
-            .map(|binding| (binding.required, binding.implementation)),
-    ) {
-        selected.push((
-            scope
-                .callable_declaration(TargetMachineCallable::Boundary(requirement))
-                .ok_or("compiler-evaluation provider requirement lost its declaration")?,
-            scope
-                .callable_declaration(TargetMachineCallable::Machine(body))
-                .ok_or("compiler-evaluation selected body lost its declaration")?,
-        ));
-    }
-    let closure = scope
-        .applications()
-        .invocation_reachability(target, &selected, &[root]);
+    let invocation = compiler_invocation_scope(scope, target, &providers, root)?;
+    let CompilerInvocationScope {
+        selected,
+        closure,
+        dependencies,
+    } = invocation;
     for binding in providers.assumed_bindings() {
         for requirement in
             std::iter::once(binding.required).chain(binding.supply_path.iter().copied())
@@ -99,21 +86,6 @@ pub fn admit_compiler_evaluation(
             }
         }
     }
-    let mut dependencies = closure.machines.clone();
-    dependencies.extend(closure.calls.iter().copied());
-    for (_, machine) in scope.plan.machines.iter() {
-        if closure.machines.contains(&machine.machine) {
-            dependencies.extend(
-                scope
-                    .plan
-                    .symbols
-                    .span_or_empty(machine.states)
-                    .iter()
-                    .copied(),
-            );
-        }
-    }
-    dependencies.extend(scope.plan.declaration_closure(&dependencies.clone()));
     for (_, owner) in scope.pending_evaluation_conditions.iter() {
         if owner.0 == 0 || dependencies.contains(owner) {
             return Err("constant invocation retains a pending target proof condition in its demanded closure; it cannot establish its own pending target condition".into());
@@ -216,6 +188,66 @@ pub fn admit_compiler_evaluation(
         artifact: artifact.identity(),
         target: target.to_owned(),
         declaration: root,
+    })
+}
+
+/// The same selected call closure determines effects and the prerequisites that
+/// must already hold. Include state owners so their checks cannot escape admission.
+pub(crate) struct CompilerInvocationScope {
+    pub selected: Vec<(ProofDeclarationId, ProofDeclarationId)>,
+    pub closure:
+        semantic_vocabulary::proof_applications::ProofApplicationReachability<ProofDeclarationId>,
+    pub dependencies: Vec<ProofDeclarationId>,
+}
+
+pub(crate) fn compiler_invocation_scope(
+    scope: &ProofApplicationScope,
+    target: &str,
+    providers: &crate::AdmittedProviderSelections,
+    root: ProofDeclarationId,
+) -> Result<CompilerInvocationScope, String> {
+    let root = scope
+        .plan
+        .callable_for_target(root, target)
+        .ok_or("compiler-evaluation declaration has no selected target body")?;
+    let mut selected = Vec::new();
+    for (requirement, body) in providers.providers().chain(
+        providers
+            .assumed_bindings()
+            .iter()
+            .map(|binding| (binding.required, binding.implementation)),
+    ) {
+        selected.push((
+            scope
+                .callable_declaration(TargetMachineCallable::Boundary(requirement))
+                .ok_or("compiler-evaluation provider requirement lost its declaration")?,
+            scope
+                .callable_declaration(TargetMachineCallable::Machine(body))
+                .ok_or("compiler-evaluation selected body lost its declaration")?,
+        ));
+    }
+    let closure = scope
+        .applications()
+        .invocation_reachability(target, &selected, &[root]);
+    let mut dependencies = closure.machines.clone();
+    dependencies.extend(closure.calls.iter().copied());
+    for (_, machine) in scope.plan.machines.iter() {
+        if closure.machines.contains(&machine.machine) {
+            dependencies.extend(
+                scope
+                    .plan
+                    .symbols
+                    .span_or_empty(machine.states)
+                    .iter()
+                    .copied(),
+            );
+        }
+    }
+    dependencies.extend(scope.plan.declaration_closure(&dependencies.clone()));
+    Ok(CompilerInvocationScope {
+        selected,
+        closure,
+        dependencies,
     })
 }
 

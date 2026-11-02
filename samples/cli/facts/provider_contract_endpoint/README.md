@@ -12,6 +12,11 @@ when the selected provider call supplies constants inside a function that still
 has its own generic parameter. It also checks both match outcomes and field
 neighbors at runtime.
 
+The [pending-call production](pending_call/README.md) keeps that same bound when
+the helper first makes a call with its own requirement. Its twins require that
+same pending helper result to admit the call; independent admission and all
+nine-place runtime checks remain to be qualified.
+
 The frozen [local positive](local/main.omg) is the discovery program. Its public
 acceptance command is:
 
