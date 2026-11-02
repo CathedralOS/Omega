@@ -23,7 +23,7 @@ use resolved_layout_to_resolved_layout::{
 use selected_form_encoding_to_resolved_layout::{
     StagedOptimizedResolvedSelectedFormLayout, validate_optimized_resolved_selected_form_layout,
 };
-use selected_instructions_to_register_homes::RetainedAllocation;
+use selected_instructions_to_register_homes::{RetainedAllocation, ValidatedSelectedAnalysis};
 
 /// Bind the pipeline's produced frame, encoding and layout to one allocation.
 /// This checks their joins and exit contract without running a compiler stage.
@@ -110,10 +110,10 @@ pub(crate) fn validate_fixed_frame_function_relative_realization(
     )
     .map_err(FunctionRelativeOptimizationRealizationError::Encoding)?;
     validate_optimized_resolved_selected_form_layout(
-        selected,
-        &staged.machine,
+        selected.current_program(),
+        staged.machine.machine().plan(),
         physical,
-        &staged.encoding,
+        staged.encoding.program(),
         &staged.baseline_layout,
     )
     .map_err(FunctionRelativeOptimizationRealizationError::Layout)?;

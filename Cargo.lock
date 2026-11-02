@@ -2140,11 +2140,8 @@ dependencies = [
  "machine-code",
  "optimization-core",
  "physical-instructions",
- "post-allocation-machine-to-selected-form-encoding",
- "register-homes-to-post-allocation-machine",
  "register-model",
  "selected-instructions",
- "selected-instructions-to-register-homes",
  "semantic-vocabulary",
  "target",
 ]
