@@ -1,1 +1,1 @@
-cannot prove requires contract for call echo from unused
+static application of requirement `Echo::echo` violates its declared requires facts: the complete tuple is structurally false
