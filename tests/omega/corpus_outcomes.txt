@@ -2084,36 +2084,36 @@ fail/facts/transparent_alias_rhs_const_expression_overflow_rejected rejected 957
 	const argument expression: Exact integer constant operation overflows, divides by zero, or has an invalid shift count
 fail/facts/transparent_alias_rhs_declaration_scope_overflow_rejected rejected 604ms expected @8436ab6a7742
 	const argument expression: Exact integer constant operation overflows, divides by zero, or has an invalid shift count
-fail/facts/typed_reflection_active_case_selected_layout_alias_rejected rejected 787ms expected @9d8ac725f3d8
-	machine `field` requires type predicate does not hold for the supplied arguments
-fail/facts/typed_reflection_active_case_selected_layout_rejected rejected 792ms expected @dd3a6c22f839
-	machine `field` requires type predicate does not hold for the supplied arguments
-fail/facts/typed_reflection_mutation_completion_call_result_rejected rejected 1008ms expected @f0eff27c64cd
-	machine `increment` requires type predicate does not hold for the supplied arguments
-fail/facts/typed_reflection_mutation_completion_const_name_rejected rejected 1001ms expected @f0eff27c64cd
-	machine `increment` requires type predicate does not hold for the supplied arguments
-fail/facts/typed_reflection_mutation_completion_field_rejected rejected 1094ms expected @f0eff27c64cd
-	machine `increment` requires type predicate does not hold for the supplied arguments
-fail/facts/typed_reflection_mutation_completion_foreign_query_rejected rejected 2053ms expected @f0eff27c64cd
+fail/facts/typed_reflection_active_case_selected_layout_alias_rejected rejected 1887ms expected @c6ef20854dc3+wt
+	machine `field` requires type predicate does not hold for the supplied arguments: `Kind == LayoutStorage<Payload, Spread<48>>`
+fail/facts/typed_reflection_active_case_selected_layout_rejected rejected 1905ms expected @c6ef20854dc3+wt
+	machine `field` requires type predicate does not hold for the supplied arguments: `Kind == LayoutStorage<Payload, Spread<48>>`
+fail/facts/typed_reflection_mutation_completion_call_result_rejected rejected 1613ms expected @c6ef20854dc3+wt
+	machine `increment` requires type predicate does not hold for the supplied arguments: `Kind == u32`
+fail/facts/typed_reflection_mutation_completion_const_name_rejected rejected 1555ms expected @c6ef20854dc3+wt
+	machine `increment` requires type predicate does not hold for the supplied arguments: `Kind == u32`
+fail/facts/typed_reflection_mutation_completion_field_rejected rejected 1511ms expected @c6ef20854dc3+wt
+	machine `increment` requires type predicate does not hold for the supplied arguments: `Kind == u32`
+fail/facts/typed_reflection_mutation_completion_foreign_query_rejected rejected 3193ms expected @c6ef20854dc3+wt
 	typed field visitation requires its subject owner; delegate an owning operation instead of reflecting a foreign carrier
-fail/facts/typed_reflection_mutation_completion_loan_escape_rejected rejected 4757ms expected @f0eff27c64cd
+fail/facts/typed_reflection_mutation_completion_loan_escape_rejected rejected 5382ms expected @c6ef20854dc3+wt
 	machine `escape` stores a borrowed value without a complete normal-exit backing relation
 	machine `main` state `entry` statement 2: call stores a borrowed value without a complete destination/backing relation
-fail/facts/typed_reflection_mutation_completion_local_rejected rejected 865ms expected @f0eff27c64cd
-	machine `increment` requires type predicate does not hold for the supplied arguments
-fail/facts/typed_reflection_mutation_completion_match_join_rejected rejected 843ms expected @f0eff27c64cd
-	machine `increment` requires type predicate does not hold for the supplied arguments
-fail/facts/typed_reflection_mutation_completion_other_machine_rejected rejected 859ms expected @f0eff27c64cd
-	machine `increment` requires type predicate does not hold for the supplied arguments
-fail/facts/typed_reflection_mutation_completion_other_state_rejected rejected 872ms expected @f0eff27c64cd
-	machine `increment` requires type predicate does not hold for the supplied arguments
-fail/facts/typed_reflection_mutation_completion_parameter_rejected rejected 864ms expected @f0eff27c64cd
-	machine `increment` requires type predicate does not hold for the supplied arguments
-fail/facts/typed_reflection_mutation_completion_shared_generic_rejected rejected 877ms expected @f0eff27c64cd
-	machine `member` requires type predicate does not hold for the supplied arguments
-fail/facts/typed_reflection_mutation_completion_target_body_rejected rejected 920ms expected @f0eff27c64cd
-	machine `increment` requires type predicate does not hold for the supplied arguments
-fail/facts/typed_reflection_mutation_completion_unit_value_rejected rejected 1356ms expected @f0eff27c64cd
+fail/facts/typed_reflection_mutation_completion_local_rejected rejected 1439ms expected @c6ef20854dc3+wt
+	machine `increment` requires type predicate does not hold for the supplied arguments: `Kind == u32`
+fail/facts/typed_reflection_mutation_completion_match_join_rejected rejected 1366ms expected @c6ef20854dc3+wt
+	machine `increment` requires type predicate does not hold for the supplied arguments: `Kind == u32`
+fail/facts/typed_reflection_mutation_completion_other_machine_rejected rejected 1542ms expected @c6ef20854dc3+wt
+	machine `increment` requires type predicate does not hold for the supplied arguments: `Kind == u32`
+fail/facts/typed_reflection_mutation_completion_other_state_rejected rejected 1330ms expected @c6ef20854dc3+wt
+	machine `increment` requires type predicate does not hold for the supplied arguments: `Kind == u32`
+fail/facts/typed_reflection_mutation_completion_parameter_rejected rejected 1330ms expected @c6ef20854dc3+wt
+	machine `increment` requires type predicate does not hold for the supplied arguments: `Kind == u32`
+fail/facts/typed_reflection_mutation_completion_shared_generic_rejected rejected 1538ms expected @c6ef20854dc3+wt
+	machine `member` requires type predicate does not hold for the supplied arguments: `Kind == u32`
+fail/facts/typed_reflection_mutation_completion_target_body_rejected rejected 1352ms expected @c6ef20854dc3+wt
+	machine `increment` requires type predicate does not hold for the supplied arguments: `Kind == u32`
+fail/facts/typed_reflection_mutation_completion_unit_value_rejected rejected 2132ms expected @c6ef20854dc3+wt
 	machine `maybe` state `entry`: `entry(..)` does not return a value but is used in a VALUE position; Unit cannot supply a scalar operand or local
 	machine `maybe` state `entry`: `done(..)` does not return a value but is used in a VALUE position; Unit cannot supply a scalar operand or local
 	machine `maybe` state `entry` transition returns a value, but the state declares no result; a terminal arm is `_ -> {}`
@@ -7066,24 +7066,24 @@ pass/facts/inferred_array_equation_call_mixed_binders_through_other_state_exit c
 pass/facts/inferred_array_equation_call_mixed_binders_through_parameter_exit checked 3738ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/inferred_array_equation_call_mixed_binders_through_target_body_exit checked 4021ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/inferred_array_equation_call_mixed_binders_value_index_exit checked 3678ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/inferred_array_equation_call_through_call_result_exit checked 4539ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/inferred_array_equation_call_through_const_name_exit checked 3119ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/inferred_array_equation_call_through_field_exit checked 4461ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/inferred_array_equation_call_through_local_exit checked 3344ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/inferred_array_equation_call_through_match_join_exit checked 3943ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/inferred_array_equation_call_through_other_machine_exit checked 3474ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/inferred_array_equation_call_through_other_state_exit checked 3527ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/inferred_array_equation_call_through_parameter_exit checked 3516ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/inferred_array_equation_call_through_target_body_exit checked 3438ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/inferred_array_equation_forwarded_result_through_call_result_exit checked 3244ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/inferred_array_equation_forwarded_result_through_const_name_exit checked 4403ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/inferred_array_equation_forwarded_result_through_field_exit checked 4600ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/inferred_array_equation_forwarded_result_through_local_exit checked 3435ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/inferred_array_equation_forwarded_result_through_match_join_exit checked 4186ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/inferred_array_equation_forwarded_result_through_other_machine_exit checked 3311ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/inferred_array_equation_forwarded_result_through_other_state_exit checked 4818ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/inferred_array_equation_forwarded_result_through_parameter_exit checked 3484ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/inferred_array_equation_forwarded_result_through_target_body_exit checked 3798ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/inferred_array_equation_call_through_call_result_exit checked 18688ms check-target:macos_arm64 @c6ef20854dc3+wt
+pass/facts/inferred_array_equation_call_through_const_name_exit checked 22053ms check-target:macos_arm64 @c6ef20854dc3+wt
+pass/facts/inferred_array_equation_call_through_field_exit checked 18914ms check-target:macos_arm64 @c6ef20854dc3+wt
+pass/facts/inferred_array_equation_call_through_local_exit checked 18473ms check-target:macos_arm64 @c6ef20854dc3+wt
+pass/facts/inferred_array_equation_call_through_match_join_exit checked 26024ms check-target:macos_arm64 @c6ef20854dc3+wt
+pass/facts/inferred_array_equation_call_through_other_machine_exit checked 25720ms check-target:macos_arm64 @c6ef20854dc3+wt
+pass/facts/inferred_array_equation_call_through_other_state_exit checked 22411ms check-target:macos_arm64 @c6ef20854dc3+wt
+pass/facts/inferred_array_equation_call_through_parameter_exit checked 25930ms check-target:macos_arm64 @c6ef20854dc3+wt
+pass/facts/inferred_array_equation_call_through_target_body_exit checked 26287ms check-target:macos_arm64 @c6ef20854dc3+wt
+pass/facts/inferred_array_equation_forwarded_result_through_call_result_exit checked 18397ms check-target:macos_arm64 @c6ef20854dc3+wt
+pass/facts/inferred_array_equation_forwarded_result_through_const_name_exit checked 19005ms check-target:macos_arm64 @c6ef20854dc3+wt
+pass/facts/inferred_array_equation_forwarded_result_through_field_exit checked 19077ms check-target:macos_arm64 @c6ef20854dc3+wt
+pass/facts/inferred_array_equation_forwarded_result_through_local_exit checked 18616ms check-target:macos_arm64 @c6ef20854dc3+wt
+pass/facts/inferred_array_equation_forwarded_result_through_match_join_exit checked 22378ms check-target:macos_arm64 @c6ef20854dc3+wt
+pass/facts/inferred_array_equation_forwarded_result_through_other_machine_exit checked 14549ms check-target:macos_arm64 @c6ef20854dc3+wt
+pass/facts/inferred_array_equation_forwarded_result_through_other_state_exit checked 14731ms check-target:macos_arm64 @c6ef20854dc3+wt
+pass/facts/inferred_array_equation_forwarded_result_through_parameter_exit checked 15870ms check-target:macos_arm64 @c6ef20854dc3+wt
+pass/facts/inferred_array_equation_forwarded_result_through_target_body_exit checked 16818ms check-target:macos_arm64 @c6ef20854dc3+wt
 pass/facts/inferred_indexed_byte_view_argument_snapshot_through_call_result_exit checked 5883ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/inferred_indexed_byte_view_argument_snapshot_through_const_name_exit checked 6968ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/inferred_indexed_byte_view_argument_snapshot_through_field_exit checked 5788ms check-target:macos_arm64 @911f6617ba9e
@@ -23932,42 +23932,42 @@ fail/facts/inferred_array_equation_call_mixed_binders_value_index_invalid_reject
 	generic machine `selected` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`
 fail/facts/inferred_array_equation_call_mixed_binders_value_type_shadow_rejected rejected 464ms expected @ccdb99ca2214
 	generic machine `selected` where type equation mixes type and value kinds in an element position
-fail/facts/inferred_array_equation_call_through_call_result_rejected rejected 657ms expected @ccdb99ca2214
-	generic machine `capacity` where equation binds `Capacity` to 2 but its explicit argument is 3
-fail/facts/inferred_array_equation_call_through_const_name_rejected rejected 669ms expected @ccdb99ca2214
-	generic machine `capacity` where equation binds `Capacity` to 2 but its explicit argument is 3
-fail/facts/inferred_array_equation_call_through_field_rejected rejected 440ms expected @ccdb99ca2214
-	generic machine `capacity` where equation binds `Capacity` to 2 but its explicit argument is 3
-fail/facts/inferred_array_equation_call_through_local_rejected rejected 435ms expected @ccdb99ca2214
-	generic machine `capacity` where equation binds `Capacity` to 2 but its explicit argument is 3
-fail/facts/inferred_array_equation_call_through_match_join_rejected rejected 505ms expected @ccdb99ca2214
-	generic machine `capacity` where equation binds `Capacity` to 2 but its explicit argument is 3
-fail/facts/inferred_array_equation_call_through_other_machine_rejected rejected 696ms expected @ccdb99ca2214
-	generic machine `capacity` where equation binds `Capacity` to 2 but its explicit argument is 3
-fail/facts/inferred_array_equation_call_through_other_state_rejected rejected 885ms expected @ccdb99ca2214
-	generic machine `capacity` where equation binds `Capacity` to 2 but its explicit argument is 3
-fail/facts/inferred_array_equation_call_through_parameter_rejected rejected 582ms expected @ccdb99ca2214
-	generic machine `capacity` where equation binds `Capacity` to 2 but its explicit argument is 3
-fail/facts/inferred_array_equation_call_through_target_body_rejected rejected 605ms expected @ccdb99ca2214
-	generic machine `capacity` where equation binds `Capacity` to 2 but its explicit argument is 3
-fail/facts/inferred_array_equation_forwarded_result_through_call_result_rejected rejected 502ms expected @ccdb99ca2214
-	generic machine `capacity` where equation binds `Capacity` to 2 but its explicit argument is 3
-fail/facts/inferred_array_equation_forwarded_result_through_const_name_rejected rejected 711ms expected @ccdb99ca2214
-	generic machine `capacity` where equation binds `Capacity` to 2 but its explicit argument is 3
-fail/facts/inferred_array_equation_forwarded_result_through_field_rejected rejected 530ms expected @ccdb99ca2214
-	generic machine `capacity` where equation binds `Capacity` to 2 but its explicit argument is 3
-fail/facts/inferred_array_equation_forwarded_result_through_local_rejected rejected 503ms expected @ccdb99ca2214
-	generic machine `capacity` where equation binds `Capacity` to 2 but its explicit argument is 3
-fail/facts/inferred_array_equation_forwarded_result_through_match_join_rejected rejected 832ms expected @ccdb99ca2214
-	generic machine `capacity` where equation binds `Capacity` to 2 but its explicit argument is 3
-fail/facts/inferred_array_equation_forwarded_result_through_other_machine_rejected rejected 476ms expected @ccdb99ca2214
-	generic machine `capacity` where equation binds `Capacity` to 2 but its explicit argument is 3
-fail/facts/inferred_array_equation_forwarded_result_through_other_state_rejected rejected 501ms expected @ccdb99ca2214
-	generic machine `capacity` where equation binds `Capacity` to 2 but its explicit argument is 3
-fail/facts/inferred_array_equation_forwarded_result_through_parameter_rejected rejected 700ms expected @ccdb99ca2214
-	generic machine `capacity` where equation binds `Capacity` to 2 but its explicit argument is 3
-fail/facts/inferred_array_equation_forwarded_result_through_target_body_rejected rejected 454ms expected @ccdb99ca2214
-	generic machine `capacity` where equation binds `Capacity` to 2 but its explicit argument is 3
+fail/facts/inferred_array_equation_call_through_call_result_rejected rejected 1068ms expected @c6ef20854dc3+wt
+	machine `capacity` requires type predicate does not hold for the supplied arguments: `Length == [u8; Capacity]`
+fail/facts/inferred_array_equation_call_through_const_name_rejected rejected 981ms expected @c6ef20854dc3+wt
+	machine `capacity` requires type predicate does not hold for the supplied arguments: `Length == [u8; Capacity]`
+fail/facts/inferred_array_equation_call_through_field_rejected rejected 1461ms expected @c6ef20854dc3+wt
+	machine `capacity` requires type predicate does not hold for the supplied arguments: `Length == [u8; Capacity]`
+fail/facts/inferred_array_equation_call_through_local_rejected rejected 1633ms expected @c6ef20854dc3+wt
+	machine `capacity` requires type predicate does not hold for the supplied arguments: `Length == [u8; Capacity]`
+fail/facts/inferred_array_equation_call_through_match_join_rejected rejected 4551ms expected @c6ef20854dc3+wt
+	machine `capacity` requires type predicate does not hold for the supplied arguments: `Length == [u8; Capacity]`
+fail/facts/inferred_array_equation_call_through_other_machine_rejected rejected 1156ms expected @c6ef20854dc3+wt
+	machine `capacity` requires type predicate does not hold for the supplied arguments: `Length == [u8; Capacity]`
+fail/facts/inferred_array_equation_call_through_other_state_rejected rejected 1294ms expected @c6ef20854dc3+wt
+	machine `capacity` requires type predicate does not hold for the supplied arguments: `Length == [u8; Capacity]`
+fail/facts/inferred_array_equation_call_through_parameter_rejected rejected 1057ms expected @c6ef20854dc3+wt
+	machine `capacity` requires type predicate does not hold for the supplied arguments: `Length == [u8; Capacity]`
+fail/facts/inferred_array_equation_call_through_target_body_rejected rejected 799ms expected @c6ef20854dc3+wt
+	machine `capacity` requires type predicate does not hold for the supplied arguments: `Length == [u8; Capacity]`
+fail/facts/inferred_array_equation_forwarded_result_through_call_result_rejected rejected 966ms expected @c6ef20854dc3+wt
+	machine `capacity` requires type predicate does not hold for the supplied arguments: `Length == [u8; Capacity]`
+fail/facts/inferred_array_equation_forwarded_result_through_const_name_rejected rejected 914ms expected @c6ef20854dc3+wt
+	machine `capacity` requires type predicate does not hold for the supplied arguments: `Length == [u8; Capacity]`
+fail/facts/inferred_array_equation_forwarded_result_through_field_rejected rejected 838ms expected @c6ef20854dc3+wt
+	machine `capacity` requires type predicate does not hold for the supplied arguments: `Length == [u8; Capacity]`
+fail/facts/inferred_array_equation_forwarded_result_through_local_rejected rejected 869ms expected @c6ef20854dc3+wt
+	machine `capacity` requires type predicate does not hold for the supplied arguments: `Length == [u8; Capacity]`
+fail/facts/inferred_array_equation_forwarded_result_through_match_join_rejected rejected 814ms expected @c6ef20854dc3+wt
+	machine `capacity` requires type predicate does not hold for the supplied arguments: `Length == [u8; Capacity]`
+fail/facts/inferred_array_equation_forwarded_result_through_other_machine_rejected rejected 1179ms expected @c6ef20854dc3+wt
+	machine `capacity` requires type predicate does not hold for the supplied arguments: `Length == [u8; Capacity]`
+fail/facts/inferred_array_equation_forwarded_result_through_other_state_rejected rejected 1398ms expected @c6ef20854dc3+wt
+	machine `capacity` requires type predicate does not hold for the supplied arguments: `Length == [u8; Capacity]`
+fail/facts/inferred_array_equation_forwarded_result_through_parameter_rejected rejected 1395ms expected @c6ef20854dc3+wt
+	machine `capacity` requires type predicate does not hold for the supplied arguments: `Length == [u8; Capacity]`
+fail/facts/inferred_array_equation_forwarded_result_through_target_body_rejected rejected 1407ms expected @c6ef20854dc3+wt
+	machine `capacity` requires type predicate does not hold for the supplied arguments: `Length == [u8; Capacity]`
 fail/facts/inferred_indexed_byte_view_argument_snapshot_through_call_result_exit rejected 4389ms expected @911f6617ba9e
 	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #1:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -30716,8 +30716,8 @@ fail/generics/applied_result_distinct_declaration_mismatch rejected 1118ms expec
 	machine `wrong` state `entry` local `held` expects `Foo`, but the value is delivered as `Holder<Foo>`
 fail/generics/attached_machine_unresolved_extent rejected 601ms expected @ccdb99ca2214
 	machine `Buffer::scratch` state `scratch` parameter `copy` uses unresolved fixed-array length `Missing`; a symbolic array length must name an in-scope `const` parameter
-fail/generics/authored_specialized_call_wrong_actual_rejected rejected 685ms expected @ccdb99ca2214
-	machine `forwarded` requires type predicate does not hold for the supplied arguments
+fail/generics/authored_specialized_call_wrong_actual_rejected rejected 1201ms expected @c6ef20854dc3+wt
+	machine `forwarded` requires type predicate does not hold for the supplied arguments: `T == u32`
 fail/generics/borrowed_applied_field_static_selection_wrong_predicate rejected 1005ms expected @ccdb99ca2214
 	machine argument `small` for `scan_batch` does not refine `Predicate`: parameter 0 expects `&i32`, got `&u8`
 	machine argument `small` for `count` does not refine `Predicate`: parameter 0 expects `&i32`, got `&u8`

@@ -182,8 +182,9 @@ pub(super) fn clone_single_specialized_machine(
                     == Some(false)
                 {
                     return Err(vec![Diagnostic::error(format!(
-                        "machine `{}` requires type predicate does not hold for the supplied arguments",
-                        source_machine.name
+                        "machine `{}` requires type predicate does not hold for the supplied arguments: `{}`",
+                        source_machine.name,
+                        type_predicate_text(input, *predicate),
                     ))
                     .with_source_span(expressions_of(input).source_span(*predicate))]);
                 }
@@ -1695,5 +1696,22 @@ fn carrier_field(
             Some(field.clone())
         }
         _ => None,
+    }
+}
+
+/// Render a declaration's type proposition with its type operands, not the
+/// expression table's generic `type` placeholders.
+fn type_predicate_text(
+    input: &dyn ::validation::CheckingInput,
+    predicate: typed_trees::expression::ExpressionHandle,
+) -> String {
+    match input.static_type_predicate_operands(predicate) {
+        Some((left, right, negate)) => format!(
+            "{} {} {}",
+            input.display_type_reference(left),
+            if negate { "!=" } else { "==" },
+            input.display_type_reference(right),
+        ),
+        None => expressions_of(input).display_name(predicate),
     }
 }

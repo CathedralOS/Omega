@@ -38,7 +38,7 @@ Every positive declares exit 0, observes capacity 2, and binds all four hosted
 targets. The root and nine places executed on Linux x86-64 with native exit 0
 and Terminal Psi exit 0. Other matching hosts are unverified by this run.
 Every twin changes only the outer call's explicit capacity to 3 and rejects
-with `where equation binds Capacity to 2 but its explicit argument is 3`.
+with ``requires type predicate does not hold for the supplied arguments: `Length == [u8; Capacity]` ``.
 Actual diagnostics quote the binder names with backticks.
 
 | Place | Positive | Reject twin |

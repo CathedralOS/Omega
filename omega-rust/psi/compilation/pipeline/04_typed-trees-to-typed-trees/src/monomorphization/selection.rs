@@ -17,6 +17,7 @@ mod callee_proposals;
 mod proposals;
 mod selection_assembly;
 mod static_bindings;
+mod type_equations;
 
 pub(crate) use callee_proposals::{
     ContractExpressionScope, collect_machine_proposals_for_callee, contract_expression_handles,
@@ -192,6 +193,17 @@ pub(super) fn collect_call_proposals(
             proposals.runtime_values.push(proposal);
         }
     }
+    type_equations::infer_from_type_equations(
+        BindingContext::new(
+            program,
+            &candidate.template.type_parameters,
+            &candidate.template.const_parameters,
+            None,
+            callee.candidate_index,
+        ),
+        &program.machines()[candidate.template.machine_index],
+        proposals,
+    );
     ExplicitArgumentCapacity::WithinBounds
 }
 

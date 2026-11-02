@@ -720,9 +720,10 @@ helper that passes does not close an item.
   [unified requirement clauses](wiki/spec/language/state_contracts.md#requirement-clauses)
   end to end and retire `where` from Omega source syntax, without a permanent
   compatibility spelling or weaker proof obligations.
-  - Implement `requires` for machine type equations (the Rust producer still
-    recovers generic arguments only from a machine header's `where` facts),
-    quotient equivalence selection (`where equivalent satisfies`),
+  - Implement `requires` for machine type equations in the Omega producer and,
+    in the Rust producer, construct an omitted type binder from an equation
+    whose other binders are known (recovering a binder from a proposed type
+    already works). Implement quotient equivalence selection (`where equivalent satisfies`),
     `where proposition` premises, and structural/nominal `requires machine`
     contracts in both Rust and Omega producers. Preserve logical `self`, binder-kind
     inference, static/runtime distinctions, specialization and exact subjects;
@@ -1069,9 +1070,7 @@ defines the complete product bar.
     disjunctions, and matching-host native execution across all four hosted
     targets.
   - Extend typed const-expression and invocation evaluators to selected computed
-    calls and structured const value/equation combinations, and unblock the
-    Std-backed customers
-    `tests/omega/pass/generics/{omitted_data_binder_range_equation,runtime_generic_carrier_equation_exit}`.
+    calls and structured const value/equation combinations.
   Acceptance: `samples/cli/facts/inferred_array_equation_call` (all nine places)
   and `tests/omega/pass/generics/{omitted_data_binder_range_equation,runtime_generic_carrier_equation_exit}`
   pass `omega run --both`, while repeated/explicit conflicts, missing indices,

@@ -3,8 +3,8 @@
 Fact: an omitted `Capacity` is inferred as 2 from the actual `[u8; 2]` type and `Length == [u8; Capacity]`, independently of element values.
 
 The root witness and nine place witnesses call `capacity(items)` with a declared `[u8; 2]` actual.
-The compiler combines closed declaration-backed actual/result types with where equations in the
-structural solver to infer `Capacity == 2`. No runtime narrowing assertions or bounds checks are needed.
+Specialization proposes `Length = [u8; 2]` from the argument, then matches the callee's
+`requires Length == [u8; Capacity]` equation against that proposal to infer `Capacity == 2`. No runtime narrowing assertions or bounds checks are needed.
 
 Every positive place (and the root `main.omg`) binds `ProgramEntry` for all four hosted targets
 (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), declares `Expected exit: 0`,
@@ -56,21 +56,21 @@ omega --check samples/cli/facts/inferred_array_equation_call/<place>/invalid/mai
 ```
 
 Every twin rejects with:
-`where equation binds \`Capacity\` to 2 but its explicit argument is 3`
+``machine `capacity` requires type predicate does not hold for the supplied arguments: `Length == [u8; Capacity]` ``
 
 ## Requirements and Evidence
 
 - **Parent outcome:** `STRUCTURAL-GENERIC-MATCHING` (`TASKS.md`).
-- **Requirement established:** End-to-end nine-place fact preservation and structural type equation inference for generic array calls. An omitted const generic argument `Capacity` is solved as 2 from the actual array type `Length = [u8; 2]` and the where equation `Length == [u8; Capacity]`, preserving the inferred value across all nine places with exact agreement between Terminal Psi and native execution across hosted targets.
+- **Requirement established:** End-to-end nine-place fact preservation and structural type equation inference for generic array calls. An omitted const generic argument `Capacity` is solved as 2 from the actual array type `Length = [u8; 2]` and the `requires` equation `Length == [u8; Capacity]`, preserving the inferred value across all nine places with exact agreement between Terminal Psi and native execution across hosted targets.
 - **Pinned fixtures:** positive places and reject twins under `tests/omega/pass/facts/inferred_array_equation_call_through_*_exit` and `tests/omega/fail/facts/inferred_array_equation_call_through_*_rejected`.
 - **Authority:** [Structural type equations and inference](../../../../wiki/spec/language/generics.md#structural-type-equations-and-inference) (omitted arguments are recovered when structural equations and argument/result inference determine one substitution; all occurrences must be consistent).
 
 Full 8-layer specification and lowering evidence:
 
-- **Establishment:** Calling the equation-constrained array helper `capacity<Length [copy], const Capacity: u64>(items: Length) where Length == [u8; Capacity]` infers `Capacity = 2` directly from the caller's `[u8; 2]` actual type signature. The structural type equation solver unifies `[u8; 2]` with `[u8; Capacity]`, establishing `Capacity = 2` directly at the call edge without any post-hoc caller equality guard (`transition x == 100`).
+- **Establishment:** Calling the equation-constrained array helper `capacity<Length [copy], const Capacity: u64>(items: Length) requires Length == [u8; Capacity]` infers `Capacity = 2` directly from the caller's `[u8; 2]` actual type signature. Specialization matches `[u8; Capacity]` against the proposed `[u8; 2]`, establishing `Capacity = 2` directly at the call edge without any post-hoc caller equality guard (`transition x == 100`).
 - **Identity and lifetime:** The inferred array equation and resulting capacity value remain tied to the exact array and scalar subjects across local copy (`local`), nominal record field projection (`field`), explicit parameter passing (`parameter`), completed call return (`call_result`), match convergence join (`match_join`), named const bound equality (`const_name`), state transition arrival (`other_state`), forwarding machine calls (`other_machine`), and target-scoped body candidates (`target_body`). No mutation, alias clobbering, or invalidating write intervenes between array creation and consumption.
 - **Composition:** The inferred array equation fact composes through all nine places into the consuming call and transition check (`observed == 2`). Calls substitute exact actuals, match joins retain the unified type on both incoming branches, and state transitions prove arrival obligations on incoming edges. Each `<place>/main.omg` vs. `<place>/invalid/main.omg` differs only in supplying an explicit conflicting const generic argument `3` (`capacity<[u8; 2], 3>(items)`), never in a caller guard.
-- **Soundness boundaries:** All nine `<place>/invalid/main.omg` reject twins (and root `invalid/main.omg`) fail closed with `where equation binds \`Capacity\` to 2 but its explicit argument is 3` when the caller supplies a mismatched array extent or conflicting generic argument. The checker strictly refuses incompatible equation bindings during type checking, preventing invalid programs from reaching Terminal Psi or native code emission.
+- **Soundness boundaries:** All nine `<place>/invalid/main.omg` reject twins (and root `invalid/main.omg`) fail closed with ``requires type predicate does not hold for the supplied arguments: `Length == [u8; Capacity]` `` when the caller supplies a mismatched array extent or conflicting generic argument. The checker strictly refuses incompatible equation bindings during type checking, preventing invalid programs from reaching Terminal Psi or native code emission.
 - **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Inferred compile-time array length equations and proof-formal const parameters erase cleanly after verification, while monomorphized fixed-size array carriers and element operations lower without loss into canonical target-neutral Terminal Psi (`PSITERM\0`). The resulting programs execute identically in the Terminal Psi interpreter (`omega run --both`), observing `observed == 2`.
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** Companion build rows bind `ProgramEntry` across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`). Concrete layout geometry for `[u8; 2]` contiguous arrays (2 bytes, 1-byte alignment) and `Holder` records validates element stride and alignment. `CallPlan` and `StatePlan` place scalar `u64` return values in target ABI integer registers (`rax` on x86-64 / `x0` on ARM64) and pass array arguments according to target calling conventions.
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects target ISA instructions for immediate moves, array loads/stores, and integer comparisons (`cmp`/`sete` on x86-64 / `cmp`/`cset` on ARM64). Backend assigns register homes and disjoint stack-frame activation storage for array locals, inserting entry prologues and multi-return epilogues.
@@ -99,3 +99,32 @@ oracle are unchanged. The entry wrapper and each implementation check a tag
 Linux x86-64 native and Terminal Psi agreement for the positive and source
 rejection for the twin; the other hosted targets keep their authored rows,
 unexecuted here.
+
+## Ratified `requires` spelling
+
+The root row and the [forwarded-result](forwarded_result/README.md) row state
+the equation as `requires Length == [u8; Capacity]`. Source `where` is retired.
+At base `c6ef20854dc`, the unchanged root rewritten that way refused with
+`a value call to generic machine capacity cannot derive a complete
+type/const/machine/conformance specialization tuple`. Only the retired header
+`where` facts fed inference.
+
+Specialization now reads the callee's `requires` type equations while it
+selects the call's tuple. Argument compatibility proposes `Length = [u8; 2]`.
+Matching the equation's other side against that proposal recovers
+`Capacity = 2` by the same constructor traversal that binds ordinary formals.
+Only binders without a proposal are filled. An explicit `Capacity = 3` stays
+fixed, and the complete tuple is checked against every declared predicate
+before the body is copied. Conjunctions contribute their equations;
+alternatives and negations never choose an argument.
+
+Evidence on macOS arm64 from an optimized producer of the candidate: the 20
+positive programs of the two rows and their 18 pinned fixtures report native
+exit 0 and Terminal exit 0. The 20 twins and 18 pinned twins reject with
+``requires type predicate does not hold for the supplied arguments: `Length == [u8; Capacity]` ``.
+Other hosted targets were not executed here.
+
+The [mixed-binder](mixed_binders/README.md) and
+[typed const argument](typed_const_argument/README.md) rows still spell
+`where`. Their controls pin fences of the retired preparation route, so they
+migrate with its removal under `REQUIRES-UNIFICATION`.

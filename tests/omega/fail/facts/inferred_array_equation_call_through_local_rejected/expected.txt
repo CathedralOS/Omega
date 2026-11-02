@@ -1,1 +1,1 @@
-where equation binds `Capacity` to 2 but its explicit argument is 3
+machine `capacity` requires type predicate does not hold for the supplied arguments: `Length == [u8; Capacity]`
