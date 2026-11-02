@@ -176,7 +176,12 @@ landings when the Windows namespace has no main cache. GitHub's
 [cache access rules](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching#restrictions-for-accessing-a-cache)
 exclude sibling-branch caches. Land each completed witness separately on that
 branch; the next run can retain its warmed Cargo objects and still authenticates
-the exact producer and inputs.
+the exact producer and inputs. Fetch and verify the published commit without
+routinely merging unrelated `main` changes into that warm branch. Keep the
+qualified compiler inputs for the next witness; integrate new main only for an
+actual conflict or a prerequisite the witness needs. A restored cache still
+rebuilds changed Rust inputs, so a routine post-merge integration can spend the
+same cold-build time that branch reuse was meant to avoid.
 
 Locally, the same selector is `python tools/ci/compiler_pilot.py --fixtures IDS`
 or `OMEGA_COMPILER_PILOT_FIXTURES=IDS`. IDs must name existing normalized directories under `pass/` or `fail/`
