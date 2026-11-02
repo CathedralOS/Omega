@@ -89,12 +89,34 @@ Terminal exit 0. Seven recording timeouts at four workers were recovered at one
 worker under the same 120-second fixture cap; every scoped golden row now has
 its intended completed outcome.
 
-Copied fixed-array writes with an unchanged sibling-cell equality remain a
-separate source-checking gap: the exploratory copy/update composition fails its
-next-call requirement on both the baseline and candidate. The distinct-slot
+At the first acceptance checkpoint, copied fixed-array writes with an unchanged
+sibling-cell equality were a separate source-checking gap: the exploratory
+copy/update composition failed its next-call requirement on both the baseline
+and that candidate. The distinct-slot
 composition constructs the successor record explicitly. The nine primary
-sources retain their original copy and selected-cell update shape. Record-field conditional declared bodies remain among the open body forms.
+sources retain their original copy and selected-cell update shape. The first checkpoint also retained a record-field conditional formation refusal;
+this row does not establish acceptance for all declared body forms.
 Other declared body forms, exclusive/affine declaration-call inputs, broader resource
 contracts, product-compiler parity and application migration remain with the
 parent outcome. Native and Terminal observations here are on Linux x86-64;
 other-host runtime qualification is open.
+
+## Landing reconciliation
+
+A demonstrated landing conflict required one integration with main
+`7523e291b2cb679446d4a5587cdaeb53c1102776`. Both sets of evidence and corpus
+observations were preserved. The combined compiler was built from source
+`4cee2c41b41cf9778b340f0b8d1c4df1a515b1b1`; its optimized executable SHA-256 is
+`d59e6fc6caaacecdd026a992182f0daf8ef0374149fbb37a2a406a76892b93a1`.
+
+Qualification observation `a8668f49052448f4867d2f4623fec77e` at
+`b9acf065978211029858f9a658b6d2e428129605` records the unchanged nine places and
+two compositions returning native/Terminal exit 0. Four upstream borrowed-home
+positives (local, two shared arguments, projected input and alias forwarding)
+also return exit 0. Their no-descent and reset-alias controls reject for cycle
+descent, and both counter/provider counterfactuals produce native signal 4 and
+Terminal Trap. All nineteen observations pass with no capture invalidations.
+The replay retains each emitted native image, Terminal artifact and their
+SHA-256 identities under the kept build directories recorded in
+`build/advance-35/integrated-replay.json`. Earlier source and producer identities
+above remain historical observations.

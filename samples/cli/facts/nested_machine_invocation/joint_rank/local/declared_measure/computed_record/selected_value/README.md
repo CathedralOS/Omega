@@ -105,6 +105,6 @@ Only the 24 new fixture rows are added to `tests/omega/corpus_outcomes.txt`.
 
 The [repeated-call production](repeated_calls/README.md) now retains selector
 occurrences under distinct actual telescopes across the same nine places.
-The parent retains whole-value snapshots through mutable borrowed inputs, other
-declared body forms, broader custody/resource acceptance, product-compiler parity
+The parent retains owned copies from borrowed outer input homes, other declared
+body forms, broader custody/resource acceptance, product-compiler parity
 and application migration. These productions do not close that parent outcome.
