@@ -100,3 +100,37 @@ retained in the change's validation record. The parent outcome remains open:
 remaining Build operations, live-storage accounting, admitted host loan returns,
 staged dependency/provider preparation and the other matching-host acceptance
 are broader than this borrowed-configuration repair.
+
+## Host entry-result loans
+
+The public embedding workflow `mbx run -p compiler --example terminal_loans`
+selects checked entry machines from this fact and from the
+[entry-return composition](controls/entry_return/main.omg). The host calls
+`retain_returned_loans` before execution, then borrows `returned_loan` from the
+completed instance. The carrier reads actual backing through ordinary scalar
+storage projections; it is not a guest value, permission to mutate, or a new
+qualification. Its Rust lifetime prevents closing or resuming the instance
+while an observation remains live.
+
+At the fixed baseline `c689405c35345f81eab2f7dab1b0ad2010b74150`, the original
+`selected` entry refuses with `host reference results require an explicit loan
+carrier interface`. Entry admission now captures the same exact possible source
+backings that ordinary guest calls use, after final entry-storage installation
+and before the first resume. The normal return validator remains shared. A host
+that does not opt in still refuses, before guest work. Capture reserves one
+logical storage cell per return slot and possible source; referent payloads keep
+their original accounting. A failed reservation changes no counters and remains
+a fatal host error. Zero-fuel pauses retain one capture, and closing retires it.
+
+The workflow uses borrowed and decoded artifacts, both input selections, direct
+and call-returned carriers, active and inactive case payloads, and write-only
+carriers. The composition changes the selected original Cell to 41 before
+return; host observations see that write and both neighbor canaries. Its native
+entry then changes the value to 73 and verifies both selections and untouched
+neighbors. The [shared-source twin](controls/entry_return/invalid/main.omg)
+changes only the left input's access, so it cannot supply the required exclusive
+returned loan. Both sources are pinned in `tests/omega/{pass,fail}/facts`.
+
+This is the checked guest-to-host entry crossing. An opaque host provider's
+reference result is a separate crossing; retaining an entry result does not
+admit arbitrary provider-owned backing or alter boundary-output authority.
