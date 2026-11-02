@@ -177,7 +177,22 @@ pub(crate) fn reconstruct_borrow_resource_rosters(
                     let (activation_handle, weakening_handle) =
                         match exact_loan_lifecycle_rows(borrow, flow, flow_state, loan_handle) {
                             Ok(rows) => rows,
-                            Err(drift) => {
+                            Err(mut drift) => {
+                                if let Some((machine, source_state)) =
+                                    validation::find_state(program, state.state_symbol)
+                                {
+                                    drift.message.push_str(&format!(
+                                        "; source scope {}::{}; transition statements {:?}",
+                                        machine.name,
+                                        source_state.name,
+                                        program
+                                            .statement_table
+                                            .statements(source_state.statement_nodes)
+                                            .iter()
+                                            .map(|statement| statement.as_transition().is_some())
+                                            .collect::<Vec<_>>()
+                                    ));
+                                }
                                 diagnostics.push(drift);
                                 continue;
                             }
@@ -231,7 +246,22 @@ pub(crate) fn reconstruct_borrow_resource_rosters(
                     let (child_activation, child_weakening) =
                         match exact_loan_lifecycle_rows(borrow, flow, flow_state, loan_handle) {
                             Ok(rows) => rows,
-                            Err(drift) => {
+                            Err(mut drift) => {
+                                if let Some((machine, source_state)) =
+                                    validation::find_state(program, state.state_symbol)
+                                {
+                                    drift.message.push_str(&format!(
+                                        "; source scope {}::{}; transition statements {:?}",
+                                        machine.name,
+                                        source_state.name,
+                                        program
+                                            .statement_table
+                                            .statements(source_state.statement_nodes)
+                                            .iter()
+                                            .map(|statement| statement.as_transition().is_some())
+                                            .collect::<Vec<_>>()
+                                    ));
+                                }
                                 diagnostics.push(drift);
                                 continue;
                             }
