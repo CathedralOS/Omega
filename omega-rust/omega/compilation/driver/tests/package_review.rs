@@ -3,6 +3,7 @@
 mod external_provider_reload;
 #[path = "support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
+mod target_constant_custody;
 
 use compiler::{CheckedCompileRequest, CompilationSession, PackageReviewFailure};
 use package_evidence::PackageReviewProjectionError;
