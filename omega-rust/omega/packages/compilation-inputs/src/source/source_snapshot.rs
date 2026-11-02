@@ -47,8 +47,8 @@ impl source::SourceSnapshotStorage for BuildSourceSnapshotStorage {
 }
 
 #[cfg(unix)]
-use crate::canonical_fs::require_canonical_mode;
-use crate::canonical_fs::{canonical_file_executable, os_str_bytes};
+use crate::source::canonical_fs::require_canonical_mode;
+use crate::source::canonical_fs::{canonical_file_executable, os_str_bytes};
 use build_output::{CapturedBuildSourceInput, CapturedSourceEntry};
 use file_read::{hash_canonical_source_file, read_canonical_source_file};
 use filesystem_authority::{
@@ -157,7 +157,7 @@ struct CapturedSourceMetadataRow {
 /// The implicit root becomes a canonical directory row. File allocations
 /// stay shared with the neutral source tree; link targets retain their raw
 /// platform spelling as inert bytes, without compiler namespace traversal.
-pub(super) fn retained_source_input(
+pub(crate) fn retained_source_input(
     tree: &source::CapturedSourceTree,
 ) -> Result<CapturedBuildSourceInput, String> {
     let entries = tree.entries().map(|(path, node)| {
@@ -179,7 +179,7 @@ pub(super) fn retained_source_input(
 /// Narrow an authenticated retained inventory using the same membership
 /// policy as physical scoped capture. Required members are already resolved
 /// root-relative source paths from the invocation's source filesystem.
-pub(super) fn retained_scoped_source_input(
+pub(crate) fn retained_scoped_source_input(
     complete: &CapturedBuildSourceInput,
     request: &BuildSourceCaptureRequest,
     required_members: impl IntoIterator<Item = PathBuf>,
@@ -323,7 +323,7 @@ fn require_source_members<Member>(
     Ok(())
 }
 
-pub(super) fn capture(root: &Path) -> Result<CanonicalFilesystemMetadataIndex, String> {
+pub(crate) fn capture(root: &Path) -> Result<CanonicalFilesystemMetadataIndex, String> {
     let (index, _) = metadata_rows(root)?;
     Ok(index)
 }
@@ -687,7 +687,7 @@ fn enqueue_capture_children(
         let child = child.map_err(|error| {
             format!("could not enumerate canonical Source metadata entry: {error}")
         })?;
-        crate::canonical_fs::check_metadata_row_ceiling(rows.len(), stack.len())?;
+        crate::source::canonical_fs::check_metadata_row_ceiling(rows.len(), stack.len())?;
         let name = os_str_bytes(&child.file_name())?;
         let mut child_relative = relative_path.to_vec();
         if !child_relative.is_empty() {
@@ -769,7 +769,7 @@ fn capture_physical_metadata_row(
         });
     }
     if metadata.file_type().is_symlink() {
-        let (target, target_length) = crate::canonical_fs::canonical_symlink_target(
+        let (target, target_length) = crate::source::canonical_fs::canonical_symlink_target(
             path,
             aggregate_content_bytes,
             CANONICAL_BUILD_SOURCE_CONTENT_BYTE_LIMIT,
@@ -820,7 +820,7 @@ fn capture_physical_source_row(
         ));
     }
     if metadata.file_type().is_symlink() {
-        let (target, target_length) = crate::canonical_fs::canonical_symlink_target(
+        let (target, target_length) = crate::source::canonical_fs::canonical_symlink_target(
             path,
             aggregate_content_bytes,
             CANONICAL_BUILD_SOURCE_CONTENT_BYTE_LIMIT,

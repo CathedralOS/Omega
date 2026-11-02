@@ -360,7 +360,7 @@ ownership.
 
 | Input → output | Owner |
 | --- | --- |
-| Admitted source frontier → parsed syntax | [Psi source parsing](psi/compilation/driver/src/source_parsing.rs); [package source preparation](omega/packages/compilation-inputs/src/source_assembly.rs) owns import discovery and custody between frontiers |
+| Admitted source frontier → parsed syntax | [Psi source parsing](psi/compilation/driver/src/source_parsing.rs); [package source preparation](omega/packages/compilation-inputs/src/source/source_assembly.rs) owns import discovery and custody between frontiers |
 | Assembled syntax → completed typing | [Psi source continuation](psi/compilation/driver/src/source_compilation.rs), interrupted only for admitted Build execution and generated-source admission |
 | Completed typing → checked program | [Psi source checking](psi/compilation/driver/src/source_checking.rs); the product coordinator supplies source admission and seals package custody afterward |
 | Checked compilation → Terminal artifact | [checked-compilation-to-terminal-artifact](omega/compilation/driver/src/terminal/terminal_artifact.rs) |

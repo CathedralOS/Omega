@@ -110,7 +110,7 @@ pub(super) fn identifier_path_text(
 }
 
 pub(crate) fn bundled_omega_root() -> Result<PathBuf, Vec<Diagnostic>> {
-    crate::toolchain_library::root().map_err(|error| vec![Diagnostic::error(error)])
+    crate::source::toolchain_library::root().map_err(|error| vec![Diagnostic::error(error)])
 }
 
 pub fn bundled_core_root() -> Result<PathBuf, Vec<Diagnostic>> {

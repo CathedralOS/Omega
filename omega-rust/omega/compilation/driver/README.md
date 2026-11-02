@@ -213,7 +213,7 @@ separately owns output placement. Targetless Check uses one absent profile.
 Different caller inventories are different
 invocations, not target variants of one compilation. Each target independently
 admits the supplied custody without suppressing a sibling's failure.
-Package [compilation reuse](../../packages/compilation-inputs/src/compilation_reuse.rs)
+Package [compilation reuse](../../packages/compilation-inputs/src/reuse/compilation_reuse.rs)
 owns the source comparison: assembly observes imported content and entry
 bindings. There is no per-target Build result cache or live-output reuse key.
 Build observes its invocation's single staging account; its captured outputs
@@ -436,7 +436,7 @@ standalone artifact identity. The collection grants no support, test or audit
 claim.
 
 Today's implementation instead retains one immutable source parse checkpoint
-([package source preparation](../../packages/compilation-inputs/src/source_assembly.rs))
+([package source preparation](../../packages/compilation-inputs/src/source/source_assembly.rs))
 and runs an exact-target child per configuration: per-target source assembly,
 declaration filtering, build evaluation, provider settlement and checking, with
 request-level policy copied into each configuration.
@@ -451,7 +451,7 @@ target, providers, admissions or physical evidence as another child's authority.
 ## Checked settlement
 
 Physical, dependency-generated and activation-generated parsing all belong to
-[package source preparation](../../packages/compilation-inputs/src/source_assembly.rs).
+[package source preparation](../../packages/compilation-inputs/src/source/source_assembly.rs).
 The coordinator forwards its complete syntax products into resolution and
 typing. Loading, lexing, parsing and syntax construction are not compiler-private
 continuation work. Corpus discovery executes Build through the application owner

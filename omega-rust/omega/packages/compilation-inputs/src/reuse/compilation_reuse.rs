@@ -5,7 +5,7 @@
 //! Producer stamps do not alter imported bytes, but source scope and package
 //! ownership do. These keys authorize neither Build execution nor target selection.
 
-use crate::source_imports::EntryContractSource;
+use crate::source::source_imports::EntryContractSource;
 use crate::{PackageCompilationInputs, PackageCompilationSourceInputs};
 use build_declarations::DependencyPurpose;
 use build_output::PackageGeneratedSource;

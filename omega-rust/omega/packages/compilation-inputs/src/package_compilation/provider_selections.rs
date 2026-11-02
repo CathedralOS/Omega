@@ -181,7 +181,7 @@ impl PackageCompilationInputs {
             .map_err(|_| refuse("retained provider source is outside its supplier root".into()))?
             .to_path_buf();
         if source.origin == SourceOrigin::Toolchain {
-            let core = crate::source_imports::bundled_core_root()?;
+            let core = crate::source::source_imports::bundled_core_root()?;
             if !source.path.starts_with(core) {
                 return Err(refuse(
                     "retained provider anchor is outside the closed core toolchain".into(),

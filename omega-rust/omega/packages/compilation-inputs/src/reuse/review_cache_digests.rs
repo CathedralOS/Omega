@@ -10,7 +10,7 @@
 //! consumption are still re-verified on every hit by the carrying pass.
 
 use crate::digest_encoder::DomainDigestEncoder;
-use crate::review_record_encoding::{
+use crate::reuse::review_record_encoding::{
     authority_class_tag, declaration_kind_tag, purpose_tag, semantic_binding_role_tag,
 };
 use crate::{
@@ -196,12 +196,12 @@ fn hash_generated_bundle(digest: &mut DomainDigestEncoder, bundle: &PackageBuild
     hash_dependency_closure(digest, bundle.dependency_closure());
     digest.raw(&bundle.source_consumption_commitment().digest());
     digest.raw(
-        &super::package_compilation::provider_selection_codec::package_provider_selections_digest(
+        &crate::package_compilation::provider_selection_codec::package_provider_selections_digest(
             bundle.provider_selections(),
             bundle.selection_observation(),
         ),
     );
-    digest.raw(&super::package_compilation::native_output_codec::digest(
+    digest.raw(&crate::package_compilation::native_output_codec::digest(
         bundle,
     ));
     digest.u64(bundle.sources().len() as u64);
