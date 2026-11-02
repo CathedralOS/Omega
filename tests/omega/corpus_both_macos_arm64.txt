@@ -1271,6 +1271,7 @@ pass/proofs/completed_guard_private_boolean built 3165ms exit:0 interpreter-exit
 pass/proofs/completed_guard_two_call_identities built 2863ms exit:0 interpreter-exit:0 interpreter:agrees @2cede9e14eca
 pass/providers/applied_calling_surface_exit built 8085ms exit:0 interpreter-exit:0 interpreter:agrees @d9073fc2214b
 pass/providers/applied_trait_member_implicit_inference_exit built 1781ms exit:0 interpreter-exit:0 interpreter:agrees @33b180036351
+pass/providers/generic_required_instance_roster_exit built 7247ms exit:0 interpreter-exit:0 interpreter:agrees provider-choice-controls:match terminal-inspections:match @16691ade69e4
 pass/providers/phantom_local_calling_applications built 31678ms exit:0 interpreter-exit:0 interpreter:agrees @c36eb72a517d
 pass/providers/runtime_boundary_guarded_array_requires_exit built 1499ms exit:0 interpreter-exit:0 interpreter:agrees @33b180036351
 pass/range/runtime_guarded_runtime_index_increment_exit built 7751ms exit:1 interpreter-exit:1 interpreter:agrees @89d5d2d7655c

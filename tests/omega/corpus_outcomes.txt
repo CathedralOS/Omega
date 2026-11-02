@@ -12268,6 +12268,7 @@ pass/providers/foreign_register_record_reuse_exit checked 17445ms check-target:l
 pass/providers/generic_boundary_multiple_arguments_compile checked 3213ms @ccdb99ca2214
 pass/providers/generic_owned_outcome_exit checked 11262ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/generic_provider_structural_result_composition_exit checked 4197ms check-target:macos_arm64 @ccdb99ca2214
+pass/providers/generic_required_instance_roster_exit checked 7029ms check-target:macos_arm64 provider-choice-controls:match terminal-inspections:match @16691ade69e4
 pass/providers/generic_result_recursive_reference_issuer checked 2643ms @ccdb99ca2214
 pass/providers/independent_imported_data_exit checked 6891ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/inherited_applied_binding_borrowed_result_exit checked 3887ms check-target:macos_arm64 @ccdb99ca2214

@@ -519,8 +519,8 @@ narrows realization only.
     selection and planning.
   - Move review-only products' complete conformance evidence from checked
     source custody into Terminal Psi.
-  - Publish portable dormant-use and checked-instance records, and the
-    trust-model accepted-machine roster, canonically with source-discard replay.
+  - Publish portable dormant-use records and the trust-model accepted-machine
+    roster canonically with source-discard replay.
   - **OPERATOR-BOUNDARY-CALLS:** complete float/receiver signatures, directed
     FMA builtins, member-call borrowed-field planning, Windows GUI provider
     selection (`samples/gui/{window_app,windowed_calculator}`), and specialized
