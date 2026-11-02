@@ -283,8 +283,8 @@ retired-syntax deletions to completion.
   dispatch-table realization, and `source/psi/` + `source/omega/` product parity.
   - **Psi checking, contracts, and package review
     (DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION):**
-    - Complete remaining operational envelope refinement for suspending
-      dynamic requirements beyond suspension and blocking.
+    - Complete remaining operational envelope refinement for dynamic
+      requirements beyond suspension, blocking, and service reach.
   - **Omega realization and cross-host native execution:**
     - Preserve complete 8-byte tables, zero trap slots, exact private callable
       identities, and patched image targets across all supported hosts, including

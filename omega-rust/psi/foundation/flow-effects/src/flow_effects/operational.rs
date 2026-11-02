@@ -1,4 +1,4 @@
-use arena::{Arena, HandleSpan, OwnedIndex};
+use arena::{Arena, Handle, HandleSpan, OwnedIndex};
 use symbols::SymbolHandle;
 
 /// Lazily built `symbol -> machine index` map owned by the plan it
@@ -18,6 +18,9 @@ pub struct OperationalPlan {
     pub cleanup_dependencies: Arena<CleanupDependency>,
     /// Complete selected-row alternatives at an exact captured selector call.
     pub captured_selector_calls: CapturedSelectorCalls,
+    /// Calls resolved under known selector arguments by the operational fixed
+    /// point. Other effect axes read these edges instead of re-resolving selectors.
+    pub selected_call_contexts: SelectedCallContexts,
     pub static_machine_bindings: Arena<StaticMachineCallBinding>,
     /// Machine-symbol lookup owned by the plan; see
     /// [`OperationalMachineIndex`].
@@ -149,6 +152,71 @@ pub struct CapturedSelectorArgument {
     pub source_position: usize,
     pub origins: HandleSpan<CapturedSelectorOrigin>,
 }
+/// Every selector context the operational fixed point reached, in discovery
+/// order. The first contexts are the unknown-input contexts of the plan's
+/// machines, in the same order as `OperationalPlan::machines()`. A context
+/// lists only calls whose resolution differs from the unknown-input call: a
+/// dispatch resolved to selected realizations, or an ordinary call that passes
+/// a known selector. Every other call keeps its declared requirement envelope.
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+pub struct SelectedCallContexts {
+    pub contexts: Arena<SelectedCallContext>,
+    pub calls: Arena<SelectedContextCall>,
+    pub targets: Arena<SelectedContextTarget>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+pub struct SelectedCallContext {
+    pub machine: SymbolHandle,
+    /// Every selector argument is unknown: the machine's declaration context.
+    pub unknown: bool,
+    pub calls: HandleSpan<SelectedContextCall>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+pub struct SelectedContextCall {
+    pub caller_state: SymbolHandle,
+    pub statement_index: usize,
+    pub call_ordinal: usize,
+    pub target_state_symbol: SymbolHandle,
+    /// The dispatch slot resolved to exactly these realizations; the slot's
+    /// requirement envelope no longer contributes to this call.
+    pub selected_dispatch: bool,
+    pub targets: HandleSpan<SelectedContextTarget>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
+pub struct SelectedContextTarget {
+    pub machine: SymbolHandle,
+    pub context: Handle<SelectedCallContext>,
+}
+
+impl SelectedCallContexts {
+    /// The resolved edge for one call occurrence inside `context`, if its
+    /// resolution differs from the unknown-input call.
+    pub fn call(
+        &self,
+        context: Handle<SelectedCallContext>,
+        caller_state: SymbolHandle,
+        statement_index: usize,
+        call_ordinal: usize,
+        target_state_symbol: SymbolHandle,
+    ) -> Option<&SelectedContextCall> {
+        if !self.contexts.is_valid(context) {
+            return None;
+        }
+        self.calls
+            .span_or_empty(self.contexts.get(context).calls)
+            .iter()
+            .find(|call| {
+                call.caller_state == caller_state
+                    && call.statement_index == statement_index
+                    && call.call_ordinal == call_ordinal
+                    && call.target_state_symbol == target_state_symbol
+            })
+    }
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum CapturedSelectorOrigin {
     #[default]
