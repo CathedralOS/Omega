@@ -667,6 +667,7 @@ pub(super) fn expression_witnesses(fixture: &mut Fixture) -> Vec<Witness> {
     let unguarded = fixture.program.expression_table.insert_match_arms([
         TableMatchArm {
             pattern: MatchPattern::Destructure(TableDestructurePattern {
+                application_type: Default::default(),
                 head,
                 fields,
                 has_rest: true,
@@ -679,6 +680,7 @@ pub(super) fn expression_witnesses(fixture: &mut Fixture) -> Vec<Witness> {
         },
         TableMatchArm {
             pattern: MatchPattern::Destructure(TableDestructurePattern {
+                application_type: Default::default(),
                 head,
                 fields: Default::default(),
                 has_rest: false,

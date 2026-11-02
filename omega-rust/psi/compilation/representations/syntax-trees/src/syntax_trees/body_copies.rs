@@ -286,6 +286,7 @@ impl SyntaxCopy<'_> {
                     let copied = self.copy_destructure_pattern(
                         other,
                         crate::expression::TableDestructurePattern {
+                            application_type: Default::default(),
                             head: pattern.head,
                             fields: pattern.fields,
                             has_rest: pattern.has_rest,

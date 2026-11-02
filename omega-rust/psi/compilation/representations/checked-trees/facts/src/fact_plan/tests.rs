@@ -597,6 +597,7 @@ fn expression_places_resolve_exact_local_and_collection_element_types() {
             program
                 .expression_table
                 .insert(ExpressionNode::Member(TableMemberExpression {
+                    selector: language_core::DataComponentSelector::Named,
                     receiver,
                     member_symbol: SymbolHandle::invalid(),
                     member: Identifier::generated("inner"),
