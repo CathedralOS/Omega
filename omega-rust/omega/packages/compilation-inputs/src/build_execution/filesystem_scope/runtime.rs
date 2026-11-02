@@ -562,6 +562,21 @@ impl BuildFilesystemRuntime {
         Ok(identity)
     }
 
+    /// Inspect a still-pending activation obligation without issuing file access
+    /// or completing it. The adapter authenticates its opaque marker before
+    /// supplying this ordinal; path bytes alone never identify an obligation.
+    pub fn required_path(&self, obligation: usize) -> Result<&[u8], String> {
+        let row = self
+            .effects
+            .obligations
+            .get(obligation)
+            .ok_or("unknown Build output obligation")?;
+        if row.state != BuildOutputObligationState::Pending {
+            return Err("Build output obligation is consumed".into());
+        }
+        Ok(&row.relative_path)
+    }
+
     pub fn can_complete(&self, obligation: usize, path: &[u8]) -> Result<bool, String> {
         let row = self
             .effects

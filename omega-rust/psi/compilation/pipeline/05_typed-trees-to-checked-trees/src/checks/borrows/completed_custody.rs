@@ -167,6 +167,7 @@ pub(crate) fn require_unborrowed_completion(
             };
             if !super::overlap::captured_place_compatibility(
                 program,
+                &facts.borrow,
                 &borrowed,
                 &loan.kind,
                 &owned,
@@ -269,6 +270,7 @@ pub(crate) fn require_unborrowed_completion(
                 if backings.iter().any(|backing| {
                     !super::overlap::captured_place_compatibility(
                         program,
+                        &facts.borrow,
                         &backing.place,
                         &access.kind,
                         &owned,

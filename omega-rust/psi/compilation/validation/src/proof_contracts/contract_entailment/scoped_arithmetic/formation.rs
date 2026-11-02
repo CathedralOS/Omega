@@ -59,3 +59,41 @@ pub fn scoped_declared_integer_application_formation(
         super::ScopedArithmeticValue::CapturedInteger(value),
     ))
 }
+
+/// Form an ordinary declaration expression before exposing any of its result
+/// contracts. Existing hypotheses keep their completed occurrence rosters;
+/// this expression's calls discharge their own requirements child first.
+pub fn scoped_integer_expression_formation(
+    program: &dyn crate::CheckingInput,
+    context_machine: &Machine,
+    hypotheses: &[ScopedArithmeticHypothesis],
+    expression: &ScopedArithmeticExpression,
+) -> Option<(
+    super::super::IntegerApplicationFormation,
+    super::ScopedArithmeticValue,
+)> {
+    let mut calls = calls::ScopedCalls::new(program, context_machine);
+    let hypotheses = calls.hypotheses(hypotheses)?;
+    let mut engine = Engine::strict(program, context_machine, &[]);
+    if !install_hypotheses(program, &mut engine, &hypotheses)
+        || engine.requires_unsatisfiable
+        || !engine.install_scoped_expression(expression)
+    {
+        return None;
+    }
+    let application = engine.form_integer_expression(expression.owner, expression.expression)?;
+    let value = if let Some(value) = application.value.constant_value() {
+        super::ScopedArithmeticValue::Integer(value)
+    } else {
+        super::ScopedArithmeticValue::CapturedInteger(
+            engine.capture_integer_denotation(&application.value)?,
+        )
+    };
+    if super::super::struct_trace() {
+        eprintln!(
+            "STRUCT formed-integer-expression owner={:?} expression={:?} value={value:?}",
+            expression.owner, expression.expression
+        );
+    }
+    Some((application.formation?, value))
+}

@@ -23,7 +23,7 @@ pub struct CheckedDeclarationCall {
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedRankApplicationFacts {
-    pub measure: SymbolHandle,
+    pub owner: SymbolHandle,
     pub definition_body: ExpressionHandle,
     pub casts: HandleSpan<crate::operators::ExactIntegerCastFact>,
     pub calls: HandleSpan<CheckedDeclarationCall>,
@@ -36,13 +36,13 @@ pub struct CheckedRankApplicationFormation {
     pub state: SymbolHandle,
     pub application: CheckedRankApplicationFacts,
     pub bindings: HandleSpan<super::CheckedRankCoordinateBinding>,
-    /// An independently admitted initialized owned input home. Scalar reads
+    /// An independently admitted initialized readable input home. Scalar reads
     /// cannot reconstruct this storage or authorize copying its obligations.
-    pub owned_input: Option<CheckedRankApplicationOwnedInput>,
+    pub input_home: Option<CheckedRankApplicationInputHome>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
-pub struct CheckedRankApplicationOwnedInput {
+pub struct CheckedRankApplicationInputHome {
     pub formal: SymbolHandle,
     pub actual: super::CheckedRankCoordinateHandle,
     pub actual_type: typed_trees::types::TypeReferenceHandle,

@@ -88,70 +88,72 @@ pub(super) fn observe(
             .observations
             .get(&function.machine)?
             .get(&live.reference_position)?;
-        let current = sources_at_storage(snapshot, &location)?;
+        let current = sources_at_storage(snapshot, &location);
+        let current = current?;
         for source in current {
-            let origin = match source {
-                DescriptorSourceOrigin::Provider(provider) => {
-                    let origin = live.stored_reference_effects.provider_origin(provider)?;
-                    let target_operations::TargetReferenceOriginBase::Provider {
-                        referent: promised,
-                        access,
-                        ..
-                    } = &origin.base
-                    else {
-                        return None;
-                    };
-                    let StructuralTypeShape::Reference {
-                        access: required, ..
-                    } = types.get(&carrier_type)?.shape
-                    else {
-                        return None;
-                    };
-                    if leaf_type(types, *promised, &provider.projection.path) != Some(referent)
-                        || !access_covers(*access, required)
+            let origin = if let Some(slot) = source.captured_entry_slot() {
+                let contract = function.structural_parameter(slot.root)?.structural_type;
+                let slot_path = descriptor_path(types.catalog(), contract, &slot.path)?;
+                if leaf_type(types, contract, &slot_path) != Some(carrier_type) {
+                    return None;
+                }
+                target_operations::TargetReferenceOrigin {
+                    base: target_operations::TargetReferenceOriginBase::IncomingContents {
+                        root: slot.root,
+                        slot: slot_path,
+                    },
+                    path: Vec::new(),
+                    extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
+                }
+            } else {
+                match source {
+                    DescriptorSourceOrigin::Provider(provider) => {
+                        let origin = live.stored_reference_effects.provider_origin(provider)?;
+                        let target_operations::TargetReferenceOriginBase::Provider {
+                            referent: promised,
+                            access,
+                            ..
+                        } = &origin.base
+                        else {
+                            return None;
+                        };
+                        let StructuralTypeShape::Reference {
+                            access: required, ..
+                        } = types.get(&carrier_type)?.shape
+                        else {
+                            return None;
+                        };
+                        if leaf_type(types, *promised, &provider.projection.path) != Some(referent)
+                            || !access_covers(*access, required)
+                        {
+                            return None;
+                        }
+                        origin
+                    }
+                    DescriptorSourceOrigin::Backing(DescriptorCallOrigin::Argument {
+                        source,
+                        projection,
+                    }) if projection.exact
+                        && !projection.indirect
+                        && projection.window.is_none()
+                        && projection.captured_at.is_none() =>
                     {
-                        return None;
+                        target_operations::TargetReferenceOrigin {
+                            base: target_operations::TargetReferenceOriginBase::Storage {
+                                root: *source,
+                            },
+                            path: projection
+                                .path
+                                .iter()
+                                .cloned()
+                                .map(terminal_psi::ReferenceOriginProjection::Exact)
+                                .collect(),
+                            extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
+                        }
                     }
-                    origin
+                    // Unknown geometry remains unavailable, never an entry-type fallback.
+                    _ => return None,
                 }
-                DescriptorSourceOrigin::IncomingSlot(slot) => {
-                    let contract = function.structural_parameter(slot.root)?.structural_type;
-                    let slot_path = descriptor_path(types.catalog(), contract, &slot.path)?;
-                    if leaf_type(types, contract, &slot_path) != Some(carrier_type) {
-                        return None;
-                    }
-                    target_operations::TargetReferenceOrigin {
-                        base: target_operations::TargetReferenceOriginBase::IncomingContents {
-                            root: slot.root,
-                            slot: slot_path,
-                        },
-                        path: Vec::new(),
-                        extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
-                    }
-                }
-                DescriptorSourceOrigin::Backing(DescriptorCallOrigin::Argument {
-                    source,
-                    projection,
-                }) if projection.exact
-                    && !projection.indirect
-                    && projection.window.is_none()
-                    && projection.captured_at.is_none() =>
-                {
-                    target_operations::TargetReferenceOrigin {
-                        base: target_operations::TargetReferenceOriginBase::Storage {
-                            root: *source,
-                        },
-                        path: projection
-                            .path
-                            .iter()
-                            .cloned()
-                            .map(terminal_psi::ReferenceOriginProjection::Exact)
-                            .collect(),
-                        extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
-                    }
-                }
-                // Unknown geometry remains unavailable, never an entry-type fallback.
-                _ => return None,
             };
             origins.push(origin);
         }
