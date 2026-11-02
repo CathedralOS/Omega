@@ -5044,7 +5044,7 @@ pass/facts/assumed_binding_input_authority_through_match_join_exit checked 3873m
 pass/facts/assumed_binding_input_authority_through_other_machine_exit checked 4153ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/assumed_binding_input_authority_through_other_state_exit checked 3176ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/assumed_binding_input_authority_through_parameter_exit checked 3638ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/assumed_binding_input_authority_through_target_body_exit checked 3489ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/assumed_binding_input_authority_through_target_body_exit checked 38820ms check-target:macos_arm64 @b9580c0cab21+wt
 pass/facts/assumed_binding_result_bound_through_call_result_exit checked 3903ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/assumed_binding_result_bound_through_const_name_exit checked 3718ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/assumed_binding_result_bound_through_field_exit checked 11229ms check-target:macos_arm64 @911f6617ba9e
@@ -5053,7 +5053,7 @@ pass/facts/assumed_binding_result_bound_through_match_join_exit checked 5094ms c
 pass/facts/assumed_binding_result_bound_through_other_machine_exit checked 3897ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/assumed_binding_result_bound_through_other_state_exit checked 3866ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/assumed_binding_result_bound_through_parameter_exit checked 3897ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/assumed_binding_result_bound_through_target_body_exit checked 2332ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/assumed_binding_result_bound_through_target_body_exit checked 50050ms check-target:macos_arm64 @b9580c0cab21+wt
 pass/facts/atomic_boolean_store/call_result checked 3187ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/atomic_boolean_store/const_name checked 3383ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/atomic_boolean_store/field checked 3421ms check-target:macos_arm64 @ccdb99ca2214
@@ -5233,7 +5233,7 @@ pass/facts/boundary_zero_origin_through_match_join_exit checked 3861ms check-tar
 pass/facts/boundary_zero_origin_through_other_machine_exit checked 4323ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/boundary_zero_origin_through_other_state_exit checked 3952ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/boundary_zero_origin_through_parameter_exit checked 3871ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/boundary_zero_origin_through_target_body_exit checked 3181ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/boundary_zero_origin_through_target_body_exit checked 38605ms check-target:macos_arm64 @b9580c0cab21+wt
 pass/facts/bounded_activation_claim_split_through_call_result_exit rejected 3802ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
 pass/facts/bounded_activation_claim_split_through_const_name_exit rejected 3400ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
@@ -7018,7 +7018,7 @@ pass/facts/indexed_crash_guard_through_match_join_exit checked 5059ms check-targ
 pass/facts/indexed_crash_guard_through_other_machine_exit checked 3777ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/indexed_crash_guard_through_other_state_exit checked 4246ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/indexed_crash_guard_through_parameter_exit checked 3203ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/indexed_crash_guard_through_target_body_exit checked 3383ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/indexed_crash_guard_through_target_body_exit checked 64166ms check-target:macos_arm64 @b9580c0cab21+wt
 pass/facts/indexed_element_mut_loan_through_call_result_exit checked 3701ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/indexed_element_mut_loan_through_const_name_exit checked 3714ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/indexed_element_mut_loan_through_field_exit checked 4372ms check-target:macos_arm64 @ccdb99ca2214
@@ -7685,12 +7685,7 @@ pass/facts/named_conformance_dispatch_through_parameter_exit rejected 1275ms che
 	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
 	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
 	cannot form specification operator `+` in trait `Arithmetic` state `combine` ensures contract: no exact selected meaning
-pass/facts/named_conformance_dispatch_through_target_body_exit rejected 1533ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `+` in trait `Arithmetic` state `combine` ensures contract: no exact selected meaning
+pass/facts/named_conformance_dispatch_through_target_body_exit checked 38632ms check-target:macos_arm64 @b9580c0cab21+wt
 pass/facts/named_const_callable_family_cross_module_alias_exit checked 7600ms check-target:macos_arm64 @75dd4e483f7a
 pass/facts/named_const_callable_family_forwarded_family_exit checked 7646ms check-target:macos_arm64 @75dd4e483f7a
 pass/facts/named_const_callable_family_implementation_scope_exit checked 7601ms check-target:macos_arm64 @75dd4e483f7a
@@ -9432,7 +9427,7 @@ pass/facts/scalar_domain_call_guarantee_through_other_machine_exit checked 4367m
 pass/facts/scalar_domain_call_guarantee_through_other_state_exit rejected 3167ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	cannot prove scalar result domain for return from finish at statement 0: i64::Nonnegative
 pass/facts/scalar_domain_call_guarantee_through_parameter_exit checked 3787ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/scalar_domain_call_guarantee_through_target_body_exit checked 4024ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/scalar_domain_call_guarantee_through_target_body_exit checked 38517ms check-target:macos_arm64 @b9580c0cab21+wt
 pass/facts/scalar_sign_zero_extension_through_call_result_exit checked 3483ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/scalar_sign_zero_extension_through_const_name_exit checked 3741ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/scalar_sign_zero_extension_through_field_exit checked 5098ms check-target:macos_arm64 @ccdb99ca2214
@@ -10025,7 +10020,7 @@ pass/facts/static_evidence_premise_through_match_join_exit checked 3731ms check-
 pass/facts/static_evidence_premise_through_other_machine_exit checked 4450ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/static_evidence_premise_through_other_state_exit checked 3317ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/static_evidence_premise_through_parameter_exit checked 4060ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/static_evidence_premise_through_target_body_exit checked 3601ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/static_evidence_premise_through_target_body_exit checked 38629ms check-target:macos_arm64 @b9580c0cab21+wt
 pass/facts/stored_exclusive_byte_view_nested_reference_through_call_result_exit checked 3014ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/stored_exclusive_byte_view_nested_reference_through_const_name_exit checked 3270ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/stored_exclusive_byte_view_nested_reference_through_field_exit checked 3767ms check-target:macos_arm64 @ccdb99ca2214
@@ -10211,7 +10206,7 @@ pass/facts/unannotated_direct_boundary_call_through_match_join_exit checked 3267
 pass/facts/unannotated_direct_boundary_call_through_other_machine_exit checked 3850ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/unannotated_direct_boundary_call_through_other_state_exit checked 3372ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/unannotated_direct_boundary_call_through_parameter_exit checked 3429ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/unannotated_direct_boundary_call_through_target_body_exit checked 3358ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/unannotated_direct_boundary_call_through_target_body_exit checked 49016ms check-target:macos_arm64 @b9580c0cab21+wt
 pass/facts/unannotated_dynamic_boundary_call_through_call_result_exit checked 59310ms check-target:macos_arm64 @863cdf432f5d+wt
 pass/facts/unannotated_dynamic_boundary_call_through_const_name_exit checked 57346ms check-target:macos_arm64 @863cdf432f5d+wt
 pass/facts/unannotated_dynamic_boundary_call_through_field_exit checked 49104ms check-target:macos_arm64 @863cdf432f5d+wt
@@ -12611,7 +12606,7 @@ pass/providers/assumed_result_bound_match_join_exit checked 3063ms check-target:
 pass/providers/assumed_result_bound_other_machine_exit checked 3031ms check-target:linux_x86_64 @ccdb99ca2214
 pass/providers/assumed_result_bound_other_state_exit checked 3302ms check-target:linux_x86_64 @ccdb99ca2214
 pass/providers/assumed_result_bound_parameter_exit checked 3438ms check-target:linux_x86_64 @ccdb99ca2214
-pass/providers/assumed_result_bound_target_body_exit checked 3093ms check-target:linux_x86_64 @ccdb99ca2214
+pass/providers/assumed_result_bound_target_body_exit checked 49553ms check-target:macos_arm64 @b9580c0cab21+wt
 pass/providers/authored_same_stack_demand rejected 5ms regressed-from:checked @ccdb99ca2214
 	tests/omega/pass/providers/authored_same_stack_demand/main.omg:15:5: expected one of `terminates`, `decreases`, `reaches`, `invokes <binding>;`, `suspends;`, `blocks;`, `crashes <Cause>`, `boundary`, `requires`, `ensures`, `->`, `{`, found identifier `stack`
 pass/providers/authored_same_stack_import rejected 274ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
@@ -19305,7 +19300,7 @@ fail/facts/assumed_binding_input_authority_through_other_state_rejected rejected
 	cannot prove index `index.value` is within length 2 in Actual::get::get
 fail/facts/assumed_binding_input_authority_through_parameter_rejected rejected 2327ms expected @ccdb99ca2214
 	cannot prove index `index.value` is within length 2 in Actual::get::get
-fail/facts/assumed_binding_input_authority_through_target_body_rejected rejected 2193ms expected @ccdb99ca2214
+fail/facts/assumed_binding_input_authority_through_target_body_rejected rejected 27628ms expected @b9580c0cab21+wt
 	cannot prove index `index.value` is within length 2 in Actual::get::get
 fail/facts/assumed_binding_result_bound_through_call_result_rejected rejected 1885ms expected @ccdb99ca2214
 	cannot prove index `acquire()` is within length 2 in main::entry
@@ -19323,11 +19318,9 @@ fail/facts/assumed_binding_result_bound_through_other_state_rejected rejected 22
 	cannot prove index `index` is within length 2 in read::entry
 fail/facts/assumed_binding_result_bound_through_parameter_rejected rejected 2403ms expected @ccdb99ca2214
 	cannot prove index `index` is within length 2 in read::entry
-fail/facts/assumed_binding_result_bound_through_target_body_rejected rejected 2342ms expected @ccdb99ca2214
-	cannot prove index `Required.get()` is within length 2 in exercise::entry
-	cannot prove index `Required.get()` is within length 2 in exercise::entry
-	cannot prove index `Required.get()` is within length 2 in exercise::entry
-	cannot prove index `Required.get()` is within length 2 in exercise::entry
+fail/facts/assumed_binding_result_bound_through_target_body_rejected rejected 34518ms expected @b9580c0cab21+wt
+	cannot prove index `Required.get()` is within length 2 in X86Exercise::exercise::exercise
+	cannot prove index `Required.get()` is within length 2 in ArmExercise::exercise::exercise
 fail/facts/atomic_boolean_store/call_result rejected 525ms expected @ccdb99ca2214
 	tests/omega/fail/facts/atomic_boolean_store/call_result/main.omg:1:1: atomic store cannot use `Receive` ordering; use `NoOrdering`, `Publish`, or `GlobalOrder`
 fail/facts/atomic_boolean_store/const_name rejected 346ms expected @ccdb99ca2214
@@ -19811,7 +19804,7 @@ fail/facts/boundary_requirement_ceiling_missing_through_other_state_rejected rej
 	tests/omega/fail/facts/boundary_requirement_ceiling_missing_through_other_state_rejected/main.omg:4:26: boundary-trait machine requirement `Mark::read` must declare an explicit `reaches` ceiling; use bare `reaches` for empty reach
 fail/facts/boundary_requirement_ceiling_missing_through_parameter_rejected rejected 520ms expected @ccdb99ca2214
 	tests/omega/fail/facts/boundary_requirement_ceiling_missing_through_parameter_rejected/main.omg:4:26: boundary-trait machine requirement `Mark::read` must declare an explicit `reaches` ceiling; use bare `reaches` for empty reach
-fail/facts/boundary_requirement_ceiling_missing_through_target_body_rejected rejected 406ms expected @ccdb99ca2214
+fail/facts/boundary_requirement_ceiling_missing_through_target_body_rejected rejected 2769ms expected @b9580c0cab21+wt
 	tests/omega/fail/facts/boundary_requirement_ceiling_missing_through_target_body_rejected/main.omg:4:26: boundary-trait machine requirement `Mark::read` must declare an explicit `reaches` ceiling; use bare `reaches` for empty reach
 fail/facts/boundary_zero_origin_through_call_result_changed rejected 2256ms expected @ccdb99ca2214
 	cannot prove requires contract for call acquire from main: request.internal == 0 (needs fact `request.internal == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -19829,10 +19822,7 @@ fail/facts/boundary_zero_origin_through_other_state_changed rejected 3298ms expe
 	cannot prove requires contract for call transport from main: request.internal == 0 (needs fact `request.internal == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/boundary_zero_origin_through_parameter_changed rejected 2654ms expected @ccdb99ca2214
 	cannot prove requires contract for call transport from main: request.internal == 0 (needs fact `request.internal == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/boundary_zero_origin_through_target_body_changed rejected 3543ms expected @ccdb99ca2214
-	cannot prove requires contract for call transport from main: request.internal == 0 (needs fact `request.internal == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call transport from main: request.internal == 0 (needs fact `request.internal == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call transport from main: request.internal == 0 (needs fact `request.internal == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/boundary_zero_origin_through_target_body_changed rejected 32168ms expected @b9580c0cab21+wt
 	cannot prove requires contract for call transport from main: request.internal == 0 (needs fact `request.internal == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/bounded_activation_claim_split_through_call_result_rejected rejected 3801ms unexpected @ccdb99ca2214
 	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
@@ -23761,7 +23751,7 @@ fail/facts/indexed_crash_guard_through_other_state_rejected rejected 3826ms unex
 	call from `read_seven` to `consume` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/facts/indexed_crash_guard_through_parameter_rejected rejected 3033ms expected @ccdb99ca2214
 	call from `read_seven` to `maybe_zero` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/facts/indexed_crash_guard_through_target_body_rejected rejected 3351ms expected @ccdb99ca2214
+fail/facts/indexed_crash_guard_through_target_body_rejected rejected 28782ms expected @b9580c0cab21+wt
 	call from `read_seven` to `forward` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/facts/indexed_element_mut_loan_through_call_result_rejected rejected 2029ms expected @ccdb99ca2214
 	state `bump` receives `rooms[selected]` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 4)
@@ -24799,12 +24789,9 @@ fail/facts/named_conformance_dispatch_through_parameter_rejected rejected 1774ms
 	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
 	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
 	cannot form specification operator `+` in trait `Arithmetic` state `combine` ensures contract: no exact selected meaning
-fail/facts/named_conformance_dispatch_through_target_body_rejected rejected 1442ms unexpected @ccdb99ca2214
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `<=` in trait `Arithmetic` state `combine` requires contract: no exact selected meaning
-	cannot form specification operator `+` in trait `Arithmetic` state `combine` ensures contract: no exact selected meaning
+fail/facts/named_conformance_dispatch_through_target_body_rejected rejected 30764ms expected @b9580c0cab21+wt
+	cannot prove requires contract for call apply$specialized$abaf361fafff1d4e$0$2704 from X86Probe::probe: 0 <= b && b <= 50 (needs fact `0 <= right && right <= 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `probe`
+	cannot prove requires contract for call apply$specialized$abaf361fafff1d4e$0$2704 from ArmProbe::probe: 0 <= b && b <= 50 (needs fact `0 <= right && right <= 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `probe`
 fail/facts/narrow_to_narrow_truncation_64to8_mask_bound_through_call_result_rejected rejected 676ms expected @ccdb99ca2214
 	exact arithmetic in machine `exercise` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/narrow_to_narrow_truncation_64to8_mask_bound_through_const_name_rejected rejected 916ms expected @ccdb99ca2214
@@ -27755,7 +27742,7 @@ fail/facts/scalar_domain_call_guarantee_through_other_state_rejected rejected 27
 	cannot prove scalar result domain for return from finish at statement 0: i64::Nonnegative
 fail/facts/scalar_domain_call_guarantee_through_parameter_rejected rejected 2951ms expected @ccdb99ca2214
 	cannot prove requires contract for call issue from transport: value >= 0 (needs fact `value >= 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/scalar_domain_call_guarantee_through_target_body_rejected rejected 3103ms expected @ccdb99ca2214
+fail/facts/scalar_domain_call_guarantee_through_target_body_rejected rejected 30186ms expected @b9580c0cab21+wt
 	cannot prove scalar result domain for return from issue at statement 1: i64::Nonnegative
 fail/facts/scalar_sign_zero_extension_through_call_result_rejected rejected 1316ms expected @ccdb99ca2214
 	exact arithmetic in machine `evaluate` state `entry` local `sub` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
@@ -28974,11 +28961,9 @@ fail/facts/static_evidence_premise_through_other_state_rejected rejected 1399ms 
 	machine `check` state `entry` value call to `project` violates required fact `Proof.holds(kept)`: the instantiated fact is structurally false
 fail/facts/static_evidence_premise_through_parameter_rejected rejected 1735ms expected @ccdb99ca2214
 	machine `observe` state `entry` value call to `project` violates required fact `Proof.holds(kept)`: the instantiated fact is structurally false
-fail/facts/static_evidence_premise_through_target_body_rejected rejected 1103ms expected @ccdb99ca2214
-	machine `observe` state `entry` value call to `project` violates required fact `Proof.holds(kept)`: the instantiated fact is structurally false
-	machine `observe` state `entry` value call to `project` violates required fact `Proof.holds(kept)`: the instantiated fact is structurally false
-	machine `observe` state `entry` value call to `project` violates required fact `Proof.holds(kept)`: the instantiated fact is structurally false
-	machine `observe` state `entry` value call to `project` violates required fact `Proof.holds(kept)`: the instantiated fact is structurally false
+fail/facts/static_evidence_premise_through_target_body_rejected rejected 6854ms expected @b9580c0cab21+wt
+	machine `X86Observe::observe` state `observe` value call to `project` violates required fact `Proof.holds(kept)`: the instantiated fact is structurally false
+	machine `ArmObserve::observe` state `observe` value call to `project` violates required fact `Proof.holds(kept)`: the instantiated fact is structurally false
 fail/facts/stored_exclusive_byte_view_nested_reference_through_call_result_rejected rejected 4825ms expected @ccdb99ca2214
 	cannot prove requires contract for call observe from main: selected.bundle.windows[0].len == 1 (needs fact `wrapper.bundle.windows[0].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/stored_exclusive_byte_view_nested_reference_through_const_name_rejected rejected 3059ms expected @ccdb99ca2214
@@ -29291,11 +29276,9 @@ fail/facts/unannotated_direct_boundary_call_through_other_state_rejected rejecte
 	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
 fail/facts/unannotated_direct_boundary_call_through_parameter_rejected rejected 1887ms expected @ccdb99ca2214
 	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-fail/facts/unannotated_direct_boundary_call_through_target_body_rejected rejected 1604ms expected @ccdb99ca2214
-	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_direct_boundary_call_through_target_body_rejected rejected 24982ms expected @b9580c0cab21+wt
+	machine `X86ReadMark::read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+	machine `ArmReadMark::read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
 fail/facts/unannotated_dynamic_boundary_call_through_call_result_rejected rejected 40868ms expected @863cdf432f5d+wt
 	machine `take` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
 fail/facts/unannotated_dynamic_boundary_call_through_const_name_rejected rejected 34089ms expected @863cdf432f5d+wt
@@ -33216,11 +33199,9 @@ fail/providers/assumed_result_bound_parameter_rejected rejected 2716ms expected 
 	cannot prove index `index` is within length 2 in read::entry
 fail/providers/assumed_result_bound_passing_mode_rejected rejected 13197ms expected @ccdb99ca2214
 	assumed binding has incompatible runtime carriers, parameter order or passing modes
-fail/providers/assumed_result_bound_target_body_rejected rejected 2214ms expected @ccdb99ca2214
-	cannot prove index `Required.get()` is within length 2 in exercise::entry
-	cannot prove index `Required.get()` is within length 2 in exercise::entry
-	cannot prove index `Required.get()` is within length 2 in exercise::entry
-	cannot prove index `Required.get()` is within length 2 in exercise::entry
+fail/providers/assumed_result_bound_target_body_rejected rejected 26657ms expected @b9580c0cab21+wt
+	cannot prove index `Required.get()` is within length 2 in X86Exercise::exercise::exercise
+	cannot prove index `Required.get()` is within length 2 in ArmExercise::exercise::exercise
 fail/providers/authored_same_stack_checked_body rejected 2ms @ccdb99ca2214
 	tests/omega/fail/providers/authored_same_stack_checked_body/main.omg:5:65: expected one of `terminates`, `decreases`, `reaches`, `invokes <binding>;`, `suspends;`, `blocks;`, `crashes <Cause>`, `boundary`, `requires`, `ensures`, `->`, `{`, found identifier `stack`
 fail/providers/authored_same_stack_duplicate rejected 9ms @ccdb99ca2214
