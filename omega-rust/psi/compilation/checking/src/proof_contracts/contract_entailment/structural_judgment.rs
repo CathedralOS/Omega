@@ -1372,8 +1372,21 @@ impl<'program> StructuralJudge<'program> {
             if !self.is_case_membership(fact, binary) {
                 return;
             }
+            let reference = if self.runtime_body_values {
+                self.runtime_declaration_scope()
+                    .and_then(|(machine, state)| {
+                        crate::proof_contracts::bound_expression_meaning::operand_type(
+                            program,
+                            machine,
+                            Some(state),
+                            binary.left,
+                        )
+                    })
+            } else {
+                self.declaration_expression_type(binary.left)
+            };
             let Some((definition, variant)) =
-                super::structural_terms::case_classifier(program, binary.right)
+                cases::applied_case_classifier(program, binary.right, reference)
             else {
                 return;
             };

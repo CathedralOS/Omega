@@ -12,10 +12,30 @@ use crate::proof_contracts::contract_entailment::{
 };
 use std::sync::Arc;
 use symbols::SymbolHandle;
-use typed_trees::data::DataMember;
+use typed_trees::data::{DataDefinition, DataMember, DataVariant};
 use typed_trees::expression::StaticMachineArgument;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::types::TypeReferenceHandle;
+
+/// Translate an authenticated classifier into its subject's exact application.
+/// The premise supplies tag truth; carrier correspondence supplies only identity.
+pub(super) fn applied_case_classifier(
+    program: &dyn crate::CheckingInput,
+    classifier: ExpressionHandle,
+    subject_type: Option<TypeReferenceHandle>,
+) -> Option<(&DataDefinition, &DataVariant)> {
+    let (definition, variant) = structural_terms::case_classifier(program, classifier)?;
+    let Some(reference) = subject_type else {
+        return Some((definition, variant));
+    };
+    let reference = program
+        .type_reference_table
+        .peeled_type_reference(reference);
+    Some((
+        program.data_constructor_definition(reference, definition.symbol)?,
+        program.data_constructor_case(reference, definition.symbol, variant.symbol)?,
+    ))
+}
 
 impl StructuralJudge<'_> {
     pub(super) fn is_case_membership(
@@ -94,43 +114,13 @@ impl StructuralJudge<'_> {
         ) {
             return None;
         }
-        let Some((definition, variant)) =
-            structural_terms::case_classifier(self.program, binary.right)
-        else {
-            return None;
-        };
-        // A subject whose declared type is a closed generic application
-        // observes its prepared carrier's tags. The authored case reference
-        // names the template; rejoin it on the exact applied declaration the
-        // same way `applied_case_membership_variant` does for machine scopes.
-        let mut case_owner = definition.symbol;
-        let mut case_symbol = variant.symbol;
-        let mut subject_expression = binary.left;
-        while let ExpressionNode::Borrow(borrow) =
-            self.program.expression_table.expression(subject_expression)
-        {
-            subject_expression = borrow.target;
-        }
-        if let Some(reference) = crate::value_custody::places::parameter_scoped_type_reference(
+        let reference = crate::parameter_expression_result_type_reference(
             self.program,
+            scope,
             parameters,
-            subject_expression,
-        ) {
-            let reference = self
-                .program
-                .type_reference_table
-                .peeled_type_reference(reference);
-            if let Some(applied) = self
-                .program
-                .data_constructor_definition(reference, definition.symbol)
-                && let Some(applied_variant) =
-                    self.program
-                        .data_constructor_case(reference, definition.symbol, variant.symbol)
-            {
-                case_owner = applied.symbol;
-                case_symbol = applied_variant.symbol;
-            }
-        }
+            binary.left,
+        );
+        let (definition, variant) = applied_case_classifier(self.program, binary.right, reference)?;
         let Some(subject) = structural_terms::structural_term(
             self.program,
             None,
@@ -142,8 +132,8 @@ impl StructuralJudge<'_> {
         };
         Some(CaseGuarantee {
             subject: Self::substitute_call_term(&subject, map, machine_map),
-            data: case_owner,
-            case: case_symbol,
+            data: definition.symbol,
+            case: variant.symbol,
         })
     }
 
@@ -203,8 +193,14 @@ impl StructuralJudge<'_> {
         if !exact {
             return;
         }
+        let reference = crate::parameter_expression_result_type_reference(
+            self.program,
+            scope,
+            parameters,
+            binary.left,
+        );
         let Some((definition, variant)) =
-            structural_terms::case_classifier(self.program, binary.right)
+            applied_case_classifier(self.program, binary.right, reference)
         else {
             return;
         };
