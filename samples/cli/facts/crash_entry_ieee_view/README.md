@@ -28,9 +28,9 @@ Pinned corpus fixtures are `pass/facts/crash_entry_ieee_view_through_<place>_exi
 
 The local place also pins its writable carrier, because the view route reads the shared entry-provenance local carrier rule: `pass/facts/crash_entry_ieee_view_local_writable_exit` records the same observation in a writable local that is never written, and `fail/facts/crash_entry_ieee_view_local_written_rejected` overwrites that local with `0.0` before the call, so the guard is live and the route stays uncovered (`at statement 3 call 0`).
 
-## Current failure
+## Repair record
 
-On base `05a6f6af37e` (Windows x86-64, opt-level 1) every place refuses at checking before execution, as the corpus golden already records (`regressed-from:checked` at `ccdb99ca2214`): for example `local` rejects with `` call from `read_bits` to `maybe_zero` at statement 2 call 0 has an uncovered Trap crash route `` and `target_body` with `` call from `read_bits` to `forward` at statement 2 call 0 has an uncovered Trap crash route ``. The view no longer carries the recorded `1.0` observation into the guard. The Execution record below is the earlier macOS measurement.
+On base `05a6f6af37e` (Windows x86-64, opt-level 1) every place refused at checking, as the corpus golden recorded (`regressed-from:checked` at `ccdb99ca2214`): `local` rejected with `` call from `read_bits` to `maybe_zero` at statement 2 call 0 has an uncovered Trap crash route ``. The flow now reports a live view by its backing storage (the `i32` place) instead of the recast expression, so the IEEE observation found no float spelling on that place and never reached the bit reinterpretation. The observation now reads an equal-width integer backing place as the float its bits denote. After the repair all nine places exit 0 natively and in Terminal Psi on Windows x86-64, and all eighteen twins reject with `has an uncovered Trap crash route`. `fail/facts/crash_entry_ieee_view_backing_written_rejected` pins that overwriting the integer backing before the view forms leaves the route live (`at statement 4 call 0`). The Execution record below is the earlier macOS measurement.
 
 ## Execution
 
