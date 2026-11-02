@@ -40,6 +40,8 @@ fail/build/terminal_calling_policy_unrelated_constant rejected 42791ms expected 
 	constant checking: scalar predicate is false: requires contract for call bounded from main state entry statement 5
 fail/calls/completed_narrowing_result_case_bounds rejected 544ms @33b180036351
 	data `ByteRead` case `Byte` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/calls/runtime_guarded_reference_return_nested_local_escape rejected 4129ms expected @c79bb8268163+wt
+	machine `failed` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 fail/capabilities/recursive_synchronous_invocations rejected 2175ms expected @2fc408782574
 	machine `a` omits `invokes Third` from its published synchronous-invocation ceiling, but its body may invoke that binding before returning (published invokes: [First, Second])
 fail/cases/constructor_subject_range_narrowing_unproved rejected 1204ms expected @95750e8d2f8d
@@ -3472,10 +3474,9 @@ pass/calls/runtime_fused_child_computed_borrow_exit checked 3223ms check-target:
 pass/calls/runtime_guard_call_vs_call_exit checked 16242ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_guarded_boundary_tail_call_exit checked 17155ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_guarded_effectful_transition_argument_exit checked 11041ms check-target:macos_arm64 @ccdb99ca2214
-pass/calls/runtime_guarded_reference_return_before_crash_exit incomplete 3049ms terminal-targets:unchecked regressed-from:checked+check-target:macos_arm64+terminal-target.linux_x86_64:0+terminal-target.linux_arm64:0+terminal-target.macos_arm64:0+terminal-target.windows_x86_64:0+terminal-target-artifact:unchanged+terminal-targets:match @ccdb99ca2214
-	`main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data); in state `main::entry`, statement 1
-pass/calls/runtime_guarded_reference_return_crash incomplete 3826ms terminal-targets:unchecked regressed-from:checked+check-target:macos_arm64+terminal-target.linux_x86_64:trap+terminal-target.linux_arm64:trap+terminal-target.macos_arm64:trap+terminal-target.windows_x86_64:trap+terminal-target-artifact:unchanged+terminal-targets:match @ccdb99ca2214
-	`main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data); in state `main::entry`, statement 1
+pass/calls/runtime_guarded_reference_return_before_crash_exit checked 6256ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @c79bb8268163+wt
+pass/calls/runtime_guarded_reference_return_crash checked 6225ms check-target:macos_arm64 terminal-target.linux_x86_64:trap terminal-target.linux_arm64:trap terminal-target.macos_arm64:trap terminal-target.windows_x86_64:trap terminal-target-artifact:unchanged terminal-targets:match @c79bb8268163+wt
+pass/calls/runtime_guarded_reference_return_machine_crash checked 6226ms check-target:macos_arm64 terminal-target.linux_x86_64:trap terminal-target.linux_arm64:trap terminal-target.macos_arm64:trap terminal-target.windows_x86_64:trap terminal-target-artifact:unchanged terminal-targets:match @c79bb8268163+wt
 pass/calls/runtime_guarded_terminal_array_operands_exit checked 3100ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_guarded_terminal_guard_order_exit checked 3315ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_guarded_terminal_mutable_reference_result_exit checked 3296ms check-target:macos_arm64 @ccdb99ca2214
