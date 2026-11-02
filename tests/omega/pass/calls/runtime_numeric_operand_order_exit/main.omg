@@ -1,4 +1,4 @@
-use omega_language_std::math;
+use omega::language::core::math;
 
 data Counter requires value >= -1 && value <= 1 {
     calls: u32 in Wrapping;

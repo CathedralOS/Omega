@@ -448,6 +448,7 @@ fn prepare_target_provider_selection(
         &source.provider_defaults,
         selected_target_profile.unwrap_or_else(target::TargetProfile::host),
     );
+    let code = crate::terminal::retain_calling_program(source, timings)?;
     let calling = provider_planning::calling_policy_plans::prepare_boundary_calling_plans(
         &source.program,
         one_refusal(source.provider_inventory.services_for(&source.program))?,
@@ -462,8 +463,8 @@ fn prepare_target_provider_selection(
             requested: &build_config.provider_selections,
             exact_toolchain_sources: source.sources.exact_toolchain_sources(),
         },
+        &code,
     )?;
-    let code = crate::terminal::retain_calling_program(source, timings)?;
     let boundary_calling_plan_realizations = calling.evaluate(&code)?;
     let deployment = build_config.provider_deployment()?;
     provider_planning::settle_checked_providers(

@@ -6,14 +6,16 @@ use crate::TypedTrees;
 use crate::expression::{ExpressionHandle, ExpressionNode};
 use crate::type_identity::substitution;
 use crate::typed_trees::type_system::type_identity::constraint_identity::{
-    NormalizedConstraint, atom, byte_atom, compound, normalize_array_length,
+    NormalizedConstraint, atom, bare, byte_atom, compound, normalize_array_length,
     normalize_constrained_base, normalized_constraints,
 };
 use crate::typed_trees::type_system::type_identity::open_index_identity::{
-    collect_open_index_operands, index_binary_operator_name, open_index_algebra_identity,
-    open_index_operation_identity, open_index_operation_selection,
+    index_binary_operator_name, normalize_selected_index_operation, open_index_operation_selection,
 };
 use crate::types::{TypeReferenceHandle, TypeReferenceNode};
+use language_semantics::type_identity::vocabulary::{
+    IndexForm, Label, NameForm, OwnerForm, RegionForm, Spelled, TypeForm,
+};
 use std::cell::Cell;
 use symbols::JoinedPath;
 use symbols::SymbolHandle;
@@ -82,10 +84,10 @@ pub(crate) enum PackageQualifiedNominalOwner {
 impl PackageQualifiedNominalOwner {
     fn encode(self) -> String {
         match self {
-            Self::Package(digest) => byte_atom("package-owner", &digest),
-            Self::ToolchainSource(digest) => byte_atom("toolchain-source-owner", &digest),
-            Self::Toolchain => "toolchain-owner".to_owned(),
-            Self::Unresolved => "unresolved-owner".to_owned(),
+            Self::Package(digest) => byte_atom(OwnerForm::Package, &digest),
+            Self::ToolchainSource(digest) => byte_atom(OwnerForm::ToolchainSource, &digest),
+            Self::Toolchain => bare(OwnerForm::Toolchain),
+            Self::Unresolved => bare(OwnerForm::Unresolved),
         }
     }
 }
@@ -174,7 +176,7 @@ impl TypeIdentityContext<'_> {
         if let Some(invalid) = self.invalid_application {
             invalid.set(true);
         }
-        "unresolved-region".to_owned()
+        bare(RegionForm::Unresolved)
     }
 
     /// A simultaneous application's actual belongs to the caller's scope.
@@ -220,7 +222,7 @@ impl TypeIdentityContext<'_> {
             if let Some(invalid) = self.invalid_application {
                 invalid.set(true);
             }
-            return "unresolved-region".to_owned();
+            return bare(RegionForm::Unresolved);
         };
         self.encode_lifetime(program, region)
     }
@@ -240,20 +242,20 @@ impl TypeIdentityContext<'_> {
             if let Some(invalid) = self.invalid_application {
                 invalid.set(true);
             }
-            return "unresolved-region".to_owned();
+            return bare(RegionForm::Unresolved);
         }
         compound(
-            "region",
+            RegionForm::Region,
             [
                 atom(
-                    "owner",
+                    Label::Owner,
                     &format!(
                         "{}:{}",
                         region.declaration.arena_index(),
                         region.declaration.generation()
                     ),
                 ),
-                atom("ordinal", &region.ordinal.to_string()),
+                atom(Label::Ordinal, &region.ordinal.to_string()),
             ],
         )
     }
@@ -319,7 +321,7 @@ impl TypeIdentityContext<'_> {
                     missing.set(true);
                 }
                 // An invalid producer cannot fall back to its generated label.
-                return atom("invalid-derived-origin", reason);
+                return atom(NameForm::InvalidDerivedOrigin, reason);
             }
             Ok(None) => {}
         }
@@ -338,7 +340,10 @@ impl TypeIdentityContext<'_> {
             return path;
         }
         if let Some(builtin_atom) = program.symbols.builtin_type_atom(symbol) {
-            return compound("compiler-type", [atom("atom", builtin_atom.identity())]);
+            return compound(
+                NameForm::CompilerType,
+                [atom(Label::Atom, builtin_atom.identity())],
+            );
         }
         let owner = if let Some(package) = program.symbols.symbol_package_identity(symbol) {
             PackageQualifiedNominalOwner::Package(package.digest())
@@ -374,7 +379,7 @@ pub(crate) fn package_qualified_nominal_name(
     owner: PackageQualifiedNominalOwner,
     path: &str,
 ) -> String {
-    compound("nominal", [owner.encode(), atom("path", path)])
+    compound(NameForm::Nominal, [owner.encode(), atom(Label::Path, path)])
 }
 
 fn generic_type_identity(
@@ -391,15 +396,19 @@ fn generic_type_identity(
         // A lifetime-only static operand and its materialized Named carrier
         // denote the same nominal storage after region erasure.
         return compound(
-            "named",
+            TypeForm::Named,
             [normalize_const_or_nominal_name(
-                program, symbol, name, "name", context,
+                program,
+                symbol,
+                name,
+                Label::Name,
+                context,
             )],
         );
     }
     compound(
-        "generic",
-        std::iter::once(atom("name", &context.name(program, symbol, name)))
+        TypeForm::Generic,
+        std::iter::once(atom(Label::Name, &context.name(program, symbol, name)))
             .chain(
                 context
                     .invalid_application
@@ -462,12 +471,12 @@ fn generic_reference_identity<'program>(
             || context.declared_carrier)
     {
         return compound(
-            "named",
+            TypeForm::Named,
             [normalize_const_or_nominal_name(
                 program,
                 symbol,
                 name.as_str(),
-                "name",
+                Label::Name,
                 context,
             )],
         );
@@ -494,7 +503,7 @@ fn generic_reference_identity<'program>(
                 {
                     // This positional marker describes storage only. Source
                     // application equality always keeps the actual subject.
-                    return "unit".to_owned();
+                    return bare(TypeForm::Unit);
                 }
                 // Callable operands retain an overload and a source region
                 // telescope even when transported as a generic type payload.
@@ -589,12 +598,12 @@ pub(super) fn static_nominal_argument_identity(
         return Some(normalize_type_reference(program, origin, context));
     }
     Some(compound(
-        "named",
+        TypeForm::Named,
         [normalize_const_or_nominal_name(
             program,
             argument.symbol,
             "",
-            "name",
+            Label::Name,
             context,
         )],
     ))
@@ -713,9 +722,9 @@ pub(crate) fn normalize_type_reference(
             lifetime,
         } => compound(
             match access {
-                language_core::ReferenceAccess::Shared => "ref",
-                language_core::ReferenceAccess::Mutable => "ref-mut",
-                language_core::ReferenceAccess::WriteOnly => "ref-write",
+                language_core::ReferenceAccess::Shared => TypeForm::Reference,
+                language_core::ReferenceAccess::Mutable => TypeForm::MutableReference,
+                language_core::ReferenceAccess::WriteOnly => TypeForm::WriteOnlyReference,
             },
             std::iter::once(normalize_type_reference(program, *referee, context)).chain(
                 context
@@ -732,7 +741,7 @@ pub(crate) fn normalize_type_reference(
                                     // region, not an inference placeholder.
                                     invalid.set(true);
                                 }
-                                "elided-region".to_owned()
+                                bare(RegionForm::Elided)
                             },
                             |lifetime| {
                                 context.lifetime_slot(
@@ -762,7 +771,7 @@ pub(crate) fn normalize_type_reference(
             all_constraints.sort();
             all_constraints.dedup();
             compound(
-                "constrained",
+                TypeForm::Constrained,
                 std::iter::once(base).chain(
                     all_constraints
                         .into_iter()
@@ -774,14 +783,14 @@ pub(crate) fn normalize_type_reference(
             element_type,
             length,
         } => compound(
-            "array",
+            TypeForm::Array,
             [
                 normalize_type_reference(program, *element_type, context),
                 normalize_array_length(program, length, context),
             ],
         ),
         TypeReferenceNode::Slice { element_type } => compound(
-            "slice",
+            TypeForm::Slice,
             [normalize_type_reference(program, *element_type, context)],
         ),
         TypeReferenceNode::Generic {
@@ -802,7 +811,7 @@ pub(crate) fn normalize_type_reference(
             context,
         ),
         TypeReferenceNode::ConstExpression(expression) => compound(
-            "index-expression",
+            TypeForm::IndexExpression,
             [normalize_index_expression(program, *expression, context)],
         ),
         TypeReferenceNode::DynamicTrait {
@@ -810,8 +819,12 @@ pub(crate) fn normalize_type_reference(
             name,
             arguments,
         } => compound(
-            "dynamic-trait",
-            std::iter::once(atom("name", &context.name(program, *symbol, name.as_str()))).chain(
+            TypeForm::DynamicTrait,
+            std::iter::once(atom(
+                Label::Name,
+                &context.name(program, *symbol, name.as_str()),
+            ))
+            .chain(
                 program
                     .type_reference_handles(*arguments)
                     .iter()
@@ -819,16 +832,16 @@ pub(crate) fn normalize_type_reference(
             ),
         ),
         TypeReferenceNode::Named { symbol, name } => compound(
-            "named",
+            TypeForm::Named,
             [normalize_const_or_nominal_name(
                 program,
                 *symbol,
                 name.as_str(),
-                "name",
+                Label::Name,
                 context,
             )],
         ),
-        TypeReferenceNode::Unit => "unit".to_owned(),
+        TypeReferenceNode::Unit => bare(TypeForm::Unit),
     }
 }
 
@@ -854,7 +867,7 @@ pub(crate) fn normalize_index_expression(
             substitution::index_name(program, symbol, fallback.as_str(), context)
         }
         ExpressionNode::Binary(binary) => {
-            let Some(selection) = open_index_operation_selection(program, expression) else {
+            if open_index_operation_selection(program, expression).is_none() {
                 return compound(
                     index_binary_operator_name(binary.operator),
                     [
@@ -862,32 +875,14 @@ pub(crate) fn normalize_index_expression(
                         normalize_index_expression(program, binary.right, context),
                     ],
                 );
-            };
-            let operands = collect_open_index_operands(
-                program,
-                expression,
-                binary.operator,
-                selection,
-                context,
-            );
-            compound(
-                index_binary_operator_name(binary.operator),
-                std::iter::once(atom(
-                    "operation",
-                    &open_index_operation_identity(program, selection, context),
-                ))
-                .chain(std::iter::once(atom(
-                    "algebra",
-                    &open_index_algebra_identity(program, selection, context),
-                )))
-                .chain(operands),
-            )
+            }
+            normalize_selected_index_operation(program, expression, context)
         }
         ExpressionNode::Integer(value) => substitution::index_integer(value, context),
         ExpressionNode::Unary(unary) => compound(
             match unary.operator {
-                crate::expression::UnaryOperator::BitwiseNot => "bitwise-not",
-                crate::expression::UnaryOperator::LogicalNot => "logical-not",
+                crate::expression::UnaryOperator::BitwiseNot => IndexForm::BitwiseNot,
+                crate::expression::UnaryOperator::LogicalNot => IndexForm::LogicalNot,
             },
             [normalize_index_expression(program, unary.operand, context)],
         ),
@@ -896,12 +891,12 @@ pub(crate) fn normalize_index_expression(
         // children -- and independent of diagnostic rendering so even a
         // rejected tree never makes display text an equality oracle, and two
         // differently shaped rejected expressions never share one identity.
-        ExpressionNode::Boolean(value) => atom("boolean", &value.to_string()),
-        ExpressionNode::Float(value) => atom("float", &value.to_string()),
-        ExpressionNode::UndeterminedNaN(format) => atom("undetermined-nan", format.name()),
-        ExpressionNode::String(value) => byte_atom("string", value),
+        ExpressionNode::Boolean(value) => atom(IndexForm::Boolean, &value.to_string()),
+        ExpressionNode::Float(value) => atom(IndexForm::Float, &value.to_string()),
+        ExpressionNode::UndeterminedNaN(format) => atom(IndexForm::UndeterminedNan, format.name()),
+        ExpressionNode::String(value) => byte_atom(IndexForm::String, value),
         ExpressionNode::ArrayLiteral(elements) => compound(
-            "array-literal",
+            IndexForm::ArrayLiteral,
             program
                 .expression_table
                 .expression_handles(*elements)
@@ -915,26 +910,29 @@ pub(crate) fn normalize_index_expression(
             match_dispatch::normalize_saved_subject(program, saved, context)
         }
         ExpressionNode::Atomic(atomic) => compound(
-            "atomic",
+            IndexForm::Atomic,
             [
                 normalize_index_expression(program, atomic.value, context),
                 normalize_index_expression(program, atomic.result, context),
-                atom("ordering", &format!("{:?}", atomic.ordering)),
-                atom("result-custody", &format!("{:?}", atomic.result_custody)),
+                atom(Label::Ordering, &format!("{:?}", atomic.ordering)),
+                atom(
+                    Label::ResultCustody,
+                    &format!("{:?}", atomic.result_custody),
+                ),
             ],
         ),
         ExpressionNode::Cast(cast) => compound(
-            "cast",
+            IndexForm::Cast,
             [
                 normalize_index_expression(program, cast.value, context),
                 normalize_type_reference(program, cast.target_type, context),
-                atom("domain", cast.domain.name()),
+                atom(Label::Domain, cast.domain.name()),
             ],
         ),
         ExpressionNode::Call(call) => compound(
-            "call",
+            IndexForm::Call,
             std::iter::once(atom(
-                "target",
+                Label::Target,
                 &context.name(program, call.target_symbol, call.target.as_str()),
             ))
             .chain({
@@ -945,7 +943,7 @@ pub(crate) fn normalize_index_expression(
                     .arguments(program);
                 (!arguments.is_empty()).then(|| {
                     compound(
-                        "static-arguments",
+                        Label::StaticArguments,
                         arguments.iter().map(|argument| {
                             substitution::index_argument(
                                 program,
@@ -970,40 +968,40 @@ pub(crate) fn normalize_index_expression(
             ),
         ),
         ExpressionNode::Indexed(indexed) => compound(
-            "indexed",
+            IndexForm::Indexed,
             [
                 normalize_index_expression(program, indexed.collection, context),
                 normalize_index_expression(program, indexed.index, context),
             ],
         ),
         ExpressionNode::Member(member) => compound(
-            "member",
+            IndexForm::Member,
             std::iter::once(normalize_index_expression(
                 program,
                 member.receiver,
                 context,
             ))
-            .chain(std::iter::once(atom("member", member.member.as_str())))
+            .chain(std::iter::once(atom(Label::Member, member.member.as_str())))
             .chain(
                 member
                     .case_variant
                     .iter()
-                    .map(|variant| atom("case", variant.as_str())),
+                    .map(|variant| atom(Label::Case, variant.as_str())),
             ),
         ),
         ExpressionNode::Borrow(borrow) => compound(
             match borrow.access {
-                language_core::ReferenceAccess::Shared => "borrow",
-                language_core::ReferenceAccess::Mutable => "borrow-mut",
-                language_core::ReferenceAccess::WriteOnly => "borrow-write",
+                language_core::ReferenceAccess::Shared => IndexForm::Borrow,
+                language_core::ReferenceAccess::Mutable => IndexForm::MutableBorrow,
+                language_core::ReferenceAccess::WriteOnly => IndexForm::WriteOnlyBorrow,
             },
             [normalize_index_expression(program, borrow.target, context)],
         ),
         ExpressionNode::Range(range) => compound(
             if range.end_inclusive {
-                "range-inclusive"
+                IndexForm::InclusiveRange
             } else {
-                "range-exclusive"
+                IndexForm::ExclusiveRange
             },
             [
                 normalize_index_expression(program, range.start, context),
@@ -1011,16 +1009,16 @@ pub(crate) fn normalize_index_expression(
             ],
         ),
         ExpressionNode::StructLiteral(literal) => compound(
-            "struct-literal",
+            IndexForm::StructLiteral,
             std::iter::once(atom(
-                "type",
+                Label::Type,
                 &context.name(program, literal.type_symbol, literal.type_name.as_str()),
             ))
             .chain(
                 literal
                     .case_name
                     .as_ref()
-                    .map(|case| atom("case", case.as_str())),
+                    .map(|case| atom(Label::Case, case.as_str())),
             )
             .chain(
                 program
@@ -1029,9 +1027,9 @@ pub(crate) fn normalize_index_expression(
                     .iter()
                     .map(|field| {
                         compound(
-                            "field",
+                            Label::Field,
                             [
-                                atom("name", field.name.as_str()),
+                                atom(Label::Name, field.name.as_str()),
                                 normalize_index_expression(program, field.value, context),
                             ],
                         )
@@ -1039,11 +1037,11 @@ pub(crate) fn normalize_index_expression(
             ),
         ),
         ExpressionNode::TypeExpression(type_reference) => compound(
-            "type-expression",
+            IndexForm::TypeExpression,
             [normalize_type_reference(program, *type_reference, context)],
         ),
         ExpressionNode::ZeroValue(type_reference) => compound(
-            "zero-value",
+            IndexForm::ZeroValue,
             [normalize_type_reference(program, *type_reference, context)],
         ),
     }
@@ -1053,7 +1051,7 @@ pub(crate) fn normalize_const_or_nominal_name(
     program: &TypedTrees,
     symbol: SymbolHandle,
     spelling: &str,
-    nominal_tag: &str,
+    nominal_tag: impl Spelled,
     context: &TypeIdentityContext<'_>,
 ) -> String {
     if !symbol.is_valid() {
@@ -1065,15 +1063,15 @@ pub(crate) fn normalize_const_or_nominal_name(
             language_semantics::const_value::CanonicalConstValue::from_atom(spelling)
         {
             return compound(
-                "canonical-const",
+                IndexForm::CanonicalConst,
                 [
-                    atom("type", &value.type_name),
-                    atom("encoding", &value.encoding),
+                    atom(Label::Type, &value.type_name),
+                    atom(Label::Encoding, &value.encoding),
                 ],
             );
         }
         if let Ok(value) = spelling.parse::<i128>() {
-            return atom("integer-const", &value.to_string());
+            return atom(IndexForm::IntegerConst, &value.to_string());
         }
     }
     atom(nominal_tag, &context.name(program, symbol, spelling))

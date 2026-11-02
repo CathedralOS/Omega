@@ -7,8 +7,6 @@ use typed_trees as typed;
 
 use crate::contracts::invocations::lower_authored_invocations;
 
-use crate::contracts::proof_facts::lower_proof_facts;
-
 pub(crate) fn lower_state_signature(
     lowerer: &mut Lowerer,
     signature: &resolved::signature::StateSignature,
@@ -43,7 +41,6 @@ pub(crate) fn lower_state_signature(
         suspends: signature.suspends,
         blocks: signature.blocks,
         contracts: Default::default(),
-        where_facts: Default::default(),
         // The final subject-bearing guarantee is normalized after all typed
         // domains, contracts, and requirements are available.
         termination_guarantee: if signature.terminates_guarantee {
@@ -56,7 +53,6 @@ pub(crate) fn lower_state_signature(
     };
 
     typed_signature.type_parameters = lower_type_parameters(lowerer, signature.type_parameters)?;
-    typed_signature.where_facts = lower_proof_facts(lowerer, signature.where_facts)?;
 
     // #66/DOM1/P1a: collect every declared domain on constrained parameters.
     // Each desugars below into its own implicit `requires <param> in <domain>`

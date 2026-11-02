@@ -2,7 +2,7 @@
 // current value drives the exit: count becomes 7 and timestamp becomes 7.
 
 use omega_language_std::console;
-use omega_language_std::format_lineage;
+use omega::language::core::format_lineage;
 
 data CounterDisk {
 }

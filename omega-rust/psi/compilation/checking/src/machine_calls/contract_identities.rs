@@ -1023,25 +1023,6 @@ pub fn canonical_requirement_schema_bytes(
         bytes.extend((contract.len() as u64).to_le_bytes());
         bytes.extend(contract);
     }
-    let predicates = program
-        .proof_facts
-        .span_or_empty(signature.where_facts)
-        .iter()
-        .map(|fact| {
-            Ok(checked_trees::DeclaredContractClause {
-                kind: checked_trees::DeclaredContractKind::Requires,
-                fact: Some(crate::contract_structure::declared_fact(
-                    program, fact, &binders, &content,
-                )?),
-            })
-        })
-        .collect::<Result<Vec<_>, Diagnostic>>()?;
-    bytes.extend(
-        program
-            .type_identities
-            .with(|table| checked_trees::contract_declarations_commitment(&predicates, table))
-            .as_bytes(),
-    );
     Ok(bytes)
 }
 

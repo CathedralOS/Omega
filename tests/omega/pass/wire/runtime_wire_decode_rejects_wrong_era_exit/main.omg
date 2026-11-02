@@ -1,4 +1,4 @@
-use omega_language_std::wire;
+use omega::language::core::wire;
 use omega::language::core::reflect;
 // Wire stage 2b: decode only accepts the schema's CURRENT era
 // (historical eras decode through format-package lineage sums). The buffer

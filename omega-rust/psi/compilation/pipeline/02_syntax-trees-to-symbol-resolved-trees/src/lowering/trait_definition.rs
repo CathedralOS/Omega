@@ -73,7 +73,6 @@ pub(crate) fn lower_trait_definition(
                 blocks: clause_signature.blocks,
                 contracts: clause_signature.contracts,
                 terminates_guarantee: clause_signature.terminates_guarantee,
-                where_facts: clause_signature.where_facts,
             },
         )?;
         refinement_clauses.push(TraitRefinementClause {

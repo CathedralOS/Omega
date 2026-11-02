@@ -1,6 +1,7 @@
 //! Exact const-binder substitution in the existing structural identity grammar.
 use super::IndexIdentityArgument;
 use crate::typed_trees::type_system::type_identity::constraint_identity::atom;
+use crate::typed_trees::type_system::type_identity::constraint_identity::bare;
 use crate::typed_trees::type_system::type_identity::constraint_identity::compound;
 use crate::typed_trees::type_system::type_identity::identity_context::TypeIdentityContext;
 use crate::typed_trees::type_system::type_identity::identity_context::normalize_const_or_nominal_name;
@@ -13,6 +14,7 @@ use crate::{
     types::{TypeReferenceHandle, TypeReferenceNode},
 };
 use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
+use language_semantics::type_identity::vocabulary::{ArrayLengthForm, IndexForm, Label};
 use symbols::SymbolHandle;
 
 pub(super) fn index_argument(
@@ -58,11 +60,11 @@ pub(super) fn index_argument(
                 return rejected(context);
             }
             compound(
-                "member",
+                IndexForm::Member,
                 [
                     normalize_index_expression(program, receiver, context),
-                    atom("member", program.symbols.name(field)),
-                    atom("case", program.symbols.name(case)),
+                    atom(Label::Member, program.symbols.name(field)),
+                    atom(Label::Case, program.symbols.name(case)),
                 ],
             )
         }
@@ -141,13 +143,13 @@ pub(super) fn index_argument(
                 return owner;
             };
             compound(
-                "static-application",
+                IndexForm::StaticApplication,
                 std::iter::once(owner)
                     .chain(application.lifetime_arguments.iter().map(|lifetime| {
                         if context.invalid_application.is_some() {
                             context.lifetime(program, lifetime.as_str())
                         } else {
-                            atom("lifetime", lifetime.as_str())
+                            atom(Label::Lifetime, lifetime.as_str())
                         }
                     }))
                     .chain(application.arguments.iter().map(|argument| {
@@ -211,7 +213,7 @@ fn static_callable_argument_identity(
     };
     let mut operands = vec![
         atom(
-            "const-name",
+            IndexForm::ConstName,
             &context.qualify_non_binder_name(
                 program,
                 machine.symbol,
@@ -219,14 +221,14 @@ fn static_callable_argument_identity(
             ),
         ),
         atom(
-            "const-name",
+            IndexForm::ConstName,
             &context.qualify_non_binder_name(
                 program,
                 state.symbol,
                 program.symbols.display_path(state.symbol, "::"),
             ),
         ),
-        atom("const-name", &overload),
+        atom(IndexForm::ConstName, &overload),
     ];
     if let Some(application) = &argument.application {
         operands.extend(
@@ -243,7 +245,7 @@ fn static_callable_argument_identity(
             )
         }));
     }
-    Some(compound("static-application", operands))
+    Some(compound(IndexForm::StaticApplication, operands))
 }
 
 pub(super) fn index_integer(
@@ -252,7 +254,7 @@ pub(super) fn index_integer(
 ) -> String {
     literal.value_bignum().map_or_else(
         || rejected(context),
-        |value| atom("integer", &value.to_string()),
+        |value| atom(IndexForm::Integer, &value.to_string()),
     )
 }
 
@@ -266,10 +268,10 @@ pub(super) fn index_name(
         return identity;
     }
     if let Some(value) = integer(program, symbol, spelling) {
-        return atom("integer", &value.to_string());
+        return atom(IndexForm::Integer, &value.to_string());
     }
     if let Some(value) = boolean(program, symbol, spelling) {
-        return atom("boolean", &value.to_string());
+        return atom(IndexForm::Boolean, &value.to_string());
     }
     if let Some(declaration) = program.const_declaration_by_symbol(symbol)
         && let Some(encoding) = declaration
@@ -283,17 +285,17 @@ pub(super) fn index_name(
         ) = CanonicalConstValue::new("", encoding, "").decode_encoding()
     {
         return compound(
-            "canonical-const",
+            IndexForm::CanonicalConst,
             [
                 atom(
-                    "type",
+                    Label::Type,
                     &program.normalized_type_identity_text(declaration.declared_type),
                 ),
-                atom("encoding", encoding),
+                atom(Label::Encoding, encoding),
             ],
         );
     }
-    normalize_const_or_nominal_name(program, symbol, spelling, "const-name", context)
+    normalize_const_or_nominal_name(program, symbol, spelling, IndexForm::ConstName, context)
 }
 
 fn selected(
@@ -421,13 +423,13 @@ pub(super) fn range_endpoint(
                         program,
                         *symbol,
                         name.as_str(),
-                        "const-name",
+                        IndexForm::ConstName,
                         &nested,
                     );
                     if end_inclusive {
                         identity
                     } else {
-                        compound("exclusive-end", [identity])
+                        compound(IndexForm::ExclusiveEnd, [identity])
                     }
                 }
             }
@@ -436,7 +438,7 @@ pub(super) fn range_endpoint(
                 if end_inclusive {
                     identity
                 } else {
-                    compound("exclusive-end", [identity])
+                    compound(IndexForm::ExclusiveEnd, [identity])
                 }
             }
         },
@@ -459,18 +461,20 @@ pub(super) fn array_length(
                 match integer(program, *symbol, name.as_str())
                     .and_then(|value| usize::try_from(value).ok())
                 {
-                    Some(value) => atom("literal", &value.to_string()),
+                    Some(value) => atom(ArrayLengthForm::Literal, &value.to_string()),
                     None => atom(
-                        "const-parameter",
+                        ArrayLengthForm::ConstParameter,
                         &nested.name(program, *symbol, name.as_str()),
                     ),
                 }
             }
             TypeReferenceNode::ConstExpression(expression) => {
                 match program.expression_table.expression(*expression) {
-                    ExpressionNode::Integer(value) => atom("literal", &value.to_string()),
+                    ExpressionNode::Integer(value) => {
+                        atom(ArrayLengthForm::Literal, &value.to_string())
+                    }
                     _ => compound(
-                        "const-expression",
+                        ArrayLengthForm::ConstExpression,
                         [normalize_index_expression(program, *expression, &nested)],
                     ),
                 }
@@ -490,7 +494,7 @@ pub(super) fn rejected(context: &TypeIdentityContext<'_>) -> String {
     if let Some(missing) = context.missing_exact_nominal_owner {
         missing.set(true);
     }
-    "unsupported-const-substitution".to_owned()
+    bare(IndexForm::UnsupportedConstSubstitution)
 }
 
 // A named evaluated Boolean and its literal denote the same exact index.

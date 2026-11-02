@@ -99,8 +99,10 @@ pub fn infer_operational_may_for_dependencies(
 ) -> OperationalPlan {
     let signature_effects = DirectSignatureEffects::of(program);
     let mut machines = build_machine_work(&signature_effects, program);
-    propagate_operational_may(program, &mut machines, dependencies, captured);
+    let selected_call_contexts =
+        propagate_operational_may(program, &mut machines, dependencies, captured);
     let mut plan = build_plan(program, machines);
+    plan.selected_call_contexts = selected_call_contexts;
     plan.cleanup_dependencies = dependencies.clone();
     plan.captured_selector_calls = captured.clone();
     plan
@@ -565,6 +567,10 @@ impl OperationalContexts {
         }
     }
 
+    fn is_unknown(&self, position: usize) -> bool {
+        self.entries[position].selectors.iter().all(Option::is_none)
+    }
+
     fn position_of_machine(&self, symbol: SymbolHandle) -> Option<usize> {
         self.machine_positions.get(&symbol).copied()
     }
@@ -643,6 +649,15 @@ fn selector_actual(
     (!implementations.is_empty()).then_some(implementations)
 }
 
+/// One call occurrence resolved inside a selector context: its envelope, and
+/// the exact target contexts that supply it.
+struct ResolvedCall {
+    envelope: DirectCallOperational,
+    /// The dispatch slot resolved to selected realizations.
+    selected_dispatch: bool,
+    targets: Vec<(SymbolHandle, usize)>,
+}
+
 #[allow(clippy::too_many_arguments)]
 fn call_envelope(
     program: &dyn CheckingInput,
@@ -654,6 +669,23 @@ fn call_envelope(
     state: SymbolHandle,
     call: &CallWork,
 ) -> DirectCallOperational {
+    resolve_call(
+        program, machines, captured, contexts, owner, selectors, state, call,
+    )
+    .envelope
+}
+
+#[allow(clippy::too_many_arguments)]
+fn resolve_call(
+    program: &dyn CheckingInput,
+    machines: &[MachineWork],
+    captured: &flow_effects::CapturedSelectorCalls,
+    contexts: &mut OperationalContexts,
+    owner: &MachineWork,
+    selectors: &[Option<Vec<SymbolHandle>>],
+    state: SymbolHandle,
+    call: &CallWork,
+) -> ResolvedCall {
     let mut records = captured.calls.iter().filter_map(|(_, record)| {
         (record.caller_state == state
             && record.statement_index == call.statement_index
@@ -666,6 +698,7 @@ fn call_envelope(
         may_suspend: call.direct_may_suspend,
         may_block: call.direct_may_block,
     };
+    let mut selected_dispatch = false;
     let (targets, offset) = if let Some(slot) =
         program.dynamic_slot_by_symbol(call.target_state_symbol)
     {
@@ -694,6 +727,7 @@ fn call_envelope(
         }) {
             Some(targets) => {
                 envelope = DirectCallOperational::default();
+                selected_dispatch = true;
                 (targets, 1)
             }
             None => (Vec::new(), 1),
@@ -701,6 +735,7 @@ fn call_envelope(
     } else {
         (vec![call.target_machine_symbol], 0)
     };
+    let mut resolved = Vec::with_capacity(targets.len());
     for target in targets {
         let Some(machine) = contexts.position_of_machine(target) else {
             continue;
@@ -716,11 +751,97 @@ fn call_envelope(
             // ordinary unknown context, with its unchanged declared ceiling.
             Vec::new()
         };
-        let target = contexts.intern(machine, arguments);
-        envelope.may_suspend |= contexts[target].summary.may_suspend;
-        envelope.may_block |= contexts[target].summary.may_block;
+        let context = contexts.intern(machine, arguments);
+        envelope.may_suspend |= contexts[context].summary.may_suspend;
+        envelope.may_block |= contexts[context].summary.may_block;
+        resolved.push((target, context));
     }
-    envelope
+    ResolvedCall {
+        envelope,
+        selected_dispatch,
+        targets: resolved,
+    }
+}
+
+/// Publish every reached selector context and the calls it resolves
+/// differently from the unknown-input call. Context positions become arena
+/// handles in the same order, so the leading contexts stay the machines'
+/// declaration contexts.
+fn export_selected_call_contexts(
+    program: &dyn CheckingInput,
+    machines: &[MachineWork],
+    captured: &flow_effects::CapturedSelectorCalls,
+    contexts: &mut OperationalContexts,
+) -> flow_effects::SelectedCallContexts {
+    let mut resolved = Vec::new();
+    let mut position = 0;
+    // Walk by index so a context interned while resolving is exported too.
+    while position < contexts.len() {
+        let owner = &machines[contexts[position].machine];
+        let selectors = contexts[position].selectors.clone();
+        let mut calls = Vec::new();
+        for state in &owner.states {
+            for call in &state.calls {
+                let resolution = resolve_call(
+                    program,
+                    machines,
+                    captured,
+                    contexts,
+                    owner,
+                    &selectors,
+                    state.symbol,
+                    call,
+                );
+                let known_target = resolution
+                    .targets
+                    .iter()
+                    .any(|(_, context)| !contexts.is_unknown(*context));
+                if resolution.selected_dispatch || known_target {
+                    calls.push((state.symbol, call, resolution));
+                }
+            }
+        }
+        resolved.push(calls);
+        position += 1;
+    }
+    let mut exported = flow_effects::SelectedCallContexts::default();
+    let handles = (0..contexts.len())
+        .map(|position| {
+            exported.contexts.append(flow_effects::SelectedCallContext {
+                machine: machines[contexts[position].machine].symbol,
+                unknown: contexts.is_unknown(position),
+                published: machines[contexts[position].machine].uses_published_contract,
+                calls: HandleSpan::empty(),
+            })
+        })
+        .collect::<Vec<_>>();
+    for (position, calls) in resolved.into_iter().enumerate() {
+        let mut span = HandleSpan::empty();
+        for (state, call, resolution) in calls {
+            let mut targets = HandleSpan::empty();
+            for (_, context) in resolution.targets {
+                exported.targets.append_to_span(
+                    &mut targets,
+                    flow_effects::SelectedContextTarget {
+                        context: handles[context],
+                    },
+                );
+            }
+            exported.calls.append_to_span(
+                &mut span,
+                flow_effects::SelectedContextCall {
+                    caller_state: state,
+                    statement_index: call.statement_index,
+                    call_ordinal: call.call_ordinal,
+                    target_state_symbol: call.target_state_symbol,
+                    selected_dispatch: resolution.selected_dispatch,
+                    targets,
+                },
+            );
+        }
+        exported.contexts.get_mut(handles[position]).calls = span;
+    }
+    exported
 }
 
 fn propagate_operational_may(
@@ -728,7 +849,7 @@ fn propagate_operational_may(
     machines: &mut [MachineWork],
     dependencies: &arena::Arena<flow_effects::CleanupDependency>,
     captured: &flow_effects::CapturedSelectorCalls,
-) {
+) -> flow_effects::SelectedCallContexts {
     let mut contexts = OperationalContexts::new(machines);
     let roots = (0..machines.len())
         .map(|machine| contexts.intern(machine, Vec::new()))
@@ -792,6 +913,8 @@ fn propagate_operational_may(
             break;
         }
     }
+    let selected_call_contexts =
+        export_selected_call_contexts(program, machines, captured, &mut contexts);
     let declaration_summaries = machines
         .iter()
         .enumerate()
@@ -850,6 +973,7 @@ fn propagate_operational_may(
             }
         }
     }
+    selected_call_contexts
 }
 
 fn retain_static_machine_bindings(

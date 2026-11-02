@@ -510,17 +510,10 @@ fn direct_storage_type(
     types: &StructuralTypeLookup<'_>,
     source: &StructuralArgument,
 ) -> Option<StructuralTypeId> {
-    if !source.path.iter().all(|segment| {
-        matches!(
-            segment,
-            StructuralPathSegment::Field(_)
-                | StructuralPathSegment::FixedIndex(_)
-                | StructuralPathSegment::RuntimeIndex { .. }
-                | StructuralPathSegment::RepresentationView { .. }
-        )
-    }) {
-        return None;
-    }
+    // Terminal's typed projection grammar owns storage geometry, including
+    // case-qualified payload fields. A second segment whitelist discarded
+    // admitted case paths before that query. Resolving their type supplies
+    // neither active-discriminator evidence nor new borrow authority.
     let (structural_type, access) =
         if let Some(parameter) = function.arrival_parameter(source.place) {
             (parameter.structural_type, parameter.access)
@@ -1414,6 +1407,47 @@ pub(super) fn relocate_leaves(
         live.references
             .insert((result_place, destination), descriptor);
     }
+}
+
+/// Establish the descriptor roster a boundary structural result returns. The
+/// opaque provider owns each referent storage region; the result place retains
+/// invocation provenance without pretending the pointee has caller storage.
+pub(super) fn boundary_result_references(
+    function: &AbstractFunction,
+    types: &StructuralTypeLookup<'_>,
+    result: &StructuralOperationResult,
+    live: &mut LiveDefinitions,
+) -> Result<(), LoweringError> {
+    if !contains_reference(types, result.structural_type) {
+        return Ok(());
+    }
+    let paths = leaf_paths(types, result.structural_type, 4096)
+        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+    for path in paths {
+        let carrier_type = leaf_type(types, result.structural_type, &path)
+            .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+        let referent = referent(types, carrier_type)
+            .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+        let leaf = ReferenceStorage {
+            root: ReferenceRoot::Alternatives(vec![
+                target_operations::TargetReferenceOrigin {
+                    base: target_operations::TargetReferenceOriginBase::Invocation {
+                        root: result.place,
+                        carrier_type: referent,
+                    },
+                    path: Vec::new(),
+                    extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
+                },
+            ]),
+            carrier_type,
+            referent,
+            placed: None,
+        };
+        if live.references.insert((result.place, path), leaf).is_some() {
+            return Err(LoweringError::unsupported_control_flow(function.machine));
+        }
+    }
+    Ok(())
 }
 
 /// Establish the declared result reference roster of a structural-result

@@ -329,6 +329,7 @@ mod authored_type_occurrence_tests {
             algebra_alias: None,
             commutativity_licensed: false,
             associativity_licensed: false,
+            distributes_over: Vec::new(),
         });
         let cast = program
             .expression_table

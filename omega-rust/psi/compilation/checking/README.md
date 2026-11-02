@@ -435,6 +435,14 @@ requires both operations' associativity/commutativity and a conformed
 distributivity law. Natural-coefficient polynomial expansion is bounded;
 failure to normalize or different normal forms are not refutations.
 
+Open index expressions read the same law shapes through
+`declared_index_algebra_laws`: each selected index operation records its
+trait's commutativity, associativity and left-distributivity evidence on
+`OpenIndexOperationSelection`, and type identity
+([open_index_identity.rs](../representations/typed-trees/src/typed_trees/type_system/type_identity/open_index_identity.rs))
+applies only the laws recorded. A law slot that states a `requires` premise
+licenses nothing there, since an index rewrite has none to discharge.
+
 Zero/one constructor bridging uses checked unfolding and citation, not an
 unlicensed identity rewrite. Broader polynomial/index normalization, additional
 Int/Rat structures, and additive/multiplicative group licenses need their own

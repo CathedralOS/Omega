@@ -28,7 +28,8 @@ pub(super) fn project(
             let source = projected.declaration;
             let row = projected.row;
             let parameters = compilation.trait_type_parameters(source);
-            let (mut binders, type_parameters) = signatures::parameters(
+            // The declared statics only, as in `project_public_traits`.
+            let (binders, type_parameters) = signatures::parameters(
                 &mut signatures,
                 parameters,
                 &row.identity.path,
@@ -36,7 +37,6 @@ pub(super) fn project(
                 0,
                 &source.lifetime_parameters,
             )?;
-            binders.insert(0, (source.symbol, "trait-self".to_owned()));
             let source_requirements = compilation.trait_machine_signatures(source);
             if source_requirements.len() != row.requirements.len() {
                 return Err(rejected(

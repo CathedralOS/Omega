@@ -34,7 +34,6 @@ use syntax::identifier::Identifier;
 use syntax::item::CapabilityContract;
 use syntax::item::CapabilityContractKind;
 use syntax::item::NativeCallbackParameterNode;
-use syntax::item::ProofFact;
 use syntax::item::StateParameterHandle;
 use syntax::item::TypeParameter;
 use syntax::operator_spelling::OperatorSpelling;
@@ -209,7 +208,7 @@ blocks: signature.blocks,
 contracts: signature.contracts,
 terminates_guarantee: // TPR4: the bodyless requirement's authored guarantee.
         signature.terminates_guarantee,
-where_facts: signature.where_facts },
+},
     )
 }
 
@@ -236,7 +235,6 @@ pub(crate) struct StateSignatureParts<'a> {
     pub(crate) blocks: bool,
     pub(crate) contracts: HandleSpan<CapabilityContract>,
     pub(crate) terminates_guarantee: bool,
-    pub(crate) where_facts: HandleSpan<ProofFact>,
 }
 
 pub(crate) fn lower_state_signature_parts(
@@ -264,7 +262,6 @@ pub(crate) fn lower_state_signature_parts(
         blocks,
         contracts,
         terminates_guarantee,
-        where_facts,
     } = inputs;
     let type_parameters =
         crate::lowering::data::lower_type_parameters(lowerer, syntax_trees, type_parameters)?;
@@ -281,7 +278,6 @@ pub(crate) fn lower_state_signature_parts(
     let service_reaches = lower_service_reach_names(syntax_trees, service_reaches);
     let invokes = lower_signature_invokes(lowerer, syntax_trees, invokes);
     let contracts = lower_signature_contracts(lowerer, syntax_trees, contracts)?;
-    let where_facts = lower_proof_facts(lowerer, syntax_trees, where_facts)?;
 
     Ok(LoweredStateSignature {
         signature: StateSignature {
@@ -312,7 +308,6 @@ pub(crate) fn lower_state_signature_parts(
                 blocks,
                 contracts,
                 terminates_guarantee,
-                where_facts,
             },
         },
         service_reach_keyword_source_spans: service_reach_keyword_source_spans.to_vec(),

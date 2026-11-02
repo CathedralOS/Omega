@@ -14,6 +14,7 @@ pub use invocations::{
 pub use operational::{
     CallOperational, CapturedSelectorArgument, CapturedSelectorCall, CapturedSelectorCalls,
     CapturedSelectorOrigin, CleanupDependency, MachineOperational, OperationalPlan,
+    SelectedCallContext, SelectedCallContexts, SelectedContextCall, SelectedContextTarget,
     StateOperational, StaticMachineCallBinding,
 };
 pub use service_reach::{

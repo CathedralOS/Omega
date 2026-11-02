@@ -189,7 +189,6 @@ impl CallableApplication {
                     .signature_contracts
                     .append_to_span(&mut applied.contracts, contract);
             }
-            applied.where_facts = self.facts(program, declared.where_facts)?;
             applied.invokes = HandleSpan::empty();
             for mut invocation in program.state_signature_invokes(declared).to_vec() {
                 invocation.target = match invocation.target {

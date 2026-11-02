@@ -1,7 +1,7 @@
 //! Execute source-authored project requests through the public Terminal SDK.
 
 use build_declarations::{BuildDependencySource, BuildRequest, DependencyPurpose};
-use build_evaluation::terminal_requests::TerminalBuildRequestHost;
+use build_evaluation::host::requests::TerminalBuildRequestHost;
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{
     TerminalExecutionResult, TerminalExecutionStatus, TerminalProgram, TerminalStructuralInputs,

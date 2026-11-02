@@ -1358,6 +1358,64 @@ class MainVerdicts(unittest.TestCase):
             self.assertEqual(shortened, corpus_gate.windows_safe_target_dir(deep_path))
 
 
+class SelectionBudget(unittest.TestCase):
+    """A selection past the budget is refused before the runner starts, unless
+    a user-started or scheduled sweep says so."""
+
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        self.golden = self.root / "golden.txt"
+        self.golden.write_text("", encoding="utf-8")
+        for index in range(5):
+            (self.root / "tests" / "omega" / "pass" / "calls" / f"case_{index}").mkdir(parents=True)
+        (self.root / "tests" / "omega" / "fail" / "calls" / "refused").mkdir(parents=True)
+        (self.root / "tests" / "omega" / "run" / "slices" / "window").mkdir(parents=True)
+
+    def run_gate(self, *extra, environment=None):
+        argv = ["corpus_gate", "--runner", "unused", "--golden", str(self.golden), *extra]
+        runner = patch.object(corpus_gate, "run_runner", return_value=[])
+        errors = io.StringIO()
+        with patch.object(corpus_gate, "ROOT", self.root), \
+             patch.object(corpus_gate, "SELECTION_BUDGET", 3), \
+             patch.object(corpus_gate, "measurement_stamp", return_value="aaaaaaaaaaaa"), \
+             patch.object(corpus_gate, "stamp_provenance_problem", return_value=None), \
+             patch.dict(corpus_gate.os.environ, environment or {}, clear=True), \
+             patch.object(sys, "argv", argv), runner as launched, \
+             contextlib.redirect_stderr(errors), contextlib.redirect_stdout(io.StringIO()):
+            code = corpus_gate.main()
+        return code, launched.called, errors.getvalue()
+
+    def test_counts_fixture_directories_by_fragment_and_shard(self):
+        with patch.object(corpus_gate, "ROOT", self.root):
+            self.assertEqual(corpus_gate.selection_size("", ""), 7)
+            self.assertEqual(corpus_gate.selection_size("calls/", ""), 6)
+            self.assertEqual(corpus_gate.selection_size("pass/calls/case_1, run/", ""), 2)
+            self.assertEqual(corpus_gate.selection_size("", "1/3"), 3)
+
+    def test_over_budget_selection_is_refused_before_the_runner(self):
+        code, launched, errors = self.run_gate("--filter", "calls/")
+        self.assertEqual(code, 2)
+        self.assertFalse(launched)
+        self.assertIn("runs 6 fixtures", errors)
+        self.assertIn("--sweep", errors)
+
+    def test_unfiltered_run_is_a_sweep(self):
+        code, launched, _ = self.run_gate()
+        self.assertEqual(code, 2)
+        self.assertFalse(launched)
+
+    def test_within_budget_selection_runs(self):
+        code, launched, _ = self.run_gate("--filter", "fail/calls/,run/slices/")
+        self.assertNotEqual(code, 2)
+        self.assertTrue(launched)
+
+    def test_sweep_flag_and_variable_admit_the_run(self):
+        self.assertTrue(self.run_gate("--sweep")[1])
+        self.assertTrue(self.run_gate(environment={"OMEGA_CORPUS_SWEEP": "1"})[1])
+
+
 class ReasonFreeRecord(unittest.TestCase):
     """A row can keep its key and lose the reason stored under it.
 

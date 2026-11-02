@@ -1,0 +1,8 @@
+// A one-sided u64 predicate includes values above i64::MAX. A shared
+// representation view cannot invent that signed ceiling.
+data Wide requires value >= 42u64, { value: u64; }
+data Narrow requires value >= 42u64 && value <= 9223372036854775807u64, { value: u64; }
+data Main { source: Wide; }
+machine Main::main(main: &Main) {
+    let view: &Narrow = &main.source as &Narrow;
+}

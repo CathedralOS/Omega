@@ -84,6 +84,14 @@ pub struct TerminalCallStorageRequirements<'handler> {
 /// Injected semantic effect sink used by the oracle and tests. Native provider
 /// selection and hardware realization remain outside the Psi interpreter.
 pub trait TerminalEffectHandler {
+    /// Resolve actual host storage for a checked live extent. Default handlers
+    /// have no dynamic storage supply; they never allocate from guest geometry.
+    fn resolve_provider_storage(
+        &mut self,
+        _request: &crate::TerminalProviderStorageRequest,
+    ) -> Result<Option<crate::TerminalProviderStorageSupply>, TerminalEffectRejection> {
+        Ok(None)
+    }
     /// Yield the executor while a synchronous host operation is being computed.
     /// This is not program suspension: no guest task runs, storage is not lent
     /// away, and no suspension evidence is created or consumed. As with a fuel

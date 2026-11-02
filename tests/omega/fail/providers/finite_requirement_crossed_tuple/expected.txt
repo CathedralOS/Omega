@@ -1,1 +1,1 @@
-static application of requirement `Service::echo` violates its declared where facts
+static application of requirement `Service::echo` violates its declared requires facts

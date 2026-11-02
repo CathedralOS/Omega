@@ -112,6 +112,29 @@ pub(super) fn validate<'a, 'p>(
         );
     }
     let owner = format!("machine `{}` state `{state_name}` assignment", machine.name);
+    if let Some(state) = current_state {
+        crate::value_custody::recasts::pending_views::report_whole_view_write(
+            program,
+            machine,
+            state,
+            scope.statement_index,
+            assignment.target,
+            diagnostics,
+        );
+        if let Some(expected) = assignment_target_type {
+            crate::value_custody::recasts::pending_views::report_consumption(
+                program,
+                machine,
+                state,
+                scope.statement_index,
+                assignment.value,
+                expected,
+                &owner,
+                diagnostics,
+            );
+        }
+    }
+
     // The sealed atomic event consumes its authored inputs at the cell's value
     // type. Its generated resident-update model is neither a source value nor
     // evidence that each input fits. Ordinary assignment has one delivered RHS;

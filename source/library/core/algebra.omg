@@ -1,4 +1,4 @@
-// The core algebraic-structure surface (rearrange settle 2026-07-18).
+// The core algebraic-structure surface.
 //
 // `CommutativeSemiring<T>` is the conformance a carrier's machines declare to
 // EARN the proof engine's ring canonicalization (rearrange-mode): op

@@ -753,8 +753,9 @@ impl TerminalExecution<'_> {
             }
             _ => (path.as_slice(), Vec::new()),
         };
-        let (parent, view) =
-            self.resolve_live_view_projection(destination, carrier_path, projection_access)?;
+        let projection =
+            self.resolve_live_storage_projection(destination, carrier_path, projection_access)?;
+        let (parent, view) = (projection.value, projection.view_tip);
         let declared_parent = match view {
             None => parent.structural_type,
             Some(AggregateViewTip::Aggregate { view, backing })
@@ -782,9 +783,11 @@ impl TerminalExecution<'_> {
                 &parent,
                 view,
                 &logical,
-                self.aggregate_argument_backings
-                    .get(&destination)
-                    .and_then(|backing| backing.collection_home.as_ref()),
+                projection.collection_home.as_ref().or_else(|| {
+                    self.aggregate_argument_backings
+                        .get(&destination)
+                        .and_then(|backing| backing.collection_home.as_ref())
+                }),
                 true,
             )?;
             self.store_primitive_storage(destination, storage, scalar_type, source)?;

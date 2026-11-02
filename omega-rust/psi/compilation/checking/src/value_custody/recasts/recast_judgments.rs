@@ -291,7 +291,8 @@ fn form_scalar_recast(
                 _ => direct_record_view_type_is_fact_free(program, cast.target_type),
             },
         };
-        if !fact_free {
+        if !fact_free && super::pending_views::pending_view(program, machine, state, cast).is_none()
+        {
             let reason = if target_primitive.is_some() {
                 format!(
                     "{context}: a {} recast {}; a raw byte region cannot establish the target's representation facts",
@@ -381,6 +382,15 @@ fn judge_scalar_recast_alternative(
         return;
     }
     if exact_scalar_representation_type(program, cast.target_type).is_none() {
+        if qualification_compatible.is_none()
+            && super::pending_views::pending_view(program, machine, state, cast).is_some()
+        {
+            // A target-shaped exclusive place is not a valid T yet. The same
+            // source inventory proves immediate field validity and complete
+            // initialized occupied backing. Consumption and whole-view writes
+            // retain independent establishment and source-handback checks.
+            return;
+        }
         // RUNG C2/C3: a recursively fixed RECORD or literal-length ARRAY
         // target. The same normalized representation supplies size/alignment
         // and scalar-leaf facts; this is the top-level-array continuation of

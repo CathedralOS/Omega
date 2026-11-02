@@ -3,10 +3,10 @@
 public boundary trait Service {
     machine echo<const Selected: bool>(value: i32) -> i32
     reaches
-    where Selected == true || Selected == false
+    requires Selected == true || Selected == false
     crashes Trap value < 0;
 }
-Provider satisfies Service { machine echo<const Selected: bool>(value: i32) -> i32 reaches where Selected == true || Selected == false crashes Trap value < 0 { echo_realization<Selected>(value) } }
+Provider satisfies Service { machine echo<const Selected: bool>(value: i32) -> i32 reaches requires Selected == true || Selected == false crashes Trap value < 0 { echo_realization<Selected>(value) } }
 machine echo_realization<const Selected: bool>(value: i32) -> i32 {
     transition Selected { true -> (18 as i32) _ -> (27 as i32) }
 }

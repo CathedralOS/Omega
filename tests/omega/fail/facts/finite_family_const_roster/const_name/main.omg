@@ -2,13 +2,13 @@
 // Expected exit: 0
 // Place: const_name.
 trait Family {
-    machine row<const Width: u32>() -> u32 where Width == 16 || Width == 32;
+    machine row<const Width: u32>() -> u32 requires Width == 16 || Width == 32;
 }
 Selected satisfies Family {
-    machine row<const Width: u32>() -> u32 where Width == 16 || Width == 32 { Width }
+    machine row<const Width: u32>() -> u32 requires Width == 16 || Width == 32 { Width }
 }
 Other satisfies Family {
-    machine row<const Width: u32>() -> u32 where Width == 16 || Width == 32 { Width }
+    machine row<const Width: u32>() -> u32 requires Width == 16 || Width == 32 { Width }
 }
 machine selected_width(selection: dyn Family) -> u32 { Family::row<64>(selection) }
 

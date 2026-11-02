@@ -1967,7 +1967,6 @@ pub fn visit_signature(
             visit_type_reference(program, retained, *argument);
         }
     }
-    visit_proof_facts(program, retained, signature.where_facts);
     for parameter in program
         .tables
         .state_parameters

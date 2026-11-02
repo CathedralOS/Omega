@@ -4,27 +4,27 @@
 boundary trait Parent {
     machine echo<const Count: u64>(value: i32) -> i32
     reaches
-    where Count == 4 || Count == 8;
+    requires Count == 4 || Count == 8;
     machine spare() -> i32 reaches;
 }
 boundary trait Child: Parent { machine choose() -> i32 reaches; }
 
 FirstMap satisfies Child {
-    machine echo<const Count: u64>(value: i32) -> i32 reaches where Count == 4 || Count == 8 { echo_realization<Count>(value) }
+    machine echo<const Count: u64>(value: i32) -> i32 reaches requires Count == 4 || Count == 8 { echo_realization<Count>(value) }
     machine spare() -> i32 { spare_realization() }
     machine choose() -> i32 { first() }
 }
 SecondMap satisfies Child {
-    machine echo<const Count: u64>(value: i32) -> i32 reaches where Count == 4 || Count == 8 { echo_realization<Count>(value) }
+    machine echo<const Count: u64>(value: i32) -> i32 reaches requires Count == 4 || Count == 8 { echo_realization<Count>(value) }
     machine spare() -> i32 { spare_realization() }
     machine choose() -> i32 { second() }
 }
 FirstParentMap satisfies Parent {
-    machine echo<const Count: u64>(value: i32) -> i32 reaches where Count == 4 || Count == 8 { echo_realization<Count>(value) }
+    machine echo<const Count: u64>(value: i32) -> i32 reaches requires Count == 4 || Count == 8 { echo_realization<Count>(value) }
     machine spare() -> i32 { spare_realization() }
 }
 SecondParentMap satisfies Parent {
-    machine echo<const Count: u64>(value: i32) -> i32 reaches where Count == 4 || Count == 8 { echo_realization<Count>(value) }
+    machine echo<const Count: u64>(value: i32) -> i32 reaches requires Count == 4 || Count == 8 { echo_realization<Count>(value) }
     machine spare() -> i32 { spare_realization() }
 }
 machine echo_realization<const Count: u64>(value: i32) -> i32 { value }
