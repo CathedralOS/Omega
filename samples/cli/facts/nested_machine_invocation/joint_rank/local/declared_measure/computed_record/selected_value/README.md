@@ -94,6 +94,14 @@ additional distinct-context refusal and runtime falsifiers have separate records
 under the workbench's ignored `build/advance-evidence/`. The corpus pins the nine
 places, their twins and controls as `facts/nested_machine_declared_selector_*`.
 
+The final optimized corpus runner has SHA-256
+`7af64a16697d558a123ac9efcb55f4e5a0bb2148bd2518ba3d27fba57e6f54c5`
+and was built from source checkpoint `b3e852cfac94dcbfcd0c1031057eda046e87cc50`.
+It records 11 positive native/Terminal exit-0 agreements and 13 intended
+rejections. Three existing joint-rank positive controls also return exit 0 in
+both engines, and their three rejection twins retain the expected diagnostics.
+Only the 24 new fixture rows are added to `tests/omega/corpus_outcomes.txt`.
+
 The parent retains whole-value snapshots through mutable borrowed inputs,
 repeated selector occurrences under distinct actual telescopes, other declared
 body forms, broader custody/resource acceptance, product-compiler parity and
