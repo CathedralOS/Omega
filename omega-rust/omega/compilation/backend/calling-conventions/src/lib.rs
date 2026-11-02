@@ -20,7 +20,6 @@ mod aggregate_layout;
 mod boundary_application;
 mod boundary_values;
 mod callback_materializations;
-mod fnv1a;
 mod host_operations;
 mod hosts;
 mod plans;

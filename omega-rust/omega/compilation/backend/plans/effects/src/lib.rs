@@ -13,7 +13,6 @@
 //! These are realization records, not the source language's effect analysis.
 
 pub mod external_providers;
-mod fnv1a;
 mod provider_evidence;
 pub mod provider_grants;
 

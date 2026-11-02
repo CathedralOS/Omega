@@ -8,7 +8,7 @@ pub struct Fnv1a(u64);
 impl Fnv1a {
     /// The offset basis a fresh digest starts from.
     pub const OFFSET_BASIS: u64 = 0xcbf29ce484222325;
-    const PRIME: u64 = 0x100000001b3;
+    pub const PRIME: u64 = 0x100000001b3;
 
     /// Start a digest at the FNV offset basis.
     pub const fn new() -> Self {
