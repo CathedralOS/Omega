@@ -31,6 +31,27 @@ transport, ARM64 argument and return placement, the complete byte assignment,
 activation storage and Mach-O execution. Every source and destination word is a
 runtime falsifier for an incorrect offset, truncated copy or changed canary.
 
-The match-join, const-name, nested-machine, other-machine and selected-target
-places remain open, together with other-host execution and the broader layout
-decoding and representation-family acceptance.
+The [match-join](match_join/main.omg), [const-name](const_name/main.omg),
+[nested-machine](other_state/main.omg), [other-machine](other_machine/main.omg)
+and [selected-target](target_body/main.omg) places carry the region's end
+coordinate, 6, into `&source[1..end] as &[u8; 40]`. A window is fixed geometry,
+so its endpoint must name one value: every arm of a runtime-subject match, a
+named constant, a nested machine's singleton `requires`, one machine's ensured
+result passed to another, and a Build-selected implementation's ensured result.
+Recast checking and place lowering read that endpoint through one
+`window_coordinate` routine, so a window admitted by checking is the window
+lowering places. The match-join program calls its copy with both subject values.
+The selected implementations return the end rather than take `&mut` storage,
+because exclusive-loan arguments behind a selected implementation remain open
+under **BUILD-OWNED-TARGET-SELECTION**.
+
+Each of these twins changes only the end from 6 to 5. Four reject for
+representation incompatibility; the match-join twin keeps one arm at 6, so the
+joined end no longer names one region and it rejects with `recast source window
+endpoint is not statically exact`. All five positives agree at native/Terminal
+exit 0 on Mac ARM64 with the producer built from `2669e12a2d9` plus this repair.
+
+All nine places now have positives and reject twins pinned under
+`tests/omega/{pass,fail}/facts/`. Other-host execution beyond the observations
+above, and the broader layout decoding and representation-family acceptance
+under **LIBRARY-REPRESENTATION-FAMILIES**, remain open.

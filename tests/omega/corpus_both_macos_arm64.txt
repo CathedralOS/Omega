@@ -393,8 +393,13 @@ pass/facts/fixed_layout_storage_through_other_state_exit built 3050ms exit:0 int
 pass/facts/fixed_layout_storage_through_parameter_exit built 3031ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @2ba727eefb59+wt
 pass/facts/fixed_layout_storage_through_target_body_exit built 3148ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @2ba727eefb59+wt
 pass/facts/fixed_region_byte_roundtrip_through_call_result_exit built 21492ms exit:0 interpreter-exit:0 interpreter:agrees @36cacd8d3083
+pass/facts/fixed_region_byte_roundtrip_through_const_name_exit built 9311ms exit:0 interpreter-exit:0 interpreter:agrees @2669e12a2d98+wt
 pass/facts/fixed_region_byte_roundtrip_through_field_exit built 20982ms exit:0 interpreter-exit:0 interpreter:agrees @36cacd8d3083
+pass/facts/fixed_region_byte_roundtrip_through_match_join_exit built 12411ms exit:0 interpreter-exit:0 interpreter:agrees @2669e12a2d98+wt
+pass/facts/fixed_region_byte_roundtrip_through_other_machine_exit built 12604ms exit:0 interpreter-exit:0 interpreter:agrees @2669e12a2d98+wt
+pass/facts/fixed_region_byte_roundtrip_through_other_state_exit built 9504ms exit:0 interpreter-exit:0 interpreter:agrees @2669e12a2d98+wt
 pass/facts/fixed_region_byte_roundtrip_through_parameter_exit built 20874ms exit:0 interpreter-exit:0 interpreter:agrees @36cacd8d3083
+pass/facts/fixed_region_byte_roundtrip_through_target_body_exit built 12607ms exit:0 interpreter-exit:0 interpreter:agrees @2669e12a2d98+wt
 pass/facts/float_result_equality_through_call_result_exit built 4440ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/float_result_equality_through_const_name_exit built 4430ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/float_result_equality_through_field_exit built 4887ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
