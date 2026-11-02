@@ -507,7 +507,33 @@ pub(super) fn assignment_storage_origins(
             &evidence.stored,
         )
     }
-    .ok_or("destination projection has no complete captured reference origins")?;
+    .ok_or_else(|| {
+        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+            let describe = |origin: &FramePlaceOrigin| (
+                origin.source.root,
+                origin.source.segments.iter().take(16).copied().collect::<Vec<_>>(),
+                origin.source.output_identity(),
+                origin.source.is_static(),
+                origin.precision,
+            );
+            eprintln!("CHECKSITE assignment-origin-refusal receiving={:?} reference_cell={} raw={:?} aliases={:?} stored={:?}",
+                program.type_reference_table.type_reference(receiving),
+                crate::reference_shell(program, receiving).is_some(),
+                super::frame_place_path(program, assignment.target).as_ref().map(&describe),
+                evidence.aliases.iter().take(8).map(|(name, origin)| (name, describe(origin))).collect::<Vec<_>>(),
+                evidence.stored.iter().take(8).map(|local| (
+                    local.local_symbol,
+                    local.references.iter().take(12).map(|leaf| (
+                        leaf.kind,
+                        leaf.local_segments.iter().take(16).copied().collect::<Vec<_>>(),
+                        leaf.origin.as_ref().map(&describe),
+                        leaf.lifetime_dependencies.as_ref().map(|dependencies| dependencies.iter().take(8).map(|source| (source.lifetime_access, describe(&source.origin))).collect::<Vec<_>>()),
+                    )).collect::<Vec<_>>(),
+                )).collect::<Vec<_>>(),
+            );
+        }
+        "destination projection has no complete captured reference origins"
+    })?;
     // The initializer owner completed every selected load against this entry
     // inventory. These are captured addresses, not slots to read a second time.
     let mut destinations = Vec::new();
