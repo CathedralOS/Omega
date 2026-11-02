@@ -1,4 +1,4 @@
-//! Default-domain restoration observes the contents after a completed store.
+//! Declaration predicates observe the exact contents at a completed prefix.
 //!
 //! The ordinary prefix observer owns operand order, call guarantees and storage
 //! revisions. Bind the declaration's fields to those current captured values,
@@ -18,7 +18,7 @@ use typed_trees::signature::StateParameter;
 use typed_trees::types::TypeReferenceHandle;
 use typed_trees::{machine::Machine, state::State};
 
-pub(crate) fn stored_data_predicate_holds(
+pub(crate) fn captured_data_predicate_holds(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
@@ -39,13 +39,10 @@ pub(crate) fn stored_data_predicate_holds(
     {
         return false;
     }
-    let Some(next_statement) = statement_index.checked_add(1) else {
-        return false;
-    };
-    let mut visitor = StoredPredicate {
+    let mut visitor = CapturedPredicate {
         site: StructuralPrefixSite {
             state: state.symbol,
-            statement_index: next_statement,
+            statement_index,
             in_transition_target: false,
         },
         place: place.clone(),
@@ -61,7 +58,7 @@ pub(crate) fn stored_data_predicate_holds(
     }
     // The declaration-only entry may not know a private invocation's exact
     // incoming guard. Reuse the same closed-arrival owner as call requirements
-    // and completed operands; every actual arrival owes this post-store fact.
+    // and completed operands; every actual arrival owes this captured-prefix fact.
     visitor.observed = false;
     visitor.proven = true;
     super::structural_prefix::observe_private_arrivals(program, machine, &mut visitor, false)
@@ -70,7 +67,7 @@ pub(crate) fn stored_data_predicate_holds(
 }
 
 #[derive(Clone)]
-struct StoredPredicate<'definition> {
+struct CapturedPredicate<'definition> {
     site: StructuralPrefixSite,
     place: crate::CanonicalPlace,
     application: TypeReferenceHandle,
@@ -80,7 +77,7 @@ struct StoredPredicate<'definition> {
     proven: bool,
 }
 
-impl StructuralPrefixVisitor for StoredPredicate<'_> {
+impl StructuralPrefixVisitor for CapturedPredicate<'_> {
     fn has_positive_proof(&self) -> bool {
         self.observed && self.proven
     }
@@ -177,7 +174,7 @@ impl StructuralPrefixVisitor for StoredPredicate<'_> {
         );
         if super::struct_trace() {
             eprintln!(
-                "STRUCT stored-predicate data={} predicate={} parameters={parameters:?} bindings={bindings:?} judgment={judgment:?}",
+                "STRUCT captured-predicate data={} predicate={} parameters={parameters:?} bindings={bindings:?} judgment={judgment:?}",
                 self.definition.name,
                 program.expression_table.display_name(self.predicate),
             );

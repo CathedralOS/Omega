@@ -15,9 +15,13 @@ Each public `inspect` receives `pair: &mut Pair` and forms its own
 `let view: &mut u32 = &mut pair.start as &mut u32`. It first stores
 `0xFFFFFFFFu32` (signed -1), then the transported restoration scalar.
 `pair.end = 10` independently supplies the upper-bound witness before handback;
-there is no direct restoring store to `pair.start`. Helpers carry only scalars,
-finish before the window opens, and promise ordinary `ensures result == value`.
-No helper receives a raw view with the parent origin erased.
+there is no direct restoring store to `pair.start`. Restoration-value helpers finish before the window opens and promise ordinary
+`ensures result == value`.
+Each place now also forwards the already formed reference through
+`retain_view<'storage>`, which returns it unchanged before the corrupting store.
+The helper's plain `u32` formal does not promise the signed parent's predicate.
+Its complete noninterfering frame preserves the caller's exact current facts;
+the returned reference must retain the source origin for the later stores.
 
 `main` starts two valid parents at start 3 and 5, end 10, then checks restored
 start 0/end 10, both neighboring hex canaries, markers and origin
@@ -110,7 +114,40 @@ receipts, raw observations, and independent review.
 Other-host native execution, broader scalar-range migration and GUI qualification
 remain open under the owning task.
 
-This row transports the restoring scalar into a locally formed view. It proves
-the bounded scalar-store restoration requirement, not general provenance and
-handback transport of a formed view through stored or returned references.
-That broader recast acceptance remains open with the parent task.
+The strengthened row transports the same restoring scalar into a formed view
+that returns through an ordinary nonmutating invocation. The
+[forwarding-marker composition](controls/forwarding_marker/main.omg) also writes
+19 to a disjoint marker during that invocation; its twin changes only the
+restoration scalar. The [dirty-forward control](controls/dirty_forward/main.omg)
+opens the parent window before borrowing/calling: an empty frame cannot
+establish a predicate that is already false.
+
+On fixed base `446a86f964ce9c6f9a19317aa08e454ae7b4bd01`, optimized CLI SHA-256
+`e8a618c30e2beb09604ee7663e27bffb343c3782f56931e7f772560160707c4e`
+wrongly refuses all nine strengthened positives at `retain_view`'s call. All
+nine twins also report that unrelated handback refusal alongside the intended
+parent debt. The marker composition wrongly refuses too; stored-view Source
+contrasts already distinguish valid restoration from its invalid twin.
+
+The repair shares the declaration-owned predicate read set between field
+independence and mutation-frame consumers. It proves the complete current
+predicate at the pre-statement prefix only when the complete invocation frame
+preserves its inline scalar dependencies. Borrowed/recursive read footprints
+remain unproved without their own backing inventory; unknown frames supply no
+preservation. Changed storage still owes checked normal-return evidence.
+Post-store checks use that same captured-predicate operation at the completed
+store prefix. A scalar interval envelope cannot substitute for a coupled data
+predicate.
+
+Optimized CLI SHA-256
+`d116c7f72037033678dfcad7e12441a2823a0294d55b94196964587ee57e3718`
+(base plus compiler patch retained in the PR evidence) executes all nine new
+canonical positives with native/Terminal exits 0/0; all nine twins now reject
+only the intended unclosed parent domain. These observations retain their
+actual producer identity. The focused final-source corpus and independent
+review are recorded separately in the owning PR.
+
+General changed-source representation guarantees, common-field case-predicate
+rosters, recursive/read-through-reference dependencies, other formed-view
+productions and other-host execution remain open with the parent task.
+GUI qualification remains pending.

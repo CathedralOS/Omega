@@ -203,6 +203,9 @@ retired-syntax deletions to completion.
     intermediate payload write and exact restoration across all nine places in
     `samples/cli/facts/case_dependent_default_domain` (`macos_arm64` native/Terminal
     exit 0); missing-ceiling and stale-snapshot controls still reject.
+    Noninterfering scalar-loan calls now preserve the current mixed predicate
+    through returned recast views in `recast_parent_restoration`'s nine places;
+    its native/Terminal exit-0 and invalid-restoration controls are retained.
     Carry those facts through reads, calls, state joins,
     [mutable recasts](omega-rust/psi/compilation/checking/recasts.md), and
     returns, preserving the audited inventories in

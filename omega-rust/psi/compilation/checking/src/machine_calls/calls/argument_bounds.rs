@@ -241,6 +241,8 @@ pub(super) fn report_referent_handbacks(
         report_referent_handback(
             program,
             machine,
+            state,
+            prior_statements.len(),
             &place,
             returned,
             target_name,
@@ -259,6 +261,8 @@ pub(super) fn report_referent_handbacks(
 fn report_referent_handback(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
+    state: &State,
+    statement_index: usize,
     place: &crate::value_custody::places::CanonicalPlace,
     returned: Option<Interval>,
     target_name: &str,
@@ -287,72 +291,36 @@ fn report_referent_handback(
     if independent && !has_declared_range {
         return;
     }
-    let where_interval =
-        crate::proof_contracts::default_domains::data_where_field_intervals(program, definition)
-            .and_then(|mut bounds| {
-                if let Some(variant) = program.data_members(definition).iter().find_map(|member| {
-                    let typed_trees::data::DataMember::Variant(variant) = member else {
-                        return None;
-                    };
-                    program
-                        .data_payload_fields(variant)
-                        .iter()
-                        .any(|payload| payload.symbol == field_symbol)
-                        .then_some(variant)
-                }) {
-                    bounds.extend(
-                        crate::proof_contracts::default_domains::case_where_field_intervals(
-                            program, variant,
-                        )?,
-                    );
-                }
-                bounds
-                    .into_iter()
-                    .filter(|(symbol, _, _)| *symbol == field_symbol)
-                    .map(|(_, low, high)| Interval { low, high })
-                    .reduce(Interval::intersect)
-            });
-    let required = if has_declared_range && declared.is_none() {
-        None
-    } else if independent {
-        declared
-    } else {
-        where_interval
-            .map(|interval| declared.map_or(interval, |declared| interval.intersect(declared)))
-    };
-    let independent_preserved = required.zip(returned).is_some_and(|(required, returned)| {
-        required
-            .low
-            .is_none_or(|minimum| returned.low.is_some_and(|value| value >= minimum))
-            && required
-                .high
-                .is_none_or(|maximum| returned.high.is_some_and(|value| value <= maximum))
-    });
-    let preserved = independent_preserved
-        || (!independent
-            && (!has_declared_range
-                || declared.zip(returned).is_some_and(|(required, returned)| {
-                    required
-                        .low
-                        .is_none_or(|minimum| returned.low.is_some_and(|value| value >= minimum))
-                        && required.high.is_none_or(|maximum| {
-                            returned.high.is_some_and(|value| value <= maximum)
-                        })
-                }))
-            && written.is_some_and(|written| {
-                let mut parent = place.clone();
-                parent.segments.pop();
-                arithmetic_domains::referent_predicates_preserved(
-                    program,
-                    machine,
-                    definition,
-                    &parent,
-                    field_symbol,
-                    guarantees,
-                    environment,
-                    written,
-                )
-            }));
+    // Legacy range shells remain store-enforced until their source migration.
+    // Ordinary data predicates owe their complete conjunction independently;
+    // a scalar envelope is only a necessary consequence of a coupled predicate.
+    let range_preserved = !has_declared_range
+        || declared.zip(returned).is_some_and(|(required, returned)| {
+            required
+                .low
+                .is_none_or(|minimum| returned.low.is_some_and(|value| value >= minimum))
+                && required
+                    .high
+                    .is_none_or(|maximum| returned.high.is_some_and(|value| value <= maximum))
+        });
+    let predicate_preserved = independent
+        || written.is_some_and(|written| {
+            let mut parent = place.clone();
+            parent.segments.pop();
+            arithmetic_domains::referent_predicates_preserved(
+                program,
+                machine,
+                state,
+                statement_index,
+                definition,
+                &parent,
+                field_symbol,
+                guarantees,
+                environment,
+                written,
+            )
+        });
+    let preserved = range_preserved && predicate_preserved;
     if !preserved {
         diagnostics.push(Diagnostic::error(format!(
             "machine `{}` cannot lend restricted field `{}` to `{target_name}`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate",
