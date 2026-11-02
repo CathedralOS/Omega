@@ -41,6 +41,7 @@ mod normalized_foreign_call;
 mod scalar_call;
 mod selected_forms;
 pub(crate) mod system_call;
+pub(crate) mod table_call;
 #[cfg(test)]
 mod tests;
 
@@ -74,6 +75,9 @@ pub use scalar_call::{
     Aarch64ScalarCallFixup, Aarch64ScalarCallFixupKind, Aarch64ScalarCallFixupState,
     Aarch64ScalarCallTemplateError, encode_aarch64_selected_dynamic_call_template,
     encode_aarch64_selected_scalar_call_template, validate_aarch64_selected_scalar_call_template,
+};
+pub use table_call::{
+    encode_aarch64_selected_table_call_form, validate_aarch64_selected_table_call_form,
 };
 
 pub use selected_forms::{

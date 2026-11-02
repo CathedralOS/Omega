@@ -129,14 +129,10 @@ impl CallingAbiStorageDemand {
         ) {
             return Err("borrowed storage demand requires a readable formal".into());
         }
-        let declarations = module
-            .structural_types
-            .iter()
-            .map(|row| (row.id, row))
-            .collect();
-        let dependencies = terminal_semantics::inline_storage_extent_dependencies(
+        let dependencies = terminal_semantics::foreign_storage_extent_dependencies(
+            module,
             [parameter.structural_type],
-            &declarations,
+            &self.target,
         )?;
         self.scope.applications.extend(dependencies);
         self.scope.applications.sort_unstable();
