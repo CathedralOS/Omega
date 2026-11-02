@@ -94,9 +94,9 @@ The specification and consuming layers are covered as follows:
   obligation; the equivalent valid bound is 9. A cyclic target-constant graph rejects without provisional
   values. Same-product native `code_layout` remains forbidden. Existing
   declared-operator and unselected-provider controls remain rejecting.
-- **Psi 05–07:** the same authored programs reach canonical Terminal Psi and
-  execute their result/trap branch. Retained historical API evidence roundtripped
-  canonical bytes and checked closure admission; it is not a new-source run.
+- **Psi 06–08:** the same authored programs reach canonical Terminal Psi and
+  execute their result/trap branch. The API example independently roundtrips
+  canonical bytes and checks historical closure admission.
 - **Omega 00–02:** historical plans retain exact provider and target provenance;
   actual checked query subjects use the selected layout authority. Ordinary
   scalar call/state placement carries the transported value.
@@ -106,6 +106,9 @@ The specification and consuming layers are covered as follows:
 - **Omega 07–09 and emission:** the emitted native image executes with exit 0 and agrees
   with Terminal. Retained run evidence includes the actual image, canonical
   Terminal artifact and engine streams; no compile-only result is counted.
+
+The API example cited in the layer record is historical; its earlier canonical
+roundtrip is not a current-source run.
 
 Canonical authority is [semantic evaluation](../../../../wiki/spec/language/evaluation.md#target-dependent-applications),
 [constant evaluation](../../../../wiki/spec/language/constants.md#evaluation),
@@ -126,14 +129,22 @@ layout proof or execution authority. Those remain tied to checked source and
 target closure. Changing a dependency changes public identity even when the
 current scalar answers happen to coincide.
 
-Migration validation is in progress: optimized producer `8316f371bf8` observed
-17 authored positive native/Terminal agreements and 20 intended Source refusals,
-plus six existing return-bound preservation controls identical to the retained
-baseline. The existing `public_alias` positive exposed the review representation
-gap above; its repaired normal preparation/execution and final scoped pin records
-remain required before this migration is complete. These are Mac ARM64
-observations with the producer's matching SDK, distinct from the historical
-Linux qualification.
+The migration is qualified with optimized producer `d6c89b306726`: all 38 authored
+projects have the intended outcome, comprising 18 positive native/Terminal exit-0
+agreements and 20 Source refusals. The unchanged `public_alias` now passes normal
+package preparation, checking and both engines. All 36 scoped Source pins
+(17 positive, 19 negative) and 17 native/Terminal pin pairs pass. Six existing
+return-bound preservation controls have exactly the same status, facts and
+diagnostics as the retained baseline. A positive Terminal counterfactual exits 0;
+five sole mutations trap, distinguishing both match routes, observed geometry,
+subtraction geometry and the selected provider's result. All four hosted profiles
+pass explicit Source preparation/checking. Five metadata codec/identity tests and
+one actual checked-custody mutation test also pass.
+
+These fresh runtime observations are Mac ARM64 only, using that producer's
+matching SDK. Four-target Source acceptance is not foreign-host execution. Older
+partial `8316f371bf8` observations and the historical Linux qualification retain
+their own producer identities.
 
 The broader capability remains open. Late aggregate/qualified constants,
 provider-free observation receipts, arithmetic layout predicates in ordinary

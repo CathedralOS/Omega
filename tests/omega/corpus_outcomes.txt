@@ -42,6 +42,8 @@ fail/cases/constructor_subject_range_unproved rejected 619ms expected @03bcba3fe
 	data `ByteRead` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/cases/constructor_subject_range_unsigned_to_signed_unproved rejected 1007ms expected @95750e8d2f8d
 	Exact integer cast in machine `make` state `entry` from `u64` to `i64` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/constants/target_layout_derived_ground_guarantee_reject rejected 1261ms expected @d6c89b306726
+	cannot prove ensures contract for exit from incorrect at statement 1: result >= 5
 fail/contracts/assignment_destination_cannot_use_rhs_call_guarantee rejected 1464ms expected @d2f3e99f1e08
 	cannot prove index `index` is within length 1 in exercise::entry
 fail/contracts/assignment_destination_cannot_use_rhs_match_guard rejected 1464ms expected @d2f3e99f1e08
@@ -3160,13 +3162,14 @@ pass/constants/qualified_variant_constant checked 2287ms @ccdb99ca2214
 pass/constants/runtime_predicate_constant_materialization_exit checked 3894ms check-target:macos_arm64 @ccdb99ca2214
 pass/constants/runtime_scoped_const_exit checked 17451ms check-target:macos_arm64 @ccdb99ca2214
 pass/constants/static_namespace_constant checked 3765ms @ccdb99ca2214
-pass/constants/target_layout_derived_alignment_exit checked 3634ms check-target:macos_arm64 @ccdb99ca2214
-pass/constants/target_layout_derived_helper_alias_exit checked 4598ms check-target:macos_arm64 @ccdb99ca2214
-pass/constants/target_layout_derived_helper_exit checked 4212ms check-target:macos_arm64 @ccdb99ca2214
-pass/constants/target_layout_derived_helper_generic_exit checked 4260ms check-target:macos_arm64 @ccdb99ca2214
-pass/constants/target_layout_derived_public_alias_exit checked 3428ms check-target:macos_arm64 @ccdb99ca2214
-pass/constants/target_layout_derived_shadow_exit checked 3880ms check-target:macos_arm64 @ccdb99ca2214
-pass/constants/target_layout_derived_skipped_crashing_helper_exit checked 3619ms check-target:macos_arm64 @ccdb99ca2214
+pass/constants/target_layout_derived_alignment_exit checked 2565ms check-target:macos_arm64 @d6c89b306726
+pass/constants/target_layout_derived_ground_guarantee_exit checked 2206ms check-target:macos_arm64 @d6c89b306726
+pass/constants/target_layout_derived_helper_alias_exit checked 2527ms check-target:macos_arm64 @d6c89b306726
+pass/constants/target_layout_derived_helper_exit checked 2530ms check-target:macos_arm64 @d6c89b306726
+pass/constants/target_layout_derived_helper_generic_exit checked 2667ms check-target:macos_arm64 @d6c89b306726
+pass/constants/target_layout_derived_public_alias_exit checked 2495ms check-target:macos_arm64 @d6c89b306726
+pass/constants/target_layout_derived_shadow_exit checked 2317ms check-target:macos_arm64 @d6c89b306726
+pass/constants/target_layout_derived_skipped_crashing_helper_exit checked 2484ms check-target:macos_arm64 @d6c89b306726
 pass/constraints/anonymous_integer_return_landing checked 2147ms @ccdb99ca2214
 pass/constraints/contract_range_membership_unimplemented checked 2376ms @ccdb99ca2214
 pass/constraints/guarded_parameter_result_contract checked 2323ms @ccdb99ca2214
@@ -9540,16 +9543,15 @@ pass/facts/target_family_open_const/other_machine checked 1110ms check-target:ma
 pass/facts/target_family_open_const/other_state checked 1058ms check-target:macos_arm64 @101f66e2f97e
 pass/facts/target_family_open_const/parameter checked 1151ms check-target:macos_arm64 @101f66e2f97e
 pass/facts/target_family_open_const/target_body checked 1398ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @101f66e2f97e
-pass/facts/target_layout_derived_constant_through_call_result_exit checked 3942ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_layout_derived_constant_through_const_name_exit checked 4710ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_layout_derived_constant_through_field_exit checked 3863ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_layout_derived_constant_through_local_exit checked 3955ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_layout_derived_constant_through_match_join_exit checked 4172ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_layout_derived_constant_through_other_machine_exit checked 3964ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_layout_derived_constant_through_other_state_exit rejected 1558ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	exact arithmetic in machine `verify` state `entry` local `slack` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-pass/facts/target_layout_derived_constant_through_parameter_exit checked 3934ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_layout_derived_constant_through_target_body_exit checked 4434ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/target_layout_derived_constant_through_call_result_exit checked 2478ms check-target:macos_arm64 @d6c89b306726
+pass/facts/target_layout_derived_constant_through_const_name_exit checked 2496ms check-target:macos_arm64 @d6c89b306726
+pass/facts/target_layout_derived_constant_through_field_exit checked 2485ms check-target:macos_arm64 @d6c89b306726
+pass/facts/target_layout_derived_constant_through_local_exit checked 2609ms check-target:macos_arm64 @d6c89b306726
+pass/facts/target_layout_derived_constant_through_match_join_exit checked 2603ms check-target:macos_arm64 @d6c89b306726
+pass/facts/target_layout_derived_constant_through_other_machine_exit checked 2673ms check-target:macos_arm64 @d6c89b306726
+pass/facts/target_layout_derived_constant_through_other_state_exit checked 2521ms check-target:macos_arm64 @d6c89b306726
+pass/facts/target_layout_derived_constant_through_parameter_exit checked 2512ms check-target:macos_arm64 @d6c89b306726
+pass/facts/target_layout_derived_constant_through_target_body_exit checked 2502ms check-target:macos_arm64 @d6c89b306726
 pass/facts/target_recursive_bound_through_call_result_exit checked 2615ms check-target:macos_arm64 @5dc7fa33c4de
 pass/facts/target_recursive_bound_through_const_name_exit checked 2615ms check-target:macos_arm64 @5dc7fa33c4de
 pass/facts/target_recursive_bound_through_field_exit checked 2541ms check-target:macos_arm64 @5dc7fa33c4de
@@ -16157,23 +16159,23 @@ fail/constants/predicate_constant_generic_static_index_fence rejected 106ms unex
 fail/constants/predicate_constant_nested_projection_shadow rejected 97ms expected @ccdb99ca2214
 	data `Packet` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/constants/predicate_constant_static_index_fence checked 2317ms @ccdb99ca2214
-fail/constants/target_layout_derived_crashing_helper_reject rejected 3322ms expected @ccdb99ca2214
-	constant checking: scalar evaluation did not return a normal scalar: Crashed(TerminalCrash { site: Edge(EdgeId(24)), cause: Trap, site_guard: [], frontier_lower_bound: [] })
-fail/constants/target_layout_derived_demanded_crashing_helper_reject rejected 3815ms expected @ccdb99ca2214
-	constant checking: scalar evaluation did not return a normal scalar: Crashed(TerminalCrash { site: Edge(EdgeId(28)), cause: Trap, site_guard: [], frontier_lower_bound: [] })
-fail/constants/target_layout_derived_dependency_cycle_reject rejected 473ms expected @ccdb99ca2214
+fail/constants/target_layout_derived_crashing_helper_reject rejected 2098ms expected @d6c89b306726
+	constant checking: scalar evaluation did not return a normal scalar: Crashed(TerminalCrash { site: Edge(EdgeId(119)), cause: Trap, site_guard: [], frontier_lower_bound: [] })
+fail/constants/target_layout_derived_demanded_crashing_helper_reject rejected 2083ms expected @d6c89b306726
+	constant checking: scalar evaluation did not return a normal scalar: Crashed(TerminalCrash { site: Edge(EdgeId(129)), cause: Trap, site_guard: [], frontier_lower_bound: [] })
+fail/constants/target_layout_derived_dependency_cycle_reject rejected 143ms expected @d6c89b306726
 	constant initializer: target constant dependency cycle or unavailable canonical input
-fail/constants/target_layout_derived_helper_alias_underflow_reject rejected 3745ms unexpected @ccdb99ca2214
+fail/constants/target_layout_derived_helper_alias_underflow_reject rejected 2099ms expected @d6c89b306726
 	constant checking: scalar range condition 1: bounds [-1, -1] lie outside [0, 18446744073709551615]
-fail/constants/target_layout_derived_helper_generic_underflow_reject rejected 4192ms unexpected @ccdb99ca2214
+fail/constants/target_layout_derived_helper_generic_underflow_reject rejected 2157ms expected @d6c89b306726
 	constant checking: scalar range condition 1: bounds [-1, -1] lie outside [0, 18446744073709551615]
-fail/constants/target_layout_derived_intermediate_overflow_reject rejected 4364ms unexpected @ccdb99ca2214
-	constant checking: scalar evaluation execution: Execution(ExecutionSite { machine: MachineId(5), block: BlockId(9), operation: Some(OperationId(7)), cause: VerifiedOperationMalformed })
-fail/constants/target_layout_derived_late_native_reject rejected 346ms expected @ccdb99ca2214
+fail/constants/target_layout_derived_intermediate_overflow_reject rejected 2084ms expected @d6c89b306726
+	constant checking: scalar range condition 0: bounds [18446744073709551619, 18446744073709551619] lie outside [0, 18446744073709551615]
+fail/constants/target_layout_derived_late_native_reject rejected 146ms expected @d6c89b306726
 	late native code-layout metadata is unavailable to same-product semantic constant, type, layout, or optimization evaluation
-fail/constants/target_layout_derived_qualified_reject rejected 3454ms unexpected @ccdb99ca2214
+fail/constants/target_layout_derived_qualified_reject rejected 1442ms expected @d6c89b306726
 	cannot prove requires contract for call bounded_layout from @constant-BAD: size_of() + 1 <= 3 (needs fact `value <= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `@constant-BAD`
-fail/constants/target_layout_derived_unused_wrong_carrier_reject rejected 1929ms expected @ccdb99ca2214
+fail/constants/target_layout_derived_unused_wrong_carrier_reject rejected 570ms expected @d6c89b306726
 	store in machine `@constant-BAD` state `@constant-BAD` return value implicitly converts `u64` to `u8`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u8`)
 fail/constants/unused_case_predicate_constant rejected 388ms expected @a91a8de86514+wt
 	data `Choice` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
@@ -28929,24 +28931,24 @@ fail/facts/target_family_open_const/parameter rejected 481ms expected @101f66e2f
 	machine `main` state `entry` value call to `forward` violates required fact `value <= Maximum`: the instantiated fact is structurally false (`42 <= 40`)
 fail/facts/target_family_open_const/target_body rejected 481ms expected @101f66e2f97e
 	machine `main` state `entry` value call to `forward` violates required fact `value <= Maximum`: the instantiated fact is structurally false (`42 <= 40`)
-fail/facts/target_layout_derived_constant_through_call_result_reject rejected 3950ms unexpected @ccdb99ca2214
+fail/facts/target_layout_derived_constant_through_call_result_reject rejected 2083ms expected @d6c89b306726
 	constant checking: scalar range condition 1: bounds [-1, -1] lie outside [0, 18446744073709551615]
-fail/facts/target_layout_derived_constant_through_const_name_reject rejected 4151ms unexpected @ccdb99ca2214
+fail/facts/target_layout_derived_constant_through_const_name_reject rejected 2073ms expected @d6c89b306726
 	constant checking: scalar range condition 1: bounds [-1, -1] lie outside [0, 18446744073709551615]
-fail/facts/target_layout_derived_constant_through_field_reject rejected 3882ms unexpected @ccdb99ca2214
+fail/facts/target_layout_derived_constant_through_field_reject rejected 2083ms expected @d6c89b306726
 	constant checking: scalar range condition 1: bounds [-1, -1] lie outside [0, 18446744073709551615]
-fail/facts/target_layout_derived_constant_through_local_reject rejected 3117ms unexpected @ccdb99ca2214
+fail/facts/target_layout_derived_constant_through_local_reject rejected 2156ms expected @d6c89b306726
 	constant checking: scalar range condition 1: bounds [-1, -1] lie outside [0, 18446744073709551615]
-fail/facts/target_layout_derived_constant_through_match_join_reject rejected 3725ms unexpected @ccdb99ca2214
+fail/facts/target_layout_derived_constant_through_match_join_reject rejected 2094ms expected @d6c89b306726
 	constant checking: scalar range condition 2: bounds [-1, -1] lie outside [0, 18446744073709551615]
-fail/facts/target_layout_derived_constant_through_other_machine_reject rejected 4651ms unexpected @ccdb99ca2214
+fail/facts/target_layout_derived_constant_through_other_machine_reject rejected 2092ms expected @d6c89b306726
 	constant checking: scalar range condition 1: bounds [-1, -1] lie outside [0, 18446744073709551615]
-fail/facts/target_layout_derived_constant_through_other_state_reject rejected 2230ms unexpected @ccdb99ca2214
-	exact arithmetic in machine `verify` state `entry` local `slack` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/target_layout_derived_constant_through_parameter_reject rejected 4822ms unexpected @ccdb99ca2214
+fail/facts/target_layout_derived_constant_through_other_state_reject rejected 2110ms expected @d6c89b306726
 	constant checking: scalar range condition 1: bounds [-1, -1] lie outside [0, 18446744073709551615]
-fail/facts/target_layout_derived_constant_through_target_body_reject rejected 4672ms unexpected @ccdb99ca2214
-	constant checking: scalar range condition 4: bounds [-1, -1] lie outside [0, 18446744073709551615]
+fail/facts/target_layout_derived_constant_through_parameter_reject rejected 2080ms expected @d6c89b306726
+	constant checking: scalar range condition 1: bounds [-1, -1] lie outside [0, 18446744073709551615]
+fail/facts/target_layout_derived_constant_through_target_body_reject rejected 2085ms expected @d6c89b306726
+	constant checking: scalar range condition 2: bounds [-1, -1] lie outside [0, 18446744073709551615]
 fail/facts/target_recursive_bound_through_call_result_rejected rejected 1876ms expected @5dc7fa33c4de
 	cannot prove requires contract for call countdown from deliver: 4 <= 4 && 61 <= 60 (needs fact `remaining <= 4 && value <= 60` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/target_recursive_bound_through_const_name_rejected rejected 1653ms expected @5dc7fa33c4de
