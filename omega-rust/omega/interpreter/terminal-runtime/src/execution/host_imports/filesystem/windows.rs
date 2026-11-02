@@ -13,6 +13,7 @@ use terminal_psi::BoundaryMachineDeclaration;
 use super::{FilesystemContext, Formal, TerminalRuntimeError, rejection};
 
 mod contracts;
+mod directory;
 
 #[derive(Default)]
 pub(super) struct Handles {
@@ -59,6 +60,7 @@ enum Effect {
     Path { count: usize },
     Pipe,
     Query { class: u32, bytes: u32 },
+    Directory { class: u32, bytes: u32 },
 }
 
 pub(in super::super) struct Call {
@@ -218,6 +220,7 @@ impl Call {
             }
             b"GetFileInformationByHandleEx" => matches!(self.effect, Effect::Query { class, bytes }
                 if arguments.len() == 3 && scalar(arguments[1], i128::from(class)) && scalar(arguments[2], i128::from(bytes))),
+            b"NtQueryDirectoryFile" => directory::arguments(self.effect, arguments),
             b"SetFilePointerEx" => {
                 arguments.len() == 3 && (0..=2).any(|method| scalar(arguments[2], method))
             }

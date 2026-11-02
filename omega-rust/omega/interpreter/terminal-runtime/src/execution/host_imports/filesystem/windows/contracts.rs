@@ -285,7 +285,9 @@ pub(super) fn select(
         ),
     ];
     let mut candidates = Vec::new();
-    for &(library, symbol, parameters, result, effect) in rows {
+    for &(library, symbol, parameters, result, effect) in
+        rows.iter().chain(super::directory::ROWS.iter())
+    {
         if !matches_platform_c_symbol(binding, symbol, &[], Some(library))? {
             continue;
         }

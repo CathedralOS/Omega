@@ -269,6 +269,7 @@ pub(in crate::execution::host_imports) fn matches_integer_record(
     }
     let mut offset = 0usize;
     let mut leaves = 0usize;
+    let mut alignment = 1usize;
     for &contract in expected {
         let (sign, bits, count) = match contract {
             IntegerRecordField::Scalar(sign, bits) => (sign, bits, 1),
@@ -329,6 +330,7 @@ pub(in crate::execution::host_imports) fn matches_integer_record(
         if codec.alignment < bytes {
             return false;
         }
+        alignment = alignment.max(bytes);
         for index in 0..count {
             let mut path = vec![Path::Field(*identity)];
             if matches!(contract, IntegerRecordField::Array(..)) {
@@ -349,7 +351,10 @@ pub(in crate::execution::host_imports) fn matches_integer_record(
             leaves += 1;
         }
     }
-    codec.extent == offset && codec.fields.len() == leaves
+    // C record size includes final alignment padding. That padding supplies
+    // no semantic field; every declared field and array leaf still matched
+    // its exact path and offset above. Larger arbitrary tails do not match.
+    offset.checked_next_multiple_of(alignment) == Some(codec.extent) && codec.fields.len() == leaves
 }
 
 pub(super) fn validate<'declaration>(
