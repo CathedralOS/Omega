@@ -7,8 +7,8 @@
 //! This file derives plans and adapts their source provenance.
 //! `selected_declarations.rs` projects selected source associations for source-free binding;
 //! `source_provider_selections.rs` supplies early/reference source adapters;
-//! `synchronous_cycles.rs` validates synchronous invocation
-//! cycles, and `selection_provenance.rs` projects exact source correspondence
+//! `backend_plan::synchronous_invocations` owns the synchronous invocation cycle rule;
+//! `selection_provenance.rs` projects exact source correspondence
 //! into the shared source-free `provider-selection` owner for whole-map choice
 //! and independent-component admission;
 //! Grant association consumes prepared issuer evidence through provider selection.
