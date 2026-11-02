@@ -344,8 +344,8 @@ mod tests {
         for target in [TargetProfile::LinuxX64, TargetProfile::LinuxArm64] {
             let payload = serialize_elf_dynamic_table(tag_plan(target, &IMPORTS))
                 .expect("validated dynamic payload");
-            assert_eq!(payload.row_count(), 19);
-            assert_eq!(payload.byte_count(), 304);
+            assert_eq!(payload.row_count(), 20);
+            assert_eq!(payload.byte_count(), 320);
             assert_eq!(payload.contents().address_fixups.len(), 9);
             assert_ne!(
                 payload.non_authoritative_payload_compatibility_fingerprint(),
@@ -375,7 +375,9 @@ mod tests {
                 &[9, 0, 0, 0, 0, 0, 0, 0, 24, 0, 0, 0, 0, 0, 0, 0]
             );
             assert_eq!(&row(bytes, 15)[..8], &[0xf0, 0xff, 0xff, 0x6f, 0, 0, 0, 0],);
-            assert_eq!(row(bytes, 18), &[0; 16]);
+            assert_eq!(&row(bytes, 18)[..8], &30_u64.to_le_bytes());
+            assert_eq!(&row(bytes, 18)[8..], &8_u64.to_le_bytes());
+            assert_eq!(row(bytes, 19), &[0; 16]);
             assert_eq!(
                 payload.contents.address_fixups,
                 [

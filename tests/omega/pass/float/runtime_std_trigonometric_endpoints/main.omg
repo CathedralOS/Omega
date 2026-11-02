@@ -1,7 +1,7 @@
 // Expected exit: 0. Endpoints challenge polynomial coefficient accuracy,
 // distinct calls and state parameters rather than only one interior argument.
 use omega::language::core::float_operations;
-use omega_language_std::math;
+use omega::language::core::math;
 use omega_language_std::console;
 data Main { angle: f64; }
 machine Main::main(main: &mut Main) reaches Console {

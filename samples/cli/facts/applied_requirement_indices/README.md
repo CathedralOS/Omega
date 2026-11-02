@@ -23,7 +23,7 @@ of the type-indexed contract changes.
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | a named `const` (`const INITIAL: Payload in Tagged<Word>` vs. `Tagged<Other>`) supplies the initial indexed payload |
 | a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a state transition forwards the indexed payload into `machine selected(value: Payload in Tagged<Value>)` vs. `Tagged<Alt>` |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a separate `relay` machine forwards the applied requirement result (`-> Payload in Tagged<Value>` vs. `Tagged<Alt>`) |
-| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of the four target-qualified `forward` bodies (`linux_x86_64`, `linux_arm64`, `macos_arm64`, `windows_x86_64`) forwards the indexed contract |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | four ordinary `Forwarding` implementations selected by explicit target-keyed Build rows forward the indexed contract |
 
 ## Execution
 
@@ -44,6 +44,8 @@ python tools/sample_native_gate.py --facts --filter cli/facts/applied_requiremen
 ```
 
 ### The oracle discriminates
+
+The match-join place executes both arms: the `true` arm returns the incoming payload `29`, while the `false` arm returns a separately qualified payload `31`. Its caller checks both results. Inverting the branch, always selecting one arm, or substituting the other arm's payload therefore traps while the same `Tagged<Value>` fact is carried through either arm.
 
 The exit code `0` is strictly discriminative. Perturbing a single payload token in `main` (`let value: Payload in Tagged<Word> = Payload { value: 29 };` to `30`) preserves all static type-indexed domain contracts (`Tagged<Word>`) so the program still compiles cleanly, but changes `from_state.value` at runtime from `29` to `30`. The guard `from_state.value == 29 && from_compound.value == 37 && from_pair.value == 43 && from_other_pair.value == 47` then takes the `false -> bad()` branch and executes `crash Trap;`, causing both native and Terminal Psi execution to abort non-zero (`native signal 5` and `interp crash: Trap` in agreement).
 
@@ -90,6 +92,56 @@ The nine-place row is pinned under `tests/omega/pass/facts/applied_requirement_i
 
 Adjacent provider fixtures (`tests/omega/pass/providers/applied_type_index_forwarding_exit`, `tests/omega/pass/providers/applied_routed_index_forwarding_exit`, `tests/omega/pass/providers/applied_requirement_computed_const_exit`, and their fail controls `applied_type_index_wrong_actual`, `applied_type_index_wrong_field`, `applied_type_index_nested_wrong_actual`, `applied_type_index_wrong_result`, and `applied_routed_parameter_mint`) cover compound indices, computed const index expressions, and issuer-routed domain qualifications.
 
+## Build-owned target selection
+
+The target-body place declares one `Forwarding::forward<Value, Alt>` requirement
+and four ordinary named implementations. Each implementation keeps both generic
+parameters and the original pair of `Identity<Value>::identity` calls. Build
+selects the implementation separately for each of the four hosted targets; the
+portable caller names `Forwarding`, and its public reach includes `Identity`.
+The enclosing `Identity<Value>` and member `paired<Element>` telescopes remain
+independent. No caller learns a selected implementation's private guarantees.
+
+The target-body reject twin still changes only the Windows implementation's
+local result index from `Tagged<Value>` to `Tagged<Alt>`. It must reject even
+when macOS selects a different implementation. Its Build companion is identical
+to the positive companion, including both boundary requirements' selection rows.
+The pass and fail fixture source and Build files copy those same witnesses.
+
+The original positive was accepted by the retained optimized
+`f6c2d20ae37b918d6fae1ec256b128b8b8bdc9b8` macOS ARM64 producer; its twin
+rejected for `index compatibility condition`. The initial migrated positive
+instead refused at synchronous invocation replay: `checked adapter
+MacosForwarding::forward synchronous invocation lost its exact requirement
+application`. Published PR #1344 moves that same description into canonical
+invocation metadata. A fresh optimized `4f1712debdc105a6837bbd31ef0e2d2025ba8657`
+producer on macOS ARM64 still refused the migrated positive for that exact
+reason; both changed index twins rejected correctly. No native or Terminal
+execution ran in that failed capture.
+
+The repair reads invocation headers through the existing complete canonical
+provider-instance roster. Every selected closed body, including an uncalled
+required instance, contributes its checked calls. The open template's unavailable
+generic description is not substituted for those closed records. The join keeps
+selecting owner, requirement, receiver, package and target identities, rejects a
+missing required instance or consumed header, and preserves opaque providers'
+public invocation ceilings. The target-body pass fixture also requests the
+existing source-discard/codec-reload and consumed-summary omission controls.
+Callback body classification keeps its separate declaration-header judgment.
+The repaired optimized `283bf8fab936bf63c77dd26af3e283a896118ac1`
+producer was measured on macOS ARM64 in [the focused hosted run](https://github.com/CathedralOS/Omega/actions/runs/41383731448).
+The sample gate passed the root and all nine positive places through both
+engines and matched all nine index reject twins. The corpus recorded four
+source accepts, five intended rejections and four native/Terminal executions
+at exit `0`, including the changed target/match witnesses and two existing
+synchronous-provider controls. The target witness and both existing controls
+also passed source-discard, codec-reload and consumed-summary omission checks.
+Nine focused backend-plan unit tests, production checking and both scoped
+Clippy commands passed. Runtime observations keep that producer's identity;
+the later golden/documentation changes and restored pilot orchestration do not
+change the compiler, SDK or witness bytes. Other matching hosts remain
+unmeasured by this capture. The broader target-prefix migration remains open.
+
 ## Compiler Repairs Landed
 
 Completing the nine-place row exposed and fixed three checking gaps in `omega-rust/`:
@@ -100,15 +152,15 @@ Completing the nine-place row exposed and fixed three checking gaps in `omega-ru
 
 ## Requirements and Evidence
 
-- **Parent outcome:** Cathedral backing-lifecycle prerequisite (`TASKS.md`) — applied boundary requirement contracts preserve exact type-index tuples across all 9 transport places.
+- **Parent outcomes:** Cathedral backing-lifecycle prerequisite and `BUILD-OWNED-TARGET-SELECTION` in [`TASKS.md`](../../../../TASKS.md). The former owns exact applied type-index contracts across the row; the latter owns replacing the target-body place's retired source prefixes with ordinary implementations and explicit Build selection.
 
 ### Specification and Lowering Layers
 
 1. **Establishment:** Type-indexed domain memberships (`Payload in Tagged<Value>`, `Payload in Tagged<Box<Value>>`, `Payload in Pair<Outer, Inner>`) are established by explicit qualification on predicate-free domain families (`let value: Payload in Tagged<Word> = Payload { value: 29 };`, `const INITIAL: Payload in Tagged<Word> = ...`) and by applied boundary requirement return types and `ensures result in Tagged<Value>` postconditions ([invocation contracts](../../../../wiki/spec/language/state_contracts.md), [proof contracts](../../../../wiki/spec/proofs/contracts.md), [domains](../../../../wiki/spec/language/domains.md), [dependent values](../../../../wiki/spec/language/dependent_values.md)). No post-hoc caller equality guard establishes any static index fact; the final `transition` checks runtime `u64` payload values only after all static requirement calls have completed.
-2. **Identity and lifetime:** Each value's normalized domain instance (`Tagged<Value>`, `Tagged<Box<Word>>`, `Pair<Word, Other>`, `Pair<Word, Word>`) remains attached to its exact storage or value version across local bindings, generic record fields (`Holder<Value>`), parameters, nested call results, `match` arm joins, `const` initializers, state transitions (`selected`), cross-machine forwarding (`Relay::relay`), and target-qualified machine bodies ([fact validity](../../../../wiki/spec/terminal-psi/fact_validity.md), [lifetimes](../../../../wiki/spec/language/lifetimes.md), [ownership](../../../../wiki/spec/language/ownership.md), [content custody](../../../../wiki/spec/resources/content_custody.md)). Two distinct calls to `Identity<Outer>::paired<Inner>` in the same expression maintain distinct invocation namespaces without conflating result facts.
+2. **Identity and lifetime:** Each value's normalized domain instance (`Tagged<Value>`, `Tagged<Box<Word>>`, `Pair<Word, Other>`, `Pair<Word, Word>`) remains attached to its exact storage or value version across local bindings, generic record fields (`Holder<Value>`), parameters, nested call results, `match` arm joins, `const` initializers, state transitions (`selected`), cross-machine forwarding (`Relay::relay`), and selected ordinary implementation bodies ([fact validity](../../../../wiki/spec/terminal-psi/fact_validity.md), [lifetimes](../../../../wiki/spec/language/lifetimes.md), [ownership](../../../../wiki/spec/language/ownership.md), [content custody](../../../../wiki/spec/resources/content_custody.md)). Two distinct calls to `Identity<Outer>::paired<Inner>` in the same expression maintain distinct invocation namespaces without conflating result facts.
 3. **Composition:** Applied requirement calls substitute both the outer trait telescope (`Identity<Outer>`) and the member telescope (`paired<Inner>`) into parameter types, return types, `requires`, and `ensures` clauses ([machines](../../../../wiki/spec/language/machines.md), [evaluation](../../../../wiki/spec/language/evaluation.md), [patterns](../../../../wiki/spec/language/patterns.md), [structural predicates](../../../../wiki/spec/terminal-psi/structural_predicates.md)). For each place, `<place>/main.omg` and `<place>/invalid/main.omg` differ by a single type-index token on that place's construct (`Value` -> `Alt`, `Inner` -> `Alt`, or `Word` -> `Other`).
 4. **Soundness boundaries:** Every `<place>/invalid/main.omg` twin fails closed during compile-time checking with `error: index compatibility condition ... is not established: actual ... and expected ... are distinct normalized instances` when an unproved or mismatched type index is transported into a local, field, parameter, nested call argument, match join, const initializer, state parameter, machine return type, or target body ([mathematical bindings](../../../../wiki/spec/proofs/mathematical_bindings.md), [mathematical values](../../../../wiki/spec/terminal-psi/mathematical_values.md), [quotients](../../../../wiki/spec/proofs/quotients.md), [inductive profile](../../../../wiki/spec/proofs/inductive_profile.md), [termination](../../../../wiki/spec/language/termination.md), [authority](../../../../wiki/spec/resources/authority.md)).
-5. **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Checked trees lower applied boundary requirement calls, specialized generic helpers, state transitions, and match dispatches into canonical target-neutral Terminal Psi (`PSITERM\0`), erasing static domain index tags after discharging `IndexCompatibilityFacts` (`ClosedEvaluation` and `LicensedNormalization`) while retaining boundary-application demands and target-scoped body candidates ([product](../../../../wiki/spec/terminal-psi/product.md), [encoding](../../../../wiki/spec/terminal-psi/encoding.md), [calls and outcomes](../../../../wiki/spec/terminal-psi/calls_and_outcomes.md), [control flow](../../../../wiki/spec/terminal-psi/control_flow.md), [dynamic dispatch](../../../../wiki/spec/terminal-psi/dynamic_dispatch.md), [ownership](../../../../wiki/spec/terminal-psi/ownership.md), [loans](../../../../wiki/spec/terminal-psi/loans.md), [boundary calls](../../../../wiki/spec/terminal-psi/boundary_calls.md), [observations](../../../../wiki/spec/terminal-psi/observations.md), [integer certificates](../../../../wiki/spec/terminal-psi/integer_certificates.md)).
+5. **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Checked trees lower applied boundary requirement calls, specialized generic helpers, state transitions, and match dispatches into canonical target-neutral Terminal Psi (`PSITERM\0`), erasing static domain index tags after discharging `IndexCompatibilityFacts` (`ClosedEvaluation` and `LicensedNormalization`) while retaining boundary-application demands and ordinary selected implementation identities ([product](../../../../wiki/spec/terminal-psi/product.md), [encoding](../../../../wiki/spec/terminal-psi/encoding.md), [calls and outcomes](../../../../wiki/spec/terminal-psi/calls_and_outcomes.md), [control flow](../../../../wiki/spec/terminal-psi/control_flow.md), [dynamic dispatch](../../../../wiki/spec/terminal-psi/dynamic_dispatch.md), [ownership](../../../../wiki/spec/terminal-psi/ownership.md), [loans](../../../../wiki/spec/terminal-psi/loans.md), [boundary calls](../../../../wiki/spec/terminal-psi/boundary_calls.md), [observations](../../../../wiki/spec/terminal-psi/observations.md), [integer certificates](../../../../wiki/spec/terminal-psi/integer_certificates.md)).
 6. **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** Build companion rows (`ProgramEntry` for all four hosted targets, `accept_boundary<Identity>`, `select_provider<Identity, Provider>`) join each closed boundary requirement (`Identity<Word>::identity`, `compound`, `paired<Other>`, `paired<Word>`, `stated`) to `Provider`'s concrete specializations without reopening source, evaluate `Payload` and `Holder` layouts, and lower calls into validated `CallPlan` and `StatePlan` placements ([provider selection](../../../../wiki/spec/build/provider_selection.md), [assumed binding contracts](../../../../wiki/spec/build/assumed_binding_contracts.md), [foreign bindings](../../../../wiki/spec/build/foreign_bindings.md), [private callbacks](../../../../wiki/spec/build/private_callbacks.md), [layout plans](../../../../wiki/spec/layouts/plans.md), [recasts](../../../../wiki/spec/layouts/recasts.md), [codecs](../../../../wiki/spec/layouts/codecs.md), [calling plans](../../../../wiki/spec/build/calling_plans.md), [byte views](../../../../wiki/spec/terminal-psi/byte_views.md)).
 7. **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects target ISA instructions for 64-bit payload transport, equality comparisons, and conditional branches across `forward`, `field`, `forward_pair`, `later`, `Relay::relay`, and `Provider` states, assigns register homes and spill slots, and composes bounded worst-case stack usage (WCSU) ([storage](../../../../wiki/spec/resources/storage.md), [activation storage](../../../../wiki/spec/resources/activation_storage.md), [machine-state evidence](../../../../wiki/spec/build/machine_state_evidence.md), [checked assembly](../../../../wiki/spec/language/assembly.md)).
 8. **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Final encoding resolves stack displacements and basic-block branch offsets, validates machine-state footprint evidence, and emits native executables that exit `0` and agree with Terminal Psi (`omega run --both`) across the root witness and all nine transport places ([machine-state evidence](../../../../wiki/spec/build/machine_state_evidence.md), [executable installation](../../../../wiki/spec/build/executable_installation.md), [calling plans](../../../../wiki/spec/build/calling_plans.md)).

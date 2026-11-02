@@ -31,6 +31,7 @@ pub(super) fn collect(
                 path: Vec::new(),
             },
         )],
+        &[],
         program.expression_table.expression_handles(measure.body),
         shape,
         &mut vec![measure.symbol],
@@ -42,6 +43,7 @@ fn scope(
     owner: SymbolHandle,
     parameters: &[StateParameter],
     inputs: &[(SymbolHandle, RankSubjectCoordinate)],
+    supplied: &[(SymbolHandle, ExpressionHandle)],
     expressions: &[ExpressionHandle],
     shape: &mut DeclaredInputShape,
     active: &mut Vec<SymbolHandle>,
@@ -77,11 +79,26 @@ fn scope(
             )
         {
             geometry.primitive_type.is_fixed_integer().then_some(())?;
-            if !shape.reads.iter().any(|read| read.coordinate == coordinate) {
+            let indexed = coordinate
+                .path
+                .iter()
+                .any(|step| matches!(step, facts::PlaceSegment::Index { .. }));
+            // A shared expression handle is not a shared supplying telescope.
+            // Keep distinct demands; the application owner must never satisfy
+            // two differently bound reads with one coordinate binding.
+            if !shape.reads.iter().any(|read| {
+                read.coordinate == coordinate
+                    && (!indexed
+                        || (read.selector_inputs == inputs && read.selector_arguments == supplied))
+            }) {
                 shape.reads.push(DeclaredInputRead {
                     coordinate,
                     type_reference: geometry.result_type_reference,
                     primitive_type: geometry.primitive_type,
+                    selector_owner: owner,
+                    selector_parameters: parameters.to_vec(),
+                    selector_inputs: inputs.to_vec(),
+                    selector_arguments: supplied.to_vec(),
                 });
             }
         }
@@ -97,13 +114,31 @@ fn scope(
             if arguments.len() != selected_parameters.len() {
                 return None;
             }
-            let selected_inputs = selected_parameters
+            let mut selected_inputs = selected_parameters
                 .iter()
                 .zip(arguments)
                 .filter_map(|(formal, actual)| {
                     coordinate(program, *actual, inputs).map(|actual| (formal.symbol, actual))
                 })
                 .collect::<Vec<_>>();
+            // A selector can refer to a formal in any explicitly supplied
+            // argument's telescope. Keep those exact identities, not names.
+            selected_inputs.extend(
+                inputs
+                    .iter()
+                    .filter(|(formal, _)| {
+                        !selected_parameters
+                            .iter()
+                            .any(|parameter| parameter.symbol == *formal)
+                    })
+                    .cloned(),
+            );
+            let mut selected_arguments = selected_parameters
+                .iter()
+                .zip(arguments)
+                .map(|(formal, actual)| (formal.symbol, *actual))
+                .collect::<Vec<_>>();
+            selected_arguments.extend_from_slice(supplied);
             let public = owner_contracts(program, &selected)
                 .filter(|contract| {
                     matches!(
@@ -125,6 +160,7 @@ fn scope(
                 selected_owner,
                 &selected_parameters,
                 &selected_inputs,
+                &selected_arguments,
                 &public,
                 shape,
                 active,

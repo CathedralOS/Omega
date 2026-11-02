@@ -10,6 +10,8 @@
 mod channel;
 mod host_clock;
 pub use host_clock::read_host_clock_nanoseconds;
+mod host_filesystem;
+pub use host_filesystem::LinuxFilesystem;
 mod native_code;
 mod native_provider_runtime;
 mod pointer_links;

@@ -1,8 +1,8 @@
 // Expected exit: 0.
 use omega::language::core::float_operations;
-use numerics::linalg::dot_scaled_norm_axpy::try_dot_f64;
-use numerics::linalg::dot_scaled_norm_axpy::try_scaled_norm_f64;
-use numerics::linalg::dot_scaled_norm_axpy::try_axpy_f64;
+use omega::language::core::linear_algebra::try_dot_f64;
+use omega::language::core::linear_algebra::try_scaled_norm_f64;
+use omega::language::core::linear_algebra::try_axpy_f64;
 
 // Dynamic-range stress. Frozen before execution: relative tolerance 1e-14;
 // norm(3e200,-4e200)=5e200, norm(3e-200,4e-200)=5e-200.

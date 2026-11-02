@@ -104,18 +104,42 @@ baseline producer (`1efc2536b3bc`, opt-level 1) accepts all nine twins. Windows 
 macOS execution of the re-expressed sources is not observed; binding a hosted
 target does not establish execution on that host.
 
-Open: the same dropped dependency in the generic-evidence production. A binder
-`S satisfies IndependentSource` instantiated at the implementation that defines the
-caller is still accepted, because an evidence binder stands for the implementation
-a call's type argument names and its dependencies do not yet include that
-implementation's row:
+## Generic evidence and normal completion
+
+The earlier generic-evidence reproduction does not demonstrate a missing
+citation dependency. Its exact selected cycle (`CircularSource::source` calling
+`forwarded<CircularSource>`, which calls that same source) has no normal return.
+The completion owner establishes that control fact without importing a guarantee,
+so its `ensures` is vacuous under ordinary partial correctness. Withholding a
+cyclic guarantee must not manufacture an exit obligation for that program.
+
+A returning base path distinguishes that case from a recursive result whose
+postcondition still needs proof:
 
 ```omega
 trait Source { machine source(input: u64) -> u64 ensures result == 7; }
-GoodSource satisfies Source { machine source(input: u64) -> u64 ensures result == 7 { 7 } }
-CircularSource satisfies Source { machine source(input: u64) -> u64 ensures result == 7 { forwarded<CircularSource>(input) } }
-machine forwarded<S satisfies Source>(input: u64) -> u64 ensures result == 7 { S::source(input) }
+GoodSource satisfies Source {
+    machine source(input: u64) -> u64 ensures result == 7 { 7 }
+}
+ReservedSource satisfies Source {
+    machine source(input: u64) -> u64 ensures result == 7 {
+        match input == 0 { true -> 7, false -> forwarded<ReservedSource>(input) }
+    }
+}
+machine forwarded<S satisfies Source>(input: u64) -> u64 ensures result == 7 {
+    S::source(input)
+}
 ```
 
-The refusal names the machine and statement but not the cycle that withheld the
-imported guarantee; naming the cycle is also open.
+Verified optimized producer `6416b0fdfbe3cd7db319e5c4803f64d3254160cd`,
+on macOS arm64 with its frozen 189-file SDK, already rejects this returning
+cycle for unproved exit contracts in `ReservedSource::source` and its exact
+`forwarded` specialization. Changing only the recursive branch's evidence actual
+to `GoodSource` checks successfully with the same implementation declarations
+still visible. These are Source observations, not a new runtime qualification or a
+claim that every generic-evidence application is complete.
+
+The incorrect no-return rejection controls and an unnecessary candidate repair
+were withdrawn after that distinction was observed. No compiler behavior changes
+for this correction. Diagnostics identify the unproved exits; explaining the
+complete citation cycle remains separate work.

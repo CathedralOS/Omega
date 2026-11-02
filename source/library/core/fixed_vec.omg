@@ -11,11 +11,10 @@
 // type; they only enter the story at stage 2 (`Vec<'r, T>` borrowing a
 // Arena).
 //
-// GENERIC INSTANTIATION FRONTIER (re-measured 2026-09-21): the generic `data`
+// GENERIC INSTANTIATION: the generic `data`
 // declaration below compiles structurally (chapter 12 const value
-// parameters), and so do the boundary-trait contracts. Attaching a machine
-// to generic data is no longer the blocker it was in the 2026-06-12 reading:
-// a machine attached to a template with no type parameters of its own now
+// parameters), and so do the boundary-trait contracts. A machine
+// attached to a template with no type parameters of its own now
 // lays out through its concrete clones, which the layout builder names for
 // exactly this case, and both halves are canaried —
 // `tests/omega/pass/generics/runtime_container_setter_matrix_exit`

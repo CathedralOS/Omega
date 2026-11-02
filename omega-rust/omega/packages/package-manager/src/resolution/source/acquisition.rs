@@ -137,7 +137,7 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
     pub fn acquire_issued(
         &mut self,
         requester: &AcquiredBuildSource,
-        requests: &[build_evaluation::terminal_requests::IssuedBuildRequest],
+        requests: &[build_evaluation::host::requests::IssuedBuildRequest],
         purpose: build_declarations::DependencyPurpose,
         ordinal: usize,
     ) -> Result<AcquiredSourceSelection, String> {

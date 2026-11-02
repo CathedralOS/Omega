@@ -1,7 +1,7 @@
 // Expected exit: 0
 // Packed bodies are bounded regions; malformed suffixes and capacity/fuel
 // exhaustion never turn a partial element list into a successful document.
-use omega_language_std::wire;
+use omega::language::core::wire;
 machine invalid(bytes: &[u8], capacity: u64, fuel: u64) -> bool {
     let mut words: [u64; 3] = [99u64, 99u64, 99u64];
     transition capacity <= 3u64 && fuel > 0u64 {

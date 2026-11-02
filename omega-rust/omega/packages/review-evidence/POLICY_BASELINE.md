@@ -103,7 +103,9 @@ Callable policy retains complete static/lifetime signatures and exact overloaded
 identities for public, boundary, selected-build, private admission-claim, and
 private external-callable surfaces. An unused external leaf retains its own
 outer contracts and operational promises separately from the requirement it
-implements. Actual conformance lifetime arguments remain separate from their
+implements; an omitted suspension or blocking clause there publishes the
+ceiling inherited from that requirement, not an empty one. Actual conformance
+lifetime arguments remain separate from their
 equality partition. Published reach, invocation and operational promises remain
 distinct from retained checked summaries; public suspension and blocking
 summaries conservatively use their published ceilings. Typed crash guards retain foreign owners,
@@ -132,6 +134,9 @@ D29 symbolic demands retain exact producer callable coordinates and direct
 type-binder mappings. Closed applications retain their exact operator and
 application, canonical selected-plan index, and authored realization or closed
 intrinsic meaning, not generated specialization state or execution commitments.
+A named requirement's identity is its callable overload under the declaring
+owner's namespace (package digest or toolchain), so recovery joins it to the
+operator coordinate by that namespace, never by the unqualified path.
 Closed realization rows cover the selected activation only. An inactive
 target-member body's boundary calls remain checked semantic input, not claims
 about this activation's selected plans; its callable and external-supply

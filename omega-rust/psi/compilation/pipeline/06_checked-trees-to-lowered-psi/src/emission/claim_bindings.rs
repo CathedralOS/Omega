@@ -886,7 +886,6 @@ pub(crate) fn record_prepared_introductions(
 }
 
 /// Transport the exact checked consuming occurrence through its current source names.
-/// Selected custody authenticates those same events before current-name resolution.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn lower_owned_operand_claims(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
@@ -940,37 +939,10 @@ pub(crate) fn lower_owned_operand_claims(
                 .then_some(event)
         })
         .collect::<Vec<_>>();
-    let ownership = &checked.facts.flow.ownership;
-    let mut selected_transfer = None;
-    let state_selections = ownership.with_state_owned_selections(state, |handles| handles.to_vec());
-    for handle in state_selections {
-        let receipt = ownership.owned_selections.get(handle);
-        if !(receipt.machine == machine
-            && receipt.state == state
-            && receipt.statement_ordinal == statement_index
-            && expected_evaluation.is_none_or(|evaluation| receipt.evaluation == evaluation))
-        {
-            continue;
-        }
-        let transfers = ownership
-            .selection_transfers
-            .span(receipt.transfers)
-            .ok_or(LoweringError::Unsupported(
-                "owned operand selection transfers are stale",
-            ))?;
-        for transfer in transfers
-            .iter()
-            .filter(|transfer| transfer.expression == expression)
-        {
-            if selected_transfer.replace((receipt, transfer)).is_some() {
-                return unsupported("owned operand has ambiguous selected custody");
-            }
-        }
-    }
-    // Evaluated events own the transfer authority. A selection receipt must
-    // authenticate that same frontier, including an empty linear frontier;
-    // it cannot supply an alternate stream or another arm's resource claims.
-    if evaluated_transfers.is_empty() && selected_transfer.is_none() {
+    // Evaluated events own the transfer authority. Stage 05 records a selection
+    // receipt only from these same events at this exact evaluation, so the
+    // receipt supplies no claim and needs no second comparison here.
+    if evaluated_transfers.is_empty() {
         return Ok(Vec::new());
     }
     let root_type = validation::canonical_place_type_reference(
@@ -987,8 +959,7 @@ pub(crate) fn lower_owned_operand_claims(
     ))?;
     // These coordinates name the selected value's storage, including a loan
     // descriptor. They do not own its referent. Actual linear claims below
-    // still require structural_claim_path and matching evaluated provenance;
-    // an empty selected frontier still authenticates its complete receipt.
+    // still require structural_claim_path and matching evaluated provenance.
     let (prefix, _) =
         validation::structural_transfer_storage_path(&checked.typed, root_type, prefix)
             .map_err(LoweringError::Unsupported)?;
@@ -1042,62 +1013,6 @@ pub(crate) fn lower_owned_operand_claims(
             completed_claims,
         )?;
         claims.push(terminal_psi::StructuralResultClaimBinding { claim, path });
-    }
-    if let Some((receipt, transfer)) = selected_transfer {
-        if receipt.evaluation == checked_trees::FlowPermissionEvaluation::Unknown
-            || evaluation.is_some_and(|evaluation| evaluation != receipt.evaluation)
-        {
-            return unsupported("owned operand has ambiguous consuming evaluation");
-        }
-        let source_path = validation::structural_transfer_storage_path(
-            &checked.typed,
-            root_type,
-            ownership.segments.span_or_empty(transfer.path),
-        )
-        .map_err(LoweringError::Unsupported)?
-        .0;
-        if transfer.root != root || prefix != source_path {
-            return unsupported("selected custody names another operand source");
-        }
-        // Named source rows coordinate residual cleanup only. Anonymous
-        // completed producers retain their own expression root and need no
-        // fictional named cleanup candidate or invariant source identity.
-        if transfer.source.is_valid() {
-            if !ownership.selection_sources.is_valid(transfer.source)
-                || !receipt
-                    .sources
-                    .handles()
-                    .any(|source| source == transfer.source)
-            {
-                return unsupported("selected owned operand has stale source custody");
-            }
-            let source = ownership.selection_sources.get(transfer.source);
-            if root != facts::PlaceRoot::Symbol(source.symbol) {
-                return unsupported("selected custody names another operand source");
-            }
-        } else if !matches!(root, facts::PlaceRoot::Expression(_)) {
-            let source_type = validation::project_type_reference_from_segments(
-                &checked.typed,
-                root_type,
-                ownership.segments.span_or_empty(transfer.path),
-            )
-            .ok_or(LoweringError::Unsupported(
-                "selected copy has no typed source path",
-            ))?;
-            if !transfer.claims.is_empty()
-                || !evaluated_transfers.is_empty()
-                || !crate::reference_custody::source_value_is_copied(checked, source_type)
-                || !crate::reference_custody::source_value_is_copied(
-                    checked,
-                    transfer.source_type_reference,
-                )
-            {
-                return unsupported("selected owned operand has no named source custody");
-            }
-        }
-        // The evaluated event stream above owns every transferred claim.
-        // Stage 05 checked the selection receipt against that same frontier;
-        // cleanup metadata never supplies an alternative claim stream.
     }
     claims.sort();
     if claims.iter().enumerate().any(|(index, claim)| {

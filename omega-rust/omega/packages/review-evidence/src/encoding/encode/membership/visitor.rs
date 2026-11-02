@@ -68,8 +68,11 @@ impl<Contains: FnMut(PackageKeyIdentity) -> bool> Visitor<Contains> {
             }
             match error {
                 TypeIdentityVisitError::AllocationFailed => Error::AllocationFailed,
+                // A production the grammar refuses is as unreadable to a retained
+                // policy as one it does not know; the excerpt shows where it stands.
                 TypeIdentityVisitError::MalformedIdentity
-                | TypeIdentityVisitError::UnsupportedEmbeddedName => {
+                | TypeIdentityVisitError::UnsupportedEmbeddedName
+                | TypeIdentityVisitError::Unadmitted(_) => {
                     self.keep_unreadable("runtime type identity", identity, || {
                         malformed_identity_offset(identity)
                     });

@@ -105,6 +105,81 @@ pub fn selected_checked_adapter_header<'module>(
     Ok(header)
 }
 
+/// Every exact closed body serving one selected row. The projection includes
+/// uncalled required instances; an inert template contributes no executable edge.
+pub struct SelectedCheckedInvocationRow<'plan, 'module> {
+    pub plan: &'plan effects::provider_plan::ProviderPlan,
+    pub row: &'plan effects::provider_plan::ProviderPlanRow,
+    pub headers: Vec<&'module terminal_psi::ProofCallableHeader>,
+}
+
+/// Join checked invocation records through the complete canonical instance
+/// roster, rather than reading the open source template's description.
+pub fn selected_checked_invocation_rows<'plan, 'module>(
+    plans: &'plan [TerminalTargetProviderPlan],
+    module: &'module terminal_psi::TerminalModule,
+) -> Result<Vec<SelectedCheckedInvocationRow<'plan, 'module>>, String> {
+    let scope = &module.scalar_applications.proof_scope;
+    let mut rows = Vec::new();
+    for selected in selected_checked_candidates(plans, module)? {
+        let plan = &selected.selected.plan;
+        let effects::provider_plan::ProviderBinding::CheckedAdapter {
+            machine_package_identity,
+            ..
+        } = &selected.row.binding
+        else {
+            return Err("canonical checked invocation row lost its adapter binding".into());
+        };
+        if *machine_package_identity != plan.origin_package_identity {
+            return Err("checked adapter differs from its retained package identity".into());
+        }
+        let target = if plan.target.is_empty() {
+            target::TargetProfile::host().target_name()
+        } else {
+            &plan.target
+        };
+        let mut headers = Vec::new();
+        for candidate in selected.candidates {
+            let callable = terminal_psi::TargetMachineCallable::Machine(candidate.candidate);
+            let declaration = scope.callable_declaration(callable).ok_or_else(|| {
+                "checked invocation candidate has no canonical proof declaration".to_owned()
+            })?;
+            let mut matches = scope
+                .callable_headers
+                .iter()
+                .map(|(_, header)| header)
+                .filter(|header| header.declaration == declaration);
+            let header = matches.next().ok_or_else(|| {
+                "checked invocation candidate has no canonical callable header".to_owned()
+            })?;
+            if matches.next().is_some() {
+                return Err("checked invocation candidate has duplicate callable headers".into());
+            }
+            if !header.product_eligible
+                || !header.supplies_checked_body
+                || header.package != *machine_package_identity
+                || header
+                    .source_target
+                    .as_deref()
+                    .is_some_and(|source| source != target)
+                || !header
+                    .callable
+                    .as_ref()
+                    .is_ok_and(|identity| *identity == candidate.candidate_identity)
+            {
+                return Err("checked invocation candidate header differs from its selected body, package or target".into());
+            }
+            headers.push(header);
+        }
+        rows.push(SelectedCheckedInvocationRow {
+            plan,
+            row: selected.row,
+            headers,
+        });
+    }
+    Ok(rows)
+}
+
 impl TerminalTargetProviderSelection {
     /// Project complete checked rosters from canonical associations. This
     /// constructs a proposal only; receiving target admission remains required.

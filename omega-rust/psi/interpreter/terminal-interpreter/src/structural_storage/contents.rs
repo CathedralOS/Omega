@@ -49,6 +49,10 @@ pub(crate) struct StorageDescription {
     /// Erased bindings have no observable cell, but fresh contents cannot
     /// establish their proof or authority merely by supplying runtime leaves.
     pub requires_erased_establishment: bool,
+    /// Shared value observations omit atomic fields. A storage borrower must
+    /// still retain their distinct access/ordering mechanism, not mistake the
+    /// observed plain leaves for the complete backing roster.
+    pub requires_atomic_storage: bool,
 }
 
 impl StorageLeaf {
@@ -370,11 +374,12 @@ fn collect_fields(
             leaves.requires_erased_establishment = true;
             continue;
         }
-        if matches!(
+        let atomic = matches!(
             field.field_type,
             StructuralFieldType::Atomic(_) | StructuralFieldType::AtomicBoundedInteger(_)
-        ) && access != StructuralAccess::MutableBorrow
-        {
+        );
+        leaves.requires_atomic_storage |= atomic;
+        if atomic && access != StructuralAccess::MutableBorrow {
             continue;
         }
         path.push(Path::Field(field.id));

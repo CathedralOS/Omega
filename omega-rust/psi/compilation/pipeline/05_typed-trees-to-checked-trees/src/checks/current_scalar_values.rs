@@ -53,6 +53,7 @@ mod application_values;
 mod call_contracts;
 mod collections;
 mod conditions;
+mod declaration_reads;
 mod entry_fields;
 pub(crate) use entry_fields::parameter_projection_paths;
 mod joins;

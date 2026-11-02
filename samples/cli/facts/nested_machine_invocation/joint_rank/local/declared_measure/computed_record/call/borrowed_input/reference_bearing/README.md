@@ -42,3 +42,5 @@ The final optimized producer (`ce59279abc987cccb9f471f5dae80ad0de73e44e054b8cefb
 The two composition probes lend the same record twice and copy a plain owned child from a record that retains a shared descriptor. The latter confirms that owned-argument disposal follows the selected operand, rather than its containing record. Source Copy permission never authorizes forgetting the lifetime obligation of a materialized descriptor carrier.
 
  The parent remains open for noncopy/exclusive input custody, declaration-local selectors, other ranking forms, remaining invocation obligations, source migration and the Omega-written producer.
+
+The [exclusive-child production](exclusive_child/README.md) carries the same fact through conditional call operands while retaining an exclusive child. Its source and runtime controls distinguish alternative arms from simultaneously held sibling arguments.

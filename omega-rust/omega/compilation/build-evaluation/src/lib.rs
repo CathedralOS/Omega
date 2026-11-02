@@ -51,15 +51,22 @@
 //!   product declarations without executing them; target-default declarations
 //!   remain under their separate admitted target roster.
 //!
-//! Start at `build_evaluation.rs` for admission and completion;
-//! `terminal_execution.rs` owns the activation stepped by the caller.
-//! `completed_pure_build` owns invocation-local completed Pure values. Its
-//! insertion boundary is private to this evaluator: fresh admission precedes
-//! consumption, and each replaced evaluation receives a current-account logical
-//! charge without fabricating interpreter execution or live-resource peaks.
-//! `admitted_build_program.rs` fixes its private checkpoint; `execution` prepares
-//! its code and account, authenticates the returned invocation, and assembles its
-//! checked result. The activation retains every request through normal return;
+//! Start at `build_evaluation.rs`: it admits the Build program, runs it and
+//! reads the result back, in that order. The folders are those steps:
+//!
+//! - `admission/` checks the program the activation will consume before any
+//!   effect; `program.rs` fixes its private checkpoint.
+//! - `activation.rs` owns the activation the caller steps. `preparation`
+//!   prepares its code and account, authenticates the returned invocation and
+//!   assembles its checked result; `completed_pure_build` owns invocation-local
+//!   completed Pure values, admitting each fresh before consumption and
+//!   charging each replaced evaluation to the current account without
+//!   fabricating interpreter execution or live-resource peaks.
+//! - `host/` is what the running program may call: bindings and product
+//!   queries, filesystem access and host requests.
+//! - `settings.rs` decodes the Build settings after normal return.
+//!
+//! The activation retains every request through normal return;
 //! completion requires exact source-request settlement. Bound compilations can
 //! join retained acquisitions; anonymous discovery joins its returned requests
 //! after source acquisition. An alias graph alone never discharges the ledger.
@@ -81,20 +88,22 @@
 //! `provider-planning` realization owner. This crate selects Build helpers for
 //! the admitted execution target before ordinary Psi resolution.
 
+mod activation;
 mod admission;
-mod admitted_build_program;
 mod build_evaluation;
-mod completed_pure_build;
-mod execution;
-pub mod scalar_completion;
-pub mod terminal_bindings;
-mod terminal_execution;
-mod terminal_filesystem;
-pub mod terminal_requests;
-pub mod terminal_settings;
+pub mod host;
+pub mod settings;
 
+pub use activation::scalar_completion;
+
+pub use activation::completed_pure_build::PureBuildCompilation;
+pub use activation::preparation::PreparedBuildExecution;
+pub use activation::{
+    BuildDependencySelection, ReturnedBuild, TerminalBuildActivation, TerminalBuildHost,
+    TerminalBuildStep,
+};
+use admission::program::{AdmittedBuildProgram, admit_build_program};
 pub use admission::target_helpers::select_build_helpers;
-use admitted_build_program::{AdmittedBuildProgram, admit_build_program};
 pub use artifacts::compile_timings::counters::preliminary_check_totals;
 pub use build_evaluation::{
     BuildEvaluationRequest, EvaluatedBuild, PreparedBuildEvaluation, RestrictedBuildGrants,
@@ -103,9 +112,7 @@ pub use build_evaluation::{
 pub use build_output::BuildStagedOutputEntryKind;
 pub use build_time_evaluation::WireCompatibilityDemand;
 pub use compilation_products::{BuildConfig, ComputedBuildConfig};
-pub use completed_pure_build::PureBuildCompilation;
 pub use effects::AuthoredBehaviorExclusion;
-pub use execution::PreparedBuildExecution;
 pub use package_compilation::build_execution::{
     BUILD_OBSERVATION_SCHEMA_VERSION, BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY,
     BuildActivation, BuildCanonicalSourceMetadataIdentity, BuildCapturedSourceInventory,
@@ -126,8 +133,4 @@ pub use provider_planning::program_entry::{
     program_entry_semantic_binding_role, selected_program_entry_machine,
 };
 pub use target::{ApplicationIdentifier, HostedApplicationIntent};
-pub use terminal_execution::{
-    BuildDependencySelection, ReturnedBuild, TerminalBuildActivation, TerminalBuildHost,
-    TerminalBuildStep,
-};
 pub use trust_model::AuthoredComponentAssumptionAcceptance;

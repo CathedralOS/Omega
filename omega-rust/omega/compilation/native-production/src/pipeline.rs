@@ -110,7 +110,7 @@ pub(crate) fn emit_target(
             observation.enter(NativePipelineStage::LayoutOptimization);
             execute_resolved_layout_optimization(
                 registers,
-                &layout,
+                &layout.shared_program(),
                 &current
                     .selections()
                     .project_phase(OptimizationExecutionPhase::FunctionRelativeLayout),

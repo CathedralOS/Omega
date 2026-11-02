@@ -469,7 +469,12 @@ pub fn settle_checked_providers(
         facts: mut selected_provider_plan_facts,
         demanded_plans: boundary_provider_demands,
         choices,
-    } = prepared.select(artifact, canonical_roots.as_deref(), &assumptions)?;
+        invoked_declarations: _,
+    } = prepared.select(
+        artifact,
+        provider_selection::ProviderApplicationDemand::Product(canonical_roots.as_deref()),
+        &assumptions,
+    )?;
     let mut provider_declarations = canonical_selection.plans.clone();
     let selected_provider_plans = choices
         .into_iter()
@@ -515,13 +520,13 @@ pub fn settle_checked_providers(
         target_name,
         &selected_semantic_plans,
     )?;
-    // The cycle rule reads checked realized calls, including dormant declarations,
+    // The cycle rule reads every closed checked instance, including uncalled ones,
     // and requires every schema method to bind a plan row. The toolchain plan covers
     // only its honestly realizable leaves and its syscall rows can never
     // invoke, so it joins after the authored-plan cycle check, before the
     // external-binding extraction that binds its syscall numbers.
     backend_plan::synchronous_invocations::validate_declared_synchronous_invocation_cycles(
-        selected_semantic_plans.iter(),
+        &provider_declarations,
         artifact.module(),
     )?;
     let external_binding_rows = crate::extract_native_external_binding_rows(

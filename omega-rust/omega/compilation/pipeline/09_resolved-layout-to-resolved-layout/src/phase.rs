@@ -2,13 +2,7 @@
 
 use crate::{stage_optimized_x86_branch_relaxation, x86_rel8_selected};
 use optimization_core::{OptimizationPhaseSelections, OptimizationWorkBudget};
-use post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding;
-use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
 use register_model::ValidatedPhysicalRegisterModel;
-use selected_form_encoding_to_resolved_layout::{
-    StagedOptimizedResolvedSelectedFormLayout, validate_optimized_resolved_selected_form_layout,
-};
-use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
 mod error;
 mod validation;
@@ -22,7 +16,7 @@ pub use validation::validate_resolved_layout_optimization;
 #[allow(clippy::too_many_arguments)]
 pub fn execute_resolved_layout_optimization(
     physical: &ValidatedPhysicalRegisterModel,
-    baseline: &StagedOptimizedResolvedSelectedFormLayout,
+    baseline: &Arc<ResolvedMachineLayout>,
     selections: &OptimizationPhaseSelections,
     budget: OptimizationWorkBudget,
 ) -> Result<ResolvedLayoutOptimization, ResolvedLayoutOptimizationError> {
@@ -38,7 +32,7 @@ pub fn execute_resolved_layout_optimization(
     };
     let current = match &relaxation {
         Some(relaxation) => relaxation.shared_layout(),
-        None => baseline.shared_program(),
+        None => Arc::clone(baseline),
     };
     Ok(ResolvedLayoutOptimization {
         current,

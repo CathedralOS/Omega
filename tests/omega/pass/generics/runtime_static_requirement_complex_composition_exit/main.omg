@@ -1,6 +1,6 @@
 use omega::language::core::float_operations;
 // Natural optical-field algebra: nested operations on generic complex records.
-use numerics::complex::complex_carrier_ops::Complex;
+use omega::language::core::complex::Complex;
 trait Arithmetic<Scalar [copy]> {
     machine plus(left: Scalar, right: Scalar) -> Scalar;
     machine minus(left: Scalar, right: Scalar) -> Scalar;

@@ -13,10 +13,12 @@ requires self.start >= 0 && self.start <= self.end,
 machine mark(value: u32, marker: &mut u32, event: u32) -> u32
 ensures result == value, marker == event
 { marker = event; value }
+machine retain_view<'storage>(view: &'storage mut u32) -> &'storage mut u32 { view }
 public machine inspect(pair: &mut Pair, choose: bool)
 {
     let replacement: u32 = match choose { true -> mark(0u32, &mut pair.marker, 11) false -> mark(0u32, &mut pair.marker, 13) };
-    let view: &mut u32 = &mut pair.start as &mut u32;
+    let formed: &mut u32 = &mut pair.start as &mut u32;
+    let view: &mut u32 = retain_view(formed);
     view = 0xFFFFFFFFu32;
     view = replacement;
     pair.end = 10;
