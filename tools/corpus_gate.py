@@ -198,6 +198,7 @@ import tempfile
 import sys
 import threading
 
+import build_slot
 import corpus_records
 from compiler_profile import CompilerProfileError, optimized_environment, record_cargo_build, require_optimized
 
@@ -1624,6 +1625,26 @@ SELECTION_BUDGET = 200
 CORPUS_TIERS = ("pass", "fail", "run")
 
 
+# Two slot holders each starting one worker per core put 2 x 10 fact-place
+# checks (545-584 MiB resident each) on a 16 GB host: swap reached 4.1 of 5 GB
+# on 2026-11-02 and fixtures timed out. Each holder takes its share of cores
+# and memory instead.
+FIXTURE_MEMORY_BYTES = 600 * 1024 ** 2
+
+
+def default_jobs() -> int:
+    """Worker count for one slot holder when OMEGA_CORPUS_JOBS is unset."""
+    slots = build_slot.DEFAULT_SLOTS
+    jobs = min(12, max(1, (os.cpu_count() or 1) // slots))
+    try:
+        memory = os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES")
+    except (AttributeError, ValueError, OSError):
+        memory = 0
+    if memory:
+        jobs = min(jobs, max(1, memory // (FIXTURE_MEMORY_BYTES * slots)))
+    return jobs
+
+
 def selection_size(filter_text, shard_text) -> int:
     """Count the fixture directories a filter and shard select, before any build.
 
@@ -1885,6 +1906,8 @@ def main() -> int:
               "or pass --sweep for a sweep the user started or a scheduled job.",
               file=sys.stderr)
         return usage_error
+    if not os.environ.get("OMEGA_CORPUS_JOBS", "").strip():
+        os.environ["OMEGA_CORPUS_JOBS"] = str(default_jobs())
     subset = (bool(options.filter) or bool(options.shard)
               or bool(os.environ.get("OMEGA_CORPUS_FIXTURE_FILTER", "").strip())
               or bool(os.environ.get("OMEGA_CORPUS_SHARD", "").strip()))
