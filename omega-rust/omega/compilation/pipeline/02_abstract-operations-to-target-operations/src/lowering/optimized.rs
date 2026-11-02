@@ -1,19 +1,23 @@
-use abstract_operations_to_abstract_operations::ValidatedOptimizedAbstractPlan;
 use optimization_core::OptimizationExecutionPhase;
+use optimization_unit::OptimizedAbstractProgram;
 use std::sync::Arc;
 use target::NativeTarget;
 use target_operations::TargetOperationPlan;
-use terminal_psi_to_abstract_operations::AdmittedProviderInstallation;
+use terminal_psi_to_abstract_operations::{
+    AdmittedProviderInstallation, VerifiedPsiOptimizationInput,
+};
 
 use crate::{AdmittedBoundarySettlement, LoweringError};
 
-/// Target lowering retaining the validated abstract plan and its admitted
-/// provider installation beside the produced program. The current program is
+/// Target lowering retaining the optimized abstract program, the verified
+/// input it was admitted from and its admitted provider installation beside
+/// the produced program. The current program is
 /// shared immutable representation data. Borrowing or retaining it does not
 /// grant the admission held by this private constructor.
 #[derive(Debug)]
 pub struct ValidatedOptimizedTargetOperations {
-    pub(super) optimized: ValidatedOptimizedAbstractPlan,
+    pub(super) optimized: OptimizedAbstractProgram,
+    verified_input: VerifiedPsiOptimizationInput,
     current_program: Arc<TargetOperationPlan>,
     pub(super) provider_installation: Option<Box<AdmittedProviderInstallation>>,
 }
@@ -23,14 +27,19 @@ impl ValidatedOptimizedTargetOperations {
     pub fn borrowed_storage_layouts(&self) -> &[runtime_abi::NativeBorrowedStorageLayout] {
         &self.current_program.borrowed_storage_layouts
     }
-    pub const fn optimized(&self) -> &ValidatedOptimizedAbstractPlan {
+    pub const fn optimized(&self) -> &OptimizedAbstractProgram {
         &self.optimized
+    }
+
+    /// The verified input the optimized program was admitted from.
+    pub const fn verified_input(&self) -> &VerifiedPsiOptimizationInput {
+        &self.verified_input
     }
 
     /// The admitted boundary facts this plan's native call origins rejoin
     /// to, from the verified input its optimized source was admitted with.
     pub fn boundary_origins(&self) -> target_operations::BoundaryOriginFacts<'_> {
-        let input = self.optimized.verified_input();
+        let input = &self.verified_input;
         target_operations::BoundaryOriginFacts {
             program_entry: input.selected_program_entry_call().map(|call| {
                 target_operations::ProgramEntryOrigin {
@@ -96,7 +105,8 @@ pub struct OptimizedTargetLoweringRequest<'a> {
 /// the independent audit's job; this default route does not re-derive what it
 /// just lowered.
 pub fn lower_optimized_to_target_operations(
-    optimized: ValidatedOptimizedAbstractPlan,
+    optimized: OptimizedAbstractProgram,
+    verified_input: VerifiedPsiOptimizationInput,
     request: OptimizedTargetLoweringRequest<'_>,
 ) -> Result<ValidatedOptimizedTargetOperations, LoweringError> {
     let OptimizedTargetLoweringRequest {
@@ -120,11 +130,12 @@ pub fn lower_optimized_to_target_operations(
             target,
             &bindings,
             installed,
-            optimized.verified_input().admitted_native_callbacks(),
-            Some(optimized.verified_input()),
+            verified_input.admitted_native_callbacks(),
+            Some(&verified_input),
         )?;
     Ok(ValidatedOptimizedTargetOperations {
         optimized,
+        verified_input,
         current_program: Arc::new(program),
         provider_installation: installation.map(Box::new),
     })

@@ -125,9 +125,7 @@ impl StagedOptimizedFunctionFragmentEmission {
         self.source.post_allocation_manifest()
     }
 
-    pub fn pre_physical_manifest(
-        &self,
-    ) -> &abstract_operations_to_abstract_operations::validation::ValidatedPrePhysicalOptimizationManifest{
+    pub fn pre_physical_manifest(&self) -> &optimization_unit::PrePhysicalOptimizationManifest {
         self.source.pre_physical_manifest()
     }
 }
