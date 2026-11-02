@@ -32,8 +32,9 @@ mod contract_plans;
 mod declaration_descriptions;
 mod proof_applications;
 pub use declaration_descriptions::{
-    CheckedDeclarationCapture, CheckedDeclarationDescription, CheckedDeclarationDescriptions,
-    CheckedDeclarationParameter, CheckedDeclarationSpecialization, CheckedMachineDescription,
+    CheckedCallableHeader, CheckedDeclarationCapture, CheckedDeclarationDescription,
+    CheckedDeclarationDescriptions, CheckedDeclarationParameter, CheckedDeclarationSpecialization,
+    CheckedMachineDescription,
 };
 pub use proof_applications::{
     ProofApplicationMachine, ProofApplicationPlan, ProofApplicationTargetMember, ProofApplications,

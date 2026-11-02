@@ -48,6 +48,8 @@ fail/cases/constructor_subject_range_unproved rejected 619ms expected @03bcba3fe
 	data `ByteRead` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/cases/constructor_subject_range_unsigned_to_signed_unproved rejected 1007ms expected @95750e8d2f8d
 	Exact integer cast in machine `make` state `entry` from `u64` to `i64` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/constants/target_layout_derived_ground_guarantee_reject rejected 1261ms expected @d6c89b306726
+	cannot prove ensures contract for exit from incorrect at statement 1: result >= 5
 fail/contracts/assignment_destination_cannot_use_rhs_call_guarantee rejected 1464ms expected @d2f3e99f1e08
 	cannot prove index `index` is within length 1 in exercise::entry
 fail/contracts/assignment_destination_cannot_use_rhs_match_guard rejected 1464ms expected @d2f3e99f1e08
@@ -126,6 +128,8 @@ fail/facts/abstract_signature_call_generic_actual_through_target_body_rejected r
 	machine `observe` state `entry` value call to `apply` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
 	machine `observe` state `entry` value call to `apply` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
 	machine `apply$specialized$5fb3c39722e06b13$0` state `entry` value call to `witness` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+fail/facts/aggregate_storage_address_identity_packed_array_rejected rejected 735ms expected @c0578466ca4e+wt
+	storage address_of requires exactly one ordinary storage reference and no static arguments
 fail/facts/applied_zero_establishment_field_bound_unestablished rejected 3153ms expected @911f6617ba9e
 	machine `start` state `entry` statement 1: reading `value.<whole value>` crosses an open default-domain invariant window before data `Floor` is established: the zeroed representation is not yet a `Floor` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
 fail/facts/applied_zero_establishment_open_application_unestablished rejected 2706ms expected @911f6617ba9e
@@ -1539,6 +1543,35 @@ fail/facts/open_const_implementation_statement_const_result_rejected rejected 33
 fail/facts/open_const_implementation_statement_saved_output_rejected rejected 326ms expected @ea132c1fff8b
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+fail/facts/open_record_const_closed_call_call_result_rejected rejected 2255ms expected @e9f492c5ccc6+wt
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+fail/facts/open_record_const_closed_call_const_name_rejected rejected 797ms expected @e9f492c5ccc6+wt
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+fail/facts/open_record_const_closed_call_data_argument_rejected rejected 3005ms expected @e9f492c5ccc6+wt
+	machine `main` state `entry` local `packed` expects the `Envelope<#omega-const:13:Configuration49:record13:Configuration7:minimum15:integer3:u641:715:configuration()>` data type but got `Envelope<#omega-const:13:Configuration49:record13:Configuration7:minimum15:integer3:u641:628:Configuration { minimum: 6 }>` in the `local` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
+fail/facts/open_record_const_closed_call_field_rejected rejected 2615ms expected @e9f492c5ccc6+wt
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+fail/facts/open_record_const_closed_call_local_rejected rejected 2110ms expected @e9f492c5ccc6+wt
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+fail/facts/open_record_const_closed_call_match_join_rejected rejected 2394ms expected @e9f492c5ccc6+wt
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+fail/facts/open_record_const_closed_call_missing_requirement_rejected rejected 761ms expected @e9f492c5ccc6+wt
+	const-generic application evaluation failed: constant invocation of `configuration` failed checking: machine `@const-invocation` state `@const-invocation` value call to `configuration` violates required fact `false`: the instantiated fact is structurally false
+fail/facts/open_record_const_closed_call_nested_return_rejected rejected 1733ms expected @e9f492c5ccc6+wt
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+fail/facts/open_record_const_closed_call_noncanonical_field_rejected rejected 1451ms expected @e9f492c5ccc6+wt
+	const-generic application evaluation failed: application result is not a canonical static value within encoding limits
+fail/facts/open_record_const_closed_call_other_machine_rejected rejected 1899ms expected @e9f492c5ccc6+wt
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+fail/facts/open_record_const_closed_call_other_state_rejected rejected 1646ms expected @e9f492c5ccc6+wt
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+fail/facts/open_record_const_closed_call_parameter_rejected rejected 1759ms expected @e9f492c5ccc6+wt
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+fail/facts/open_record_const_closed_call_target_body_rejected rejected 1839ms expected @e9f492c5ccc6+wt
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+fail/facts/open_record_const_closed_call_wrong_carrier_rejected rejected 689ms expected @e9f492c5ccc6+wt
+	const-generic application evaluation failed: constant initializer result does not match its declared carrier
 fail/facts/predicate_type_formation_rejected rejected 3892ms expected @62ce026b5931+wt
 	data `Value<bool>` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
@@ -1774,15 +1807,28 @@ fail/facts/target_family_contract_operand/stronger_provider_requirement rejected
 	machine parameter `Selected` of provider machine `ArmChoice::choose` for trait requirement `Choosing::choose` does not refine `Callback`: its requires facts are not a conservative refinement
 fail/facts/transparent_alias_rhs_captured_supplier_call_result_mismatch_rejected rejected 2345ms expected @a1964f50142c
 	argument `value` for state `forward` expects `[u8; 5]`, got `named value`; expected carrier `array(named(name(u8)),literal(5))`, declared place carrier `array(named(name(u8)),literal(4))`
+fail/facts/transparent_alias_rhs_captured_supplier_const_name_mismatch_rejected rejected 2042ms expected @df2704cb8b18
+	constant array destination conflicts with its declared dimensions or element carrier
+	machine `main` state `entry` assigns an array literal with 4 element(s) to a `[_; 5]` place; a fixed-array literal must supply exactly 5 element(s)
+	argument `value` for state `forward` expects `[u8; 5]`, got `array literal`; expected carrier `array(named(name(u8)),literal(5))`, declared place carrier `array(named(name(u8)),literal(4))`
 fail/facts/transparent_alias_rhs_captured_supplier_field_mismatch_rejected rejected 2118ms expected @7ecc47f1c723
 	argument `value` for state `forward` expects `[u8; 5]`, got `member access`; expected carrier `array(named(name(u8)),literal(5))`, declared place carrier `array(named(name(u8)),literal(4))`
 fail/facts/transparent_alias_rhs_captured_supplier_match_join_mismatch_rejected rejected 2539ms expected @a1964f50142c
 	argument `value` for state `forward` expects `[u8; 5]`, got `named value`; expected carrier `array(named(name(u8)),literal(5))`, declared place carrier `array(named(name(u8)),literal(4))`
 fail/facts/transparent_alias_rhs_captured_supplier_mismatch_rejected rejected 1440ms expected @24d35f3b86c4
 	argument `value` for state `forward` expects `[u8; 5]`, got `named value`; expected carrier `array(named(name(u8)),literal(5))`, declared place carrier `array(named(name(u8)),literal(4))`
+fail/facts/transparent_alias_rhs_captured_supplier_other_machine_mismatch_rejected rejected 2029ms expected @df2704cb8b18
+	argument `value` for state `forward` expects `[u8; 5]`, got `named value`; expected carrier `array(named(name(u8)),literal(5))`, declared place carrier `array(named(name(u8)),literal(4))`
+	machine `carry` state `entry` terminal expression expects `[u8; 4]`, got `call expression`
+fail/facts/transparent_alias_rhs_captured_supplier_other_state_mismatch_rejected rejected 1816ms expected @df2704cb8b18
+	argument `value` for state `forward` expects `[u8; 5]`, got `named value`; expected carrier `array(named(name(u8)),literal(5))`, declared place carrier `array(named(name(u8)),literal(4))`
+	machine `onward` state `entry` terminal expression expects `[u8; 4]`, got `call expression`
 fail/facts/transparent_alias_rhs_captured_supplier_parameter_mismatch_rejected rejected 2241ms expected @7ecc47f1c723
 	argument `value` for state `forward` expects `[u8; 5]`, got `named value`; expected carrier `array(named(name(u8)),literal(5))`, declared place carrier `array(named(name(u8)),literal(4))`
 	machine `relay` state `entry` terminal expression expects `[u8; 4]`, got `call expression`
+fail/facts/transparent_alias_rhs_captured_supplier_target_body_mismatch_rejected rejected 1988ms expected @df2704cb8b18
+	argument `value` for state `forward` expects `[u8; 5]`, got `named value`; expected carrier `array(named(name(u8)),literal(5))`, declared place carrier `array(named(name(u8)),literal(4))`
+	machine `ArrayForward::forward` state `forward` terminal expression expects `[u8; 4]`, got `call expression`
 fail/facts/transparent_alias_rhs_const_expression_overflow_rejected rejected 957ms expected @143d3f1669fb
 	const argument expression: Exact integer constant operation overflows, divides by zero, or has an invalid shift count
 fail/facts/transparent_alias_rhs_declaration_scope_overflow_rejected rejected 604ms expected @8436ab6a7742
@@ -1875,6 +1921,8 @@ fail/providers/implicit_method_unused_const_count rejected 468ms expected @33b18
 	static method application requires its complete invocation telescope for `UnusedCount::read` (found 0, expected 1)
 fail/providers/native_generic_binding_wrong_requirement rejected 1394ms expected @959aa53558d2
 	no provider is selected for boundary requirement `CText::length`, which the program entry reaches on target `windows_x86_64`
+fail/providers/table_leaf_without_dispatch_borrow rejected 3589ms expected @bad39459725b+wt
+	selected provider plan `<selected target>::satisfies::Measure` is not fully covering: external leaf for `Measure::length` uses a table field, but its first parameter is not a readable borrow of a data declaration
 fail/termination/declared_measure_hidden_overflow_rejected rejected 721ms expected @4518281b90b2+wt
 	terminating machine walk_flat: cannot prove rank range `0..=10` for the rank produced by the selected view
 	terminating machine walk: cannot prove rank range `0..=limit` for the rank produced by the selected view
@@ -2759,7 +2807,7 @@ pass/build/sibling_module_slot_family_rows_exit rejected 16789ms check-target:ma
 pass/build/static_assumed_binding_spelling_exit checked 3772ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/terminal_calling_policy_execution checked 78393ms check-target:macos_arm64 terminal-runtime.retained_plan:match terminal-inspections:match @647f9c72eddf
 pass/build/terminal_nested_input_contents checked 6990ms check-target:macos_arm64 terminal-runtime.inspect:unrequested terminal-runtime.inspect_second:unrequested terminal-runtime.inspect_erased:unrequested terminal-runtime.inspect_reference:unrequested terminal-inspections:match @38f862ee379f
-pass/build/terminal_private_callback_calling checked 33692ms check-target:macos_arm64 @647f9c72eddf
+pass/build/terminal_private_callback_calling checked 74649ms check-target:macos_arm64 callback-body-controls:match terminal-inspections:match @65b0b3576d3c
 pass/build/terminal_project_requests checked 6659ms check-target:macos_arm64 terminal-runtime.requests:unrequested terminal-inspections:match @ccdb99ca2214
 pass/build/terminal_result_custody checked 20950ms check-target:macos_arm64 terminal-runtime.shared:unrequested terminal-runtime.distinct:unrequested terminal-runtime.selected:unrequested terminal-runtime.empty:unrequested terminal-runtime.number:unrequested terminal-inspections:match @ccdb99ca2214
 pass/build/uefi_context_cleanup_entry checked 18992ms check-target:uefi_x86_64 @ccdb99ca2214
@@ -3409,13 +3457,14 @@ pass/constants/qualified_variant_constant checked 2287ms @ccdb99ca2214
 pass/constants/runtime_predicate_constant_materialization_exit checked 5689ms check-target:macos_arm64 @911f6617ba9e
 pass/constants/runtime_scoped_const_exit checked 57128ms check-target:macos_arm64 @911f6617ba9e
 pass/constants/static_namespace_constant checked 3765ms @ccdb99ca2214
-pass/constants/target_layout_derived_alignment_exit checked 3634ms check-target:macos_arm64 @ccdb99ca2214
-pass/constants/target_layout_derived_helper_alias_exit checked 4598ms check-target:macos_arm64 @ccdb99ca2214
-pass/constants/target_layout_derived_helper_exit checked 4212ms check-target:macos_arm64 @ccdb99ca2214
-pass/constants/target_layout_derived_helper_generic_exit checked 4260ms check-target:macos_arm64 @ccdb99ca2214
-pass/constants/target_layout_derived_public_alias_exit checked 3428ms check-target:macos_arm64 @ccdb99ca2214
-pass/constants/target_layout_derived_shadow_exit checked 3880ms check-target:macos_arm64 @ccdb99ca2214
-pass/constants/target_layout_derived_skipped_crashing_helper_exit checked 3619ms check-target:macos_arm64 @ccdb99ca2214
+pass/constants/target_layout_derived_alignment_exit checked 2565ms check-target:macos_arm64 @d6c89b306726
+pass/constants/target_layout_derived_ground_guarantee_exit checked 2206ms check-target:macos_arm64 @d6c89b306726
+pass/constants/target_layout_derived_helper_alias_exit checked 2527ms check-target:macos_arm64 @d6c89b306726
+pass/constants/target_layout_derived_helper_exit checked 2530ms check-target:macos_arm64 @d6c89b306726
+pass/constants/target_layout_derived_helper_generic_exit checked 2667ms check-target:macos_arm64 @d6c89b306726
+pass/constants/target_layout_derived_public_alias_exit checked 2495ms check-target:macos_arm64 @d6c89b306726
+pass/constants/target_layout_derived_shadow_exit checked 2317ms check-target:macos_arm64 @d6c89b306726
+pass/constants/target_layout_derived_skipped_crashing_helper_exit checked 2484ms check-target:macos_arm64 @d6c89b306726
 pass/constraints/anonymous_integer_return_landing checked 2147ms @ccdb99ca2214
 pass/constraints/contract_range_membership_unimplemented checked 2376ms @ccdb99ca2214
 pass/constraints/guarded_parameter_result_contract checked 2323ms @ccdb99ca2214
@@ -4291,7 +4340,7 @@ pass/effects/reach_through_machine_param checked 2976ms @ccdb99ca2214
 pass/effects/reviewed_service_rows_exit checked 18046ms check-target:macos_arm64 @ccdb99ca2214
 pass/effects/root_service_audit checked 4242ms @ccdb99ca2214
 pass/effects/runtime_empty_boundary_reach_exit checked 17176ms check-target:macos_arm64 @ccdb99ca2214
-pass/effects/static_boundary_callback_reach checked 3594ms check-target:macos_arm64 @ccdb99ca2214
+pass/effects/static_boundary_callback_reach checked 4654ms check-target:macos_arm64 callback-body-controls:match terminal-inspections:match @65b0b3576d3c
 pass/effects/structural_callback_reach checked 3061ms @ccdb99ca2214
 pass/effects/top_level_callback_provider_ceiling checked 2504ms @ccdb99ca2214
 pass/effects/windows_filesystem_capability_rows checked 37396ms @ccdb99ca2214
@@ -4507,6 +4556,7 @@ pass/facts/affine_discard_root_cleanup_through_other_machine_exit checked 3194ms
 pass/facts/affine_discard_root_cleanup_through_other_state_exit checked 4184ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/affine_discard_root_cleanup_through_parameter_exit checked 3421ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/affine_discard_root_cleanup_through_target_body_exit checked 5289ms check-target:macos_arm64 terminal-target.linux_arm64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
+pass/facts/aggregate_storage_address_identity_packed_array_exit checked 3551ms check-target:macos_arm64 @c0578466ca4e+wt
 pass/facts/aggregate_storage_address_identity_through_call_result_exit checked 3272ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/aggregate_storage_address_identity_through_const_name_exit checked 3306ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/aggregate_storage_address_identity_through_field_exit checked 3674ms check-target:macos_arm64 @ccdb99ca2214
@@ -8321,6 +8371,18 @@ pass/facts/open_const_implementation_through_other_machine_exit checked 6729ms c
 pass/facts/open_const_implementation_through_other_state_exit checked 6704ms check-target:macos_arm64 @ea132c1fff8b
 pass/facts/open_const_implementation_through_parameter_exit checked 6683ms check-target:macos_arm64 @ea132c1fff8b
 pass/facts/open_const_implementation_through_target_body_exit checked 6705ms check-target:macos_arm64 @ea132c1fff8b
+pass/facts/open_record_const_closed_call_call_result_exit checked 17674ms check-target:macos_arm64 @e9f492c5ccc6+wt
+pass/facts/open_record_const_closed_call_const_name_exit checked 17403ms check-target:macos_arm64 @e9f492c5ccc6+wt
+pass/facts/open_record_const_closed_call_data_argument_exit checked 12570ms check-target:macos_arm64 @e9f492c5ccc6+wt
+pass/facts/open_record_const_closed_call_equivalent_literal_exit checked 13482ms check-target:macos_arm64 @e9f492c5ccc6+wt
+pass/facts/open_record_const_closed_call_field_exit checked 13473ms check-target:macos_arm64 @e9f492c5ccc6+wt
+pass/facts/open_record_const_closed_call_local_exit checked 12596ms check-target:macos_arm64 @e9f492c5ccc6+wt
+pass/facts/open_record_const_closed_call_match_join_exit checked 16024ms check-target:macos_arm64 @e9f492c5ccc6+wt
+pass/facts/open_record_const_closed_call_nested_return_exit checked 11753ms check-target:macos_arm64 @e9f492c5ccc6+wt
+pass/facts/open_record_const_closed_call_other_machine_exit checked 11815ms check-target:macos_arm64 @e9f492c5ccc6+wt
+pass/facts/open_record_const_closed_call_other_state_exit checked 12676ms check-target:macos_arm64 @e9f492c5ccc6+wt
+pass/facts/open_record_const_closed_call_parameter_exit checked 12649ms check-target:macos_arm64 @e9f492c5ccc6+wt
+pass/facts/open_record_const_closed_call_target_body_exit checked 10466ms check-target:macos_arm64 @e9f492c5ccc6+wt
 pass/facts/open_record_const_implementation_through_call_result_exit checked 6719ms check-target:macos_arm64 @ea132c1fff8b
 pass/facts/open_record_const_implementation_through_const_name_exit checked 6951ms check-target:macos_arm64 @ea132c1fff8b
 pass/facts/open_record_const_implementation_through_field_exit checked 6639ms check-target:macos_arm64 @ea132c1fff8b
@@ -9661,16 +9723,15 @@ pass/facts/target_family_open_const/other_machine checked 1110ms check-target:ma
 pass/facts/target_family_open_const/other_state checked 1058ms check-target:macos_arm64 @101f66e2f97e
 pass/facts/target_family_open_const/parameter checked 1151ms check-target:macos_arm64 @101f66e2f97e
 pass/facts/target_family_open_const/target_body checked 1398ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @101f66e2f97e
-pass/facts/target_layout_derived_constant_through_call_result_exit checked 3942ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_layout_derived_constant_through_const_name_exit checked 4710ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_layout_derived_constant_through_field_exit checked 3863ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_layout_derived_constant_through_local_exit checked 3955ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_layout_derived_constant_through_match_join_exit checked 4172ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_layout_derived_constant_through_other_machine_exit checked 3964ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_layout_derived_constant_through_other_state_exit rejected 1558ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	exact arithmetic in machine `verify` state `entry` local `slack` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-pass/facts/target_layout_derived_constant_through_parameter_exit checked 3934ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_layout_derived_constant_through_target_body_exit checked 4434ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/target_layout_derived_constant_through_call_result_exit checked 2478ms check-target:macos_arm64 @d6c89b306726
+pass/facts/target_layout_derived_constant_through_const_name_exit checked 2496ms check-target:macos_arm64 @d6c89b306726
+pass/facts/target_layout_derived_constant_through_field_exit checked 2485ms check-target:macos_arm64 @d6c89b306726
+pass/facts/target_layout_derived_constant_through_local_exit checked 2609ms check-target:macos_arm64 @d6c89b306726
+pass/facts/target_layout_derived_constant_through_match_join_exit checked 2603ms check-target:macos_arm64 @d6c89b306726
+pass/facts/target_layout_derived_constant_through_other_machine_exit checked 2673ms check-target:macos_arm64 @d6c89b306726
+pass/facts/target_layout_derived_constant_through_other_state_exit checked 2521ms check-target:macos_arm64 @d6c89b306726
+pass/facts/target_layout_derived_constant_through_parameter_exit checked 2512ms check-target:macos_arm64 @d6c89b306726
+pass/facts/target_layout_derived_constant_through_target_body_exit checked 2502ms check-target:macos_arm64 @d6c89b306726
 pass/facts/target_recursive_bound_through_call_result_exit checked 2615ms check-target:macos_arm64 @5dc7fa33c4de
 pass/facts/target_recursive_bound_through_const_name_exit checked 2615ms check-target:macos_arm64 @5dc7fa33c4de
 pass/facts/target_recursive_bound_through_field_exit checked 2541ms check-target:macos_arm64 @5dc7fa33c4de
@@ -9713,10 +9774,14 @@ pass/facts/thirtytwo_arg_stack_calling_plan_through_other_state_exit checked 359
 pass/facts/thirtytwo_arg_stack_calling_plan_through_parameter_exit checked 4669ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/thirtytwo_arg_stack_calling_plan_through_target_body_exit checked 3568ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/transparent_alias_rhs_captured_supplier_call_result_exit checked 7568ms check-target:macos_arm64 @a1964f50142c
+pass/facts/transparent_alias_rhs_captured_supplier_const_name_exit checked 7750ms check-target:macos_arm64 @df2704cb8b18
 pass/facts/transparent_alias_rhs_captured_supplier_exit checked 5439ms check-target:macos_arm64 @24d35f3b86c4
 pass/facts/transparent_alias_rhs_captured_supplier_field_exit checked 8236ms check-target:macos_arm64 @7ecc47f1c723
 pass/facts/transparent_alias_rhs_captured_supplier_match_join_exit checked 7630ms check-target:macos_arm64 @a1964f50142c
+pass/facts/transparent_alias_rhs_captured_supplier_other_machine_exit checked 8066ms check-target:macos_arm64 @df2704cb8b18
+pass/facts/transparent_alias_rhs_captured_supplier_other_state_exit checked 8795ms check-target:macos_arm64 @df2704cb8b18
 pass/facts/transparent_alias_rhs_captured_supplier_parameter_exit checked 9272ms check-target:macos_arm64 @7ecc47f1c723
+pass/facts/transparent_alias_rhs_captured_supplier_target_body_exit checked 8466ms check-target:macos_arm64 @df2704cb8b18
 pass/facts/transparent_alias_rhs_const_expression_exit checked 7601ms check-target:macos_arm64 @143d3f1669fb
 pass/facts/transparent_alias_rhs_declaration_scope_exit checked 4008ms check-target:macos_arm64 @8436ab6a7742
 pass/facts/typed_reflection_active_case_selected_layout_alias_exit checked 11634ms check-target:macos_arm64 @9d8ac725f3d8
@@ -12287,6 +12352,7 @@ pass/providers/specialized_structural_fixed_operator_terminal_custody checked 35
 pass/providers/staggered_installation_reach_exit checked 3868ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/structural_membership_boundary_exit checked 3781ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/structural_result_field_guarantee_exit checked 4145ms check-target:macos_arm64 @ccdb99ca2214
+pass/providers/table_leaf_dispatch_parameter_exit checked 9394ms check-target:linux_x86_64 @e83763954a2a+wt
 pass/providers/target_contract_adjacency_exit checked 3257ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/target_family_entry checked 3097ms @ccdb99ca2214
 pass/providers/token_machine_family_override_exit checked 12968ms check-target:macos_arm64 @ccdb99ca2214
@@ -15350,8 +15416,8 @@ fail/borrows/whole_referent_store_type_mismatch rejected 673ms expected @ccdb99c
 	machine `settle` state `entry` assignment expects the `Verdict` data type but got `Outcome` in the `place` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
 fail/boundary/bare_field_value_rejected rejected 781ms expected @ccdb99ca2214
 	data `Main` field `console` uses boundary trait `Console` as a value type; call a `Console` requirement directly, or carry an ordinary handle, session, or `dyn` value for runtime multiplicity
-fail/boundary/named_foreign_provider_wrong_table rejected 3214ms expected @ccdb99ca2214
-	cannot realize table field `call` for `read`: first table parameter does not borrow the exact attached table type
+fail/boundary/named_foreign_provider_wrong_table rejected 8283ms expected @e83763954a2a+wt
+	cannot realize table field `call` for `read`: no runtime field `call` in the dispatch table
 fail/boundary/named_target_foreign_provider_missing_member rejected 3879ms expected @ccdb99ca2214
 	build selects provider `ProbeProvider` for slot `Probe`, but no candidate exists in the loaded dependency closure
 fail/boundary/opaque_result_requires_representation rejected 3524ms expected @ccdb99ca2214
@@ -16252,23 +16318,23 @@ fail/constants/predicate_constant_generic_static_index_fence rejected 428ms unex
 fail/constants/predicate_constant_nested_projection_shadow rejected 292ms expected @911f6617ba9e
 	data `Packet` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/constants/predicate_constant_static_index_fence checked 7636ms @911f6617ba9e
-fail/constants/target_layout_derived_crashing_helper_reject rejected 3322ms expected @ccdb99ca2214
-	constant checking: scalar evaluation did not return a normal scalar: Crashed(TerminalCrash { site: Edge(EdgeId(24)), cause: Trap, site_guard: [], frontier_lower_bound: [] })
-fail/constants/target_layout_derived_demanded_crashing_helper_reject rejected 3815ms expected @ccdb99ca2214
-	constant checking: scalar evaluation did not return a normal scalar: Crashed(TerminalCrash { site: Edge(EdgeId(28)), cause: Trap, site_guard: [], frontier_lower_bound: [] })
-fail/constants/target_layout_derived_dependency_cycle_reject rejected 473ms expected @ccdb99ca2214
+fail/constants/target_layout_derived_crashing_helper_reject rejected 2098ms expected @d6c89b306726
+	constant checking: scalar evaluation did not return a normal scalar: Crashed(TerminalCrash { site: Edge(EdgeId(119)), cause: Trap, site_guard: [], frontier_lower_bound: [] })
+fail/constants/target_layout_derived_demanded_crashing_helper_reject rejected 2083ms expected @d6c89b306726
+	constant checking: scalar evaluation did not return a normal scalar: Crashed(TerminalCrash { site: Edge(EdgeId(129)), cause: Trap, site_guard: [], frontier_lower_bound: [] })
+fail/constants/target_layout_derived_dependency_cycle_reject rejected 143ms expected @d6c89b306726
 	constant initializer: target constant dependency cycle or unavailable canonical input
-fail/constants/target_layout_derived_helper_alias_underflow_reject rejected 3745ms unexpected @ccdb99ca2214
+fail/constants/target_layout_derived_helper_alias_underflow_reject rejected 2099ms expected @d6c89b306726
 	constant checking: scalar range condition 1: bounds [-1, -1] lie outside [0, 18446744073709551615]
-fail/constants/target_layout_derived_helper_generic_underflow_reject rejected 4192ms unexpected @ccdb99ca2214
+fail/constants/target_layout_derived_helper_generic_underflow_reject rejected 2157ms expected @d6c89b306726
 	constant checking: scalar range condition 1: bounds [-1, -1] lie outside [0, 18446744073709551615]
-fail/constants/target_layout_derived_intermediate_overflow_reject rejected 4364ms unexpected @ccdb99ca2214
-	constant checking: scalar evaluation execution: Execution(ExecutionSite { machine: MachineId(5), block: BlockId(9), operation: Some(OperationId(7)), cause: VerifiedOperationMalformed })
-fail/constants/target_layout_derived_late_native_reject rejected 346ms expected @ccdb99ca2214
+fail/constants/target_layout_derived_intermediate_overflow_reject rejected 2084ms expected @d6c89b306726
+	constant checking: scalar range condition 0: bounds [18446744073709551619, 18446744073709551619] lie outside [0, 18446744073709551615]
+fail/constants/target_layout_derived_late_native_reject rejected 146ms expected @d6c89b306726
 	late native code-layout metadata is unavailable to same-product semantic constant, type, layout, or optimization evaluation
-fail/constants/target_layout_derived_qualified_reject rejected 3454ms unexpected @ccdb99ca2214
+fail/constants/target_layout_derived_qualified_reject rejected 1442ms expected @d6c89b306726
 	cannot prove requires contract for call bounded_layout from @constant-BAD: size_of() + 1 <= 3 (needs fact `value <= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `@constant-BAD`
-fail/constants/target_layout_derived_unused_wrong_carrier_reject rejected 1929ms expected @ccdb99ca2214
+fail/constants/target_layout_derived_unused_wrong_carrier_reject rejected 570ms expected @d6c89b306726
 	store in machine `@constant-BAD` state `@constant-BAD` return value implicitly converts `u64` to `u8`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u8`)
 fail/constants/unused_case_predicate_constant rejected 388ms expected @a91a8de86514+wt
 	data `Choice` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
@@ -28666,24 +28732,24 @@ fail/facts/target_family_open_const/parameter rejected 481ms expected @101f66e2f
 	machine `main` state `entry` value call to `forward` violates required fact `value <= Maximum`: the instantiated fact is structurally false (`42 <= 40`)
 fail/facts/target_family_open_const/target_body rejected 481ms expected @101f66e2f97e
 	machine `main` state `entry` value call to `forward` violates required fact `value <= Maximum`: the instantiated fact is structurally false (`42 <= 40`)
-fail/facts/target_layout_derived_constant_through_call_result_reject rejected 3950ms unexpected @ccdb99ca2214
+fail/facts/target_layout_derived_constant_through_call_result_reject rejected 2083ms expected @d6c89b306726
 	constant checking: scalar range condition 1: bounds [-1, -1] lie outside [0, 18446744073709551615]
-fail/facts/target_layout_derived_constant_through_const_name_reject rejected 4151ms unexpected @ccdb99ca2214
+fail/facts/target_layout_derived_constant_through_const_name_reject rejected 2073ms expected @d6c89b306726
 	constant checking: scalar range condition 1: bounds [-1, -1] lie outside [0, 18446744073709551615]
-fail/facts/target_layout_derived_constant_through_field_reject rejected 3882ms unexpected @ccdb99ca2214
+fail/facts/target_layout_derived_constant_through_field_reject rejected 2083ms expected @d6c89b306726
 	constant checking: scalar range condition 1: bounds [-1, -1] lie outside [0, 18446744073709551615]
-fail/facts/target_layout_derived_constant_through_local_reject rejected 3117ms unexpected @ccdb99ca2214
+fail/facts/target_layout_derived_constant_through_local_reject rejected 2156ms expected @d6c89b306726
 	constant checking: scalar range condition 1: bounds [-1, -1] lie outside [0, 18446744073709551615]
-fail/facts/target_layout_derived_constant_through_match_join_reject rejected 3725ms unexpected @ccdb99ca2214
+fail/facts/target_layout_derived_constant_through_match_join_reject rejected 2094ms expected @d6c89b306726
 	constant checking: scalar range condition 2: bounds [-1, -1] lie outside [0, 18446744073709551615]
-fail/facts/target_layout_derived_constant_through_other_machine_reject rejected 4651ms unexpected @ccdb99ca2214
+fail/facts/target_layout_derived_constant_through_other_machine_reject rejected 2092ms expected @d6c89b306726
 	constant checking: scalar range condition 1: bounds [-1, -1] lie outside [0, 18446744073709551615]
-fail/facts/target_layout_derived_constant_through_other_state_reject rejected 2230ms unexpected @ccdb99ca2214
-	exact arithmetic in machine `verify` state `entry` local `slack` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/target_layout_derived_constant_through_parameter_reject rejected 4822ms unexpected @ccdb99ca2214
+fail/facts/target_layout_derived_constant_through_other_state_reject rejected 2110ms expected @d6c89b306726
 	constant checking: scalar range condition 1: bounds [-1, -1] lie outside [0, 18446744073709551615]
-fail/facts/target_layout_derived_constant_through_target_body_reject rejected 4672ms unexpected @ccdb99ca2214
-	constant checking: scalar range condition 4: bounds [-1, -1] lie outside [0, 18446744073709551615]
+fail/facts/target_layout_derived_constant_through_parameter_reject rejected 2080ms expected @d6c89b306726
+	constant checking: scalar range condition 1: bounds [-1, -1] lie outside [0, 18446744073709551615]
+fail/facts/target_layout_derived_constant_through_target_body_reject rejected 2085ms expected @d6c89b306726
+	constant checking: scalar range condition 2: bounds [-1, -1] lie outside [0, 18446744073709551615]
 fail/facts/target_recursive_bound_through_call_result_rejected rejected 1876ms expected @5dc7fa33c4de
 	cannot prove requires contract for call countdown from deliver: 4 <= 4 && 61 <= 60 (needs fact `remaining <= 4 && value <= 60` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/target_recursive_bound_through_const_name_rejected rejected 1653ms expected @5dc7fa33c4de
@@ -32776,8 +32842,8 @@ fail/providers/direct_foreign_missing_reach rejected 3083ms expected @ccdb99ca22
 	machine `RestrictedProvider::current` state `current` does not satisfy trait `Restricted` machine `current`: service `Process` is not allowed by the trait requirement
 fail/providers/direct_foreign_rejected_calling rejected 11514ms expected @ccdb99ca2214
 	calling policy rejected the boundary: direct foreign policy refuses
-fail/providers/direct_foreign_wrong_table rejected 4796ms expected @ccdb99ca2214
-	cannot realize table field `invoke` for `query`: first table parameter does not borrow the exact attached table type
+fail/providers/direct_foreign_wrong_table rejected 9244ms expected @e83763954a2a+wt
+	cannot realize table field `invoke` for `query`: no runtime field `invoke` in the dispatch table
 fail/providers/erased_routed_result_not_recovered checked 2624ms @ccdb99ca2214
 fail/providers/explicit_unavailable_target_provider rejected 9055ms expected @ccdb99ca2214
 	build selects provider `FirmwareValue` for slot `Value`, but no candidate exists in the loaded dependency closure

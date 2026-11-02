@@ -109,7 +109,8 @@ result annotation does not grant the authority of an admitted boundary requireme
 [Callable capture](src/capture/callables) cross-checks supply mode, exact
 `satisfies` edge, structural binding, and requirement declaration. External
 leaves have one complete application even when private and absent from public
-callable rows. Table-field bindings require the exact attached data declaration.
+callable rows. Table-field bindings require the exact data declaration their leaf's first
+parameter borrows.
 An authored alias remains separate from requirement/operator identity.
 
 Checked operator realizations retain machine/operator symbols, admission form,

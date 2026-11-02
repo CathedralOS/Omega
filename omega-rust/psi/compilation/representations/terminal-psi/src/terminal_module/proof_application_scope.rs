@@ -37,9 +37,36 @@ pub enum ProofCallableAssociation {
     },
 }
 
+/// Lightweight checked-source facts tied to this scope's declaration roster.
+/// Full signature/contract availability is independent. These facts never grant
+/// invocation, provider satisfaction, foreign backing or execution permission.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProofCallableHeader {
+    pub declaration: ProofDeclarationId,
+    pub callable: Result<TerminalIdentityIndex, String>,
+    pub package: Option<semantic_vocabulary::PackageKeyIdentity>,
+    pub source_target: Option<String>,
+    pub product_eligible: bool,
+    pub supplies_checked_body: bool,
+}
+
+impl Default for ProofCallableHeader {
+    fn default() -> Self {
+        Self {
+            declaration: ProofDeclarationId::default(),
+            callable: Err("checked callable header is absent".into()),
+            package: None,
+            source_target: None,
+            product_eligible: false,
+            supplies_checked_body: false,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ProofApplicationScope {
     pub declarations: Arena<ProofScopeDeclaration>,
+    pub callable_headers: Arena<ProofCallableHeader>,
     /// Exact producer associations, not identities reconstructed from names.
     /// Declarations without emitted code remain in the proof plan only.
     pub callables: Arena<ProofCallableAssociation>,
