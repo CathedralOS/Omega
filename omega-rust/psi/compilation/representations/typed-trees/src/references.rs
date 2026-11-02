@@ -2641,12 +2641,6 @@ fn visit_machine_with_sidecars(
         visit_type_reference(program, retained, equation.parameter);
         visit_type_reference(program, retained, equation.definition);
     }
-    for &predicate in program
-        .expression_table
-        .expression_handles(machine.declared_type_predicates)
-    {
-        visit_expression(program, retained, predicate);
-    }
     visit_type_reference(program, retained, machine.attached_data_application);
     for contract in program
         .tables

@@ -6,7 +6,7 @@ domain Cell::Ready
 requires self.value >= 73u64;
 
 machine generic_ready<Value, Gate>(cell: &Value) -> bool
-where Gate == Cell
+requires Gate == Cell
 { cell in Cell::Ready }
 
 machine consume(cell: &Cell) -> u64 {

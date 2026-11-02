@@ -7,7 +7,7 @@ module core::integer;
 // `as`, for example `integer::max<u32>() as u32 in Wrapping`.
 
 public machine min<T>() -> T
-where
+requires
     T == u8 || T == u16 || T == u32 || T == u64 || T == i8 || T == i16 || T == i32 || T == i64
 ensures
     (T == u8 && result == 0u8) ||
@@ -32,7 +32,7 @@ ensures
 }
 
 public machine max<T>() -> T
-where
+requires
     T == u8 || T == u16 || T == u32 || T == u64 || T == i8 || T == i16 || T == i32 || T == i64
 ensures
     (T == u8 && result == 0xFFu8) ||
@@ -57,7 +57,7 @@ ensures
 }
 
 public machine width_bits<T>() -> u64
-where
+requires
     T == u8 || T == u16 || T == u32 || T == u64 || T == i8 || T == i16 || T == i32 || T == i64
 ensures
     (T == u8 && result == 8u64) ||
@@ -82,7 +82,7 @@ ensures
 }
 
 public machine is_signed<T>() -> bool
-where
+requires
     T == u8 || T == u16 || T == u32 || T == u64 || T == i8 || T == i16 || T == i32 || T == i64
 ensures
     (T == u8 && result == false) ||

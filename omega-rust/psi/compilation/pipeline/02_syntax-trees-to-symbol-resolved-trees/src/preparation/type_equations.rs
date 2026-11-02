@@ -118,6 +118,32 @@ impl TypeEquation {
         }
     }
 
+    /// A machine `requires` fact joins structural recovery only when its
+    /// definition names another of the declaration's binders (`binders` lists
+    /// its type parameters, then its lifetimes): only then can a call recover
+    /// that binder from the defined one. A closed definition pins the binder
+    /// exactly as an entry type predicate does, so it stays one. A mixed-kind
+    /// equation stays here so it is rejected.
+    pub(crate) fn defines_structure(&self, syntax: &SyntaxTrees, binders: &[String]) -> bool {
+        match &self.shape {
+            EquationShape::Structural {
+                binder, structure, ..
+            } => structure
+                .binder_mentions(syntax, binders)
+                .iter()
+                .any(|mention| mention != binder),
+            EquationShape::KindMismatch { .. } => true,
+            EquationShape::Boolean {
+                operator: TypeBooleanOperator::And,
+                operands,
+                ..
+            } => operands
+                .iter()
+                .any(|operand| operand.defines_structure(syntax, binders)),
+            EquationShape::Boolean { .. } => false,
+        }
+    }
+
     /// Keep non-equation telescope slots out of structural matching without
     /// letting their names be reselected as closed declarations.
     pub(crate) fn mentions_parameter(
@@ -145,7 +171,7 @@ impl TypeEquation {
         }
         if let EquationShape::KindMismatch { span, description } = &self.shape {
             return Err(Diagnostic::error(format!(
-                "{declaration} where equation mixes type and value kinds: {description}"
+                "{declaration} requires equation mixes type and value kinds: {description}"
             ))
             .with_source_span(*span));
         }
@@ -455,6 +481,26 @@ fn single_name(syntax: &SyntaxTrees, expression: ExpressionHandle) -> Option<&Id
 /// Classify every declaration-level `where` fact that equates a type binder or a
 /// range shell. Facts over const binders and values alone (`Capacity > 0`)
 /// stay ordinary instantiation obligations for the const evaluator.
+/// A machine's structural equations among its `requires` facts; see
+/// [`TypeEquation::defines_structure`].
+pub(crate) fn classify_machine_equations(
+    syntax: &SyntaxTrees,
+    parameters: &[TypeParameter],
+    lifetimes: &[Identifier],
+    requirements: &[ProofFact],
+) -> Vec<TypeEquation> {
+    let binders = parameters
+        .iter()
+        .map(|parameter| &parameter.name)
+        .chain(lifetimes)
+        .map(|name| name.as_str(syntax).to_owned())
+        .collect::<Vec<_>>();
+    classify_type_equations(syntax, parameters, requirements)
+        .into_iter()
+        .filter(|equation| equation.defines_structure(syntax, &binders))
+        .collect()
+}
+
 pub(crate) fn classify_type_equations(
     syntax: &SyntaxTrees,
     parameters: &[TypeParameter],
