@@ -17,6 +17,7 @@ pub(crate) mod evidence_forwardings;
 pub(crate) mod machine_parameter_requirements;
 pub(crate) mod service_reaches;
 pub(crate) mod signature_free_requirements;
+mod static_arguments;
 
 use crate::resolution::lowerer::Lowerer;
 use diagnostics::Diagnostic;
@@ -128,6 +129,8 @@ pub(crate) fn finalize(lowerer: &mut Lowerer) -> Result<(), Vec<Diagnostic>> {
     let machine_ordinals =
         conformance_blocks::normalize_closed_conformance_blocks(&mut lowerer.symbol_resolved_trees)
             .map_err(|diagnostic| vec![diagnostic])?;
+    static_arguments::bind(&mut lowerer.symbol_resolved_trees)
+        .map_err(|diagnostic| vec![diagnostic])?;
     lowerer.pending_machine_bodies.retain_mut(|pending| {
         match machine_ordinals
             .get(pending.machine_ordinal)

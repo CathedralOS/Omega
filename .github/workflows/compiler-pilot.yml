@@ -120,7 +120,7 @@ jobs:
           OMEGA_COMPILER_PILOT_CLI_FIXTURES: ${{ inputs.cli_fixtures }}
         run: python tools/ci/compiler_pilot.py
       - name: Retain strict selected sample engine observations
-        if: github.event_name == 'workflow_dispatch' && inputs.samples != ''
+        if: always() && github.event_name == 'workflow_dispatch' && inputs.samples != '' && steps.compiler-check.outcome == 'success'
         env:
           OMEGA_COMPILER_PILOT_SAMPLES: ${{ inputs.samples }}
         run: |
@@ -175,7 +175,7 @@ jobs:
                       record['products'] = {path.relative_to(directory / 'products').as_posix(): hashlib.sha256(path.read_bytes()).hexdigest() for path in sorted((directory / 'products').rglob('*')) if path.is_file()}
                       assert (directory / 'products/program.oterm').is_file()
                       record.update(passed=True, native_exit=expected, terminal_exit=expected)
-                  except ValueError as error:
+                  except (ValueError, AssertionError, OSError) as error:
                       record['error'] = str(error)
                   lock = project.directory / 'omega.lock'
                   if lock.exists():
