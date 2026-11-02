@@ -252,7 +252,10 @@ fn nominal_declarations(
                 active_types.push(reference);
                 pending.push(Visit::EndType(reference));
                 match compilation.type_reference_table.type_reference(reference) {
-                    TypeReferenceNode::Reference { referee, .. }
+                    // A case view retains its exact carrier application: the
+                    // anonymous component introduces no new declaration owner.
+                    TypeReferenceNode::CaseView { subject: referee }
+                    | TypeReferenceNode::Reference { referee, .. }
                     | TypeReferenceNode::Constrained {
                         base_type: referee, ..
                     } => pending.push(Visit::Type(*referee)),
