@@ -25,7 +25,7 @@ use facts::{FactPayload, FactPlace};
 use symbols::SymbolHandle;
 
 use super::prover::semantic_contexts_prove_contract_fact;
-use crate::labels::{
+use crate::published::labels::{
     call_target_label, joined_place_label, machine_name, semantic_fact_requirement_label,
     symbol_name,
 };
@@ -58,39 +58,48 @@ pub(super) fn check_call_requires(
     // fallthrough arms -- through the flow's context threading, now that a
     // transition's branch-taken exit context is no longer leaked onto its sibling
     // fallthrough (see flow/statements.rs). No direct-context consultation needed.
-    let entry_contexts: Vec<_> = phase_profile::scope("psi.05.check_checked_facts.check_flow_call_contracts.entry_contexts", || {
-        facts
-            .flow
-            .state_call_entry_semantic_contexts(
+    let entry_contexts: Vec<_> = phase_profile::scope(
+        "psi.05.check_checked_facts.check_flow_call_contracts.entry_contexts",
+        || {
+            facts
+                .flow
+                .state_call_entry_semantic_contexts(
+                    state_flow,
+                    call_flow.statement_index,
+                    call_flow.call_ordinal,
+                    call_flow.target_symbol,
+                    call_flow.receiver_symbol,
+                )
+                .collect()
+        },
+    );
+    phase_profile::scope(
+        "psi.05.check_checked_facts.check_flow_call_contracts.contextual_cleanup",
+        || {
+            super::contextual_cleanup::check(
+                program,
+                facts,
                 state_flow,
-                call_flow.statement_index,
-                call_flow.call_ordinal,
-                call_flow.target_symbol,
-                call_flow.receiver_symbol,
-            )
-            .collect()
-    });
-    phase_profile::scope("psi.05.check_checked_facts.check_flow_call_contracts.contextual_cleanup", || {
-        super::contextual_cleanup::check(
-            program,
-            facts,
-            state_flow,
-            call_flow,
-            &entry_contexts,
-            call_frames,
-            diagnostics,
-        );
-    });
-    phase_profile::scope("psi.05.check_checked_facts.check_flow_call_contracts.nominal_inputs", || {
-        super::nominal_inputs::check(
-            program,
-            facts,
-            state_flow,
-            call_flow,
-            nominal_requirements,
-            diagnostics,
-        );
-    });
+                call_flow,
+                &entry_contexts,
+                call_frames,
+                diagnostics,
+            );
+        },
+    );
+    phase_profile::scope(
+        "psi.05.check_checked_facts.check_flow_call_contracts.nominal_inputs",
+        || {
+            super::nominal_inputs::check(
+                program,
+                facts,
+                state_flow,
+                call_flow,
+                nominal_requirements,
+                diagnostics,
+            );
+        },
+    );
     let mut whole_contract_caches = Vec::<WholeContractCache>::new();
     for requires_context in facts
         .flow
@@ -98,9 +107,14 @@ pub(super) fn check_call_requires(
     {
         let context = facts.semantic.contexts.get(requires_context);
         for fact in facts.semantic.context_view(context).facts() {
-            let membership = phase_profile::scope("psi.05.check_checked_facts.check_flow_call_contracts.membership", || {
-                super::call_values::membership_evidence(program, facts, state_flow, call_flow, fact)
-            });
+            let membership = phase_profile::scope(
+                "psi.05.check_checked_facts.check_flow_call_contracts.membership",
+                || {
+                    super::call_values::membership_evidence(
+                        program, facts, state_flow, call_flow, fact,
+                    )
+                },
+            );
             let mut proves_case = |case: Option<&super::call_values::MembershipCase>| {
                 let requirement_contexts =
                     case.map_or(entry_contexts.as_slice(), |case| case.contexts.as_slice());
@@ -114,8 +128,9 @@ pub(super) fn check_call_requires(
                         });
                         whole_contract_caches.len() - 1
                     });
-                let captured_judgment =
-                    phase_profile::scope("psi.05.check_checked_facts.check_flow_call_contracts.captured_boolean", || {
+                let captured_judgment = phase_profile::scope(
+                    "psi.05.check_checked_facts.check_flow_call_contracts.captured_boolean",
+                    || {
                         captured_boolean::judgment(
                             program,
                             facts,
@@ -127,97 +142,104 @@ pub(super) fn check_call_requires(
                             call_frames,
                             &mut whole_contract_caches[cache_index].answers,
                         )
-                    });
-                let satisfied = phase_profile::scope("psi.05.check_checked_facts.check_flow_call_contracts.proves_core", || {
-                    selected_evidence_proves_requirement(facts, state_flow, call_flow, fact)
-                        || captured_judgment.unwrap_or_else(|| match fact.payload {
-                            FactPayload::ContractBooleanExpression { expression, .. } => {
-                                boolean_requirements::proves(
-                                    program,
-                                    facts,
-                                    state_flow,
-                                    call_flow,
-                                    requirement_contexts,
-                                    expression,
-                                    incoming_guards,
-                                    call_frames,
-                                )
-                            }
-                            _ => {
-                                semantic_contexts_prove_contract_fact(
-                                    program,
-                                    facts,
-                                    facts::ProgramPoint::Statement {
-                                        machine_symbol: state_flow.machine_symbol,
-                                        state_symbol: state_flow.state_symbol,
-                                        statement_index: call_flow.statement_index,
-                                    },
-                                    requirement_contexts,
-                                    fact,
-                                ) || transparent_requirement_proves(
-                                    program, facts, state_flow, call_flow, fact,
-                                )
-                            }
-                        })
-                });
+                    },
+                );
+                let satisfied = phase_profile::scope(
+                    "psi.05.check_checked_facts.check_flow_call_contracts.proves_core",
+                    || {
+                        selected_evidence_proves_requirement(facts, state_flow, call_flow, fact)
+                            || captured_judgment.unwrap_or_else(|| match fact.payload {
+                                FactPayload::ContractBooleanExpression { expression, .. } => {
+                                    boolean_requirements::proves(
+                                        program,
+                                        facts,
+                                        state_flow,
+                                        call_flow,
+                                        requirement_contexts,
+                                        expression,
+                                        incoming_guards,
+                                        call_frames,
+                                    )
+                                }
+                                _ => {
+                                    semantic_contexts_prove_contract_fact(
+                                        program,
+                                        facts,
+                                        facts::ProgramPoint::Statement {
+                                            machine_symbol: state_flow.machine_symbol,
+                                            state_symbol: state_flow.state_symbol,
+                                            statement_index: call_flow.statement_index,
+                                        },
+                                        requirement_contexts,
+                                        fact,
+                                    ) || transparent_requirement_proves(
+                                        program, facts, state_flow, call_flow, fact,
+                                    )
+                                }
+                            })
+                    },
+                );
                 // ch8 construction-grant: a string literal whose compile-time bytes
                 // satisfy a domain's declared byte-predicate fact grants that
                 // domain without a validating boundary call -- this is how a literal
                 // flows into a `&[u8] in Utf8` target.
                 let satisfied = satisfied
-                    || phase_profile::scope("psi.05.check_checked_facts.check_flow_call_contracts.domain_grants", || {
-                        (captured_judgment.is_none()
-                            && proven_predicates_grant_domain(
-                                program,
-                                facts,
-                                state_flow,
-                                call_flow,
-                                requirement_contexts,
-                                fact,
-                                call_frames,
-                            ))
-                            || (captured_judgment.is_none()
-                                && !super::prover::indexed_membership(program, fact.payload)
-                                && (transition_guard_proves_requires(
-                                    program,
-                                    facts,
-                                    state_flow,
-                                    call_flow,
-                                    fact,
-                                    call_frames,
-                                ) || string_literal_grants_domain(
-                                    program,
-                                    &facts.semantic,
-                                    fact.payload,
-                                    fact.place,
-                                ) || value_call_return_domain_grants(
-                                    program,
-                                    &facts.semantic,
-                                    fact.payload,
-                                    fact.place,
-                                ) || subslice_grants_domain(
-                                    program,
-                                    facts,
-                                    requirement_contexts,
-                                    fact.payload,
-                                    fact.place,
-                                ) || parameter_domain_grants(
-                                    program,
-                                    facts,
-                                    state_flow,
-                                    fact.payload,
-                                    fact.place,
-                                ) || super::reference_domains::proves(
+                    || phase_profile::scope(
+                        "psi.05.check_checked_facts.check_flow_call_contracts.domain_grants",
+                        || {
+                            (captured_judgment.is_none()
+                                && proven_predicates_grant_domain(
                                     program,
                                     facts,
                                     state_flow,
                                     call_flow,
                                     requirement_contexts,
                                     fact,
-                                    case.and_then(|case| case.referents.as_deref()),
                                     call_frames,
-                                )))
-                    });
+                                ))
+                                || (captured_judgment.is_none()
+                                    && !super::prover::indexed_membership(program, fact.payload)
+                                    && (transition_guard_proves_requires(
+                                        program,
+                                        facts,
+                                        state_flow,
+                                        call_flow,
+                                        fact,
+                                        call_frames,
+                                    ) || string_literal_grants_domain(
+                                        program,
+                                        &facts.semantic,
+                                        fact.payload,
+                                        fact.place,
+                                    ) || value_call_return_domain_grants(
+                                        program,
+                                        &facts.semantic,
+                                        fact.payload,
+                                        fact.place,
+                                    ) || subslice_grants_domain(
+                                        program,
+                                        facts,
+                                        requirement_contexts,
+                                        fact.payload,
+                                        fact.place,
+                                    ) || parameter_domain_grants(
+                                        program,
+                                        facts,
+                                        state_flow,
+                                        fact.payload,
+                                        fact.place,
+                                    ) || super::reference_domains::proves(
+                                        program,
+                                        facts,
+                                        state_flow,
+                                        call_flow,
+                                        requirement_contexts,
+                                        fact,
+                                        case.and_then(|case| case.referents.as_deref()),
+                                        call_frames,
+                                    )))
+                        },
+                    );
 
                 let satisfied = satisfied
                     || crate::checks::termination::profile_requirement_covered(
@@ -721,7 +743,7 @@ fn proven_predicates_grant_domain(
     // exact formal, then use the same captured actuals and observation epochs
     // as an ordinary Boolean contract. Display labels cannot identify storage
     // or transport a named state's parameters through a constructor.
-    let Some(goals) = crate::facts::boolean_predicates::domain_predicates_for_subject(
+    let Some(goals) = crate::published::facts::boolean_predicates::domain_predicates_for_subject(
         program,
         &facts.operators,
         domain,

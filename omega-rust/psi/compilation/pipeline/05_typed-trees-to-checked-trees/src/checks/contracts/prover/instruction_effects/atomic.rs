@@ -2,7 +2,7 @@
 //! destination and scalar operand. Generic type arguments retain the exact
 //! atomic cell/value pair; a same-sized integer or another cell is not enough.
 use super::{QueryArgument, QueryArguments};
-use crate::places::place_at;
+use crate::published::places::place_at;
 use checked_trees::{CheckFacts, FlowOperandFact, FlowStateFact};
 use typed_trees::types::PrimitiveType;
 use validation::CanonicalPlace;

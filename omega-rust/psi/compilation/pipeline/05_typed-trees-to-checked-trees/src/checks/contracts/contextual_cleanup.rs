@@ -22,14 +22,14 @@ pub(crate) fn actual_place(
     if target_machine(program, call)? != requirement.machine {
         return None;
     }
-    let predicate = crate::facts::boolean_predicates::bind_entry(
+    let predicate = crate::published::facts::boolean_predicates::bind_entry(
         program,
         requirement.machine,
         requirement.consequence.clone(),
     )?;
     let observation = predicate.bindings.first()?;
     let actual = super::call_values::observation_actual(program, state, call, observation)?;
-    crate::semantic::facts::projected_argument_place(
+    crate::published::semantic::facts::projected_argument_place(
         program,
         state.state_symbol,
         call.statement_index,
@@ -128,10 +128,10 @@ pub(super) fn check(
             .unwrap_or_else(|| format!("{subject} does not establish"));
         diagnostics.push(Diagnostic::error(format!(
             "cannot prove contextual cleanup prerequisite for call {} from {}: {} {} clause `{}`",
-            crate::labels::call_target_label(program, call.target_symbol),
-            crate::labels::machine_name(program, state.machine_symbol),
+            crate::published::labels::call_target_label(program, call.target_symbol),
+            crate::published::labels::machine_name(program, state.machine_symbol),
             proposition,
-            crate::labels::machine_name(program, requirement.hook_machine),
+            crate::published::labels::machine_name(program, requirement.hook_machine),
             expressions(program).display_name(requirement.hook_clause),
         )));
     }

@@ -14,7 +14,7 @@ use crate::checks::reference_access;
 use crate::execution::terminal_unit::types::{
     byte_sequence_carrier, structural_access_for_type_reference, terminal_field_identity,
 };
-use crate::places::place_at;
+use crate::published::places::place_at;
 use crate::values::operator_is_builtin;
 
 /// `view[index] = byte` through a whole mutable borrowed view or owned home.

@@ -315,7 +315,8 @@ fn projected_read_retains_parent(
     let TransitionGuardNode::When(guard) = transition.guard else {
         return None;
     };
-    let (subject, selected_case) = crate::proof::exact_outcome_case_test(program, guard)?;
+    let (subject, selected_case) =
+        crate::published::proof::exact_outcome_case_test(program, guard)?;
     let subject = validation::contextual_canonical_place_from_expression(
         program,
         state.symbol,

@@ -132,7 +132,7 @@ impl ReadWalk<'_, '_, '_> {
                     root: facts::PlaceRoot::Symbol(symbol),
                     segments: Vec::new(),
                 };
-                crate::collections::push_unique(&mut self.reads, place);
+                crate::shared::collections::push_unique(&mut self.reads, place);
                 true
             })
     }

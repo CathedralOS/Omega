@@ -6,8 +6,8 @@
 use super::call_arguments::{CallOperandCustody, ComputedCallOperands};
 use super::{boundary_calls, integers, normal_return};
 use crate::execution::terminal_unit::types::ShapeCollector;
-use crate::facts::domain_is_vacuous;
 use crate::flow::call_flows;
+use crate::published::facts::domain_is_vacuous;
 use crate::values::evaluate_checked_scalar;
 use crate::values::mutable_scalar_parameter_type;
 use crate::values::operator_is_builtin;

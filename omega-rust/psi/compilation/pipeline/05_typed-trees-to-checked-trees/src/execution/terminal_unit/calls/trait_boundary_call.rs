@@ -13,7 +13,7 @@ use super::super::structural_scalar_store::primitive_local_before;
 use super::computation_arguments::borrowed_storage_argument;
 use super::computation_arguments::primitive_local_argument;
 use crate::execution::terminal_unit::calls::view_subslice;
-use crate::places::place_at;
+use crate::published::places::place_at;
 
 use crate::execution::terminal_unit::calls::argument_paths::{
     byte_sequence_literal_argument, checked_call_scalar_arguments,
@@ -109,7 +109,11 @@ pub(super) fn build(
         };
     let operator_arguments = match (requirement, call_site) {
         (BoundaryRequirement::Operator(_), validation::CallSite::Expression { call, .. }) => Some(
-            crate::facts::operator_crashes::named_call_operands(program, call, source_parameters)?,
+            crate::published::facts::operator_crashes::named_call_operands(
+                program,
+                call,
+                source_parameters,
+            )?,
         ),
         _ => None,
     };

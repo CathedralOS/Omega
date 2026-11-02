@@ -3,10 +3,10 @@ use crate::borrow::calls::replaces_reference_loan;
 use crate::borrow::view_link::substituted_result_is_view_free;
 use crate::checks::ownership_occurrences::SelectedEvaluation;
 use crate::checks::ownership_occurrences::statement_steps;
-use crate::collections::push_unique;
 use crate::flow::FlowOwnershipEventSource;
 use crate::flow::call_flows;
 use crate::flow::shared_call_frames_or;
+use crate::shared::collections::push_unique;
 use checked_trees::{CheckFacts, FlowStateFact};
 use diagnostics::Diagnostic;
 use validation::find_state_in_machine;
@@ -14,7 +14,7 @@ use validation::find_state_in_machine;
 use crate::flow::{
     StateMutationSummaryCache, StateReceiverReadCache, call_write_accesses, statement_mutated_place,
 };
-use crate::labels::symbol_name;
+use crate::published::labels::symbol_name;
 
 use super::details::active_loan_detail;
 use super::overlap::{

@@ -248,7 +248,7 @@ impl Execution<'_, '_, '_> {
             }
             for address in addresses {
                 let place = crate::flow::project_captured_view_place(address, &segments)?;
-                crate::collections::push_unique(&mut backing, place);
+                crate::shared::collections::push_unique(&mut backing, place);
             }
         }
         (!backing.is_empty()).then_some(backing)

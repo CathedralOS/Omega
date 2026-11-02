@@ -185,7 +185,7 @@ impl Scope<'_> {
         if !source.binding_declaration.is_valid() || !source.lexical_owner.is_valid() {
             return None;
         }
-        use crate::facts::index_compatibility::{
+        use crate::published::facts::index_compatibility::{
             BoundIndexArgument, call_index_substitutions, index_identity_bindings,
         };
         // Even exact immutable indices belong to the incoming call frame.

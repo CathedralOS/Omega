@@ -4,9 +4,9 @@
 //! unknown predicates grant neither a veto nor evidence of consistency.
 
 use super::*;
-use crate::facts::boolean_predicates;
 use crate::flow::active_context_handles;
-use crate::places::place_at;
+use crate::published::facts::boolean_predicates;
+use crate::published::places::place_at;
 
 pub(in crate::checks::contracts) struct BoundaryRefutations {
     machines: Vec<(
@@ -134,7 +134,7 @@ impl BoundaryRefutations {
             if completed_refutation || live_refutation {
                 diagnostics.push(diagnostics::Diagnostic::error(format!(
                     "boundary qualification is refuted at exit of {} in state `{}` for requirement `{}`: {}",
-                    crate::labels::machine_name(program, machine.symbol), state.name,
+                    crate::published::labels::machine_name(program, machine.symbol), state.name,
                     program.symbols.name(obligation.requirement), domain.name,
                 )));
             }

@@ -5,7 +5,7 @@
 //! sealed operators owe their admitted catalog contract, and routed rows still
 //! require the independent invocation/custody admission in content checking.
 
-use crate::semantic::places::append_place;
+use crate::published::semantic::places::append_place;
 use arena::HandleSpan;
 use checked_trees::expression::ExpressionHandle;
 use facts::{

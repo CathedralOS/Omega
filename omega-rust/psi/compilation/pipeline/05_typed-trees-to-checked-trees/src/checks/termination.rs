@@ -30,7 +30,7 @@ pub(crate) use progress::{entry_covers_progress_premises, profile_requirement_co
 pub(crate) use graph::strongly_connected_components;
 pub(crate) use ranking::proves_ranked_entry_requirement;
 
-use crate::labels::machine_name;
+use crate::published::labels::machine_name;
 use diagnostics::Diagnostic;
 
 /// Admit source ranking once after independent effects and caller frames are

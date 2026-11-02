@@ -236,7 +236,7 @@ impl Execution<'_, '_, '_> {
                         break;
                     };
                     for root in retained {
-                        crate::collections::push_unique(&mut roots, root);
+                        crate::shared::collections::push_unique(&mut roots, root);
                     }
                     self.capture_output_lifetime_sources(
                         parameters,
@@ -245,7 +245,7 @@ impl Execution<'_, '_, '_> {
                         identity,
                         &effect.destination.local_segments,
                     );
-                    crate::collections::push_unique(&mut origins, origin);
+                    crate::shared::collections::push_unique(&mut origins, origin);
                     continue;
                 }
                 let Some(backing) = input(source.backing.root) else {
@@ -354,7 +354,7 @@ impl Execution<'_, '_, '_> {
                 }
                 if source.lifetime_access.is_none() {
                     for origin in observed.places {
-                        crate::collections::push_unique(&mut origins, origin);
+                        crate::shared::collections::push_unique(&mut origins, origin);
                     }
                 }
             }

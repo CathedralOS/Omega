@@ -1023,7 +1023,7 @@ defines the complete product bar.
     array/case and whole-aggregate subjects, open applications, and
     abstract-carrier constraints over explicit named subjects.
   - Carry constant-invocation crash premises through
-    `omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/facts/crash_entry_values.rs`.
+    `omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/published/facts/crash_entry_values.rs`.
   Acceptance: `python3 tools/corpus_gate.py --both --filter modules/`,
   `samples/cli/facts/{nominal_declaration_owner,computed_constant_array_extent}`,
   and fixtures for nonempty anonymous `Build` owners and new constant forms pass
@@ -1098,7 +1098,7 @@ defines the complete product bar.
   [representation-erased domain qualification](wiki/spec/language/domains.md)
   end to end under
   [mutable arguments and declared field domains](wiki/spec/language/dependent_values.md#mutable-arguments-and-declared-field-domains).
-  Owner: `omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/semantic/facts/field_domains.rs`
+  Owner: `omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/published/semantic/facts/field_domains.rs`
   and `src/flow/state_values/`.
   - Restore representation-erased domain qualification (`[u8; N] in D` is the
     same exact-length fixed array as `[u8; N]`, with `.len == N`), delete the
@@ -1219,7 +1219,7 @@ defines the complete product bar.
   Complete invocation-specific crash obligations and outcome-specific call
   evidence through selected operators, nested values, calls, cycles, and package
   review end to end (`omega run --both`).
-  Owners: Psi 05 `omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/facts/{operator_crashes,crash_entry_values}.rs`,
+  Owners: Psi 05 `omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/published/facts/{operator_crashes,crash_entry_values}.rs`,
   `src/values/scalar/contract_entry.rs`, `src/flow/expression.rs`, Psi 06
   lowering of crash routes, and the native consumers.
   - Extend selected-use joins for remaining intrinsic spellings, generic
@@ -2085,7 +2085,7 @@ defines the complete product bar.
   `package-source`, and `resolver-execution` at the release commit, and pin
   end-to-end corpus/package witnesses for:
   - Package and selection identity in
-    `omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/authored_selections/finalization.rs`
+    `omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/shared/authored_selections/finalization.rs`
     (`allow_unresolved_toolchain`).
   - Private progress premises in Psi 05 `checks/contracts/calls.rs` and
     `checks/termination/progress/components.rs`.

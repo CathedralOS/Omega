@@ -34,7 +34,7 @@ use super::{
     CheckedUnitStructuralPathSegment as PathSegment, PrimitiveType,
 };
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
-use crate::places::place_at;
+use crate::published::places::place_at;
 use checked_trees::{
     CheckedAtomicAccessPlan as AccessPlan, CheckedAtomicEvent,
     CheckedAtomicReadModifyWrite as ModifyWrite, CheckedCallScalarArgument as ScalarArgument,

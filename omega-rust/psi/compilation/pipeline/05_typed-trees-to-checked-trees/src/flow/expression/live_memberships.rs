@@ -116,7 +116,7 @@ impl Execution<'_, '_, '_> {
             {
                 continue;
             }
-            let place = crate::semantic::places::append_place(
+            let place = crate::published::semantic::places::append_place(
                 self.semantic,
                 membership.place.root,
                 &membership.place.segments,

@@ -80,12 +80,13 @@ pub(in crate::flow) fn scalar_observation_at<'flow>(
             (source, reference, Some(read))
         }
         _ => {
-            let (place, reference) = crate::facts::boolean_predicates::declared_observation(
-                program,
-                state,
-                statement_index,
-                &BooleanPredicateOperand::Scalar(operand.clone()),
-            )?;
+            let (place, reference) =
+                crate::published::facts::boolean_predicates::declared_observation(
+                    program,
+                    state,
+                    statement_index,
+                    &BooleanPredicateOperand::Scalar(operand.clone()),
+                )?;
             (place, reference, None)
         }
     };

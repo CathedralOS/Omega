@@ -128,7 +128,7 @@ fn refusal(
     }
     Diagnostic::error(format!(
         "{message} in machine `{}`, state `{}`, statement {statement}",
-        crate::labels::symbol_name(program, state.machine_symbol),
-        crate::labels::symbol_name(program, state.state_symbol)
+        crate::published::labels::symbol_name(program, state.machine_symbol),
+        crate::published::labels::symbol_name(program, state.state_symbol)
     ))
 }

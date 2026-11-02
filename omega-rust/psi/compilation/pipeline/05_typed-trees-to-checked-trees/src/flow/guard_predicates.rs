@@ -6,7 +6,7 @@
 //! repeatable inputs. Generated names and adjacency grant no authority.
 
 use crate::flow::expressions;
-use crate::places::place_at;
+use crate::published::places::place_at;
 use facts::PlaceSegment;
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::byte_predicates::byte_predicate_call;
@@ -135,7 +135,7 @@ pub(crate) fn transition_guard_observations<'program>(
             continue;
         }
         let signed = (expression, observation.value);
-        crate::collections::push_unique(&mut observations, signed);
+        crate::shared::collections::push_unique(&mut observations, signed);
     }
     Some(observations)
 }

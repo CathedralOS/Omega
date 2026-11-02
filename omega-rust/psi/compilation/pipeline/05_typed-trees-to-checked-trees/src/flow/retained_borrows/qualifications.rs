@@ -85,7 +85,7 @@ pub(in crate::flow) fn memberships(
         });
         if supplied {
             for place in common.unwrap_or_default() {
-                crate::collections::push_unique(
+                crate::shared::collections::push_unique(
                     &mut rows,
                     RetainedMembership {
                         place,
@@ -308,7 +308,7 @@ fn observation_aliases(
             }
         }
         for alias in common.unwrap_or_default() {
-            crate::collections::push_unique(&mut output, alias);
+            crate::shared::collections::push_unique(&mut output, alias);
         }
     }
     active.pop();

@@ -6,7 +6,7 @@
 //! replays a local initializer as current storage. Lifetime and predicate
 //! obligations remain with the consuming operation.
 use super::{calls, types};
-use crate::places::place_at;
+use crate::published::places::place_at;
 use checked_trees::{
     CheckedOperatorFacts, CheckedRuntimeIndex, CheckedScalarExpressionPlans,
     CheckedStructuralAccess, CheckedSubsliceSite, CheckedUnitStructuralArgumentPlan,

@@ -16,8 +16,8 @@
 //! evidence requires that coordinate correspondence, not just scalar values.
 //! Refusing it leaves the runtime store capture and invalidation unchanged.
 
-use crate::semantic::places::append_place;
-use crate::semantic::places::canonical_place_to_fact_place_in_state;
+use crate::published::semantic::places::append_place;
+use crate::published::semantic::places::canonical_place_to_fact_place_in_state;
 use crate::values::is_assignment_literal;
 use validation::CanonicalPlace;
 
