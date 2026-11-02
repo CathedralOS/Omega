@@ -192,6 +192,7 @@ impl DirectBoundaryInput {
             Diagnostic::error("direct boundary projection lost its original provider row")
         })?;
         let requirement = original.identities.text(row.requirement_identity);
+        let satisfied_schema = original.schema.clone();
         let mut plan = original.clone();
         plan.rows = vec![row.clone()];
         std::sync::Arc::make_mut(&mut plan.schema.declaration)
@@ -199,14 +200,6 @@ impl DirectBoundaryInput {
             .retain(|method| {
                 original.schema.identity_text(method.requirement_identity) == requirement
             });
-        plan.schema.calling_applications.retain(|application| {
-            plan.schema
-                .declaration
-                .methods
-                .iter()
-                .any(|method| method.requirement_identity == application.requirement)
-        });
-        let satisfied_schema = plan.schema.clone();
         let declaration = std::sync::Arc::make_mut(&mut plan.schema.declaration);
         declaration.receiver_applications.clear();
         plan.name = format!("direct-boundary:{}:{}", plan.target, self.callable_identity);
@@ -220,26 +213,26 @@ impl DirectBoundaryInput {
                 "boundary leaf does not bind one exact requirement contract",
             ));
         };
-        let previous_requirement = method.requirement_identity;
         method.requirement_identity = declaration.identities.intern(&self.callable_identity);
-        for application in &mut plan.schema.calling_applications {
-            if application.requirement == previous_requirement {
-                application.requirement = method.requirement_identity;
-            }
-        }
+        // Calling belongs to the original public declaration. The synthetic
+        // callable route is authenticated against that separately retained
+        // schema; it must not relabel an authored calling application.
+        plan.schema.calling_applications.clear();
         if let backend_plan::DirectBoundaryExecution::Foreign(Ok(binding)) = &mut execution {
             binding.trait_name = self.callable_identity.clone();
             binding.requirement_identity = self.callable_identity.clone();
             binding.table_type = self.realization_owner.clone();
         }
-        Ok(backend_plan::DirectBoundaryLeaf {
+        let leaf = backend_plan::DirectBoundaryLeaf {
             declaration_identity: self.declaration_identity.clone(),
             callable_identity: self.callable_identity.clone(),
             satisfied_schema,
             plan,
             satisfied_requirement_identity: requirement.to_owned(),
             execution,
-        })
+        };
+        leaf.validate_calling_custody().map_err(Diagnostic::error)?;
+        Ok(leaf)
     }
 }
 
