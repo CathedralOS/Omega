@@ -141,7 +141,7 @@ pub(crate) fn exact_loan_lifecycle_rows(
             borrow
                 .incoming_references
                 .is_valid(loan_fact.incoming_reference)
-                .then(|| borrow
+                .then(|| &borrow
                     .incoming_references
                     .get(loan_fact.incoming_reference)
                     .origin),
