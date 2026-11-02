@@ -35,6 +35,32 @@ Calls carry the exact buffer, its lifetime and its exclusive access. The result
 checks use the actual selected implementations. No caller guard supplies a
 missing success proof after the conversion has finished.
 
+## Places
+
+Each place supplies the same semantic `Pair` to these buffered conversions. The
+buffer is always a runtime input with exclusive access; a constant supplies a
+`Pair`, never permission to access the buffer. Every program keeps the same
+three-byte requirement and checks both ordinary and endpoint values, short
+output, malformed input and buffer neighbors.
+
+| Place | Semantic input | Reject twin |
+| --- | --- | --- |
+| [Local](local/main.omg) | Original local request construction | [Guard requires only two bytes](local/invalid/main.omg) |
+| [Field](field/main.omg) | A field between nonzero neighbors | [Capacity obligation](field/invalid/main.omg) |
+| [Parameter](parameter/main.omg) | A forwarded parameter | [Capacity obligation](parameter/invalid/main.omg) |
+| [Call result](call_result/main.omg) | A completed call | [Capacity obligation](call_result/invalid/main.omg) |
+| [Match join](match_join/main.omg) | Both arms of a match | [Capacity obligation](match_join/invalid/main.omg) |
+| [Constant name](const_name/main.omg) | Two owned constants | [Capacity obligation](const_name/invalid/main.omg) |
+| [Nested machine](other_state/main.omg) | An explicit nested machine | [Capacity obligation](other_state/invalid/main.omg) |
+| [Other machine](other_machine/main.omg) | Another named implementation | [Capacity obligation](other_machine/invalid/main.omg) |
+| [Selected implementation](target_body/main.omg) | An ordinary Build-selected provider | [Capacity obligation](target_body/invalid/main.omg) |
+
+The selected provider returns its marker together with the semantic input.
+Selecting the wrong body, exchanging the two inputs or taking the same match
+arm twice makes the program trap. This row does not claim that a borrowed
+request can be stored in a constant or that the request itself crosses every
+listed boundary.
+
 ## Current result
 
 The first place is unfinished. The compiler now proves the five success
