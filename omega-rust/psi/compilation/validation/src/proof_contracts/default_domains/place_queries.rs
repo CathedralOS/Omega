@@ -477,9 +477,142 @@ pub(super) fn fact_reads_field_contents(
         .contains(&field)
 }
 
-#[derive(Default)]
 struct PredicateReadSet {
     fields: Vec<symbols::SymbolHandle>,
+    paths: Vec<Vec<facts::PlaceSegment>>,
+    complete_paths: bool,
+}
+impl Default for PredicateReadSet {
+    fn default() -> Self {
+        Self {
+            fields: Vec::new(),
+            paths: Vec::new(),
+            complete_paths: true,
+        }
+    }
+}
+
+/// Exact inline dependencies refine the declaration-owned field read roster.
+/// A descriptor slot is never a footprint for the storage it points at.
+pub(super) fn fact_is_disjoint_from_store(
+    program: &dyn crate::CheckingInput,
+    definition: &DataDefinition,
+    fact: &typed_trees::domain::ProofFact,
+    destination: &[facts::PlaceSegment],
+) -> bool {
+    let reads = predicate_read_set(program, definition, fact, false);
+    reads.complete_paths && !reads.paths.is_empty() && reads.paths.iter().all(|read| {
+        !crate::value_custody::places::storage_path_relations::canonical_place_segments_may_overlap(
+            program,
+            read,
+            destination,
+        )
+    })
+}
+
+/// Resolve an ordinary predicate projection in its exact receiving telescope.
+/// This returns contents coordinates only: selected indexing, descriptor/value
+/// distinctions, and every inline crossing retain their existing type gates.
+pub(super) fn predicate_projection(
+    program: &dyn crate::CheckingInput,
+    definition: &DataDefinition,
+    application: TypeReferenceHandle,
+    expression: ExpressionHandle,
+) -> Option<Vec<facts::PlaceSegment>> {
+    let query = (|| -> Result<Vec<facts::PlaceSegment>, &'static str> {
+        let application =
+            crate::value_custody::places::unwrapped_type_reference(program, application)
+                .ok_or("receiving application is unavailable")?;
+        program
+            .data_constructor_definition(application, definition.symbol)
+            .ok_or("receiving application does not own the predicate declaration")?;
+        let mut parameters = declared_predicate_fields(program, definition)
+            .iter()
+            .map(|field| typed_trees::signature::StateParameter {
+                symbol: field.symbol,
+                name: field.name.clone(),
+                type_reference: field.type_reference,
+                ..Default::default()
+            })
+            .collect::<Vec<_>>();
+        parameters.push(typed_trees::signature::StateParameter {
+            symbol: definition.predicate_subject_symbol,
+            name: "\0predicate_subject".into(),
+            type_reference: application,
+            ..Default::default()
+        });
+        let result = crate::parameter_expression_result_type_reference(
+            program,
+            definition.symbol,
+            &parameters,
+            expression,
+        )
+        .ok_or("projection has no result in the exact declaration telescope")?;
+        if crate::reference_shell(program, result).is_some() {
+            return Err("projection result is a reference descriptor, not inline contents");
+        }
+        crate::value_custody::places::parameter_source_type_application(
+            program,
+            definition.symbol,
+            &parameters,
+            expression,
+        )
+        .ok_or("projection has no authenticated ordinary coordinate/selected index meaning")?;
+        let mut place = crate::canonical_place_from_expression(program, expression)
+            .ok_or("projection has no canonical place")?;
+        if place.root.as_symbol() != Some(definition.predicate_subject_symbol) {
+            let symbol = place
+                .root
+                .as_symbol()
+                .ok_or("projection is not rooted in a declaration subject")?;
+            parameters
+                .iter()
+                .find(|p| p.symbol == symbol && p.symbol != definition.predicate_subject_symbol)
+                .ok_or("projection root is not the receiving subject or one of its fields")?;
+            let mut path = Vec::new();
+            crate::value_custody::places::push_field_place_segments(program, &mut path, symbol);
+            path.extend(place.segments);
+            place.segments = path;
+        }
+        let mut reference = application;
+        for segment in &place.segments {
+            if crate::reference_shell(program, reference).is_some() {
+                return Err(
+                    "projection crosses a reference descriptor; field storage is not referent contents",
+                );
+            }
+            reference = crate::project_type_reference_from_segments(
+                program,
+                reference,
+                std::slice::from_ref(segment),
+            )
+            .ok_or("projection segment is outside its declared receiving carrier")?;
+        }
+        if crate::reference_shell(program, reference).is_some()
+            || !crate::declared_carriers_match(program, reference, result)
+        {
+            return Err(
+                "projection carrier is not the same inline value as its declared coordinate",
+            );
+        }
+        Ok(place.segments)
+    })();
+    if let Err(reason) = query.as_ref()
+        && crate::proof_contracts::contract_entailment::struct_trace()
+        && crate::canonical_place_from_expression(program, expression).is_some_and(|place| {
+            place.root.as_symbol() == Some(definition.predicate_subject_symbol)
+                || place
+                    .root
+                    .as_symbol()
+                    .is_some_and(|symbol| program.any_field_owner(symbol).is_some())
+        })
+    {
+        eprintln!(
+            "DEFAULT predicate-projection-refused owner={} expression={expression:?} reason={reason}",
+            definition.name
+        );
+    }
+    query.ok()
 }
 
 fn declared_predicate_fields<'program>(
@@ -593,6 +726,7 @@ fn predicate_read_set(
     );
     for symbol in static_references.symbols.drain(..) {
         if let Some(field) = receiving_field(symbol) {
+            reads.complete_paths = false;
             if !reads.fields.contains(&field) {
                 reads.fields.push(field);
             }
@@ -604,6 +738,47 @@ fn predicate_read_set(
             continue;
         }
         visited.push((expression, whole_subject));
+        // A full typed projection is one dependency, not a read of every
+        // containing aggregate on the way to its leaf. Keep the broad field
+        // roster for existing consumers and its precise inline footprint here.
+        if !contents_only {
+            let application = definition
+                .generic_instance
+                .unwrap_or(definition.predicate_subject_type);
+            if let Some(path) = predicate_projection(program, definition, application, expression) {
+                if !path.is_empty() || whole_subject {
+                    if let Some(facts::PlaceSegment::Field { symbol }) = path.first() {
+                        if !reads.fields.contains(symbol) {
+                            reads.fields.push(*symbol);
+                        }
+                    } else {
+                        for field in &declared {
+                            if !reads.fields.contains(&field.symbol) {
+                                reads.fields.push(field.symbol);
+                            }
+                        }
+                    }
+                    for segment in &path {
+                        if let facts::PlaceSegment::Index { expression } = segment {
+                            pending.push((*expression, true));
+                        }
+                    }
+                    if !reads.paths.contains(&path) {
+                        reads.paths.push(path);
+                    }
+                }
+                continue;
+            }
+            if crate::canonical_place_from_expression(program, expression).is_some_and(|place| {
+                place.root.as_symbol() == Some(definition.predicate_subject_symbol)
+                    || place
+                        .root
+                        .as_symbol()
+                        .is_some_and(|symbol| receiving_field(symbol).is_some())
+            }) {
+                reads.complete_paths = false;
+            }
+        }
         // An element store leaves the descriptor's own metadata unchanged.
         // Authenticate the selected measure on the declared field carrier;
         // an ordinary record member merely named `len` still reads contents.
@@ -656,8 +831,9 @@ fn predicate_read_set(
                 typed_trees::references::visit_static_machine_bindings(program, &mut static_references, call.selection_application());
                 pending.extend(static_references.expressions.drain(..).map(|expression| (expression, true)));
                 for symbol in static_references.symbols.drain(..) {
-                    if let Some(field) = receiving_field(symbol) { if !reads.fields.contains(&field) { reads.fields.push(field); } }
+                    if let Some(field) = receiving_field(symbol) { reads.complete_paths = false; if !reads.fields.contains(&field) { reads.fields.push(field); } }
                     else if definition.predicate_subject_symbol.is_valid() && symbol == definition.predicate_subject_symbol {
+                            reads.complete_paths = false;
                             for field in &declared { if !reads.fields.contains(&field.symbol) { reads.fields.push(field.symbol); } }
                     }
                 }

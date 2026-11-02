@@ -1,14 +1,16 @@
 # Standing predicates after write-only field stores
 
 Parent: **CANONICALIZE-SCALAR-RANGE-CONTRACTS** in `TASKS.md`.
-Fact: **Counter.value <= 60 makes exact i32 70 + value representable without a per-call bound.**
+Fact: **Counter.cell.value <= 60 makes exact i32 70 + value representable without a per-call bound.**
 This is another production of [the existing fact](../README.md), established
 by a partial store through `&write Counter`.
 
 `fill` receives a valid `Counter` and a replacement bounded by its ordinary
-call requirement. It stores only `value`, without reading through the loan.
+call requirement. It stores only `cell.value`, without reading through the loan. `Cell` has no
+predicate of its own: the bound belongs to the enclosing `Counter`.
 The independent `peer <= 60` predicate must survive; the unchanged `before`,
-`peer` and `after` fields retain 31, 13 and 47. The produced `Counter` then
+`peer` and `after` fields retain 31, 13 and 47; `cell.left` and `cell.right`
+retain 17 and 53. The produced `Counter` then
 travels through each place before an independent consumer proves `70 + value`.
 The two inputs 60 and -2147483648 must produce 130 and -2147483578. Both match
 arms execute, and target selection has independent 17/29 implementation checks.
@@ -29,6 +31,15 @@ Each twin removes only `Counter`'s value predicate, retains its peer predicate,
 and must refuse the exact addition. Additional controls reject an
 [insufficient replacement bound](controls/invalid_store/main.omg) and a
 [read through write-only authority](controls/forbidden_read/main.omg).
+The owner controls reject writes that violate an
+[enclosing record](controls/enclosing_owner_violation/main.omg), an
+[owner across an array element](controls/enclosing_array_violation/main.omg),
+an [outer independent bound](controls/outer_owner_violation/main.omg),
+or the [original owner behind a recast view](controls/recast_owner_violation/main.omg).
+The [direct-field control](controls/direct_field/main.omg) retains the shallow
+production once. The [relational window](controls/relational_window/main.omg)
+restores equality before return; its [reject twin](controls/relational_debt/main.omg)
+leaves that obligation unpaid.
 The [predicate helper](controls/predicate_helper/main.omg) expresses both
 bounds through a checked Boolean call, preserving the same operation and oracle.
 Samples and exact corpus pins bind all four hosted `ProgramEntry` targets.
@@ -50,7 +61,7 @@ Pins use `tests/omega/{pass,fail}/facts/data_where_standing_write_only_*`.
   an insufficient store bound and an unauthorized read still reject.
 - **Psi lowering:** ordinary scalar stores, explicit calls, joins and nested
   transfers retain their effects in Terminal Psi, while proof clauses erase.
-- **Layout, ABI and provider settlement:** the same four-field record and
+- **Layout, ABI and provider settlement:** the same nested record and
   explicit entry/provider bindings retain exact argument and field placement.
 - **Instructions and storage:** native stores update the original caller home;
   the returned/copied record retains both written values and untouched canaries.
@@ -60,10 +71,15 @@ Pins use `tests/omega/{pass,fail}/facts/data_where_standing_write_only_*`.
 Baseline `084cb11bd22ad69524a2913c4735a37ee282b6d0` rejected all nine positives
 at the write-only projection gate; all nine twins rejected the missing arithmetic
 fact. The repair separates a store's address from formation of a projected loan:
-stores retain the original owner's obligations, whereas a bare field loan must
-not discard its containing predicates. Optimized CLI qualification observes
-all nine positive native/Terminal exits as 0 and the intended twin refusals.
-Final focused corpus results and actual producer identities belong to the PR.
+stores retain every enclosing owner's obligations, whereas a bare field loan
+must not discard its containing predicates. Each performed destination supplies
+its enclosing-owner roster, including owners across indexed fields. Logical
+entry snapshots preserve untouched predicates without granting executable reads
+through `&write`. Nested writes update the exact scalar projection rather than
+claiming that an entire containing field was replaced.
+
+Final focused execution results and actual producer identities belong to the PR;
+retained intermediate runs keep their original source identities.
 
 This does not close the parent migration. In particular, the old interval store
 checker still refuses a temporary 61 followed by a restoring bounded store;
