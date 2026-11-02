@@ -120,6 +120,14 @@ impl Engine<'_> {
         {
             return None;
         }
+        // A child call may already have established an exact public value.
+        // Reserve the parent under that completed value, as for declared
+        // applications. Keeping the child's pre-substitution atom invents a
+        // second operand identity when this denotation crosses a query.
+        let arguments = arguments
+            .into_iter()
+            .map(|input| input.mapped(|value| Some(self.substituted(value))))
+            .collect::<Option<Vec<_>>>()?;
         if let Some((atom, _)) = self.opaque_terms.iter().find(|(_, operation)| {
             matches!(operation, OpaqueTerm::Call { owner: existing_owner, expression: existing_expression,
                 target: existing_target, arguments: existing_arguments }

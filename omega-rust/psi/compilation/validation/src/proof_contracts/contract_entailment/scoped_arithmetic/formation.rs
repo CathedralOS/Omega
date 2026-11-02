@@ -89,5 +89,11 @@ pub fn scoped_integer_expression_formation(
             engine.capture_integer_denotation(&application.value)?,
         )
     };
+    if super::super::struct_trace() {
+        eprintln!(
+            "STRUCT formed-integer-expression owner={:?} expression={:?} value={value:?}",
+            expression.owner, expression.expression
+        );
+    }
     Some((application.formation?, value))
 }
