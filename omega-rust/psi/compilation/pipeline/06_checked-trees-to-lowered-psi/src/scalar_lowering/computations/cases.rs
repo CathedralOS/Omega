@@ -266,7 +266,7 @@ pub(crate) fn type_roots(
             && receiver_value.is_valid()
         {
             let root = observed_values::unique_root(checked, *receiver_value)?;
-            let identity = crate::terminal_identities::stored_structural_identity(
+            let identity = crate::shared::terminal_identities::stored_structural_identity(
                 checked,
                 root.type_reference,
             );
@@ -275,7 +275,7 @@ pub(crate) fn type_roots(
             }
         }
         for subject in constructions(checked, &plans.nodes.get(handle).kind)? {
-            let identity = crate::terminal_identities::stored_structural_identity(
+            let identity = crate::shared::terminal_identities::stored_structural_identity(
                 checked,
                 subject.type_reference,
             );

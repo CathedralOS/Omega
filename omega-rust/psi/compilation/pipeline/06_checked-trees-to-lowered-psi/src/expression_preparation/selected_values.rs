@@ -1,6 +1,6 @@
 //! Stage 04 publishes the completed structural copies in evaluation order.
 //! Lowering consumes those independent value roots before target operands.
-use crate::checked_facts::value_facts;
+use crate::shared::checked_facts::value_facts;
 
 pub(crate) fn roots(
     checked: &checked_trees::CheckedTrees,
