@@ -23432,7 +23432,7 @@ fail/facts/generic_calling_policy/nested_data_const_exit rejected 10682ms expect
 	const parameter `Count` of `Box` requires an integer literal argument or an in-scope const parameter, got `bool`
 fail/facts/generic_calling_policy/parameter_bound rejected 15027ms expected @ccdb99ca2214
 	type parameter `Element [copy]` of `GenericPolicy` was instantiated with `Box<u64>`, which does not satisfy `[copy]`
-fail/facts/generic_calling_policy/target_helper_unranked rejected 23314ms expected @3750a340e94c
+fail/facts/generic_calling_policy/target_helper_unranked rejected 24601ms expected @015a1e018c46
 	machine `GenericPolicy::plan$specialized$38892a76c008e81a$1$18223` is not build-time admissible: recursive machine-call cycle has no ordinary termination proof for its exact selected application edges; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure
 fail/facts/generic_calling_policy/unresolved_argument rejected 9217ms expected @ccdb99ca2214
 	conformance `GenericPolicy` parameter `Width` requires a const argument, but `UnknownWidth` has another static category
