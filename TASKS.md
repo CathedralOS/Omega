@@ -989,8 +989,7 @@ defines the complete product bar.
   - Extend borrowed joins in
     `omega-rust/omega/compilation/representations/abstract-operations/src/abstract_operations/control_flow/address_joins.rs`
     and `omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/current_ownership/address_joins.rs`
-    to case/reference/descriptor-bearing referents,
-    runtime-sized element-view selections, ranges, computed roots, and
+    to case/reference/descriptor-bearing referents, ranges, computed roots, and
     join-place reads/projections, ending loans at last use.
   - Carry combined Psi rewrite provenance across `branch_edges` in
     `omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization/scalar_graph_input/control.rs`
