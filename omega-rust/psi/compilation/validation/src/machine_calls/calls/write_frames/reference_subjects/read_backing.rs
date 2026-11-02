@@ -22,12 +22,14 @@ pub(in crate::machine_calls::calls::write_frames) fn capture(
         return None;
     }
     from_reads(
+        program,
         reads,
         vec![super::super::frame_coordinate_path(program, root, path)?],
     )
 }
 
 pub(in crate::machine_calls::calls::write_frames) fn from_reads(
+    program: &dyn crate::CheckingInput,
     reads: Vec<stored_origins::CapturedReferenceRead>,
     mut values: Vec<String>,
 ) -> Option<CapturedStorageReadBacking> {
@@ -46,7 +48,7 @@ pub(in crate::machine_calls::calls::write_frames) fn from_reads(
                 return None;
             }
             let slot = load.place;
-            if slot.precision != FramePathPrecision::Exact
+            if !super::read_projection::resolved_read_coordinate(program, &slot)
                 || !slot.source.root.is_valid()
                 || slot.source.output_identity().is_some()
             {

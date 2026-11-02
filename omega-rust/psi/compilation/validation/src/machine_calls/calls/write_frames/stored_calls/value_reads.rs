@@ -161,7 +161,7 @@ impl CompletedValueReads {
                 &self.after.stored,
             )?);
         }
-        read_backing::from_reads(reads, Vec::new())
+        read_backing::from_reads(program, reads, Vec::new())
     }
 
     /// Existing scalar observations need a complete invalidation footprint,

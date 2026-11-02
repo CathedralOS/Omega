@@ -51,38 +51,57 @@ reference type or index alone authorizes its pointee.
 
 Exact main/Build copies are pinned under
 `tests/omega/{pass,fail}/facts/data_where_standing_borrowed_field_array_<place>`.
-Positive pins author native and interpreter exit-zero oracles; each negative
-pins the intended exact-i32 overflow diagnostic. These are required outcomes,
-not passing observations.
+Positive pins declare native and interpreter exit zero; each twin pins the
+intended exact-i32 overflow diagnostic.
 
-The source freeze was observed at workbench
-`d054dabcbcf02f1c3926476c206cac39a863e16d`. Retained optimized R14b producer
-source `96f561907a23aea7fbb6f6254ce421a50dd8d436`, executable SHA-256
-`3b83b5ee9cb90beb20e02195655e4e725bdb19b9c9eff98fc48d8007842d0aa3`,
-checks all 18 frozen projects: every valid positive wrongly refuses the exact
-addition, and every predicate-removal twin refuses that same overflow
-obligation. These baseline source checks execute neither engine. Runtime
-agreement and repaired positive checking remain pending.
-
-Two focused rejection controls keep Counter's bound and isolate independent
-obligations without the blocked addition:
+The independent formation and identity controls retain Counter's bound:
 
 - [Wrong selected equality](controls/wrong_selected_equality/invalid/main.omg)
-  requires `index < 2` and returns the actual indexed read, but promises equality
-  to element zero. Main selects element one from distinct values 60 and -17.
-  R14b rejects the public result guarantee; a selected reference cannot donate
-  a different element's identity.
+  wrongly promises equality with element zero for an arbitrary legal selector.
 - [Missing index bound](controls/missing_index_bound/invalid/main.omg) omits
-  only the selector's formation requirement from its public read. Counter's
-  scalar bound cannot establish an arbitrary index is within length two.
-  R14b rejects that indexed selection.
+  the selector requirement. A scalar bound cannot prove the array access.
+- [Saved selector](controls/saved_selector/invalid/main.omg) saves a selected
+  Counter descriptor, changes the selector, then wrongly promises equality with
+  the newly selected element. Equal types do not redirect the saved descriptor.
 
-The controls are pinned as
-`tests/omega/fail/facts/data_where_standing_borrowed_field_array_{wrong_selected_equality,missing_index_bound}`.
-Their first direct-tail-read versions stopped at an unrelated borrow-resource
-lowering refusal. Those source versions and raw attempts remain historical;
-the explicit local read bindings reach the intended rejection reasons above.
-Baseline source hashes and raw command receipts are retained under
-`build/scalar-collection-read-20261102` outside the tracked source tree.
-No passing runtime or other-host qualification is claimed. The parent migration
-and GUI qualification remain open.
+These controls have matching reject pins with suffixes
+`wrong_selected_equality`, `missing_index_bound` and `saved_selector`.
+
+The evidence covers these applicable requirements:
+
+- **Establishment:** construction establishes the full Counter predicate while
+  its backing is live. The const-name place uses independently qualified Backing
+  constants. Public consumers require only the selector bound; their callers and
+  later runtime guards do not supply the arithmetic premise.
+- **Identity and lifetime:** input observations retain their storage version and
+  complete possible suppliers. The runtime selector chooses the pointer. An
+  alternative-value proof does not choose a physical origin or grant a loan.
+  The saved-selector control separates a captured descriptor from a later index.
+- **Composition:** all nine places transport the same bound and operation.
+  `read`'s checked result equation carries the selected scalar into the exact
+  addition. Match executes both arms and selectors with distinct results.
+- **Soundness:** removing only the predicate rejects in every place. Formation,
+  wrong-element and saved-selector controls reject independently. This readonly
+  production claims no new write authority, restoration or cleanup behavior.
+- **Psi 05–07:** the same source checks and lowers into Terminal Psi, which
+  actually executes the authored exit-zero oracle. Reference fields remain
+  descriptors; scalar observations carry their own completed-value evidence.
+- **Omega 00–02:** owned and borrowed Holder transport, returned aggregates,
+  reference-array layout and calling plans retain both selected values and
+  neighbor canaries. All four hosted entries are bound. Target bodies retain
+  independent X86/Arm provider-tag checks.
+- **Omega 03–06:** macOS ARM64 execution observes the two pointer crossings,
+  selector-dependent result, signed i32 arithmetic and helper-call behavior.
+  The row does not claim register exhaustion or an activation-size boundary.
+- **Omega 07–09 and emission:** the emitted macOS ARM64 image exits zero and
+  agrees with actual Terminal Psi execution for every positive. Other hosted
+  targets are bound and source-checked; their native execution remains unverified.
+
+Retained optimized producer R4 (source `111e70eb2b599aa6c49ffe3ee0e63114ab203956`
+plus compiler patch SHA-256
+`b28c8fc236dc30898f91e9c964eacee30d24c4f2a3f133209280bd53ff284eab`)
+checks all nine positives, rejects all nine predicate-removal twins for overflow,
+and runs all nine positives at native/Terminal `0/0` on `macos_arm64`.
+The parent migration remains open. Exact producer, source/oracle hashes, raw
+observations and independent review are retained in the claim/commit evidence;
+local records are under `build/scalar-collection-read-20261102`.

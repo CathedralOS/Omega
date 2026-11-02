@@ -18,18 +18,19 @@ pub(crate) struct CapturedStorageReadBacking {
 }
 
 impl CallFrameResolver<'_> {
-    /// Public normal-result contents are observed after this exact call's
-    /// effects. Returned slots use their completed actual suppliers; another
-    /// pointer in the demanded suffix uses the current post-call inventory.
-    pub(crate) fn completed_result_read_backing(
+    /// Contents are observed through this exact completed value's descriptor.
+    /// Suppliers and selectors come from its performed evaluation; another
+    /// pointer in the suffix uses the captured post-evaluation inventory.
+    pub(crate) fn completed_value_read_backing(
         &self,
         machine: &Machine,
+        state: &State,
         expression: ExpressionHandle,
         path: &[facts::PlaceSegment],
     ) -> Option<CapturedStorageReadBacking> {
-        self.completed_read_value(machine, expression)?
-            .1
-            .read_backing(self.program, path)
+        let (owner, completed) = self.completed_read_value(machine, expression)?;
+        (owner == state.symbol).then_some(())?;
+        completed.read_backing(self.program, path)
     }
 
     /// Complete supplier frontier retained by an observed reference value. Its
