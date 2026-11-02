@@ -97,7 +97,7 @@ public machine TypeSchema::node(graph: &TypeSchema, handle: u64) -> SchemaNode c
     machine read(graph: &TypeSchema, handle: u64) -> SchemaNode {
         let offset: u64 = 64u64 + handle * 16u64;
         let storage: &[u8] = schema_span(graph.storage, offset);
-        SchemaNode { graph: *graph, storage: storage }
+        SchemaNode { graph: TypeSchema { storage: graph.storage }, storage: storage }
     }
     machine bad() -> SchemaNode { crash Trap; }
 }
@@ -159,11 +159,11 @@ public machine SchemaNode::nominal_references(node: &SchemaNode) -> SchemaMember
 }
 public machine TypeSchema::fields(graph: &TypeSchema) -> SchemaMembers crashes Trap {
     let root: SchemaNode = TypeSchema::root(graph);
-    SchemaMembers { graph: *graph, handles: schema_span(root.storage, 192u64), role: 2u64 }
+    SchemaMembers { graph: TypeSchema { storage: graph.storage }, handles: schema_span(root.storage, 192u64), role: 2u64 }
 }
 public machine TypeSchema::cases(graph: &TypeSchema) -> SchemaMembers crashes Trap {
     let root: SchemaNode = TypeSchema::root(graph);
-    SchemaMembers { graph: *graph, handles: schema_span(root.storage, 192u64), role: 3u64 }
+    SchemaMembers { graph: TypeSchema { storage: graph.storage }, handles: schema_span(root.storage, 192u64), role: 3u64 }
 }
 
 // Filtering follows the root's authored member sequence. Stable numbers are
