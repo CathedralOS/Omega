@@ -2849,7 +2849,7 @@ fail/facts/write_only_scalar_entry_observation rejected 5920ms expected @3bd254a
 fail/float/constructor_case_invalid_narrow_widen_rejected rejected 3180ms expected @f9df9c1404e3
 	Exact integer cast in machine `make` state `entry` from `u16` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
 	Exact integer cast in machine `make` state `entry` from `u16` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
-fail/float/constructor_case_invalid_wide_rejected rejected 2742ms expected @5163c9f60160
+fail/float/constructor_case_invalid_wide_rejected rejected 3115ms expected @5de76022ee98
 	data `Choice` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/generics/closed_requirement_in_generic_body_unproved_bound rejected 2491ms expected @2484aa7758a9+wt
 	static application of requirement `Echo::echo` violates its declared requires facts: the complete tuple is structurally false
