@@ -316,7 +316,7 @@ retired-syntax deletions to completion.
     `samples/cli/audio/audio_playback` and its sine, square, and melody
     consumers through unchanged playback oracles; shared binding-value producers
     and helpers remain ordinary machines.
-    Frontier: 47 `samples/cli/facts/*/target_body` places still spell the
+    Frontier: 38 `samples/cli/facts/*/target_body` places still spell the
     prefix.
   - Transport exact requirement and implementation identities, lifetimes,
     captured operands, const/evidence telescopes, callbacks, entry backing,
@@ -324,10 +324,16 @@ retired-syntax deletions to completion.
     and Build companion to both engines without target-specific source rewriting.
   - Carry the facts that still refuse behind a selected implementation: `&write`
     arguments (an opaque selected implementation requires an admitted
-    write-only boundary claim), evidence binders in requirement generics, the
-    invocation ceiling of boundary traits a body calls, and effectful performed
-    writes (`IntegerAt`). Their `target_body` places keep the retired prefix
-    until then.
+    write-only boundary claim; draft #1361 carries the repair) and a `&write`
+    slot whose referent carries a reference leaf (`write_only_reference_store`),
+    evidence binders in requirement signatures (`selected_crash_formal`,
+    `selected_value_application`: the requirement grammar admits none), and
+    effectful performed writes (`narrowed_integer_write`: IntegerAt fit is
+    judged only from a body, so a requirement call has none). Their
+    `target_body` places keep the retired prefix until then. A requirement
+    publishes `invokes` for each boundary trait its implementations invoke, and
+    a public caller with an explicit ceiling names the requirement; migrated
+    places follow that rule.
   - Pin missing/duplicate provider rows, incompatible selected ABI/import/ISA
     supply, invalid unselected implementations, and retired-prefix rejection;
     applicability is checked on the selected closure, not by accepting untyped
