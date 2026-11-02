@@ -51,6 +51,7 @@ pub(super) fn normalize(program: &mut TypedTrees, frontier: usize) -> Result<(),
         (
             declaration.trait_symbol,
             program
+                .type_reference_table
                 .type_reference_handles(declaration.arguments)
                 .to_vec(),
             declaration.symbol,
@@ -64,7 +65,10 @@ pub(super) fn normalize(program: &mut TypedTrees, frontier: usize) -> Result<(),
                 .map(|parent| {
                     (
                         parent.symbol,
-                        program.type_reference_handles(parent.arguments).to_vec(),
+                        program
+                            .type_reference_table
+                            .type_reference_handles(parent.arguments)
+                            .to_vec(),
                         declaration.symbol,
                     )
                 }),
@@ -72,7 +76,10 @@ pub(super) fn normalize(program: &mut TypedTrees, frontier: usize) -> Result<(),
         if let Some(base) = &declaration.refines {
             applications.push((
                 base.symbol,
-                program.type_reference_handles(base.arguments).to_vec(),
+                program
+                    .type_reference_table
+                    .type_reference_handles(base.arguments)
+                    .to_vec(),
                 declaration.symbol,
             ));
         }
