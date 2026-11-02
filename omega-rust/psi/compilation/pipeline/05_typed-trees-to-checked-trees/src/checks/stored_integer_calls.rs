@@ -503,6 +503,7 @@ impl<'a> Admission<'a> {
         }
         Some(vec![LocalWriteSource {
             invocation_output: None,
+        invocation_result: None,
             is_image_storage: false,
             root,
             segments: place.segments,

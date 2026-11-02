@@ -517,6 +517,11 @@ pub(super) fn retained_lifetime_demand(
                     .ok_or("the immediate parent resource is not retained")?;
                 pending.push(parent);
             }
+            // A descriptor transfer is in neither resource roster. Its own
+            // backing was joined above; its lifetime and access come from
+            // exact suppliers, which the walk below retains and checks.
+            _ if crate::checks::borrows::transport_suppliers(borrow, state, loan_handle)
+                .is_some() => {}
             _ => return Err("the loan lifetime resource is unavailable"),
         }
         for supplying in borrow.loan_suppliers.span_or_empty(loan.supplying_loans) {

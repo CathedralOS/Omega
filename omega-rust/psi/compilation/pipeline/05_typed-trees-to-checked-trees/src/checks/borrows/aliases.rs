@@ -193,11 +193,40 @@ fn resolve_descriptor_places_with_loans(
     state_flow: &FlowStateFact,
     loans: impl Iterator<Item = Handle<BorrowLoanFact>>,
     incoming: impl Iterator<Item = Handle<checked_trees::IncomingReferenceIdentity>>,
-    place: CapturedPlace,
+    mut place: CapturedPlace,
 ) -> Option<Vec<ResolvedPlace>> {
     let borrow = &facts.borrow;
     let (_, state_borrow) =
         borrow.first_state_borrow(state_flow.machine_symbol, state_flow.state_symbol)?;
+    let carrier = place.root.as_symbol().and_then(|root| {
+        validation::state_root_type(
+            program,
+            program.state_by_symbol(state_flow.state_symbol)?,
+            root,
+        )
+    });
+    if let Some(carrier) = carrier {
+        place.segments =
+            validation::corresponding_place_projection(program, carrier, &place.segments)?;
+    }
+    let matches_owner = |owner: &[BorrowLoanOwnerSegment]| {
+        let selected;
+        let owner = if let Some(carrier) = carrier {
+            let Some(path) = validation::corresponding_loan_owner_path(program, carrier, owner)
+            else {
+                return false;
+            };
+            selected = path;
+            selected.as_slice()
+        } else {
+            owner
+        };
+        owner.len() <= place.segments.len()
+            && owner.iter().zip(&place.segments).all(|(owner, selected)| {
+                crate::borrow::owner_segment_matches_place_segment(program, owner, selected)
+                    == Some(true)
+            })
+    };
     // A stored descriptor can be a whole reference binding or a reference
     // leaf inside a completed carrier. The live loan's exact owner path names
     // that descriptor; an access to its enclosing owned record is independent.
@@ -210,11 +239,7 @@ fn resolve_descriptor_places_with_loans(
                 // checking, but supplies no descriptor address or ancestry.
                 && loan.lineage != BorrowLoanLineage::LifetimeDependency
                 && loan.storage_owner == place.root
-                && owner.len() <= place.segments.len()
-                && owner.iter().zip(&place.segments).all(|(owner, selected)| {
-                    crate::borrow::owner_segment_matches_place_segment(program, owner, selected)
-                        == Some(true)
-                })
+                && matches_owner(owner)
         })
         .collect::<Vec<_>>();
     let incoming = incoming.collect::<Vec<_>>();
@@ -230,12 +255,7 @@ fn resolve_descriptor_places_with_loans(
     let matches_incoming = |identity| {
         let incoming = borrow.incoming_references.get(identity);
         let owner = borrow.owner_segments.span_or_empty(incoming.owner_path);
-        incoming.place_root() == place.root
-            && owner.len() <= place.segments.len()
-            && owner.iter().zip(&place.segments).all(|(owner, selected)| {
-                crate::borrow::owner_segment_matches_place_segment(program, owner, selected)
-                    == Some(true)
-            })
+        incoming.place_root() == place.root && matches_owner(owner)
     };
     let incoming = incoming
         .into_iter()
@@ -363,6 +383,30 @@ pub(in crate::checks::borrows) fn formation_lineage(
     Some(common)
 }
 
+/// The exact occurrences a descriptor transfer transports. Each supplier is
+/// owned by this state, is read through the transfer's source owner and
+/// grants at least the transported access, so the transfer adds no borrow,
+/// owner or access of its own. A transfer naming no supplier has no lineage.
+pub(in crate::checks) fn transport_suppliers<'borrow>(
+    borrow: &'borrow BorrowFacts,
+    state: &StateBorrowFact,
+    handle: Handle<BorrowLoanFact>,
+) -> Option<&'borrow [Handle<BorrowLoanFact>]> {
+    let loan = borrow.loans.get(handle);
+    if loan.lineage != BorrowLoanLineage::UnretainedDerived {
+        return None;
+    }
+    let suppliers = borrow.loan_suppliers.span(loan.supplying_loans)?;
+    let exact = !suppliers.is_empty()
+        && suppliers.iter().all(|supplier| {
+            let source = borrow.loans.get(*supplier);
+            borrow.state_owns_loan(state, *supplier)
+                && source.owner_symbol == loan.source_owner_symbol
+                && source.kind.direct_reborrow_effect(&loan.kind).is_some()
+        });
+    exact.then_some(suppliers)
+}
+
 pub(in crate::checks::borrows) fn retained_lineage(
     borrow: &BorrowFacts,
     state: &StateBorrowFact,
@@ -445,20 +489,7 @@ pub(in crate::checks::borrows) fn retained_lineage(
                 pending.push((parent_loan, false));
             }
             BorrowLoanLineage::UnretainedDerived => {
-                let suppliers = borrow.loan_suppliers.span(loan.supplying_loans)?;
-                if suppliers.is_empty() {
-                    return None;
-                }
-                for supplier in suppliers {
-                    if !borrow.state_owns_loan(state, *supplier) {
-                        return None;
-                    }
-                    let source = borrow.loans.get(*supplier);
-                    if loan.source_owner_symbol != source.owner_symbol
-                        || source.kind.direct_reborrow_effect(&loan.kind).is_none()
-                    {
-                        return None;
-                    }
+                for supplier in transport_suppliers(borrow, state, handle)? {
                     pending.push((*supplier, false));
                 }
             }

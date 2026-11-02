@@ -16,9 +16,9 @@ symbol-resolved-trees-to-typed-trees = { path = "../pipeline/03_symbol-resolved-
 build-time-evaluation = { path = "../build-time-evaluation" }
 typed-trees-to-typed-trees = { path = "../pipeline/04_typed-trees-to-typed-trees" }
 typed-trees-to-checked-trees = { path = "../pipeline/05_typed-trees-to-checked-trees" }
-validation = { path = "../checking" }
-representation-selections = { path = "../checking/representation-planning/selections" }
-representation-planning = { path = "../checking/representation-planning" }
+validation = { path = "../validation" }
+representation-selections = { path = "../validation/representation-planning/selections" }
+representation-planning = { path = "../validation/representation-planning" }
 language-semantics = { path = "../../foundation/language-semantics" }
 source = { path = "../../foundation/source" }
 symbols = { path = "../../foundation/symbols" }

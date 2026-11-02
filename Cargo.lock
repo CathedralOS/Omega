@@ -1717,10 +1717,9 @@ dependencies = [
  "isa-x86_64",
  "machine-code",
  "physical-instructions",
- "register-homes-to-post-allocation-machine",
+ "register-homes",
  "register-model",
  "selected-instructions",
- "selected-instructions-to-register-homes",
  "semantic-vocabulary",
  "target",
 ]

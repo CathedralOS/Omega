@@ -48,6 +48,31 @@ class CompilerPilotTests(unittest.TestCase):
                                                 cli_fixtures=fixture), 1)
                 execute.assert_not_called()
 
+    def test_ordinary_cli_inspection_oracles_are_preserved_or_refused_before_build(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            project = Path(temporary)
+            oracle = project / "expected_terminal_inspections.txt"
+            oracle.write_text("Main::main\nOther::read\n")
+            self.assertEqual(pilot.ordinary_cli_fixture.inspection_machines(project),
+                             ("Main::main", "Other::read"))
+            for unsupported in ("", "Main::main debug", "Main::main runtime portable filesystem",
+                                "Main::main native-layout-controls"):
+                oracle.write_text(unsupported)
+                with self.subTest(oracle=unsupported), self.assertRaises(ValueError):
+                    pilot.ordinary_cli_fixture.inspection_machines(project)
+
+    def test_named_inspection_requires_machine_and_same_reloaded_identity(self):
+        validate = pilot.ordinary_cli_fixture.validate_inspection
+        identity = "a" * 64
+        source = f"terminal selected_machine=Main::main entry=MachineId(1)\nterminal program_fingerprint={identity}\n"
+        restored = f"terminal selected_machine=artifact entry=MachineId(1)\nterminal program_fingerprint={identity}\n"
+        self.assertEqual(validate("Main::main", source, restored), identity)
+        for wrong_source, wrong_artifact in ((source.replace("Main::main", "Other::main"), restored),
+                                            (source, restored.replace(identity, "b" * 64)),
+                                            (source, ""), (source + source, restored), (source, source)):
+            with self.subTest(source=wrong_source, artifact=wrong_artifact), self.assertRaises(ValueError):
+                validate("Main::main", wrong_source, wrong_artifact)
+
     def test_ordinary_cli_requires_explicit_terminal_exit_including_nonzero_oracles(self):
         validate = pilot.ordinary_cli_fixture.validate_exits
         validate(70, "native exit 70\ninterp exit: 70\n", 70)

@@ -173,14 +173,80 @@ pub(in crate::execution::host_imports) fn matches_signed_record_array(
         })
 }
 
-/// Complete fixed integer record, ordered by its selected native offsets.
-/// The codec still admits the whole semantic roster and exact storage plan;
-/// an equal byte extent cannot donate missing fields, references or padding.
+/// One complete direct record field. Array shape remains part of the contract;
+/// its leaves cannot be donated by unrelated scalar fields or nested records.
+#[derive(Clone, Copy, Debug)]
+pub(in crate::execution::host_imports) enum IntegerRecordField {
+    Scalar(IntegerSign, u16),
+    Array(IntegerSign, u16, u64),
+}
+
+/// Match a C scalar slot or scalar array against the complete selected recipe.
+/// Semantic width alone cannot authorize a wider C write into narrowed storage.
+pub(in crate::execution::host_imports) fn matches_integer_storage(
+    program: &TerminalProgram,
+    layouts: &[NativeBorrowedStorageLayout],
+    root: StructuralTypeId,
+    sign: IntegerSign,
+    bits: u16,
+    length: Option<u64>,
+) -> bool {
+    let Ok(integer) = IntegerType::new(sign, bits) else {
+        return false;
+    };
+    if bits % 8 != 0 {
+        return false;
+    }
+    let scalar = ScalarType::Integer(integer);
+    let root_shape = program.structural_type(root).map(|row| &row.shape);
+    let count = match (length, root_shape) {
+        (None, Some(StructuralTypeShape::PrimitiveScalar(value))) if *value == scalar => 1,
+        (Some(count), Some(StructuralTypeShape::FixedArray { element, length }))
+            if length.literal() == Some(count)
+                && matches!(program.structural_type(*element).map(|row| &row.shape),
+                Some(StructuralTypeShape::PrimitiveScalar(value)) if *value == scalar) =>
+        {
+            count
+        }
+        _ => return false,
+    };
+    let Ok(count) = usize::try_from(count) else {
+        return false;
+    };
+    let bytes = usize::from(bits / 8);
+    let Some(extent) = count.checked_mul(bytes) else {
+        return false;
+    };
+    let Ok(codec) = StorageCodec::admit(program, layouts, root) else {
+        return false;
+    };
+    codec.extent == extent
+        && codec.alignment >= bytes
+        && codec.references.is_empty()
+        && codec.fields.len() == count
+        && (0..count).all(|index| {
+            let path = if length.is_some() {
+                vec![Path::FixedIndex(index as u64)]
+            } else {
+                Vec::new()
+            };
+            codec.fields.iter().any(|field| {
+                field.path == path
+                    && field.offset == index * bytes
+                    && field.logical == scalar
+                    && field.stored == scalar
+            })
+        })
+}
+
+/// Complete integer record, ordered by its selected native offsets. Every
+/// expected field joins the semantic field identity to its exact codec paths.
+/// Neither equal byte extent nor a flattened roster can replace this tree.
 pub(in crate::execution::host_imports) fn matches_integer_record(
     program: &TerminalProgram,
     layouts: &[NativeBorrowedStorageLayout],
     root: StructuralTypeId,
-    expected: &[(IntegerSign, u16)],
+    expected: &[IntegerRecordField],
 ) -> bool {
     let Some(StructuralTypeShape::Record { fields, .. }) =
         program.structural_type(root).map(|row| &row.shape)
@@ -195,64 +261,95 @@ pub(in crate::execution::host_imports) fn matches_integer_record(
     {
         return false;
     }
-    let mut semantic = expected
-        .iter()
-        .map(|&(sign, bits)| IntegerType::new(sign, bits).map(ScalarType::Integer))
-        .collect::<Result<Vec<_>, _>>();
-    let Ok(remaining) = &mut semantic else {
-        return false;
-    };
-    for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
-        let scalar = match &field.field_type {
-            StructuralFieldType::Scalar(scalar) => Some(*scalar),
-            StructuralFieldType::BoundedInteger(bounds) => {
-                Some(ScalarType::Integer(bounds.integer_type()))
-            }
-            StructuralFieldType::RefinedScalar(refinement) => Some(refinement.carrier()),
-            StructuralFieldType::Structural(child) => {
-                match program.structural_type(*child).map(|row| &row.shape) {
-                    Some(StructuralTypeShape::PrimitiveScalar(scalar)) => Some(*scalar),
-                    _ => None,
-                }
-            }
-            _ => None,
-        };
-        let Some(position) =
-            scalar.and_then(|scalar| remaining.iter().position(|expected| *expected == scalar))
-        else {
-            return false;
-        };
-        remaining.remove(position);
-    }
     let Ok(codec) = StorageCodec::admit(program, layouts, root) else {
         return false;
     };
-    if !codec.references.is_empty() || codec.fields.len() != expected.len() {
+    if !codec.references.is_empty() {
         return false;
     }
     let mut offset = 0usize;
-    for &(sign, bits) in expected {
+    let mut leaves = 0usize;
+    for &contract in expected {
+        let (sign, bits, count) = match contract {
+            IntegerRecordField::Scalar(sign, bits) => (sign, bits, 1),
+            IntegerRecordField::Array(sign, bits, count) => (sign, bits, count),
+        };
         let Ok(integer) = IntegerType::new(sign, bits) else {
             return false;
         };
-        if bits % 8 != 0 {
+        if bits % 8 != 0 || count == 0 {
             return false;
         }
         let scalar = ScalarType::Integer(integer);
         let bytes = usize::from(bits / 8);
-        if codec.alignment < bytes
-            || !codec.fields.iter().any(|field| {
-                field.offset == offset && field.logical == scalar && field.stored == scalar
-            })
-        {
-            return false;
-        }
-        let Some(next) = offset.checked_add(bytes) else {
+        let Some(placement) = codec.fields.iter().find(|field| field.offset == offset) else {
             return false;
         };
-        offset = next;
+        let Some(Path::Field(identity)) = placement.path.first() else {
+            return false;
+        };
+        let Some(field) = fields
+            .iter()
+            .find(|field| field.id == *identity && !field.relevance.is_erased())
+        else {
+            return false;
+        };
+        let scalar_field = |field_type: &StructuralFieldType| match field_type {
+            StructuralFieldType::Scalar(value) => *value == scalar,
+            StructuralFieldType::BoundedInteger(bounds) => {
+                ScalarType::Integer(bounds.integer_type()) == scalar
+            }
+            StructuralFieldType::RefinedScalar(refinement) => refinement.carrier() == scalar,
+            StructuralFieldType::Structural(child) => {
+                matches!(program.structural_type(*child).map(|row| &row.shape),
+                Some(StructuralTypeShape::PrimitiveScalar(value)) if *value == scalar)
+            }
+            _ => false,
+        };
+        match contract {
+            IntegerRecordField::Scalar(..) if scalar_field(&field.field_type) => {}
+            IntegerRecordField::Array(..) => {
+                let StructuralFieldType::Structural(child) = &field.field_type else {
+                    return false;
+                };
+                let Some(StructuralTypeShape::FixedArray { element, length }) =
+                    program.structural_type(*child).map(|row| &row.shape)
+                else {
+                    return false;
+                };
+                if length.literal() != Some(count)
+                    || !matches!(program.structural_type(*element).map(|row| &row.shape),
+                    Some(StructuralTypeShape::PrimitiveScalar(value)) if *value == scalar)
+                {
+                    return false;
+                }
+            }
+            _ => return false,
+        }
+        if codec.alignment < bytes {
+            return false;
+        }
+        for index in 0..count {
+            let mut path = vec![Path::Field(*identity)];
+            if matches!(contract, IntegerRecordField::Array(..)) {
+                path.push(Path::FixedIndex(index));
+            }
+            if !codec.fields.iter().any(|field| {
+                field.path == path
+                    && field.offset == offset
+                    && field.logical == scalar
+                    && field.stored == scalar
+            }) {
+                return false;
+            }
+            let Some(next) = offset.checked_add(bytes) else {
+                return false;
+            };
+            offset = next;
+            leaves += 1;
+        }
     }
-    codec.extent == offset
+    codec.extent == offset && codec.fields.len() == leaves
 }
 
 pub(super) fn validate<'declaration>(
