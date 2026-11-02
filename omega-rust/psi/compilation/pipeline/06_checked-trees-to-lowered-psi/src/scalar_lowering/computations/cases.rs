@@ -15,7 +15,6 @@ use super::{
     QualifiedScalarType, ScalarType, Site, parameter, parameters, unsupported,
     validate_direct_parameter_types,
 };
-use crate::checked_facts::value_facts;
 use crate::emission::borrowed_window::terminal_multiplicity;
 use crate::emission::claim_bindings::emit_establishment_claims;
 use crate::emission::operation_emission::LoweredScalarBinding;
@@ -28,6 +27,7 @@ use crate::expression_preparation::computation_graph::fields;
 use crate::scalar_lowering::branch_states::prepared::{
     LoweredScalarBranchState, LoweredScalarBranchTerminator, LoweredScalarEffect,
 };
+use crate::shared::checked_facts::value_facts;
 use crate::unit::unit_cleanup::PreparedNormalCleanupAction;
 use checked_trees::data::DataMember;
 use checked_trees::{CheckedScalarCaseConstruction, CheckedScalarComputationStructuralArgument};
@@ -125,7 +125,7 @@ pub(crate) fn reserve(
 ) -> Result<Slot, LoweringError> {
     let identity =
         validation::stored_structural_type_identity(checked, source.type_reference, &[], &[]);
-    let declaration = crate::terminal_identities::structural_declaration_by_identity(
+    let declaration = crate::shared::terminal_identities::structural_declaration_by_identity(
         types,
         identities,
         checked,
@@ -347,7 +347,8 @@ impl Expansion<'_> {
         let subject = match subject {
             CheckedScalarComputationStructuralArgument::Case(subject) => subject,
             CheckedScalarComputationStructuralArgument::Place(argument) => {
-                let (_, state) = crate::declarations::state_declaration(self.checked, site.state)?;
+                let (_, state) =
+                    crate::shared::declarations::state_declaration(self.checked, site.state)?;
                 let source = site
                     .bindings
                     .borrowed_structural_home(argument, self.checked.state_parameters(state))?;
@@ -412,7 +413,7 @@ impl Expansion<'_> {
         // This observer has only a no-code retirement, unlike a call operand
         // whose normal continuation carries the checked nominal action roster.
         // Constructor identity itself grants neither kind of disposition.
-        if !crate::content_classes::plain_owned_with_numeric_constraints(
+        if !crate::shared::content_classes::plain_owned_with_numeric_constraints(
             self.checked,
             subject.type_reference,
         ) || !matches!(

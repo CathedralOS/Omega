@@ -1015,6 +1015,44 @@ fn binary_result(
             &operands,
         )
     {
+        // A lexical implementation bound, or the closed application a
+        // specialized machine selected, supplies the trait requirement; its
+        // result is that requirement's under the exact trait application.
+        if let [meaning] = typed_trees::operator::bound_trait_operator_meanings(
+            program,
+            owner.symbol(),
+            spelling,
+            &operands,
+        )
+        .as_slice()
+        {
+            return applied_requirement_result(
+                program,
+                meaning.requirement.return_type,
+                &meaning.substitutions,
+            );
+        }
+        if let [meaning] = typed_trees::operator::selected_trait_operator_meanings(
+            program,
+            owner.symbol(),
+            spelling,
+            &operands,
+        )
+        .as_slice()
+        {
+            let bindings = typed_trees::operator::trait_operator_operand_bindings(
+                program,
+                meaning.trait_definition,
+                meaning.requirement,
+                &operands,
+                None,
+            )?;
+            return applied_requirement_result(
+                program,
+                meaning.requirement.return_type,
+                &bindings.types,
+            );
+        }
         let candidates = typed_trees::operator::resolve_spelling_for_operands(
             program,
             spelling,
@@ -1407,6 +1445,30 @@ fn schematic_type_parameter_operand(
         }
     }
     carrier
+}
+
+/// A trait requirement's result under one exact trait application: a bare
+/// trait parameter takes its actual and a primitive result stands as
+/// declared. Any other result (a compound over a parameter, or a parameter
+/// no operand bound) stays unresolved rather than exporting the
+/// declaration-local spelling.
+fn applied_requirement_result(
+    program: &dyn crate::CheckingInput,
+    result: TypeReferenceHandle,
+    substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
+) -> Option<TypeReferenceHandle> {
+    if let TypeReferenceNode::Named { symbol, .. } =
+        program.type_reference_table.type_reference(result)
+        && let Some((_, actual)) = substitutions
+            .iter()
+            .find(|(parameter, _)| parameter == symbol)
+    {
+        return Some(*actual);
+    }
+    program
+        .primitive_type_reference(result)
+        .is_some()
+        .then_some(result)
 }
 
 /// A `-> T` result instantiates through the same binding operand selection

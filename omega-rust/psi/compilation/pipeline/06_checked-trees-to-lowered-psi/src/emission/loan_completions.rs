@@ -4,13 +4,13 @@
 //! calls nested in scalar computations share this join, independently of result
 //! shape or dispatch. Actual stored guards select live claims during execution.
 
-use crate::checked_facts::flow_facts;
 use crate::emission::operation_emission::buffer::{
     OperationBuffer, SourceCallCoordinate, SourceInvocation,
 };
 use crate::emission::operation_emission::calls::CallEmissionContext;
-use crate::lowering_error::{LoweringError, unsupported};
-use crate::terminal_identities::lookup_domain_id_for_carrier;
+use crate::shared::checked_facts::flow_facts;
+use crate::shared::lowering_error::{LoweringError, unsupported};
+use crate::shared::terminal_identities::lookup_domain_id_for_carrier;
 use checked_trees::CheckedTrees;
 use language_semantics::{PermissionClaimIdentity, PermissionEventKind, PermissionEventSource};
 use semantic_vocabulary::{PlaceId, StructuralTypeId};

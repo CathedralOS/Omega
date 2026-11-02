@@ -4,8 +4,8 @@
 //! reconstructing the initial owner's complement here would revive moved holes.
 
 use crate::emission::operation_emission::buffer::OperationBuffer;
-use crate::lowering_error::LoweringError;
-use crate::terminal_identities::{allocate_dense, block_id, edge_id, place_id};
+use crate::shared::lowering_error::LoweringError;
+use crate::shared::terminal_identities::{allocate_dense, block_id, edge_id, place_id};
 use crate::unit::attached_unit::argument_evaluation::Evaluation;
 use crate::unit::unit_cleanup::CleanupRegion;
 use semantic_vocabulary::StructuralPlaceKind;

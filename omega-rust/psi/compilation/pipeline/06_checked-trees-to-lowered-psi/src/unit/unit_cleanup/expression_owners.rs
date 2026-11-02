@@ -6,7 +6,7 @@
 
 use super::{CleanupRegion, LoweringError, unsupported};
 use crate::expression_preparation::bindings::{StructuralLocalBinding, structural_local_by_root};
-use crate::terminal_identities::structural_declaration_by_identity;
+use crate::shared::terminal_identities::structural_declaration_by_identity;
 use checked_trees::CheckedUnitStructuralArgumentSourcePlan;
 
 pub(crate) fn expression_cleanup_regions<'action>(

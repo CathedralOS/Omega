@@ -18,8 +18,6 @@ use super::{
     content_conservation, dense_identity, lookup_domain_id, lookup_service_id, lookup_type_id,
     terminal_scalar_type, unique_unit_boundary, unsupported,
 };
-use crate::checked_facts::{flow_facts, value_facts};
-use crate::declarations::state_declaration;
 use crate::emission::call_qualifications::declaration_represents;
 use crate::emission::call_qualifications::for_call;
 use crate::emission::structural_byte_sequence_store::literal_view_type;
@@ -30,9 +28,11 @@ use crate::expression_preparation::structural_value_requirements::collect_operat
 use crate::expression_preparation::structural_value_requirements::collect_value_requirements;
 use crate::machine_lowering::declarations::semantic_identity;
 use crate::scalar_lowering::computations::operand_types::type_requirements;
-use crate::structural_types::lower_field_type;
-use crate::terminal_identities::stored_structural_identity;
-use crate::terminal_identities::{
+use crate::shared::checked_facts::{flow_facts, value_facts};
+use crate::shared::declarations::state_declaration;
+use crate::shared::structural_types::lower_field_type;
+use crate::shared::terminal_identities::stored_structural_identity;
+use crate::shared::terminal_identities::{
     BYTE_VIEW_ELEMENT_TYPE_IDENTITY, StructuralDomainBinding, lookup_domain_id_for_carrier,
     service_declaration_identity, structural_domain_identity,
 };
@@ -919,7 +919,7 @@ pub(crate) fn lower_unit_structural_type_roots<'checked>(
                     field_type => (field.relevance, lower_field_type(identities, checked, field_type, &type_ids)?),
                 };
                 let declaration = StructuralFieldDeclaration {
-                    inline_carrier: crate::structural_types::lower_inline_carrier(field, &type_ids)?,
+                    inline_carrier: crate::shared::structural_types::lower_inline_carrier(field, &type_ids)?,
                     storage: field.storage.clone(),
                     id: structural_field_id(allocate_dense(&mut next_field)?),
                     identity: identities.intern(&field.identity.spelling()),
@@ -1008,7 +1008,7 @@ pub(crate) fn lower_unit_structural_type_roots<'checked>(
                                         }
                                         let field_type = lower_field_type(identities, checked, &field.field_type, &type_ids)?;
                                         Ok(StructuralFieldDeclaration {
-                                            inline_carrier: crate::structural_types::lower_inline_carrier(field, &type_ids)?,
+                                            inline_carrier: crate::shared::structural_types::lower_inline_carrier(field, &type_ids)?,
                                             storage: field.storage.clone(),
                                             id: structural_field_id(allocate_dense(
                                                 &mut next_field,
@@ -2096,7 +2096,8 @@ pub(super) fn lower_provider_candidate_service_ceiling(
         &mut selected,
     )?;
     let source = rows.services(candidate.service_reach.transitive);
-    let lowered = crate::terminal_identities::lower_service_reach_sorted(source, service_ids)?;
+    let lowered =
+        crate::shared::terminal_identities::lower_service_reach_sorted(source, service_ids)?;
     if lowered.len() != source.len() {
         return unsupported("checked provider adapter reach contains duplicates");
     }

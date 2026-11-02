@@ -4,8 +4,8 @@
 //! final equality publishes Bool. No provider or source operator is invoked.
 
 use super::super::buffer::OperationBuffer;
-use crate::lowering_error::{LoweringError, unsupported};
-use crate::terminal_identities::{allocate_dense, value_id};
+use crate::shared::lowering_error::{LoweringError, unsupported};
+use crate::shared::terminal_identities::{allocate_dense, value_id};
 use semantic_vocabulary::{
     IeeeFloatFormat, IntegerSign, IntegerType, IntegerValue, ScalarType, ValueId,
 };

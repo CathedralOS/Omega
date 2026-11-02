@@ -9,7 +9,7 @@
 //! preserve the separate provenance decision and exact returned SSA occurrence.
 
 use super::{CheckedTrees, LoweringError, ScalarQualificationCatalog, SymbolHandle, unsupported};
-use crate::checked_facts::flow_facts;
+use crate::shared::checked_facts::flow_facts;
 use checked_trees::CheckedScalarReturnOrigin;
 use semantic_vocabulary::MachineId;
 use terminal_psi::{

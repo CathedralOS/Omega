@@ -13,7 +13,7 @@ use super::{
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::runtime_elements::ProjectionStep;
-use crate::structural_types::unique_declaration;
+use crate::shared::structural_types::unique_declaration;
 use terminal_psi::live_field;
 
 /// One receiving judgment in its declaration's original coordinates.

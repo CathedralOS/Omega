@@ -131,7 +131,7 @@ impl OperationFrame<'_, '_> {
             self.private_places.push(declaration);
             return Ok(destination);
         }
-        let (_, state) = crate::declarations::state_declaration(self.checked, self.state)?;
+        let (_, state) = crate::shared::declarations::state_declaration(self.checked, self.state)?;
         let home =
             bindings.borrowed_structural_home(source, self.checked.state_parameters(state))?;
         let place = home.place;

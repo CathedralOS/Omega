@@ -7,6 +7,7 @@ version.workspace = true
 
 [dependencies]
 backend-plan = { path = "../backend/plans/backend-plan" }
+calling-conventions = { path = "../backend/calling-conventions" }
 terminal-interpreter = { path = "../../../psi/interpreter/terminal-interpreter" }
 terminal-installation = { path = "../../../psi/compilation/validation/terminal-installation" }
 terminal-fuel = { path = "../../../psi/compilation/representations/terminal-psi/fuel" }

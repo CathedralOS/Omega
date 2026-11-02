@@ -21,13 +21,13 @@
 
 use super::super::{ordinary_calls, signatures, structural_values};
 use super::{OperationFrame, StructuralResults};
-use crate::direct_calls::{DirectCallResult, ModuleInvocationArguments};
 use crate::emission::operation_emission::buffer::SourceCallCoordinate;
 use crate::expression_preparation::bindings::StructuralLocalBinding;
 use crate::expression_preparation::bindings::structural_paths::terminal_access;
 use crate::expression_preparation::bindings::view_locals::ViewCarrier;
 use crate::expression_preparation::bindings::view_locals::ViewLocalBinding;
 use crate::scalar_lowering::call_closure::callee::CheckedScalarCallee;
+use crate::shared::direct_calls::{DirectCallResult, ModuleInvocationArguments};
 use crate::unit::{
     CheckedUnitEffectOperationPlan, LoweringError, Operation, OperationKind, OperationResult,
     PlaceId, StructuralPlaceDeclaration, StructuralPlaceKind, ValueDeclaration, allocate_dense,
@@ -203,14 +203,17 @@ impl OperationFrame<'_, '_> {
         coordinate: checked_trees::CheckedUnitCallCoordinate,
         value: ValueDeclaration,
     ) -> Result<(), LoweringError> {
-        let names_local =
-            crate::call_sites::initializes_immutable_local(self.checked, self.state, coordinate);
+        let names_local = crate::shared::call_sites::initializes_immutable_local(
+            self.checked,
+            self.state,
+            coordinate,
+        );
         let value = if names_local {
             self.refine_scalar_local_value(identities, coordinate.statement_index, value)?
         } else {
             value
         };
-        if !crate::call_sites::discards_result(self.checked, self.state, coordinate) {
+        if !crate::shared::call_sites::discards_result(self.checked, self.state, coordinate) {
             let position = self.values.len();
             self.values.push(value);
             if names_local {
@@ -570,7 +573,7 @@ impl OperationFrame<'_, '_> {
             checked,
             self.operations,
             coordinate,
-            crate::direct_calls::CallRecord::Frontier(&frontier),
+            crate::shared::direct_calls::CallRecord::Frontier(&frontier),
             OperationResult::Unit,
             callee,
             DirectCallResult::Unit,
@@ -664,7 +667,7 @@ impl OperationFrame<'_, '_> {
             checked,
             self.operations,
             coordinate,
-            crate::direct_calls::CallRecord::Frontier(&frontier),
+            crate::shared::direct_calls::CallRecord::Frontier(&frontier),
             OperationResult::Scalar(value),
             callee,
             DirectCallResult::Scalar,

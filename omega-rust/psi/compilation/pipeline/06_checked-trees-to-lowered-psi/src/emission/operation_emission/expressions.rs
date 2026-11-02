@@ -7,12 +7,12 @@ use crate::emission::operation_emission::buffer::{
     scalar_result_declaration, structural_result_declaration,
 };
 use crate::expression_preparation::saturating_shift::expansion;
-use crate::lowering_error::LoweringError;
-use crate::lowering_error::unsupported;
-use crate::terminal_identities::mint;
-use crate::terminal_identities::obligation_id;
-use crate::terminal_identities::place_id;
-use crate::terminal_identities::value_id;
+use crate::shared::lowering_error::LoweringError;
+use crate::shared::lowering_error::unsupported;
+use crate::shared::terminal_identities::mint;
+use crate::shared::terminal_identities::obligation_id;
+use crate::shared::terminal_identities::place_id;
+use crate::shared::terminal_identities::value_id;
 use semantic_vocabulary::{
     IeeeFloatValue, IntegerSign, IntegerType, IntegerValue, PlaceId, QualifiedScalarType,
     ScalarType, StructuralFieldId, StructuralTypeId, ValueId,

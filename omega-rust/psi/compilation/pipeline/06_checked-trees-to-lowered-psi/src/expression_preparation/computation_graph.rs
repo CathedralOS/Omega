@@ -1,5 +1,5 @@
-use crate::checked_facts::{flow_facts, value_facts};
-use crate::lowering_error::{LoweringError, unsupported};
+use crate::shared::checked_facts::{flow_facts, value_facts};
+use crate::shared::lowering_error::{LoweringError, unsupported};
 use checked_trees::CheckedTrees;
 use checked_trees::{
     CheckedScalarCaseComputationField, CheckedScalarCaseConstruction, CheckedScalarComputationKind,

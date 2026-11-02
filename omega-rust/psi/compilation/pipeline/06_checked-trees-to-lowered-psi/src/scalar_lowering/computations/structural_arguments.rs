@@ -25,7 +25,8 @@ pub(super) fn lower(
     }
     let parameters =
         super::call_signature::structural_parameters(checked, target_machine, target_state)?;
-    let (_, caller_authored) = crate::declarations::state_declaration(checked, caller_state)?;
+    let (_, caller_authored) =
+        crate::shared::declarations::state_declaration(checked, caller_state)?;
     let caller_parameters = checked.state_parameters(caller_authored);
     if parameters.len() != arguments.len() {
         return unsupported("computed borrow disagrees with its selected callee signature");

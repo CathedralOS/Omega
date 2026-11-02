@@ -9,8 +9,8 @@
 
 use super::continuation_identities::{IdentityMap, IdentityUses};
 use super::selected_continuations::{SelectedCleanupGroup, Specialization};
-use crate::lowering_error::LoweringError;
-use crate::terminal_identities::{
+use crate::shared::lowering_error::LoweringError;
+use crate::shared::terminal_identities::{
     allocate_dense, block_id, claim_id, edge_id, obligation_id, operation_id, place_id, value_id,
 };
 use lowered_psi::{LoweredSelectedComparisonOccurrence, LoweredSourceCallOccurrence};

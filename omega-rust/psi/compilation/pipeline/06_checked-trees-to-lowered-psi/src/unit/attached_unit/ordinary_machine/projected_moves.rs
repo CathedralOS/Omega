@@ -9,7 +9,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::call_operands::structural_arguments;
+use crate::shared::call_operands::structural_arguments;
 use crate::unit::{
     Operation, PlaceId, StructuralAccess, StructuralMultiplicity, StructuralPlaceDeclaration,
     StructuralPlaceKind, StructuralTypeDeclaration,

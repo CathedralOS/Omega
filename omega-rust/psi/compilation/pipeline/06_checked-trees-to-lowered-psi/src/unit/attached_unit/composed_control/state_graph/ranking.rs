@@ -31,8 +31,8 @@ use super::super::super::super::{BlockId, IntegerType, TerminalRankedScc, ValueI
 use super::super::super::{TerminalMachine, Terminator, unsupported};
 use super::super::LoweringError;
 use super::{CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan};
-use crate::checked_facts::value_facts;
 use crate::expression_preparation::bindings::CapturedStructuralFormal;
+use crate::shared::checked_facts::value_facts;
 use std::collections::BTreeMap;
 use terminal_psi::{
     TerminalBlockNaturalRank, TerminalIntegerRankValue, TerminalNaturalCycle,
@@ -106,7 +106,7 @@ pub(super) fn formal_bindings(
     {
         return unsupported("Unit graph observation lost its complete formal telescope");
     }
-    let (_, declaration) = crate::declarations::state_declaration(checked, state.state)?;
+    let (_, declaration) = crate::shared::declarations::state_declaration(checked, state.state)?;
     let parameters = checked.state_parameters(declaration);
     let formals = state
         .structural_parameters

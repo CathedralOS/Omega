@@ -10,9 +10,9 @@ use terminal_psi::{
 };
 
 use crate::digest_encoder::DomainDigestEncoder;
-use crate::lowering_error::LoweringError;
-use crate::lowering_error::unsupported;
-use crate::terminal_identities::hex_text;
+use crate::shared::lowering_error::LoweringError;
+use crate::shared::lowering_error::unsupported;
+use crate::shared::terminal_identities::hex_text;
 use checked_trees::CheckedTrees;
 
 pub(crate) fn identity(

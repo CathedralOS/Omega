@@ -9,8 +9,8 @@ use super::super::{
 };
 use super::completed_aggregate::{self, CompletedAggregate};
 use super::emission;
-use crate::checked_facts::value_facts;
 use crate::emission::operation_emission::expressions::emit_scalar_leaf;
+use crate::shared::checked_facts::value_facts;
 use crate::unit::attached_unit::structural_values::ValueOutcome;
 use semantic_vocabulary::{IeeeFloatFormat, IeeeFloatValue};
 

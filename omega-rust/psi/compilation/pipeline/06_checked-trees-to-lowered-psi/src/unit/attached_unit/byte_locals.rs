@@ -6,8 +6,8 @@
 //! byte owners retain their own capacity and live length. Exact fixed arrays,
 //! qualified or plain, use fixed-array establishment and never gain a hidden
 //! length from a domain.
-use crate::content_classes::plain_owned_with_represented_constraints;
-use crate::lowering_error::{LoweringError, unsupported};
+use crate::shared::content_classes::plain_owned_with_represented_constraints;
+use crate::shared::lowering_error::{LoweringError, unsupported};
 use checked_trees::{CheckedTrees, CheckedUnitEffectOperationPlan};
 
 pub(crate) fn validate(
@@ -27,12 +27,15 @@ pub(crate) fn validate(
     let reference = if result.local.is_named() {
         result.local.declared_type
     } else {
-        let (_, authored) = crate::declarations::state_declaration(checked, state)?;
+        let (_, authored) = crate::shared::declarations::state_declaration(checked, state)?;
         let shared_view = validation::slice_view_shell(&checked.typed, authored.return_type, &[])
             .is_some_and(|view| view.access == language_semantics::ReferenceAccess::Shared);
         if !shared_view
-            && (crate::content_classes::bounded_byte_capacity(checked, authored.return_type)
-                .is_none()
+            && (crate::shared::content_classes::bounded_byte_capacity(
+                checked,
+                authored.return_type,
+            )
+            .is_none()
                 || !plain_owned_with_represented_constraints(checked, authored.return_type))
         {
             return unsupported("literal completion is not an owned bounded byte result");
@@ -64,7 +67,8 @@ pub(crate) fn validate(
         }
     }
     let reference = super::parameters::structural_carrier_type(checked, declared_reference)?;
-    if crate::content_classes::bounded_byte_capacity(checked, declared_reference).is_some() {
+    if crate::shared::content_classes::bounded_byte_capacity(checked, declared_reference).is_some()
+    {
         return Ok(());
     }
     if value.literal_bytes().is_none() {

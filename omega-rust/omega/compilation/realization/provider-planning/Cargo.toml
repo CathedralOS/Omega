@@ -21,6 +21,7 @@ layout = { path = "../../backend/layout" }
 package-compilation = { path = "../../../packages/compilation-inputs" }
 program-entry-plan = { path = "../../backend/plans/program-entry-plan" }
 representation-planning = { path = "../../../../psi/compilation/validation/representation-planning" }
+representation-selections = { path = "../../../../psi/compilation/validation/representation-planning/selections" }
 target = { path = "../../backend/target" }
 arena = { path = "../../../../psi/foundation/arena" }
 build-time-evaluation = { path = "../../../../psi/compilation/compile-time" }
@@ -28,7 +29,6 @@ checked-trees = { path = "../../../../psi/compilation/representations/checked-tr
 terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }
 terminal-semantics = { path = "../../../../psi/compilation/representations/terminal-psi/semantics" }
 terminal-codec = { path = "../../../../psi/compilation/representations/terminal-psi/codec" }
-terminal-interpreter = { path = "../../../../psi/interpreter/terminal-interpreter" }
 terminal-fuel = { path = "../../../../psi/compilation/representations/terminal-psi/fuel" }
 terminal-installation = { path = "../../../../psi/compilation/validation/terminal-installation" }
 semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }

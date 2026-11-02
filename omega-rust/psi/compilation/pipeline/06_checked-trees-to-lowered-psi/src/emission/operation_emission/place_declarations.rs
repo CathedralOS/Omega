@@ -16,8 +16,8 @@
 
 use std::collections::BTreeSet;
 
-use crate::lowering_error::LoweringError;
-use crate::lowering_error::unsupported;
+use crate::shared::lowering_error::LoweringError;
+use crate::shared::lowering_error::unsupported;
 use semantic_vocabulary::StructuralPlaceKind;
 use terminal_psi::{StructuralPlaceDeclaration, TerminalModule};
 

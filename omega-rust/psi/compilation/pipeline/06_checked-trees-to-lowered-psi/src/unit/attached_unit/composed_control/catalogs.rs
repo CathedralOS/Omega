@@ -4,7 +4,7 @@ use super::super::super::{
 };
 use super::super::{StructuralPlaceDeclaration, StructuralTypeId};
 use super::scalar_calls;
-use crate::terminal_identities::StructuralDomainBinding;
+use crate::shared::terminal_identities::StructuralDomainBinding;
 use crate::unit::attached_unit::operation_frame::BoundaryParameters;
 use crate::unit::attached_unit::signatures::MachineSignature;
 use std::borrow::Cow;

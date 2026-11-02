@@ -23,8 +23,8 @@
 //! state's blocks through this rule
 //! (`unit/attached_unit/composed_control/state_graph/emission/seal.rs`).
 
-use crate::lowering_error::{LoweringError, unsupported};
-use crate::terminal_identities::{allocate_dense, place_id};
+use crate::shared::lowering_error::{LoweringError, unsupported};
+use crate::shared::terminal_identities::{allocate_dense, place_id};
 use semantic_vocabulary::{BlockId, PlaceId, StructuralPlaceKind};
 use terminal_psi::{
     Block, StructuralAccess, StructuralArgument, StructuralPlaceDeclaration,

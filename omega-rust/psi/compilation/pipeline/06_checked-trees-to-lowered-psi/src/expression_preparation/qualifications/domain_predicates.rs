@@ -29,7 +29,7 @@ pub(super) fn complete_value_components(domains: &mut [ScalarDomainDeclaration])
             continue;
         }
         domain.predicate = value.flatten().map(|proposition| ScalarDomainPredicate {
-            subject: crate::terminal_identities::value_id(1),
+            subject: crate::shared::terminal_identities::value_id(1),
             proposition,
         });
     }

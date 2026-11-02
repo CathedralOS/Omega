@@ -391,7 +391,7 @@ pub fn settle_checked_providers(
     accepted_component_assumptions: &std::collections::BTreeSet<[u8; 32]>,
     boundary_calling_plan_realizations: Vec<BoundaryCallingPlanRealization>,
     calling_program: std::sync::Arc<crate::calling_policy_plans::CallingProgram>,
-    opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
+    opaque_representation_selections: &[representation_selections::OpaqueRepresentationSelection],
 ) -> Result<CheckedProviderSelection, Vec<Diagnostic>> {
     if !std::ptr::eq(services.context().typed, &*checked.typed)
         || services.context().scope != source::DependencyScope::Product
