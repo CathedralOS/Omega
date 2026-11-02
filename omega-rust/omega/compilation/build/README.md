@@ -45,7 +45,7 @@ does not invoke this route. Its completion owner retains acquisition custody and
 one aggregate sponsor until every target returns. An inadmissible target remains
 an ordered refusal beside successful siblings. A failed staging close is reported.
 SDK callers use the same `build(BuildRequest)` entrance, including the
-`package_batch` counter probe and CLI `qualify_inputs` replay example. There is
+`package_batch` counter probe. There is
 no separate prepared-project check/native/inspection API or static graph resolver.
 
 `package_batch --native-evidence --compare-single-targets --run` observes the
