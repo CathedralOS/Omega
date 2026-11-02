@@ -20,6 +20,7 @@ pass/borrows/nested_machine_unit_output_completed_operand_exit built 6686ms exit
 pass/borrows/nested_machine_unit_output_local_destination_exit built 6582ms exit:0 interpreter-exit:0 interpreter:agrees @1e18830ea024+wt
 pass/borrows/nested_machine_unit_output_long_cycle_exit built 7027ms exit:0 interpreter-exit:0 interpreter:agrees @1e18830ea024+wt
 pass/borrows/nested_machine_unit_output_ordinary_forward_exit built 4823ms exit:0 interpreter-exit:0 interpreter:agrees @1e18830ea024+wt
+pass/borrows/returned_slice_record_reference_custody_exit built 2464ms exit:0 interpreter-exit:0 interpreter:agrees @f2a7605fca26
 pass/borrows/runtime_nested_byte_field_capture_exit built 1142ms exit:0 interpreter-exit:0 interpreter:agrees @cc9fb68fb407
 pass/borrows/runtime_reference_result_alias_case_payload_exit built 7010ms exit:0 interpreter-exit:0 interpreter:agrees @00e93f641615+wt
 pass/borrows/runtime_reference_result_case_payload_exit built 6928ms exit:0 interpreter-exit:0 interpreter:agrees @00e93f641615+wt
@@ -35,9 +36,9 @@ pass/build/provider_nested_type_application_exit built 2392ms exit:0 interpreter
 pass/build/provider_structural_type_application_exit built 2830ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @b86bab8d85ef
 pass/build/retained_behavior_admission built 2928ms exit:0 interpreter-exit:0 interpreter:agrees behavior-admission-controls:match terminal-inspections:match @a0939f4833eb
 pass/build/runtime_calling_register_copy_exit built 9360ms exit:0 interpreter-exit:0 interpreter:agrees @d2937c3afdf3
-pass/build/terminal_calling_policy_execution built 77608ms exit:0 interpreter-exit:0 interpreter:agrees terminal-runtime.retained_plan:match terminal-inspections:match @c36eb72a517d
+pass/build/terminal_calling_policy_execution built 67543ms exit:0 interpreter-exit:0 interpreter:agrees terminal-runtime.retained_plan:match terminal-inspections:match @f8fd5ea66130
 pass/build/terminal_native_layout_catalog built 7219ms exit:0 interpreter-exit:0 interpreter:agrees native-layout-controls:match terminal-inspections:match @059e1533f82a
-pass/build/terminal_private_callback_calling built 72829ms exit:0 interpreter-exit:0 interpreter:agrees callback-body-controls:match terminal-inspections:match @c8f27239e5d4
+pass/build/terminal_private_callback_calling built 82973ms exit:0 interpreter-exit:0 interpreter:agrees callback-body-controls:match terminal-inspections:match @f2a7605fca26
 pass/calls/completed_narrowing_result_case_bounds built 1715ms exit:0 interpreter-exit:0 interpreter:agrees @09c8250ac20f+wt
 pass/calls/converted_call_value_private_arrival_exit built 1448ms exit:0 interpreter-exit:0 interpreter:agrees @8b519ca647cd+wt
 pass/calls/requires_machine_explicit_operational_closers_exit built 1338ms exit:0 interpreter-exit:0 interpreter:agrees @45fb2a705c96
@@ -69,6 +70,7 @@ pass/contracts/completed_unit_call_post_case built 1937ms exit:0 interpreter-exi
 pass/contracts/transition_argument_effects_before_later_observation_exit built 2057ms exit:0 interpreter-exit:0 interpreter:agrees @d2f3e99f1e08
 pass/control_flow/arm_pattern_rest_optout_exit built 6884ms exit:70 interpreter-exit:70 interpreter:agrees @daa14c70b1c0+wt
 pass/control_flow/case_pattern_rename_waive_exit built 6884ms exit:70 interpreter-exit:70 interpreter:agrees @daa14c70b1c0+wt
+pass/control_flow/nonreturning_callee_exit built 2254ms exit:0 interpreter-exit:0 interpreter:agrees @f2a7605fca26
 pass/core/content_retained_custody_round_trip built 6738ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @8ce11b402e09+wt
 pass/core/independent_content_checked_factory_exit built 1804ms exit:0 interpreter-exit:0 interpreter:agrees @767215d6ee2d
 pass/core/independent_content_closed_carrier_factory_exit built 1720ms exit:0 interpreter-exit:0 interpreter:agrees @767215d6ee2d
@@ -387,9 +389,10 @@ pass/facts/four_variant_enum_payload_bound_through_other_machine_exit built 1915
 pass/facts/four_variant_enum_payload_bound_through_other_state_exit built 1834ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/four_variant_enum_payload_bound_through_parameter_exit built 1792ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/four_variant_enum_payload_bound_through_target_body_exit built 1352ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
-pass/facts/generic_calling_policy/helper_uses_own_policy built 26866ms exit:0 interpreter-exit:0 interpreter:agrees @002791b61f14
-pass/facts/generic_calling_policy/inherited_helper_exit built 26531ms exit:0 interpreter-exit:0 interpreter:agrees @002791b61f14
-pass/facts/generic_calling_policy/unused_descendant_exit built 23929ms exit:0 interpreter-exit:0 interpreter:agrees @002791b61f14
+pass/facts/generic_calling_policy/helper_uses_own_policy built 18881ms exit:0 interpreter-exit:0 interpreter:agrees @f2a7605fca26
+pass/facts/generic_calling_policy/inherited_helper_exit built 18997ms exit:0 interpreter-exit:0 interpreter:agrees @f2a7605fca26
+pass/facts/generic_calling_policy/ranked_helper_exit built 22396ms exit:0 interpreter-exit:0 interpreter:agrees @f2a7605fca26
+pass/facts/generic_calling_policy/unused_descendant_exit built 19396ms exit:0 interpreter-exit:0 interpreter:agrees @f2a7605fca26
 pass/facts/generic_terminated_array_through_call_result_exit built 1539ms exit:0 interpreter-exit:0 interpreter:agrees @33b180036351
 pass/facts/generic_terminated_array_through_const_name_exit built 1539ms exit:0 interpreter-exit:0 interpreter:agrees @33b180036351
 pass/facts/generic_terminated_array_through_field_exit built 1778ms exit:0 interpreter-exit:0 interpreter:agrees @33b180036351
@@ -1311,6 +1314,7 @@ pass/layouts/fixed_layout_unmentioned_valid_policy_exit built 2006ms exit:0 inte
 pass/layouts/nested_reference_carrier_geometry_exit built 1527ms exit:0 interpreter-exit:0 interpreter:agrees @8b519ca647cd+wt
 pass/layouts/runtime_layout_arithmetic_value_flow_exit built 2009ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @8b519ca647cd+wt
 pass/machines/cyclic_private_arrival_guard_context_exit built 1858ms exit:0 interpreter-exit:0 interpreter:agrees @f58fe154c6f3
+pass/ownership/runtime_nonreturning_claim_alternative_exit built 3365ms exit:0 interpreter-exit:0 interpreter:agrees @f2a7605fca26
 pass/proofs/completed_guard_converted_snapshot built 2954ms exit:0 interpreter-exit:0 interpreter:agrees @2cede9e14eca
 pass/proofs/completed_guard_private_boolean built 3165ms exit:0 interpreter-exit:0 interpreter:agrees @2cede9e14eca
 pass/proofs/completed_guard_two_call_identities built 2863ms exit:0 interpreter-exit:0 interpreter:agrees @2cede9e14eca
@@ -2188,7 +2192,7 @@ pass/facts/assumed_binding_input_authority_through_target_body_exit built 1561ms
 pass/facts/assumed_binding_result_bound_through_call_result_exit built 11614ms exit:0 interpreter-exit:0 interpreter:agrees @6f94b4f3cae8+wt
 pass/facts/assumed_binding_result_bound_through_const_name_exit built 11620ms exit:0 interpreter-exit:0 interpreter:agrees @6f94b4f3cae8+wt
 pass/facts/assumed_binding_result_bound_through_field_exit built 11723ms exit:0 interpreter-exit:0 interpreter:agrees @6f94b4f3cae8+wt
-pass/facts/assumed_binding_result_bound_through_local_exit built 12054ms exit:0 interpreter-exit:0 interpreter:agrees @6f94b4f3cae8+wt
+pass/facts/assumed_binding_result_bound_through_local_exit built 7043ms exit:0 interpreter-exit:0 interpreter:agrees provider-choice-controls:match terminal-inspections:match @f2a7605fca26
 pass/facts/assumed_binding_result_bound_through_match_join_exit built 12063ms exit:0 interpreter-exit:0 interpreter:agrees @6f94b4f3cae8+wt
 pass/facts/assumed_binding_result_bound_through_other_machine_exit built 11700ms exit:0 interpreter-exit:0 interpreter:agrees @6f94b4f3cae8+wt
 pass/facts/assumed_binding_result_bound_through_other_state_exit built 11494ms exit:0 interpreter-exit:0 interpreter:agrees @6f94b4f3cae8+wt
@@ -2806,15 +2810,15 @@ pass/facts/free_entry_local_state_through_other_machine_exit built 697ms exit:0 
 pass/facts/free_entry_local_state_through_other_state_exit built 691ms exit:0 interpreter-exit:0 interpreter:agrees @0360a23ad5f5+wt
 pass/facts/free_entry_local_state_through_parameter_exit built 709ms exit:0 interpreter-exit:0 interpreter:agrees @0360a23ad5f5+wt
 pass/facts/free_entry_local_state_through_target_body_exit built 722ms exit:0 interpreter-exit:0 interpreter:agrees @0360a23ad5f5+wt
-pass/facts/generic_calling_policy_through_call_result_exit built 24602ms exit:0 interpreter-exit:0 interpreter:agrees @002791b61f14
-pass/facts/generic_calling_policy_through_const_name_exit built 24596ms exit:0 interpreter-exit:0 interpreter:agrees @002791b61f14
-pass/facts/generic_calling_policy_through_field_exit built 24452ms exit:0 interpreter-exit:0 interpreter:agrees @002791b61f14
-pass/facts/generic_calling_policy_through_local_exit built 19997ms exit:0 interpreter-exit:0 interpreter:agrees @002791b61f14
-pass/facts/generic_calling_policy_through_match_join_exit built 24481ms exit:0 interpreter-exit:0 interpreter:agrees @002791b61f14
-pass/facts/generic_calling_policy_through_other_machine_exit built 24860ms exit:0 interpreter-exit:0 interpreter:agrees @002791b61f14
-pass/facts/generic_calling_policy_through_other_state_exit built 24776ms exit:0 interpreter-exit:0 interpreter:agrees @002791b61f14
-pass/facts/generic_calling_policy_through_parameter_exit built 22805ms exit:0 interpreter-exit:0 interpreter:agrees @002791b61f14
-pass/facts/generic_calling_policy_through_target_body_exit built 22753ms exit:0 interpreter-exit:0 interpreter:agrees @002791b61f14
+pass/facts/generic_calling_policy_through_call_result_exit built 19549ms exit:0 interpreter-exit:0 interpreter:agrees @f2a7605fca26
+pass/facts/generic_calling_policy_through_const_name_exit built 19533ms exit:0 interpreter-exit:0 interpreter:agrees @f2a7605fca26
+pass/facts/generic_calling_policy_through_field_exit built 19613ms exit:0 interpreter-exit:0 interpreter:agrees @f2a7605fca26
+pass/facts/generic_calling_policy_through_local_exit built 19196ms exit:0 interpreter-exit:0 interpreter:agrees @f2a7605fca26
+pass/facts/generic_calling_policy_through_match_join_exit built 19227ms exit:0 interpreter-exit:0 interpreter:agrees @f2a7605fca26
+pass/facts/generic_calling_policy_through_other_machine_exit built 18829ms exit:0 interpreter-exit:0 interpreter:agrees @f2a7605fca26
+pass/facts/generic_calling_policy_through_other_state_exit built 19566ms exit:0 interpreter-exit:0 interpreter:agrees @f2a7605fca26
+pass/facts/generic_calling_policy_through_parameter_exit built 19935ms exit:0 interpreter-exit:0 interpreter:agrees @f2a7605fca26
+pass/facts/generic_calling_policy_through_target_body_exit built 19329ms exit:0 interpreter-exit:0 interpreter:agrees @f2a7605fca26
 pass/facts/field_where_index_through_call_result_exit built 4881ms exit:0 interpreter-exit:0 interpreter:agrees @9ff26a870215+wt
 pass/facts/field_where_index_through_const_name_exit built 5998ms exit:0 interpreter-exit:0 interpreter:agrees @9ff26a870215+wt
 pass/facts/field_where_index_through_field_exit built 4530ms exit:0 interpreter-exit:0 interpreter:agrees @9ff26a870215+wt

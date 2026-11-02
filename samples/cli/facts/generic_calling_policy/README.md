@@ -122,6 +122,15 @@ clauses and must reject for missing ordinary recursive termination. The original
 unranked nested helper and entry-premise controls remain independent falsifiers.
 The nine placement witnesses and Width-4 twins remain unchanged.
 
+Checked-in corpus rows retain the actual producer identities of the placement
+row, recursive proof twin and no-return controls. Source-discard/reload tests
+also exercise live custom authority with no exported scope, shared-target
+artifact/native-byte equality and target-failure isolation. The retained runtime
+assumption witness refuses compiler execution through its assumed link but
+admits its independent checked supplier. These matching-host results do not
+close the parent Source-free target-planning outcome or qualify foreign-host
+execution.
+
 ## Historical canonical helper-selection evidence
 
 Exact optimized producer `002791b61f14404bcf6ce65e5376131ca16e1efe` selects
