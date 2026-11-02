@@ -75,10 +75,6 @@ fn parse_capability_state<'tokens, 'source>(
     let (signature, mut input) = parse_callable_signature(syntax_trees, input)?;
     let mut contracts = crate::storage::handle_spans::HandleSpanBuilder::new();
 
-    if input.at_contextual("where") {
-        input = input.take_contextual("where")?;
-    }
-
     if input.at_punctuation(PunctuationKind::LeftBrace) {
         input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
         while !input.at_punctuation(PunctuationKind::RightBrace) {

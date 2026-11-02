@@ -262,11 +262,11 @@ fn retains_complete_default_domain_predicate() {
 }
 
 #[test]
-fn rejects_case_local_where_clause() {
+fn rejects_case_local_requires_clause() {
     let error = super::parse_source_error(
-        "data Interval { case Range(lo: u64, hi: u64) where lo <= hi; }",
+        "data Interval { case Range(lo: u64, hi: u64) requires lo <= hi; }",
         "tokenize retired case predicate",
-        "case-local where must reject",
+        "case-local requires must reject",
     );
     assert!(
         error

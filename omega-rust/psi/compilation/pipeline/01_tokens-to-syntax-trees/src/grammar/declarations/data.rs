@@ -477,7 +477,7 @@ fn parse_case_member<'tokens, 'source>(
 
     // The complete data predicate is the only authored validity condition.
     // Cases carry no separately attributed source predicate.
-    if input.at_contextual("where") || input.at_contextual("requires") {
+    if input.at_contextual("requires") {
         return Err(input.error_here(
             "case-local predicate clauses are retired; write the predicate in the data declaration's default-domain `requires`",
         ));
