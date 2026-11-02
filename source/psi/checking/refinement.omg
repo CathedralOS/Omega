@@ -148,8 +148,6 @@ crashes Trap
     checker.argument_first = 0;
     checker.argument_count = 0;
     checker.field_first = 0;
-    checker.payload_first = 0;
-    checker.payload_slot = 0;
     checker.returned = Value::unknown();
     checker.subject = Value::unknown();
     checker.subject_roster = 0;
