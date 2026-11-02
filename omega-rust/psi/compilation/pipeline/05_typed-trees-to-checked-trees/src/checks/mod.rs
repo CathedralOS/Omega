@@ -294,6 +294,21 @@ pub(crate) fn check_checked_facts_recording(
     }) {
         Ok((proven, coordinates, obligations)) => {
             facts.proven_scalar_indexes = proven;
+            let mut selectors = coordinates
+                .iter()
+                .filter_map(|(occurrence, coordinate)| {
+                    match program.expression_table.expression(*occurrence) {
+                        typed_trees::expression::ExpressionNode::Indexed(indexed) => {
+                            Some((indexed.index, *coordinate))
+                        }
+                        _ => None,
+                    }
+                })
+                .collect::<Vec<_>>();
+            selectors
+                .sort_by_key(|(selector, _)| checked_trees::operators::handle_position(*selector));
+            selectors.dedup_by_key(|(selector, _)| *selector);
+            facts.scalar_selector_coordinates = selectors;
             facts.scalar_index_coordinates = coordinates;
             facts.constant_recipe_obligations.extend(obligations);
         }
