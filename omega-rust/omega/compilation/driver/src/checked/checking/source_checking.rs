@@ -85,6 +85,9 @@ pub(crate) fn check_product_source(
                 admission: source_admission,
                 previous: &previous,
                 retain: reuse.retain,
+                library_slice: psi_compiler::LibrarySliceRequest {
+                    root_package: package_inputs.map(PackageCompilationInputs::root),
+                },
             }
             .check();
             if !result.as_ref().is_ok_and(|outcome| outcome.reused) {

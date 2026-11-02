@@ -14,6 +14,11 @@ use representation_selections::OpaqueRepresentationSelection;
 use std::sync::Arc;
 
 mod constant_entries;
+mod library_slice;
+
+pub use library_slice::{
+    LibrarySliceKey, LibrarySliceRequest, LibrarySliceTotals, library_slice_totals,
+};
 
 pub use typed_trees_to_checked_trees::{CheckedTreeProductSelection, RetainedCheck};
 
@@ -93,6 +98,8 @@ pub struct CheckRequest<'request> {
     pub admission: SourceAdmission<'request>,
     pub previous: &'request [&'request RetainedCheck],
     pub retain: bool,
+    /// Names the library slice for the reuse counters. It changes no judgment.
+    pub library_slice: LibrarySliceRequest,
 }
 
 /// Successful language judgment, before optional whole-product root selection.
@@ -119,6 +126,18 @@ impl CheckRequest<'_> {
         // A retained language judgment cannot bypass final application custody.
         // Reclosure also derives copy properties; callers cannot supply them.
         let representations = self.admission.representations.admit(&program)?;
+        let slice_key = phase_profile::scope("psi.source.library_slice_key", || {
+            self.library_slice.key(
+                &program,
+                &library_slice::SliceAdmission {
+                    completion: &self.admission.completion,
+                    layout_scopes: self.admission.layout_scopes,
+                    representations: &representations.selections,
+                    asm_authority: self.admission.asm_authority,
+                    wire_demands: self.admission.wire_demands,
+                },
+            )
+        });
         phase_profile::scope("psi.source.completion", || {
             validation::source_completion::prepare_source_completion(
                 &mut program,
@@ -158,6 +177,9 @@ impl CheckRequest<'_> {
             )?;
             outcome
         } else {
+            if let Some(key) = slice_key {
+                library_slice::record_computed(key);
+            }
             let retained_input = phase_profile::scope("psi.source.retained_input_clone", || {
                 self.retain.then(|| (Arc::new(program.clone()), admission))
             });
