@@ -868,9 +868,14 @@ impl<'program> CurrentScalarValues<'program> {
                 numerics::bignum::BigInt::from_i64(value),
             ));
         }
-        // A completed call publishes all of its public result bounds. An
-        // exact interval is a constant; a proper interval belongs to this
-        // observed occurrence, not a replay of an effectful or dynamic call.
+        // A completed call retains its exact scalar actuals as well as its
+        // result interval. An interval alone loses relational guarantees such
+        // as result == input + 1. Capture only immutable owned integer formals:
+        // a reference denotes storage, and a mutable formal's post-state is not
+        // its incoming value. The existing contract importer owns those other
+        // observations, selected identity and contract independence.
+        // This is an executed value capture after the operand-write barrier,
+        // not admission or formation of an unevaluated specification call.
         if let Some(call) = program.expression_table.call_node(expression)
             && let Some((low, high)) =
                 validation::normal_return_integer_bounds(program, machine.symbol, expression, call)
@@ -885,11 +890,53 @@ impl<'program> CurrentScalarValues<'program> {
             let reference =
                 validation::expression_result_type_reference(program, machine, state, expression)?;
             let primitive = integer_carrier(program, reference)?;
-            return Some(ScopedArithmeticValue::BoundedInteger {
-                value: Box::new(ScopedArithmeticValue::Atom {
+            let arguments = program.expression_table.expression_handles(call.arguments);
+            let actuals = validation::call_target_parameters(
+                program,
+                validation::call_target_symbol(program, call),
+            )
+            .filter(|parameters| parameters.len() == arguments.len())
+            .map(|parameters| {
+                parameters
+                    .iter()
+                    .zip(arguments)
+                    .filter(|(parameter, _)| {
+                        !parameter.is_mutable
+                            && validation::reference_shell(program, parameter.type_reference)
+                                .is_none()
+                            && program
+                                .primitive_type_reference(parameter.type_reference)
+                                .is_some_and(PrimitiveType::is_fixed_integer)
+                    })
+                    .filter_map(|(_, argument)| {
+                        Some(ScopedArithmeticBinding {
+                            binder: ScopedArithmeticBinder::Occurrence(*argument),
+                            value: self.capture_at_depth(
+                                program,
+                                machine,
+                                state,
+                                *argument,
+                                depth + 1,
+                            )?,
+                        })
+                    })
+                    .collect()
+            });
+            let value = actuals.map_or_else(
+                || ScopedArithmeticValue::Atom {
                     identity: format!("state:{:?}:call-result:{expression:?}", state.symbol),
                     unsigned: unsigned(primitive),
-                }),
+                },
+                |bindings| {
+                    ScopedArithmeticValue::Term(ScopedArithmeticExpression {
+                        owner: state.symbol,
+                        expression,
+                        bindings,
+                    })
+                },
+            );
+            return Some(ScopedArithmeticValue::BoundedInteger {
+                value: Box::new(value),
                 interval: BigIntInterval {
                     low: low.map(numerics::bignum::BigInt::from_i64),
                     high: high.map(numerics::bignum::BigInt::from_i64),
