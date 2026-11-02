@@ -100,11 +100,16 @@ pub(super) fn normalize(program: &mut TypedTrees, frontier: usize) -> Result<(),
                 .map(|item| (item.symbol, &item.conformance_bounds)),
         );
     for (owner, bounds) in bounds {
-        applications.extend(
-            bounds
-                .iter()
-                .map(|bound| (bound.trait_symbol, bound.arguments.clone(), owner)),
-        );
+        applications.extend(bounds.iter().map(|bound| {
+            // Lifted bounds still name the declaration where their operands
+            // were authored, not the nested machine retaining the same bound.
+            let owner = if bound.binder.is_valid() {
+                program.symbols.get(bound.binder).parent
+            } else {
+                owner
+            };
+            (bound.trait_symbol, bound.arguments.clone(), owner)
+        }));
     }
     for (declaration, arguments, owner) in applications {
         let parameters = if let Some(data) = program.unique_data_definition_by_symbol(declaration) {
@@ -153,6 +158,20 @@ pub(super) fn normalize(program: &mut TypedTrees, frontier: usize) -> Result<(),
         for (parameter, argument) in parameters.iter().zip(arguments.iter().copied()) {
             if argument.arena_index() as usize <= frontier {
                 continue;
+            }
+            // Fresh declaration arguments need their source scope even when
+            // a receiving callback contract substitutes them later. Existing
+            // copied supplier custody takes precedence over this header owner.
+            if owner.is_valid()
+                && !program
+                    .type_reference_table
+                    .operand_lifetime_owner(argument)
+                    .is_valid()
+            {
+                program
+                    .type_reference_table
+                    .retain_operand_lifetime_owner(argument, owner)
+                    .map_err(Diagnostic::error)?;
             }
             let TypeParameterKind::Const { type_reference } = parameter.kind else {
                 continue;
