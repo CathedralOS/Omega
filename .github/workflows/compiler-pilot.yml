@@ -95,9 +95,18 @@ jobs:
         if: github.event_name != 'workflow_dispatch'
         id: compiler-check
         run: cargo check --locked -p omega
-      - name: Qualify exact header-field equations and preserved nominal transport
+      - name: Restore exact qualified case-where CLI
         if: github.event_name == 'workflow_dispatch'
-        run: python tools/build_slot.py -- python tools/ci/case_where_repair3.py
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download 41421520673 --name compiler-pilot-linux_x86_64-70036176871cda9279a6a401987d0ca4325918e2-1 --dir build/case-retained-input
+          git fetch --depth=1 origin 70036176871cda9279a6a401987d0ca4325918e2
+      - name: Record the full case-where row and preserved controls
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          OMEGA_CASE_RETAINED_INPUT: ${{ github.workspace }}/build/case-retained-input
+        run: python tools/build_slot.py -- python tools/ci/case_where_row.py
       - name: Optional executable observations
         if: github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
         env:
