@@ -209,7 +209,7 @@ retired-syntax deletions to completion.
   the corpus, `bootstrap/5_omega/parser.epsilon` and
   `tests/bootstrap/omega-parser` are migrated and each customer's native/Terminal
   oracle runs via `omega run --both`; then delete suffix parsing
-  (`omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/type_syntax/parse_type.rs`),
+  (`omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/grammar/type_syntax/parse_type.rs`),
   `TypeConstraintNode::Range`, range-shell inference, suffix-recommending
   diagnostics, and the migration recipe, turning
   `fail/proofs/mathematical_constrained_scalar_formal:2` into a parse-refusal pin.
@@ -1303,7 +1303,7 @@ defines the complete product bar.
   [assembly](wiki/spec/language/assembly.md) and the
   [inline assembly catalog](omega-rust/psi/foundation/language-core/inline_assembly.md)
   end to end (`Psi 00–08` and `Omega 00–09`).
-  Owners: `01_tokens-to-syntax-trees/src/bodies/statements/inline_assembly.rs`,
+  Owners: `01_tokens-to-syntax-trees/src/grammar/bodies/statements/inline_assembly.rs`,
   `language-core/src/inline_assembly/`, stage 05 CFG/state transfer and
   `execution/terminal_unit/calls/call_operations.rs`, stage 06 lowering,
   Omega stage 02 `lowering/control_flow/operations.rs`, stage 03 scalar-graph

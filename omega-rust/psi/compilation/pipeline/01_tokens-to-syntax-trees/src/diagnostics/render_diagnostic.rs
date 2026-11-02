@@ -1,5 +1,5 @@
 use crate::diagnostics::parse_error::ParseError;
-use crate::input::token_cursor::Input;
+use crate::tokens::token_cursor::Input;
 use tokens::{CommentKind, Token, TokenKind};
 
 /// One `expected …, found …` parse diagnostic: the candidate set renders once,

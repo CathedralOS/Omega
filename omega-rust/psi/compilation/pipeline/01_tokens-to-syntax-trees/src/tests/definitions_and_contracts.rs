@@ -1297,8 +1297,8 @@ fn proof_fact_carry_permission_rejects_index_arguments() {
 
 #[test]
 fn declaration_lookahead_rewinds_private_rows_and_preserves_source_custody() {
-    use crate::declarations::parse_declaration::starts_following_item;
-    use crate::input::token_cursor::Input;
+    use crate::grammar::declarations::parse_declaration::starts_following_item;
+    use crate::tokens::token_cursor::Input;
     use syntax_trees::SyntaxTrees;
 
     for (source, expected) in [
