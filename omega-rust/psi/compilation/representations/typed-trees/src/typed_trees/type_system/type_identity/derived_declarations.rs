@@ -8,6 +8,7 @@ use super::identity_context::{
 };
 use crate::TypedTrees;
 use crate::types::TypeReferenceNode;
+use language_semantics::type_identity::vocabulary::{Label, NameForm};
 use symbols::SymbolHandle;
 
 pub(super) fn nominal_name(
@@ -75,14 +76,14 @@ pub(super) fn nominal_name(
         }
         let owner = normalize_type_reference(program, origin, &qualified);
         if view.data_symbol == symbol {
-            return Ok(Some(compound("derived-application", [owner])));
+            return Ok(Some(compound(NameForm::DerivedApplication, [owner])));
         }
         let field = field.ok_or("derived placed declaration lost its field producer")?;
         let selector = match field.member_identity {
-            Some(identity) => atom("member", &identity.to_string()),
-            None => atom("field", &field.field_name),
+            Some(identity) => atom(Label::Member, &identity.to_string()),
+            None => atom(Label::Field, &field.field_name),
         };
-        let accessor = compound("placed-field", [owner, selector]);
+        let accessor = compound(NameForm::PlacedField, [owner, selector]);
         if field.accessor_data_symbol == symbol {
             return Ok(Some(accessor));
         }
@@ -95,11 +96,11 @@ pub(super) fn nominal_name(
                 continue;
             };
             return Ok(Some(compound(
-                "placed-operation",
+                NameForm::PlacedOperation,
                 [
                     accessor,
-                    atom("operation", &target.operation),
-                    atom("role", role),
+                    atom(Label::Operation, &target.operation),
+                    atom(Label::Role, role),
                 ],
             )));
         }

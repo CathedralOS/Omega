@@ -316,6 +316,12 @@ bounded window of the innermost identity text where reading stopped, so a failed
 lock names the declaration rather than only the rule. Exhausting a limit or
 naming an unknown package is never reported as malformed.
 
+The runtime type grammar's tags are the closed vocabulary in
+`language_semantics::type_identity::vocabulary`. The renderer writes a tag only
+through it and the grammar reads or refuses each one with a reason, so a form
+that one half learns without the other fails to compile, or fails the round-trip
+test in `typed-trees`, instead of surfacing when a lock is built.
+
 The crate root exports `project_checked_package_policy` and
 `project_checked_terminal_permission_policy`. The manager owns comparison and
 policy; the entrance admits no package or executable operation.
