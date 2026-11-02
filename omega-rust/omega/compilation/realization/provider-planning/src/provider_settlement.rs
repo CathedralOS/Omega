@@ -384,6 +384,7 @@ pub fn settle_checked_providers(
     settled_target_machines: SettledTargetMachineDeclarations,
     selected_target_profile: Option<target::TargetProfile>,
     package_inputs: Option<&PackageCompilationInputs>,
+    evaluated_bindings: Result<EvaluatedViaBindingTable, Vec<Diagnostic>>,
     build_provider_selections: &[ProviderSelection],
     application_roots: Option<&[(String, SymbolHandle)]>,
     native_bindings: &crate::native_bindings::PreparedNativeBuildBindings,
@@ -411,12 +412,7 @@ pub fn settle_checked_providers(
     // PRV4 provider selection mirrors the native pipeline: candidates remain
     // separate by provider type and only the uniquely covering candidate may
     // rewrite adapter calls in the interpreter program.
-    let mut evaluated_via_bindings = crate::evaluated_via_bindings::evaluate_checked_via_bindings(
-        checked,
-        source::DependencyScope::Product,
-        planning_target,
-        package_inputs,
-    )?;
+    let mut evaluated_via_bindings = evaluated_bindings?;
     let authored_providers =
         std::sync::Arc::new(crate::target_machines::AuthoredTargetProviders::derive(
             services,

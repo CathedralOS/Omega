@@ -50,7 +50,7 @@ pub mod service_schema;
 mod source_guards;
 pub mod target_machines;
 
-pub(crate) use provider_settlement::SettledTargetMachineDeclarations;
+pub use provider_settlement::SettledTargetMachineDeclarations;
 pub use provider_settlement::{
     CheckedProviderSelection, ProviderSettlement, settle_checked_providers,
     verify_selected_compositions_are_realized,

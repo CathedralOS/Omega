@@ -20,11 +20,13 @@ mod package_compilation;
 mod package_review;
 pub use package_review::{PackageReviewFailure, PackageReviewProduct, PackageReviewSource};
 mod product_batch;
+mod target_preparation;
 pub use package_compilation::{
     CompletedBuild, PackageBuild, PackageBuildInvocation, PackageCompilationRequest,
     PackageCompileFailure, PackageProductOptions, PackageProductSourceRequest,
     PackageSourceRequest, PreparedPackageProduct, SourceBuildDeclaration,
 };
+pub(crate) use target_preparation::{PreparedProductTarget, PreparedTargetDeclarations};
 
 pub use artifacts::compile_timings::counters::{
     checked_compilation_call_count, preliminary_check_totals, settled_check_totals,

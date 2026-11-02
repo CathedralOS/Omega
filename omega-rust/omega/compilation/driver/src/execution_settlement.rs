@@ -6,6 +6,7 @@
 
 use crate::checked::CheckedCompilation;
 use crate::checked::checking::{attribute_diagnostics, timed};
+use crate::checked::{PreparedProductTarget, PreparedTargetDeclarations};
 use artifacts::compile_timings::{CompileTimings, EXECUTION_SETTLEMENT};
 use compilation_products::{
     BuildAdmission, CheckedCompilationInputs, CheckedCompileOutcome, CheckedProductSource,
@@ -13,6 +14,7 @@ use compilation_products::{
 };
 use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
+use provider_planning::SettledTargetMachineDeclarations;
 use selected_dispatch::{ProviderBindingRequest, SelectedExecution, prepare_selected_execution};
 use std::sync::Arc;
 
@@ -55,40 +57,9 @@ pub(crate) struct SelectedProductTarget {
 impl SelectedProductTarget {
     pub(crate) fn select(
         source: &CheckedProductSource,
-        target: Option<target::TargetProfile>,
-        package_inputs: Option<&PackageCompilationInputs>,
+        prepared: PreparedProductTarget,
     ) -> Result<Self, Vec<Diagnostic>> {
-        let mut package_inputs = package_inputs.cloned();
-        if let Some(inputs) = package_inputs.as_ref()
-            && let Some(binding) =
-                provider_planning::program_entry::discover_explicit_entry_binding(
-                    one_refusal(source.provider_inventory.services_for(&source.program))?,
-                    &source.computed_build_config.config.root_bindings,
-                    target,
-                    &source.computed_build_config.config.provider_selections,
-                    inputs,
-                )?
-        {
-            let mut bindings = inputs
-                .accepted_semantic_bindings()
-                .cloned()
-                .collect::<Vec<_>>();
-            bindings.push(binding);
-            package_inputs = Some(
-                inputs
-                    .clone()
-                    .with_accepted_semantic_bindings(bindings)
-                    .map_err(|errors| {
-                        errors
-                            .into_iter()
-                            .map(|error| {
-                                Diagnostic::error(format!("entry candidate inputs: {error:?}"))
-                            })
-                            .collect::<Vec<_>>()
-                    })?,
-            );
-        }
-        let custody = select_product_providers(source, target, package_inputs.as_ref())?;
+        let custody = select_product_providers(source, prepared)?;
         // Direct source consumers do not attach a package session's products.
         // Unprepared Independent demands must not look like a complete empty set.
         let mut independent_components = Ok(Vec::new());
@@ -359,6 +330,11 @@ fn select_checked_providers(
     source: &CheckedProductSource,
     selected_target_profile: Option<target::TargetProfile>,
     package_inputs: Option<&PackageCompilationInputs>,
+    declarations: Result<PreparedTargetDeclarations, Vec<Diagnostic>>,
+    evaluated_bindings: Result<
+        provider_planning::evaluated_via_bindings::EvaluatedViaBindingTable,
+        Vec<Diagnostic>,
+    >,
     timings: &mut CompileTimings,
 ) -> Result<(SelectedExecution, provider_planning::ProviderSettlement), Vec<Diagnostic>> {
     let typed = &source.program.typed;
@@ -368,15 +344,10 @@ fn select_checked_providers(
         .x86_deployment_claim
         .admit_for(selected_target_profile)
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
-    let services = one_refusal(source.provider_inventory.services_for(&source.program))?;
-    // Entry source issuance is independent of policy execution. Defer its
-    // refusal until after provider selection to preserve diagnostic precedence.
-    let entry = provider_planning::program_entry::prepare_compiler_program_entry(
-        services,
-        &build_config.root_bindings,
-        selected_target_profile,
-        package_inputs,
-    );
+    let PreparedTargetDeclarations {
+        entry,
+        target_machines,
+    } = declarations?;
     let provider_planning::CheckedProviderSelection {
         settlement: providers,
         selected_provider_plan_facts,
@@ -385,6 +356,8 @@ fn select_checked_providers(
         source,
         selected_target_profile,
         package_inputs,
+        target_machines,
+        evaluated_bindings,
         timings,
     )?;
     let mut selected_program_entry = entry?
@@ -440,14 +413,14 @@ fn prepare_target_provider_selection(
     source: &CheckedProductSource,
     selected_target_profile: Option<target::TargetProfile>,
     package_inputs: Option<&PackageCompilationInputs>,
+    settled_target_machines: SettledTargetMachineDeclarations,
+    evaluated_bindings: Result<
+        provider_planning::evaluated_via_bindings::EvaluatedViaBindingTable,
+        Vec<Diagnostic>,
+    >,
     timings: &mut CompileTimings,
 ) -> Result<provider_planning::CheckedProviderSelection, Vec<Diagnostic>> {
     let build_config = &source.computed_build_config.config;
-    let settled_target_machines = provider_planning::target_machines::settle_provider_defaults(
-        one_refusal(source.provider_inventory.origins_for(&source.program))?,
-        &source.provider_defaults,
-        selected_target_profile.unwrap_or_else(target::TargetProfile::host),
-    );
     let code = crate::terminal::retain_calling_program(source, timings)?;
     let calling = provider_planning::calling_policy_plans::prepare_boundary_calling_plans(
         selected_target_profile.unwrap_or_else(target::TargetProfile::host),
@@ -464,6 +437,7 @@ fn prepare_target_provider_selection(
         settled_target_machines,
         selected_target_profile,
         package_inputs,
+        evaluated_bindings,
         &build_config.provider_selections,
         deployment.roots.as_deref(),
         &source.native_bindings,
@@ -477,14 +451,29 @@ fn prepare_target_provider_selection(
 
 /// Select this target over shared portable code and prepare remaining source
 /// review inputs, without installing or admitting native execution.
-pub(crate) fn select_product_providers(
+fn select_product_providers(
     source: &CheckedProductSource,
-    selected_target_profile: Option<target::TargetProfile>,
-    package_inputs: Option<&PackageCompilationInputs>,
+    prepared: PreparedProductTarget,
 ) -> Result<SelectedProviderCustody, Vec<Diagnostic>> {
+    let PreparedProductTarget {
+        profile: selected_target_profile,
+        package_inputs,
+        declarations,
+        evaluated_bindings,
+        timings: preparation_timings,
+    } = prepared;
+    let package_inputs = package_inputs.as_ref();
     let mut timings = source.timings.clone();
+    timings.extend(&preparation_timings);
     let selection = timed(&mut timings, EXECUTION_SETTLEMENT, |timings| {
-        select_checked_providers(source, selected_target_profile, package_inputs, timings)
+        select_checked_providers(
+            source,
+            selected_target_profile,
+            package_inputs,
+            declarations,
+            evaluated_bindings,
+            timings,
+        )
     });
     let selection = selection.map_err(|mut diagnostics| {
         if let Some(sources) = source.program.typed.symbols.source_map().as_deref() {
@@ -548,11 +537,11 @@ fn checked_compilation(
 /// its actual stop; source checking never installs an executable as a side effect.
 pub(crate) fn select_product_target(
     source: &CheckedProductSource,
-    selected_target_profile: Option<target::TargetProfile>,
-    package_inputs: Option<&PackageCompilationInputs>,
+    prepared: Result<PreparedProductTarget, Vec<Diagnostic>>,
 ) -> SelectedCompileOutcome {
     SelectedCompileOutcome {
-        result: SelectedProductTarget::select(source, selected_target_profile, package_inputs)
+        result: prepared
+            .and_then(|prepared| SelectedProductTarget::select(source, prepared))
             .map_err(CompileFailure::from),
         independent_components: source.computed_build_config.independent_components(),
     }

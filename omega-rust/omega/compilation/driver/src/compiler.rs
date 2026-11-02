@@ -5,6 +5,7 @@
 //! before transferring source-free native work to application Build. Owners expose typed
 //! results here rather than independent mode flags and partially filled slots.
 
+use crate::checked::PreparedProductTarget;
 use crate::checked::run_on_compile_thread;
 use crate::execution_settlement::SelectedProductTarget;
 use crate::product_execution::{
@@ -91,18 +92,33 @@ impl crate::CompilationSession {
                 Some(Err(failure)) => Some(Err(failure.into_diagnostics())),
                 None => None,
             };
-            let mut products = Vec::with_capacity(targets.len());
+            // Complete every occurrence's Source inputs before the first
+            // target can publish shared code. Preparing inside the selection
+            // loop would reopen Source for its later siblings.
+            let mut prepared_targets = Vec::with_capacity(targets.len());
             for (profile, target) in targets {
-                let product = match target {
+                let prepared = match target {
                     Err(diagnostics) => Err(diagnostics),
                     Ok(target) => match &source {
-                        Some(Ok(source)) => prepare_target(&shared, target, source),
+                        Some(Ok(source)) => PreparedProductTarget::capture(
+                            source,
+                            target.profile(),
+                            target.package_inputs(),
+                        )
+                        .map(|prepared| (target, source, prepared)),
                         Some(Err(diagnostics)) => Err(diagnostics.clone()),
                         None => Err(vec![Diagnostic::error(
                             "admitted target has no shared source preparation",
                         )]),
                     },
                 };
+                prepared_targets.push((profile, prepared));
+            }
+            let mut products = Vec::with_capacity(prepared_targets.len());
+            for (profile, prepared) in prepared_targets {
+                let product = prepared.and_then(|(target, source, prepared)| {
+                    select_target_product(&shared, target, source, prepared)
+                });
                 products.push((
                     profile,
                     product.map_err(CompilationProductError::Production),
@@ -121,13 +137,13 @@ impl crate::CompilationSession {
 /// Select provider custody without installation. The portable producer still
 /// reads source-selected entries, callbacks and exclusion policy from this
 /// record; this refactor does not claim a Terminal-only provider handoff.
-fn prepare_target(
+fn select_target_product(
     shared: &SharedCompileInputs,
     target: ValidatedTargetCompilation,
     source: &CheckedProductSource,
+    prepared: PreparedProductTarget,
 ) -> Result<ProductRequest, Vec<Diagnostic>> {
-    let realization =
-        SelectedProductTarget::select(source, target.profile(), target.package_inputs())?;
+    let realization = SelectedProductTarget::select(source, prepared)?;
     let product = match shared.requested_product {
         RequestedCompileProduct::Check => CompilationProduct::Check,
         RequestedCompileProduct::TerminalArtifact => {
