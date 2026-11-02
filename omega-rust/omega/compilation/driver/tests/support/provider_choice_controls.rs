@@ -4,10 +4,7 @@
 
 use std::path::Path;
 
-use provider_planning::target_machines::{
-    PreparedTargetProviderPublication, TargetProviderInventoryRequest,
-    TargetProviderPreparationRequest,
-};
+use provider_planning::target_machines::PreparedTargetProviderPublication;
 use terminal_codec::CanonicalTerminalArtifact;
 use terminal_psi_to_abstract_operations::RetainedTerminalArtifact;
 
@@ -47,55 +44,18 @@ pub(super) fn prepare(
         Default::default(),
     )
     .map_err(|errors| format!("provider choices checking: {errors:?}"))?;
-    let context = provider_planning::ProviderPlanningContext::new(
-        &checked.execution().provider_source.program().typed,
-        source::DependencyScope::Product,
-    );
-    let inventory = TargetProviderInventoryRequest {
-        body_declarations: checked
-            .execution()
-            .provider_source
-            .inventory()
-            .direct_calls(),
-        origins: checked.execution().provider_source.inventory().origins(),
-        services: checked
-            .execution()
-            .provider_source
-            .inventory()
-            .services_for(checked.execution().provider_source.program())
-            .map_err(|error| format!("provider choice source catalog: {error:?}"))?,
-        defaults: checked.provider_defaults(),
-        authored: checked.providers().authored_providers(),
-        calling_plans: &checked.providers().boundary_calling_plan_realizations,
-        bindings: &checked.providers().evaluated_via_bindings,
-    };
-    let targets = vec![(
-        profile.target_name().to_owned(),
-        inventory.prepare(profile.target_name()),
-    )];
-    let deployment = checked
-        .build()
-        .config
-        .provider_deployment()
-        .map_err(|errors| format!("provider choice deployment inputs: {errors:?}"))?;
-    let publication = TargetProviderPreparationRequest {
-        application_roots: deployment.roots.as_deref(),
-        context,
-        exact_toolchain_sources: checked.sources().exact_toolchain_sources(),
-        overrides: &checked.build().config.provider_selections,
-        assumed_bindings: checked
+    let publication = checked.providers().provider_publication.prepare(
+        &[profile.target_name().to_owned()],
+        None,
+        checked
             .execution()
             .provider_source
             .plans()
             .assumed_bindings(),
-        independent_components: &checked.providers().verified_independent_components,
-        selected: None,
-        targets: &targets,
-    }
-    .prepare();
+        &checked.providers().verified_independent_components,
+    );
     let expected_instances = provider_instance_controls::prepare(&checked, root)?;
     let callback_bodies = callback_body_controls::prepare(&checked, root)?;
-    drop(targets);
     drop(checked);
     drop(prepared);
     Ok(PreparedProviderChoices {
@@ -190,6 +150,13 @@ pub(super) fn inspect(
                 &[]
             },
         );
+        // The retained producer now supplies the complete publication catalog.
+        // This control still compares the exact target's whole proposal, as
+        // the previous single-target Source reconstruction did.
+        let actual = actual
+            .into_iter()
+            .filter(|proposal| proposal.target == target)
+            .collect::<Vec<_>>();
         if actual.as_slice() != std::slice::from_ref(original) {
             return Err(format!(
                 "source-free provider choice changed its complete proposal: {actual:?}"
@@ -234,6 +201,10 @@ pub(super) fn inspect(
                     &[]
                 },
             );
+            let outcomes = outcomes
+                .into_iter()
+                .filter(|proposal| proposal.target == target)
+                .collect::<Vec<_>>();
             let [outcome] = outcomes.as_slice() else {
                 return Err("missing-instance control lost its one target".into());
             };

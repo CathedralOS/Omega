@@ -14,7 +14,7 @@ use compilation_products::{
 };
 use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
-use provider_planning::SettledTargetMachineDeclarations;
+use provider_planning::target_machines::PreparedProductProviders;
 use selected_dispatch::{ProviderBindingRequest, SelectedExecution, prepare_selected_execution};
 use std::sync::Arc;
 
@@ -331,10 +331,7 @@ fn select_checked_providers(
     selected_target_profile: Option<target::TargetProfile>,
     package_inputs: Option<&PackageCompilationInputs>,
     declarations: Result<PreparedTargetDeclarations, Vec<Diagnostic>>,
-    evaluated_bindings: Result<
-        provider_planning::evaluated_via_bindings::EvaluatedViaBindingTable,
-        Vec<Diagnostic>,
-    >,
+    deployment: Result<(), Vec<Diagnostic>>,
     timings: &mut CompileTimings,
 ) -> Result<(SelectedExecution, provider_planning::ProviderSettlement), Vec<Diagnostic>> {
     let typed = &source.program.typed;
@@ -346,7 +343,7 @@ fn select_checked_providers(
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
     let PreparedTargetDeclarations {
         entry,
-        target_machines,
+        providers: prepared_providers,
     } = declarations?;
     let provider_planning::CheckedProviderSelection {
         settlement: providers,
@@ -356,8 +353,8 @@ fn select_checked_providers(
         source,
         selected_target_profile,
         package_inputs,
-        target_machines,
-        evaluated_bindings,
+        prepared_providers,
+        deployment,
         timings,
     )?;
     let mut selected_program_entry = entry?
@@ -413,11 +410,8 @@ fn prepare_target_provider_selection(
     source: &CheckedProductSource,
     selected_target_profile: Option<target::TargetProfile>,
     package_inputs: Option<&PackageCompilationInputs>,
-    settled_target_machines: SettledTargetMachineDeclarations,
-    evaluated_bindings: Result<
-        provider_planning::evaluated_via_bindings::EvaluatedViaBindingTable,
-        Vec<Diagnostic>,
-    >,
+    prepared_providers: Result<PreparedProductProviders, Vec<Diagnostic>>,
+    deployment: Result<(), Vec<Diagnostic>>,
     timings: &mut CompileTimings,
 ) -> Result<provider_planning::CheckedProviderSelection, Vec<Diagnostic>> {
     let build_config = &source.computed_build_config.config;
@@ -428,20 +422,13 @@ fn prepare_target_provider_selection(
         &code,
     )?;
     let boundary_calling_plan_realizations = calling.evaluate(&code)?;
-    let deployment = build_config.provider_deployment()?;
+    deployment?;
     provider_planning::settle_checked_providers(
         &source.program,
-        source.sources.exact_toolchain_sources(),
         one_refusal(source.provider_inventory.services_for(&source.program))?,
-        one_refusal(source.provider_inventory.direct_calls_for(&source.program))?,
-        settled_target_machines,
         selected_target_profile,
         package_inputs,
-        evaluated_bindings,
-        &build_config.provider_selections,
-        deployment.roots.as_deref(),
-        &source.native_bindings,
-        &build_config.native_bindings,
+        prepared_providers,
         &build_config.assumed_bindings,
         &build_config.accepted_component_assumption_digests(),
         boundary_calling_plan_realizations,
@@ -459,7 +446,7 @@ fn select_product_providers(
         profile: selected_target_profile,
         package_inputs,
         declarations,
-        evaluated_bindings,
+        deployment,
         timings: preparation_timings,
     } = prepared;
     let package_inputs = package_inputs.as_ref();
@@ -471,7 +458,7 @@ fn select_product_providers(
             selected_target_profile,
             package_inputs,
             declarations,
-            evaluated_bindings,
+            deployment,
             timings,
         )
     });

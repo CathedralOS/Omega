@@ -436,6 +436,26 @@ impl<'catalog> ServiceCatalog<'catalog> {
         self.catalog.declared_traits()
     }
 
+    /// Retain the exact closed named application, including its capture and
+    /// receiver scope. The declaration's abstract surface is not interchangeable.
+    pub fn retain_named_application(
+        self,
+        declaration: SymbolHandle,
+        capture: Handle<crate::typed_trees::CapturedMachineApplication>,
+        receiver: SymbolHandle,
+    ) -> Option<RetainedServiceSurface> {
+        let record = self.catalog.record(ServiceOrigin::Named {
+            declaration,
+            capture,
+            receiver,
+        });
+        self.catalog.view(self.catalog.records.get(record))?;
+        Some(RetainedServiceSurface {
+            catalog: Arc::clone(self.catalog),
+            record,
+        })
+    }
+
     pub fn sealed_accessor(
         self,
         symbol: SymbolHandle,
