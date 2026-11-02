@@ -39,7 +39,13 @@ pub struct PreparedRuntimePolicy {
 
 impl PreparedRuntimePolicy {
     pub fn capture(source: &CheckedProductSource) -> Self {
-        let input = SourceDeclarationInput::checked(&source.program, &source.sources);
+        let mathematical_calls =
+            super::contracts::mathematical_calls::MathematicalCallQueries::new(&*source.program);
+        let input = SourceDeclarationInput {
+            mathematical_calls: Some(&mathematical_calls),
+            original_mathematical_calls: Some(&mathematical_calls),
+            ..SourceDeclarationInput::checked(&source.program, &source.sources)
+        };
         let catalog = source.provider_inventory.retained_service_catalog();
         let identities = catalog
             .declared_traits()

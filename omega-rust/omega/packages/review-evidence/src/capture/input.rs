@@ -39,6 +39,10 @@ pub struct SourceDeclarationInput<'a> {
     pub(crate) original_checking_input: &'a dyn validation::CheckingInput,
     /// Scratch for one immutable callable-projection batch, never custody.
     pub(crate) contract_owner_queries: Option<&'a ContractOwnerQueries<'a>>,
+    pub(crate) mathematical_calls:
+        Option<&'a super::contracts::mathematical_calls::MathematicalCallQueries<'a>>,
+    pub(crate) original_mathematical_calls:
+        Option<&'a super::contracts::mathematical_calls::MathematicalCallQueries<'a>>,
     pub(crate) original_program: &'a CheckedTrees,
     pub(crate) package: Option<semantic_vocabulary::PackageKeyIdentity>,
     pub(crate) exact_toolchain_sources: &'a [(source::SourceId, [u8; 32])],
@@ -55,6 +59,8 @@ impl<'a> SourceDeclarationInput<'a> {
             checking_input: program,
             original_checking_input: program,
             contract_owner_queries: None,
+            mathematical_calls: None,
+            original_mathematical_calls: None,
             package: sources.package_identity(),
             exact_toolchain_sources: sources.exact_toolchain_sources(),
         }
@@ -65,6 +71,7 @@ impl<'a> SourceDeclarationInput<'a> {
             program: self.original_program,
             checking_input: self.original_checking_input,
             contract_owner_queries: None,
+            mathematical_calls: self.original_mathematical_calls,
             ..self
         }
     }
@@ -81,6 +88,8 @@ impl<'a> PackageReviewInput<'a> {
                 checking_input: program,
                 original_checking_input: &**custody,
                 contract_owner_queries: None,
+                mathematical_calls: None,
+                original_mathematical_calls: None,
                 package: custody.sources().package_identity(),
                 exact_toolchain_sources: custody.sources().exact_toolchain_sources(),
             },

@@ -11,7 +11,7 @@ use crate::record::{PackageReviewContractStaticArgument, PackageReviewTypeIdenti
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
-use super::targets::contract_call_target_telescopes;
+use super::targets::{ContractCallDeclaration, contract_call_target_declarations};
 use conformance::project_contract_conformance_application;
 pub(crate) use conformance::require_exact_conformance_static_argument_selections;
 use const_values::project_named_const_static_argument;
@@ -45,36 +45,72 @@ pub(crate) fn contract_call_static_parameter_kinds(
     compilation: &SourceDeclarationInput<'_>,
     context: &ContractProjectionContext<'_>,
     target: SymbolHandle,
-    supplied_count: usize,
+    arguments: &[typed_trees::expression::StaticMachineArgument],
 ) -> Result<Vec<ContractCallStaticParameterKind>, Vec<Diagnostic>> {
-    let candidates = contract_call_target_telescopes(compilation, target)
-        .into_iter()
-        .map(|telescope| {
-            let mut kinds = telescope
-                .static_parameters
+    let candidates = contract_call_target_declarations(compilation, target);
+    let [parameters] = candidates.as_slice() else {
+        return Err(context.rejected(format!(
+            "contract call target matches {} callable declarations; expected exactly one",
+            candidates.len()
+        )));
+    };
+    let kinds = match parameters {
+        ContractCallDeclaration::Runtime {
+            static_parameters,
+            conformance_slots,
+            ..
+        } => {
+            let mut kinds = static_parameters
                 .iter()
                 .map(contract_call_static_parameter_kind)
                 .collect::<Vec<_>>();
             kinds.extend(std::iter::repeat_n(
                 ContractCallStaticParameterKind::Conformance,
-                telescope.conformance_slots,
+                *conformance_slots,
             ));
             kinds
-        })
-        .collect::<Vec<_>>();
-    let [parameter_kinds] = candidates.as_slice() else {
-        return Err(context.rejected(format!(
-            "contract call target rejoins {} static telescopes; expected exactly one",
-            candidates.len()
-        )));
+        }
+        ContractCallDeclaration::Mathematical(definition) => {
+            if arguments.is_empty() {
+                return Ok(Vec::new());
+            }
+            use validation::mathematical_applications::{
+                FixedCoreVocabulary, MathematicalBinderKind, source_generic_argument_plan,
+            };
+            let vocabulary = FixedCoreVocabulary::resolve(&compilation.symbols);
+            let binders = compilation
+                .data_type_parameters
+                .span_or_empty(definition.binders);
+            let plan = source_generic_argument_plan(
+                compilation.checking_input,
+                binders,
+                arguments,
+                &vocabulary,
+            )
+            .ok_or_else(|| {
+                context.rejected(
+                    "mathematical call static arguments do not match its declared parameters",
+                )
+            })?;
+            plan.into_iter()
+                .filter(|slot| slot.argument.is_some())
+                .map(|slot| match slot.kind {
+                    MathematicalBinderKind::Type => ContractCallStaticParameterKind::Type,
+                    MathematicalBinderKind::Level | MathematicalBinderKind::Term => {
+                        ContractCallStaticParameterKind::Const
+                    }
+                })
+                .collect()
+        }
     };
-    if parameter_kinds.len() != supplied_count {
+    if kinds.len() != arguments.len() {
         return Err(context.rejected(format!(
-            "contract call supplies {supplied_count} static arguments for a checked telescope of {} parameters",
-            parameter_kinds.len(),
+            "contract call supplies {} static arguments for a checked telescope of {} parameters",
+            arguments.len(),
+            kinds.len()
         )));
     }
-    Ok(parameter_kinds.clone())
+    Ok(kinds)
 }
 
 pub(crate) fn project_contract_static_argument(

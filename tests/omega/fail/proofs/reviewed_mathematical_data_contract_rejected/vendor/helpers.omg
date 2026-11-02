@@ -1,0 +1,7 @@
+module helpers;
+public let within_hundred(value: u64): core::Strict<0> = embed(value) <= 100;
+
+public let reflexive(value: u8): core::Strict<0> = value == value;
+public let predicate(): u8 -> core::Strict<0> = reflexive();
+public let identity<A: core::Type<0> >(value: A): A = value;
+public let apply(predicate: u8 -> core::Strict<0>, value: u8): core::Strict<0> = predicate(value);
