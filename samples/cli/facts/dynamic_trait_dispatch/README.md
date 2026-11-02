@@ -1,5 +1,13 @@
 # Dynamic Trait Dispatch
 
+The current **BUILD-OWNED-TARGET-SELECTION** migration keeps the exact 60 and
+40 inputs, result 100, and subtraction by 100. Its remaining target-prefixed
+positive and two controls will use ordinary implementations chosen in Build.
+The complete selection includes all 46 projects and 45 fixtures here, including
+the input-arithmetic production and every uninitialized-selector control.
+Fresh baseline observations are pending. Historical observations below describe
+their original source and do not validate this migration.
+
 Parent task: `NAMED-IMPLEMENTATION-CONFORMANCE-MIGRATION`
 Ticket: `e5f8ec0912314fa78f865ec38c7c5b2d`
 
