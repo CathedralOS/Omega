@@ -1379,7 +1379,7 @@ impl StructuralJudge<'_> {
             .then_some(())?;
         let program = self.program;
         let frames = self.frame_resolver()?;
-        let origins = frames.assignment_storage_origins(machine, statement)?;
+        let origins = frames.assignment_storage_origins(machine, statement).ok()?;
         let mut representation = None;
         let place = match origins.destinations.as_slice() {
             [origin]

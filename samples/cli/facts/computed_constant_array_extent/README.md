@@ -108,3 +108,44 @@ oracle are unchanged. The entry wrapper and each implementation check a tag
 Linux x86-64 native and Terminal Psi agreement for the positive and source
 rejection for the twin; the other hosted targets keep their authored rows,
 unexecuted here.
+
+## Invocation-only checked extent calls
+
+`private_calls/` carries the same extent1 and selected value3 through all nine
+places. Each Build first checks an array whose extent calls a contracted helper
+while the anonymous owner is still live. Product consumers also use contracted
+extent calls; the original constant/alias oracles and target tags remain.
+The match composition exercises both incoming arrays with distinct tags.
+Every bounds twin changes its original index0 to1. The extra `unproved_call`
+control supplies2 to the helper requiring1 and must refuse that call contract.
+
+At source59f19bdc35c182c090344b74666986394009007f, the exact Build extent probe
+refuses portable declaration identity for its temporary `@array-extent` machine
+before Build effects. Temporary checked constant code uses the existing
+invocation-only Terminal product; its live owner cannot become a portable
+artifact or native input. Only the checked value returns to source compilation.
+No package owner or execution grant is inferred from the private coordinate.
+
+The private row retains all nine positives and nine bounds twins. On Linux
+x86-64, each positive executes in native and Terminal Psi with exit0. The four
+hosted target bindings remain authored source coverage; these observations do
+not establish other-host execution. Additional controls retain helper `requires`
+admission in Build and record extents, refuse exclusive constant-array
+projections, and refuse returning a view into an invocation temporary.
+
+Completed geometry retains the exact extent-argument child and its selected
+call custody. Copies into another expression arena and callable applications
+keep that child in its original argument telescope; substitution cannot erase
+it merely because the array length is now a literal. A closed scalar argument
+also retains its admitted carrier. The
+[`signed_argument`](private_calls/compositions/signed_argument/main.omg) and
+[`positive_signed_argument`](private_calls/compositions/positive_signed_argument/main.omg)
+compositions use the same array extent1 and selected value3 with negative and
+positive `i8` static calls. Their controls refuse an unproved call and a `u8`
+result supplied to an `i8` binder even when the numeric value fits both.
+Independent replay consumes the produced landing; it never guesses a carrier
+from the receiving binder.
+
+Owning parent `PIPELINE-ARCHITECTURE-ENFORCEMENT` remains open. This repair does
+not close checked dependency staging, source cohort counters, remaining
+architecture debt, platform-default stacks, or shared Product representations.

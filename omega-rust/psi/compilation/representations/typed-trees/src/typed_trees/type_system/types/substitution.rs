@@ -37,6 +37,15 @@ impl TypeReferenceTable {
             TypeReferenceNode::Named { symbol, .. } => Some(symbol),
             _ => None,
         };
+        if !matches!(
+            self.type_reference(handle),
+            TypeReferenceNode::FixedArray { .. }
+        ) {
+            *self.array_extent_arguments.get_mut(Handle::from_parts(
+                handle.arena_index(),
+                handle.generation(),
+            )) = TypeReferenceHandle::invalid();
+        }
         self.renamed_row(handle, replaced_named);
     }
 
@@ -72,6 +81,7 @@ impl TypeReferenceTable {
         if occurrence == replacement {
             return Ok(());
         }
+        let argument = self.array_extent_argument(replacement);
         let node = self.type_reference(replacement).clone();
         self.attach_constant_origins(occurrence, origins)?;
         let owner = self.operand_lifetime_owner(replacement);
@@ -85,6 +95,10 @@ impl TypeReferenceTable {
         self.set_operand_origin(occurrence, self.operand_origin(replacement));
         let lifetimes = self.operand_lifetimes(replacement).to_vec();
         self.substitute_node(occurrence, node);
+        *self.array_extent_arguments.get_mut(Handle::from_parts(
+            occurrence.arena_index(),
+            occurrence.generation(),
+        )) = argument;
         self.retain_operand_lifetimes(occurrence, lifetimes)?;
         let applications = self
             .type_alias_applications(replacement)
@@ -351,7 +365,11 @@ impl TypeReferenceTable {
         let lifetimes = self.operand_lifetimes(handle).to_vec();
         let origin = self.operand_origin(handle);
         let origins = self.constant_origins(handle)?.to_vec();
+        let extent_argument = self.array_extent_argument(handle);
         let rebuilt = self.insert(node);
+        if extent_argument.is_valid() {
+            self.retain_array_extent_argument(rebuilt, extent_argument)?;
+        }
         self.retain_operand_lifetime_owner(rebuilt, owner)?;
         self.retain_operand_lifetimes(rebuilt, lifetimes)?;
         self.set_operand_origin(rebuilt, origin);

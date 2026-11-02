@@ -279,7 +279,7 @@ pub(crate) fn settle(
             &prepared,
             authority.clone(),
             &[owner],
-            &work.accounting,
+            &work,
             selected.operators,
         )?;
         let execution = checked.typed();

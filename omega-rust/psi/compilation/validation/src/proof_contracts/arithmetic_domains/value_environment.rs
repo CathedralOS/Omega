@@ -583,7 +583,7 @@ impl ValueEnvironment {
                 let target = statement.as_assignment()?.target;
                 crate::place_has_builtin_coordinates(program, machine, state, target)
                     .then_some(())?;
-                frames?.assignment_storage_origins(machine, statement)
+                frames?.assignment_storage_origins(machine, statement).ok()
             })
             .flatten();
         self.invalidate_storage(written, |operand| {
