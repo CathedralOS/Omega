@@ -65,8 +65,12 @@ The corpus retains those same programs under `facts/resident_backing_*`.
 
 The [coexisting-allocation control](coexisting/main.omg) initializes both
 residents before extracting either. It writes the first, observes that the
-second remains unchanged, then writes and extracts the second. Both engines
-return 0. Host-adapter tests separately check that retirement invalidates every
+second remains unchanged, then writes and extracts the second. It recomposes
+the two vacant claims through an ordinary checked machine, initializes the
+whole range again with 97, and extracts 97. Its address-distance check declares
+the 64-bit address-model premise satisfied by the four bound hosted targets;
+it does not assume counts and addresses have the same width in general.
+Both engines return 0. Host-adapter tests separately check that retirement invalidates every
 retained handle and that unknown or out-of-bounds ranges supply no storage.
 
 This row does not complete allocator reset or Vec growth/reallocation/drop.
