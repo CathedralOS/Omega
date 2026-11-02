@@ -183,6 +183,9 @@ pub(super) fn target_installations(
         let result = terminal_runtime::execute(TerminalRuntimeRequest {
             entry: None,
             filesystem: Default::default(),
+            // Target installations supply no clock or streams; they grant no
+            // native-service delegation either.
+            native_services: Default::default(),
             native_provider: Some(std::process::Command::new(executable)),
             x86_flags,
             memory_ordering:
@@ -318,6 +321,9 @@ pub(super) fn interpret(
     let result = match terminal_runtime::execute(TerminalRuntimeRequest {
         entry: None,
         filesystem: Default::default(),
+        // The native leg runs this same product on this host; package-owned
+        // reach of its admitted imports needs no further fixture policy.
+        native_services: terminal_runtime::TerminalNativeServiceDelegation::MatchingHost,
         native_provider: Some(std::process::Command::new(executable)),
         x86_flags,
         memory_ordering: target

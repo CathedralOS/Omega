@@ -249,9 +249,10 @@ retired-syntax deletions to completion.
   - Retire `machine Data::operation` and reserved `T::drop` spellings across
     compiler/toolchain helper namespaces, operator/proof declarations, and
     fixtures.
-  - Complete `dropped by` on named domains and data default domains across
-    domain normalization, call transport, erasure, Terminal cleanup, and native
-    execution.
+  - Carry `dropped by` on named domains and data default domains through
+    `source/psi/` product-producer parity, and qualify
+    `samples/cli/facts/domain_selected_cleanup` execution across remaining
+    hosted targets.
   Acceptance: a nine-place fact row for `dropped by` with observable cleanup side
   effects passes `omega run --both` (with reject twins for conflicting machine
   applications, erasure bypass, missing inherited obligations, unauthorized
@@ -597,7 +598,7 @@ compile-time, Build, CLI/corpus, and embedded execution through the common core.
   layout/wire/proof-value queries) through one shared Terminal program/instance
   lifecycle (`TerminalProgram::load`) and the shared Psi 06-08 production
   operation end to end (`omega run --both`).
-  Owners: `omega-rust/psi/interpreter/terminal-interpreter/src/{program,instance,execution,adapters}.rs`,
+  Owners: `omega-rust/psi/interpreter/terminal-interpreter/src/{embedding/{program,instance,adapters},engine/execution}.rs`,
   `omega-rust/psi/compilation/compile-time/src/{machine_execution,const_evaluation,layouts}/`,
   and `omega-rust/psi/compilation/driver/terminal-production/src/`.
   - **INTERPRETER-CORE-ENTRY:** expose one interpreter facade accepting the
@@ -1189,7 +1190,7 @@ defines the complete product bar.
   `omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/ranking_range/`,
   `omega-rust/psi/compilation/checking/src/machine_calls/call_cycles/runtime_ranking/`,
   Psi 06 `src/unit/attached_unit/`, and
-  `omega-rust/psi/interpreter/terminal-interpreter/src/terminators/`.
+  `omega-rust/psi/interpreter/terminal-interpreter/src/engine/terminators/`.
   - Re-run the external-result and `std`-loop execution controls
     (`external_result_ranked_arrival_compile` currently refuses with `provider
     candidate requires beyond its boundary's declared obligations`) once
@@ -1986,11 +1987,6 @@ defines the complete product bar.
   access views end to end (`Psi 05–08` and `Omega 00–09`) under
   [allocation](wiki/spec/resources/allocation.md), needed by Squalr and
   Cathedral.
-  - Complete `ExtentPartition` conservation and every-retired-extent `reset`
-    recomposition over real `Vacant`/`Resident` backing in
-    `tests/omega/pass/memory/bump_allocator_canary`, replacing fixture-local
-    `ResidentStorage` with `Access` establishment, element
-    transfer, and retirement.
   - Connect `Vec` growth/reallocation/drop to the real backing allocator so
     dynamic `Vec` growth executes natively across hosts.
   Acceptance: `tests/omega/pass/memory/bump_allocator_canary` and `Vec` growth

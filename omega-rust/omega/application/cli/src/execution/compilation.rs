@@ -90,6 +90,9 @@ pub(super) fn interpret_product(
     terminal_runtime::execute(TerminalRuntimeRequest {
         entry: None,
         filesystem: terminal_runtime::TerminalFilesystemDelegation::HostNamespace,
+        // `run` executes this product natively on the same host; its admitted
+        // imports may perform their declared package-owned reach here too.
+        native_services: terminal_runtime::TerminalNativeServiceDelegation::MatchingHost,
         native_provider: Some(std::process::Command::new(
             std::env::current_exe().map_err(|error| TerminalRuntimeError::MissingProvision {
                 capability: "native-provider-sponsor",
