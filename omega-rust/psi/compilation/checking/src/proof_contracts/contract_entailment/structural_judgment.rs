@@ -3210,14 +3210,19 @@ impl<'program> StructuralJudge<'program> {
             // Existing result/guarantee checking retains its value-normalizer
             // route. Call-premise transport below never uses that route.
             let resolved = self.resolve(subject.clone());
+            let (data, case) = self.applied_case_classifier(
+                self.declaration_expression_type(binary.left),
+                definition.symbol,
+                variant.symbol,
+            );
             return self.judge_case(
                 if matches!(resolved, StructuralTerm::Constructor { .. }) {
                     resolved
                 } else {
                     subject
                 },
-                definition.symbol,
-                variant.symbol,
+                data,
+                case,
             );
         }
         match binary.operator {
@@ -3517,11 +3522,14 @@ impl<'program> StructuralJudge<'program> {
         declared.iter().all(|field_name| {
             fields.iter().any(|(field, value)| {
                 field == field_name
-                    && matches!(
-                        self.resolve(value.clone()),
-                        StructuralTerm::Opaque(opaque)
-                            if opaque == format!("{name}.{field_name}")
-                    )
+                    && match self.resolve(value.clone()) {
+                        StructuralTerm::Opaque(opaque) => opaque == format!("{name}.{field_name}"),
+                        StructuralTerm::Projection { subject, path } => {
+                            matches!(*subject, StructuralTerm::Variable(root) if root == *name)
+                                && path == *field_name
+                        }
+                        _ => false,
+                    }
             })
         })
     }

@@ -1025,7 +1025,7 @@ fn static_call_receiver_for_target(
     program.call_has_no_runtime_receiver_for_target(&selected)
 }
 
-fn structural_call_target_in_frame(
+pub(super) fn structural_call_target_in_frame(
     program: &dyn crate::CheckingInput,
     call: &typed_trees::expression::TableCallExpression,
     frame: Option<(

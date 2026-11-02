@@ -18,6 +18,32 @@ use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::types::TypeReferenceHandle;
 
 impl StructuralJudge<'_> {
+    /// The subject's exact result type selects its applied case. A classifier
+    /// spelling retains its template, not a second application's variant.
+    pub(super) fn applied_case_classifier(
+        &self,
+        reference: Option<TypeReferenceHandle>,
+        data: SymbolHandle,
+        case: SymbolHandle,
+    ) -> (SymbolHandle, SymbolHandle) {
+        reference
+            .and_then(|reference| {
+                let reference = self
+                    .program
+                    .type_reference_table
+                    .peeled_type_reference(reference);
+                Some((
+                    self.program
+                        .data_constructor_definition(reference, data)?
+                        .symbol,
+                    self.program
+                        .data_constructor_case(reference, data, case)?
+                        .symbol,
+                ))
+            })
+            .unwrap_or((data, case))
+    }
+
     pub(super) fn is_case_membership(
         &self,
         expression: ExpressionHandle,
@@ -103,34 +129,22 @@ impl StructuralJudge<'_> {
         // observes its prepared carrier's tags. The authored case reference
         // names the template; rejoin it on the exact applied declaration the
         // same way `applied_case_membership_variant` does for machine scopes.
-        let mut case_owner = definition.symbol;
-        let mut case_symbol = variant.symbol;
         let mut subject_expression = binary.left;
         while let ExpressionNode::Borrow(borrow) =
             self.program.expression_table.expression(subject_expression)
         {
             subject_expression = borrow.target;
         }
-        if let Some(reference) = crate::value_custody::places::parameter_scoped_type_reference(
-            self.program,
-            parameters,
-            subject_expression,
-        ) {
-            let reference = self
-                .program
-                .type_reference_table
-                .peeled_type_reference(reference);
-            if let Some(applied) = self
-                .program
-                .data_constructor_definition(reference, definition.symbol)
-                && let Some(applied_variant) =
-                    self.program
-                        .data_constructor_case(reference, definition.symbol, variant.symbol)
-            {
-                case_owner = applied.symbol;
-                case_symbol = applied_variant.symbol;
-            }
-        }
+        let (case_owner, case_symbol) = self.applied_case_classifier(
+            crate::parameter_expression_result_type_reference(
+                self.program,
+                scope,
+                parameters,
+                subject_expression,
+            ),
+            definition.symbol,
+            variant.symbol,
+        );
         let Some(subject) = structural_terms::structural_term(
             self.program,
             None,
@@ -221,10 +235,20 @@ impl StructuralJudge<'_> {
         else {
             return;
         };
+        let (data, case) = self.applied_case_classifier(
+            crate::parameter_expression_result_type_reference(
+                self.program,
+                scope,
+                parameters,
+                binary.left,
+            ),
+            definition.symbol,
+            variant.symbol,
+        );
         guarantees.push(CaseGuarantee {
             subject,
-            data: definition.symbol,
-            case: variant.symbol,
+            data,
+            case,
         });
     }
 
