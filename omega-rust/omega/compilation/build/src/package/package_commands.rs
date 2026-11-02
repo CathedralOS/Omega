@@ -28,7 +28,7 @@ pub fn execute_package_command(
             &mut session.packages,
             &mut source_bindings,
             &mut |plan, bindings| {
-                crate::package_review::execute_pass(
+                crate::package::package_review::execute_pass(
                     plan,
                     &mut session.compiler,
                     bindings,
@@ -59,22 +59,23 @@ fn resolve_command_sources<'workspace, 'storage>(
     let acquired = preparation.acquire_root()?;
     let entry = acquired.entry_path();
     let mut acquisitions = preparation.source_acquisitions()?;
-    let (resolved, builds) = crate::build_execution::source_resolution::resolve_acquired_sources(
-        session,
-        acquired,
-        &entry,
-        &mut acquisitions,
-        profile,
-        package_compilation::BuildExecutionInputs {
-            snapshot: preparation.build_snapshot().cloned(),
-            ..Default::default()
-        },
-        false,
-    )
-    .map_err(|error| PackageCommandError::from(error.to_string()))?;
+    let (resolved, builds) =
+        crate::compile::build_execution::source_resolution::resolve_acquired_sources(
+            session,
+            acquired,
+            &entry,
+            &mut acquisitions,
+            profile,
+            package_compilation::BuildExecutionInputs {
+                snapshot: preparation.build_snapshot().cloned(),
+                ..Default::default()
+            },
+            false,
+        )
+        .map_err(|error| PackageCommandError::from(error.to_string()))?;
     drop(acquisitions);
     let prepared = preparation.complete_source_resolution(resolved)?;
-    let completed = crate::build_execution::source_resolution::settle_source_builds(
+    let completed = crate::compile::build_execution::source_resolution::settle_source_builds(
         builds,
         &mut session.compiler,
         profile,
@@ -226,7 +227,7 @@ mod tests {
                         &mut session.packages,
                         &mut bindings,
                         &mut |plan, bindings| {
-                            crate::package_review::execute_pass(
+                            crate::package::package_review::execute_pass(
                                 plan,
                                 &mut session.compiler,
                                 bindings,
@@ -286,7 +287,7 @@ mod tests {
                         &mut session.packages,
                         &mut bindings,
                         &mut |plan, bindings| {
-                            crate::package_review::execute_pass(
+                            crate::package::package_review::execute_pass(
                                 plan,
                                 &mut session.compiler,
                                 bindings,
@@ -326,7 +327,7 @@ mod tests {
                             &mut session.packages,
                             &mut bindings,
                             &mut |plan, bindings| {
-                                crate::package_review::execute_pass(
+                                crate::package::package_review::execute_pass(
                                     plan,
                                     &mut session.compiler,
                                     bindings,

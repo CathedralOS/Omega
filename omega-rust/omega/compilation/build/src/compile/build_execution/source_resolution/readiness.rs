@@ -10,7 +10,7 @@ use super::{
     normal_return,
 };
 use crate::BuildSession;
-use crate::build_execution::ReturnedPackageBuild;
+use crate::compile::build_execution::ReturnedPackageBuild;
 use build_declarations::{BuildRequest, DependencyPurpose};
 use compiler::{CheckedCompileRequest, PackageBuild};
 use package_manager::resolution::source::{

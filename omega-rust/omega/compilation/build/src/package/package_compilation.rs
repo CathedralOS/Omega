@@ -4,7 +4,7 @@
 //! components must finish before a consumer can proceed. The compiler retains
 //! opaque source continuations and owns checking, settlement and production.
 
-use crate::build_execution::{PackagePlan, PreparedPackageRoot, prepare_packages};
+use crate::compile::build_execution::{PackagePlan, PreparedPackageRoot, prepare_packages};
 use compiler::{
     CheckedCompileRequest, CompilationOutput, CompilationSession, PackageBuild,
     PackageCompilationRequest, PackageCompileFailure, PackageSourceRequest, PreparedPackageProduct,
@@ -73,7 +73,9 @@ pub fn compile_packages(
         }
 
         let products = compiler.complete_package_products(products)?;
-        for ((position, root), product) in crate::native_completion::complete_products(products) {
+        for ((position, root), product) in
+            crate::compile::native_completion::complete_products(products)
+        {
             outcomes.push((
                 position,
                 product.map_err(|error| PackageCompileFailure {

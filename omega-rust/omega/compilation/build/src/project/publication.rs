@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 /// Preserve every target's outcome. Checks, inspections and retained requests publish
 /// no bytes; published products use their own admitted canonical directory.
 pub(crate) fn publish_products(
-    work: Vec<crate::build_directory::TargetWork>,
+    work: Vec<crate::project::build_directory::TargetWork>,
     mut reports: Vec<(target::TargetProfile, Result<CompilationOutput, BuildError>)>,
     product: &ProjectProduct,
     timings: &mut CompileTimings,
