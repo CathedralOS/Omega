@@ -2,12 +2,13 @@
 //! The supplying telescope establishes operands; the destination's predicate
 //! never participates. Arithmetic uses the same walk as executable values.
 
-use super::{ArithmeticDomain, Diagnostic, ExpressionHandle, PrimitiveType, ValueEnvironment};
+use super::{Diagnostic, ExpressionHandle, PrimitiveType, ValueEnvironment};
 use crate::frozen_program::expression_table;
 use crate::proof_contracts::arithmetic_domains::BigIntInterval;
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::signature::StateParameter;
+use typed_trees::types::TypeReferenceHandle;
 
 /// A local type recipe is formed at this statement's current value epoch.
 /// Its environment has already lost facts invalidated by earlier effects;
@@ -26,12 +27,13 @@ pub(crate) fn validate_declaration_value_range(
     prior_facts: &[ExpressionHandle],
     local_formation: Option<LocalValueFormation<'_>>,
     expression: ExpressionHandle,
-    target_primitive: Option<PrimitiveType>,
-    target_domain: ArithmeticDomain,
+    target_carrier: TypeReferenceHandle,
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
     formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
 ) {
+    let target_primitive = program.primitive_type_reference(target_carrier);
+    let target_domain = program.arithmetic_domain_for_type_reference(target_carrier);
     crate::proof_contracts::contract_entailment::specification_calls::validate_declaration_expression_formation(
         program, lexical_owner, parameters, expression, prior_facts, owner, diagnostics,
         formation_obligations,
@@ -40,8 +42,15 @@ pub(crate) fn validate_declaration_value_range(
     // evaluated to obtain its receiver. Closed structural values use the
     // canonical carrier/predicate judgment; an open construction needs its
     // ordinary declaration construction proof before it can supply an index.
-    let mut pending = vec![expression];
-    while let Some(operand) = pending.pop() {
+    // An array literal has no nominal type of its own, so a recipe rebuilt by
+    // specialization (`[3, 3 + 4]`) carries none: it lands under the carrier
+    // its receiver declares, which flows from the target into elements and
+    // constructor fields.
+    let mut pending = vec![(
+        expression,
+        Some(target_carrier).filter(|carrier| carrier.is_valid()),
+    )];
+    while let Some((operand, expected)) = pending.pop() {
         let node = expression_table(program).expression(operand);
         // These operations carry access, bounds or custody obligations beyond
         // scalar arithmetic and selected call contracts. An unused declaration
@@ -92,7 +101,8 @@ pub(crate) fn validate_declaration_value_range(
             .or_else(|| {
                 let reference = expression_table(program).constructed_value_type_reference(operand);
                 reference.is_valid().then_some(reference)
-            });
+            })
+            .or(expected);
             let formation = reference.and_then(|reference| {
                 crate::normalize_closed_const_expression(program, lexical_owner, operand, reference)
                     .transpose()
@@ -110,7 +120,14 @@ pub(crate) fn validate_declaration_value_range(
                 )).with_source_span(expression_table(program).source_span(operand))),
             }
         }
-        crate::queries::expression_traversal::children(program, node, |child| pending.push(child));
+        let expected_children = expected_child_carriers(program, operand, node, expected);
+        crate::queries::expression_traversal::children(program, node, |child| {
+            let expected = expected_children
+                .iter()
+                .find(|(candidate, _)| *candidate == child)
+                .map(|(_, carrier)| *carrier);
+            pending.push((child, expected));
+        });
     }
     let analysis = if let Some(local) = local_formation {
         super::expression_analysis::analyze(
@@ -141,6 +158,45 @@ pub(crate) fn validate_declaration_value_range(
         )
     };
     formation_obligations.extend(analysis.decisions.integer_range_obligations);
+}
+
+/// The declared carriers a construction gives its direct operands: each array
+/// element lands under the array's element carrier, each constructor field
+/// under its selected field carrier. Other operands carry no expectation.
+fn expected_child_carriers(
+    program: &dyn crate::CheckingInput,
+    operand: ExpressionHandle,
+    node: &ExpressionNode,
+    expected: Option<TypeReferenceHandle>,
+) -> Vec<(ExpressionHandle, TypeReferenceHandle)> {
+    match node {
+        ExpressionNode::ArrayLiteral(elements) => {
+            let Some((element, _)) = expected.and_then(|carrier| {
+                crate::value_custody::const_expressions::fixed_array_geometry(program, carrier)
+            }) else {
+                return Vec::new();
+            };
+            expression_table(program)
+                .expression_handles(*elements)
+                .iter()
+                .map(|handle| (*handle, element))
+                .collect()
+        }
+        ExpressionNode::StructLiteral(literal) => expression_table(program)
+            .struct_fields(literal.fields)
+            .iter()
+            .filter_map(|field| {
+                crate::value_custody::struct_literals::selected_construction_field_type(
+                    program,
+                    operand,
+                    literal,
+                    field.field_symbol,
+                )
+                .map(|carrier| (field.value, carrier))
+            })
+            .collect(),
+        _ => Vec::new(),
+    }
 }
 
 /// Prove an Exact result from the supplying declaration's formed operands and

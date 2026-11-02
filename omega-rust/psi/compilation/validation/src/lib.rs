@@ -691,7 +691,7 @@ pub use value_custody::type_references::{
 };
 
 pub use value_custody::const_expressions::{
-    ImmutableConstRecordProjection, immutable_record_projection,
+    ConstProjectionStep, ImmutableConstProjection, fixed_array_geometry, immutable_const_projection,
 };
 
 // One produced-storage association serves checking and flow consumers.

@@ -57,8 +57,7 @@ pub(crate) fn check_closed_const_expression_in_carrier(
         &[],
         None,
         expression,
-        program.primitive_type_reference(resolved.reference),
-        program.arithmetic_domain_for_type_reference(resolved.reference),
+        resolved.reference,
         "closed const argument",
         &mut diagnostics,
         &mut formation_obligations,
@@ -931,8 +930,7 @@ pub(crate) fn validate_const_argument_expression_formation(
         prior_facts,
         local_formation,
         *expression,
-        program.primitive_type_reference(carrier.reference),
-        program.arithmetic_domain_for_type_reference(carrier.reference),
+        carrier.reference,
         &format!("value argument `{}` of `{base_name}`", parameter.name),
         diagnostics,
         formation_obligations,
@@ -1007,7 +1005,17 @@ pub(crate) fn validate_exact_const_identity_in_carrier(
         TypeReferenceNode::FixedArray { .. }
     ) && exact_structured_const_carrier_is_eligible(program, carrier, &mut Vec::new())
     {
-        carrier.identity_text(program)?
+        // A closed declared array type has one identity of its own, the one a
+        // canonical value is produced under. The applied static-operand form
+        // spells the same closed extent differently (`integer` rather than
+        // `literal`), so it is consulted only for a carrier that depends on
+        // the application's binders.
+        let closed = AppliedValueCarrier::ordinary(expected_type);
+        if exact_structured_const_carrier_is_eligible(program, closed, &mut Vec::new()) {
+            closed.identity_text(program)?
+        } else {
+            carrier.identity_text(program)?
+        }
     } else {
         let value = CanonicalConstValue::new(
             identity.type_name.clone(),

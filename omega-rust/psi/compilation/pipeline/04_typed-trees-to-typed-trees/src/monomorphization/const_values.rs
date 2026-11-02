@@ -5,9 +5,10 @@
 //! name leaves the projection on the constructor, and diagnostics then show
 //! the carrier (`Configuration.minimum`) instead of the substituted field.
 //! Open field expressions become canonical when an enclosing const closes;
-//! projection reads the constructor's declared field either way. A case
-//! payload keeps its case, and a non-constructor value keeps the receiver
-//! substitution.
+//! projection reads the constructor's declared field either way. A literal
+//! element position (`Setting[1]`) reads the array literal's own element in
+//! the same way. A case payload keeps its case, and a non-constructor value
+//! keeps the receiver substitution.
 
 use super::Candidate;
 use crate::tables::{expressions_of, expressions_of_mut};
@@ -78,7 +79,7 @@ pub(super) fn substitute(
                 })
                 .collect::<Vec<_>>(),
         };
-        let projections = nominal_record_projections(program, *binder, expression_start);
+        let projections = const_projections(program, *binder, expression_start);
         if occurrences.is_empty() && projections.is_empty() {
             continue;
         }
@@ -94,7 +95,7 @@ pub(super) fn substitute(
             })?;
         let mut projected_receivers = Vec::new();
         for projection in &projections {
-            let Some(projected) = project_nominal_fields(program, &replacement, &projection.fields)
+            let Some(projected) = project_const_value(program, &replacement, &projection.steps)
             else {
                 continue;
             };
@@ -128,86 +129,120 @@ fn exact_binder_name(
             == 1
 }
 
-struct NominalField {
-    symbol: symbols::SymbolHandle,
-    name: typed_trees::name::Identifier,
-    case_variant: Option<typed_trees::name::Identifier>,
+/// One projection step applied to a materialized const value: a record or
+/// case field, or a fixed-array element at a literal position.
+enum ProjectionStep {
+    Field {
+        symbol: symbols::SymbolHandle,
+        name: typed_trees::name::Identifier,
+        case_variant: Option<typed_trees::name::Identifier>,
+    },
+    Element(usize),
 }
 
-struct NominalProjection {
+struct ConstProjection {
     outer: ExpressionHandle,
     root: ExpressionHandle,
-    /// Fields from the constructor outward: `value.a.b` is `[a, b]`.
-    fields: Vec<NominalField>,
+    /// Steps from the constructor outward: `value.a[1]` is `[a, 1]`.
+    steps: Vec<ProjectionStep>,
 }
 
-/// Outermost field chains in this clone whose root name is the const binder.
-/// An inner projection is not its own substitution; the outer node is rewritten
-/// to the selected field so the constructor does not stay under the projection.
-fn nominal_record_projections(
+/// The receiver and step of one field or literal-element projection node.
+fn projection_step(
     program: &TypedTrees,
-    binder: symbols::SymbolHandle,
-    expression_start: Option<usize>,
-) -> Vec<NominalProjection> {
-    let members = match expression_start {
-        Some(start) => expressions_of(program)
-            .iter_expressions_from(start)
-            .filter(|(_, expression)| matches!(expression, ExpressionNode::Member(_)))
-            .map(|(handle, _)| handle)
-            .collect::<Vec<_>>(),
-        None => expressions_of(program)
-            .iter_expressions()
-            .filter(|(_, expression)| matches!(expression, ExpressionNode::Member(_)))
-            .map(|(handle, _)| handle)
-            .collect::<Vec<_>>(),
-    };
-    let mut receivers = Vec::new();
-    for handle in &members {
-        if let ExpressionNode::Member(member) = expressions_of(program).expression(*handle) {
-            receivers.push(member.receiver);
-        }
-    }
-    let mut projections = Vec::new();
-    for outer in members {
-        if receivers.contains(&outer) {
-            continue;
-        }
-        let mut fields = Vec::new();
-        let mut current = outer;
-        let root = loop {
-            let ExpressionNode::Member(member) = expressions_of(program).expression(current) else {
-                break current;
-            };
-            let step = NominalField {
+    expression: ExpressionHandle,
+) -> Option<(ExpressionHandle, ProjectionStep)> {
+    match expressions_of(program).expression(expression) {
+        ExpressionNode::Member(member) => Some((
+            member.receiver,
+            ProjectionStep::Field {
                 symbol: member.member_symbol,
                 name: member.member.clone(),
                 case_variant: member.case_variant.clone(),
+            },
+        )),
+        ExpressionNode::Indexed(indexed) => {
+            let ExpressionNode::Integer(index) = expressions_of(program).expression(indexed.index)
+            else {
+                return None;
             };
-            let receiver = member.receiver;
-            fields.push(step);
+            let index = usize::try_from(index.value_i64()?).ok()?;
+            Some((indexed.collection, ProjectionStep::Element(index)))
+        }
+        _ => None,
+    }
+}
+
+/// Outermost field/element chains in this clone whose root name is the const
+/// binder. An inner projection is not its own substitution; the outer node is
+/// rewritten to the selected child so the constructor does not stay under it.
+fn const_projections(
+    program: &TypedTrees,
+    binder: symbols::SymbolHandle,
+    expression_start: Option<usize>,
+) -> Vec<ConstProjection> {
+    let candidates = match expression_start {
+        Some(start) => expressions_of(program)
+            .iter_expressions_from(start)
+            .map(|(handle, _)| handle)
+            .filter(|handle| projection_step(program, *handle).is_some())
+            .collect::<Vec<_>>(),
+        None => expressions_of(program)
+            .iter_expressions()
+            .map(|(handle, _)| handle)
+            .filter(|handle| projection_step(program, *handle).is_some())
+            .collect::<Vec<_>>(),
+    };
+    let receivers = candidates
+        .iter()
+        .filter_map(|handle| projection_step(program, *handle).map(|(receiver, _)| receiver))
+        .collect::<Vec<_>>();
+    let mut projections = Vec::new();
+    for outer in candidates {
+        if receivers.contains(&outer) {
+            continue;
+        }
+        let mut steps = Vec::new();
+        let mut current = outer;
+        let root = loop {
+            let Some((receiver, step)) = projection_step(program, current) else {
+                break current;
+            };
+            steps.push(step);
             current = receiver;
         };
         if !exact_binder_name(program, root, binder) {
             continue;
         }
-        fields.reverse();
-        projections.push(NominalProjection {
-            outer,
-            root,
-            fields,
-        });
+        steps.reverse();
+        projections.push(ConstProjection { outer, root, steps });
     }
     projections
 }
 
-fn project_nominal_fields(
+fn project_const_value(
     program: &TypedTrees,
     value: &ExpressionNode,
-    fields: &[NominalField],
+    steps: &[ProjectionStep],
 ) -> Option<ExpressionNode> {
     let mut projected = value.clone();
-    for field in fields {
-        projected = project_nominal_field(program, &projected, field)?;
+    for step in steps {
+        projected = match step {
+            ProjectionStep::Field {
+                symbol,
+                name,
+                case_variant,
+            } => project_nominal_field(program, &projected, *symbol, name, case_variant.as_ref())?,
+            ProjectionStep::Element(index) => {
+                let ExpressionNode::ArrayLiteral(elements) = &projected else {
+                    return None;
+                };
+                let element = *expressions_of(program)
+                    .expression_handles(*elements)
+                    .get(*index)?;
+                expressions_of(program).expression(element).clone()
+            }
+        };
     }
     Some(projected)
 }
@@ -215,12 +250,14 @@ fn project_nominal_fields(
 fn project_nominal_field(
     program: &TypedTrees,
     value: &ExpressionNode,
-    field: &NominalField,
+    symbol: symbols::SymbolHandle,
+    name: &typed_trees::name::Identifier,
+    case_variant: Option<&typed_trees::name::Identifier>,
 ) -> Option<ExpressionNode> {
     let ExpressionNode::StructLiteral(literal) = value else {
         return None;
     };
-    if let Some(case_variant) = &field.case_variant {
+    if let Some(case_variant) = case_variant {
         if literal.case_name.as_ref() != Some(case_variant) {
             return None;
         }
@@ -231,10 +268,10 @@ fn project_nominal_field(
         .struct_fields(literal.fields)
         .iter()
         .find(|declared| {
-            if field.symbol.is_valid() {
-                declared.field_symbol == field.symbol
+            if symbol.is_valid() {
+                declared.field_symbol == symbol
             } else {
-                declared.name.as_str() == field.name.as_str()
+                declared.name.as_str() == name.as_str()
             }
         })?;
     Some(expressions_of(program).expression(selected.value).clone())
