@@ -29,7 +29,9 @@ use selected_instructions_to_register_homes::{
 use selected_instructions_to_selected_instructions::{
     SelectedOptimizationInput, optimize_selected_instructions,
 };
-use target_operations_to_selected_instructions::stage_optimized_instruction_selection;
+use target_operations_to_selected_instructions::{
+    TargetSelectionInput, stage_optimized_instruction_selection,
+};
 
 /// Both application entries and separately emitted callables use these stages.
 pub(crate) fn lower_to_target(
@@ -63,14 +65,28 @@ pub(crate) fn emit_target(
 ) -> Result<native_artifact::FragmentObjectProjection, BodyEmissionError> {
     let register_environment = baseline_target_register_environment(optimized_target.target())
         .map_err(OptimizedVerifiedPhysicalPipelineError::RegisterEnvironment)?;
+    // Backend emission reads the optimized-target product directly;
+    // instruction selection borrows its plans and later stages never see it.
+    let target_input = std::sync::Arc::new(optimized_target);
     let selected = phase_profile::scope("omega.03", || {
         observation.enter(NativePipelineStage::InstructionSelection);
-        stage_optimized_instruction_selection(optimized_target, register_environment)
-            .map_err(OptimizedVerifiedPhysicalPipelineError::Selection)
+        let optimized = target_input.optimized();
+        stage_optimized_instruction_selection(
+            TargetSelectionInput {
+                target: target_input.target_operations(),
+                source: optimized.plan(),
+                unit: optimized.unit(),
+                origins: target_input.boundary_origins(),
+                optimization: optimized.identity_bundle().identity(),
+                projection: optimized.validation().identity(),
+                manifest: optimized.pre_physical_manifest().record().identity,
+                selections: optimized.selections().clone(),
+                budget_per_pass: optimized.budget_per_pass(),
+            },
+            register_environment,
+        )
+        .map_err(OptimizedVerifiedPhysicalPipelineError::Selection)
     })?;
-    // Backend emission reads the optimized-target product directly; the
-    // selected-program stages after instruction selection do not carry it.
-    let target_input = std::sync::Arc::clone(selected.optimized_target_owner());
     let selected = phase_profile::scope("omega.04", || {
         observation.enter(NativePipelineStage::SelectedOptimization);
         optimize_selected_instructions(SelectedOptimizationInput {

@@ -26,9 +26,12 @@ pub fn verify_retained_target_operations(
         .source()
         .source()
         .optimized_target();
+    let optimized = current.optimized();
     target_operations_to_selected_instructions::verify_target_operation_plan(
         current.target_operations(),
-        current.optimized(),
+        optimized.plan(),
+        optimized.unit(),
+        current.boundary_origins(),
     )
     .map_err(|error| diagnostics::Diagnostic::error(error.to_string()))
 }
