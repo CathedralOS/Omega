@@ -119,7 +119,7 @@ separately.
 Five baseline preservation Sources are proper (one positive / four refusals),
 including exact actuals, stale field snapshots and distinct repeated calls; the
 one runnable snapshot control has native/Terminal zero and agreement on the
-retained producer. The final qualification producer is optimized Linux x86-64
+retained producer. The first full qualification producer is optimized Linux x86-64
 `b3f00fd60e7f7abf613fde219da040e8e19fcf42`, integrating published Main
 `8d22dd8afbe602cb94cb7087373928c5d4080c97` with the repair. Its 7,948 frozen
 compiler/Cargo/SDK inputs include the actual 176-file SDK, independently retained
@@ -145,10 +145,28 @@ Producer preparation took 1,218.899 seconds; Source checking took 64.510 seconds
 pinned execution 37.382 seconds and public execution 148.325 seconds. These are
 actual run timings, not a performance improvement claim. Scoped Clippy completed
 with pre-existing Main warnings retained and no warnings in the changed Rust
-files. The independent Source/oracle review is accepted; exact final review and
-normal CI/queue publication remain required.
+files. The independent Source/oracle review is accepted. A separate raw replay on that
+exact b3 CLI and SDK, run [41394395926](https://github.com/CathedralOS/Omega/actions/runs/41394395926),
+confirms all ten public positive programs explicitly exit zero in both engines;
+a successful preparation process alone is not counted as runtime acceptance.
 
-Only this fact's target-body frontier is subtracted (57 to 56). Both Build-owned
+Actual conflicts required integrating Main
+`39a69f97dd6e8b06e0f5da8f01ae826b2b28289d`, whose changed normal-completion,
+predicate and layout consumers warranted a fresh affected-closure replay.
+Optimized producer `68a9db4f4b0741530272ebd070b385c0e0f2c4e7`, hosted run
+[41395511792](https://github.com/CathedralOS/Omega/actions/runs/41395511792),
+freshly passes all 23 Source cases (10 checked / 13 intended refusals), all ten
+pinned native/Terminal zero agreements, and ordinary public root, target-body
+and match-join executions with explicit native/Terminal zero. All 23 checking
+and ten runtime full outcome tuples equal the first full qualification. The
+two counterfactuals again produce native signal 4 and agreeing Terminal Trap;
+four fresh target artifacts retain their actual hashes and formats, with no
+foreign execution claim. All 7,957 frozen compiler/Cargo/SDK inputs match the
+final compiler bytes, including the same 176 SDK files. Temporary hosted probe
+orchestration is removed before landing. Normal CI and exact final semantic
+review remain publication gates.
+
+Only this fact's target-body frontier is subtracted (51 to 50). Both Build-owned
 parent capabilities, broader target-family retirement, other-host runtime, and
 mutable retained-completion footprint closure remain open.
 

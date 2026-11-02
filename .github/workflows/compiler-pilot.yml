@@ -93,11 +93,6 @@ jobs:
       - name: Check the exact integration candidate
         id: compiler-check
         run: cargo check --locked -p omega
-      - name: Check affected arithmetic owners (temporary scoped validation)
-        if: github.event_name == 'workflow_dispatch' && inputs.fixtures != ''
-        run: |
-          cargo clippy --no-deps --locked -p validation --lib
-          cargo clippy --no-deps --locked -p compiler --lib
       - name: Optional executable observations
         if: github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
         env:
@@ -105,9 +100,6 @@ jobs:
           OMEGA_COMPILER_PILOT_SAMPLES: ${{ inputs.samples }}
           OMEGA_COMPILER_PILOT_CLI_FIXTURES: ${{ inputs.cli_fixtures }}
         run: python tools/ci/compiler_pilot.py
-      - name: Observe affected public programs and controls (temporary)
-        if: github.event_name == 'workflow_dispatch' && inputs.fixtures != ''
-        run: python tools/ci/qualify_compound_index.py
       - name: Report actual producer and fixture observations
         if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
         run: python -c "from pathlib import Path; root = Path('build/compiler-pilot'); [print(name + '\n' + (root / name).read_text(encoding='utf-8')) for name in ('summary.json', 'checking.json', 'both.json', 'samples.json', 'cli.json') if (root / name).is_file()]"

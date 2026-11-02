@@ -345,7 +345,7 @@ fail/facts/component_scalar_lending_through_parameter_rejected rejected 8514ms e
 	argument `value` for state `write` is declared `&mut` (`&mut Word`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/facts/component_scalar_lending_through_target_body_rejected rejected 8139ms expected @1c738b2ffe7e
 	argument `value` for state `write` is declared `&mut` (`&mut Word`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
-fail/facts/compound_index_guard_wrong_call_actual rejected 4641ms expected @b3f00fd60e7f
+fail/facts/compound_index_guard_wrong_call_actual rejected 4670ms expected @68a9db4f4b07
 	cannot prove index `main.b * 20 + a` is within length 200 in put::entry
 fail/facts/contract_excluded_case_through_branch_world_rejected rejected 5621ms expected @f8ae8d815e07
 	match does not cover its subject; cover every admitted case, both Boolean alternatives, or add a wildcard arm
@@ -5826,15 +5826,15 @@ pass/facts/compound_guard_through_distinct_match_calls_compile rejected 1771ms r
 	cannot prove index `main.b * 20 + a` is within length 200 in put::entry
 pass/facts/compound_guard_through_stored_call_result_compile rejected 1759ms regressed-from:checked @ccdb99ca2214
 	cannot prove index `main.b * 20 + main.saved` is within length 200 in put::entry
-pass/facts/compound_index_guard_through_call_result_exit checked 6992ms check-target:macos_arm64 @b3f00fd60e7f
-pass/facts/compound_index_guard_through_const_name_exit checked 8608ms check-target:macos_arm64 @b3f00fd60e7f
-pass/facts/compound_index_guard_through_field_exit checked 9083ms check-target:macos_arm64 @b3f00fd60e7f
-pass/facts/compound_index_guard_through_local_exit checked 7664ms check-target:macos_arm64 @b3f00fd60e7f
-pass/facts/compound_index_guard_through_match_join_exit checked 7179ms check-target:macos_arm64 @b3f00fd60e7f
-pass/facts/compound_index_guard_through_other_machine_exit checked 7308ms check-target:macos_arm64 @b3f00fd60e7f
-pass/facts/compound_index_guard_through_other_state_exit checked 7133ms check-target:macos_arm64 @b3f00fd60e7f
-pass/facts/compound_index_guard_through_parameter_exit checked 7085ms check-target:macos_arm64 @b3f00fd60e7f
-pass/facts/compound_index_guard_through_target_body_exit checked 6891ms check-target:macos_arm64 @b3f00fd60e7f
+pass/facts/compound_index_guard_through_call_result_exit checked 8940ms check-target:macos_arm64 @68a9db4f4b07
+pass/facts/compound_index_guard_through_const_name_exit checked 7871ms check-target:macos_arm64 @68a9db4f4b07
+pass/facts/compound_index_guard_through_field_exit checked 8179ms check-target:macos_arm64 @68a9db4f4b07
+pass/facts/compound_index_guard_through_local_exit checked 6944ms check-target:macos_arm64 @68a9db4f4b07
+pass/facts/compound_index_guard_through_match_join_exit checked 7050ms check-target:macos_arm64 @68a9db4f4b07
+pass/facts/compound_index_guard_through_other_machine_exit checked 7004ms check-target:macos_arm64 @68a9db4f4b07
+pass/facts/compound_index_guard_through_other_state_exit checked 7085ms check-target:macos_arm64 @68a9db4f4b07
+pass/facts/compound_index_guard_through_parameter_exit checked 6954ms check-target:macos_arm64 @68a9db4f4b07
+pass/facts/compound_index_guard_through_target_body_exit checked 6868ms check-target:macos_arm64 @68a9db4f4b07
 pass/facts/computed_byte_view_argument_snapshot_through_call_result_exit checked 17552ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/computed_byte_view_argument_snapshot_through_const_name_exit checked 15781ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/computed_byte_view_argument_snapshot_through_field_exit checked 15662ms check-target:macos_arm64 @ccdb99ca2214
@@ -21325,24 +21325,24 @@ fail/facts/compound_guard_shorter_slice_compile rejected 1900ms expected @ccdb99
 	cannot prove index `b * 20 + a` is within length 20 in put::entry
 fail/facts/compound_guard_unequal_match_arm_compile rejected 2559ms expected @ccdb99ca2214
 	cannot prove index `main.b * 20 + a` is within length 200 in put::entry
-fail/facts/compound_index_guard_through_call_result_rejected rejected 5437ms expected @b3f00fd60e7f
+fail/facts/compound_index_guard_through_call_result_rejected rejected 4862ms expected @68a9db4f4b07
 	cannot prove index `main.b * 20 + a` is within length 200 in put::entry
-fail/facts/compound_index_guard_through_const_name_rejected rejected 4515ms expected @b3f00fd60e7f
+fail/facts/compound_index_guard_through_const_name_rejected rejected 4568ms expected @68a9db4f4b07
 	cannot prove index `main.b * 20 + main.a` is within length 200 in put::entry
-fail/facts/compound_index_guard_through_field_rejected rejected 4569ms expected @b3f00fd60e7f
+fail/facts/compound_index_guard_through_field_rejected rejected 4713ms expected @68a9db4f4b07
 	cannot prove index `main.b * 20 + main.a` is within length 200 in put::entry
-fail/facts/compound_index_guard_through_local_rejected rejected 4569ms expected @b3f00fd60e7f
+fail/facts/compound_index_guard_through_local_rejected rejected 4708ms expected @68a9db4f4b07
 	cannot prove index `b * 20 + a` is within length 200 in put::entry
-fail/facts/compound_index_guard_through_match_join_rejected rejected 4639ms expected @b3f00fd60e7f
+fail/facts/compound_index_guard_through_match_join_rejected rejected 4700ms expected @68a9db4f4b07
 	cannot prove index `main.b * 20 + a` is within length 200 in put::entry
 	cannot prove index `main.b * 20 + second_a` is within length 200 in put::entry
-fail/facts/compound_index_guard_through_other_machine_rejected rejected 4614ms expected @b3f00fd60e7f
+fail/facts/compound_index_guard_through_other_machine_rejected rejected 4700ms expected @68a9db4f4b07
 	cannot prove index `main.b * 20 + main.a` is within length 200 in store::entry
-fail/facts/compound_index_guard_through_other_state_rejected rejected 4663ms expected @b3f00fd60e7f
+fail/facts/compound_index_guard_through_other_state_rejected rejected 4715ms expected @68a9db4f4b07
 	cannot prove index `main.b * 20 + main.a` is within length 200 in put::entry
-fail/facts/compound_index_guard_through_parameter_rejected rejected 4639ms expected @b3f00fd60e7f
+fail/facts/compound_index_guard_through_parameter_rejected rejected 4706ms expected @68a9db4f4b07
 	cannot prove index `b * 20 + a` is within length 200 in store::entry
-fail/facts/compound_index_guard_through_target_body_rejected rejected 4641ms expected @b3f00fd60e7f
+fail/facts/compound_index_guard_through_target_body_rejected rejected 4675ms expected @68a9db4f4b07
 	cannot prove index `main.b * 20 + main.a` is within length 200 in put::entry
 fail/facts/computed_byte_view_argument_snapshot_through_call_result_rejected rejected 3285ms expected @ccdb99ca2214
 	cannot prove requires contract for call receive from main: entry(Composing.dyn Composing::compose(select_composer(true), Preserving.dyn Preserving::retain(select_preserver(true), retain_view(original, 2)).bytes, original.sibling)).bytes.len == 7 (needs fact `selected.bytes.len == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
