@@ -32856,7 +32856,8 @@ fail/providers/native_fixed_array_unproved_domain rejected 2136ms expected @ccdb
 	cannot prove requires contract for call read from main: words in [u16; N]::TerminatedWords in state `entry`
 fail/providers/nested_binding_missing_establishment rejected 3851ms expected @ccdb99ca2214
 	no provider is selected for boundary requirement `Reading::read`, which the program entry reaches on target `windows_x86_64`
-fail/providers/occurrence_region_binding_conflicting_inputs checked 2874ms @ccdb99ca2214
+fail/providers/occurrence_region_binding_conflicting_inputs rejected 600ms expected regressed-from:checked @1982527ed4be+wt
+	call to `entry` has conflicting ordinary borrow constraints for an erased lifetime
 fail/providers/operator_specialized_realization_selection_not_retained rejected 2104ms expected @ccdb99ca2214
 	machine `Provider` does not match one exact overload of operator requirement `Policy::convert`; its entry parameter and result types must equal one declared requirement signature
 	machine `Provider$specialized$10334b0381d4aecf$0` operator realization `Policy::convert` does not retain the exact selected overload
