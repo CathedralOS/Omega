@@ -43,9 +43,10 @@ pub(super) fn prepare<'host, 'artifact>(
                 "nested component execution requires its own retained installed product roster",
             ));
         }
-        if program
-            .external_completion_requirement(provision.boundary)
-            .is_none()
+        if !host_imports::executes_internally(&program, provision)
+            && program
+                .external_completion_requirement(provision.boundary)
+                .is_none()
         {
             imports.push(provision.boundary);
         }

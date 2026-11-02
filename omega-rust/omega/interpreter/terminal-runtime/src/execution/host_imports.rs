@@ -67,6 +67,20 @@ use terminal_psi::{BoundaryCompletion, BoundaryMachineResult};
 
 use super::TerminalRuntimeError;
 
+/// Native lowering records realizations for both host calls and operations
+/// executed by Psi itself. Accessor RAM eligibility remains an entry-relative
+/// analysis obligation; selecting a host adapter must not preempt that check.
+pub(super) fn executes_internally(
+    program: &TerminalProgram,
+    provision: &native_artifact::TerminalRuntimeHostProvision,
+) -> bool {
+    program.is_compiler_primitive(provision.boundary)
+        || matches!(
+            provision.realization,
+            BoundarySettlementRealization::Builtin(BoundaryRealization::AccessorScalarAccess(_))
+        )
+}
+
 #[derive(Clone, Copy)]
 enum OutputKind {
     Line,
