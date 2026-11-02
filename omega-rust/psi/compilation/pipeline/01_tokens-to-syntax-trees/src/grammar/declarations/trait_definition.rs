@@ -131,37 +131,33 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
                  the default -- drop the keyword and keep the body",
             ));
         }
-        let spelling = if input.at_contextual("operator") {
-            input = input.take_contextual("operator")?;
-            if input
-                .tokens
-                .first()
-                .is_some_and(|token| token.punctuation().is_some())
-            {
-                let (spelling, rest) = parse_operator_spelling(input)?;
-                input = rest;
-                Some(spelling)
-            } else {
-                None
-            }
+        // A token binds to an ordinary `machine + Name(...)` requirement
+        // (expressions.md, operator declarations); there is no separate
+        // `operator` introducer or second executable identity. The retired
+        // spelling refuses with the replacement rather than parsing as an
+        // alias, matching the product parser's `RetiredOperatorDeclaration`.
+        if input.at_contextual("operator") {
+            return Err(input.error_here(
+                "the `operator` introducer is retired: a trait requirement binds operator \
+                 syntax as an ordinary machine -- write `machine + name(...)`, or \
+                 `machine name(...)` without a token",
+            ));
+        }
+        input = input.take_keyword(KeywordKind::Machine, "machine")?;
+        // `machine + Name(...)` is the ordinary grammar a token-bearing
+        // requirement is spelled in, and it is what a concrete crowned
+        // declaration already uses. The vocabulary and the
+        // non-punctuation/semicolon guard are the same ones
+        // `declarations::machines` applies to every `machine`-headed form, so
+        // a trait requirement is not a separate dialect.
+        let spelling = if input.tokens.first().is_some_and(|token| {
+            token.punctuation().is_some() && token.punctuation() != Some(PunctuationKind::Semicolon)
+        }) {
+            let (spelling, rest) = parse_operator_spelling(input)?;
+            input = rest;
+            Some(spelling)
         } else {
-            input = input.take_keyword(KeywordKind::Machine, "machine")?;
-            // `machine + Name(...)` is the ordinary grammar a token-bearing
-            // requirement is spelled in (expressions.md, executable supply),
-            // and it is what a concrete crowned declaration already uses. The
-            // vocabulary and the non-punctuation/semicolon guard are the same
-            // ones `declarations::machines` applies to every `machine`-headed
-            // form, so a trait requirement is not a separate dialect.
-            if input.tokens.first().is_some_and(|token| {
-                token.punctuation().is_some()
-                    && token.punctuation() != Some(PunctuationKind::Semicolon)
-            }) {
-                let (spelling, rest) = parse_operator_spelling(input)?;
-                input = rest;
-                Some(spelling)
-            } else {
-                None
-            }
+            None
         };
         let (mut signature, rest) = parse_trait_machine_signature(syntax_trees, input)?;
         signature.spelling = spelling;

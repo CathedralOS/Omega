@@ -1,7 +1,7 @@
 use omega_language_std::console;
 
 trait Arithmetic<Value> {
-    operator + combine(left: Value, right: Value) -> Value blocks;
+    machine + combine(left: Value, right: Value) -> Value blocks;
 }
 
 ConstantThree satisfies Arithmetic<i32> {

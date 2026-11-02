@@ -1,5 +1,5 @@
 // A selected relation is not numeric equality, even in a length contract.
-public trait Equality<T> { operator == related(left: T, right: T) -> bool; }
+public trait Equality<T> { machine == related(left: T, right: T) -> bool; }
 Always satisfies Equality<u64> {
     machine related(left: u64, right: u64) -> bool { true }
 }

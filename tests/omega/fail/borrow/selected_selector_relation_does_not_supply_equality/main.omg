@@ -1,6 +1,6 @@
 // A changed selector must not preserve the written referent's index bound.
 // Intended invalid: other is overwritten with 9 before indexing four elements.
-trait Equality<T> { operator == related(left: T, right: T) -> bool; }
+trait Equality<T> { machine == related(left: T, right: T) -> bool; }
 Never satisfies Equality<bool> {
     machine related(left: bool, right: bool) -> bool { false }
 }

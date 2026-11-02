@@ -416,8 +416,8 @@ retired-syntax deletions to completion.
     waits on [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md) question 4; question 5
     asks whether the landed distributivity expansion advances the normalizer
     version.
-  - Migrate library/corpus/embedded declarations off the `operator` introducer
-    ([retirement inventory](wiki/drafts/audits/operator_introducer_retirement_inventory.md))
+  - Migrate top-level library/corpus/embedded declarations off the `operator`
+    introducer ([retirement inventory](wiki/drafts/audits/operator_introducer_retirement_inventory.md))
     and remove legacy parser/IR consumers and undifferentiated
     `MachineSupplyMode::Boundary`.
   Acceptance: `tests/omega/pass/expressions/declared_operator_match_result/`
