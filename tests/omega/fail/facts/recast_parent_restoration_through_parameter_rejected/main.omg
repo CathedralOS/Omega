@@ -10,11 +10,13 @@ requires self.start >= 0 && self.start <= self.end,
     marker: u32;
     origin: u32;
 }
+machine retain_view<'storage>(view: &'storage mut u32) -> &'storage mut u32 { view }
 public machine inspect(pair: &mut Pair, replacement: u32)
 requires replacement == 0xFFFFFFFFu32
 {
     pair.marker = 11;
-    let view: &mut u32 = &mut pair.start as &mut u32;
+    let formed: &mut u32 = &mut pair.start as &mut u32;
+    let view: &mut u32 = retain_view(formed);
     view = 0xFFFFFFFFu32;
     view = replacement;
     pair.end = 10;
