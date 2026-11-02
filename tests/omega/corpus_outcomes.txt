@@ -504,6 +504,8 @@ fail/facts/data_decomposition/controls/case_scalar_comparison_argument/call_resu
 	cannot prove requires contract for call classify from choose: value < 2 (needs fact `value < 2` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/data_decomposition/controls/case_scalar_comparison_argument/call_result/recursive rejected 4223ms expected @0f29300672c4
 	cannot prove requires contract for call read from Table::multiplicity: handle < 3 (needs fact `handle < 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `multiplicity`
+fail/facts/data_decomposition/controls/indexed_store_frame_invalid rejected 8685ms expected @49e7045e7cc6
+	machine `put` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
 fail/facts/data_decomposition/field rejected 1996ms expected @0f29300672c4
 	exact arithmetic in machine `bind_components` state `entry` local `difference` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/data_decomposition/field/borrowed_case_view rejected 2441ms expected @0f29300672c4
@@ -6988,6 +6990,7 @@ pass/facts/data_decomposition/const_name/positional_case_view checked 7396ms che
 pass/facts/data_decomposition/const_name/positional_expression_case_view checked 7271ms check-target:macos_arm64 @0f29300672c4
 pass/facts/data_decomposition/controls/case_scalar_comparison_argument/call_result checked 7031ms check-target:macos_arm64 @0f29300672c4
 pass/facts/data_decomposition/controls/case_scalar_comparison_argument/call_result/recursive checked 6973ms check-target:macos_arm64 @0f29300672c4
+pass/facts/data_decomposition/controls/indexed_store_frame checked 16712ms check-target:macos_arm64 @49e7045e7cc6
 pass/facts/data_decomposition/field checked 6975ms check-target:macos_arm64 @0f29300672c4
 pass/facts/data_decomposition/field/borrowed_case_view checked 7749ms check-target:macos_arm64 @0f29300672c4
 pass/facts/data_decomposition/field/case_view checked 6512ms check-target:macos_arm64 @0f29300672c4
