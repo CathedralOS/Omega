@@ -134,7 +134,7 @@ machine Main::main(main: &mut Main) reaches Console {
 // remains an explicit sample-owned budget; it does not bound the library.
 data FieldKind [copy] { case Scalar; case Text; case Nested; case Repeated; }
 data WireSchemaField [copy] { number: i64; kind: FieldKind; }
-data WireSchema [copy] where 0 <= field_count, field_count <= 32 { fields: [WireSchemaField; 32]; field_count: i64; }
+data WireSchema [copy] requires 0 <= field_count, field_count <= 32 { fields: [WireSchemaField; 32]; field_count: i64; }
 data FieldPlan [copy] {
     case At(offset: i64);
     case Bits(container: i64, container_width: i64, lsb: i64, width: i64);

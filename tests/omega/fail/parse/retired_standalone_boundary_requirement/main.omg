@@ -1,0 +1,9 @@
+// The carrier-owned `boundary requirement Owner::operation(...);` row is
+// retired: boundary operations are members of boundary traits, and a
+// one-member trait supplies an independently selectable slot.
+data Window { }
+
+boundary requirement Window::whole(bytes: &[u8]) -> &[u8]
+reaches;
+
+machine main() {}

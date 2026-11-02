@@ -44,7 +44,7 @@ use omega::language::core::layout;
 // present bit, the gate type code, and the interrupt-stack-table slot (0
 // spells the architectural no-switch value; dedicated critical stacks take
 // 1..=7). The record's natural extent is exactly one 16-byte wire slot.
-public data InterruptGate where ist <= 7, gate_kind <= 15, privilege <= 3 {
+public data InterruptGate requires ist <= 7, gate_kind <= 15, privilege <= 3 {
     entry: u64;
     selector: u16;
     ist: u8;

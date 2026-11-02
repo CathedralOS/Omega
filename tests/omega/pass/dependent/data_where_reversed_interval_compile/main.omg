@@ -1,7 +1,7 @@
 // Conjuncts read in either order: `Cap` declares `v <= 5` before `v >= 1`
 // — the interval's two ends needn't be listed low-to-high.
 data Cap
-where
+requires
     v <= 5,
     v >= 1,
 {

@@ -149,7 +149,7 @@ and no fixture key or diagnostic continuation line was lost.
    proof checking with the row's own obligation (`direct == false`), listed
    above; a program that reads a true recorded boolean through the same
    obligation does not compile.
-5. **Checked-to-Terminal Psi lowering (`Psi 05–07`):** the generic comparison
+5. **Checked-to-Terminal Psi lowering (`Psi 06–08`):** the generic comparison
    lowers to an ordinary selected call chain
    (`main`/`observe` → `compare` → `same`) with the recorded constant result;
    proof-only obligations are erased. The Terminal Psi interpreter executes all

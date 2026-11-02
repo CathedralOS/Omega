@@ -66,8 +66,8 @@ pub use declarations::standard_declarations::{
 use declarations::state_signatures::StateSignatureOwner;
 pub use machine_calls::boundary_calls::validate_boundary_calls;
 pub use machine_calls::calls::{
-    SelectedCallArgument, call_target_has_checked_body_contract, call_type_arguments,
-    closed_requirement_dispatch_is_valid, machine_has_unit_result,
+    SelectedCallArgument, SelectedCallArgumentError, call_target_has_checked_body_contract,
+    call_type_arguments, closed_requirement_dispatch_is_valid, machine_has_unit_result,
     named_conformance_target_requirement, nested_boundary_applications_compose,
     requirement_contract_signature, result_initializer_call_is_admitted, selected_call_arguments,
     selected_requirement_signature, target_family_members,
@@ -278,10 +278,10 @@ pub use crate::machine_calls::call_cycles::{
     ValidatedProofRecursiveComponent, ValidatedProofRecursiveEdge, ValidatedProofRecursiveMember,
     ValidatedProofRecursiveTransitionLane, ValidatedRuntimeIntegerRank,
     ValidatedRuntimeNaturalComponent, ValidatedRuntimeNaturalEdge, ValidatedRuntimeNaturalState,
-    activation_target_state_index, internal_state_index, machine_call_dependency_symbols,
-    prepare_runtime_rank_components, rank_relevance, retain_runtime_rank_component,
-    retained_internal_rank_nonincrease, retained_runtime_natural_components,
-    retained_runtime_recursive_components,
+    activation_target_state_index, infer_checked_proof_recursive_machines, internal_state_index,
+    machine_call_dependency_symbols, prepare_runtime_rank_components, rank_relevance,
+    retain_runtime_rank_component, retained_internal_rank_nonincrease,
+    retained_runtime_natural_components, retained_runtime_recursive_components,
 };
 pub use crate::machine_calls::calls::{
     AssignmentStorageOrigins, AssignmentWriteTarget, CallFrameResolver, CallWriteOrigins,

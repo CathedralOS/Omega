@@ -331,19 +331,19 @@ correspondence. A dynamic index conservatively includes all possible sources.
 
 The [lifetime specification](../spec/language/lifetimes.md) owns binder syntax,
 elision and carried-loan transport. The compiler's current multiple-input and
-generic returned-view limitations are documented [beside checking](../../omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/README.md#lifetime-source-correspondence).
+generic returned-view limitations are documented [beside checking](../../omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/README.md#lifetime-source-correspondence).
 Those limitations are not permission to forget unresolved borrows.
 
 ## Storage Carried By Access Views
 
-A borrowed `Access<P, T>` retains its source borrow. An owned access view instead
+A borrowed domain-qualified access view retains its source borrow. An owned access view instead
 carries an extent claim that needs an authorized return or release:
 
 ```omega
-machine inspect(uart: &Access<UartMmio, UartRegisters>) {
+machine inspect(uart: &(UartRegisters in DeviceRegisters)) {
 }
 
-machine configure(uart: &mut Access<UartMmio, UartRegisters>) {
+machine configure(uart: &mut (UartRegisters in DeviceRegisters)) {
 }
 ```
 

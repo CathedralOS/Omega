@@ -4,7 +4,7 @@ use omega::language::core::assembly;
 
 machine capture() -> u64 ensures (result & 64u64) == 64u64 {
     let mut saved: u64 = 0;
-    asm where clobbers rax, rflags, r10, r15 {
+    asm clobbers rax, rflags, r10, r15 {
         entry:
             mov eax, 1;
             sub eax, 1;
@@ -15,7 +15,7 @@ machine capture() -> u64 ensures (result & 64u64) == 64u64 {
 
 machine main() reaches MachineControl crashes Trap {
     let saved: u64 = capture();
-    asm where clobbers r10, r15 {
+    asm clobbers r10, r15 {
         entry:
             popfq saved;
         observed requires (saved & 64u64) == 64u64:

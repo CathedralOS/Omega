@@ -46,6 +46,7 @@ fn assign_machine_references(
             symbol_resolved_trees::SymbolResolvedRoots {
                 data_definitions,
                 type_aliases,
+                conformances,
                 machines,
                 ..
             },
@@ -113,6 +114,8 @@ fn assign_machine_references(
             prior_statements: &[],
             data_definitions,
             type_aliases,
+            conformances,
+            operand_owners: &tables.types.operand_lifetime_owners,
             data_members,
             data_type_parameters,
             data_payload_fields: &tables.declarations.data_payload_fields,

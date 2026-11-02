@@ -384,7 +384,16 @@ pub(crate) fn report_data_type_conflict(
     let Some(got) = value_concrete_data_symbol(program, machine, state, value) else {
         return false;
     };
-    if expected == got {
+    if expected == got
+        || program
+            .normalized_nominal_type_identity(expected)
+            .is_some_and(|expected| Some(expected) == program.normalized_nominal_type_identity(got))
+    {
+        // Generated declarations can retain different diagnostic spellings of
+        // one complete application. The shared identity includes the exact
+        // nominal template and every static operand; field layout or equal
+        // payload bytes alone never establish this match. Remaining receiving
+        // checks still own predicates, access and value/loan transport.
         return false;
     }
     let expected = program.symbols.display_path(expected, "::");

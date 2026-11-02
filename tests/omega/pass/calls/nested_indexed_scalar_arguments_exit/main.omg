@@ -2,7 +2,7 @@
 use omega_language_std::console;
 
 data Cell { value: u64 in Wrapping; }
-data Main where position < 4 { cells: [Cell; 4]; position: u64; }
+data Main requires position < 4 { cells: [Cell; 4]; position: u64; }
 
 machine Cell::read(cell: &Cell) -> u64 in Wrapping { cell.value }
 machine read_cell(cell: &Cell) -> u64 in Wrapping { cell.value }

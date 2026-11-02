@@ -656,7 +656,7 @@ crashes Trap
 }
 
 // For each of state `offset`'s paths ending in a field, the fields its
-// declaration's `where` facts name beside it, at the same depth.
+// declaration's `requires` facts name beside it, at the same depth.
 machine Checker::demand_siblings(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, offset: u64 in Trapping) -> bool
 crashes Trap
 {
@@ -696,7 +696,7 @@ crashes Trap
     }
 }
 
-// The fields each `where` fact naming `field` of its declaration names, as
+// The fields each `requires` fact naming `field` of its declaration names, as
 // paths beside `path` (whose last step is `field`).
 machine Checker::demand_field_relatives(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, offset: u64 in Trapping, path: ArrivalPath, field: u64 in Trapping) -> bool
 crashes Trap
@@ -727,7 +727,7 @@ crashes Trap
 
     machine fact(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, offset: u64 in Trapping, path: ArrivalPath, field: u64 in Trapping, item: DataItem, index: u64 in Trapping, changed: bool) -> bool {
         let clause: Clause = SyntaxTrees::clause(syntax, item.first_clause + index);
-        transition clause.kind == ClauseKind::Where && clause.has_expression {
+        transition clause.kind == ClauseKind::Requires && clause.has_expression {
             true -> mentioned(checker, syntax, resolution, typing, offset, path, field, item, index, changed, clause.expression)
             _ -> clause(checker, syntax, resolution, typing, offset, path, field, item, index + 1, changed)
         }

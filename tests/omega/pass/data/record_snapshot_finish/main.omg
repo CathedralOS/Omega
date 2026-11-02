@@ -2,7 +2,7 @@
 // original bounded snapshot may be returned from an acyclic finishing
 // state without retaining the measure in that state's telescope —
 // `u32` interval param + interval record member.
-data Pair where left <= 5 { left: u32; }
+data Pair requires left <= 5 { left: u32; }
 machine walk(remaining: u32) -> u32
 requires remaining <= 5
 terminates by remaining in 0..=5 {

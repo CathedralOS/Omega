@@ -6,7 +6,7 @@ crashes Trap value == false
     transition value == false { true -> bad() false -> (value) }
     machine bad() -> bool { crash Trap; }
 }
-public data Byte where value >= 0 && value <= 1 { value: u8; }
+public data Byte requires value >= 0 && value <= 1 { value: u8; }
 windows_x86_64 machine forward(value: bool) -> bool
 crashes Trap value == false
 {

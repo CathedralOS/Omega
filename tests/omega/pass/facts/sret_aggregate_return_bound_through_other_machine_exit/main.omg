@@ -2,7 +2,7 @@
 // Place: other_machine. An intermediate forwarding machine transports the returned aggregate by value.
 // Expected exit: 0
 
-data Triple [copy] where
+data Triple [copy] requires
     a >= 20u64 && a <= 20u64,
     b >= 30u64 && b <= 30u64,
     c <= 90u64 && c >= 40u64 && c <= 40u64

@@ -1,7 +1,7 @@
 // Case-selected cleanup disposes the surviving leaf after capturing its scalar argument.
 use omega_language_std::console;
 
-data Cell where value >= 0, value <= 100 { value: i32; }
+data Cell requires value >= 0, value <= 100 { value: i32; }
 data Choice { case Selected(value: i32); case Empty; }
 data Pair { first: &Cell; second: &Cell; stamp: i32; }
 data Main { first: Cell; second: Cell; }

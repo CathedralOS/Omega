@@ -15,7 +15,7 @@
 // exit 1 = any other outcome.
 use omega_language_std::console;
 
-data Wrap where remaining >= 4, remaining <= 500 { remaining: u64; }
+data Wrap requires remaining >= 4, remaining <= 500 { remaining: u64; }
 data Indirect { target: &mut Wrap; }
 
 machine walk(n: u64, indirect: Indirect) -> u64

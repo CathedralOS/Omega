@@ -5,13 +5,13 @@ use actors::state::Actor;
 use simulation::clock::FrameClock;
 
 public data Camera<const Actors: u64, const Rooms: u64>
-where Actors >= 1, Rooms >= 1, actor < Actors, room < Rooms {
+requires Actors >= 1, Rooms >= 1, actor < Actors, room < Rooms {
     actor: u64;
     room: u64;
 }
 
 public data Frame
-where room >= 0 && room < 6 {
+requires room >= 0 && room < 6 {
     room: i32;
     subject: Actor<6>;
     enemy: Actor<6>;

@@ -93,9 +93,7 @@ macos_arm64 machine darwin_realpath_binding() -> ForeignBinding<26, 9, 0> {
 }
 
 macos_arm64 machine PosixCanonicalImports::provider_defaults(defaults: &mut PosixCanonicalImports) {
-    PosixCanonicalImports::select_provider<PosixCanonicalLibc::resolve, PosixCanonicalImports>(defaults);
-    PosixCanonicalImports::select_provider<PosixCanonicalLibc::error_location, PosixCanonicalImports>(defaults);
-    PosixCanonicalImports::select_provider<PosixCanonicalLibc::copy_error, PosixCanonicalImports>(defaults);
+    PosixCanonicalImports::select_provider<PosixCanonicalLibc, PosixCanonicalImports>(defaults);
 }
 
 macos_arm64 machine darwin_errno_location_binding() -> ForeignBinding<26, 8, 0> {

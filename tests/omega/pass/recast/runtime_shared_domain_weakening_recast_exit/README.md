@@ -24,7 +24,7 @@ package acceptance is missing or its current requirements need review. Its
 generated review remains pending; the compiler fix does not accept that policy.
 
 On Linux x86-64 base `f64782b891147a98314a566696a5a5e044378c43`, all three
-reject at stage 05 with `Unit graph dropped or added a body effect`, while the
+reject at stage 06 with `Unit graph dropped or added a body effect`, while the
 checked interpreter returns 70. With the statement-custody repair, all three
 compile and execute with native/interpreter exit 70.
 
@@ -43,4 +43,4 @@ Strict crate Clippy (`mbx clippy -p checked-trees-to-lowered-psi --lib --no-deps
 -- -D warnings`) exits 101 on both the base compiler source above and the
 candidate: the same 12 diagnostics point to untouched files. The recast checked
 gate also retains a golden mismatch for aggregate-slice loan liveness, diagnosed
-by checking before stage 05. Neither baseline issue is suppressed by this fix.
+by checking before stage 06. Neither baseline issue is suppressed by this fix.

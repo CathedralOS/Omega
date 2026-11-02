@@ -1,4 +1,4 @@
-data Selection where index <= 1 { index: u64; }
+data Selection requires index <= 1 { index: u64; }
 
 machine corrupt(selection: &mut Selection) {
     selection.index = 2;

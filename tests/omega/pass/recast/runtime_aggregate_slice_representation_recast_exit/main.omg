@@ -8,21 +8,21 @@
 use omega_language_std::console;
 
 data Narrow
-where signed_value >= 0 && signed_value <= 100,
+requires signed_value >= 0 && signed_value <= 100,
 {
     signed_value: i16;
     enabled: bool;
 }
 
 data Wide
-where unsigned_value <= 200,
+requires unsigned_value <= 200,
 {
     unsigned_value: u16;
     active: bool;
 }
 
 data Exact
-where unsigned_value <= 100,
+requires unsigned_value <= 100,
 {
     unsigned_value: u16;
     active: bool;

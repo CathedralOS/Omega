@@ -14,6 +14,8 @@ use crate::fixture_package_inputs;
 mod behavior_admission_controls;
 #[path = "boundary_provider_controls.rs"]
 mod boundary_provider_controls;
+#[path = "callback_body_controls.rs"]
+mod callback_body_controls;
 #[path = "callback_telescope_controls.rs"]
 mod callback_telescope_controls;
 #[path = "closed_reach_controls.rs"]
@@ -53,6 +55,7 @@ enum InspectionControls<'selection> {
     BoundaryProviders,
     BehaviorAdmission,
     CallbackTelescope(&'selection str),
+    CallbackBodies,
     NativeLayouts,
     ScalarIssuer,
 }
@@ -136,6 +139,9 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
             [machine, "provider-choice-controls"] => {
                 (*machine, false, Some(InspectionControls::ProviderChoices))
             }
+            [machine, "callback-body-controls"] => {
+                (*machine, false, Some(InspectionControls::CallbackBodies))
+            }
             [machine, "boundary-provider-controls"] => {
                 (*machine, false, Some(InspectionControls::BoundaryProviders))
             }
@@ -169,6 +175,7 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
                 InspectionControls::MathematicalActuals
                     | InspectionControls::IndexedFamily
                     | InspectionControls::TaskActivations
+                    | InspectionControls::CallbackBodies
             )
         );
         let provider_controls = matches!(
@@ -219,6 +226,7 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
                 Default::default(),
             )
             .map_err(|errors| format!("inspection {machine} checking: {errors:?}"))?;
+            drop(prepared);
             match conformance_controls {
                 Some(InspectionControls::MathematicalActuals) => {
                     let _artifact = mathematical_actuals::produce(&checked, machine)?;
@@ -228,6 +236,10 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
                 }
                 Some(InspectionControls::TaskActivations) => {
                     task_activation_controls::produce(checked, machine, profile)?;
+                }
+                Some(InspectionControls::CallbackBodies) => {
+                    callback_body_controls::produce(checked, root)?;
+                    observations.push("callback-body-controls:match".into());
                 }
                 _ => unreachable!("source controls selected above"),
             }
@@ -361,6 +373,7 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
                 }
                 InspectionControls::DynamicImage => dynamic_image_controls::inspect(&decoded)?,
                 InspectionControls::TaskActivations
+                | InspectionControls::CallbackBodies
                 | InspectionControls::SynchronousProviders
                 | InspectionControls::ProviderChoices
                 | InspectionControls::BoundaryProviders

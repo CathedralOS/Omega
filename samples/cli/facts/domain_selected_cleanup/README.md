@@ -104,7 +104,7 @@ parent migration's broader acceptance:
 | Identity and lifetime | The explicit `'storage` binds the original exclusive Counter backing; cleanup writes that backing once. |
 | Composition | The same fact and operation survive all nine linked places and pinned pass/fail fixtures. |
 | Soundness boundaries | Exact cleanup owner custody, receiver type/access, prerequisites, and finite normal completion remain checked; conflict, authority and invalid-hook controls remain. |
-| Psi 05–07 | Ordinary cleanup actions retain the selected machine and captured receiver through Terminal production and interpretation. |
+| Psi 06–08 | Ordinary cleanup actions retain the selected machine and captured receiver through Terminal production and interpretation. |
 | Omega 00–02 | Package review retains independent callable binders; ordinary provider, layout and calling-plan production consumes the result. |
 | Omega 03–06 | Native execution observes the cleanup store and invocation count through ordinary instruction, register and frame realization; this is not a stack-boundary stress test. |
 | Omega 07–09 and emission | Emitted PE and ELF programs execute and agree with Terminal Psi on their matching x86-64 hosts; other hosted execution remains open. |

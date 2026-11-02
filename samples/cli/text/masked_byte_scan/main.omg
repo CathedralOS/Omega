@@ -2,7 +2,7 @@
 // Parse hex byte pairs with per-nibble wildcards, then scan overlapping starts.
 use omega::language::core::option;
 
-data Nibble [copy] where value < 16, mask < 16 { value: u8; mask: u8; }
+data Nibble [copy] requires value < 16, mask < 16 { value: u8; mask: u8; }
 data PatternByte [copy] { value: u8; mask: u8; }
 
 machine nibble(character: u8) -> Optional<Nibble> {

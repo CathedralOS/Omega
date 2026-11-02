@@ -3,7 +3,7 @@
 // write, not just construction/initialization -- assignment was the one write
 // position left unenforced (#63). x is [0..=100]; 9999 is outside it.
 use omega_language_std::console;
-data Main where x >= 0, x <= 100 { x: i32; }
+data Main requires x >= 0, x <= 100 { x: i32; }
 machine Main::main(main: &mut Main) {
     main.x = 9999;
     Console::exit_process(0);

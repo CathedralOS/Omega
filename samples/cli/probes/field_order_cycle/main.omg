@@ -14,7 +14,7 @@
 // Compile-checked only: no standard-library dependency, no
 // ProcessExit provider.
 
-data Pair where left <= right, { left: u64; right: u64; }
+data Pair requires left <= right, { left: u64; right: u64; }
 data Storage { pair: Pair; }
 
 machine Storage::walk(storage: &mut Storage, choose_left: bool) {

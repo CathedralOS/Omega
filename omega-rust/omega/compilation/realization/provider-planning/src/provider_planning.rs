@@ -40,14 +40,13 @@ pub use provenance_replay::{
     selected_requirement_checked_adapter,
 };
 
+pub(crate) use selection_provenance::SelectedProviderPlanWithProvenance;
 pub use selection_provenance::{
     ProviderSelectionProvenance, SelectedProviderReviewProvenance, selected_provider_plan_facts,
 };
-pub(crate) use selection_provenance::{
-    SelectedProviderPlanWithProvenance, selected_provider_plan_facts_with_independent_components,
-};
 pub use source_provider_selections::{
-    selected_checked_operator_body, selected_requirement_plan, selected_use_plan,
+    prepare_selected_build_time_provider_body, selected_checked_operator_body,
+    selected_requirement_plan, selected_use_plan,
 };
 pub(crate) use synchronous_cycles::validate_selected_synchronous_invocation_cycles;
 

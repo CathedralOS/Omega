@@ -92,11 +92,11 @@ setup are not additional public program stages.
 | Tokens → syntax trees | [tokens-to-syntax-trees](psi/compilation/pipeline/01_tokens-to-syntax-trees/src/lib.rs) |
 | Syntax → symbol-resolved trees | [syntax-trees-to-symbol-resolved-trees](psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/lib.rs) |
 | Resolved → typed trees | [symbol-resolved-trees-to-typed-trees](psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lib.rs) |
-| Typed → typed trees | [typed-trees-to-typed-trees](psi/compilation/pipeline/03b_typed-trees-to-typed-trees/README.md) |
-| Typed → checked trees | [typed-trees-to-checked-trees](psi/compilation/pipeline/04_typed-trees-to-checked-trees/README.md) |
-| Checked trees → lowered Psi | [checked-trees-to-lowered-psi](psi/compilation/pipeline/05_checked-trees-to-lowered-psi/README.md) |
-| Lowered Psi → lowered Psi | [lowered-psi-to-lowered-psi](psi/compilation/pipeline/06_lowered-psi-to-lowered-psi/src/lib.rs) |
-| Lowered Psi → Terminal Psi | [lowered-psi-to-terminal-psi](psi/compilation/pipeline/07_lowered-psi-to-terminal-psi/src/lib.rs) |
+| Typed → typed trees | [typed-trees-to-typed-trees](psi/compilation/pipeline/04_typed-trees-to-typed-trees/README.md) |
+| Typed → checked trees | [typed-trees-to-checked-trees](psi/compilation/pipeline/05_typed-trees-to-checked-trees/README.md) |
+| Checked trees → lowered Psi | [checked-trees-to-lowered-psi](psi/compilation/pipeline/06_checked-trees-to-lowered-psi/README.md) |
+| Lowered Psi → lowered Psi | [lowered-psi-to-lowered-psi](psi/compilation/pipeline/07_lowered-psi-to-lowered-psi/src/lib.rs) |
+| Lowered Psi → Terminal Psi | [lowered-psi-to-terminal-psi](psi/compilation/pipeline/08_lowered-psi-to-terminal-psi/src/lib.rs) |
 | Terminal Psi → abstract operations | [terminal-psi-to-abstract-operations](omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/README.md) |
 | Abstract → abstract operations | [abstract-operations-to-abstract-operations](omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/lib.rs) |
 | Abstract → target operations | [abstract-operations-to-target-operations](omega/compilation/pipeline/02_abstract-operations-to-target-operations/README.md) |
@@ -442,7 +442,22 @@ plan replacement.
 
 ### Destination
 
-One application Build coordinator chooses needed work and schedules it. Two
+The `omega` executable is a router. It parses a command, hands it to the one
+owner of that command, and turns the returned outcome into output and an exit
+status; it owns no compilation, execution, scheduling or package workflow. The
+owner calls the other owners it needs:
+
+| Command | Owner | Calls |
+| --- | --- | --- |
+| `omega <root.omg>` (build), `--check`, `inspect-terminal` | compiler | the interpreter engine, to execute Build programs |
+| `omega run` | interpreter runtime | the compiler, for the program it executes |
+| `omega install`, `update`, `audit` | package manager | the compiler, for review |
+
+The interpreter engine is a library beneath both the compiler and the
+interpreter runtime, so neither command owner depends on the other's entrance.
+Settled with the owner on 2026-11-01.
+
+The compiler's Build coordinator chooses needed work and schedules it. Two
 compiler drivers own representation-to-representation sequencing. The Terminal
 interpreter owns execution and suspended continuations. Package management owns
 source resolution, acquisition, review and lock decisions. Shared representations,
@@ -450,7 +465,7 @@ foundations, product reports and publication keep independent ownership.
 
 | Entrance | Responsibility |
 | --- | --- |
-| `omega/application/cli/src/main.rs` | Parse and dispatch; display outcomes |
+| `omega/application/cli/src/main.rs` | Parse, route to the command's owner, display outcomes |
 | `omega/application/build/src/build.rs` | Request admission, Build lifecycle, requested products, required tests and publication |
 | `omega/application/build/src/build_execution.rs` | Dependency jobs and Build activation readiness; mandatory final join |
 | `omega/application/build/src/source_compilation.rs` | One-shot source consumers: prepare an opaque compiler invocation, execute Build, complete the requested products |
@@ -472,8 +487,8 @@ owner outside the language transformation stages.
 
 ### Public contracts
 
-Application coordination depends on package, compiler, interpreter and product
-facades, never compiler stages or source/intermediate IRs. Package management
+The router depends on the command owners' entrances, never compiler stages or
+source/intermediate IRs. Package management
 does not produce checked trees or native images. Psi does not acquire packages
 or permissions or invoke native compilation. Omega cannot depend on source IRs,
 source checkers or interpreters. Stages cannot call the coordinator or adjacent
@@ -1280,8 +1295,8 @@ checked-tree Build execution entrypoint.
 lowering, optimization and publication sequence, below the source facade so
 early jobs do not depend back on their source coordinator. Product consumers
 call this operation directly with their policy and reporting observer; there
-is no Omega production wrapper. Stage 05 owns input-ledger validation;
-stage 07 owns entry receipts and source-correspondence judgments. This shared
+is no Omega production wrapper. Stage 06 owns input-ledger validation;
+stage 08 owns entry receipts and source-correspondence judgments. This shared
 operation is neither another Psi stage nor a second complete compiler driver.
 Exact consumed-source and toolchain identities belong to the shared
 `psi/foundation/source/src/source_identity.rs` owner; package review and early

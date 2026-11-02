@@ -70,7 +70,7 @@ Applicable requirements:
   formation, public contract refinement, and normal-call completion remain
   obligations. Invocation-owned logical signatures do not become declaration
   evidence or provider-selection authority.
-- **Psi 05–07:** the checked inline member selection and scalar contract must
+- **Psi 06–08:** the checked inline member selection and scalar contract must
   reach target-neutral Terminal Psi and execute there.
 - **Omega 00–02:** ordinary `u64` layout and validated hosted entry/call plans
   realize the selected member. This row introduces no new ABI placement lane.

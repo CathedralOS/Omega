@@ -6,21 +6,21 @@
 use omega_language_std::console;
 
 data SignedBounded
-where
+requires
     value >= 0 && value <= 100,
 {
     value: i32;
 }
 
 data UnsignedBounded
-where
+requires
     value <= 100,
 {
     value: u32;
 }
 
 data SignedWhole
-where
+requires
     value >= -128 && value <= 127,
 {
     value: i8;

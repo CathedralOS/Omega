@@ -8,7 +8,7 @@ use omega_language_std::console;
 data Cell { value: u64 in Wrapping; }
 data Holder { cells: [Cell; 4]; }
 data Matrix { rows: [Holder; 2]; }
-data Cursor where row < 2 { row: u64; }
+data Cursor requires row < 2 { row: u64; }
 data Main { matrix: Matrix; cursor: Cursor; }
 
 machine Cursor::advance(cursor: &mut Cursor) -> u64

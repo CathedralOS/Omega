@@ -105,8 +105,8 @@ pub(crate) fn project_provenance(
     }
 }
 
-pub(crate) fn restore_provenance(
-    projected: SelectionProvenance<SymbolHandle, ProviderSelection>,
+pub(crate) fn restore_provenance<Declaration>(
+    projected: SelectionProvenance<Declaration, ProviderSelection>,
 ) -> crate::ProviderSelectionProvenance {
     match projected {
         SelectionProvenance::BuildOverride(declarations) => {

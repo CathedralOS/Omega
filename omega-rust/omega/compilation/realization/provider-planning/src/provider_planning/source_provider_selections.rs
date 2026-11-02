@@ -6,6 +6,39 @@ use crate::provider_planning::trait_name_text;
 use checked_trees::typed_trees::TypedTrees;
 use effects::provider_plan::{ProviderBinding, ProviderPlan};
 
+/// Retain one exact selected checked occurrence for shared semantic admission.
+/// Provider planning owns the whole-map choice; this does not select a body.
+pub fn prepare_selected_build_time_provider_body(
+    services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'_>,
+    target: target::TargetProfile,
+    plan: &ProviderPlan,
+    expression: checked_trees::typed_trees::expression::ExpressionHandle,
+    origin: checked_trees::CheckedValueOrigin,
+    requirement: symbols::SymbolHandle,
+) -> Result<Option<build_time_evaluation::SelectedBuildTimeProviderBody>, diagnostics::Diagnostic> {
+    let Some((provider, declaration)) =
+        crate::selected_requirement_checked_adapter(services, plan, requirement)?
+    else {
+        return Ok(None);
+    };
+    build_time_evaluation::SelectedBuildTimeProviderBody::prepare(
+        services.context().typed,
+        expression,
+        origin,
+        requirement,
+        provider,
+        plan.provider_type.clone(),
+        declaration,
+        plan.provider_type_package_identity,
+        target.target_name(),
+        checked_trees::CheckedProviderPlanCommitment::from_digest(
+            *plan.identity_digest().as_bytes(),
+        ),
+    )
+    .map(Some)
+    .map_err(diagnostics::Diagnostic::error)
+}
+
 /// The selected ProviderPlan serving one checked use of a boundary operator
 /// or receiver-free top-level requirement, with its index in `plans`.
 /// Checked uses carry no selection: each target joins its own selected plans

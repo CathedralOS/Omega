@@ -43,7 +43,7 @@ SparseBits satisfies FixedLayout<PackedFlags> {
 }
 }
 
-data PackedFlags where mode <= 7, code <= 15 { present: bool; mode: u8; code: u8; }
+data PackedFlags requires mode <= 7, code <= 15 { present: bool; mode: u8; code: u8; }
 data Main { packed: LayoutStorage<PackedFlags, SparseBits>; }
 
 machine Main::main(main: &mut Main) reaches Console {

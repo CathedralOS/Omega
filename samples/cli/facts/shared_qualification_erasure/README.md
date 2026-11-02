@@ -70,7 +70,7 @@ unchanged.
 4. Soundness: reject twins cannot substitute a different establishment route.
    Neighbor fixtures retain mutable invariants, exact indexed domains, field
    bounds and atomic observation authority. See [recasts](../../../../wiki/spec/layouts/recasts.md).
-5. Psi 05–07: checked descriptor formation and occurrence-owned qualification
+5. Psi 06–08: checked descriptor formation and occurrence-owned qualification
    survive lowering; Terminal execution reads the same authored value.
 6. Omega 00–02: the ordinary Build entry and reference/record layouts feed call
    and state plans. This row needs no foreign provider or resource grant.

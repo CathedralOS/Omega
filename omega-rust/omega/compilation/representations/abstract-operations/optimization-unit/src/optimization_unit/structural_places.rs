@@ -315,7 +315,7 @@ pub(crate) fn canonicalize_ordinary_path(
             | StructuralPathSegment::RuntimeIndex { .. }
             | StructuralPathSegment::RepresentationView { .. }
             | StructuralPathSegment::Referent
-            | StructuralPathSegment::FixedByteRange { .. } => return None,
+            | StructuralPathSegment::FixedRange { .. } => return None,
         }
     }
     Some(canonical)
@@ -736,7 +736,7 @@ pub(crate) fn descended_type(
         .shape;
     match segment {
         StructuralPathSegment::AllElements => None,
-        StructuralPathSegment::Case(_) | StructuralPathSegment::FixedByteRange { .. } => None,
+        StructuralPathSegment::Case(_) | StructuralPathSegment::FixedRange { .. } => None,
         StructuralPathSegment::RepresentationView {
             structural_type,
             stored_scalar,
@@ -1147,7 +1147,7 @@ impl<'a> Position<'a> {
                 StructuralPathSegment::Referent
                 | StructuralPathSegment::Case(_)
                 | StructuralPathSegment::RepresentationView { .. }
-                | StructuralPathSegment::FixedByteRange { .. } => None,
+                | StructuralPathSegment::FixedRange { .. } => None,
             },
             (
                 Self::Type(current),
@@ -1218,7 +1218,7 @@ pub fn proof_basis(
 /// re-lends it. A `StructuralLeafCopy` result crosses into its source with
 /// the copy's projection — canonical steps directly, ordinary field
 /// identities resolved to their roster handles — prefixed to the path
-/// still to resolve. `FixedIndex`, `RuntimeIndex`, `FixedByteRange`, and
+/// still to resolve. `FixedIndex`, `RuntimeIndex`, `FixedRange`, and
 /// `Referent` segments never cross a record or variant establishment: an
 /// `EstablishScalarArray` element is not a placed child. A zeroed
 /// establishment crosses every `Field`, `Case`, and index segment inside
@@ -1254,7 +1254,7 @@ pub fn established_case_at(
                 // `Field`, `Case`, and both index segments stay inside the
                 // zeroed storage — a `Case` step enters a payload namespace
                 // whose fields read the same zeroed bytes — while
-                // `Referent` and `FixedByteRange` leave it and never
+                // `Referent` and `FixedRange` leave it and never
                 // resolve under a zero-admissible shape anyway.
                 let mut position = Position::Type(declared?);
                 for step in &segments {

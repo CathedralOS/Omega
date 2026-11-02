@@ -3,7 +3,7 @@
 // then a fresh literal restores the member — custody moves out, the
 // record's slot re-admits a new value.
 data Band
-where
+requires
     a >= 1,
     b >= a,
     b <= 9,

@@ -6,6 +6,6 @@ machine observe(subject: &mut Subject) reaches PortIo {
     subject.byte = 32;
     asm { out subject.port, subject.byte }
     subject.port = 33;
-    asm where ensures port_written(subject.port, subject.byte) { nop }
+    asm ensures port_written(subject.port, subject.byte) { nop }
 }
 machine main() {}

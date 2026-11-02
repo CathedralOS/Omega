@@ -4,7 +4,7 @@ use omega_language_std::console;
 domain [u8]::Utf8 requires valid_utf8(self);
 // The owner names storage and live length explicitly. Its accessor validates
 // the actual prefix; snapshots copy both fields and retain their own storage.
-data TextBuffer [copy] where used <= 8 { storage: [u8; 8] in Utf8; used: u64; }
+data TextBuffer [copy] requires used <= 8 { storage: [u8; 8] in Utf8; used: u64; }
 machine TextBuffer::view(buffer: &TextBuffer) -> &[u8] in Utf8 crashes Trap {
     let bytes: &[u8] = &buffer.storage[..buffer.used];
     transition valid_utf8(bytes) {

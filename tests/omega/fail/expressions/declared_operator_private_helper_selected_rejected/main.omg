@@ -1,0 +1,16 @@
+// The consumer selects the package-private helper behind a public token-bound body.
+// A public body may delegate to private helpers, but a declaration path is not a grant
+// to select them. The positive twin reaches the sum through the operator instead.
+module reader;
+use lib::ops;
+
+machine main() crashes Trap {
+    let left: lib::ops::Wrapped = lib::ops::Wrapped { value: 250 };
+    let widened: u64 = lib::ops::widen(left.value);
+    transition widened == 250 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

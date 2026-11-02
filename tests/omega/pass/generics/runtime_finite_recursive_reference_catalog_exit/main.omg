@@ -5,7 +5,7 @@ data Cell { value: i32; }
 data Wrapper<Payload> { payload: Payload; }
 data Deep<'storage> { wrapped: Wrapper<Wrapper<&'storage Cell>>; }
 data Chain<'next, Element, const Capacity: u64>
-where Capacity > 0,
+requires Capacity > 0,
 {
     value: Element;
     next: [&'next Chain<'next, [Element; 2], Capacity>; 0];

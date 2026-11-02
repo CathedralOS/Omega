@@ -1,6 +1,6 @@
 // A generic constructor's selected field establishes its standing bound before semantic extent evaluation.
 // Expected exit: 0
-data Bounded<Element> where value <= 20 { value: u64; payload: Element; }
+data Bounded<Element> requires value <= 20 { value: u64; payload: Element; }
 machine supply() -> u64 { 10 }
 machine build<Element>(payload: Element) -> Bounded<Element> {
     Bounded { value: 21, payload: payload }

@@ -542,8 +542,9 @@ pub enum CheckedUnitStructuralPathSegment {
     Field(CheckedMemberIdentity),
     Case(CheckedMemberIdentity),
     FixedIndex(u64),
-    /// Terminal, call-scoped window over initialized fixed byte-array backing.
-    FixedByteRange {
+    /// A window in source collection element ordinals. Its backing declaration
+    /// and bounds remain explicit; it has no invented standalone array type.
+    FixedRange {
         start: u64,
         end: u64,
     },
@@ -586,7 +587,7 @@ impl Ord for CheckedUnitStructuralPathSegment {
                 Field(_) => 0,
                 Case(_) => 1,
                 FixedIndex(_) => 2,
-                FixedByteRange { .. } => 3,
+                FixedRange { .. } => 3,
                 RuntimeIndex(_) => 4,
                 Referent => 5,
                 ComputedIndex(_) => 6,
@@ -598,11 +599,11 @@ impl Ord for CheckedUnitStructuralPathSegment {
             (Field(left), Field(right)) | (Case(left), Case(right)) => left.cmp(right),
             (FixedIndex(left), FixedIndex(right)) => left.cmp(right),
             (
-                FixedByteRange {
+                FixedRange {
                     start: left_start,
                     end: left_end,
                 },
-                FixedByteRange {
+                FixedRange {
                     start: right_start,
                     end: right_end,
                 },

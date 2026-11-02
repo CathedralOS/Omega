@@ -1,4 +1,4 @@
-data Countdown where remaining <= 5 { remaining: u64; }
+data Countdown requires remaining <= 5 { remaining: u64; }
 measure Countdown::Remaining(countdown: Countdown) -> u64 { countdown.remaining }
 
 machine identity(value: Countdown) -> Countdown

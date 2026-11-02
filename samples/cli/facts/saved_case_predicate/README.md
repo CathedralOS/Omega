@@ -52,7 +52,7 @@ The requirement evidence is bounded to this operation:
   through fields, arguments, results, joins, constants, lexical scope and targets.
 - Soundness boundaries: no caller equality guard re-establishes the fact;
   every stale replacement rejects without granting access or changing loans.
-- Psi 05–07: actual Terminal execution exercises case dispatch, payload access,
+- Psi 06–08: actual Terminal execution exercises case dispatch, payload access,
   reference arguments and call effects. This row adds no proof-only construct.
 - Omega 00–02: hosted Build bindings select the entry and realize case layout
   and reference/value call placements. This row does not cover stack-argument

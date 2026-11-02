@@ -9,7 +9,7 @@ data Bag {
     cells: [Cell; 4];
 }
 
-data Main where at <= 3 {
+data Main requires at <= 3 {
     bag: Bag;
     at: u64;
 }

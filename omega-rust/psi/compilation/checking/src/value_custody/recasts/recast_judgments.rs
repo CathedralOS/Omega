@@ -57,12 +57,7 @@ pub(crate) fn judge_scalar_recast(
         return;
     };
     let source = strip_mutable(program, cast.value);
-    let source_type = crate::value_custody::places::declared_place_type_raw(
-        program,
-        machine,
-        Some(state),
-        source,
-    );
+    let source_type = super::source_regions::source_layout_root(program, machine, state, source);
     let roots = source_type
         .into_iter()
         .chain([cast.target_type, let_referee]);
@@ -410,9 +405,20 @@ fn judge_scalar_recast_alternative(
             if let ByteRegionFootprint::Contained = interior {
                 return;
             }
-            if let Some(source_type) = source_type
-                && let Some(source_representation) =
-                    type_representation(program, representation_carrier(source_type))
+            let source_representation = if qualification_compatible == Some(true) {
+                source_type
+                    .and_then(|source| type_representation(program, representation_carrier(source)))
+                    .ok_or("recast source has no fixed qualification carrier")
+            } else {
+                super::source_regions::source_representation(program, machine, state, source)
+            };
+            let source_representation = match source_representation {
+                Ok(representation) => representation,
+                Err(reason) => {
+                    diagnostics.push(recast_refusal(source_span, format!("{context}: {reason}")));
+                    return;
+                }
+            };
             {
                 let compatible = if writable_view {
                     mutable_record_representations_equivalent(

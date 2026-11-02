@@ -81,6 +81,22 @@ write-only references, and aggregate re-view windows without an exact runtime
 storage endpoint. This row establishes ordinary Pair backing through direct
 and forwarded references.
 
+## Packed-array backing control
+
+`controls/packed_array` exercises this same aggregate-address obligation on a
+packed fixed array, the backing used by **BUMP-ALLOCATOR-CANARY**. It compares
+direct and forwarded addresses, checks a second live array has a different
+address, and verifies that a later write preserves the first address and its
+neighbor. The invalid twin removes only the original query's reference.
+This is another storage representation in this row, not another fact family.
+
+Before the repair, native execution exited 0 while Terminal Psi rejected the
+whole-array query with `VerifiedOperationMalformed`. Collection projections
+now retain their activation home and re-view window together, so address
+exposure uses the same original home as element access without copying backing.
+This control does not establish allocator reset or Vec growth: those remain
+under BUMP-ALLOCATOR-CANARY.
+
 ## Build-owned target-body migration
 
 The `target_body` place and its twin carry no source target prefix.

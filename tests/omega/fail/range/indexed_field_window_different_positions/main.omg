@@ -1,4 +1,4 @@
-data Cell where left == right { left: i32; right: i32; }
+data Cell requires left == right { left: i32; right: i32; }
 data Grid { cells: [Cell; 2]; selected: u64; }
 
 // The wildcard valuation cannot pretend both stores selected the same cell.

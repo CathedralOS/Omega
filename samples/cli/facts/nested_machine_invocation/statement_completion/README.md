@@ -54,7 +54,7 @@ and [proof contracts](../../../../../wiki/spec/proofs/contracts.md).
 | Identity and lifetime | Explicit argument snapshots survive the Unit call; overwritten-storage and private-contract controls reject. No new borrowing or cleanup authority is introduced. |
 | Composition | Nested/ordinary invocations retain all normal arms, explicit actuals and their own contracts. The theorem control separately requires its exact premises. |
 | Soundness boundaries | Runtime calls preserve effects and only eligible tag facts enter citation intake; erased theorem equations retain classification, formation and induction checks. |
-| Psi 05–07 | `run --both` compares Console effects and the authored exit through Terminal Psi and native execution. Proof-only theorem values remain erased. |
+| Psi 06–08 | `run --both` compares Console effects and the authored exit through Terminal Psi and native execution. Proof-only theorem values remain erased. |
 | Omega 00–02 | Build selects the named hosted implementation, entry contract and Console provider; ordinary scalar call/return placements carry the same values. No new layout or ABI lane is claimed. |
 | Omega 03–06 | Distinct returned values and observable ordered calls exercise live values across calls and activation storage on macOS ARM64. No new stack bound or ISA operation is claimed. |
 | Omega 07–09 | The emitted macOS image must print the same bytes and agree with Terminal execution. Windows/Linux native execution remains unverified on this host. |

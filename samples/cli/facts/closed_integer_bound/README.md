@@ -40,7 +40,7 @@ only; foreign native hosts are not claimed.
 - Soundness: the source false twin rejects; kernel regressions retain the exact
   fixed-law closure and reject missing numeral definitions, changed operands,
   and false comparisons. Fixed arithmetic laws remain explicit assumptions.
-- Psi 05–07: the checked domain permits exact subtraction; proofs are erased
+- Psi 06–08: the checked domain permits exact subtraction; proofs are erased
   and Terminal interpretation executes the authored scalar consumer.
 - Omega 00–02: ordinary hosted entry binding, scalar layouts, field placement,
   and call/state argument plans carry the value.

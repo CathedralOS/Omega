@@ -18,7 +18,7 @@
 // ProcessExit provider.
 
 data Main
-where
+requires
     byte >= 0 && byte <= 1,
 {
     flag: bool;

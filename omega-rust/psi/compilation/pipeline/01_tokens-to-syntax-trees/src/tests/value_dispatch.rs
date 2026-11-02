@@ -1,5 +1,5 @@
-use crate::expressions::parse_expression::parse_expression_handle;
-use crate::input::token_cursor::Input;
+use crate::grammar::expressions::parse_expression::parse_expression_handle;
+use crate::tokens::token_cursor::Input;
 use source::SourceId;
 use source_files_to_tokens::Lexer;
 use syntax_trees::expression::{ExpressionNode, MatchPattern};

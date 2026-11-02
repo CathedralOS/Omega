@@ -1,7 +1,7 @@
 // A fixed byte view formed from a record field is a descriptor carrier,
 // not an ordinary Reference-shaped carrier. Its local must retain backing.
 data Storage { prefix: u64; bytes: [u8; 65536]; numbers: [u32; 17]; suffix: u64; }
-data Countdown where remaining <= 5 { remaining: u64; }
+data Countdown requires remaining <= 5 { remaining: u64; }
 measure Countdown::Remaining(countdown: Countdown) -> u64 { countdown.remaining }
 
 machine identity(value: Countdown) -> Countdown

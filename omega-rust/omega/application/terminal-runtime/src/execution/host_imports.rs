@@ -67,6 +67,20 @@ use terminal_psi::{BoundaryCompletion, BoundaryMachineResult};
 
 use super::TerminalRuntimeError;
 
+/// Native lowering records realizations for both host calls and operations
+/// executed by Psi itself. Accessor RAM eligibility remains an entry-relative
+/// analysis obligation; selecting a host adapter must not preempt that check.
+pub(super) fn executes_internally(
+    program: &TerminalProgram,
+    provision: &native_artifact::TerminalRuntimeHostProvision,
+) -> bool {
+    program.is_compiler_primitive(provision.boundary)
+        || matches!(
+            provision.realization,
+            BoundarySettlementRealization::Builtin(BoundaryRealization::AccessorScalarAccess(_))
+        )
+}
+
 #[derive(Clone, Copy)]
 enum OutputKind {
     Line,
@@ -441,7 +455,14 @@ pub(super) fn bind<'host>(
                         "foreign host binding does not match its admitted requirement row",
                     ));
                 }
-                let filesystem = context.filesystem.admit(program, declaration, binding)?;
+                let filesystem = context.filesystem.admit(
+                    program,
+                    declaration,
+                    binding,
+                    provisions
+                        .map(|provisions| provisions.borrowed_storage_layouts())
+                        .unwrap_or(&[]),
+                )?;
                 if filesystem.as_ref().is_some_and(|call| call.descriptor_io()) {
                     let adapter = native_provider::NativeImport::admit(
                         program,

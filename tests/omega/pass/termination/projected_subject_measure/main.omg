@@ -4,7 +4,7 @@
 // The flat self call descends directly; the two-state form transports
 // the same coordinate and the pinned ceiling — the extra requires
 // `countdown.remaining * 2 <= limit` bounds the produced rank.
-data Countdown where 0 <= remaining, remaining <= 5 { remaining: u64; }
+data Countdown requires 0 <= remaining, remaining <= 5 { remaining: u64; }
 measure Countdown::Doubled(value: u64) -> u64
 { value * 2 }
 machine walk_flat(countdown: Countdown) -> u64

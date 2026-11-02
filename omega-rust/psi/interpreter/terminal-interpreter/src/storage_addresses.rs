@@ -126,7 +126,7 @@ impl TerminalExecution<'_> {
     /// cell through the same authority and re-view owners as scalar reads,
     /// without reading contents or inventing a separate field allocation.
     fn storage_address_endpoint(
-        &self,
+        &mut self,
         source: &StructuralArgument,
         scalar_type: Option<ScalarType>,
     ) -> Result<PrimitiveStorageEndpoint, TerminalInterpretError> {
@@ -134,12 +134,9 @@ impl TerminalExecution<'_> {
             // Aggregate references retain the original runtime occurrence and
             // subplace, including when the descriptor crossed a call frame.
             // Resolving that custody observes no fields and allocates no copy.
-            let (carrier, view) = self.resolve_live_view_projection(
-                source.place,
-                &source.path,
-                terminal_psi::StructuralAccess::SharedBorrow,
-            )?;
-            if let Some(crate::reference::AggregateViewTip::Aggregate { view, backing }) = view
+            let selected = self.element_collection_storage(source)?;
+            if let Some(crate::reference::AggregateViewTip::Aggregate { view, backing }) =
+                selected.view
                 && (view.byte_offset != 0
                     || reference_storage_size(self.structural_types().values(), backing)
                         != Some(view.byte_length))
@@ -150,9 +147,23 @@ impl TerminalExecution<'_> {
                         .into(),
                 });
             }
-            return Ok(PrimitiveStorageEndpoint::Scalar(
-                StructuralRuntimePlace::from(&carrier),
-            ));
+            let place = match selected.home {
+                Some(home) => {
+                    // The same captured home serves whole-array and element
+                    // exposure. A forwarded loan names its owner's allocation,
+                    // never the callee's descriptor or a new structural copy.
+                    self.owned_array_home(&home.storage)?;
+                    let (depth, place, _) = home.storage.scalar_array_frame();
+                    StructuralRuntimePlace {
+                        opaque_identity: self.array_storage_identity(depth, place)?,
+                        path: home.path,
+                    }
+                }
+                None => StructuralRuntimePlace::from(
+                    selected.collection.as_ref().ok_or_else(malformed)?,
+                ),
+            };
+            return Ok(PrimitiveStorageEndpoint::Scalar(place));
         };
         if let Some((prefix, field_path)) = scalar_field_projection(&source.path) {
             let (carrier, view) = self.resolve_live_view_projection(

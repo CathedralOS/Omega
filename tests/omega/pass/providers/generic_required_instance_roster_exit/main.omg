@@ -1,0 +1,22 @@
+// Expected exit: 0.
+// One selected generic requirement retains every closed source obligation,
+// including the Count=12 tuple in an ordinary machine that main never calls.
+boundary trait Forward {
+    machine identity<const Count: u64>(value: u64) -> u64 reaches;
+}
+Identity satisfies Forward {
+    machine identity<const Count: u64>(value: u64) -> u64 { value }
+}
+
+machine uncalled() -> u64 reaches Forward { Forward::identity<12u64>(33) }
+
+machine main() reaches Forward crashes Trap {
+    let first: u64 = Forward::identity<4u64>(11);
+    let second: u64 = Forward::identity<8u64>(22);
+    transition first == 11 && second == 22 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

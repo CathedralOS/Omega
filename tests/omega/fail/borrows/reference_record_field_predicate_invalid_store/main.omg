@@ -1,4 +1,4 @@
-data Cell where value >= 0, value <= 100 { value: i32; }
+data Cell requires value >= 0, value <= 100 { value: i32; }
 
 machine corrupt(cell: &mut Cell) {
     cell.value = 101;

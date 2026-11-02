@@ -1,7 +1,7 @@
 # gated_literal_construct
 
 First sample with a multi-clause data gate discharged by a
-literal: `data Player where health >= 1, health <= 100` —
+literal: `data Player requires health >= 1, health <= 100` —
 `Player { health: 50 }` proves both at construction and the
 field reads open afterward (gated records can't be carrier
 fields: the entry context must be valid at zero).

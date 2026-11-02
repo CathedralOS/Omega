@@ -49,9 +49,9 @@ impl Eq for CallingProgram {}
 impl CallingProgram {
     pub(crate) fn require_owner(
         &self,
-        checked: &checked_trees::CheckedTrees,
+        source_owner: &std::sync::Weak<checked_trees::CheckedTrees>,
     ) -> Result<(), String> {
-        if std::ptr::eq(self.source_owner.as_ptr(), checked) {
+        if std::sync::Weak::ptr_eq(&self.source_owner, source_owner) {
             return Ok(());
         }
         Err("calling-policy code belongs to a different checked source owner".into())
@@ -63,6 +63,7 @@ impl CallingProgram {
         policy: terminal_psi::TargetMachineCallable,
         target: target::TargetProfile,
         declaration: semantic_vocabulary::CallingSignatureId,
+        providers: &[backend_plan::TerminalTargetProviderPlan],
     ) -> Result<(CanonicalCallingSignature, ValidatedBoundaryEntryPlan), String> {
         let entry = self
             .entries
@@ -125,6 +126,7 @@ impl CallingProgram {
                 entry: selected_entry,
                 account: &account,
             },
+            providers,
         )?;
         let (plan, _) = super::evaluate_terminal_calling_policy(TerminalCallingPolicyInvocation {
             artifact: &self.artifact,
@@ -132,6 +134,7 @@ impl CallingProgram {
             target,
             signature: &canonical.policy,
             account,
+            providers,
         })?;
         Ok((canonical, plan))
     }
@@ -152,7 +155,7 @@ impl CallingProgram {
                 "default calling application is outside the Product declaration census".into(),
             );
         }
-        self.materialize_storage(declaration, target, CallingStorageScope::Description)
+        self.materialize_storage(declaration, target, CallingStorageScope::Description, &[])
     }
 
     fn materialize_storage(
@@ -160,6 +163,7 @@ impl CallingProgram {
         declaration: &semantic_vocabulary::CallingAbiIdentity,
         target: target::TargetProfile,
         scope: CallingStorageScope<'_>,
+        providers: &[backend_plan::TerminalTargetProviderPlan],
     ) -> Result<CanonicalCallingSignature, String> {
         let demand = terminal_installation::CallingAbiStorageDemand::new(
             self.artifact.view(),
@@ -168,9 +172,12 @@ impl CallingProgram {
         )?;
         let mut extents = Vec::with_capacity(demand.applications().len());
         if !demand.applications().is_empty() {
-            let providers =
-                terminal_installation::admit_provider_installation(self.artifact.view(), &[], &[])
-                    .map_err(|error| format!("calling ABI scalar providers: {error:?}"))?;
+            let providers = backend_plan::TerminalTargetProviderSelection::from_plans(
+                providers.to_vec(),
+                self.artifact.view(),
+            )?
+            .admit(self.artifact.view(), target.target_name())
+            .map_err(|error| format!("calling ABI scalar providers: {error}"))?;
             let (request, mut meter) = match scope {
                 CallingStorageScope::Policy { entry, account } => {
                     let declaration = self

@@ -2,7 +2,7 @@
 // main.pair. A known sibling call writes only other, so the transported
 // right == 20 witness survives and proves that left = 15 restores left <= right.
 data Pair
-where
+requires
     left <= right,
 {
     left: i32;

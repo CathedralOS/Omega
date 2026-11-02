@@ -83,14 +83,17 @@ pub use facts::{
     BlockingFacts, CallServiceReachRows, CarryFacts, CheckFacts,
     CheckedAcceptedTemplateClassification, CheckedAcceptedTemplateIdentities,
     CheckedAcceptedTemplateIdentity, CheckedAccessViewInput, CheckedBoundaryAdapterDispatch,
-    CheckedCallbackResourceReceipt, CheckedCrashCallSite, CheckedCrashOperatorSite,
-    CheckedCrashSite, CheckedEntryResourceEnvelope, CheckedFactCallProjection,
-    CheckedMachineContractEnvelopeIdentity, CheckedMachineContractRefinement,
-    CheckedMachineResourceEnvelopes, CheckedMachineSpecializationIdentity,
-    CheckedNominalMachineUse, CheckedProofRankingRelation, CheckedProofRecursiveCallSite,
-    CheckedProofRecursiveComponent, CheckedProofRecursiveEdge, CheckedProofRecursiveMember,
-    CheckedProofRecursiveTransitionLane, CheckedProviderClosedRequirement,
-    CheckedProviderClosedRequirements, CheckedQuotientFormation, CheckedQuotientOperation,
+    CheckedCallableHeader, CheckedCallbackResourceReceipt, CheckedCrashCallSite,
+    CheckedCrashOperatorSite, CheckedCrashSite, CheckedEntryResourceEnvelope,
+    CheckedFactCallProjection, CheckedMachineContractEnvelopeIdentity,
+    CheckedMachineContractRefinement, CheckedMachineResourceEnvelopes,
+    CheckedMachineSpecializationIdentity, CheckedNominalMachineUse, CheckedProofRankingRelation,
+    CheckedProofRecursiveCallSite, CheckedProofRecursiveComponent, CheckedProofRecursiveEdge,
+    CheckedProofRecursiveMember, CheckedProofRecursiveTransitionLane,
+    CheckedProviderClosedRequirement, CheckedProviderClosedRequirements,
+    CheckedProviderInstanceDeclaration, CheckedProviderInstancePublication,
+    CheckedProviderInstanceRequirement, CheckedProviderReceivingApplication,
+    CheckedProviderReceivingDescription, CheckedQuotientFormation, CheckedQuotientOperation,
     CheckedRequirementCallMachineSelection, CheckedRequirementCallSpecialization,
     CheckedRequirementCallTypeBinding, CheckedResourceAxisAnchor,
     CheckedResourceDerivationObligation, CheckedRuntimeMembershipSubject,
@@ -208,7 +211,7 @@ impl CheckedTrees {
 
     /// The `u64` literal the selected target's fold landed at a retained
     /// constant's root (`CheckedScalarComputationKind::RetainedConstant`).
-    /// Stage 04 mints the row while the root is still a `size_of`/`align_of`
+    /// Stage 05 mints the row while the root is still a `size_of`/`align_of`
     /// query; execution settlement folds every such query into a literal in
     /// the one checked program before lowering runs. This is the checked
     /// product's view of that fold, not an authored expression: `None` means

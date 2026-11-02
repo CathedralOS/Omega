@@ -1,6 +1,6 @@
 // A bounded shift count shift < 4 on a Wrapping u32 value preserves in-width shift validity and recovers the original scalar across all nine places.
 // Place: field (invalid twin). Plain u32 record fields without in Wrapping do not prove an exact shift.
-data ShiftPayload where shift < 4 {
+data ShiftPayload requires shift < 4 {
     val: u32;
     shift: u32;
 }

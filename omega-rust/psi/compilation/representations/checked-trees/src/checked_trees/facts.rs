@@ -32,8 +32,9 @@ mod contract_plans;
 mod declaration_descriptions;
 mod proof_applications;
 pub use declaration_descriptions::{
-    CheckedDeclarationCapture, CheckedDeclarationDescription, CheckedDeclarationDescriptions,
-    CheckedDeclarationParameter, CheckedDeclarationSpecialization, CheckedMachineDescription,
+    CheckedCallableHeader, CheckedDeclarationCapture, CheckedDeclarationDescription,
+    CheckedDeclarationDescriptions, CheckedDeclarationParameter, CheckedDeclarationSpecialization,
+    CheckedMachineDescription,
 };
 pub use proof_applications::{
     ProofApplicationMachine, ProofApplicationPlan, ProofApplicationTargetMember, ProofApplications,
@@ -56,6 +57,7 @@ pub use quotient_operations::{CheckedQuotientFormation, CheckedQuotientOperation
 mod dynamic_conformances;
 mod nominal_machine_uses;
 mod provider_closed_requirements;
+mod provider_instance_publication;
 mod requirement_call_specializations;
 
 // Carry, domains and placement: carry policy, domain dependency and element
@@ -149,6 +151,11 @@ pub use nominal_machine_uses::{
 pub use placement::CheckedAccessViewInput;
 pub use provider_closed_requirements::{
     CheckedProviderClosedRequirement, CheckedProviderClosedRequirements,
+};
+pub use provider_instance_publication::{
+    CheckedProviderInstanceDeclaration, CheckedProviderInstancePublication,
+    CheckedProviderInstanceRequirement, CheckedProviderReceivingApplication,
+    CheckedProviderReceivingDescription,
 };
 pub use qualifications::{
     CheckedScalarReturnOrigin, CheckedScalarReturnQualification, CheckedValueQualification,

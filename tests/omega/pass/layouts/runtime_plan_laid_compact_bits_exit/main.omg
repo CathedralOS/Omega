@@ -59,7 +59,7 @@ CompactBits satisfies FixedLayout<PackedFlags> {
 }
 }
 
-data PackedFlags where mode <= 7, code <= 15 {
+data PackedFlags requires mode <= 7, code <= 15 {
     present: bool;
     mode: u8;
     code: u8;

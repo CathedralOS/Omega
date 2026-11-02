@@ -184,7 +184,6 @@ pub(crate) fn normalize(
         interface.target = None;
         interface.authored_target = None;
         interface.boundary = false;
-        interface.is_top_level_boundary_requirement = false;
         interface.satisfies = HandleSpan::empty();
         interface.contracts = HandleSpan::empty();
         interface.terminates_guarantee = false;

@@ -1,7 +1,7 @@
 use omega::language::core::assembly;
 data Main { value: u32; }
 machine Main::main(main: &mut Main) reaches MachineControl {
-    asm where clobbers x9, x15 { read_sctlr_el1 main.value; }
+    asm clobbers x9, x15 { read_sctlr_el1 main.value; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

@@ -36,22 +36,13 @@ fn close_nominal_declaration(
         })
 }
 
-/// Close declaration owners before family relationships, preserving diagnostic
-/// precedence. The caller retains failure until a native handoff demands it.
+/// Keep the producer's already closed declaration roster and prepare family
+/// relationships. The caller retains family refusal until native handoff.
 pub fn prepare_native_provider_sources(
     context: ProviderPlanningContext<'_>,
-    exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
     provenance: &[SelectedProviderReviewProvenance],
+    declarations: std::sync::Arc<[TerminalTargetProviderPlan]>,
 ) -> Result<NativeProviderSources, Vec<Diagnostic>> {
-    let mut declarations = Vec::with_capacity(provenance.len());
-    for retained in provenance {
-        declarations.push(close_provider_declarations(
-            context,
-            exact_toolchain_sources,
-            &retained.plan,
-            &retained.provider,
-        )?);
-    }
     let family_realizations = selected_family_realizations(context, provenance)?;
     Ok(NativeProviderSources {
         declarations,

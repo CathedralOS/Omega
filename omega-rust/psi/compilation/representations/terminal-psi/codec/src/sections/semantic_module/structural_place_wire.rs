@@ -114,7 +114,7 @@ fn encode_projection(writer: &mut Writer, segment: &StructuralPathSegment) {
             writer.u64(*index);
         }
         StructuralPathSegment::Referent => writer.u8(3),
-        StructuralPathSegment::FixedByteRange { start, end } => {
+        StructuralPathSegment::FixedRange { start, end } => {
             writer.u8(4);
             writer.u64(*start);
             writer.u64(*end);
@@ -285,7 +285,7 @@ fn decode_projection(
         ))),
         2 => Ok(StructuralPathSegment::FixedIndex(reader.u64()?)),
         3 => Ok(StructuralPathSegment::Referent),
-        4 => Ok(StructuralPathSegment::FixedByteRange {
+        4 => Ok(StructuralPathSegment::FixedRange {
             start: reader.u64()?,
             end: reader.u64()?,
         }),

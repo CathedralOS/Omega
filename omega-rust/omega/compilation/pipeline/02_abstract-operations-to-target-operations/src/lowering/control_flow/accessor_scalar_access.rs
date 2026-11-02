@@ -29,7 +29,7 @@ pub(super) fn lower(
         arguments,
         structural_arguments,
         result,
-        completion_claim_sources,
+        completion_claim_sources: _,
         completion_receipts,
     } = operation
     else {
@@ -49,11 +49,14 @@ pub(super) fn lower(
     if argument.access != demand.access
         || super::references::reference_source_type(function, live, types, argument)
             != Some(demand.accessor)
-        || !completion_claim_sources.is_empty()
         || !completion_receipts.is_empty()
     {
         return Err(invalid!());
     }
+    // Completion sources describe the caller's ingress custody, including a
+    // resident owner retained while lending this accessor. Only receipts move
+    // claims into this call; a scalar read/write must not consume any. An
+    // unrelated live owner is not a reason to refuse its borrowed field.
     // The accessor's authored storage starts at its transfer container. Keep
     // this actual reference, including captured projections and call results;
     // recovering a whole-view parent would select a historical source instead

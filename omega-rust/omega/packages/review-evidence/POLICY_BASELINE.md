@@ -74,7 +74,8 @@ admission claims retain their separate policy obligations. Recovery does not
 establish result provenance.
 Evaluated bindings retain their exact producer and physical locator or syscall
 meaning without evaluator accounting. Plain and evaluated syscalls remain
-distinct. Table bindings retain the exact attached data declaration. Grants
+distinct. Table bindings retain the exact data declaration their leaf's first parameter
+borrows. Grants
 and provider selection remain scoped to the activation target. Callable and
 external-supply rows separately retain target-independent or authored-target-member
 context through exact family-member handles, even when selection clears a

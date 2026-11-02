@@ -47,7 +47,7 @@ under the same module spelling. No host path or display name supplies identity.
 * Soundness: neither source ownership nor artifact identity grants dependency,
   visibility, package acceptance or execution authority. The consumer supplies
   explicit edges and independently checked ProgramEntry acceptance.
-* Psi 05–07: the standalone artifact and consumer artifacts retain owner-qualified
+* Psi 06–08: the standalone artifact and consumer artifacts retain owner-qualified
   declarations and carriers; canonical reload preserves their checked identities.
 * Omega 00–02: the host consumer uses normal provider/entry settlement and layouts.
 * Omega 03–06: ordinary aggregate value transport, calls and return slots carry

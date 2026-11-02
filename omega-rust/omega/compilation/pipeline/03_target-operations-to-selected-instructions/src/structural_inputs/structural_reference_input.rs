@@ -223,7 +223,17 @@ pub fn reference_formation_geometry<'types>(
     declarations: &'types [StructuralTypeDeclaration],
 ) -> Option<ReferenceSourceGeometry<std::borrow::Cow<'types, StructuralFieldType>>> {
     reference_geometry(root, path, declarations, |root, path| {
-        runtime_storage_projection(root, path, declarations)
+        if let Some((StructuralPathSegment::FixedRange { .. }, prefix)) = path.split_last() {
+            // The address belongs to the original array home. Region geometry
+            // supplies its start; custody still retains the complete range.
+            let (storage, _, elements) = runtime_storage_projection(root, prefix, declarations)?;
+            let region =
+                terminal_semantics::reference_storage_region(declarations.iter(), root, path)?;
+            region.array?;
+            Some((storage, u32::try_from(region.byte_offset).ok()?, elements))
+        } else {
+            runtime_storage_projection(root, path, declarations)
+        }
     })
 }
 
@@ -2392,7 +2402,7 @@ pub(crate) fn case_field_read(
             segment,
             StructuralPathSegment::RuntimeIndex { .. }
                 | StructuralPathSegment::Referent
-                | StructuralPathSegment::FixedByteRange { .. }
+                | StructuralPathSegment::FixedRange { .. }
         )
     }) {
         return None;

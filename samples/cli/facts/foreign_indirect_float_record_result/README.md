@@ -44,7 +44,7 @@ The row establishes the following requirements on the measured Mac host:
 - **Soundness boundaries:** removing copy permission rejects; exact normalized
   library/symbol/target, signature, field storage and application admission
   govern the host adapter, without inventing grants or reference authority.
-- **Psi 05–07:** checked multiplicity and calls lower to an unchanged typed
+- **Psi 06–08:** checked multiplicity and calls lower to an unchanged typed
   Terminal artifact whose aggregate publication owns ordinary fresh storage.
 - **Omega 00–02:** Build selects the actual CoreGraphics binding, exact f64
   layout and evaluated native indirect-return application.

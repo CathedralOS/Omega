@@ -1,4 +1,4 @@
-data Cursor where row < 2 { row: u64; }
+data Cursor requires row < 2 { row: u64; }
 
 machine later(cursor: &mut Cursor, result: u32) -> u32 {
     cursor.row = 0;

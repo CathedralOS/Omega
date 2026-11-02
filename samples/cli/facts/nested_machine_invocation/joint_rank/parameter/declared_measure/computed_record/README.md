@@ -58,7 +58,7 @@ identities, commands and engine observations are retained under
 - Soundness: type identity, arithmetic policy, selector/read authority,
   formation, call contracts and strict-cycle descent remain separate obligations.
   A record never receives an integer atom or pretend scalar carrier.
-- Psi 05–07: every formal-relative read and its exact actual coordinate survives
+- Psi 06–08: every formal-relative read and its exact actual coordinate survives
   checking and runtime retention. The existing scalar computation graph produces
   one integer rank; no record-rank tuple or alternate evaluator is introduced.
 - Omega 00–02: normal record layout and explicit call arguments preserve both

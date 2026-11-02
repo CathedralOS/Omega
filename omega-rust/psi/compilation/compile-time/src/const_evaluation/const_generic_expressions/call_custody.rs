@@ -128,6 +128,10 @@ fn expression_children(
         return Err("constant initializer contains a stale expression".into());
     }
     let mut children = Vec::new();
+    let authored = table.materialization_source(expression);
+    if authored.is_valid() {
+        children.push(authored);
+    }
     match table.expression(expression) {
         ExpressionNode::SavedSubject(_) => {}
         ExpressionNode::Call(call) => {

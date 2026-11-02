@@ -9,7 +9,7 @@ ensures result >= 100 && result <= 100
     dividend % divisor
 }
 
-data RemResult where remainder >= 100 && remainder <= 100 {
+data RemResult requires remainder >= 100 && remainder <= 100 {
     remainder: u64;
 }
 

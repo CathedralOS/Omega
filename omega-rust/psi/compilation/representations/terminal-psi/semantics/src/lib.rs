@@ -94,11 +94,11 @@ pub use reference_origins::{
     validate_dynamic_reference_regions,
 };
 pub use reference_storage_geometry::{
-    RecordStorageResolver, ReferenceRecordField, ReferenceRepeatedField, ReferenceScalarStorage,
-    ReferenceStorageGeometry, ReferenceStorageProjection, ReferenceStorageRegion,
-    StorageGeometryError, UnselectedRecordStorage, reference_scalar_storage,
-    reference_storage_dependencies, reference_storage_layout, reference_storage_projection,
-    reference_storage_region, reference_storage_size,
+    RecordStorageResolver, ReferenceArrayWindow, ReferenceRecordField, ReferenceRepeatedField,
+    ReferenceScalarStorage, ReferenceStorageGeometry, ReferenceStorageProjection,
+    ReferenceStorageRegion, StorageGeometryError, UnselectedRecordStorage,
+    reference_scalar_storage, reference_storage_dependencies, reference_storage_layout,
+    reference_storage_projection, reference_storage_region, reference_storage_size,
 };
 mod invocation_inputs;
 pub use invocation_inputs::validate_empty_erased_invocation_inputs;
@@ -154,13 +154,13 @@ pub use call_composition::{
     BorrowedReferentPresentation, CallArgumentRule, CallCompositionSchema,
     CallCompositionSemanticRow, CallCrashRule, CallEvidenceRule, CallFrontierRule, CallFuelPolicy,
     CallOutcomeRule, CallRequirementRule, CallResultRule, CallTargetRule, CallTransferRule,
-    FixedByteArrayWindow, borrowed_referent_matches, borrowed_referent_presentation,
+    FixedCollectionWindow, borrowed_referent_matches, borrowed_referent_presentation,
     boundary_buffer_capacity, bounded_byte_owner_capacity,
     bounded_byte_owner_capacity_from_catalogs, bounded_byte_owner_capacity_in,
     call_composition_semantic_row, exact_call_composition_semantic_row_in, fixed_byte_array_extent,
     fixed_byte_array_loan, fixed_byte_array_window, fixed_byte_extent, fixed_byte_storage_window,
-    fixed_element_array_extent, shared_boundary_buffer_capacity, stored_view_field_presentation,
-    validate_call_composition_semantic_rows,
+    fixed_collection_storage_window, fixed_element_array_extent, shared_boundary_buffer_capacity,
+    stored_view_field_presentation, validate_call_composition_semantic_rows,
 };
 pub use collection_backing::{
     CollectionBacking, CollectionExtent, CollectionStorage, CollectionViewDescriptor,
@@ -196,9 +196,10 @@ pub use reference_views::{
     reference_source_compatible, reference_source_projection_accessible,
     reference_source_projection_compatible, reference_source_storage_path,
     reference_storage_byte_width, reference_storage_export_byte_width,
-    reference_storage_source_compatible, reference_storage_view_is_compatible,
-    representation_view_declaration, scalar_reference_view_is_total, scalar_reference_view_value,
-    shared_descriptor_copy_matches, stored_reference_access,
+    reference_storage_region_source_compatible, reference_storage_source_compatible,
+    reference_storage_view_is_compatible, representation_view_declaration,
+    scalar_reference_view_is_total, scalar_reference_view_value, shared_descriptor_copy_matches,
+    stored_reference_access,
 };
 pub use scalar_array::{
     scalar_array_leaf_declaration, scalar_array_leaf_path, scalar_array_leaf_shape,

@@ -33,9 +33,9 @@ scalar types do not license inheriting default aggregate geometry.
 - Soundness: the three default-child twins and the selected-array twin reject
   instead of substituting native geometry. Scalar-array twins change only the
   receiving policy to an equal-geometry distinct implementation.
-- Psi 00–04: the policy receives compiler-derived `FieldLayoutSource`, alongside
+- Psi 00–05: the policy receives compiler-derived `FieldLayoutSource`, alongside
   unchanged `FieldKind`; returned plans still undergo complete validation.
-- Psi 05–07: Schema ABI 4 retains origin independently from geometry. Terminal
+- Psi 06–08: Schema ABI 4 retains origin independently from geometry. Terminal
   replay reconstructs it from exact child applications and selected target rows.
 - Omega 00–02: nested field size/stride follows the validated child plan. Scalar
   arrays and owned byte arrays have focused composition controls. No compiler

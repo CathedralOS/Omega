@@ -2,7 +2,7 @@
 // Place: call_result. A machine call returns the bounded reading directly into window verification.
 // Expected exit: 0
 
-data Reading [copy] where value >= 1.5 && value <= 2.5 {
+data Reading [copy] requires value >= 1.5 && value <= 2.5 {
     value: f64;
 }
 
