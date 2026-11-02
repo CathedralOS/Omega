@@ -500,10 +500,23 @@ pub(crate) fn exclusive_referent_field_requirements(
     };
     let mut referents = Vec::new();
     for parameter in program.state_parameters(state) {
-        if !exclusive_referent_type(program, parameter.type_reference).is_valid() {
+        let referee = exclusive_referent_type(program, parameter.type_reference);
+        if !referee.is_valid() {
             continue;
         }
-        referents.push(parameter.symbol);
+        // Entry facts also include additional root qualifications. Returning
+        // an exclusive referent restores its declaration-owned children, not
+        // every precondition the caller established on the incoming value.
+        let Some(carrier) = crate::semantic::facts::declared_field_domain_carrier(program, referee)
+        else {
+            continue;
+        };
+        let rows: Vec<_> = validation::field_domains::declared_type_domain_rows(program, carrier)
+            .into_iter()
+            .filter(|row| !row.transfer && !row.path.is_empty())
+            .map(|row| (row.path, row.domain_symbol, row.semantic_domain))
+            .collect();
+        referents.push((parameter.symbol, rows));
     }
     let mut requirements = Vec::new();
     if !referents.is_empty() {
@@ -521,10 +534,28 @@ pub(crate) fn exclusive_referent_field_requirements(
                             machine_symbol: origin_machine,
                             state_symbol: origin_state,
                         } if origin_machine == machine_symbol && origin_state == state_symbol
-                    ) && matches!(fact.payload, FactPayload::DomainMembership { .. })
-                        && matches!(fact.place, FactPlace::Place(place)
-                            if matches!(semantic.places.get(place).root, PlaceRoot::Symbol(root)
-                                if referents.contains(&root)))
+                    ) && match (fact.place, fact.payload) {
+                        (
+                            FactPlace::Place(place),
+                            FactPayload::DomainMembership {
+                                domain_symbol,
+                                semantic_domain,
+                                ..
+                            },
+                        ) => {
+                            let place = semantic.places.get(place);
+                            let path = semantic.place_segments.span_or_empty(place.segments);
+                            referents.iter().any(|(root, rows)| {
+                                place.root == PlaceRoot::Symbol(*root)
+                                    && rows.iter().any(|(declared, domain, identity)| {
+                                        path == declared
+                                            && domain_symbol == *domain
+                                            && semantic_domain == *identity
+                                    })
+                            })
+                        }
+                        _ => false,
+                    }
                 })
                 .cloned(),
         );
