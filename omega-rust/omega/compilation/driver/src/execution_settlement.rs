@@ -466,7 +466,7 @@ fn prepare_target_provider_selection(
         package_inputs,
         &build_config.provider_selections,
         deployment.roots.as_deref(),
-        &build_config.native_bindings,
+        &source.native_bindings,
         &build_config.assumed_bindings,
         &build_config.accepted_component_assumption_digests(),
         boundary_calling_plan_realizations,

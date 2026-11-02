@@ -386,7 +386,7 @@ pub fn settle_checked_providers(
     package_inputs: Option<&PackageCompilationInputs>,
     build_provider_selections: &[ProviderSelection],
     application_roots: Option<&[(String, SymbolHandle)]>,
-    native_supplies: &[crate::native_bindings::NativeBuildSupply],
+    native_bindings: &crate::native_bindings::PreparedNativeBuildBindings,
     assumed_bindings: &[build_time_evaluation::assumed_bindings::AssumedBindingContract],
     accepted_component_assumptions: &std::collections::BTreeSet<[u8; 32]>,
     boundary_calling_plan_realizations: Vec<BoundaryCallingPlanRealization>,
@@ -427,10 +427,8 @@ pub fn settle_checked_providers(
         )?);
     let mut derived_provider_plans = authored_providers.candidates().to_vec();
     let mut identities = evaluated_via_bindings.identities().clone().into_builder();
-    let native_build_plans = crate::native_bindings::derive(
-        services,
+    let native_build_plans = native_bindings.derive(
         &boundary_calling_plan_realizations,
-        native_supplies,
         planning_target,
         &mut identities,
     )?;
