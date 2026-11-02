@@ -10,8 +10,11 @@ after the complete filesystem/time workflow.
 
 The POSIX portable provider supplies macOS ARM64 and both Linux targets.
 Windows selects its portable provider over the retained Windows raw-family
-closure. Matching-host Windows and Linux evidence remains separate under
-**FILESYSTEM-PLATFORM-SERVICES**.
+closure. [Windows matching-host evidence](../../../../wiki/drafts/measurements/windows_note_vault_2026_11_02/README.md)
+qualifies the unchanged application at native exit 14 and Terminal exit 14,
+including ordinary package update/review/resume. Native executable and Terminal
+artifact identities remained unchanged while the receiving adapters were repaired.
+Remaining Linux and filesystem controls stay under **FILESYSTEM-PLATFORM-SERVICES**.
 
 On macOS ARM64, the CLI explicitly supplies the host filesystem namespace and
 live host clock to Terminal execution. `omega run --both` must observe exit 14
@@ -19,4 +22,4 @@ from both engines, including readback, bounded copying, directory enumeration
 and recursive removal. The clock reads the executing host; an embedding may
 instead explicitly supply a private snapshot. Filesystem supply is unprovided
 by default in other embeddings. This witness does not close the parent task's
-Windows/Linux acceptance or its occurrence-bound release proofs.
+remaining platform acceptance or its occurrence-bound release proofs.
