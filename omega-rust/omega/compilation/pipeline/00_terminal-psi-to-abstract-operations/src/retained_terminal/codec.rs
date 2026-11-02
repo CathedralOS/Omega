@@ -19,9 +19,10 @@ use entry::EntryRecord;
 use std::sync::Arc;
 use value::{RecordError, RecordLimits, RecordReader, RecordValue, RecordWriter, write_values};
 
-// Provider plans retain complete applications and exact numeric realization declarations.
+// Provider plans retain complete applications, exact numeric realizations and
+// checked table-field storage correspondence.
 // Reject older private records before reading their differently shaped payload.
-const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI10";
+const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI11";
 
 #[cfg(test)]
 mod tests {
@@ -29,7 +30,7 @@ mod tests {
 
     #[test]
     fn retired_entry_field_record_schema_is_rejected() {
-        for bytes in [b"OMGNTI01", b"OMGNTI09"] {
+        for bytes in [b"OMGNTI01", b"OMGNTI09", b"OMGNTI10"] {
             let mut input =
                 RecordReader::new(bytes, RecordLimits::default()).expect("bounded old schema");
             let Err(error) = DerivationInputs::read(&mut input) else {

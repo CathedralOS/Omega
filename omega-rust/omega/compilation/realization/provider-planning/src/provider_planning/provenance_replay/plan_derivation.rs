@@ -584,6 +584,13 @@ fn external_realization_row_binding(
         binding,
         &dispatch_table,
         &realization_machine_identity(typed, machine),
+        match binding {
+            language_semantics::ExternalBindingIdentity::VtableField { field }
+            | language_semantics::ExternalBindingIdentity::TableFunction { field } => {
+                crate::dispatch_tables::field_storage(typed, machine, field)
+            }
+            _ => Err("external binding does not read a table field".into()),
+        },
     )))
 }
 

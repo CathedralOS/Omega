@@ -111,9 +111,9 @@ pub(super) fn check<'program>(
     );
 }
 
-/// Produced descriptors can have no authored expression or source span. Keep their refusal
-/// locatable without pretending that zero identifies a source occurrence.
-fn refusal(
+/// Produced observations can have no authored expression or source span. Keep
+/// their refusal locatable without treating zero as a source occurrence.
+pub(super) fn refusal(
     program: &dyn CheckingInput,
     state: &FlowStateFact,
     statement: usize,
