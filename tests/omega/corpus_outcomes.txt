@@ -757,30 +757,30 @@ fail/facts/dynamic_trait_input_arithmetic_through_parameter_weakened_input rejec
 	cannot prove requires contract for call dyn WeightedCombine::combine from probe: a >= 60 && a <= 60 (needs fact `left >= 60 && left <= 60` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/dynamic_trait_input_arithmetic_through_target_body_weakened_input rejected 7602ms expected @297562733b94
 	cannot prove requires contract for call dyn WeightedCombine::combine from probe: a >= 60 && a <= 60 (needs fact `left >= 60 && left <= 60` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/fixed_layout_byte_roundtrip_through_call_result_missing_validation_rejected rejected 7847ms expected @dd84cfd469edbc75948bdf9a96c87bc9df140e10
+fail/facts/fixed_layout_byte_roundtrip_through_call_result_missing_validation_rejected rejected 7126ms expected @dcd2509c66fa4717e28a0b781c10f44fe6a3100d
 	construction of `Decoded` field `value`: unestablished recast target `Payload`; prove its predicate over current storage before consuming a valid value
-fail/facts/fixed_layout_byte_roundtrip_through_const_name_missing_validation_rejected rejected 6487ms expected @e1c62c271d9e30b5f3117cc5bc054777ea994d51
+fail/facts/fixed_layout_byte_roundtrip_through_const_name_missing_validation_rejected rejected 10706ms expected @dcd2509c66fa4717e28a0b781c10f44fe6a3100d
 	construction of `Decoded` field `value`: unestablished recast target `Payload`; prove its predicate over current storage before consuming a valid value
-fail/facts/fixed_layout_byte_roundtrip_through_field_missing_validation_rejected rejected 2572ms expected @cfcadebbcc854010a9a88c968ba0f699d969e793
+fail/facts/fixed_layout_byte_roundtrip_through_field_missing_validation_rejected rejected 9659ms expected @dcd2509c66fa4717e28a0b781c10f44fe6a3100d
 	construction of `Decoded` field `value`: unestablished recast target `Payload`; prove its predicate over current storage before consuming a valid value
-fail/facts/fixed_layout_byte_roundtrip_through_local_missing_validation_rejected rejected 1416ms expected @70ba9ee572b42c4d7f6ffe7d3051217e0906221c
+fail/facts/fixed_layout_byte_roundtrip_through_local_missing_validation_rejected rejected 7774ms expected @dcd2509c66fa4717e28a0b781c10f44fe6a3100d
 	construction of `Decoded` field `value`: unestablished recast target `Payload`; prove its predicate over current storage before consuming a valid value
-fail/facts/fixed_layout_byte_roundtrip_through_match_join_missing_validation_rejected rejected 8620ms expected @dd84cfd469edbc75948bdf9a96c87bc9df140e10
+fail/facts/fixed_layout_byte_roundtrip_through_match_join_missing_validation_rejected rejected 11337ms expected @dcd2509c66fa4717e28a0b781c10f44fe6a3100d
 	construction of `Decoded` field `value`: unestablished recast target `Payload`; prove its predicate over current storage before consuming a valid value
-fail/facts/fixed_layout_byte_roundtrip_through_other_machine_missing_validation_rejected rejected 4306ms expected @e1c62c271d9e30b5f3117cc5bc054777ea994d51
+fail/facts/fixed_layout_byte_roundtrip_through_other_machine_missing_validation_rejected rejected 7214ms expected @dcd2509c66fa4717e28a0b781c10f44fe6a3100d
 	construction of `Decoded` field `value`: unestablished recast target `Payload`; prove its predicate over current storage before consuming a valid value
-fail/facts/fixed_layout_byte_roundtrip_through_other_state_missing_validation_rejected rejected 9447ms expected @e1c62c271d9e30b5f3117cc5bc054777ea994d51
+fail/facts/fixed_layout_byte_roundtrip_through_other_state_missing_validation_rejected rejected 7953ms expected @dcd2509c66fa4717e28a0b781c10f44fe6a3100d
 	construction of `Decoded` field `value`: unestablished recast target `Payload`; prove its predicate over current storage before consuming a valid value
-fail/facts/fixed_layout_byte_roundtrip_through_parameter_missing_validation_rejected rejected 6122ms expected @dd84cfd469edbc75948bdf9a96c87bc9df140e10
+fail/facts/fixed_layout_byte_roundtrip_through_parameter_missing_validation_rejected rejected 7914ms expected @dcd2509c66fa4717e28a0b781c10f44fe6a3100d
 	construction of `Decoded` field `value`: unestablished recast target `Payload`; prove its predicate over current storage before consuming a valid value
-fail/facts/fixed_layout_byte_roundtrip_through_target_body_missing_validation_rejected rejected 6397ms expected @e1c62c271d9e30b5f3117cc5bc054777ea994d51
+fail/facts/fixed_layout_byte_roundtrip_through_target_body_missing_validation_rejected rejected 11805ms expected @dcd2509c66fa4717e28a0b781c10f44fe6a3100d
 	construction of `Decoded` field `value`: unestablished recast target `Payload`; prove its predicate over current storage before consuming a valid value
 	construction of `Decoded` field `value`: unestablished recast target `Payload`; prove its predicate over current storage before consuming a valid value
 fail/facts/fixed_region_byte_roundtrip_through_call_result_short_region_rejected rejected 9737ms expected @36cacd8d3083
 	machine `main` state `entry`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `[u8; 40]` are not representation-compatible
 fail/facts/fixed_region_byte_roundtrip_through_field_short_region_rejected rejected 9202ms expected @36cacd8d3083
 	machine `main` state `entry`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `[u8; 40]` are not representation-compatible
-fail/facts/fixed_region_byte_roundtrip_through_local_overlap_rejected rejected 4491ms expected @ee194ea71d07
+fail/facts/fixed_region_byte_roundtrip_through_local_overlap_rejected rejected 11901ms expected @dcd2509c66fa4717e28a0b781c10f44fe6a3100d
 	statement 4 mutates `destination[2]` while local borrow `output` is still active (borrowed at statement 3; its last use is at statement 5)
 fail/facts/fixed_region_byte_roundtrip_through_local_short_region_rejected rejected 763ms expected @70ba9ee572b42c4d7f6ffe7d3051217e0906221c
 	machine `main` state `entry`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `[u8; 40]` are not representation-compatible
@@ -7308,16 +7308,16 @@ pass/facts/fixed_layout_bit_observation_through_other_machine_exit checked 2956m
 pass/facts/fixed_layout_bit_observation_through_other_state_exit checked 2909ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
 pass/facts/fixed_layout_bit_observation_through_parameter_exit checked 2871ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
 pass/facts/fixed_layout_bit_observation_through_target_body_exit checked 3026ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
-pass/facts/fixed_layout_byte_roundtrip_rejected_payload_exit checked 4947ms check-target:macos_arm64 @70ba9ee572b42c4d7f6ffe7d3051217e0906221c
-pass/facts/fixed_layout_byte_roundtrip_through_call_result_exit checked 17667ms check-target:macos_arm64 @dd84cfd469edbc75948bdf9a96c87bc9df140e10
-pass/facts/fixed_layout_byte_roundtrip_through_const_name_exit checked 12998ms check-target:macos_arm64 @e1c62c271d9e30b5f3117cc5bc054777ea994d51
-pass/facts/fixed_layout_byte_roundtrip_through_field_exit checked 12683ms check-target:macos_arm64 @cfcadebbcc854010a9a88c968ba0f699d969e793
-pass/facts/fixed_layout_byte_roundtrip_through_local_exit checked 4946ms check-target:macos_arm64 @70ba9ee572b42c4d7f6ffe7d3051217e0906221c
-pass/facts/fixed_layout_byte_roundtrip_through_match_join_exit checked 21341ms check-target:macos_arm64 @dd84cfd469edbc75948bdf9a96c87bc9df140e10
-pass/facts/fixed_layout_byte_roundtrip_through_other_machine_exit checked 11868ms check-target:macos_arm64 @e1c62c271d9e30b5f3117cc5bc054777ea994d51
-pass/facts/fixed_layout_byte_roundtrip_through_other_state_exit checked 9663ms check-target:macos_arm64 @e1c62c271d9e30b5f3117cc5bc054777ea994d51
-pass/facts/fixed_layout_byte_roundtrip_through_parameter_exit checked 14513ms check-target:macos_arm64 @dd84cfd469edbc75948bdf9a96c87bc9df140e10
-pass/facts/fixed_layout_byte_roundtrip_through_target_body_exit checked 13126ms check-target:macos_arm64 @e1c62c271d9e30b5f3117cc5bc054777ea994d51
+pass/facts/fixed_layout_byte_roundtrip_rejected_payload_exit checked 18349ms check-target:macos_arm64 @dcd2509c66fa4717e28a0b781c10f44fe6a3100d
+pass/facts/fixed_layout_byte_roundtrip_through_call_result_exit checked 17876ms check-target:macos_arm64 @dcd2509c66fa4717e28a0b781c10f44fe6a3100d
+pass/facts/fixed_layout_byte_roundtrip_through_const_name_exit checked 21910ms check-target:macos_arm64 @dcd2509c66fa4717e28a0b781c10f44fe6a3100d
+pass/facts/fixed_layout_byte_roundtrip_through_field_exit checked 21470ms check-target:macos_arm64 @dcd2509c66fa4717e28a0b781c10f44fe6a3100d
+pass/facts/fixed_layout_byte_roundtrip_through_local_exit checked 18909ms check-target:macos_arm64 @dcd2509c66fa4717e28a0b781c10f44fe6a3100d
+pass/facts/fixed_layout_byte_roundtrip_through_match_join_exit checked 20788ms check-target:macos_arm64 @dcd2509c66fa4717e28a0b781c10f44fe6a3100d
+pass/facts/fixed_layout_byte_roundtrip_through_other_machine_exit checked 16930ms check-target:macos_arm64 @dcd2509c66fa4717e28a0b781c10f44fe6a3100d
+pass/facts/fixed_layout_byte_roundtrip_through_other_state_exit checked 17000ms check-target:macos_arm64 @dcd2509c66fa4717e28a0b781c10f44fe6a3100d
+pass/facts/fixed_layout_byte_roundtrip_through_parameter_exit checked 15989ms check-target:macos_arm64 @dcd2509c66fa4717e28a0b781c10f44fe6a3100d
+pass/facts/fixed_layout_byte_roundtrip_through_target_body_exit checked 25426ms check-target:macos_arm64 @dcd2509c66fa4717e28a0b781c10f44fe6a3100d
 pass/facts/fixed_layout_storage_through_call_result_exit checked 2891ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
 pass/facts/fixed_layout_storage_through_const_name_exit checked 3053ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
 pass/facts/fixed_layout_storage_through_field_exit checked 2977ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
@@ -7330,7 +7330,7 @@ pass/facts/fixed_layout_storage_through_target_body_exit checked 3009ms check-ta
 pass/facts/fixed_region_byte_roundtrip_through_call_result_exit checked 21807ms check-target:macos_arm64 @36cacd8d3083
 pass/facts/fixed_region_byte_roundtrip_through_field_exit checked 22231ms check-target:macos_arm64 @36cacd8d3083
 pass/facts/fixed_region_byte_roundtrip_through_local_exit checked 7520ms check-target:macos_arm64 @ee194ea71d07
-pass/facts/fixed_region_byte_roundtrip_through_parameter_exit checked 22073ms check-target:macos_arm64 @36cacd8d3083
+pass/facts/fixed_region_byte_roundtrip_through_parameter_exit checked 13672ms check-target:macos_arm64 @dcd2509c66fa4717e28a0b781c10f44fe6a3100d
 pass/facts/float_comparison_route_through_call_result_exit checked 6521ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/float_comparison_route_through_const_name_exit checked 7524ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/float_comparison_route_through_field_exit checked 5960ms check-target:macos_arm64 @ccdb99ca2214
@@ -16082,7 +16082,7 @@ fail/borrows/nested_reference_call_stale_index rejected 1879ms expected @ccdb99c
 	cannot prove index `external` is within length 2 in exercise::entry
 fail/borrows/nested_reference_live_source_write rejected 1664ms expected @ccdb99ca2214
 	statement 2 mutates `cell.value` while local borrow `message` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
-fail/borrows/nested_result_retains_operand_loan rejected 1968ms expected @ccdb99ca2214
+fail/borrows/nested_result_retains_operand_loan rejected 12297ms expected @dcd2509c66fa4717e28a0b781c10f44fe6a3100d
 	state `observe` receives `value` as mutable more than once
 fail/borrows/nested_retained_mutable_loan_shared_argument rejected 3700ms expected @ccdb99ca2214
 	state `observe_hold` receives `counter` as both mutable and read-only

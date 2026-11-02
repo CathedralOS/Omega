@@ -158,6 +158,8 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
                         build,
                         machine,
                         state,
+                        borrow_state,
+                        execution_order,
                         statement_index,
                         statement_fact,
                         transition,
