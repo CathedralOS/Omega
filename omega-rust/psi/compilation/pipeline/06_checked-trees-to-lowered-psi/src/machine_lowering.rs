@@ -453,6 +453,7 @@ fn lower_terminal_selection(
                 checked,
                 &source_machines,
                 &lowered.source_call_occurrences,
+                &lowered.state_blocks,
                 &mut lowered.semantic_module,
             )?;
             retain_float_meanings(identities, checked, &source_machine_ids, &mut lowered)?;

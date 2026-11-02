@@ -20,6 +20,7 @@ pub(crate) fn capture(
     module: &mut TerminalModule,
     boundaries: &[(SymbolHandle, BoundaryMachineId)],
     machines: &[(SymbolHandle, MachineId)],
+    proof_declarations: &[(SymbolHandle, terminal_psi::ProofDeclarationId)],
 ) -> Result<(), Diagnostic> {
     let services = inventory.services_for(checked)?;
     let signatures = services.signatures();
@@ -96,6 +97,26 @@ pub(crate) fn capture(
                         }
                         Ok(callable)
                     });
+                let policy_declaration =
+                    instance
+                        .policy
+                        .as_ref()
+                        .map_err(Clone::clone)
+                        .and_then(|source| {
+                            let mut matching = proof_declarations
+                                .iter()
+                                .filter(|(owner, _)| owner == source);
+                            let (_, declaration) = matching
+                                .next()
+                                .ok_or("calling policy has no exact checked declaration")?;
+                            if matching.next().is_some() {
+                                return Err(
+                                    "calling policy has competing checked declaration owners"
+                                        .into(),
+                                );
+                            }
+                            Ok(*declaration)
+                        });
                 let applications = (|| {
                     let mut applications = Vec::new();
                     for application in calling.signatures(instance) {
@@ -108,6 +129,7 @@ pub(crate) fn capture(
                 })();
                 instances.push(CallingPolicyInstance {
                     declaring_application: identities.intern(&outer),
+                    policy_declaration,
                     policy,
                     signatures: applications,
                 });

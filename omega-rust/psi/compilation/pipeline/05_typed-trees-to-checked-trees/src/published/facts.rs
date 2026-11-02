@@ -351,6 +351,7 @@ pub(crate) fn build_check_facts(
     prepared.flow.ownership.seal_indexes();
     prepared.flow.control.seal_indexes();
     let _post_flow_guard = phase_profile::guard("psi.05.build_check_facts.post_flow_facts");
+    crate::checks::publish_owned_transfer_paths(program, &mut prepared);
     crate::borrow::accesses::retain_completed_dispatch_extractions(program, &mut prepared);
     phase_profile::scope(
         "psi.05.build_check_facts.post_flow_facts.scalar_and_index_plans",

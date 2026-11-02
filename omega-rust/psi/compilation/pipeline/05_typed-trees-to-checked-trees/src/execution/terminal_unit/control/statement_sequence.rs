@@ -219,9 +219,9 @@ pub(in super::super) fn build(
     // expression of a value body, or the scalar-control terminator's own
     // statements. Those belong to the terminator and `completion`. A walk
     // that stops anywhere else would leave the authored statements after
-    // it unplanned, so the body has no route. A proven nonreturning expression
-    // stays in the prefix: it evaluates its call rather than supplying a value
-    // to the return owner, independently of the declared result carrier.
+    // it unplanned, so the body has no route. A retained value graph owns its
+    // complete evaluation, including a nonreturning call. Only an invocation
+    // with no retained value owner stays in the ordinary operation prefix.
     let sequenced = |index: usize, statement: &StatementNode| {
         let terminal_call = matches!(statement, StatementNode::Transition(_))
             && call_occurrences::terminal_invocation(program, machine, state, index).is_some();
@@ -248,23 +248,23 @@ pub(in super::super) fn build(
         };
         !completion_expression.is_some_and(|expression| {
             !is_unit(program, state.return_type)
-                && validation::expression_normal_completion_possible(program, expression)
-                    != Some(false)
-                && (!matches!(
+                && ((!matches!(
                     program.expression_table.expression(expression),
                     ExpressionNode::Call(_)
-                ) || u32::try_from(index).ok().is_some_and(|ordinal| {
-                    facts
-                        .values
-                        .scalar_computations
-                        .root_at(state.symbol, ordinal, CheckedScalarExpressionRole::Return)
-                        .is_some()
-                        || facts
+                ) && validation::expression_normal_completion_possible(program, expression)
+                    != Some(false))
+                    || u32::try_from(index).ok().is_some_and(|ordinal| {
+                        facts
                             .values
-                            .structural_values
-                            .root_for_expression(state.symbol, ordinal, expression)
+                            .scalar_computations
+                            .root_at(state.symbol, ordinal, CheckedScalarExpressionRole::Return)
                             .is_some()
-                }))
+                            || facts
+                                .values
+                                .structural_values
+                                .root_for_expression(state.symbol, ordinal, expression)
+                                .is_some()
+                    }))
         })
     };
     let execution_order = program

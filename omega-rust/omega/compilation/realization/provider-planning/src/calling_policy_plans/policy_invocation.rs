@@ -11,7 +11,35 @@ use terminal_codec::CanonicalTerminalArtifact;
 use terminal_fuel::TerminalFuelUsage;
 use terminal_psi::TargetMachineCallable;
 
-/// Explicit source-free inputs of a policy activation. The producer's checked
+/// One activation's complete pre-effect admission. Receiving admission
+/// (including whole-map synchronous cycles) precedes the compiler-evaluation
+/// floor. Neither record can be supplied from Source.
+pub type TerminalCallingPolicyAdmission = terminal_installation::AdmittedCompilerEvaluation;
+
+pub fn admit_terminal_calling_policy(
+    artifact: &CanonicalTerminalArtifact,
+    declaration: terminal_psi::ProofDeclarationId,
+    target: target::TargetProfile,
+    providers: &[backend_plan::TerminalTargetProviderPlan],
+    requester: semantic_vocabulary::compiler_evaluation::DeclarationCustody,
+    authority: Option<&dyn semantic_vocabulary::compiler_evaluation::DeclarationSelectionAuthority>,
+) -> Result<TerminalCallingPolicyAdmission, String> {
+    let providers = backend_plan::TerminalTargetProviderSelection::from_plans(
+        providers.to_vec(),
+        artifact.view(),
+    )?
+    .admit(artifact.view(), target.target_name())?;
+    terminal_installation::admit_compiler_evaluation(
+        artifact.view(),
+        target.target_name(),
+        declaration,
+        providers,
+        requester,
+        authority,
+    )
+}
+
+/// Explicit source-free inputs of a policy activation. The single-use canonical
 /// invocation admission precedes this request; neither entry selection nor
 /// successful interpretation grants provider, callback or native authority.
 pub struct TerminalCallingPolicyInvocation<'input> {
@@ -20,7 +48,7 @@ pub struct TerminalCallingPolicyInvocation<'input> {
     pub target: target::TargetProfile,
     pub signature: &'input CallingPolicySignature,
     pub account: EvaluationInvocationAccount,
-    pub providers: &'input [backend_plan::TerminalTargetProviderPlan],
+    pub admission: TerminalCallingPolicyAdmission,
 }
 
 /// Execute the selected callable on the supplied signature, decode its actual

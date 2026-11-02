@@ -20,6 +20,8 @@ pub struct CheckedCallableHeader {
     pub source_target: Option<String>,
     pub product_eligible: bool,
     pub supplies_checked_body: bool,
+    pub compiler_evaluation:
+        Result<semantic_vocabulary::compiler_evaluation::CompilerEvaluationDeclaration, String>,
     /// The checked realized calls, not the callable's public permission ceiling.
     pub synchronous_invocations: Result<HandleSpan<CheckedSynchronousBoundaryTarget>, String>,
 }
@@ -33,6 +35,7 @@ impl Default for CheckedCallableHeader {
             source_target: None,
             product_eligible: false,
             supplies_checked_body: false,
+            compiler_evaluation: Err("checked compiler-evaluation facts are absent".into()),
             synchronous_invocations: Err("checked synchronous invocation facts are absent".into()),
         }
     }
@@ -101,12 +104,72 @@ impl CheckedDeclarationDescription {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedDeclarationDescriptions {
+    pub selections: Arena<CheckedSelectionRequirement>,
+    pub evaluation_dependencies: CheckedCompilerEvaluationDependencies,
     pub headers: Arena<CheckedCallableHeader>,
     pub invocation_targets: Arena<CheckedSynchronousBoundaryTarget>,
     pub machines: Arena<CheckedDeclarationDescription>,
     pub parameters: Arena<CheckedDeclarationParameter>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+pub enum CheckedSelectionRequirement {
+    #[default]
+    Missing,
+    Selection {
+        occurrence: typed_trees::AuthoredDeclarationSelectionOccurrenceId,
+        source_span: source::SourceSpan,
+        excluded: bool,
+        request: Result<
+            Option<semantic_vocabulary::compiler_evaluation::DeclarationAuthorityRequest>,
+            String,
+        >,
+    },
+}
+
+impl CheckedSelectionRequirement {
+    pub fn occurrence_ordinal(&self) -> u64 {
+        match self {
+            Self::Missing => 0,
+            Self::Selection { occurrence, .. } => occurrence.ordinal(),
+        }
+    }
+}
+
+impl Default for CheckedDeclarationDescriptions {
+    fn default() -> Self {
+        Self {
+            selections: Arena::new(),
+            evaluation_dependencies: CheckedCompilerEvaluationDependencies::default(),
+            headers: Arena::new(),
+            invocation_targets: Arena::new(),
+            machines: Arena::new(),
+            parameters: Arena::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+pub struct CheckedCompilerEvaluationDependencies {
+    pub recursive_components: Arena<CheckedCompilerEvaluationComponent>,
+    pub recursive_members: Arena<super::CheckedRuntimeRankMember>,
+    pub recursive_calls: Arena<CheckedCompilerEvaluationCall>,
+    pub pending_conditions: Arena<SymbolHandle>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+pub struct CheckedCompilerEvaluationComponent {
+    pub members: HandleSpan<super::CheckedRuntimeRankMember>,
+    pub calls: HandleSpan<CheckedCompilerEvaluationCall>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+pub struct CheckedCompilerEvaluationCall {
+    pub caller: SymbolHandle,
+    pub call_ordinal: u32,
+    pub callee: SymbolHandle,
 }
 
 impl CheckedDeclarationDescriptions {

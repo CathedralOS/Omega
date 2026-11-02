@@ -130,6 +130,57 @@ pub(super) fn inspect(
     let loaded = CanonicalTerminalArtifact::from_bytes(&retained.artifact().to_bytes())
         .map_err(|error| format!("provider choice transport: {error:?}"))?;
     for artifact in [retained.artifact().view(), loaded.view()] {
+        let installation = original
+            .selection
+            .as_ref()
+            .map_err(|errors| format!("provider choice selection: {errors:?}"))?
+            .admit(artifact, target)?;
+        if !installation.assumed_bindings().is_empty() {
+            let scope = &artifact.module().scalar_applications.proof_scope;
+            let entry = scope
+                .callable_declaration(
+                    artifact
+                        .module()
+                        .entry
+                        .ok_or("assumed fixture has no runtime entry")?,
+                )
+                .ok_or("assumed runtime entry lost its checked declaration")?;
+            let refusal = terminal_installation::admit_compiler_evaluation(
+                artifact,
+                target,
+                entry,
+                installation.clone(),
+                semantic_vocabulary::compiler_evaluation::DeclarationCustody::Missing,
+                None,
+            )
+            .err()
+            .ok_or("runtime assumption authorized compiler evaluation")?;
+            if !refusal.contains("assumed binding contracts are runtime-only") {
+                return Err(format!(
+                    "assumed compiler-evaluation control reached another refusal: {refusal}"
+                ));
+            }
+            // Calling the independently checked supplier does not use the
+            // assumed relationship. Inert runtime rows grant and forbid nothing.
+            for binding in installation.assumed_bindings() {
+                let supplier = scope
+                    .callable_declaration(terminal_psi::TargetMachineCallable::Machine(
+                        binding.implementation,
+                    ))
+                    .ok_or("assumed supplier lost its checked declaration")?;
+                terminal_installation::admit_compiler_evaluation(
+                    artifact,
+                    target,
+                    supplier,
+                    installation.clone(),
+                    semantic_vocabulary::compiler_evaluation::DeclarationCustody::Missing,
+                    None,
+                )
+                .map_err(|reason| {
+                    format!("inert assumption blocked its independently checked supplier: {reason}")
+                })?;
+            }
+        }
         callback_bodies.inspect(artifact.module())?;
         let actual = publication
             .clone()

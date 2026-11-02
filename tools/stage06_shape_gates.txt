@@ -12,7 +12,7 @@
 17 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/emission/affine_cleanup/projected_transfers.rs
 33 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/emission/borrowed_window.rs
 2 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/emission/case_payload_dispatch.rs
-34 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/emission/claim_bindings.rs
+31 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/emission/claim_bindings.rs
 2 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/emission/claim_bindings/selections.rs
 12 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/emission/completed_place.rs
 1 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/emission/continuation_identities.rs
