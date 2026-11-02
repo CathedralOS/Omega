@@ -2164,6 +2164,70 @@ impl<'program> StructuralJudge<'program> {
             {
                 return None;
             }
+            // An owned join can retain the selected reference descriptor
+            // without observing its pointee. Rejoin that captured identity to
+            // one incoming declaration slot before reading its current value.
+            // Equal scalar contents cannot select an origin, and the complete
+            // origin roster above still owns invalidation and authority.
+            if let StructuralTerm::ObservedValue {
+                descriptor: Some(descriptor),
+                ..
+            } = actual
+            {
+                let mut selected = None;
+                for source in &subject.sources {
+                    if !source.recasts.is_empty() || source.representation.is_some() {
+                        continue;
+                    }
+                    let Some(parameter) = program.state_parameter_by_symbol(scope.1, source.root)
+                    else {
+                        continue;
+                    };
+                    let Some(reference) =
+                        crate::value_custody::places::project_type_reference_from_segments(
+                            program,
+                            parameter.type_reference,
+                            &source.segments,
+                        )
+                        .and_then(|reference| crate::reference_shell(program, reference))
+                    else {
+                        continue;
+                    };
+                    if !reference.access.is_readable()
+                        || !crate::declared_carriers_match(
+                            program,
+                            reference.referee,
+                            subject.type_reference,
+                        )
+                    {
+                        continue;
+                    }
+                    let expected =
+                        super::super::observed_projections::project_observed_value_in_scope(
+                            program,
+                            self,
+                            parameter.type_reference,
+                            StructuralTerm::Variable(parameter.name.to_string()),
+                            &source.segments,
+                        );
+                    if expected.as_ref() != Some(descriptor.as_ref()) {
+                        continue;
+                    }
+                    if selected.is_some() {
+                        return None;
+                    }
+                    selected = Some(crate::machine_calls::calls::InvocationEntrySubject {
+                        parameter: subject.parameter,
+                        argument: subject.argument,
+                        parameter_type: subject.parameter_type,
+                        sources: vec![source.clone()],
+                        type_reference: subject.type_reference,
+                    });
+                }
+                if let Some(selected) = selected {
+                    return self.reference_subject_term(&selected, actual, environment, scope);
+                }
+            }
             // Resolution may replace the outer carrier. Check authority on
             // both sides so an equation cannot launder a raw descriptor.
             if !super::super::structural_terms::scalar_operand_is_observed(

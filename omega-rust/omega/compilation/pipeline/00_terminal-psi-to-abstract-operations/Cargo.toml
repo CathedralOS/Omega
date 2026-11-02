@@ -37,7 +37,7 @@ terminal-installation = { path = "../../../../psi/compilation/checking/terminal-
 terminal-semantics = { path = "../../../../psi/compilation/representations/terminal-psi/semantics" }
 calling-conventions = { path = "../../backend/calling-conventions" }
 backend-plan = { path = "../../backend/plans/backend-plan" }
-effects = { path = "../../backend/plans/provider-evidence" }
+effects = { path = "../../backend/plans/effects" }
 program-entry-plan = { path = "../../backend/plans/program-entry-plan" }
 target = { path = "../../backend/target" }
 

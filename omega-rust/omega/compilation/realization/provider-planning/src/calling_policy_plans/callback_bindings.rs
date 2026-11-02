@@ -145,7 +145,7 @@ impl BoundaryCallingPlanRealization {
                     || !use_.carrier.is_valid()
                     || usize::from(use_.shape_root) >= self.materialized_signature.shapes.len()
                     || use_.representation_schema_version
-                        != representation_planning::OPAQUE_REPRESENTATION_APPLICATION_SCHEMA_VERSION
+                        != representation_selections::OPAQUE_REPRESENTATION_APPLICATION_SCHEMA_VERSION
                     || use_.selected_application_commitment
                         != use_.rederived_selected_application_commitment()
             })
@@ -258,7 +258,7 @@ pub(super) fn source_free_application(
                 conformance_application_commitment: use_.conformance_application_commitment,
                 representation_schema_version: use_.representation_schema_version,
                 checked_semantic_copy: matches!(use_.copy_disposition,
-                    representation_planning::OpaqueRepresentationCopyDisposition::CheckedSemanticCopy),
+                    representation_selections::OpaqueRepresentationCopyDisposition::CheckedSemanticCopy),
             }
         }).collect(),
         callback_context: policy.callbacks,

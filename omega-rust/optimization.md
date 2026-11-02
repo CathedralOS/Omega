@@ -30,7 +30,7 @@ optimizer dispatcher wraps the transform.
 The [Psi X-to-X entrance](psi/compilation/pipeline/07_lowered-psi-to-lowered-psi/src/lib.rs)
 consumes complete unsealed `LoweredPsi`, validates both sides, and returns the
 only optimization-stage result accepted by Terminal publication. Its
-[Psi-local catalog](psi/foundation/optimization-selections/src/optimization_selections/catalog.rs)
+[Psi-local catalog](psi/foundation/optimization/src/optimization_selections/catalog.rs)
 does not import native target vocabulary. Every catalog selection runs here —
 control-flow cleanup, sparse conditional constant propagation, copy
 propagation, global value numbering, dead pure scalar elimination, and
