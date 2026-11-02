@@ -164,19 +164,21 @@ fn pending_origins<'program>(
     state: &State,
     index: usize,
     expression: ExpressionHandle,
-) -> Option<Vec<PendingView<'program>>> {
+) -> Result<Vec<PendingView<'program>>, &'static str> {
     if !has_pending_formation(program, machine) {
-        return Some(Vec::new());
+        return Ok(Vec::new());
     }
     program
         .statement_table
         .statements(state.statement_nodes)
-        .get(index)?;
+        .get(index)
+        .ok_or("reference operand has no owning statement")?;
     // Capture this exact operand, including its selected match-arm bindings
     // and earlier sibling effects. A statement-prefix inventory omits those
     // bindings and cannot stand in for a completed reference descriptor.
-    let sources = crate::CallFrameResolver::new(program)?
-        .completed_reference_read_sources(machine, state, expression)?;
+    let sources = crate::CallFrameResolver::new(program)
+        .ok_or("reference interpretation resolver is unavailable")?
+        .completed_reference_interpretation_sources(machine, state, expression)?;
     let mut obligations = Vec::new();
     for recast in sources.iter().flat_map(|source| &source.recasts) {
         if pending_record_definition(program, recast.target_type).is_none() {
@@ -185,19 +187,23 @@ fn pending_origins<'program>(
         let formation = recast.formation.expression();
         // A missing or ambiguous issuer cannot turn a pending local into an
         // admitted value. Only an exact separately checked body is external.
-        let (owner_machine, owner_state) = formation_owner(program, formation)?;
+        let (owner_machine, owner_state) =
+            formation_owner(program, formation).ok_or("recast issuer has no unique body owner")?;
         if owner_machine.symbol != machine.symbol {
             continue;
         }
         // Origins retain the complete authored Borrow wrapper. Only the
         // syntax lookup peels it; issuer identity and access remain original.
         let operand = super::recast_judgments::strip_mutable(program, formation);
-        let cast = program.expression_table.cast_node(operand)?;
+        let cast = program
+            .expression_table
+            .cast_node(operand)
+            .ok_or("recast issuer has no cast operand")?;
         if let Some(obligation) = formation_obligation(program, machine, owner_state, cast) {
             obligations.push(obligation);
         }
     }
-    Some(obligations)
+    Ok(obligations)
 }
 
 /// A pending view never contributes its own default predicate as a standing
@@ -232,7 +238,7 @@ pub(crate) fn withholds_default_predicate(
         });
     index.is_some_and(|index| {
         pending_origins(program, machine, state, index, expression)
-            .is_none_or(|origins| !origins.is_empty())
+            .map_or(true, |origins| !origins.is_empty())
     })
 }
 
@@ -264,14 +270,15 @@ pub(crate) fn report_consumption(
     if pending_record_definition(program, actual).is_none() {
         return false;
     }
-    let Some(views) = pending_origins(program, machine, state, index, expression) else {
-        diagnostics.push(
-            Diagnostic::error(format!(
-                "{context}: unestablished recast target: current reference origins are unavailable"
-            ))
-            .with_source_span(program.expression_table.source_span(expression)),
-        );
-        return true;
+    let views = match pending_origins(program, machine, state, index, expression) {
+        Ok(views) => views,
+        Err(reason) => {
+            diagnostics.push(
+                Diagnostic::error(format!("{context}: unestablished recast target: {reason}"))
+                    .with_source_span(program.expression_table.source_span(expression)),
+            );
+            return true;
+        }
     };
     if views.is_empty() {
         return false;
@@ -338,9 +345,9 @@ pub(crate) fn report_whole_view_write(
     if pending_record_definition(program, reference).is_none() {
         return;
     }
-    if pending_origins(program, machine, state, index, target)
-        .is_none_or(|views| views.iter().any(|view| !view.fields_cover_source))
-    {
+    if pending_origins(program, machine, state, index, target).map_or(true, |views| {
+        views.iter().any(|view| !view.fields_cover_source)
+    }) {
         diagnostics.push(Diagnostic::error(
             "whole recast target replacement cannot establish initialized source padding for handback"
         ).with_source_span(program.expression_table.source_span(target)));

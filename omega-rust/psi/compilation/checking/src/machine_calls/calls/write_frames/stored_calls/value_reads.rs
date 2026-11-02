@@ -97,6 +97,36 @@ impl CompletedValueReads {
             .collect()
     }
 
+    /// Possible interpretation issuers of the completed descriptor. Unlike a
+    /// storage read, phase tracking must retain coarse coordinates and lifetime
+    /// suppliers too: either may carry an unestablished recast. This grants no
+    /// primitive address, value equality, read permission or reference validity.
+    pub(in crate::machine_calls::calls::write_frames) fn interpretation_sources(
+        &self,
+        program: &dyn crate::CheckingInput,
+    ) -> Result<Vec<frames::LocalWriteSource>, &'static str> {
+        let (boundary, sources) = self
+            .sources_at_boundary(program, &[])
+            .ok_or("completed reference has no complete descriptor suppliers")?;
+        if boundary != 0 || sources.is_empty() {
+            return Err("completed reference has no initial descriptor boundary");
+        }
+        sources
+            .into_iter()
+            .map(|source| {
+                let source: frames::LocalWriteSource = source.origin.into();
+                if !source.root.is_valid()
+                    && source.invocation_output.is_none()
+                    && !source.is_image_storage
+                    && source.recasts.is_empty()
+                {
+                    return Err("completed reference retains an unknown interpretation supplier");
+                }
+                Ok(source)
+            })
+            .collect()
+    }
+
     pub(in crate::machine_calls::calls::write_frames) fn read_backing(
         &self,
         program: &dyn crate::CheckingInput,
