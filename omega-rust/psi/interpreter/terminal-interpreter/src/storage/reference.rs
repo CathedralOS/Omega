@@ -108,6 +108,8 @@ pub(crate) struct ReferenceBacking {
 }
 
 mod aggregate_views;
+mod entry_returns;
+pub(crate) use entry_returns::EntryReferenceBackings;
 mod origin_backings;
 pub(crate) mod placed;
 pub(crate) use aggregate_views::{
@@ -2152,21 +2154,25 @@ impl TerminalExecution<'_> {
                 Ok(())
             };
         }
-        if self.call_stack.is_empty() {
-            return Err(TerminalInterpretError::UnsupportedSemanticVariant(
-                "host reference results require an explicit loan carrier interface",
-            ));
-        }
-        let Some(SuspendedCall {
-            result:
-                SuspendedCallResult::Structural {
-                    expected_reference_backings,
-                    ..
-                },
-            ..
-        }) = self.call_stack.last()
-        else {
-            return Err(malformed());
+        let expected_reference_backings = match self.call_stack.last() {
+            Some(SuspendedCall {
+                result:
+                    SuspendedCallResult::Structural {
+                        expected_reference_backings,
+                        ..
+                    },
+                ..
+            }) => expected_reference_backings,
+            Some(_) => return Err(malformed()),
+            None => {
+                &self
+                    .entry_reference_backings
+                    .as_ref()
+                    .ok_or(TerminalInterpretError::UnsupportedSemanticVariant(
+                        "host reference results require an explicit loan carrier interface",
+                    ))?
+                    .rows
+            }
         };
         if expected_reference_backings.len() != signature.reference_sources.len() {
             return Err(TerminalInterpretError::ContentTransformationMismatch(
