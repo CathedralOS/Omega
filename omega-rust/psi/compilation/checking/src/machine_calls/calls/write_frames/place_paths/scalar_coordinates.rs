@@ -56,36 +56,50 @@ impl LocalWriteSource {
         program: &dyn crate::CheckingInput,
         state: &State,
     ) -> Option<ScalarStorageCoordinate> {
+        self.scalar_storage_coordinate_result(program, state).ok()
+    }
+
+    /// A performed store must explain unavailable interpretation rather than
+    /// silently dropping its destination. Other precision queries may stay coarse.
+    pub(crate) fn scalar_storage_coordinate_result(
+        &self,
+        program: &dyn crate::CheckingInput,
+        state: &State,
+    ) -> Result<ScalarStorageCoordinate, &'static str> {
         if !self.root.is_valid() {
-            return None;
+            return Err("captured source has no declaration root");
         }
         let mut root = self.root;
         let (mut carrier, mut path) = match &self.representation {
             Some((carrier, path)) => (*carrier, path.clone()),
             None => (
-                source_root_type(program, state, root)?,
+                source_root_type(program, state, root)
+                    .ok_or("source root has no exact declaration type")?,
                 self.segments.clone(),
             ),
         };
-        let view_primitive = scalar_primitive(program, carrier, &path)?;
+        let view_primitive = scalar_primitive(program, carrier, &path)
+            .ok_or("logical view path has no declared scalar type")?;
         let mut preserves_scalar_value = true;
         let mut preserves_primitive_bits = true;
         for recast in self.recasts.iter().rev() {
             // A accessor is an operation capability, not an ordinary
             // scalar coordinate. Failed precision retains the backing footprint.
-            if crate::reference_formation_source(program, recast.formation.expression())?
+            if crate::reference_formation_source(program, recast.formation.expression())
+                .ok_or("retained recast has no complete authored formation")?
                 .interpretation
                 .is_access_view()
             {
-                return None;
+                return Err("access capability is not an ordinary scalar interpretation");
             }
             if carrier != recast.target_type {
-                return None;
+                return Err("logical carrier differs from the retained recast target");
             }
             let (previous_carrier, mut previous_path) = match &recast.representation {
                 Some((carrier, path)) => (*carrier, path.clone()),
                 None => (
-                    source_root_type(program, state, recast.root)?,
+                    source_root_type(program, state, recast.root)
+                        .ok_or("recast source root has no exact declaration type")?,
                     recast.segments.clone(),
                 ),
             };
@@ -95,12 +109,14 @@ impl LocalWriteSource {
             };
             let prefix_length = previous_path
                 .len()
-                .checked_sub(usize::from(range.is_some()))?;
+                .checked_sub(usize::from(range.is_some()))
+                .ok_or("recast source window has no prefix")?;
             let previous_type = crate::project_type_reference_from_segments(
                 program,
                 previous_carrier,
                 &previous_path[..prefix_length],
-            )?;
+            )
+            .ok_or("recast source prefix has no declared type")?;
             let translated = match range {
                 Some((start, end)) => {
                     crate::value_custody::recasts::recast_scalar_source_leaf_in_array_region(
@@ -118,7 +134,8 @@ impl LocalWriteSource {
                     carrier,
                     &path,
                 ),
-            }?;
+            }
+            .ok_or("logical scalar has no unique containing source cell")?;
             preserves_scalar_value &= translated.preserves_scalar_value;
             preserves_primitive_bits &= translated.preserves_primitive_bits;
             previous_path.truncate(prefix_length);
@@ -130,7 +147,8 @@ impl LocalWriteSource {
             carrier = previous_carrier;
             path = previous_path;
         }
-        let source_primitive = scalar_primitive(program, carrier, &path)?;
+        let source_primitive = scalar_primitive(program, carrier, &path)
+            .ok_or("translated source path has no declared scalar type")?;
         let coordinate = ScalarStorageCoordinate {
             place: CanonicalPlace {
                 root: PlaceRoot::Symbol(root),
@@ -143,7 +161,7 @@ impl LocalWriteSource {
         };
         // Presentation labels serve legacy bound/write consumers. Typed readers
         // keep case selectors and freeze runtime indices themselves.
-        Some(coordinate)
+        Ok(coordinate)
     }
 }
 

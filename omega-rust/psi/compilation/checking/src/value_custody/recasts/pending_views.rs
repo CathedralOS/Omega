@@ -167,7 +167,10 @@ fn pending_origins<'program>(
         if owner_machine.symbol != machine.symbol {
             continue;
         }
-        let cast = program.expression_table.cast_node(formation)?;
+        // Origins retain the complete authored Borrow wrapper. Only the
+        // syntax lookup peels it; issuer identity and access remain original.
+        let operand = super::recast_judgments::strip_mutable(program, formation);
+        let cast = program.expression_table.cast_node(operand)?;
         if let Some(obligation) = formation_obligation(program, machine, owner_state, cast) {
             obligations.push(obligation);
         }
