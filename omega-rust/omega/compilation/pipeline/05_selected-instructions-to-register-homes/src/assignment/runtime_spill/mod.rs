@@ -10,6 +10,7 @@ use crate::{
     FixedViewCopyPolicy, ValidatedFixedOccurrences, ValidatedRuntimeRematerialization,
     ValidatedRuntimeSpill, ValidatedRuntimeSplit,
 };
+use crate::{PreAllocationResult, SelectedLoweringResult};
 use crate::{ValidatedPostAllocationOptimizationManifest, ValidatedRegisterHomes};
 use optimization_core::{
     PreAllocationOptimizationCompletionIdentity, PrePhysicalOptimizationManifestIdentity,
@@ -30,9 +31,6 @@ use selected_instruction_analyses::{
     ValidatedLiveness,
 };
 use selected_instructions::SelectedInstructionPlan;
-use selected_instructions_to_selected_instructions::{
-    StagedPreAllocationOptimizationRun, StagedSelectedLoweringOptimizationRun,
-};
 
 /// A completed recovery: its source custody, the final step and the final
 /// facts, homes and manifest. Every recovery caller transfers it directly to
@@ -84,8 +82,8 @@ pub(crate) enum RuntimeSpillSource {
     },
     FixedViewCopies(StagedOptimizedSelectedReanalysis),
     ActiveResidentRematerialization(crate::StagedOptimizedActiveResidentRematerializationPressure),
-    SelectedLowering(StagedSelectedLoweringOptimizationRun),
-    PreAllocation(StagedPreAllocationOptimizationRun),
+    SelectedLowering(SelectedLoweringResult),
+    PreAllocation(PreAllocationResult),
 }
 
 /// The declared manifest base: the pre-physical root, completion identities
@@ -223,46 +221,23 @@ impl RuntimeSpillSource {
                 }
             }
             Self::SelectedLowering(run) => {
-                let upstream = run.custody();
-                let (base, liveness, ranges, legality) = match run.steps().last() {
-                    Some(step) => (
-                        SelectedProgramRef::new(step.fold()),
-                        step.liveness(),
-                        step.ranges(),
-                        step.legality(),
-                    ),
-                    None => {
-                        let source = run.source_legality_stage();
-                        (
-                            SelectedProgramRef::new(source.selected()),
-                            source.liveness(),
-                            source.ranges(),
-                            source.legality(),
-                        )
-                    }
-                };
+                let upstream = run.ledger();
                 ResolvedSpillSource {
                     legality_stage: run.source_legality_stage(),
-                    base,
-                    liveness,
-                    ranges,
-                    legality,
+                    base: run.current(),
+                    liveness: run.liveness(),
+                    ranges: run.ranges(),
+                    legality: run.legality(),
                     manifest: RuntimeSpillManifestBase {
                         pre_physical: upstream.source().manifest(),
                         selected_lowering_completion: Some(upstream.identity()),
                         pre_allocation_completion: None,
-                        prefix: upstream
-                            .iterations()
-                            .iter()
-                            .map(|iteration| {
-                                PostAllocationSelectedTransformation::LiteralFold(iteration.fold())
-                            })
-                            .collect(),
+                        prefix: upstream.transformations().to_vec(),
                     },
                 }
             }
             Self::PreAllocation(run) => {
-                let upstream = run.custody();
+                let upstream = run.ledger();
                 ResolvedSpillSource {
                     legality_stage: run.source_legality_stage(),
                     base: run.current(),
@@ -273,11 +248,7 @@ impl RuntimeSpillSource {
                         pre_physical: upstream.source().manifest(),
                         selected_lowering_completion: None,
                         pre_allocation_completion: Some(upstream.identity()),
-                        prefix: upstream
-                            .iterations()
-                            .iter()
-                            .map(|iteration| iteration.transformation().into())
-                            .collect(),
+                        prefix: upstream.transformations().to_vec(),
                     },
                 }
             }

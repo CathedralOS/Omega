@@ -427,6 +427,53 @@ impl StagedPreAllocationOptimizationRun {
     }
 }
 
+impl StagedPreAllocationOptimizationRun {
+    /// The completed run as register allocation reads it: the final program
+    /// and the facts rebuilt over it (the last committed step's, or the
+    /// admitted source's when no candidate was admissible), and the run's
+    /// ledger.
+    pub(crate) fn into_completed(
+        self,
+    ) -> selected_instruction_analyses::CompletedSelectedOptimization<
+        optimization_core::PreAllocationOptimizationCompletionIdentity,
+    > {
+        let ledger = selected_instruction_analyses::SelectedOptimizationLedger {
+            identity: self.custody.identity,
+            phase_selections: self.custody.pre_allocation_selections,
+            source: self.custody.source,
+            transformations: self
+                .custody
+                .iterations
+                .iter()
+                .map(|iteration| iteration.transformation().into())
+                .collect(),
+        };
+        let source = self.source;
+        let (current, liveness, ranges, legality) = match self.steps.into_iter().last() {
+            Some(step) => (
+                crate::OwnedSelectedProgram::retain(&step.transformation),
+                step.liveness,
+                step.ranges,
+                step.legality,
+            ),
+            None => (
+                crate::OwnedSelectedProgram::retain(source.selected()),
+                source.liveness().clone(),
+                source.ranges().clone(),
+                source.legality().clone(),
+            ),
+        };
+        selected_instruction_analyses::CompletedSelectedOptimization {
+            source,
+            current,
+            liveness,
+            ranges,
+            legality,
+            ledger,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StagedPreAllocationOptimizationCustodyReceipt {
     pub(super) identity: PreAllocationOptimizationCompletionIdentity,

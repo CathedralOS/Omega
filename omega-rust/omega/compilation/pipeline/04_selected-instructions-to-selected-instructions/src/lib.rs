@@ -90,7 +90,6 @@ pub(crate) use rewrites::{
 };
 pub use rewrites::{
     LiteralFoldIdentity, OptimizedLiteralFoldCustodyError, OptimizedPreAllocationCustodyError,
-    StagedOptimizedLiteralFoldCustodyReceipt, StagedOptimizedLiteralFolds,
     StagedPreAllocationOptimizationCustodyReceipt, StagedPreAllocationOptimizationRun,
     StagedSelectedLoweringOptimizationCustodyReceipt, StagedSelectedLoweringOptimizationRun,
     ValidatedLiteralFold,

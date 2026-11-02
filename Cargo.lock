@@ -2201,7 +2201,6 @@ dependencies = [
  "register-model",
  "selected-instruction-analyses",
  "selected-instructions",
- "selected-instructions-to-selected-instructions",
  "semantic-vocabulary",
  "target",
  "target-operations",

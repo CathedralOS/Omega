@@ -98,7 +98,7 @@ pub(crate) fn emit_target(
     })?;
     let allocation = phase_profile::scope("omega.05", || {
         observation.enter(NativePipelineStage::RegisterAllocation);
-        stage_register_allocation(selected)
+        stage_register_allocation(selected.into_selected_output())
             .map_err(OptimizedVerifiedPhysicalPipelineError::RegisterAllocation)
     })?;
     phase_profile::scope("omega.native.frame_realization", || {

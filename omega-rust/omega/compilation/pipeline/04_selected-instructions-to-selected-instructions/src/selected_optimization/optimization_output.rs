@@ -35,11 +35,20 @@ impl SelectedInstructionOptimizationOutput {
         &self.current
     }
 
-    /// Hand the stage's evidence to register allocation as produced. The
-    /// evidence was checked once when this output was built; allocation
-    /// consumes it without replaying it again.
-    pub fn into_evidence(self) -> SelectedInstructionOptimizationEvidence {
-        self.evidence
+    /// Hand register allocation the current program's facts and the
+    /// completed suite's ledger. The evidence was checked once when this
+    /// output was built; allocation consumes the result without replaying it.
+    pub fn into_selected_output(self) -> selected_instruction_analyses::SelectedOptimizationOutput {
+        use selected_instruction_analyses::SelectedOptimizationOutput as Output;
+        match self.evidence {
+            SelectedInstructionOptimizationEvidence::Identity(ranges) => Output::Identity(ranges),
+            SelectedInstructionOptimizationEvidence::LiteralFolds(run) => {
+                Output::SelectedLowering(run.into_completed())
+            }
+            SelectedInstructionOptimizationEvidence::PreAllocation(run) => {
+                Output::PreAllocation(run.into_completed())
+            }
+        }
     }
 }
 

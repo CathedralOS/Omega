@@ -69,30 +69,15 @@ pub(in crate::function_realization) fn expected_fixed_frame_manifest(
                 receipt.source().source().transformation(),
             )]
         }
-        AllocationEvidence::LiteralFolds(receipt) => receipt
-            .source()
-            .transformations()
-            .iter()
-            .copied()
-            .map(PostAllocationSelectedTransformation::LiteralFold)
-            .collect(),
-        AllocationEvidence::SelectedLowering(receipt) => receipt
-            .source()
-            .iterations()
-            .iter()
-            .map(|iteration| PostAllocationSelectedTransformation::LiteralFold(iteration.fold()))
-            .collect(),
+        AllocationEvidence::SelectedLowering(receipt) => {
+            receipt.source().transformations().to_vec()
+        }
         AllocationEvidence::ActiveResidentRematerialization(receipt) => vec![
             PostAllocationSelectedTransformation::PressureRematerialization(
                 receipt.rematerialization(),
             ),
         ],
-        AllocationEvidence::PreAllocation(receipt) => receipt
-            .source()
-            .iterations()
-            .iter()
-            .map(|iteration| iteration.transformation().into())
-            .collect(),
+        AllocationEvidence::PreAllocation(receipt) => receipt.source().transformations().to_vec(),
         AllocationEvidence::RuntimeSpill(identity) if *identity == post.identity => {
             // Runtime-spill recovery produced this manifest over its recorded
             // spill rewrites; its identity binds that cumulative history.
@@ -105,7 +90,7 @@ pub(in crate::function_realization) fn expected_fixed_frame_manifest(
     // empty selected-lowering phase, never a substituted suite.
     let (expected_lowering_selections, expected_lowering_completion) = match allocation.evidence() {
         AllocationEvidence::SelectedLowering(receipt) => (
-            receipt.source().selected_lowering_selections(),
+            receipt.source().phase_selections(),
             Some(receipt.source().identity()),
         ),
         _ => (OptimizationSelections::default().identity(), None),

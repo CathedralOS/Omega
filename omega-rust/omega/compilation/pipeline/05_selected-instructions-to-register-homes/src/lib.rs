@@ -15,15 +15,20 @@
 //!   `runtime_spill` pressure recovery — including residual pressure a
 //!   completed run hands over — `baseline` homes over `home_assignment`, and
 //!   the `post_allocation_manifest` every route publishes.
-//! - `rewrites` stages active-resident rematerialization for a recovery rule.
+//! - `rewrites` holds the allocation-recovery rewrites register assignment
+//!   replays (runtime spill, split and rematerialization, fixed occurrences,
+//!   fixed-view copies, pressure rematerialization) and stages active-resident
+//!   rematerialization; `reanalysis` re-derives facts over fixed-view copies.
 //! - `output` owns the current allocation facts every route publishes.
 //! - `preservation` derives allocation-visible callee-saved requirements.
 //!
 //! Every name the route owns is re-exported below from the module that owns
 //! it, so the root reads as a map. Upstream vocabulary (`register_model`,
-//! `register_homes`, `selected_instructions`, and the preceding stage
-//! `selected_instructions_to_selected_instructions`) is imported from its
-//! owner where it is used. The root re-exports upstream names in two places
+//! `register_homes`, `selected_instructions`, and the selected-program
+//! analyses and rewrite primitives in `selected_instruction_analyses`) is
+//! imported from its owner where it is used. Selected optimization's result
+//! arrives as `selected_instruction_analyses::SelectedOptimizationOutput`;
+//! this stage names no type of the stage before it. The root re-exports upstream names in two places
 //! only: the `register_homes` records a stage publishes beside its operations
 //! (post-allocation manifest, logical spill operations, stack-slot coloring),
 //! and the seven selected-program analysis names listed last, which the
@@ -124,6 +129,22 @@ pub use rewrites::{
 };
 pub use selected_input::ValidatedSelectedAnalysis;
 
+/// The completed suites selected optimization hands this stage, and their
+/// ledgers as this stage's receipts retain them.
+pub(crate) type SelectedLoweringResult =
+    selected_instruction_analyses::CompletedSelectedOptimization<
+        optimization_core::SelectedLoweringOptimizationCompletionIdentity,
+    >;
+pub(crate) type PreAllocationResult = selected_instruction_analyses::CompletedSelectedOptimization<
+    optimization_core::PreAllocationOptimizationCompletionIdentity,
+>;
+pub type SelectedLoweringLedger = selected_instruction_analyses::SelectedOptimizationLedger<
+    optimization_core::SelectedLoweringOptimizationCompletionIdentity,
+>;
+pub type PreAllocationLedger = selected_instruction_analyses::SelectedOptimizationLedger<
+    optimization_core::PreAllocationOptimizationCompletionIdentity,
+>;
+
 // The entry and its route.
 pub use register_allocation::{RegisterAllocationError, stage_register_allocation};
 
@@ -152,10 +173,9 @@ pub(crate) use assignment::runtime_spill::RuntimeSpillAllocationError;
 
 pub(crate) use assignment::transformed::{
     OptimizedPostPreAllocationHomeCustodyError, OptimizedPostSelectedLoweringHomeCustodyError,
-    StagedOptimizedPostLiteralFoldHomeCustodyReceipt,
     StagedOptimizedPostPreAllocationHomeCustodyReceipt,
     StagedOptimizedPostSelectedLoweringHomeCustodyReceipt,
-    StagedOptimizedRegisterHomesAfterLiteralFolds, StagedOptimizedRegisterHomesAfterPreAllocation,
+    StagedOptimizedRegisterHomesAfterPreAllocation,
     StagedOptimizedRegisterHomesAfterSelectedLowering,
 };
 

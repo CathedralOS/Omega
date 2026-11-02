@@ -446,6 +446,10 @@ pub use allocation_recovery_catalog::{
     selected_allocation_recovery_rule,
 };
 pub mod codec_bytes;
+mod selected_optimization_output;
+pub use selected_optimization_output::{
+    CompletedSelectedOptimization, SelectedOptimizationLedger, SelectedOptimizationOutput,
+};
 pub mod cursor;
 pub mod rewriting;
 pub mod work_accounting;

@@ -1,9 +1,8 @@
 use crate::assignment::post_allocation_manifest::project_post_allocation_optimization_manifest;
 use crate::{RegisterHomeError, ValidatedRegisterHomes};
 
-use selected_instructions_to_selected_instructions::{
-    StagedPreAllocationOptimizationCustodyReceipt, StagedPreAllocationOptimizationRun,
-    StagedSelectedLoweringOptimizationCustodyReceipt, StagedSelectedLoweringOptimizationRun,
+use crate::{
+    PreAllocationLedger, PreAllocationResult, SelectedLoweringLedger, SelectedLoweringResult,
 };
 
 use super::projection::{
@@ -21,7 +20,7 @@ use super::{
 /// residual `NoCompatibleHome` pressure with runtime spill instead of
 /// post-run homes.
 pub(crate) fn assign_register_homes_after_pre_allocation(
-    run: &StagedPreAllocationOptimizationRun,
+    run: &PreAllocationResult,
     reuse: Option<&mut crate::assignment::home_assignment::compute::FunctionHomeReuse>,
 ) -> Result<ValidatedRegisterHomes, RegisterHomeError> {
     let (ranges, legality) = pre_allocation_final_analysis(run);
@@ -37,19 +36,19 @@ pub(crate) fn assign_register_homes_after_pre_allocation(
 /// The same construction over an already-computed assignment, for the
 /// composing route that probed assignment while it still owned the run.
 pub(crate) fn stage_optimized_register_homes_after_pre_allocation_with_assignment(
-    run: StagedPreAllocationOptimizationRun,
+    run: PreAllocationResult,
     homes: ValidatedRegisterHomes,
 ) -> Result<
     StagedOptimizedRegisterHomesAfterPreAllocation,
     OptimizedPostPreAllocationHomeCustodyError,
 > {
-    let source = run.custody().clone();
+    let source = run.ledger().clone();
     finish_register_homes_after_pre_allocation(run, source, homes)
 }
 
 fn finish_register_homes_after_pre_allocation(
-    run: StagedPreAllocationOptimizationRun,
-    source: StagedPreAllocationOptimizationCustodyReceipt,
+    run: PreAllocationResult,
+    source: PreAllocationLedger,
     homes: ValidatedRegisterHomes,
 ) -> Result<
     StagedOptimizedRegisterHomesAfterPreAllocation,
@@ -85,7 +84,7 @@ fn finish_register_homes_after_pre_allocation(
 /// residual `NoCompatibleHome` pressure with runtime spill instead of
 /// post-run homes.
 pub(crate) fn assign_register_homes_after_selected_lowering(
-    run: &StagedSelectedLoweringOptimizationRun,
+    run: &SelectedLoweringResult,
     reuse: Option<&mut crate::assignment::home_assignment::compute::FunctionHomeReuse>,
 ) -> Result<ValidatedRegisterHomes, RegisterHomeError> {
     let (ranges, legality) = selected_lowering_final_analysis(run);
@@ -101,19 +100,19 @@ pub(crate) fn assign_register_homes_after_selected_lowering(
 /// The same construction over an already-computed assignment, for the
 /// composing route that probed assignment while it still owned the run.
 pub(crate) fn stage_optimized_register_homes_after_selected_lowering_with_assignment(
-    run: StagedSelectedLoweringOptimizationRun,
+    run: SelectedLoweringResult,
     homes: ValidatedRegisterHomes,
 ) -> Result<
     StagedOptimizedRegisterHomesAfterSelectedLowering,
     OptimizedPostSelectedLoweringHomeCustodyError,
 > {
-    let source = run.custody().clone();
+    let source = run.ledger().clone();
     finish_register_homes_after_selected_lowering(run, source, homes)
 }
 
 fn finish_register_homes_after_selected_lowering(
-    run: StagedSelectedLoweringOptimizationRun,
-    source: StagedSelectedLoweringOptimizationCustodyReceipt,
+    run: SelectedLoweringResult,
+    source: SelectedLoweringLedger,
     homes: ValidatedRegisterHomes,
 ) -> Result<
     StagedOptimizedRegisterHomesAfterSelectedLowering,
