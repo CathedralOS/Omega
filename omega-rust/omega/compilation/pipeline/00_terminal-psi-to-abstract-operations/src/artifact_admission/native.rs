@@ -355,7 +355,7 @@ impl VerifiedNativeArtifactInput {
 
     pub(crate) fn retain_admitted_native_callbacks(
         &mut self,
-        callbacks: Vec<crate::AdmittedNativeCallbackArgument>,
+        callbacks: provider_admission::AdmittedNativeCallbackCohort,
     ) {
         self.optimization_input.admitted_native_callbacks = callbacks;
     }
@@ -459,9 +459,11 @@ fn retain_native_plan(
         optimization_input: VerifiedPsiOptimizationInput {
             scalar_applications: None,
             selected_program_entry_call: None,
+            admitted_native_callbacks: provider_admission::AdmittedNativeCallbackCohort::empty(
+                plan.psi,
+            ),
             plan,
             context,
-            admitted_native_callbacks: Vec::new(),
             admitted_assumed_bindings: Vec::new(),
             target_machine_selections: selections,
             target_layout_selections: None,

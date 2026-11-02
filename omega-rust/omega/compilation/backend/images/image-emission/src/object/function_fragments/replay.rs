@@ -38,13 +38,13 @@ pub fn verify_retained_target_operations(
 
 impl FragmentReplay {
     pub(crate) fn terminal_module(&self) -> &terminal_psi::TerminalModule {
-        self.0.verified_input().context().module()
+        self.0.lowering_facts().module()
     }
 
     pub(crate) fn target_machine_selections(
         &self,
     ) -> Option<&terminal_installation::AdmittedTargetMachineSelections> {
-        self.0.verified_input().target_machine_selections()
+        self.0.lowering_facts().target_machine_selections()
     }
 
     /// Join the retained executable input and its admitted deployment to the
@@ -58,10 +58,19 @@ impl FragmentReplay {
         native_target: target::NativeTarget,
     ) -> Result<Option<semantic_vocabulary::MachineId>, &'static str> {
         let identity = artifact.view().identity();
-        let input = self.0.verified_input();
-        if input.plan().psi != identity
-            || input.context().module() != artifact.semantic_module()
-            || input.plan().entry != entry
+        let input = self.0.lowering_facts();
+        let plan = self
+            .0
+            .source()
+            .source()
+            .source()
+            .source()
+            .optimized_target()
+            .optimized()
+            .plan();
+        if plan.psi != identity
+            || input.module() != artifact.semantic_module()
+            || plan.entry != entry
         {
             return Err("native object entry differs from its admitted executable input");
         }

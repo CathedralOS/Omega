@@ -50,8 +50,8 @@ pub(crate) fn lower_to_target(
         )
         .map_err(TargetLoweringError::AbstractOptimization)?;
         observation.enter(NativePipelineStage::AbstractToTarget);
-        let (program, verified_input) = optimized.into_lowering_parts();
-        let target = lower_optimized_to_target_operations(program, verified_input, request)
+        let (program, lowering_facts) = optimized.into_lowering_parts();
+        let target = lower_optimized_to_target_operations(program, lowering_facts, request)
             .map_err(TargetLoweringError::Target)?;
         Ok(target)
     })
@@ -157,22 +157,28 @@ pub(crate) fn emit_target(
             )
             .map_err(FunctionRelativeOptimizationRealizationError::LayoutOptimization)
         })?;
-        let realization = phase_profile::scope("omega.native.frame_realization.assemble_fixed_frame", || {
-            machine_emission::assemble_fixed_frame_realization(
-                allocation,
-                target_input,
-                machine,
-                frame,
-                encoding,
-                layout,
-                optimized_layout,
-            )
-        })?;
+        let realization = phase_profile::scope(
+            "omega.native.frame_realization.assemble_fixed_frame",
+            || {
+                machine_emission::assemble_fixed_frame_realization(
+                    allocation,
+                    target_input,
+                    machine,
+                    frame,
+                    encoding,
+                    layout,
+                    optimized_layout,
+                )
+            },
+        )?;
         let physical = StagedOptimizedFunctionFragmentEmissionSource::from(realization);
-        phase_profile::scope("omega.native.frame_realization.emit_fragment_object", || {
-            observation.enter(NativePipelineStage::FragmentEmission);
-            native_artifact::emit_fragment_object(physical).map_err(BodyEmissionError::Object)
-        })
+        phase_profile::scope(
+            "omega.native.frame_realization.emit_fragment_object",
+            || {
+                observation.enter(NativePipelineStage::FragmentEmission);
+                native_artifact::emit_fragment_object(physical).map_err(BodyEmissionError::Object)
+            },
+        )
     })
 }
 

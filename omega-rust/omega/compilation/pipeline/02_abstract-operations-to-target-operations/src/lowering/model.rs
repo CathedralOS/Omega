@@ -4,12 +4,14 @@ use semantic_vocabulary::{
 };
 use target::NativeTarget;
 
-pub use terminal_psi_to_abstract_operations::{
+pub use provider_admission::{
     AdmittedBoundaryExecution, AdmittedBoundarySettlement, AdmittedNativeCallbackArgument,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LoweringError {
+    /// The callback cohort was admitted for another Terminal program.
+    ForeignNativeCallbackCohort,
     ReferenceCarrierUnavailable {
         machine: MachineId,
         source: terminal_psi::StructuralArgument,
