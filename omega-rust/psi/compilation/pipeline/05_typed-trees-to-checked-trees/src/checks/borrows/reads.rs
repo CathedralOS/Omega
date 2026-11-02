@@ -448,8 +448,8 @@ pub(super) fn check_storage_read<'p>(
         segments: read.place.segments.clone(),
         ..Default::default()
     };
-    let backings = if let Some(receiver) = metadata_receiver {
-        metadata_backings(program, facts, &read, place, receiver)
+    let backings = if metadata_receiver.is_some() {
+        metadata_backings(program, facts, &read, place)
     } else {
         place_access::place_backings(
             program,
@@ -514,7 +514,6 @@ fn metadata_backings(
     facts: &CheckFacts,
     read: &StatementRead<'_>,
     place: CapturedPlace,
-    receiver_expression: ExpressionHandle,
 ) -> Option<Vec<super::aliases::ResolvedAlias>> {
     let control = &facts.flow.control;
     let mut observations = control
@@ -525,22 +524,15 @@ fn metadata_backings(
             observation.expression == read.expression && observation.evaluation == read.evaluation
         });
     let observed = observations.next()?;
-    if observations.next().is_some() || !control.operands.is_valid(observed.receiver) {
+    if observations.next().is_some() {
         return None;
     }
-    let receiver = control.operands.get(observed.receiver);
-    if receiver.expression != receiver_expression
-        || receiver.state_symbol != read.state.state_symbol
-        || receiver.statement_index != read.statement.statement_index
-    {
-        return None;
-    }
-    super::access_sources::descriptor_storage(
+    super::access_sources::metadata_storage(
         program,
         facts,
         read.state,
-        read.statement,
-        observed.constraints,
+        read.statement.statement_index,
+        observed,
         place,
     )
 }

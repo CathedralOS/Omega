@@ -139,20 +139,39 @@ pub(in crate::checks::borrows) fn resolve_descriptor_all(
 
 /// Storage read by collection metadata, before loading its final descriptor.
 /// Receiver crossings retain their own address and access lineage.
-pub(in crate::checks::borrows) fn descriptor_storage(
+pub(in crate::checks::borrows) fn metadata_storage(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state: &FlowStateFact,
-    statement: &FlowStatementFact,
-    constraints: HandleSpan<FlowConstraintRef>,
+    statement_index: usize,
+    observed: &checked_trees::FlowValueObservationFact,
     place: CapturedPlace,
 ) -> Option<Vec<ResolvedAlias>> {
+    let (machine, declaration) =
+        validation::machine_state_by_symbols(program, state.machine_symbol, state.state_symbol)?;
+    let receiver_expression = validation::collection_length_receiver(
+        program,
+        machine,
+        Some(declaration),
+        observed.expression,
+    )?;
+    let control = &facts.flow.control;
+    if !control.operands.is_valid(observed.receiver) {
+        return None;
+    }
+    let receiver = control.operands.get(observed.receiver);
+    if receiver.expression != receiver_expression
+        || receiver.state_symbol != state.state_symbol
+        || receiver.statement_index != statement_index
+    {
+        return None;
+    }
     descriptor_loads::storage(
         program,
         facts,
         state,
-        statement.statement_index,
-        constraints,
+        statement_index,
+        observed.constraints,
         place,
     )
 }
