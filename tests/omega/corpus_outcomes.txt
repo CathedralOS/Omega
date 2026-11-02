@@ -1054,6 +1054,8 @@ fail/facts/named_const_callable_family_through_target_body_rejected rejected 613
 	generic machine `apply` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `X86Observe::observe` state `X86Observe::observe::observe`: Const slot `Count` conflicts: 5 [identity named(integer-const(5)); supplier unretained] versus 4 [identity named(integer-const(4)); supplier unretained]
 fail/facts/narrowed_integer_write_unselected_implementation_rejected rejected 8244ms expected @aa06f04853cc+wt
 	IntegerAt call in main requires every performed value to fit its physical storage: performed integer value is not proven to fit
+fail/facts/nested_machine_copied_structural_payload_rejected rejected 8066ms expected @6485d5294954
+	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `take`, state `entry` (statement 1)
 fail/facts/nested_machine_declared_selector_computed_selector rejected 7800ms expected @b3e852cfac94
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_declared_selector_distinct_contexts rejected 7818ms expected @b3e852cfac94
@@ -8178,6 +8180,7 @@ pass/facts/nested_machine_completion_result_parameter_exit checked 4318ms check-
 pass/facts/nested_machine_completion_result_target_body_exit rejected 30ms regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	select_provider requires two bare declaration operands and its explicit mutable Build and catalog target arguments (plus an optional composition mode)
 pass/facts/nested_machine_completion_result_unit_and_crash_exit checked 3109ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/nested_machine_copied_structural_payload_exit checked 10944ms check-target:macos_arm64 @6485d5294954
 pass/facts/nested_machine_declared_selector_computed_selector built 15500ms exit:0 interpreter-exit:0 interpreter:agrees @b3e852cfac94
 pass/facts/nested_machine_declared_selector_public_call built 16921ms exit:0 interpreter-exit:0 interpreter:agrees @b3e852cfac94
 pass/facts/nested_machine_declared_selector_through_call_result built 17445ms exit:0 interpreter-exit:0 interpreter:agrees @b3e852cfac94
@@ -11155,25 +11158,6 @@ pass/filesystem/windows_raw_bounded_view_exit rejected 23957ms check-target:wind
 	call to `empty_and_invalid` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
 	call to `cursor` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
 	call to `cleanup` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-pass/filesystem/windows_raw_breadth_exit rejected 22674ms check-target:windows_x86_64 regressed-from:checked+check-target:windows_x86_64 @ccdb99ca2214
-	call to `write_it` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `sync_it` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `close_it` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `reopen` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `seek_it` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `read_it` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `check_c` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `check_d` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `dup_it` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `read_dup` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `close_dup` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `chmod_it` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `pre_clean_dest` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `rename_it` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `probe_old` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `mkdir_it` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `clean_file` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `clean_dir` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
 pass/filesystem/windows_raw_canonical_path_exit rejected 41178ms check-target:windows_x86_64 terminal-inspections:failed regressed-from:checked+check-target:windows_x86_64+terminal-inspections:match @ccdb99ca2214
 	call to `release` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
 	call to `finish` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly

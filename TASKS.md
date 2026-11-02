@@ -1864,8 +1864,7 @@ defines the complete product bar.
   end to end (`Psi 05–08` and `Omega 00–09`):
   - Validate the Windows portable `FilesystemService` implementation natively
     (anonymous SQOS on owned path opens, HANDLE storage, explicit permissions and
-    data sync), run `file_journal` (exit 7), `note_vault` (exit 14), Windows raw
-    breadth fixture (exit 70), and provide trusted
+    data sync), run `file_journal` (exit 7) and `note_vault` (exit 14), and provide trusted
     Terminal adapters for the exact authored foreign bindings.
   - Run `tests/omega/pass/filesystem/windows_canonicalize_exit` (exit 70 on
     Windows) and wire the occurrence-bound close proof helpers in
