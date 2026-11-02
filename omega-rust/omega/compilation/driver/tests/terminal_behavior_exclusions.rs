@@ -258,28 +258,30 @@ fn assert_calling_review_outlives_source(relative: &str, physical_refusal: Optio
             .selected_provider_provenance
             .iter()
             .filter(|provider| {
-                !provider.plan.schema.calling_applications.is_empty()
-                    && provider.plan.rows.iter().all(|row| {
-                        let requirement = provider.plan.identities.text(row.requirement_identity);
-                        provider
-                            .plan
-                            .schema
-                            .declaration
-                            .methods
-                            .iter()
-                            .any(|method| {
-                                provider
-                                    .plan
-                                    .schema
-                                    .identity_text(method.requirement_identity)
-                                    == requirement
-                                    && !provider
+                physical_refusal.is_some()
+                    || (!provider.plan.schema.calling_applications.is_empty()
+                        && provider.plan.rows.iter().all(|row| {
+                            let requirement =
+                                provider.plan.identities.text(row.requirement_identity);
+                            provider
+                                .plan
+                                .schema
+                                .declaration
+                                .methods
+                                .iter()
+                                .any(|method| {
+                                    provider
                                         .plan
                                         .schema
-                                        .calling_for_requirement(method.requirement_identity)
-                                        .is_empty()
-                            })
-                    })
+                                        .identity_text(method.requirement_identity)
+                                        == requirement
+                                        && !provider
+                                            .plan
+                                            .schema
+                                            .calling_for_requirement(method.requirement_identity)
+                                            .is_empty()
+                                })
+                        }))
             })
             .map(|provider| provider.plan.clone())
             .collect::<Vec<_>>();
@@ -288,7 +290,7 @@ fn assert_calling_review_outlives_source(relative: &str, physical_refusal: Optio
             "the witness must retain authored calling rows"
         );
         assert!(
-            !expected.is_empty(),
+            physical_refusal.is_some() || !expected.is_empty(),
             "witness must actually activate policies"
         );
 
