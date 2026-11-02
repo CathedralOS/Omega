@@ -45,7 +45,9 @@ pub(in crate::record) fn expression(
             expression(subject, scope, nesting + 1)?;
             case.validate_resolved()?;
         }
-        Expression::ZeroValue(value) => value_type(value)?,
+        Expression::ZeroValue(value) | Expression::LayoutQuery { operand: value, .. } => {
+            value_type(value)?
+        }
         Expression::TypeEquality { left, right, .. } => {
             value_type(left)?;
             value_type(right)?;

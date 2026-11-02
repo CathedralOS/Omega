@@ -5,6 +5,7 @@ use crate::byte_sequences::ByteSequenceView;
 use crate::byte_sequences::binding::ByteSequenceBinding;
 use crate::byte_sequences::storage::ByteSequenceStorage;
 use crate::custody::resolve_single_structural_argument;
+use crate::element_views::CollectionStorage;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::runtime_rows::RuntimeRows;
@@ -275,7 +276,11 @@ impl TerminalExecution<'_> {
         identity_cursor: &mut Option<u64>,
         local_array_roots: &mut RuntimeRows<semantic_vocabulary::PlaceId, TerminalStructuralValue>,
     ) -> Result<(TerminalStructuralValue, ArrayStorage), TerminalInterpretError> {
-        let (selected, home) = self.element_collection_storage(source)?;
+        let CollectionStorage {
+            collection: selected,
+            home,
+            ..
+        } = self.element_collection_storage(source)?;
         let referent = match selected {
             Some(selected) => selected,
             None => {

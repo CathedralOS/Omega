@@ -112,7 +112,7 @@ pub(crate) fn ensured_call_result_interval(
         let interval = union?;
         return (interval != Interval::UNBOUNDED).then_some(interval);
     }
-    let callee = crate::machine_calls::calls::callee_entry_contract(program, call.target_symbol)?;
+    let callee = crate::machine_calls::calls::call_contract(program, call)?;
     // One contract projector serves every selected call. The old static-call
     // shortcut and the weaker ordinary-call parser disagreed on the same
     // result guarantee solely because of receiver spelling.

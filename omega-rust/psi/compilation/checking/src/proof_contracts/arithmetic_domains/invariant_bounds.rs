@@ -743,7 +743,18 @@ fn call_result_bounds(
     let (callee, entry) =
         crate::machine_calls::calls::machine_state_by_symbol(program, call.target_symbol)?;
     let declared = type_bounds(program, entry.return_type)?;
-    let ensured = if crate::machine_calls::contract_dependencies::independent_call_application(
+    // A static requirement dispatch publishes the requirement's guarantee,
+    // never the selected realization's stronger private `ensures`.
+    let ensured = if call.static_requirement_dispatch.is_some() {
+        super::return_ranges::ensured_call_result_interval(
+            program,
+            caller,
+            expression,
+            call,
+            &super::call_result_bounds::ArgumentBounds::default(),
+        )
+        .unwrap_or(Interval::UNBOUNDED)
+    } else if crate::machine_calls::contract_dependencies::independent_call_application(
         program,
         caller,
         call.target_symbol,

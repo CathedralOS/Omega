@@ -103,8 +103,11 @@ pub(crate) fn validate_declaration_value_range(
                     "{owner} has an invalid construction: {reason}"
                 ))),
                 None => diagnostics.push(Diagnostic::error(format!(
-                    "{owner} has an open construction without a declaration construction judgment"
-                ))),
+                    "{owner} has an open construction without a declaration construction judgment: {} (carrier: {})",
+                    expression_table(program).display_name(operand),
+                    reference.map(|reference| program.type_reference_table.display_name(reference))
+                        .unwrap_or_else(|| "unresolved".to_owned()),
+                )).with_source_span(expression_table(program).source_span(operand))),
             }
         }
         crate::expression_traversal::children(program, node, |child| pending.push(child));

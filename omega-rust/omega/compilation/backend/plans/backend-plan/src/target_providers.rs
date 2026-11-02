@@ -50,6 +50,61 @@ pub struct TerminalTargetProviderPlan {
     pub row_numeric_realizations: Vec<Option<String>>,
 }
 
+/// Join a producer-backed checked adapter to its declaration facts. This is
+/// identity selection, not conformance replay or executable admission.
+pub fn selected_checked_adapter_header<'module>(
+    plan: &effects::provider_plan::ProviderPlan,
+    row: &effects::provider_plan::ProviderPlanRow,
+    module: &'module terminal_psi::TerminalModule,
+) -> Result<&'module terminal_psi::ProofCallableHeader, String> {
+    let effects::provider_plan::ProviderBinding::CheckedAdapter {
+        machine_identity,
+        machine_package_identity,
+    } = &row.binding
+    else {
+        return Err("selected row is not a checked adapter".into());
+    };
+    if *machine_package_identity != plan.origin_package_identity {
+        return Err("checked adapter differs from its retained package identity".into());
+    }
+    let callable = plan.identity_text(*machine_identity);
+    if callable.is_empty() {
+        return Err("checked adapter has no complete callable identity".into());
+    }
+    let target = if plan.target.is_empty() {
+        target::TargetProfile::host().target_name()
+    } else {
+        &plan.target
+    };
+    let mut matches = module
+        .scalar_applications
+        .proof_scope
+        .callable_headers
+        .iter()
+        .map(|(_, header)| header)
+        .filter(|header| {
+            header.product_eligible
+                && header.package == *machine_package_identity
+                && header
+                    .source_target
+                    .as_deref()
+                    .is_none_or(|source| source == target)
+                && header
+                    .callable
+                    .as_ref()
+                    .is_ok_and(|identity| module.identities.text(*identity) == Some(callable))
+        });
+    let header = matches.next().ok_or_else(|| {
+        format!("checked adapter `{callable}` has no exact canonical declaration header")
+    })?;
+    if matches.next().is_some() {
+        return Err(format!(
+            "checked adapter `{callable}` has multiple exact canonical declaration headers"
+        ));
+    }
+    Ok(header)
+}
+
 impl TerminalTargetProviderSelection {
     /// Project complete checked rosters from canonical associations. This
     /// constructs a proposal only; receiving target admission remains required.

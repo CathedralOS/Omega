@@ -628,6 +628,16 @@ impl<'artifact> TerminalProgram<'artifact> {
         self.program.import_declaration(slot)
     }
 
+    /// Whether the authenticated callable belongs to the interpreter rather
+    /// than a host adapter. Native realization records for these operations
+    /// do not turn them into external imports when running the same product.
+    pub fn is_compiler_primitive(&self, slot: BoundaryMachineId) -> bool {
+        self.program
+            .boundary_machines()
+            .get(&slot)
+            .is_some_and(|declaration| compiler_owns_boundary_execution(declaration))
+    }
+
     /// Exact external requirement contract, independent of ordinary provider
     /// candidates. This is only a description: no containing-domain authority
     /// or crossing-safety premise follows from finding the slot.

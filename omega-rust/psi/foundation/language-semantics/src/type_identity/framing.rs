@@ -13,6 +13,11 @@ impl<'a> Reader<'a> {
         Self { text, position: 0 }
     }
 
+    /// Bytes consumed so far; where a malformed identity stopped being readable.
+    pub(super) fn position(&self) -> usize {
+        self.position
+    }
+
     pub(super) fn finish(&self) -> Result {
         if self.position == self.text.len() {
             Ok(())

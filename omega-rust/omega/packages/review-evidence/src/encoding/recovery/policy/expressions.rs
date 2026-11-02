@@ -21,6 +21,38 @@ mod codec_tests {
     use super::*;
 
     #[test]
+    fn layout_queries_recover_exact_dependencies_and_refuse_malformed_frames() {
+        use crate::record::{PackageReviewLayoutQueryKind, PackageReviewTypeIdentity};
+        let canonical = "named(name(u8))";
+        for (tag, kind) in [
+            (0, PackageReviewLayoutQueryKind::Size),
+            (1, PackageReviewLayoutQueryKind::Alignment),
+        ] {
+            let mut bytes = vec![27, tag];
+            bytes.extend_from_slice(&(canonical.len() as u64).to_le_bytes());
+            bytes.extend_from_slice(canonical.as_bytes());
+            let mut reader = Reader::new(&bytes, PackagePolicyRecoveryLimits::default()).unwrap();
+            assert_eq!(
+                expression(&mut reader).unwrap(),
+                PackageReviewContractExpression::LayoutQuery {
+                    kind,
+                    operand: PackageReviewTypeIdentity {
+                        canonical: canonical.to_owned()
+                    },
+                }
+            );
+            reader.finish().unwrap();
+            bytes.pop();
+            let mut reader = Reader::new(&bytes, PackagePolicyRecoveryLimits::default()).unwrap();
+            assert!(expression(&mut reader).is_err());
+        }
+        for bytes in [&[27][..], &[27, 2][..], &[27, 255][..]] {
+            let mut reader = Reader::new(bytes, PackagePolicyRecoveryLimits::default()).unwrap();
+            assert!(expression(&mut reader).is_err());
+        }
+    }
+
+    #[test]
     fn recast_access_recovers_exact_modes_and_rejects_unknown_tags() {
         for (tag, access) in [
             (1, PackageReviewReferenceAccess::Shared),
@@ -196,6 +228,13 @@ pub(in crate::encoding::recovery) fn expression(
                 0 => symbols::BuiltinTypeMember::AddressBound,
             })),
             26 => Expression::TypeEquality { left: type_identity(reader)?, right: type_identity(reader)?, negated: reader.boolean()? },
+            27 => Expression::LayoutQuery {
+                kind: super::tag!(reader => {
+                    0 => crate::record::PackageReviewLayoutQueryKind::Size,
+                    1 => crate::record::PackageReviewLayoutQueryKind::Alignment,
+                }),
+                operand: type_identity(reader)?,
+            },
         }))
     })
 }
