@@ -73,6 +73,12 @@ pub(super) fn encode(bytes: &mut Vec<u8>, call: &LegalizedNormalizedForeignCall)
     for callback in &call.callbacks {
         encode_native_callback_argument(bytes, callback);
     }
+    encode_option(bytes, call.descriptor_input, |bytes, guard| {
+        crate::codec_bytes::push_encoded(bytes, (guard.count_scalar_argument as u64).to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, (guard.structural_argument as u64).to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, guard.max_bytes.to_le_bytes());
+        encode_integer_type(bytes, guard.count_type);
+    });
 }
 
 /// The retained registrar roster row: authored-use operation, thunk slot,

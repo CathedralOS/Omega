@@ -2,9 +2,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use calling_conventions::{
-    CallingPolicy, ConventionalSumLayout, SystemVEightbyteClass, ValueClass, ValueShape,
-};
+use crate::{CallingPolicy, ConventionalSumLayout, SystemVEightbyteClass, ValueClass, ValueShape};
 use semantic_vocabulary::{IeeeFloatFormat, ScalarType, StructuralTypeId};
 use terminal_psi::{
     ByteSequenceCarrier, StructuralFieldType, StructuralTypeDeclaration, StructuralTypeShape,
@@ -470,8 +468,7 @@ fn conventional_sum_layout(
                 .collect::<Result<Vec<_>, _>>()
         })
         .collect::<Result<Vec<_>, _>>()?;
-    calling_conventions::evaluate_conventional_sum_layout(&common, &payloads)
-        .map_err(|_| InvalidStructuralShape)
+    crate::evaluate_conventional_sum_layout(&common, &payloads).map_err(|_| InvalidStructuralShape)
 }
 
 fn field_shape(

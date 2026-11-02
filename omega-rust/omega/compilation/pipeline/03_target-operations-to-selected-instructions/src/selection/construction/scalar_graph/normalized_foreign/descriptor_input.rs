@@ -7,24 +7,11 @@ use crate::SelectedInstructionError;
 use semantic_vocabulary::{IntegerSign, IntegerValue, ScalarType};
 
 pub(super) fn emit(
-    source: &legalized_operations::LegalizedScalarFunction,
     call: &legalized_operations::LegalizedNormalizedForeignCall,
     operation: semantic_vocabulary::OperationId,
     builder: &mut Builder<'_>,
 ) -> Result<(), SelectedInstructionError> {
-    let types = source
-        .structural
-        .as_ref()
-        .map_or(&[][..], |contract| contract.structural_types.as_slice());
-    let guard = abstract_operations_to_target_operations::descriptor_input_guard_for_call(
-        &call.binding,
-        types,
-        &call.scalar_arguments,
-        &call.structural_arguments,
-        &call.result,
-    )
-    .map_err(|reason| SelectedInstructionError::custody_because(reason))?;
-    let Some(guard) = guard else {
+    let Some(guard) = call.descriptor_input else {
         return Ok(());
     };
     let count = call

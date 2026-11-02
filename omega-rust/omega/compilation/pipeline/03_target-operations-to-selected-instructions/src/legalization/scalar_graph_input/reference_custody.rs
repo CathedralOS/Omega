@@ -82,10 +82,10 @@ pub(in crate::legalization) struct Leaf {
 }
 
 /// The referent root of one custody occurrence. Production lowering states this
-/// shape once (`abstract_operations_to_target_operations::ReferenceRoot`); the
+/// shape once (`target_operations::ReferenceRoot`); the
 /// replay resolves the same three cases against the optimized source graph
 /// rather than declaring a second spelling of them.
-pub(in crate::legalization) use abstract_operations_to_target_operations::ReferenceRoot as Root;
+pub(in crate::legalization) use target_operations::ReferenceRoot as Root;
 
 /// Turn captured origins into typed storage cursors. An ingress reference
 /// names its incoming descriptor in custody; its pointee is external storage

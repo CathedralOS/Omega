@@ -126,6 +126,7 @@ pub(super) fn lower_to_target_operations_with_settlements_and_installation(
         &settlements_by_boundary,
     );
     let target_plan = TargetOperationPlan {
+        borrowed_storage_layouts: super::borrowed_storage::capture(plan),
         psi: plan.psi,
         target,
         entry: plan.entry,

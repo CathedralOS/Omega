@@ -119,6 +119,19 @@ pub(super) fn encode_normalized_foreign_call(
     for callback in &call.callbacks {
         encode_native_callback_argument(bytes, callback);
     }
+    match call.descriptor_input {
+        None => bytes.push(0),
+        Some(guard) => {
+            bytes.push(1);
+            crate::codec_bytes::push_encoded(
+                bytes,
+                (guard.count_scalar_argument as u64).to_le_bytes(),
+            );
+            crate::codec_bytes::push_encoded(bytes, (guard.structural_argument as u64).to_le_bytes());
+            crate::codec_bytes::push_encoded(bytes, guard.max_bytes.to_le_bytes());
+            encode_scalar(bytes, ScalarType::Integer(guard.count_type));
+        }
+    }
     encode_effect(bytes, row.effect);
     encode_ownership(bytes, &row.ownership);
 }
@@ -167,6 +180,21 @@ pub(super) fn decode_normalized_foreign_call(
         tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
     };
     let callbacks = decode_list(cursor, decode_native_callback_argument)?;
+    let descriptor_input = match cursor.byte()? {
+        0 => None,
+        1 => Some(target_operations::DescriptorInputGuard {
+            count_scalar_argument: usize::try_from(cursor.u64()?)
+                .map_err(|_| FixedViewCopyDecodeError::LengthOverflow)?,
+            structural_argument: usize::try_from(cursor.u64()?)
+                .map_err(|_| FixedViewCopyDecodeError::LengthOverflow)?,
+            max_bytes: cursor.u64()?,
+            count_type: match decode_scalar(cursor)? {
+                ScalarType::Integer(integer) => integer,
+                _ => return Err(FixedViewCopyDecodeError::InvalidIntegerType),
+            },
+        }),
+        tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
+    };
     Ok(SelectedNormalizedForeignCall {
         instruction,
         invocation_site,
@@ -179,6 +207,7 @@ pub(super) fn decode_normalized_foreign_call(
             structural_indices,
             result,
             callbacks,
+            descriptor_input,
         },
         effect: decode_effect(cursor)?,
         ownership: decode_ownership(cursor)?,
@@ -763,6 +792,12 @@ mod tests {
                 structural_arguments: Vec::new(),
                 structural_indices: Vec::new(),
                 callbacks: Vec::new(),
+                descriptor_input: Some(target_operations::DescriptorInputGuard {
+                    count_scalar_argument: 1,
+                    structural_argument: 0,
+                    max_bytes: 12,
+                    count_type: IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                }),
                 result: target_operations::TargetBoundaryResult::Scalar(
                     TargetUnitScalarHomeRequirement {
                         defining_operation: OperationId::new(7).unwrap(),
