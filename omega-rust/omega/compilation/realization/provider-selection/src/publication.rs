@@ -356,10 +356,13 @@ impl<Owner: Clone, Origin: Clone + Eq> PreparedTargetChoices<Owner, Origin> {
                 declaration(terminal_psi::TargetMachineCallable::Boundary(supplied))?,
             ));
         }
-        let mut calls = scope
-            .applications()
-            .reachability(self.profile.target_name(), true, &edges, roots.as_deref())
-            .calls;
+        let reachable = scope.applications().reachability(
+            self.profile.target_name(),
+            true,
+            &edges,
+            roots.as_deref(),
+        );
+        let mut calls = reachable.calls;
         calls.sort_unstable();
         let mut invoked_owners = module
             .boundary_machines
@@ -374,6 +377,45 @@ impl<Owner: Clone, Origin: Clone + Eq> PreparedTargetChoices<Owner, Origin> {
             })
             .filter_map(|boundary| module.identities.text(boundary.owner.identity()))
             .collect::<Vec<_>>();
+        // A selected operation need not remain a BoundaryCall instruction:
+        // comparisons retain their exact application beside the emitted scalar
+        // operation. Consume that canonical roster in the same reachable body
+        // closure, rather than inferring provider demand from instruction shape.
+        // Merely retaining an application in a dormant target body grants no
+        // demand on this target. Provider bodies join this walk at the next
+        // fixed-point iteration, just as their ordinary calls do.
+        let mut applications = module
+            .boundary_application_demands
+            .iter()
+            .collect::<Vec<_>>();
+        applications.sort_unstable_by_key(|demand| demand.terminal_operation());
+        for machine in &module.machines {
+            let Some(body_owner) = scope
+                .callable_declaration(terminal_psi::TargetMachineCallable::Machine(machine.id))
+            else {
+                continue;
+            };
+            if !reachable.machines.contains(&body_owner) {
+                continue;
+            }
+            for operation in machine.operations() {
+                let Ok(index) = applications
+                    .binary_search_by_key(&operation.id, |demand| demand.terminal_operation())
+                else {
+                    continue;
+                };
+                let requirement = applications[index].requirement();
+                let owner = module
+                    .identities
+                    .text(requirement.declaration().identity())
+                    .ok_or_else(|| {
+                        vec![Diagnostic::error(
+                            "provider application demand lost its exact requirement owner",
+                        )]
+                    })?;
+                invoked_owners.push(owner);
+            }
+        }
         invoked_owners.sort_unstable();
         invoked_owners.dedup();
         for (candidate, demanded) in self.candidates.iter().zip(demanded) {

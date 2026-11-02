@@ -210,3 +210,43 @@ oracle are unchanged. The entry wrapper and each implementation check a tag
 Linux x86-64 native and Terminal Psi agreement for the positive and source
 rejection for the twin; the other hosted targets keep their authored rows,
 unexecuted here.
+
+## Token-machine identity regression (TERMINAL-BUILD-SEED)
+
+At fixed base `bc2c778d57d90b75587d484a6a882ad2cecac9a4`, the optimized
+producer refuses the existing local place with `Terminal boundary application
+has no unique exact selected row`. The same refusal occurs with an explicit
+`float_operations` import, and blocks the parent's unchanged
+`tests/omega/pass/float/named_provider_directed_divide_exit/main.omg` customer.
+
+Checking and Terminal retain the callable identity of the token-bearing
+`Float::equal` machine. The shared provider-schema identity helper instead
+invented a legacy `operator::...` slot for that machine's token view. Provider
+demand discovery also followed ordinary calls while omitting the canonical
+application attached to the comparison operation. The repair consumes that
+roster within the existing target-reachable body closure and reuses the existing
+machine callable identity; exact overload, package, target,
+row execution, and contract checks remain on their ordinary paths. The existing
+nine-place positives, mixed-format refusals, and runtime trap twins cover this
+same mechanism; no duplicate comparison row is needed. The original customer
+covers imported f32/f64 arithmetic, directed modes, subsequent ordinary division,
+and its exit-70 oracle without changing the program.
+
+This repair addresses the named customer's comparison prerequisite. The parent
+Build scheduler, host-operation, and snapshot-output acceptance remains separate.
+
+Verified on Linux x86-64 with the optimized final producer (SHA-256
+`74ccf33874a71df448199e134414d1bc6b0b0e0c278a7a9b22825eb3f72e10d1`):
+all nine comparison positives exit 0 in both engines, and all nine runtime
+counterfactuals trap with agreement. All format twins reject. Nine neighboring
+boundary-provider positives and a selected integer-comparison control also run
+in both engines. The original package-aware directed-division customer exits
+70 in both engines after normal compiler-bound lock refresh; its source and
+oracle are unchanged. The matching Windows and macOS native runs remain
+unexecuted here.
+
+The active [nonnumeric contract control](controls/nonnumeric_contract/main.omg)
+invokes an ordinary boundary predicate over f64. Its boolean supplies no IEEE
+upper-bound law, so forwarding the operand into `bounded` must reject the
+unproved precondition. It is pinned in
+[`float_comparison_route_nonnumeric_contract_rejected`](../../../../tests/omega/fail/facts/float_comparison_route_nonnumeric_contract_rejected/main.omg).
