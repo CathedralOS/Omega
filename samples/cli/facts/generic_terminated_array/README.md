@@ -101,7 +101,8 @@ reject for the missing terminator guarantee. The compiler was treating a
 read-only call with a constant generic argument as having unknown writes.
 The repaired optimized producer `4cbcecdf2332841c7e1f3a579fc74deca1c54d71`
 (SHA-256 `0a9b7490f6164e95b57779ec1d2c1a8ac72f8c77ef2a5bfe98d4f75e02ad9034`)
-runs both probes with native and Terminal exit 0 on macOS arm64. All four
+runs the matching corpus fixtures for both probes with native and Terminal
+exit 0 on macOS arm64. All four
 controls reject for the missing terminator guarantee. An existing generic
 statement-call program also passes both engines, and three existing invalid
 programs retain their intended argument or write-invalidation refusals.
