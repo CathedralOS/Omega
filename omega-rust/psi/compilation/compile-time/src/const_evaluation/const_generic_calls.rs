@@ -271,18 +271,20 @@ fn evaluate_application_group(
         &endpoint_references,
         context.predecessor.clone(),
     )?;
-    // Every call-bearing extent belongs to the length continuation. Callee
-    // types may themselves depend on other extents: scalar application checks
-    // cannot replace the length owner's prerequisite and provider settlement.
-    if extent_entries::retain(
-        &mut syntax,
-        &preparation.typed,
-        &application_destinations,
-        &owner_symbols,
-        &extent_uses,
-        &lexical_selections,
-        selection_authority.as_deref(),
-    )? {
+    // Full-source inventory retains ordinary length continuations. A ready
+    // declaration instead needs its independent type inputs materialized now;
+    // pending inputs still use that same continuation below.
+    if requested.is_none()
+        && extent_entries::retain(
+            &mut syntax,
+            &preparation.typed,
+            &application_destinations,
+            &owner_symbols,
+            &extent_uses,
+            &lexical_selections,
+            selection_authority.as_deref(),
+        )?
+    {
         return Ok((syntax, true));
     }
     let layer = dependencies::ready_layer(
@@ -322,12 +324,41 @@ fn evaluate_application_group(
         // Deferred provider uses are not part of this layer's checking domain.
         // A dependent application remains authored until its prerequisite is
         // settled under the later selected-provider continuation.
+        // A ready value needs concrete type prerequisites before its schema
+        // can encode that value. Independent declaration uses share the same
+        // checked constant-argument completion and source receipts. Unready
+        // extents, including provider-dependent or type-dependent callees,
+        // retain the ordinary length-job continuation instead.
+        let deferred_extents = extent_uses
+            .iter()
+            .copied()
+            .filter(|argument| {
+                requested.is_none()
+                    || !application_destinations.iter().enumerate().any(
+                        |(ordinal, (candidate, ..))| {
+                            candidate == argument && independent.contains(&owner_symbols[ordinal])
+                        },
+                    )
+            })
+            .collect::<Vec<_>>();
+        progress |= extent_entries::retain(
+            &mut syntax,
+            &preparation.typed,
+            &application_destinations,
+            &owner_symbols,
+            &deferred_extents,
+            &lexical_selections,
+            selection_authority.as_deref(),
+        )?;
         let independent_domain = preparation.domain_for_roots(&independent);
         let independent_program =
             PreparedBuildMachineProgram::prepare_in(&preparation.typed, &independent_domain)?;
         let mut checked_program = None;
         for ordinal in &layer.arguments {
             let (argument, expression, _, public) = &application_destinations[*ordinal];
+            if deferred_extents.contains(argument) {
+                continue;
+            }
             let reference = syntax.expressions.source_span(*expression);
             let failure = |reason: String| {
                 vec![
@@ -422,6 +453,16 @@ fn evaluate_application_group(
             );
             progress = true;
         }
+    } else if extent_entries::retain(
+        &mut syntax,
+        &preparation.typed,
+        &application_destinations,
+        &owner_symbols,
+        &extent_uses,
+        &lexical_selections,
+        selection_authority.as_deref(),
+    )? {
+        return Ok((syntax, true));
     }
 
     // Endpoints are input jobs too. Their private execution closure must not
