@@ -1,7 +1,7 @@
-//! Exact invocation predicates over Boolean fields, total integer
-//! comparisons, and IEEE comparisons with exact literal endpoints. Each
-//! comparison operand is resolved once: its resolved carrier selects the
-//! integer or IEEE family and the same resolution lowers it.
+//! Read crash conditions over call arguments and their fields. Integer
+//! comparisons may also use completed constants; float comparisons retain
+//! their exact literals and IEEE rules. Resolve each operand once so its type
+//! classification and the expression used for checking cannot disagree.
 use crate::published::places::place_at;
 use crate::values::operator_is_builtin;
 
@@ -216,11 +216,7 @@ pub(crate) fn lower_signature_crash_contract_expression(
     signature: &typed_trees::signature::StateSignature,
     expression: ExpressionHandle,
 ) -> Option<CheckedBooleanExpression> {
-    if !signature.symbol.is_valid()
-        || !program
-            .state_signature_type_parameters(signature)
-            .is_empty()
-    {
+    if !signature.symbol.is_valid() {
         return None;
     }
     lower_declaration_crash_contract_expression(
@@ -232,8 +228,8 @@ pub(crate) fn lower_signature_crash_contract_expression(
     )
 }
 
-/// One closed authored formal telescope lowers a declaration's crash routes;
-/// both bodyless entrypoints supply only their own closedness precondition.
+/// Read the declaration's actual formals. Unread generic parameters do not
+/// erase a concrete condition; an observed unsupported type still refuses.
 fn lower_declaration_crash_contract_expression(
     program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
@@ -560,8 +556,8 @@ impl<'program> Reader<'program> {
         {
             return None;
         }
-        // Use the completed declaration value and its declared type. Reading
-        // an initializer here would bypass its evaluation and admission owner.
+        // Read the checked value already produced for this declaration and
+        // keep its declared type for the ordinary comparison checks.
         if let Some(constant) = validation::completed_integer_constant(self.program, expression) {
             let reference = constant.type_reference?;
             let (primitive, atom) = self.primitive(reference, depth + 1)??;

@@ -70,6 +70,13 @@ uses the same public condition and actually crashes: the native
 illegal-instruction signal and the interpreter's `Trap` must agree. Permission
 to crash does not require a crash to happen.
 
+[distinct_limits](probes/distinct_limits/main.omg) uses both `Reader<Zero>` and
+`Reader<One>` in one program. Each call must keep its own limit even though
+both name the same interface member. Its [invalid twin](probes/distinct_limits/invalid/main.omg)
+weakens only the second caller's input requirement; allowing zero is insufficient
+to rule out a crash below one. This is an additional check of call separation,
+not another fact row.
+
 ## Baseline and remaining scope
 
 At `d6cf554fd1cbf20551983d29bae26f5cf3b81664`, the local, nested call-result
@@ -97,7 +104,9 @@ services. The public helper names the interface it may call with
 still reject, even though the chosen implementation returns normally.
 
 This uses the generic interface support already landed with
-`selected_value_application`; it adds no compiler rule or compatibility path.
+`selected_value_application`. Crash comparisons also need to read a named
+integer constant's completed, checked value. That repair implements the existing
+crash rule; it does not change which crashes an interface permits.
 [Provider selection](../../../../wiki/spec/build/provider_selection.md#build-owned-target-selection),
 [explicit evidence selection](../../../../wiki/spec/language/conformances.md#declaration-and-selection),
 and [boundary crash contracts](../../../../wiki/spec/terminal-psi/boundary_calls.md#boundary-crash-contracts)
