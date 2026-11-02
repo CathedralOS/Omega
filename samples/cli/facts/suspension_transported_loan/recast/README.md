@@ -1,8 +1,14 @@
-# Recast loans across suspension
+# Keep reading the same data after a call that may pause
 
-A stored reference can be recast to a compatible record view and carried across
-a possibly suspending call. The view must keep the original backing and its carry
-restrictions, so the transported record still reads 73 afterward.
+A program should keep access to the same data after a function call that may
+pause. These examples store 73, make the call, and check that reading the data
+still gives 73. Data forbidden from surviving a pause must still be rejected.
+
+The program reads a single-number buffer as a record with one field, without
+copying the data. It saves a reference—a way to access that existing data—before
+the call. Changing that reference to another compatible view is called a recast.
+The compiler must remember that both views still use the original storage and
+its restrictions.
 
 This is another production of the parent fact, under
 `STATIC-MACHINE-MIGRATION` in [TASKS.md](../../../../../TASKS.md). It uses the

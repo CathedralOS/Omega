@@ -620,10 +620,10 @@ pub(super) fn retained_reference_lineage(
     }
     // The formation operation decides lineage, not whether the descriptor is
     // stored in a reference local, an aggregate leaf or a replacement slot.
-    // An admitted reference formation lends the checked source footprint,
-    // whether its source syntax contains an explicit borrow or reads a stored
-    // descriptor. Recasts keep that footprint and its original parent resource;
-    // they do not become copies of the descriptor or fresh lifetime authority.
+    // Changing the view of stored data must keep the original permission to
+    // use it. The checked formation records that relationship for both an
+    // explicit borrow and an already saved reference. Its source footprint
+    // and parent resource remain the authority for the resulting loan.
     let is_reference_formation =
         validation::reference_formation_source(program, formation).is_some();
     let declared_source = match program.expression_table.expression(formation) {

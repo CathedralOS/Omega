@@ -214,10 +214,10 @@ pub fn reference_formation_source(
     if !program.expression_table.expression_is_valid(expression) {
         return None;
     }
-    // Typing wraps mutable-to-shared attenuation in an ordinary value cast.
-    // It changes the requested access, not the underlying loan formation.
-    // Keep that operation visible to every consumer of this source relation;
-    // a cast of an ordinary stored value still forms nothing on its own.
+    // Making an existing view read-only does not change how it was created.
+    // Typing represents that change as a value cast; follow it to the original
+    // loan formation and retain the requested access. An ordinary stored value
+    // still creates no loan on its own.
     if let Some(cast) = program.expression_table.cast_node(expression)
         && cast.form == language_core::CastForm::Value
         && cast.semantic_domain.is_empty()

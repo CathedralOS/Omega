@@ -1,3 +1,4 @@
+// Keep access to the same data after a call that may pause; the final read must still be 73.
 // Fact: A loan transported into a record before a possible suspension keeps its original backing, so the record reads 73 after the call.
 // Expected exit: 0
 public boundary trait Scheduler { machine park() reaches suspends; }

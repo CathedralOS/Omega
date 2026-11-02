@@ -1,3 +1,4 @@
+// Reject keeping access to data that is forbidden from surviving a pause.
 // Invalid: the original backing forbids suspension; recasting its reference preserves that restriction.
 // Fact: A loan transported into a record before a possible suspension keeps its original backing, so the record reads 73 after the call.
 public boundary trait Scheduler { machine park() reaches suspends; }
