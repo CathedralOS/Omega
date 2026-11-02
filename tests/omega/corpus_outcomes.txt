@@ -11398,11 +11398,7 @@ pass/generics/nested_static_type_equality_refines_delivery checked 4601ms @99a35
 pass/generics/nominal_machine_parameter_satisfaction_compile checked 2272ms @ccdb99ca2214
 pass/generics/omitted_data_binder_range_equation checked 65952ms check-target:macos_arm64 @911f6617ba9e
 pass/generics/omitted_fixed_domain_array_equation checked 7865ms @911f6617ba9e
-pass/generics/open_computed_quantity_result rejected 20943ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @e5ac5a94234e
-	cannot form specification operator `==` in machine `establish_three` requires contract: no exact selected meaning
-	cannot form specification operator `==` in machine `establish_three` ensures contract: no exact selected meaning
-	cannot form specification operator `+` in machine `establish_three$specialized$f2ee5d8dd2d9e06f$0` requires contract: no exact selected meaning
-	cannot form specification operator `+` in machine `establish_three$specialized$f2ee5d8dd2d9e06f$0` ensures contract: no exact selected meaning
+pass/generics/open_computed_quantity_result checked 75268ms check-target:macos_arm64 @0eba905c6ff0
 pass/generics/open_const_completed_exit_positive checked 6864ms check-target:macos_arm64 @ea132c1fff8b
 pass/generics/open_const_distinct_applications checked 6663ms check-target:macos_arm64 @ea132c1fff8b
 pass/generics/open_const_float_owned_dependency checked 7295ms check-target:macos_arm64 @ccdb99ca2214
@@ -31044,13 +31040,10 @@ fail/generics/grouped_decimal_const_zero_division_rejected rejected 241ms unexpe
 	division by zero in closed const argument: the divisor is provably zero, which always traps at runtime. Remove the operation or use a nonzero divisor.
 fail/generics/index_algebra_law_requires_identity rejected 2239ms expected @af2cbd5e6837
 	index compatibility condition `index-equality:Indexed:reorder::entry:exit-0:Indexed<Left + Right>==Indexed<Right + Left>` is not established: actual `Indexed<Left + Right>` and expected `Indexed<Right + Left>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `add` of `IndexOperations` licenses no law
-fail/generics/index_equality_foreign_algebra rejected 903ms unexpected @ccdb99ca2214
-	cannot form specification operator `==` in machine `establish_three` requires contract: no exact selected meaning
-	cannot form specification operator `==` in machine `establish_three` ensures contract: no exact selected meaning
-	cannot form specification operator `+` in machine `establish_three$specialized$329cd042af21d75b$0` requires contract: no exact selected meaning
-	cannot form specification operator `+` in machine `establish_three$specialized$329cd042af21d75b$0` ensures contract: no exact selected meaning
-fail/generics/index_equality_selected_boolean_relation rejected 807ms unexpected @ccdb99ca2214
-	cannot form specification operator `==` in machine `relation_is_not_equality` requires contract: no exact selected meaning
+fail/generics/index_equality_foreign_algebra rejected 3463ms expected @0eba905c6ff0
+	index compatibility condition `index-equality:Indexed:cannot_borrow_other_application::entry:statement-1:Indexed<1 + 2>==Indexed<3>` is not established: actual `Indexed<1 + 2>` and expected `Indexed<3>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `add` of `IndexAdd` licenses no law
+fail/generics/index_equality_selected_boolean_relation rejected 3358ms expected @0eba905c6ff0
+	index compatibility condition `index-equality:Indexed:relation_is_not_equality::entry:statement-0:Indexed<Left + Right>==Indexed<4>` is not established: actual `Indexed<Left + Right>` and expected `Indexed<4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `add` of `IndexOperations` licenses no law
 fail/generics/indexed_domain_capacity_invalid_initializer rejected 1206ms expected @911f6617ba9e
 	construction of `DomainBytes<u64 in AtMost<256>, 256>` field `length` cannot be proven within its declared range `0..=256`; constrain the value, construct with a literal in range, or widen the field
 	`as ... in AtMost<256>` cannot mint: a `AtMost<256>` domain fact is FALSE at this value -- the predicate obligation is owed (decision 19's "predicate obligation not discharged" class)
@@ -32987,8 +32980,8 @@ fail/proofs/result_extent_authored_subtraction rejected 2812ms expected @ccdb99c
 	cannot prove requires contract for call need_two from main: selected.len == 2 (needs fact `bytes.len == 2` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/proofs/result_extent_formal_shadows_result rejected 3185ms expected @ccdb99ca2214
 	cannot prove requires contract for call need_two from main: selected.len == 2 (needs fact `bytes.len == 2` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/proofs/result_index_abstract_bound_operator rejected 953ms unexpected @ccdb99ca2214
-	cannot form specification operator `==` in trait `Outer` state `issue` ensures contract: no exact selected meaning
+fail/proofs/result_index_abstract_bound_operator rejected 1415ms unexpected @0eba905c6ff0
+	cannot form specification operator `[]` in trait `Outer` state `issue` ensures contract: no exact selected meaning
 fail/proofs/result_index_authored_operator rejected 2210ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from issue at statement 0: result.items[0].code == 7
 fail/proofs/result_index_false_producer rejected 3455ms expected @ccdb99ca2214
