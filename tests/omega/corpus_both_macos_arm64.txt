@@ -1398,8 +1398,6 @@ pass/providers/generic_required_instance_roster_exit built 7247ms exit:0 interpr
 pass/providers/phantom_local_calling_applications built 45708ms exit:0 interpreter-exit:0 interpreter:agrees @27df46d55c29
 pass/providers/runtime_boundary_guarded_array_requires_exit built 1499ms exit:0 interpreter-exit:0 interpreter:agrees @33b180036351
 pass/providers/selected_parent_ignores_unused_descendant_exit built 2347ms exit:0 interpreter-exit:0 interpreter:agrees @002791b61f14
-pass/providers/table_leaf_dispatch_parameter_exit rejected 3145ms interpreter:unchecked @c6992f408aad
-	target legalization failed: SourceCustodyMismatch { machine: Some(MachineId(1)), operation: None, site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }
 pass/range/runtime_guarded_runtime_index_increment_exit built 7751ms exit:1 interpreter-exit:1 interpreter:agrees @89d5d2d7655c
 pass/ranges/sum_payload_range_arith_narrowed_exit built 6884ms exit:70 interpreter-exit:70 interpreter:agrees @daa14c70b1c0+wt
 pass/recast/native_bounded_array_window_exit built 1453ms exit:0 interpreter-exit:0 interpreter:agrees @bb8f3fedf0ae

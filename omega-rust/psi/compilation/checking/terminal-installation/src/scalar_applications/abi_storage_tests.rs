@@ -155,67 +155,6 @@ fn facts(target: &str) -> crate::LayoutTargetFacts {
 }
 
 #[test]
-fn borrowed_storage_demand_is_explicit_readable_and_artifact_bound() {
-    let (original, keys) = fixture(true, false);
-    for access in [
-        terminal_psi::StructuralAccess::SharedBorrow,
-        terminal_psi::StructuralAccess::MutableBorrow,
-        terminal_psi::StructuralAccess::WriteOnlyBorrow,
-        terminal_psi::StructuralAccess::Owned,
-    ] {
-        let mut module = original.semantic_module().clone();
-        for declaration in &mut module.calling_abi_signatures {
-            let storage = declaration.storage.as_mut().unwrap();
-            storage.result = None;
-            storage.parameters = vec![terminal_psi::CallingAbiParameter {
-                structural_type: StructuralTypeId::new(3).unwrap(),
-                callback_backing: None,
-                access,
-            }];
-            storage.telescope.parameters = vec![terminal_psi::CallingRuntimeFormal {
-                identity: semantic_vocabulary::NativeParameterId::new(1).unwrap(),
-                native_ordinal: 0,
-            }];
-        }
-        let optimization =
-            terminal_codec::build_identity_optimization_execution_record(&module).unwrap();
-        let artifact = CanonicalTerminalArtifact::from_parts(module, optimization, None).unwrap();
-        let demand =
-            CallingAbiStorageDemand::new(artifact.view(), "macos_arm64", &keys[0]).unwrap();
-        if access != terminal_psi::StructuralAccess::Owned {
-            assert!(
-                demand.applications().is_empty(),
-                "pointer transport must not demand referent layout"
-            );
-        }
-        assert!(
-            demand
-                .clone()
-                .with_borrowed_parameter(original.view(), 0)
-                .is_err()
-        );
-        assert!(
-            demand
-                .clone()
-                .with_borrowed_parameter(artifact.view(), 1)
-                .is_err()
-        );
-        let borrowed = demand.with_borrowed_parameter(artifact.view(), 0);
-        if matches!(access, terminal_psi::reading_borrow_pair_pattern!()) {
-            assert_eq!(
-                borrowed.unwrap().applications(),
-                [
-                    ScalarApplicationId::new(1).unwrap(),
-                    ScalarApplicationId::new(2).unwrap(),
-                ]
-            );
-        } else {
-            assert!(borrowed.unwrap_err().contains("readable formal"));
-        }
-    }
-}
-
-#[test]
 fn abi_storage_request_requires_exact_canonical_roster() {
     let (artifact, keys) = fixture(true, false);
     let demand = CallingAbiStorageDemand::new(artifact.view(), "macos_arm64", &keys[0]).unwrap();

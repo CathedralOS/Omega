@@ -14,6 +14,7 @@ pass/borrows/runtime_owned_input_reference_replacement_copies_exit built 1395ms 
 pass/borrows/runtime_owned_input_reference_replacement_exit built 1117ms exit:0 @66bc5becc69e
 pass/borrows/runtime_stored_reference_scalar_assignment_exit built 1428ms exit:0 @4ce70cb5f8a0
 pass/build/terminal_calling_policy_execution built 86920ms exit:0 terminal-runtime.retained_plan:match terminal-inspections:match @5599dba65fa9
+pass/build/terminal_native_layout_catalog built 7824ms exit:0 native-layout-controls:match terminal-inspections:match @e81e92bdf28b+wt
 pass/build/terminal_private_callback_calling built 45543ms exit:0 @5599dba65fa9
 pass/calls/runtime_mutable_owned_computation_arguments_exit built 1107ms exit:0 @66bc5becc69e
 pass/collections/runtime_stored_reference_array_owned_record_contract_exit built 1343ms exit:0 @4ce70cb5f8a0
@@ -4475,6 +4476,7 @@ pass/providers/service_fused_root checked 9747ms @5041ef1af684+wt
 pass/providers/service_fused_root_establishment built 256ms
 pass/providers/specialized_mixed_structural_result_operator_hosted_native built 1756ms exit:0 @c9b4ecc7551a
 pass/providers/specialized_structural_fixed_operator_terminal_custody built 370ms
+pass/providers/table_leaf_dispatch_parameter_exit built 3264ms exit:0 @e81e92bdf28b
 pass/providers/target_contract_adjacency_exit built 5198ms exit:0 @eca66ed24a79+wt
 pass/providers/target_family_entry checked 9695ms @5041ef1af684+wt
 pass/providers/token_machine_family_override_exit built 676ms exit:70

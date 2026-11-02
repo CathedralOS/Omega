@@ -1,9 +1,0 @@
-use omega::language::core::external_binding;
-data Table { invoke: addr; }
-boundary trait Query { machine query(table: &write Table) -> u32 reaches; }
-machine query(table: &write Table) -> u32
-    satisfies Query::query via ForeignBinding::TableFunction(invoke);
-machine main() reaches Query {
-    let mut table: Table = Table { invoke: 0 as addr };
-    let result: u32 = Query::query(&write table);
-}

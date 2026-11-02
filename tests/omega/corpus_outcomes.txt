@@ -2519,7 +2519,9 @@ fail/providers/provider_receiver_parameter_rejected rejected 1222ms expected @5d
 	machine `main` state `entry` parameter `counter` uses boundary trait `Counter` as a value type; call a `Counter` requirement directly, or carry an ordinary handle, session, or `dyn` value for runtime multiplicity
 fail/providers/provider_receiver_requirement_signature_rejected rejected 1222ms expected @5d5ae6099032+wt
 	trait `Use` state `apply` parameter `counter` uses boundary trait `Counter` as a value type; call a `Counter` requirement directly, or carry an ordinary handle, session, or `dyn` value for runtime multiplicity
-fail/providers/table_leaf_without_dispatch_borrow rejected 3589ms expected @bad39459725b+wt
+fail/providers/table_dispatch_non_address_field rejected 2811ms expected @e81e92bdf28b
+	cannot realize table field `invoke` for `query`: table dispatch field must have type addr
+fail/providers/table_leaf_without_dispatch_borrow rejected 2590ms expected @e81e92bdf28b+wt
 	selected provider plan `<selected target>::satisfies::Measure` is not fully covering: external leaf for `Measure::length` uses a table field, but its first parameter is not a readable borrow of a data declaration
 fail/recast/pending_layout_view_call_requires_establishment rejected 1431ms expected @70ba9ee572b42c4d7f6ffe7d3051217e0906221c
 	argument `value` for state `consume::entry`: unestablished recast target `Payload`; prove its predicate over current storage before consuming a valid value
@@ -13087,7 +13089,7 @@ pass/providers/specialized_structural_fixed_operator_terminal_custody checked 35
 pass/providers/staggered_installation_reach_exit checked 3868ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/structural_membership_boundary_exit checked 3781ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/structural_result_field_guarantee_exit checked 4145ms check-target:macos_arm64 @ccdb99ca2214
-pass/providers/table_leaf_dispatch_parameter_exit checked 9394ms check-target:linux_x86_64 @e83763954a2a+wt
+pass/providers/table_leaf_dispatch_parameter_exit checked 3328ms check-target:macos_arm64 @e81e92bdf28b
 pass/providers/target_contract_adjacency_exit checked 3257ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/target_family_entry checked 3097ms @ccdb99ca2214
 pass/providers/token_machine_family_override_exit checked 12968ms check-target:macos_arm64 @ccdb99ca2214
@@ -33560,7 +33562,7 @@ fail/providers/direct_foreign_missing_reach rejected 3083ms expected @ccdb99ca22
 	machine `RestrictedProvider::current` state `current` does not satisfy trait `Restricted` machine `current`: service `Process` is not allowed by the trait requirement
 fail/providers/direct_foreign_rejected_calling rejected 11514ms expected @ccdb99ca2214
 	calling policy rejected the boundary: direct foreign policy refuses
-fail/providers/direct_foreign_wrong_table rejected 9244ms expected @e83763954a2a+wt
+fail/providers/direct_foreign_wrong_table rejected 3132ms expected @e81e92bdf28b+wt
 	cannot realize table field `invoke` for `query`: no runtime field `invoke` in the dispatch table
 fail/providers/erased_routed_result_not_recovered checked 2624ms @ccdb99ca2214
 fail/providers/explicit_unavailable_target_provider rejected 9055ms expected @ccdb99ca2214
