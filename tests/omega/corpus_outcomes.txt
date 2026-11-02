@@ -13334,11 +13334,11 @@ pass/wire/runtime_wire_encode_borrowed_scalar_slice_exit checked 12900ms check-t
 pass/wire/runtime_wire_encode_byte_slice_exit checked 12839ms check-target:macos_arm64 @ccdb99ca2214
 pass/wire/runtime_wire_encode_interior_scalar_slice_exit checked 13152ms check-target:macos_arm64 @ccdb99ca2214
 pass/wire/runtime_wire_exact_array_without_count_exit checked 12526ms check-target:macos_arm64 @ccdb99ca2214
-pass/wire/runtime_wire_policy_authored_plan_exit checked 75665ms check-target:macos_arm64 @911f6617ba9e
+pass/wire/runtime_wire_policy_authored_plan_exit checked 103875ms check-target:macos_arm64 @0151cda77112
 pass/wire/runtime_wire_roundtrip_nested_and_repeated_exit timeout 176565ms regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 pass/wire/runtime_wire_signed_extremes_roundtrip_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 pass/wire/runtime_wire_utf8_edge_verdicts_exit checked 109571ms check-target:macos_arm64 @ccdb99ca2214
-pass/wire/systems_wire_protocol_exit checked 77089ms check-target:macos_arm64 @911f6617ba9e
+pass/wire/systems_wire_protocol_exit checked 97474ms check-target:macos_arm64 @0151cda77112
 pass/wire/wire_compatibility_migration_across_shapes checked 11966ms check-target:macos_arm64 @ccdb99ca2214
 pass/wire/wire_data_reserved_field checked 3922ms check-target:macos_arm64 @ccdb99ca2214
 pass/wire/wire_field_numbers checked 3594ms @ccdb99ca2214
@@ -34386,7 +34386,7 @@ fail/wire/wire_compatibility_migration_route_missing rejected 456ms expected @cc
 	wire compatibility demand `ArchiveStore` is unsatisfied for local schema `Counter` and peer schema `CounterV1`: migration coverage (no complete `CounterLineage` migration route exists from `CounterV1` to `Counter`)
 fail/wire/wire_compatibility_preservation_unmet rejected 759ms expected @ccdb99ca2214
 	wire compatibility demand `RelayChannel` is unsatisfied for local schema `LocalMessage` and peer schema `PeerMessage`: unknown preservation (compact_binary publishes strict unknown-member behavior)
-fail/wire/wire_policy_plan_disagrees rejected 41826ms expected @911f6617ba9e
+fail/wire/wire_policy_plan_disagrees rejected 52557ms expected @0151cda77112
 	cannot prove requires contract for call policy_gate from Main::main: false (needs fact `valid` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
 run/arithmetic/anonymous_comparison_with_typed_operators checked 6136ms check-target:macos_arm64 @ccdb99ca2214
 run/arithmetic/disjoint_pressure_regions checked 34824ms check-target:macos_arm64 @ccdb99ca2214
