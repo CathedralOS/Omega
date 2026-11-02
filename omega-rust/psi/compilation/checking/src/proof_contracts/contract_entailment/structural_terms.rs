@@ -1033,6 +1033,21 @@ fn structural_call_target_in_frame(
         &[typed_trees::signature::StateParameter],
     )>,
 ) -> symbols::SymbolHandle {
+    let target = structural_call_target(
+        program,
+        frame.map_or(symbols::SymbolHandle::invalid(), |(owner, _)| owner),
+        call,
+    );
+    // A parameter telescope may refine the public signature, but cannot merge
+    // two independently supplied symbolic operations into that shared owner.
+    if target.is_valid()
+        && let Some(receiver) = expression_table(program).name_path_node(call.receiver)
+        && receiver.symbol.is_valid()
+        && program.symbols.get(receiver.symbol).kind == symbols::SymbolKind::ConformanceParameter
+        && program.symbols.get(target).parent == receiver.symbol
+    {
+        return target;
+    }
     frame
         .and_then(|(owner, parameters)| {
             super::specification_calls::selected_call_contract_for_parameters(
@@ -1040,13 +1055,7 @@ fn structural_call_target_in_frame(
             )
         })
         .map(|owner| super::specification_calls::owner_symbol(&owner))
-        .unwrap_or_else(|| {
-            structural_call_target(
-                program,
-                frame.map_or(symbols::SymbolHandle::invalid(), |(owner, _)| owner),
-                call,
-            )
-        })
+        .unwrap_or(target)
 }
 
 fn call_projection_field_symbol(

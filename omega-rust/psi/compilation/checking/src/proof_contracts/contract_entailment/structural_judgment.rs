@@ -2490,11 +2490,24 @@ impl<'program> StructuralJudge<'program> {
         if !self.specification_terms {
             return false;
         }
+        let closed = crate::machine_calls::denotational_calls::selected_requirement_authored_body(
+            self.program,
+            lexical_owner,
+            call,
+        );
+        let target = closed.map_or_else(
+            || super::structural_terms::structural_call_target(self.program, lexical_owner, call),
+            |(_, entry)| entry.symbol,
+        );
         let candidate = specification_application_candidate(
             self.program,
             self.machine_symbol,
-            super::structural_terms::structural_call_target(self.program, lexical_owner, call),
-            &call.machine_arguments,
+            target,
+            if closed.is_some() {
+                &[]
+            } else {
+                &call.machine_arguments
+            },
             self.frame_resolver(),
         );
         if super::struct_trace()
