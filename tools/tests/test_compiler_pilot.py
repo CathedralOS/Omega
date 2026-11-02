@@ -29,6 +29,36 @@ class CompilerPilotTests(unittest.TestCase):
             (directory / "main.omg").write_text("// Expected exit: 0\nmachine main() {}")
             (directory / "build.omg").write_text("ProgramEntry")
 
+    def test_ordinary_cli_selection_is_exact_and_never_replaces_refusal_with_smoke(self):
+        fixture = "pass/filesystem/normal_exit"
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.fixture_root(root, fixture)
+            project = root / "tests/omega" / fixture
+            (project / "build.omg").write_text("ProgramEntry")
+            (project / "expected_native_exit.txt").write_text("70")
+            with patch.object(pilot, "ROOT", root), patch.object(pilot, "execute") as execute:
+                self.assertEqual(pilot.run_suite("cli", pilot.POSITIVES, pilot.NEGATIVES,
+                                                cli_fixtures=fixture), 0)
+                self.assertEqual(execute.call_args.kwargs["positives"], ())
+                self.assertEqual(execute.call_args.kwargs["cli_fixtures"], (fixture,))
+                execute.reset_mock()
+                (project / "expected_stdout.windows_x86_64.txt").write_text("must be checked")
+                self.assertEqual(pilot.run_suite("bad", pilot.POSITIVES, pilot.NEGATIVES,
+                                                cli_fixtures=fixture), 1)
+                execute.assert_not_called()
+
+    def test_ordinary_cli_requires_explicit_terminal_exit_including_nonzero_oracles(self):
+        validate = pilot.ordinary_cli_fixture.validate_exits
+        validate(70, "native exit 70\ninterp exit: 70\n", 70)
+        for code, stderr in ((0, "native exit 0\ninterp: DECLINED\n"),
+                             (0, "native exit 0\n"),
+                             (0, "native exit 0\ninterp exit: 1\n"),
+                             (0, "native exit 0\ninterp exit: 0\ninterp: TRAP\n"),
+                             (1, "native exit 0\ninterp exit: 0\n")):
+            with self.subTest(code=code, stderr=stderr), self.assertRaisesRegex(ValueError, "agreement"):
+                validate(code, stderr, 0)
+
     def test_fact_selection_includes_nested_control_but_refuses_filter_collision(self):
         sample = "samples/cli/facts/layout/local"
         with tempfile.TemporaryDirectory() as temporary:
@@ -153,6 +183,22 @@ class CompilerPilotTests(unittest.TestCase):
                 self.assertEqual(run.call_count, bool(samples) + bool(negatives))
                 self.assertEqual(producer.verify.call_count, 2)
                 self.assertEqual("runner_sha256" in summary, bool(negatives))
+
+    def test_ordinary_cli_checks_through_package_admission_without_corpus(self):
+        fixture = "pass/filesystem/write_all_full_device_exit"
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            producer = Mock(revision="a" * 40, target="linux_x86_64", runner=None, runner_profile=None)
+            with patch.object(pilot, "command", side_effect=lambda argv: "" if "status" in argv else "a" * 40), \
+                    patch.dict(os.environ, {"GITHUB_SHA": "a" * 40}), \
+                    patch.object(pilot.corpus_gate, "host_target", return_value=producer.target), \
+                    patch.object(pilot.subprocess, "run") as run, \
+                    patch.object(pilot, "prepare_producer", return_value=producer) as build, \
+                    patch.object(pilot.ordinary_cli_fixture, "observe", return_value={"passed": True}) as observe:
+                pilot.execute(output, {}, positives=(), negatives=(), cli_fixtures=(fixture,))
+            build.assert_called_once_with(output, need_runner=False)
+            observe.assert_called_once_with(pilot.ROOT, producer, fixture, output / "ordinary-cli" / fixture)
+            run.assert_not_called()
 
     def test_cli_only_producer_cannot_execute_corpus_fixtures(self):
         producer = Mock(revision="a" * 40, target="linux_x86_64", runner=None, runner_profile=None)
@@ -418,6 +464,44 @@ class CompilerPilotTests(unittest.TestCase):
             report[key] = value
             with self.subTest(key=key), self.assertRaises(ValueError):
                 self.validate(report, True)
+
+    def test_authored_traps_require_matching_native_fault_and_typed_terminal_trap(self):
+        fixture = "pass/proofs/runtime_round_trip_trap"
+        targets = {
+            "linux_x86_64": {"exit": "signal", "signal": "4"},
+            "linux_arm64": {"exit": "signal", "signal": "5"},
+            "macos_arm64": {"exit": "signal", "signal": "5"},
+            "windows_x86_64": {"exit": "-1073741795"},
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.fixture_root(root, fixture)
+            oracle = root / "tests/omega" / fixture / "expected_native_exit.txt"
+            oracle.write_text("trap\n")
+            for target, native in targets.items():
+                report = self.report(True)
+                report["target"] = target
+                report["observations"] = [dict(fixture=fixture, status="built", facts={
+                    **native, "interpreter": "trapped"})]
+                with patch.object(pilot, "ROOT", root):
+                    def validate(value):
+                        pilot.validate_report(value, (fixture,), both=True,
+                                              revision="a" * 40, target=target)
+                    with self.subTest(target=target):
+                        validate(report)
+                        for facts in ({"exit": "0", "interpreter": "trapped"},
+                                      {"exit": "signal", "signal": "11", "interpreter": "trapped"},
+                                      {**native, "interpreter": "declined"},
+                                      {**native, "interpreter": "trapped", "interpreter-exit": "0"},
+                                      {**native, "interpreter": "trapped", "interpreter-signal": "5"}):
+                            missing = deepcopy(report)
+                            missing["observations"][0]["facts"] = facts
+                            with self.subTest(facts=facts), self.assertRaises(ValueError):
+                                validate(missing)
+                        oracle.write_text("0\n")
+                        with self.assertRaises(ValueError):
+                            validate(report)
+                        oracle.write_text("trap\n")
 
     def test_cleanup_report_requires_both_authored_output_observations(self):
         fixture = "pass/drops/runtime_projected_nominal_cleanup_exit"

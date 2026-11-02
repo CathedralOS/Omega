@@ -28,7 +28,7 @@ use super::super::{
     PrimitiveType, StatementNode, SymbolHandle, TypeConstraintNode, TypeReferenceNode,
 };
 use crate::flow::expressions;
-use crate::places::place_at;
+use crate::published::places::place_at;
 
 /// Find primitive storage established by an initializer or its declaration's
 /// plain zero value before this occurrence.

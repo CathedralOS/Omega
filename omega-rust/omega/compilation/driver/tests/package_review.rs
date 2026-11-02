@@ -672,6 +672,7 @@ fn historical_constant_closure_requires_exact_target_and_provider() {
     let observation = terminal_runtime::execute(terminal_runtime::TerminalRuntimeRequest {
         entry: None,
         filesystem: Default::default(),
+        native_services: Default::default(),
         native_provider: None,
         x86_flags: None,
         memory_ordering: None,
@@ -782,4 +783,126 @@ fn review_records_dynamic_slot_origin_and_qualification() {
         recovered_view.parameter_qualification_preconditions(),
         view.parameter_qualification_preconditions()
     );
+}
+
+/// Review one repository fixture and strictly recover the policy it published.
+/// Capture and recovery are separate owners of the same binder and identity
+/// vocabulary; only a fixture that crosses both can notice them disagreeing.
+fn reviewed_and_recovered(
+    fixture: &str,
+    target: &str,
+) -> package_evidence::record::PackagePolicyBaseline {
+    use package_evidence::encoding::PackagePolicyRecoveryLimits;
+    use package_evidence::record::PackagePolicyBaseline;
+
+    let fixture = fixture_package_inputs::repo_root().join(fixture);
+    let prepared =
+        fixture_package_inputs::reviewed_repository_fixture_package_inputs(&fixture, Some(target))
+            .expect("fixture inputs");
+    let mut session = CompilationSession::default();
+    let build = execute_build(
+        &mut session,
+        CheckedCompileRequest {
+            package_inputs: prepared.package_inputs,
+            ..CheckedCompileRequest::new(&prepared.root_path, Some(target))
+        },
+    );
+    let reviewed = session
+        .review_package_build(build, usize::MAX)
+        .expect("fixture review");
+    let bytes = reviewed
+        .evidence
+        .policy
+        .canonical_bytes()
+        .expect("encode policy");
+    let recovered =
+        PackagePolicyBaseline::recover_canonical(&bytes, PackagePolicyRecoveryLimits::default())
+            .expect("strict recovery of the policy review just published");
+    assert_eq!(
+        recovered.canonical_bytes().expect("re-encode policy"),
+        bytes
+    );
+    recovered
+}
+
+#[test]
+fn trait_requirement_contract_binders_recover_in_the_declared_static_telescope() {
+    // `StepContract::step<const Count>` states `requires value <= 37 && Count <= 37`,
+    // so its contract names the requirement's own static binder. A trait has no
+    // implicit subject binder before its declared statics.
+    let recovered = reviewed_and_recovered(
+        "tests/omega/pass/facts/static_callback_reach_boundary_schema/main.omg",
+        "linux_x86_64",
+    );
+    let contract = recovered
+        .public_traits()
+        .iter()
+        .find(|shape| shape.identity().path() == "StepContract")
+        .expect("public StepContract");
+    assert!(contract.type_parameters().is_empty());
+    let [step] = contract.requirements() else {
+        panic!("one StepContract requirement");
+    };
+    assert_eq!(step.type_parameters().len(), 1);
+    assert!(!step.contracts().is_empty());
+}
+
+#[test]
+fn toolchain_boundary_applications_recover_against_their_owner_qualified_requirement() {
+    use package_evidence::record::PackageReviewNominalOwner;
+
+    // `value + 1.0` closes an application of the toolchain `Float::add`
+    // overload, whose requirement identity typed Psi qualifies with the
+    // toolchain owner namespace.
+    let recovered = reviewed_and_recovered(
+        "tests/omega/pass/float/live_float_parameter_across_call_exit/main.omg",
+        "linux_x86_64",
+    );
+    let add = recovered
+        .boundary_applications()
+        .realizations()
+        .iter()
+        .find(|realization| realization.operator_coordinate().identity().path() == "Float::add")
+        .expect("closed Float::add application");
+    assert!(matches!(
+        add.operator_coordinate().identity().owner(),
+        PackageReviewNominalOwner::ToolchainSource(_)
+    ));
+    assert!(
+        add.requirement_identity()
+            .contains(r"nominal\(toolchain-owner\,path\(Float::add\)\)"),
+        "{}",
+        add.requirement_identity()
+    );
+}
+
+#[test]
+fn opaque_realization_publishes_the_ceiling_it_inherits_from_its_requirement() {
+    // `read` repeats neither `reaches Probe` nor `blocks`; the requirement it
+    // satisfies publishes both, and an opaque supply has no body from which to
+    // publish anything else.
+    let recovered = reviewed_and_recovered(
+        "tests/omega/pass/boundary/native_provider_unoffered_read/main.omg",
+        "linux_x86_64",
+    );
+    let blocking_reads = recovered
+        .callables()
+        .callables()
+        .iter()
+        .filter(|callable| {
+            callable.checked_may_block() && callable.identity().path().contains("read")
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        !blocking_reads.is_empty(),
+        "the fixture realizes the blocking Probe::read opaquely"
+    );
+    for leaf in blocking_reads {
+        assert_eq!(
+            leaf.declared_may_block(),
+            Some(true),
+            "{}",
+            leaf.identity().path()
+        );
+    }
 }

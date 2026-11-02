@@ -28,7 +28,7 @@ class BaselineCommandTests(unittest.TestCase):
              "-D", "warnings"])
         self.assertEqual(
             commands["corpus"],
-            [sys.executable, "tools/corpus_gate.py"])
+            [sys.executable, "tools/corpus_gate.py", "--sweep"])
         self.assertEqual(
             commands["check"],
             ["mbx", "check", "--workspace", "--all-targets"])

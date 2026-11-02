@@ -15,7 +15,7 @@ use typed_trees::operator::declaration_by_symbol;
 use typed_trees::state::State;
 use typed_trees::types::TypeReferenceHandle;
 
-use crate::places::place_at;
+use crate::published::places::place_at;
 use validation::{
     CallSite, CanonicalPlace, atomic_execution_children, canonical_place_type_reference,
     expression_result_type_reference, ownership_place_from_expression_in_state,

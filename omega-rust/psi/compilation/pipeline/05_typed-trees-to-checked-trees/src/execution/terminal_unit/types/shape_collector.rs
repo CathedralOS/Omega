@@ -53,7 +53,6 @@ use typed_trees::type_identity::TypeIdentityId;
 use typed_trees::types::DomainConstraint;
 use typed_trees::types::FixedArrayLength;
 use validation::ContentsRequirement;
-use validation::DeclaredPropertyRequirement;
 use validation::activation_claim_byte_carrier;
 use validation::case_where_field_intervals;
 use validation::data_has_contents;
@@ -68,7 +67,7 @@ use validation::stored_structural_type_identity;
 use validation::stores_reference_shape;
 use validation::structural_storage_type;
 use validation::structural_type_identity;
-use validation::type_satisfies_declared_property;
+use validation::substituted_type_satisfies_copy;
 use validation::unrestricted_builtin_primitive;
 
 /// Identity alone can join different source presentations. Memoize only an
@@ -823,13 +822,9 @@ impl<'program> ShapeCollector<'program> {
         let storage_properties = || {
             // Usage multiplicity permits repeated exclusive-reference access; it
             // does not permit copying that descriptor, including inside an array.
-            // Ask the same declared-property owner as stored-value copy planning.
-            let copyable = type_satisfies_declared_property(
-                program,
-                &[],
-                storage,
-                DeclaredPropertyRequirement::Copy,
-            );
+            // Ask the same declared-property owner as stored-value copy planning,
+            // through the same substitutions that named this shape's identity.
+            let copyable = substituted_type_satisfies_copy(program, storage, substitutions);
             let no_code_affine_cleanup = has_contents(
                 program,
                 storage,
@@ -1182,10 +1177,7 @@ impl<'program> ShapeCollector<'program> {
     /// application view that borrows the authored declaration's symbol beside
     /// the generated carrier; an origin whose `base_symbol` is still the
     /// candidate's own symbol marks that borrowed view, never the carrier.
-    fn canonical_closed_carrier(
-        &mut self,
-        identity: TypeIdentityId,
-    ) -> Option<DataDefinition> {
+    fn canonical_closed_carrier(&mut self, identity: TypeIdentityId) -> Option<DataDefinition> {
         if self.canonical_carriers.is_none() {
             let typed = self.program.typed_program();
             let mut carriers = BTreeMap::new();
@@ -1761,7 +1753,7 @@ impl<'program> ShapeCollector<'program> {
                 CheckedUnitStructuralFieldType::Structural { .. }
             ) {
                 for (_, carrier) in carriers {
-                    crate::collections::push_unique(&mut qualification_carriers, carrier);
+                    crate::shared::collections::push_unique(&mut qualification_carriers, carrier);
                 }
             }
         }

@@ -15,7 +15,7 @@ use super::super::stored_values::StoredOperand;
 use super::super::stored_values::at_snapshot;
 use super::super::stored_views::capture_at_snapshot;
 use super::Execution;
-use crate::places::place_at;
+use crate::published::places::place_at;
 use arena::{Handle, HandleSpan};
 use checked_trees::{
     BorrowLoanOwnerSegment, FlowOperandAlternative, FlowOperandCompletion, FlowOperandFact,
@@ -272,7 +272,7 @@ impl Execution<'_, '_, '_> {
                 if self.context.control.retained_roots(leaf).is_none() {
                     return Handle::invalid();
                 }
-                crate::collections::push_unique(&mut profiles, leaf);
+                crate::shared::collections::push_unique(&mut profiles, leaf);
             }
             let retention = self.join_retention_profiles(&profiles);
             if path.is_empty() {
@@ -343,7 +343,7 @@ impl Execution<'_, '_, '_> {
             .operand_referents
             .span_or_empty(referents)
         {
-            crate::collections::push_unique(&mut roots, referent.root);
+            crate::shared::collections::push_unique(&mut roots, referent.root);
         }
         if roots.is_empty() {
             Handle::invalid()
@@ -795,7 +795,7 @@ impl Execution<'_, '_, '_> {
             if self.context.control.retained_roots(retention).is_none() {
                 return Some(Handle::invalid());
             }
-            crate::collections::push_unique(&mut profiles, retention);
+            crate::shared::collections::push_unique(&mut profiles, retention);
         }
         // Unknown/missing alternatives returned above; none can disappear
         // merely because another alternative has complete lifetime evidence.
@@ -1012,7 +1012,7 @@ impl Execution<'_, '_, '_> {
                 let path = crate::borrow::owner_place_segments(&leaf);
                 if let Some(PlaceSegment::FixedIndex { index }) = path.first() {
                     let path = vec![PlaceSegment::FixedIndex { index: *index }];
-                    crate::collections::push_unique(&mut paths, path);
+                    crate::shared::collections::push_unique(&mut paths, path);
                 }
             }
         }
@@ -1032,7 +1032,7 @@ impl Execution<'_, '_, '_> {
         for path in &paths {
             match self.live_descriptor_projection_retention(expression, collection, path) {
                 Some(retention) if self.context.control.retained_roots(retention).is_some() => {
-                    crate::collections::push_unique(&mut profiles, retention);
+                    crate::shared::collections::push_unique(&mut profiles, retention);
                 }
                 Some(_) => return Handle::invalid(),
                 None => all_live = false,
@@ -1148,7 +1148,7 @@ impl Execution<'_, '_, '_> {
                 continue;
             };
             for root in roots {
-                crate::collections::push_unique(&mut outputs[position].1, root);
+                crate::shared::collections::push_unique(&mut outputs[position].1, root);
             }
             // Retain the contextual actual separately from an older stored
             // capture. The latter proves supply, never the receiving contract.

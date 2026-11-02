@@ -65,19 +65,35 @@ impl LocalWriteSource {
         program: &dyn crate::CheckingInput,
         state: &State,
     ) -> Option<ScalarStorageCoordinate> {
+        self.scalar_storage_coordinate_result(program, state).ok()
+    }
+
+    pub(crate) fn scalar_storage_coordinate_result(
+        &self,
+        program: &dyn crate::CheckingInput,
+        state: &State,
+    ) -> Result<ScalarStorageCoordinate, &'static str> {
         let (view, path) = match &self.representation {
             Some((carrier, path)) => (*carrier, path.as_slice()),
             None => (
-                crate::state_root_type(program, state, self.root)?,
+                source_root_type(program, state, self.root)
+                    .ok_or("source root has no exact declaration type")?,
                 self.segments.as_slice(),
             ),
         };
-        let view_primitive = scalar_primitive(program, view, path)?;
-        let coordinate = self.storage_coordinate(program, state).ok()?;
-        let root = coordinate.place.root.as_symbol()?;
-        let carrier = crate::state_root_type(program, state, root)?;
-        let source_primitive = scalar_primitive(program, carrier, &coordinate.place.segments)?;
-        Some(ScalarStorageCoordinate {
+        let view_primitive = scalar_primitive(program, view, path)
+            .ok_or("logical view path has no declared scalar type")?;
+        let coordinate = self.storage_coordinate(program, state)?;
+        let root = coordinate
+            .place
+            .root
+            .as_symbol()
+            .ok_or("translated source has no declaration root")?;
+        let carrier = source_root_type(program, state, root)
+            .ok_or("translated source root has no declared type")?;
+        let source_primitive = scalar_primitive(program, carrier, &coordinate.place.segments)
+            .ok_or("translated source path has no declared scalar type")?;
+        Ok(ScalarStorageCoordinate {
             place: coordinate.place,
             source_primitive,
             view_primitive,
@@ -101,7 +117,7 @@ impl LocalWriteSource {
         let (mut carrier, mut path) = match &self.representation {
             Some((carrier, path)) => (*carrier, path.clone()),
             None => (
-                crate::state_root_type(program, state, root)
+                source_root_type(program, state, root)
                     .ok_or("source storage root has no declared type")?,
                 self.segments.clone(),
             ),
@@ -123,37 +139,59 @@ impl LocalWriteSource {
             let (previous_carrier, mut previous_path) = match &recast.representation {
                 Some((carrier, path)) => (*carrier, path.clone()),
                 None => (
-                    crate::state_root_type(program, state, recast.root)
+                    source_root_type(program, state, recast.root)
                         .ok_or("retained view predecessor has no declared root type")?,
                     recast.segments.clone(),
                 ),
             };
+            let range = match previous_path.last() {
+                Some(PlaceSegment::FixedRange { start, end }) => Some((*start, *end)),
+                _ => None,
+            };
+            let prefix_length = previous_path
+                .len()
+                .checked_sub(usize::from(range.is_some()))
+                .ok_or("recast source window has no prefix")?;
             let previous_type = crate::project_type_reference_from_segments(
                 program,
                 previous_carrier,
-                &previous_path,
+                &previous_path[..prefix_length],
             )
             .ok_or("retained view predecessor has no exact declared projection")?;
             let previous_storage =
                 crate::value_custody::places::assignment_value_type(program, previous_type);
-            if crate::reference_view_storage(program, previous_storage, carrier)
-                .ok_or("retained view storage classification is unavailable")?
-                == checked_trees::CheckedReferenceStorage::Declared
+            if range.is_none()
+                && crate::reference_view_storage(program, previous_storage, carrier)
+                    .ok_or("retained view storage classification is unavailable")?
+                    == checked_trees::CheckedReferenceStorage::Declared
             {
                 // Equality is the existing complete stored declaration identity,
                 // not nominal spelling or equal byte size. Original constraints
                 // remain on the lender and are checked at the receiving store.
                 previous_path.extend(path);
             } else {
-                let translated = crate::value_custody::recasts::recast_scalar_source_leaf(
-                    program,
-                    previous_type,
-                    carrier,
-                    &path,
-                )
+                let translated = match range {
+                    Some((start, end)) => {
+                        crate::value_custody::recasts::recast_scalar_source_leaf_in_array_region(
+                            program,
+                            previous_storage,
+                            start,
+                            end,
+                            carrier,
+                            &path,
+                        )
+                    }
+                    None => crate::value_custody::recasts::recast_scalar_source_leaf(
+                        program,
+                        previous_type,
+                        carrier,
+                        &path,
+                    ),
+                }
                 .ok_or("physical reference view has no exact scalar storage translation")?;
                 preserves_scalar_value &= translated.preserves_scalar_value;
                 preserves_primitive_bits &= translated.preserves_primitive_bits;
+                previous_path.truncate(prefix_length);
                 previous_path.extend(translated.path.into_iter().map(|segment| match segment {
                     crate::RecastLeafSegment::Field(symbol) => PlaceSegment::Field { symbol },
                     crate::RecastLeafSegment::Element(index) => PlaceSegment::FixedIndex { index },
@@ -176,6 +214,18 @@ impl LocalWriteSource {
         };
         Ok(coordinate)
     }
+}
+
+/// A captured call frame can retain a root owned by its caller. That exact
+/// declaration supplies the carrier; the receiving state's parameters cannot
+/// reinterpret it. This imports no caller valuation, premise or access.
+fn source_root_type(
+    program: &dyn crate::CheckingInput,
+    state: &State,
+    root: symbols::SymbolHandle,
+) -> Option<TypeReferenceHandle> {
+    crate::state_root_type(program, state, root)
+        .or_else(|| crate::value_custody::places::declaration_type_reference(program, root))
 }
 
 fn scalar_primitive(

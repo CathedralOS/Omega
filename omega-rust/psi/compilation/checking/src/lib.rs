@@ -76,7 +76,7 @@ pub use machine_calls::calls::{
 };
 pub use machine_calls::fact_only_citations::{
     fact_only_theorem, is_fact_only_citation, is_fact_only_citation_call,
-    validate_runtime_proof_citations,
+    is_fact_only_requirement_citation, validate_runtime_proof_citations,
 };
 pub use machine_calls::static_machine_call_contracts::{
     static_machine_call_binding_bytes, static_machine_parameter_contract_bytes,
@@ -245,7 +245,8 @@ pub use value_custody::places::{
 };
 
 pub use proof_contracts::bound_expression_meaning::{
-    applied_case_membership_variant, exact_case_reference_owner, exact_domain_subject_type,
+    applied_case_membership_variant, applied_declaration_case_membership_variant,
+    exact_case_reference_owner, exact_domain_subject_type,
     has_builtin_binary_expression_meaning, has_builtin_bound_expression_meaning,
     has_builtin_decomposed_guard_meaning, has_builtin_domain_decomposed_guard_meaning,
     has_builtin_or_sealed_float_comparison_meaning, has_exact_case_membership_meaning,
@@ -301,7 +302,8 @@ pub use crate::machine_calls::denotational_calls::{
 pub use crate::machine_calls::fact_call_projections::has_checked_denotational_call_identity;
 pub use crate::proof_contracts::slice_ranking::slice_tail_strictly_decreases;
 pub use crate::value_custody::cleanup::{
-    nominal_cleanup_machine_for_type, nominal_cleanup_owner, validate_reserved_cleanup_selections,
+    nominal_cleanup_machine_for_type, nominal_cleanup_owner, nominal_cleanup_target,
+    validate_reserved_cleanup_selections,
 };
 pub use crate::value_custody::content_conservation::{
     ContentBoundaryBodyRequirement, ContentConservationSourcePlan,
@@ -386,7 +388,7 @@ pub use proof_contracts::properties::{
     DeclaredPropertyRequirement, OpaqueDataPropertyReceipt, OpaqueDataPropertyReceiptKind,
     TypeCarryRequirements, declared_property_requirements, effective_data_carry_policy,
     effective_type_carry_policy, effective_type_carry_requirements,
-    type_satisfies_declared_property,
+    substituted_type_satisfies_copy, type_satisfies_declared_property,
 };
 pub use proof_contracts::proposition_entailment::select_named_evidence_implementation;
 pub use proof_contracts::quotients::{

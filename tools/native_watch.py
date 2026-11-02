@@ -91,8 +91,10 @@ def gate(checkout, arguments):
     golden = checkout / "build" / "native_watch_empty_golden.txt"
     golden.parent.mkdir(parents=True, exist_ok=True)
     golden.write_text("")
+    # The watch is the scheduled sweep. The variable, not `--sweep`, carries
+    # that, because older snapshot checkouts reject an unknown flag.
     return run([sys.executable, "tools/corpus_gate.py", "--native", "--golden", str(golden), *arguments],
-               cwd=checkout, check=False)
+               cwd=checkout, check=False, env=dict(os.environ, OMEGA_CORPUS_SWEEP="1"))
 
 
 def forget_checkout(checkout):

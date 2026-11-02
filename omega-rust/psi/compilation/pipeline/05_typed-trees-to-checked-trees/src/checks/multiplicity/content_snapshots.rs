@@ -7,7 +7,7 @@
 //! composes the callee's conservation theorem without inventing scalar promises
 //! about how the callee chose the individual child geometries.
 
-use crate::places::place_at;
+use crate::published::places::place_at;
 use arena::Handle;
 use checked_trees::facts::{
     ContentBodyClaimBinding, ContentClaimTransformation, ContentClaimTransformationSource,

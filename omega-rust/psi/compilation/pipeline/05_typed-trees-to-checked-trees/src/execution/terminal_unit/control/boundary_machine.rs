@@ -487,7 +487,7 @@ pub(crate) fn build_static_boundary_requirements(
                 ));
                 continue;
             };
-            let closed = crate::facts::build_callable_scalar_value_contract_plan(
+            let closed = crate::published::facts::build_callable_scalar_value_contract_plan(
                 program,
                 signature.symbol,
                 Some(program.state_signature_parameters(signature)),
@@ -615,7 +615,7 @@ fn build_boundary_operator(
         &scalar_parameters,
         &[],
     )?;
-    let closed = crate::facts::build_callable_scalar_value_contract_plan(
+    let closed = crate::published::facts::build_callable_scalar_value_contract_plan(
         program,
         operator.symbol,
         Some(program.operator_parameters(operator)),

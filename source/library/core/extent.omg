@@ -69,6 +69,7 @@ ensures
     result.taken.base == whole.base,
     result.taken.length == requested,
     result.rest.length == whole.length - requested,
+    result.rest.length == 0 || embed(result.rest.base) == embed(whole.base) + embed(requested),
     Granted::content(old(&whole)) == separate(
         Granted::content(&result.taken), Granted::content(&result.rest)),
     Vacant::content(old(&whole)) == separate(
@@ -84,6 +85,87 @@ ensures
     VacantExtentParts {
         taken: Extent { base: base, length: requested },
         rest: Extent { base: rest_base, length: length - requested },
+    }
+}
+
+// Recompose existing authority, without calling an issuer. Empty intervals
+// carry no bytes, so their stored base need not be adjacent: split deliberately
+// retains a representable base when the one-past endpoint is addr::Bound.
+// Nonempty intervals must be ordered and adjacent, and the combined count must
+// fit u64 independently of the target's address width. Both content equations
+// are required: conservation of Granted does not establish Vacant.
+public machine merge_vacant_extents(left: Extent in Granted & Vacant, right: Extent in Granted & Vacant)
+    -> Extent in Granted & Vacant
+requires
+    embed(left.length) + embed(right.length) <= 18446744073709551615,
+    left.length == 0 || right.length == 0 || embed(right.base) == embed(left.base) + embed(left.length)
+ensures
+    embed(result.length) == embed(left.length) + embed(right.length),
+    left.length == 0 || result.base == left.base,
+    left.length != 0 || result.base == right.base,
+    separate(Granted::content(old(&left)), Granted::content(old(&right))) == Granted::content(&result),
+    separate(Vacant::content(old(&left)), Vacant::content(old(&right))) == Vacant::content(&result)
+{
+    transition left.length == 0 {
+        true -> empty_left(left, right)
+        false -> nonempty_left(left, right)
+    }
+
+    machine empty_left(left: Extent in Granted & Vacant, right: Extent in Granted & Vacant) -> Extent in Granted & Vacant
+    requires left.length == 0
+    ensures
+        result.base == right.base,
+        embed(result.length) == embed(left.length) + embed(right.length),
+        separate(Granted::content(old(&left)), Granted::content(old(&right))) == Granted::content(&result),
+        separate(Vacant::content(old(&left)), Vacant::content(old(&right))) == Vacant::content(&result)
+    {
+        let { base as left_base, length as left_length } = left;
+        let { base as right_base, length as right_length } = right;
+        Extent { base: right_base, length: right_length }
+    }
+
+    machine nonempty_left(left: Extent in Granted & Vacant, right: Extent in Granted & Vacant) -> Extent in Granted & Vacant
+    requires
+        embed(left.length) + embed(right.length) <= 18446744073709551615,
+        right.length == 0 || embed(right.base) == embed(left.base) + embed(left.length)
+    ensures
+        result.base == left.base,
+        embed(result.length) == embed(left.length) + embed(right.length),
+        separate(Granted::content(old(&left)), Granted::content(old(&right))) == Granted::content(&result),
+        separate(Vacant::content(old(&left)), Vacant::content(old(&right))) == Vacant::content(&result)
+    {
+        transition right.length == 0 {
+            true -> empty_right(left, right)
+            false -> adjacent(left, right)
+        }
+    }
+
+    machine empty_right(left: Extent in Granted & Vacant, right: Extent in Granted & Vacant) -> Extent in Granted & Vacant
+    requires right.length == 0
+    ensures
+        result.base == left.base,
+        embed(result.length) == embed(left.length) + embed(right.length),
+        separate(Granted::content(old(&left)), Granted::content(old(&right))) == Granted::content(&result),
+        separate(Vacant::content(old(&left)), Vacant::content(old(&right))) == Vacant::content(&result)
+    {
+        let { base as left_base, length as left_length } = left;
+        let { base as right_base, length as right_length } = right;
+        Extent { base: left_base, length: left_length }
+    }
+
+    machine adjacent(left: Extent in Granted & Vacant, right: Extent in Granted & Vacant) -> Extent in Granted & Vacant
+    requires
+        embed(left.length) + embed(right.length) <= 18446744073709551615,
+        embed(right.base) == embed(left.base) + embed(left.length)
+    ensures
+        result.base == left.base,
+        embed(result.length) == embed(left.length) + embed(right.length),
+        separate(Granted::content(old(&left)), Granted::content(old(&right))) == Granted::content(&result),
+        separate(Vacant::content(old(&left)), Vacant::content(old(&right))) == Vacant::content(&result)
+    {
+        let { base as left_base, length as left_length } = left;
+        let { base as right_base, length as right_length } = right;
+        Extent { base: left_base, length: left_length + right_length }
     }
 }
 

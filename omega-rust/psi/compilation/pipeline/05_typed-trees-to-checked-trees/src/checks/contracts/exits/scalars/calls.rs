@@ -5,7 +5,7 @@ use super::{CheckedScalarExpressionRole, ExpressionHandle, FactPayload, Machine,
 use crate::checks::contracts::exits::scalars::ExitScalars;
 use crate::checks::contracts::return_values::is_result_reference;
 use crate::flow::state_statements;
-use crate::places::place_at;
+use crate::published::places::place_at;
 
 use crate::values::evaluate_checked_scalar;
 use crate::values::scalar_value_at_place;

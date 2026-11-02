@@ -64,7 +64,7 @@ use typed_trees::signature::{SignatureContractKind, StateParameter, state_parame
 use typed_trees::types::PrimitiveType;
 
 use crate::flow::expressions;
-use crate::labels::{
+use crate::published::labels::{
     context_proves_boolean_label, instantiate_operator_contract_expression_label, symbol_name,
 };
 
@@ -172,7 +172,7 @@ fn expression_has_polarity(
     expression: ExpressionHandle,
     polarity: bool,
 ) -> bool {
-    crate::labels::boolean_expression_has_polarity(
+    crate::published::labels::boolean_expression_has_polarity(
         program,
         expression,
         polarity,
@@ -372,13 +372,13 @@ pub(super) fn selected_binary_requires_diagnostics(
         };
         let parameters = program.operator_parameters(operator);
         let type_parameters = program.operator_type_parameters(operator);
-        let Some(operands) =
-            crate::facts::operator_crashes::named_call_operands(program, call, parameters)
-        else {
+        let Some(operands) = crate::published::facts::operator_crashes::named_call_operands(
+            program, call, parameters,
+        ) else {
             diagnostics.push(invalid());
             continue;
         };
-        let operand_labels = crate::facts::operator_crashes::named_call_operand_labels(
+        let operand_labels = crate::published::facts::operator_crashes::named_call_operand_labels(
             program, parameters, &operands,
         );
         let invocation_contexts = InvocationContexts::from_named_use(
@@ -608,7 +608,7 @@ fn requires_fact_proven(
                     .copied(),
             );
             let (binder_labels, argument_handles) =
-                crate::labels::proposition_label_sources(application, program);
+                crate::published::labels::proposition_label_sources(application, program);
             let argument_labels = argument_handles
                 .iter()
                 .map(|argument| {
@@ -1179,7 +1179,9 @@ fn contexts_prove_case_membership(
     operands: &[ExpressionHandle],
     expression: ExpressionHandle,
 ) -> bool {
-    let Some((subject, case)) = crate::proof::exact_outcome_case_test(program, expression) else {
+    let Some((subject, case)) =
+        crate::published::proof::exact_outcome_case_test(program, expression)
+    else {
         return false;
     };
     let Some(formal) = canonical_place_from_expression(program, subject) else {

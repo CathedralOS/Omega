@@ -675,7 +675,7 @@ fn capture_storage_fields(
                 for predicate in ByteSequencePredicate::ALL.into_iter().filter(|predicate| {
                     predicate.is_subslice_preserving() && predicate.holds_for(&[minimum, maximum])
                 }) {
-                    crate::collections::push_unique(&mut predicates, predicate);
+                    crate::shared::collections::push_unique(&mut predicates, predicate);
                 }
             }
             let Some(place) = fact.place.as_place() else {
@@ -740,7 +740,7 @@ fn capture_storage_fields(
                             };
                     }
                     for predicate in predicates.iter().copied() {
-                        crate::collections::push_unique(&mut field.predicates, predicate);
+                        crate::shared::collections::push_unique(&mut field.predicates, predicate);
                     }
                 } else {
                     bounds_ranks.push(if integer_bounds.is_some() {

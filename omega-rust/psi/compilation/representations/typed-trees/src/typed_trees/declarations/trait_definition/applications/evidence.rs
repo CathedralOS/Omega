@@ -43,28 +43,39 @@ impl TypedTrees {
         receiver: SymbolHandle,
         target: SymbolHandle,
     ) -> Result<Option<GenericBoundRequirement<'program>>, String> {
+        self.evidence_bound_requirement(machine.symbol, receiver, target)
+    }
+
+    /// Resolve the namespace of an authored implementation parameter in either
+    /// a machine or a trait law. The owner and child are exact declarations;
+    /// no global name or selected private implementation supplies the bound.
+    pub fn evidence_bound_requirement<'program>(
+        &'program self,
+        owner: SymbolHandle,
+        receiver: SymbolHandle,
+        target: SymbolHandle,
+    ) -> Result<Option<GenericBoundRequirement<'program>>, String> {
+        let bounds = if let Some(machine) = self.machine_by_symbol(owner) {
+            &machine.conformance_bounds
+        } else if let Some(declaration) = self.trait_definition_by_symbol(owner) {
+            &declaration.conformance_bounds
+        } else {
+            return Ok(None);
+        };
         if !receiver.is_valid()
             || self.symbols.get(receiver).kind != symbols::SymbolKind::ConformanceParameter
-            || !machine
-                .conformance_bounds
-                .iter()
-                .any(|bound| bound.binder == receiver)
+            || !bounds.iter().any(|bound| bound.binder == receiver)
         {
             return Ok(None);
         }
         let failure = || {
             format!(
-                "machine `{}` conformance-evidence call has no unique exact requirement",
-                machine.name
+                "declaration `{}` conformance-evidence call has no unique exact requirement",
+                self.symbols.name(owner)
             )
         };
-        let mut bounds = machine
-            .conformance_bounds
-            .iter()
-            .filter(|bound| bound.binder == receiver);
-        let bound = bounds
-            .next()
-            .ok_or_else(|| format!("{}: its receiver has no authored bound", failure()))?;
+        let mut bounds = bounds.iter().filter(|bound| bound.binder == receiver);
+        let bound = bounds.next().ok_or_else(failure)?;
         if bounds.next().is_some() {
             return Err(format!(
                 "{}: its receiver has multiple authored bounds",
@@ -96,7 +107,7 @@ impl TypedTrees {
             self,
             carrier,
             crate::trait_definition::TraitApplicationArguments {
-                lexical_owner: machine.symbol,
+                lexical_owner: owner,
                 enclosing_data_applications: &[],
                 arguments: &bound.arguments,
                 lifetimes: &[],

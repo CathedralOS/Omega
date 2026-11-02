@@ -247,7 +247,10 @@ pub(crate) fn handle_assignment<'program>(
             Ok(coordinate) => coordinate,
             Err(reason) => {
                 diagnostics.push(Diagnostic::error(format!(
-                    "cannot establish assignment invariants: source storage interpretation is unavailable: {reason}"
+                    "cannot establish assignment invariants: source storage interpretation is unavailable: {reason} (machine `{}` state `{}` statement {statement_index}, source `{}`, path {:?}, view {:?})",
+                    machine.name, state.name, program.symbols.name(origin.root), origin.segments,
+                    origin.representation.as_ref().map(|(reference, path)|
+                        (program.display_type_reference(*reference), path)),
                 )));
                 continue;
             }

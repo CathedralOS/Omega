@@ -1,14 +1,14 @@
 // Expected exit: 0
 use omega::language::core::float;
-use numerics::numeric::numeric_accuracy_policy::AccuracyComparison;
-use numerics::numeric::numeric_accuracy_policy::SymmetricAnyTolerance32;
-use numerics::numeric::numeric_accuracy_policy::SymmetricAnyTolerance64;
-use numerics::numeric::numeric_accuracy_policy::ReferenceAdditiveTolerance32;
-use numerics::numeric::numeric_accuracy_policy::ReferenceAdditiveTolerance64;
-use numerics::numeric::numeric_accuracy_policy::compare_symmetric_any_f32;
-use numerics::numeric::numeric_accuracy_policy::compare_symmetric_any_f64;
-use numerics::numeric::numeric_accuracy_policy::compare_reference_additive_f32;
-use numerics::numeric::numeric_accuracy_policy::compare_reference_additive_f64;
+use omega::language::core::float_accuracy::AccuracyComparison;
+use omega::language::core::float_accuracy::SymmetricAnyTolerance32;
+use omega::language::core::float_accuracy::SymmetricAnyTolerance64;
+use omega::language::core::float_accuracy::ReferenceAdditiveTolerance32;
+use omega::language::core::float_accuracy::ReferenceAdditiveTolerance64;
+use omega::language::core::float_accuracy::compare_symmetric_any_f32;
+use omega::language::core::float_accuracy::compare_symmetric_any_f64;
+use omega::language::core::float_accuracy::compare_reference_additive_f32;
+use omega::language::core::float_accuracy::compare_reference_additive_f64;
 use omega::language::core::float_operations;
 
 machine main() crashes Trap {

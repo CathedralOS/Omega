@@ -1,4 +1,4 @@
-use omega_language_std::math;
+use omega::language::core::math;
 
 // Float shorthand must execute its exact requirement call, including field
 // result stores. Neither the builtin alias nor an ISA shortcut supplies it.

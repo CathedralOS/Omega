@@ -246,7 +246,7 @@ impl GuardContext<'_> {
         if !binding.sensitive {
             return true;
         }
-        let proven = crate::facts::crash_entry_operand(
+        let proven = crate::published::facts::crash_entry_operand(
             self.program,
             self.machine.symbol,
             self.eval_site.0,
@@ -255,7 +255,7 @@ impl GuardContext<'_> {
         )
         .map(checked_trees::CrashPredicateIdentity::from_expression);
         proven
-            == Some(crate::facts::canonical_crash_path_predicate(
+            == Some(crate::published::facts::canonical_crash_path_predicate(
                 self.program,
                 leaf,
                 false,
@@ -376,7 +376,8 @@ pub(super) fn entry_value_consequences_at(
             _ => {}
         }
     }
-    let Some(value) = crate::facts::crash_entry_operand(program, machine, state, ordinal, guard)
+    let Some(value) =
+        crate::published::facts::crash_entry_operand(program, machine, state, ordinal, guard)
     else {
         return Vec::new();
     };

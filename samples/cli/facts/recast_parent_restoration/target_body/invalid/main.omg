@@ -18,14 +18,18 @@ public boundary trait RestorationValue {
 SelectedRestoration satisfies RestorationValue {
     machine identity(value: u32) -> u32 ensures result == value { value }
 }
+machine retain_view<'storage>(view: &'storage mut u32) -> &'storage mut u32 { view }
+machine restore(view: &mut u32, replacement: u32)
+ensures view == replacement,
+{ view = 0xFFFFFFFFu32; view = replacement; }
 public machine inspect(pair: &mut Pair)
 invokes RestorationValue
 {
     let replacement: u32 = RestorationValue::identity(0xFFFFFFFFu32);
     pair.marker = 11;
-    let view: &mut u32 = &mut pair.start as &mut u32;
-    view = 0xFFFFFFFFu32;
-    view = replacement;
+    let formed: &mut u32 = &mut pair.start as &mut u32;
+    let view: &mut u32 = retain_view(formed);
+    restore(&mut view, replacement);
     pair.end = 10;
 }
 machine main() crashes Trap invokes RestorationValue {

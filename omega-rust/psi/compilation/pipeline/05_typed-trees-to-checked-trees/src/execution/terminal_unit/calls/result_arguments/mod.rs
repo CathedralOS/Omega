@@ -22,8 +22,8 @@ use crate::execution::terminal_unit::types::{
 };
 use crate::flow::expressions;
 use crate::flow::state_statements;
-use crate::places::place_at;
-use crate::semantic::calls::shared_argument_referent;
+use crate::published::places::place_at;
+use crate::published::semantic::calls::shared_argument_referent;
 use checked_trees::CheckedUnitEffectOperationPlan;
 use checked_trees::CheckedUnitStructuralPathSegment;
 use checked_trees::FlowCallFact;

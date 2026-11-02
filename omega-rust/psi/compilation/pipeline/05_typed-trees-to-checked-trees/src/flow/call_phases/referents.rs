@@ -118,7 +118,7 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
                     && validation::field_domains::domain_requires_provenance(program, *domain)
                 {
                     let row = (Vec::new(), *domain, *identity);
-                    crate::collections::push_unique(&mut paths, row);
+                    crate::shared::collections::push_unique(&mut paths, row);
                 }
             }
         }
@@ -453,7 +453,7 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
         return;
     }
     let point = crate::flow::call_ensures_point(machine, state, borrow_call);
-    let evidence = crate::facts::propagated_evidence(borrow_call.target_symbol);
+    let evidence = crate::published::facts::propagated_evidence(borrow_call.target_symbol);
     // One context per exact place, so a later write to one field retires
     // only that field's row (flow/transfers keeps the same granularity).
     let mut contexts = preserved;
@@ -462,7 +462,7 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
             continue;
         };
         let place_handle =
-            crate::semantic::places::append_place(semantic, place.root, &place.segments);
+            crate::published::semantic::places::append_place(semantic, place.root, &place.segments);
         let fact = semantic.append_fact(Fact {
             place: FactPlace::Place(place_handle),
             point,

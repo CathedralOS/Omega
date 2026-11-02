@@ -2,7 +2,7 @@
 
 This package supplies reusable source-semantic judgments and analyses. It does
 not construct the complete checked program: that lifecycle belongs to
-[stage 05](../pipeline/05_typed-trees-to-checked-trees/src/checking.rs).
+[Psi 05](../pipeline/05_typed-trees-to-checked-trees/src/checking.rs).
 [Source proof search](../proof/src/lib.rs) and
 [independent mathematical admission](../proof/admission/README.md) have separate
 owners; successful source validation is not a portable proof certificate.
@@ -27,14 +27,14 @@ Shared program queries have explicit owners beside that coordinator.
 [call signatures](src/machine_calls/calls/signature_queries.rs) live with their
 semantic owners. Typed-owned indexes supply declaration relationships rather
 than checking maintaining another copy.
-[frozen_program.rs](src/frozen_program.rs) owns `CheckingContext`: stage 05 borrows
+[frozen_program.rs](src/frozen_program.rs) owns `CheckingContext`: Psi 05 borrows
 its prepared typed program with invocation memos in one immutable checking input.
 Read-only consumers take `CheckingInput`, preserving that context through queries;
 bare typed programs used during construction have no frozen memos. Ending the
 context releases that borrow and scratch, never attaching memos to an IR or product.
 No thread or program address selects these memos.
 [Effect inputs](src/machine_calls/effect_inference/prepared_effects.rs) distinguish
-source-only inference from ownership-complete checking. Stage 05 supplies the
+source-only inference from ownership-complete checking. Psi 05 supplies the
 completed graph by explicit borrow after selecting cleanup; service-reach reuse
 requires the exact operational input. There is no ambient program-plan scope or
 restore guard. Other checker-local ambient state remains unfinished migration.
@@ -434,6 +434,14 @@ operation licenses and paired add/multiply semiring licenses. The paired form
 requires both operations' associativity/commutativity and a conformed
 distributivity law. Natural-coefficient polynomial expansion is bounded;
 failure to normalize or different normal forms are not refutations.
+
+Open index expressions read the same law shapes through
+`declared_index_algebra_laws`: each selected index operation records its
+trait's commutativity, associativity and left-distributivity evidence on
+`OpenIndexOperationSelection`, and type identity
+([open_index_identity.rs](../representations/typed-trees/src/typed_trees/type_system/type_identity/open_index_identity.rs))
+applies only the laws recorded. A law slot that states a `requires` premise
+licenses nothing there, since an index rewrite has none to discharge.
 
 Zero/one constructor bridging uses checked unfolding and citation, not an
 unlicensed identity rewrite. Broader polynomial/index normalization, additional

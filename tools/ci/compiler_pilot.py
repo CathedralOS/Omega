@@ -24,6 +24,10 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools"))
 import corpus_gate
 from sample_projects import discover as discover_samples
+if __package__:
+    from . import ordinary_cli_fixture
+else:
+    import ordinary_cli_fixture
 
 POSITIVES = (
     "pass/control_flow/borrowed_state_argument",
@@ -38,6 +42,7 @@ NEGATIVES = (
 )
 FIXTURE_ENVIRONMENT = "OMEGA_COMPILER_PILOT_FIXTURES"
 SAMPLE_ENVIRONMENT = "OMEGA_COMPILER_PILOT_SAMPLES"
+CLI_FIXTURE_ENVIRONMENT = "OMEGA_COMPILER_PILOT_CLI_FIXTURES"
 
 
 def select_fixtures(request):
@@ -76,6 +81,16 @@ def select_fixtures(request):
             tuple(fixture for fixture in fixtures if fixture.startswith("fail/")))
 
 
+def select_cli_fixtures(request):
+    """Existing normal-exit projects, selected exactly before producer creation."""
+    positives, negatives = select_fixtures(request)
+    if negatives:
+        raise ValueError("ordinary CLI fixtures must be pass/... projects")
+    for fixture in positives:
+        ordinary_cli_fixture.expected_exit(ROOT, fixture, corpus_gate.host_target())
+    return positives
+
+
 def select_samples(request):
     """Select existing fact projects and descendants, refusing filter collisions."""
     if not isinstance(request, str):
@@ -102,6 +117,22 @@ def select_samples(request):
     return selected
 
 
+def authored_trap_matches(row, target):
+    """The corpus owns target trap presentation and typed Terminal outcomes."""
+    corpus = ROOT / "tests/omega"
+    oracle = corpus_gate.native_exit_oracle(corpus / row["fixture"], target)
+    try:
+        if oracle.read_text(encoding="utf-8").strip() != "trap":
+            return False
+    except (OSError, UnicodeError):
+        return False
+    facts = row.get("facts", {})
+    return (row["status"] == "built" and facts.get("interpreter") == "trapped"
+            and "interpreter-exit" not in facts and "interpreter-signal" not in facts
+            and not corpus_gate.native_exit_failures([row], corpus, target)
+            and not corpus_gate.interpreter_exit_failures([row], corpus, target))
+
+
 def validate_report(report, expected, *, both, revision, target):
     if (report.get("schema") != "omega-corpus-verdict-v1"
             or report.get("revision") != revision or report.get("dirty") is not False
@@ -119,10 +150,12 @@ def validate_report(report, expected, *, both, revision, target):
                 raise ValueError(f"{row['fixture']}: missing intended rejection")
         elif both:
             facts = row.get("facts", {})
-            if (row["status"] != "built" or facts.get("interpreter") != "agrees"
-                    or not isinstance(facts.get("exit"), str)
-                    or not re.fullmatch(r"-?\d+", facts.get("exit", ""))
-                    or facts["exit"] != facts.get("interpreter-exit")):
+            exits_agree = (facts.get("interpreter") == "agrees"
+                           and isinstance(facts.get("exit"), str)
+                           and re.fullmatch(r"-?\d+", facts["exit"])
+                           and facts["exit"] == facts.get("interpreter-exit"))
+            if (row["status"] != "built"
+                    or not (exits_agree or authored_trap_matches(row, target))):
                 raise ValueError(f"{row['fixture']}: missing native/Terminal agreement")
             for stream in ("stdout", "stderr"):
                 oracle = ROOT / "tests" / "omega" / row["fixture"] / f"expected_{stream}.txt"
@@ -248,8 +281,8 @@ def prepare_producer(output, *, need_runner=True):
     return producer
 
 
-def execute(output, summary, *, positives=POSITIVES, negatives=NEGATIVES, checking_only=(), producer=None, samples=()):
-    if not (positives or negatives or checking_only or samples):
+def execute(output, summary, *, positives=POSITIVES, negatives=NEGATIVES, checking_only=(), producer=None, samples=(), cli_fixtures=()):
+    if not (positives or negatives or checking_only or samples or cli_fixtures):
         raise ValueError("pilot requires at least one fixture")
     revision = command(["git", "rev-parse", "HEAD"])
     if command(["git", "status", "--porcelain"]):
@@ -259,7 +292,7 @@ def execute(output, summary, *, positives=POSITIVES, negatives=NEGATIVES, checki
     summary.update(candidate=revision, target=corpus_gate.host_target(),
                    toolchain=command(["rustc", "-Vv"]), stages=[],
                    fixtures=dict(positive=positives, negative=negatives,
-                                 checking_only=checking_only), samples=samples)
+                                 checking_only=checking_only), samples=samples, cli_fixtures=cli_fixtures)
 
     def stage(name, operation):
         started = time.monotonic()
@@ -298,16 +331,34 @@ def execute(output, summary, *, positives=POSITIVES, negatives=NEGATIVES, checki
         if both:
             arguments.append("--both")
         result = subprocess.run(arguments, cwd=ROOT, stdin=subprocess.DEVNULL,
-                                env=dict(os.environ, OMEGA_CORPUS_CAPTURE_ARTIFACTS=str(captures / name)))
+                                env=dict(os.environ, OMEGA_CORPUS_SWEEP="1",
+                                         OMEGA_CORPUS_CAPTURE_ARTIFACTS=str(captures / name)))
         if result.returncode not in (0, 1):
             raise ValueError(f"{name}: corpus gate exited {result.returncode}")
         validate_report(json.loads(report_path.read_text(encoding="utf-8")), fixtures,
                         both=both, revision=revision, target=summary["target"])
 
     if positives or checking_only or negatives:
-        stage("checking and rejection controls", lambda: corpus("checking", positives + checking_only + negatives))
+        checking = tuple(dict.fromkeys(positives + checking_only + negatives))
+        stage("checking and rejection controls", lambda: corpus("checking", checking))
     if positives:
         stage("native and Terminal execution", lambda: corpus("both", positives, both=True))
+    if cli_fixtures:
+        def ordinary_cli():
+            rows = []
+            summary["cli_observations"] = rows
+            for fixture in cli_fixtures:
+                row = ordinary_cli_fixture.observe(ROOT, producer, fixture, output / "ordinary-cli" / fixture)
+                compact = {key: value for key, value in row.items() if key not in ("inputs", "producer")}
+                compact["input_count"] = len(row.get("inputs", {}))
+                compact["input_manifest_sha256"] = hashlib.sha256(
+                    json.dumps(row.get("inputs", {}), sort_keys=True).encode("utf-8")).hexdigest()
+                compact["full_observation"] = str(output / "ordinary-cli" / fixture / "observation.json")
+                rows.append(compact)
+                (output / "cli.json").write_text(json.dumps(rows, indent=2) + "\n", encoding="utf-8")
+                if row.get("passed") is not True:
+                    raise ValueError(f"{fixture}: {row.get('error', 'ordinary CLI observation failed')}")
+        stage("ordinary CLI package admission and native/Terminal execution", ordinary_cli)
     if samples:
         def fact_samples():
             report = output / "samples.json"
@@ -326,19 +377,21 @@ def execute(output, summary, *, positives=POSITIVES, negatives=NEGATIVES, checki
         raise ValueError("candidate changed during validation")
 
 
-def run_suite(name, positives, negatives, *, checking_only=(), producer=None, fixtures=None, samples=None):
+def run_suite(name, positives, negatives, *, checking_only=(), producer=None, fixtures=None, samples=None, cli_fixtures=None):
     output = ROOT / "build" / name
     output.mkdir(parents=True, exist_ok=True)
     summary = dict(schema="omega-compiler-pilot-v1", passed=False)
     try:
         selected_samples = select_samples(samples) if samples is not None else ()
-        if samples is not None and fixtures is None:
+        selected_cli = select_cli_fixtures(cli_fixtures) if cli_fixtures is not None else ()
+        if (samples is not None or cli_fixtures is not None) and fixtures is None:
             positives, negatives, checking_only = (), (), ()
         if fixtures is not None:
             positives, negatives = select_fixtures(fixtures)
             checking_only = ()
         execute(output, summary, positives=positives, negatives=negatives,
-                checking_only=checking_only, producer=producer, samples=selected_samples)
+                checking_only=checking_only, producer=producer, samples=selected_samples,
+                cli_fixtures=selected_cli)
         summary["passed"] = True
         return 0
     except (OSError, ValueError, subprocess.CalledProcessError,
@@ -354,12 +407,16 @@ def main(arguments=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--fixtures", help="comma-separated exact pass/... or fail/... fixture IDs")
     parser.add_argument("--samples", help="comma-separated exact samples/cli/facts project paths (includes descendants)")
+    parser.add_argument("--cli-fixtures", help="exact pass/... normal-exit projects through ordinary CLI review/run")
     options = parser.parse_args(arguments)
     fixtures = options.fixtures
     if fixtures is None:
         fixtures = os.environ.get(FIXTURE_ENVIRONMENT) or None
     samples = options.samples if options.samples is not None else os.environ.get(SAMPLE_ENVIRONMENT) or None
-    return run_suite("compiler-pilot", POSITIVES, NEGATIVES, fixtures=fixtures, samples=samples)
+    cli_fixtures = (options.cli_fixtures if options.cli_fixtures is not None
+                    else os.environ.get(CLI_FIXTURE_ENVIRONMENT) or None)
+    return run_suite("compiler-pilot", POSITIVES, NEGATIVES, fixtures=fixtures,
+                     samples=samples, cli_fixtures=cli_fixtures)
 
 
 if __name__ == "__main__":

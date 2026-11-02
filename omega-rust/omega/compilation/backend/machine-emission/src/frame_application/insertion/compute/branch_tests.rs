@@ -119,7 +119,7 @@ fn frame_epilogue_growth_widens_out_of_range_rel8_and_preserves_in_range_rel8() 
         let growth = expected_width as u64 - 2;
         let function = &application.fragments.functions[0];
         let call = &function.blocks[1].instructions[0];
-        let fixup = call.internal_machine_fixup.unwrap();
+        let fixup = call.internal_machine_fixup().unwrap();
         assert_eq!(call.offset, 3 + growth);
         assert_eq!(fixup.opcode_function_offset, 3 + growth);
         assert_eq!(fixup.patch_function_offset, 4 + growth);
@@ -239,7 +239,7 @@ fn aarch64_source(
             ),
         },
     );
-    call.internal_machine_fixup = Some(FunctionFragmentInternalMachineFixup {
+    call.internal_machine_fixup = Some(Box::new(FunctionFragmentInternalMachineFixup {
         kind: FunctionFragmentInternalMachineFixupKind::Aarch64BranchLinkImmediate26FromInstructionToInternalMachineV1,
         state: FunctionFragmentInternalMachineFixupState::UnresolvedZeroFieldV1,
         callee,
@@ -248,7 +248,7 @@ fn aarch64_source(
         reference_function_offset: 0,
         patch_byte_width: 4,
         addend: 0,
-    });
+    }));
     let branch = aarch64_row(
         1,
         conditional.family,
@@ -515,7 +515,7 @@ fn aarch64_frame_growth_widens_conditionals_leaving_imm19_and_keeps_reachable_on
                 )
             };
             assert_eq!(call.offset, expected_call);
-            let fixup = call.internal_machine_fixup.unwrap();
+            let fixup = call.internal_machine_fixup().unwrap();
             assert_eq!(fixup.opcode_function_offset, expected_call);
             assert_eq!(fixup.patch_function_offset, expected_call);
             assert_eq!(fixup.reference_function_offset, expected_call);

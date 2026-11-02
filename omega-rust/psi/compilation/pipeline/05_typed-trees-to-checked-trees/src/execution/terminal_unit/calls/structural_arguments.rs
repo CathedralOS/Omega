@@ -36,8 +36,8 @@ use crate::execution::terminal_unit::{
     PermissionEventSource, SymbolHandle, strips_erased_parameter,
 };
 use crate::flow::state_statements;
-use crate::places::place_at;
-use crate::semantic::calls::shared_argument_referent;
+use crate::published::places::place_at;
+use crate::published::semantic::calls::shared_argument_referent;
 use crate::values::authored_projection_selectors;
 
 pub(crate) fn structural_call_arguments(

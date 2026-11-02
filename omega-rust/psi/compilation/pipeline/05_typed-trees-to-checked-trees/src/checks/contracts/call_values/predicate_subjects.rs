@@ -54,7 +54,7 @@ pub(super) fn current_case(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
     captured: &crate::flow::CapturedValue<'_>,
-    bindings: &mut Vec<crate::facts::boolean_predicates::BoundObservation>,
+    bindings: &mut Vec<crate::published::facts::boolean_predicates::BoundObservation>,
 ) -> Option<facts::BooleanPredicateOperand> {
     let places = crate::flow::captured_observation_places(program, &facts.flow, captured)?;
     let [observed] = places.as_slice() else {
@@ -81,11 +81,13 @@ pub(super) fn current_case(
             },
             path: Vec::new(),
         });
-    bindings.push(crate::facts::boolean_predicates::BoundObservation {
-        operand: operand.clone(),
-        place: observed.projected.clone(),
-        type_reference: reference,
-    });
+    bindings.push(
+        crate::published::facts::boolean_predicates::BoundObservation {
+            operand: operand.clone(),
+            place: observed.projected.clone(),
+            type_reference: reference,
+        },
+    );
     Some(operand)
 }
 
@@ -98,7 +100,7 @@ pub(super) fn retain_owned_cases<'facts>(
     facts: &'facts CheckFacts,
     state: &FlowStateFact,
     operand: crate::flow::CapturedOperand<'facts>,
-    predicate: &mut crate::facts::boolean_predicates::BoundPredicate,
+    predicate: &mut crate::published::facts::boolean_predicates::BoundPredicate,
     epochs: &mut Vec<&'facts checked_trees::FlowOperandFact>,
     captures: &mut Vec<super::captured_predicates::CapturedBinding<'facts>>,
 ) -> Option<()> {

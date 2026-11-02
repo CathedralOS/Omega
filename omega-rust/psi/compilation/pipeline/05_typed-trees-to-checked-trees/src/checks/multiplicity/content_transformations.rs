@@ -631,7 +631,7 @@ pub(super) fn consumed_places(
             {
                 let place =
                     place_or_root_in(&facts.flow.ownership.segments, input.root, input.segments);
-                crate::collections::push_unique(&mut places, place);
+                crate::shared::collections::push_unique(&mut places, place);
             }
         }
     }

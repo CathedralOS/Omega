@@ -12,7 +12,7 @@ use super::MachineContractCommitment;
 
 /// Independently decidable callable facts, even when its full description is
 /// unavailable. These describe source supply, never executable installation.
-#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedCallableHeader {
     pub machine: SymbolHandle,
     pub callable: CallableIdentityId,
@@ -20,6 +20,30 @@ pub struct CheckedCallableHeader {
     pub source_target: Option<String>,
     pub product_eligible: bool,
     pub supplies_checked_body: bool,
+    /// The checked realized calls, not the callable's public permission ceiling.
+    pub synchronous_invocations: Result<HandleSpan<CheckedSynchronousBoundaryTarget>, String>,
+}
+
+impl Default for CheckedCallableHeader {
+    fn default() -> Self {
+        Self {
+            machine: SymbolHandle::default(),
+            callable: CallableIdentityId::default(),
+            package: None,
+            source_target: None,
+            product_eligible: false,
+            supplies_checked_body: false,
+            synchronous_invocations: Err("checked synchronous invocation facts are absent".into()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+pub struct CheckedSynchronousBoundaryTarget {
+    pub declaration: String,
+    pub package: Option<semantic_vocabulary::PackageKeyIdentity>,
+    /// None is an explicitly abstract edge, never an inferred application.
+    pub application: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
@@ -80,6 +104,7 @@ impl CheckedDeclarationDescription {
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedDeclarationDescriptions {
     pub headers: Arena<CheckedCallableHeader>,
+    pub invocation_targets: Arena<CheckedSynchronousBoundaryTarget>,
     pub machines: Arena<CheckedDeclarationDescription>,
     pub parameters: Arena<CheckedDeclarationParameter>,
 }

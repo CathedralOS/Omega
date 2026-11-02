@@ -13,7 +13,7 @@ use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::control::statement_sequence::bounded_byte_values;
 use crate::execution::terminal_unit::types::terminal_field_identity;
 use crate::flow::expressions;
-use crate::places::place_at;
+use crate::published::places::place_at;
 
 /// The storage roots retained for source-validated stores: owned or exclusive
 /// borrowed structural parameters, established locals, and the `mut` scalar
@@ -79,9 +79,6 @@ pub(super) struct Destination<'a> {
     /// local's own type) and its record owner when the root is a record.
     pub(super) root_type: typed_trees::types::TypeReferenceHandle,
     root_owner: Option<&'a typed_trees::data::DataDefinition>,
-    /// Operator selections, which decide whether a carrier's `where` facts
-    /// are spelled in the Terminal requirement vocabulary.
-    operators: &'a checked_trees::CheckedOperatorFacts,
 }
 
 /// The checked carrier path to a record, and that record's declaration.
@@ -199,7 +196,6 @@ pub(super) fn resolve<'a>(
             return (dynamic_index.is_none() && place.segments.is_empty()).then(|| {
                 local_destination(
                     program,
-                    &facts.operators,
                     root_symbol,
                     formal.type_reference,
                     place,
@@ -215,7 +211,6 @@ pub(super) fn resolve<'a>(
         // all its contents. A reference leaf retains its own custody.
         return exclusive_reference_local_root(
             program,
-            facts,
             state,
             root_symbol,
             ordinal,
@@ -257,7 +252,6 @@ pub(super) fn resolve<'a>(
         selectors,
         root_type,
         root_owner,
-        operators: &facts.operators,
     })
 }
 
@@ -265,7 +259,6 @@ pub(super) fn resolve<'a>(
 /// the root and its declared type fixes the owner and projection base.
 fn local_destination<'a>(
     program: &'a dyn ::validation::CheckingInput,
-    operators: &'a checked_trees::CheckedOperatorFacts,
     root_symbol: SymbolHandle,
     root_type: typed_trees::types::TypeReferenceHandle,
     place: validation::CanonicalPlace,
@@ -283,7 +276,6 @@ fn local_destination<'a>(
         selectors,
         root_type,
         root_owner: validation::field_domains::data_definition_for_field_type(program, root_type),
-        operators,
     }
 }
 
@@ -347,7 +339,6 @@ fn owned_local_root<'a>(
     }
     Some(local_destination(
         program,
-        operators,
         root_symbol,
         local.type_reference,
         place,
@@ -455,7 +446,7 @@ impl<'a> Destination<'a> {
         // The shared walk already establishes each reference crossing's
         // mutable access. Keep that geometry for field stores just as for
         // primitive stores; the carrier need not be inline in the root.
-        plain_checked_shape(owner, program, self.operators).then_some(Carrier {
+        plain_checked_shape(owner, program).then_some(Carrier {
             path: projection.path,
             owner,
             selected_case: projection.selected_case,
@@ -494,10 +485,9 @@ impl<'a> Destination<'a> {
         program: &'a dyn ::validation::CheckingInput,
         segments: &[facts::PlaceSegment],
     ) -> Option<StorageProjection<'a>> {
-        let operators = self.operators;
         if let Some(owner) = self.root_owner
             && !segments.is_empty()
-            && !plain_checked_shape(owner, program, operators)
+            && !plain_checked_shape(owner, program)
         {
             return None;
         }
@@ -511,7 +501,7 @@ impl<'a> Destination<'a> {
             match segment {
                 facts::PlaceSegment::Field { symbol } => {
                     let field_owner = owner?;
-                    if !plain_checked_shape(field_owner, program, operators) {
+                    if !plain_checked_shape(field_owner, program) {
                         return None;
                     }
                     let carrier = relevant_field_in_namespace(
@@ -533,9 +523,7 @@ impl<'a> Destination<'a> {
                 }
                 facts::PlaceSegment::Case { variant } => {
                     let case_owner = owner?;
-                    if selected_case.is_some()
-                        || !plain_checked_shape(case_owner, program, operators)
-                    {
+                    if selected_case.is_some() || !plain_checked_shape(case_owner, program) {
                         return None;
                     }
                     let mut cases = program
@@ -680,9 +668,8 @@ impl<'a> Destination<'a> {
 pub(super) fn plain_record(
     data: &typed_trees::data::DataDefinition,
     program: &dyn ::validation::CheckingInput,
-    operators: &checked_trees::CheckedOperatorFacts,
 ) -> bool {
-    plain_checked_shape(data, program, operators)
+    plain_checked_shape(data, program)
         && typed_trees::data::DataDefinition::shape_kind_from_members(program.data_members(data))
             == DataShapeKind::Record
 }
@@ -690,24 +677,18 @@ pub(super) fn plain_record(
 fn plain_checked_shape(
     data: &typed_trees::data::DataDefinition,
     program: &dyn ::validation::CheckingInput,
-    operators: &checked_trees::CheckedOperatorFacts,
 ) -> bool {
+    // This query resolves storage geometry, not the domain's proof language.
+    // Source write/exit checking already proves the complete default domain,
+    // including mathematical predicates the optional Terminal roster cannot
+    // spell. Requiring a second spelling here rejected valid invariant-window
+    // repairs such as an allocator updating its tail and remaining count.
+    // Leaf stores still retain their exact declaration and receiving contract;
+    // projection and custody checks below independently preserve access rights.
     data.supply_mode == language_semantics::DataSupplyMode::CheckedShape
         && program.data_type_parameters(data).is_empty()
         && retained_record_owner_application(data, program)
         && data.quotient.is_none()
-        // A store may break a `where` fact only where Terminal re-proves the
-        // whole default domain before relying on it: interval-only facts bound
-        // the fields' own carriers, and every other fact must be carried
-        // exactly by the declaration predicate roster, whose rows a call
-        // proves before entry and a published guarantee proves at return. A
-        // machine without rows relies on none. Zero validity alone proves
-        // nothing per store: a zero gate restricts zero provisioning, not
-        // replacement, which binds the replacement value to the field's
-        // retained declaration requirement (structural_access.md, Complete
-        // record construction). A record whose zero is not a member, such as
-        // one with `health >= 1`, is therefore written like any other.
-        && validation::declaration_facts_carried(program, operators, data)
 }
 
 fn retained_record_owner_application(
@@ -939,7 +920,6 @@ fn record_view_leaf(
 /// would confuse its old backing with the descriptor installed by a rebind.
 fn exclusive_reference_local_root<'a>(
     program: &'a dyn ::validation::CheckingInput,
-    facts: &'a CheckFacts,
     state: &'a typed_trees::state::State,
     root_symbol: SymbolHandle,
     ordinal: usize,
@@ -984,6 +964,5 @@ fn exclusive_reference_local_root<'a>(
         selectors,
         root_type: referee,
         root_owner: validation::field_domains::data_definition_for_field_type(program, referee),
-        operators: &facts.operators,
     })
 }

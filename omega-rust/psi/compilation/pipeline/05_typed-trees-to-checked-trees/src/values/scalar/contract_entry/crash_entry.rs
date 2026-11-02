@@ -2,7 +2,7 @@
 //! comparisons, and IEEE comparisons with exact literal endpoints. Each
 //! comparison operand is resolved once: its resolved carrier selects the
 //! integer or IEEE family and the same resolution lowers it.
-use crate::places::place_at;
+use crate::published::places::place_at;
 use crate::values::operator_is_builtin;
 
 mod logical_matches;

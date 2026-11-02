@@ -414,7 +414,7 @@ mod tests {
             offset: 0,
             bytes: vec![0xe8, 0, 0, 0, 0],
             branch: None,
-            internal_machine_fixup: Some(FunctionFragmentInternalMachineFixup {
+            internal_machine_fixup: Some(Box::new(FunctionFragmentInternalMachineFixup {
                 kind: FunctionFragmentInternalMachineFixupKind::X86Relative32FromNextInstructionToInternalMachineV1,
                 state: FunctionFragmentInternalMachineFixupState::UnresolvedZeroFieldV1,
                 callee,
@@ -423,7 +423,7 @@ mod tests {
                 reference_function_offset: 5,
                 patch_byte_width: 4,
                 addend: 0,
-            }),
+            })),
             normalized_foreign_call_fixup: None,
             image_address_fixup: None,
             provenance: SelectedInstructionProvenance::default(),
@@ -520,7 +520,7 @@ mod tests {
         assert_eq!(function.blocks[0].instructions[0].offset, 1);
         assert_eq!(function.blocks[0].instructions[1].offset, 7);
         let fixup = function.blocks[0].instructions[0]
-            .internal_machine_fixup
+            .internal_machine_fixup()
             .unwrap();
         assert_eq!(fixup.opcode_function_offset, 1);
         assert_eq!(fixup.patch_function_offset, 2);

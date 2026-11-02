@@ -152,7 +152,6 @@ pub(crate) fn parse_machine_parameter_contracts<'tokens, 'source>(
             blocks: clauses.blocks,
             contracts: clauses.contracts,
             terminates_guarantee: clauses.terminates_guarantee,
-            where_facts: clauses.where_facts,
             ..crate::grammar::parameters::parse_parameters::blank_state_signature()
         };
         let parameter =

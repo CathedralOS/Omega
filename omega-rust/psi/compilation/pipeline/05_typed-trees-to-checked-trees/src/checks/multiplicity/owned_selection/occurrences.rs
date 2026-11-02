@@ -5,7 +5,7 @@
 
 use super::place_paths_overlap;
 use crate::checks::multiplicity::linear_obligations::LinearPlace;
-use crate::places::place_at;
+use crate::published::places::place_at;
 use checked_trees::{
     CheckFacts, FlowOwnedSelectionReceipt, FlowOwnershipFacts, FlowPermissionEventFact,
 };

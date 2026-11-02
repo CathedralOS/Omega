@@ -6,7 +6,7 @@
 //! alone does not redirect the completed read. Reference construction and
 //! copied-value alias publication use this same typed prefix discovery.
 
-use crate::places::place_at;
+use crate::published::places::place_at;
 use checked_trees::FlowOperandFact;
 use facts::PlaceSegment;
 use validation::expression_traversal::collect_expression_tree;

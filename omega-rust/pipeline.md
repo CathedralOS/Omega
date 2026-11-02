@@ -115,14 +115,14 @@ setup are not additional public program stages.
 ## Two drivers, one pass, per-target realization
 
 Independent stage crates remain directly testable, but production consumers do
-not assemble them. The Psi driver feeds stages 00 through 07 once per
+not assemble them. The Psi driver feeds Psi 00 through 08 once per
 compilation and never observes a realization target: every supplied ordinary
 implementation is checked, and the Build evaluates once into provider and entry
 rows keyed by target
 ([multi-target compilation](../wiki/spec/build/configuration.md#multi-target-compilation)).
 It returns one Terminal Psi artifact. The Omega driver realizes each target in
 the realization set from that artifact and the target's Build rows: provider
-selection and installation in stage 00, then stages 01 through 09 and image
+selection and installation in Omega 00, then Omega 01 through 09 and image
 emission.
 
 Native binding intent belongs to package-local Build rows:
@@ -197,8 +197,10 @@ execution still owes provider admission, completion and every recorded bound.
 Accepted package roles enter source preparation before checking instead.
 Psi owns their declaration admission and confined nomination before matching
 retained checks. Realization only rejoins the resulting source declarations to
-selected provider rows. Source-only synchronous provider-cycle checks consume
-Psi's checked invocation facts. Receiving provider admission independently
+selected provider rows. Selected-provider cycle policy consumes Psi's checked
+realized invocation summaries from canonical declaration headers, including
+dormant declarations, rather than reopening source or substituting permission
+ceilings for actual calls. Receiving provider admission independently
 checks every installed canonical instance, including uncalled closed tuples,
 using the same whole-plan graph rule. Opaque rows contribute their declared
 ceilings; uninstantiated source templates grant no executable instance.
@@ -367,7 +369,7 @@ Package-owned source preparation feeds the Psi source-parsing facade;
 Build evaluation does not own source discovery or assembly.
 The [pipeline route items](../TASKS.md#pipeline-route) finish convergence: source
 preparation supplies one source set, the Psi-owned work between stages
-moves inside stages 02 through 04, and provider settlement moves behind
+moves inside Psi 02 through 05, and provider settlement moves behind
 Terminal Psi. Source preparation remains package-owned input composition,
 not a new language stage.
 
@@ -466,17 +468,17 @@ foundations, product reports and publication keep independent ownership.
 | Entrance | Responsibility |
 | --- | --- |
 | `omega/application/cli/src/main.rs` | Parse, route to the command's owner, display outcomes |
-| `omega/application/build/src/build.rs` | Request admission, Build lifecycle, requested products, required tests and publication |
-| `omega/application/build/src/build_execution.rs` | Dependency jobs and Build activation readiness; mandatory final join |
-| `omega/application/build/src/source_compilation.rs` | One-shot source consumers: prepare an opaque compiler invocation, execute Build, complete the requested products |
-| `omega/application/build/src/build_session.rs` | Invocation compiler lifetime beside independently package-owned staging and aggregate sponsors |
-| `omega/application/build/src/package_commands.rs` | Admitted install/update target-review work; complete findings returned to package-owned publication |
-| `omega/application/build/src/package_review.rs` | Admitted review dependency passes, compiler calls and suspended-Build cache recovery, shared with audit |
-| `omega/application/build/src/package_inspection.rs` | Read-only audit session lifetime and ordered target execution; package-owned pinned resolution and reporting |
+| `omega/compilation/build/src/build.rs` | Request admission, Build lifecycle, requested products, required tests and publication |
+| `omega/compilation/build/src/build_execution.rs` | Dependency jobs and Build activation readiness; mandatory final join |
+| `omega/compilation/build/src/source_compilation.rs` | One-shot source consumers: prepare an opaque compiler invocation, execute Build, complete the requested products |
+| `omega/compilation/build/src/build_session.rs` | Invocation compiler lifetime beside independently package-owned staging and aggregate sponsors |
+| `omega/compilation/build/src/package_commands.rs` | Admitted install/update target-review work; complete findings returned to package-owned publication |
+| `omega/compilation/build/src/package_review.rs` | Admitted review dependency passes, compiler calls and suspended-Build cache recovery, shared with audit |
+| `omega/compilation/build/src/package_inspection.rs` | Read-only audit session lifetime and ordered target execution; package-owned pinned resolution and reporting |
 | `psi/compilation/driver/src/compiler.rs` | Source processing and checking through Terminal Psi |
 | `omega/compilation/driver/src/compiler.rs` | Terminal plus explicit realization inputs through native emission |
 | Terminal interpreter entrance | Load or borrow code, execute, suspend, install admitted bindings, resume |
-| `omega/application/native-provider-runtime/src/native_provider_runtime.rs` | Sponsor isolated native provider incarnations, immutable mapped homes and exact compiled frame adapters; consume source-free products |
+| `omega/interpreter/native-provider-runtime/src/native_provider_runtime.rs` | Sponsor isolated native provider incarnations, immutable mapped homes and exact compiled frame adapters; consume source-free products |
 
 These are destination owners, not extra facades above the current compiler.
 Dismantle the existing product coordinator into its actual owners. Reuse the
@@ -767,7 +769,7 @@ Native preparation first determines the work and scalar demand for the root and
 its components. The application completes that demand; native compilation consumes
 the same preparation and completed inputs. Native production has no interpreter
 dependency or evaluator callback, and cannot silently recompute a missing value.
-`application/build/src/native_completion.rs` owns this lifecycle for standalone
+`compilation/build/src/native_completion.rs` owns this lifecycle for standalone
 and package products. Source compilation transfers an owned `PendingNativeProduct`
 after admission and Terminal preparation, releasing its checked source. The shared
 `build-evaluation` scalar operation also serves descriptive Check, inspection and
@@ -981,9 +983,11 @@ Shared foundations and utilities retain independent library ownership. Do not
 absorb them into a producing stage or the application crate to reduce crate
 count or directory depth. Subsystem folders expose their coordinators and
 supporting packages without merging their APIs or dependency boundaries.
-Omega groups packages under four domains: `application/`, `compilation/`,
-`packages/` and `foundation/`. Compiler machinery, including `pipeline/`,
-`representations/`, `realization/` and `backend/`, lives within `compilation/`.
+Omega groups packages under five domains: `application/`, `compilation/`,
+`interpreter/`, `packages/` and `foundation/`. Compiler machinery, including
+`pipeline/`, `representations/`, `realization/`, `backend/` and the Build
+coordinator `build/`, lives within `compilation/`. Hosted execution, the
+Terminal runtime and the native-provider runtime, lives within `interpreter/`.
 The domains are directory groupings; they do not merge package boundaries.
 
 Psi groups its packages under `compilation/`, `interpreter/` and `foundation/`.
@@ -1004,8 +1008,8 @@ library APIs; they do not introduce another compiler driver.
 | Shared host primitives, native function identities and optimization vocabulary | Omega `foundation/` |
 | Application workflows and presentation | Omega `application/`, depending only on product facades and shared request/result contracts |
 | Source/package custody, lock updates and review decisions | Omega `packages/package-manager/`; no checking or product production |
-| Source → Terminal product sequencing | Psi compiler facade over stages 00–07 |
-| Terminal + target/Build inputs → realized product sequencing | Omega compiler facade over stages 00–09 and emission |
+| Source → Terminal product sequencing | Psi compiler facade over Psi 00–08 |
+| Terminal + target/Build inputs → realized product sequencing | Omega compiler facade over Omega 00–09 and emission |
 | Requested outputs, configuration admission, retained outcomes and publication | Omega `compilation/products/` |
 | Source acquisition and package storage primitives | Omega `packages/` behind package-manager requests |
 | Terminal Psi loading, supplied-binding installation and execution | Psi interpreter facade under `interpreter/` |
@@ -1033,7 +1037,7 @@ producer and consumer of each form.
 The independent `optimization-unit` package beneath `abstract-operations/`
 contains the derived CFG/SSA and replay form used during abstract optimization.
 The independent `legalized-operations` package beneath `target-operations/`
-contains the internal form between legalization and selection inside stage 03.
+contains the internal form between legalization and selection inside Omega 03.
 Nesting describes the family, not a new dependency on a producing stage. Preserve
 these distinct forms and manifests; do not manufacture extra pipeline steps to
 make folder counts match.
@@ -1157,7 +1161,7 @@ the exact immutable owner, without a second cache or portable-publication demand
 Unused declarations and dead concrete uses cannot be replaced by emitted demand.
 `provider-selection/boundary_applications.rs` owns the canonical executable
 application operation: exact selected-row/provenance joins, checked body choice
-and numeric execution admission. Stage 00 constructs operation-bound physical
+and numeric execution admission. Omega 00 constructs operation-bound physical
 coverage from that result. Source and canonical admission share numeric
 satisfaction and callable/package/target selection; source eligibility additionally
 checks Product, provider application and lifetime coordinates, while canonical
@@ -1218,7 +1222,7 @@ production and backing allocation, including in retained native images. Each
 target independently admits the retained pre-optimization composition and retains its own
 entry receipt and native proposal. Distinct roots and callbacks are retained
 in that same whole-program Terminal roster.
-Executable callback placement belongs to Omega stage 00: canonical
+Executable callback placement belongs to Omega 00: canonical
 callback applications name their registrar operation, exact body, requirement
 and checked entry admission; target calling applications retain exact static
 binder ordinals, requirement identities and synchronous invocation membership.
@@ -1295,8 +1299,8 @@ checked-tree Build execution entrypoint.
 lowering, optimization and publication sequence, below the source facade so
 early jobs do not depend back on their source coordinator. Product consumers
 call this operation directly with their policy and reporting observer; there
-is no Omega production wrapper. Stage 06 owns input-ledger validation;
-stage 08 owns entry receipts and source-correspondence judgments. This shared
+is no Omega production wrapper. Psi 06 owns input-ledger validation;
+Psi 08 owns entry receipts and source-correspondence judgments. This shared
 operation is neither another Psi stage nor a second complete compiler driver.
 Exact consumed-source and toolchain identities belong to the shared
 `psi/foundation/source/src/source_identity.rs` owner; package review and early
@@ -1337,10 +1341,9 @@ turn checking into IR data or justify a general `verification/` bucket.
 The compiler owns component descriptions, candidates, emitted products and
 generic installation evidence. Live deployment, replacement, entry routing,
 era retirement and update policy belong to an ordinary runtime/library package
-or Cathedral; no compiler runtime crate models them. The package-defined
-topology implementation lives at `source/library/topology/`: its graph policies,
-plan codec, verifier and installer are ordinary Omega library responsibilities,
-not compiler primitives or backend realization plans.
+or Cathedral; no compiler runtime crate models them. A topology package's graph
+policies, plan codec, verifier and installer are ordinary Omega library
+responsibilities, not compiler primitives or backend realization plans.
 
 Omega `foundation/` owns shared host primitives and native compiler vocabulary:
 bounded process execution, filesystem custody, function identities and optimization
@@ -1535,7 +1538,7 @@ names (Psi's `semantic-vocabulary` and `flow-effects`, for example).
 - Terminal companion packages live beneath `compilation/representations/terminal-psi/`:
   `codec/`, `semantics/` and `fuel/`.
   Representation data and candidate production remain independent of checking.
-- Psi `compilation/driver/terminal-production/` — sequences stages 05–07 through
+- Psi `compilation/driver/terminal-production/` — sequences Psi 06–08 through
   publication. Omega consumers supply product policy and reporting directly;
   they do not assemble the stages or wrap this production entrance. Psi returns
   ordered composition roots and diagnostic payloads as data. Omega checks

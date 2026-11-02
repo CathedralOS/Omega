@@ -3,8 +3,8 @@
 //! write, and add its `ensures` onto the caller's operands. Statement calls and
 //! expression-form named uses share these rules.
 
-use crate::labels::instantiate_operator_contract_expression_label;
-use crate::semantic::places::append_place;
+use crate::published::labels::instantiate_operator_contract_expression_label;
+use crate::published::semantic::places::append_place;
 use validation::CallSite;
 use validation::CanonicalPlace;
 use validation::canonical_place_from_expression;
@@ -18,7 +18,7 @@ use crate::flow::reference_spans;
 use crate::flow::retained_constraint_refs;
 use crate::flow::retained_flow_contexts;
 
-use crate::labels::semantic_contract_fact_kind;
+use crate::published::labels::semantic_contract_fact_kind;
 
 use arena::HandleSpan;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -192,7 +192,7 @@ fn named_operator_call_operands<'program>(
 ) -> Option<Vec<OperatorStatementOperand>> {
     let parameters = program.operator_parameters(operator);
     let operand_expressions =
-        crate::facts::operator_crashes::named_call_operands(program, call, parameters)?;
+        crate::published::facts::operator_crashes::named_call_operands(program, call, parameters)?;
     Some(
         parameters
             .iter()
@@ -498,7 +498,7 @@ fn append_operator_ensures_context(
                         origin: FactOrigin::OperatorEnsures {
                             operator_symbol: operator.symbol,
                         },
-                        evidence: crate::facts::qualification_evidence::operator_contract_evidence(
+                        evidence: crate::published::facts::qualification_evidence::operator_contract_evidence(
                             program,
                             operator.symbol,
                             payload,
@@ -564,7 +564,7 @@ fn append_operator_ensures_context(
                 typed_trees::domain::ProofFact::Proposition(application) => {
                     let place = semantic.append_symbol_place(application.proposition);
                     let (binder_labels, argument_handles) =
-                        crate::labels::proposition_label_sources(application, program);
+                        crate::published::labels::proposition_label_sources(application, program);
                     let argument_labels = argument_handles
                         .iter()
                         .map(|argument| {

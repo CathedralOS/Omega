@@ -51,6 +51,7 @@ enum InspectionControls<'selection> {
     ClosedReachCaptures,
     TaskActivations,
     SynchronousProviders,
+    DeclaredInvocations,
     ProviderChoices,
     BoundaryProviders,
     BehaviorAdmission,
@@ -136,6 +137,11 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
                 false,
                 Some(InspectionControls::SynchronousProviders),
             ),
+            [machine, "declared-invocation-controls"] => (
+                *machine,
+                false,
+                Some(InspectionControls::DeclaredInvocations),
+            ),
             [machine, "provider-choice-controls"] => {
                 (*machine, false, Some(InspectionControls::ProviderChoices))
             }
@@ -182,6 +188,7 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
             conformance_controls,
             Some(
                 InspectionControls::SynchronousProviders
+                    | InspectionControls::DeclaredInvocations
                     | InspectionControls::ProviderChoices
                     | InspectionControls::BoundaryProviders
                     | InspectionControls::BehaviorAdmission
@@ -256,6 +263,15 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
                 .ok_or("provider controls need a retained Terminal product")?;
             drop(prepared);
             if matches!(
+                conformance_controls,
+                Some(InspectionControls::DeclaredInvocations)
+            ) {
+                synchronous_provider_controls::inspect_declarations(
+                    &retained,
+                    profile.target_name(),
+                )?;
+                observations.push("declared-invocation-controls:match".into());
+            } else if matches!(
                 conformance_controls,
                 Some(InspectionControls::NativeLayouts)
             ) {
@@ -375,6 +391,7 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
                 InspectionControls::TaskActivations
                 | InspectionControls::CallbackBodies
                 | InspectionControls::SynchronousProviders
+                | InspectionControls::DeclaredInvocations
                 | InspectionControls::ProviderChoices
                 | InspectionControls::BoundaryProviders
                 | InspectionControls::BehaviorAdmission
@@ -636,7 +653,7 @@ fn closed_conformance_controls(artifact: &CanonicalTerminalArtifact) -> Result<(
     for (name, reason, invalid) in controls {
         reject_module_at_ingress(&invalid, name, reason)?;
     }
-    let domain = b"omega.requirement-schema.v1\0";
+    let domain = b"omega.requirement-schema.v2\0";
     let mut wire = artifact.to_bytes();
     let position = wire
         .windows(domain.len())

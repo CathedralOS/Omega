@@ -161,7 +161,7 @@ plain-body places of the same row pass. Checking rewrites a named terminal
 invocation into an ordinary call expression. It attached the source-owned Call
 occurrence to that expression but left the call's own `authored_call_selection`
 empty, and constant call custody joins that field to the table row. The rewrite
-now sets both, as stage 03 and the result-overload rewrite do for every other
+now sets both, as Psi 03 and the result-overload rewrite do for every other
 authored expression call.
 
 A producer built from the repaired source observes the three frozen positives

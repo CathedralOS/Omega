@@ -48,7 +48,7 @@ use super::{
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::types::retain_scalar_field;
 use crate::execution::terminal_unit::types::{byte_sequence_carrier, terminal_field_identity};
-use crate::places::place_at;
+use crate::published::places::place_at;
 use crate::values::occupies_scalar_position;
 use crate::values::resolve_structural_parameter_path;
 use destination::{Destination, Root, StoreRoots, plain_record};
@@ -641,7 +641,7 @@ fn plan_assignment(
     }
     let field_data =
         validation::field_domains::data_definition_for_field_type(program, field.type_reference)?;
-    if plain_record(field_data, program, &facts.operators) {
+    if plain_record(field_data, program) {
         return None;
     }
     trace.phase("structural field store: case field type");

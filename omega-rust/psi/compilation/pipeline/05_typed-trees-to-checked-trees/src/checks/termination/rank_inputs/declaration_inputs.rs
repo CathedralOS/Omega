@@ -98,7 +98,8 @@ impl RecordInput {
                 value: validation::ScopedArithmeticValue::OwnedSnapshot(snapshot),
             });
         }
-        for (read, path) in self.shape.reads.iter().zip(self.paths()) {
+        for read in &self.shape.reads {
+            let path = prepared.values.declared_read_path(&self.root, read)?;
             let coordinate = prepared.coordinates.iter().find(|coordinate| {
                 coordinate.parameter == self.root.parameter
                     && coordinate.primitive == read.primitive_type

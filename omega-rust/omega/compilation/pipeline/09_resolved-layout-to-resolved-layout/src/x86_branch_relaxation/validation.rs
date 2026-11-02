@@ -1,12 +1,12 @@
 use register_model::ValidatedPhysicalRegisterModel;
 use target::{Architecture, NativeTarget};
 
-use selected_form_encoding_to_resolved_layout::StagedOptimizedResolvedSelectedFormLayout;
+use machine_code::ResolvedMachineLayout;
 
 use super::error::OptimizedX86BranchRelaxationError;
 
 pub(super) fn validate_roots(
-    source: &StagedOptimizedResolvedSelectedFormLayout,
+    source: &ResolvedMachineLayout,
     physical: &ValidatedPhysicalRegisterModel,
 ) -> Result<(), OptimizedX86BranchRelaxationError> {
     ensure_x86_target(source.target(), physical)

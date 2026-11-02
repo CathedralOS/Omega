@@ -5,7 +5,7 @@
 //! has no statement operation, so the computation expansion hands its completed
 //! operands here. The emitted `BoundaryCall` records the application's exact
 //! source-call occurrence beside the operation, exactly as the statement route
-//! does, so stage 08 rejoins it to one checked operator application and
+//! does, so Psi 08 rejoins it to one checked operator application and
 //! provider selection stays one-to-one with Terminal operations.
 
 use crate::unit::attached_unit::argument_evaluation::validated_values;

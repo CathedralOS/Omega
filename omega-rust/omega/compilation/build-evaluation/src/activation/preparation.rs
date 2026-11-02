@@ -1,0 +1,197 @@
+//! Prepare one admitted Terminal Build and settle its exact normal-return output.
+//! The caller owns execution stepping and dependency work between those operations.
+
+use crate::{AdmittedBuildProgram, BuildConfig, ComputedBuildConfig, ReturnedBuild};
+use build_declarations::BuildRequest;
+use diagnostics::Diagnostic;
+use evaluation_accounting::{BuildEvaluationSponsor, BuildEvaluationSponsorLimits};
+use std::sync::Arc;
+
+/// An independently owned invocation. Preparing dependencies may use the compiler
+/// again while this code, sponsor account and admitted host scope remain alive.
+pub struct PreparedBuildExecution {
+    produced: Arc<psi_compiler::ProducedTerminalProgram>,
+    account: evaluation_accounting::EvaluationInvocationAccount,
+    machine: Arc<package_compilation::build_execution::SelectedBuildMachine>,
+    filesystem_scope: package_compilation::BuildMachineFilesystemScope,
+    host_issued: bool,
+    execution_profile: Option<target::TargetProfile>,
+}
+
+impl PreparedBuildExecution {
+    pub(crate) fn prepare(admitted: AdmittedBuildProgram) -> Result<Self, Vec<Diagnostic>> {
+        let AdmittedBuildProgram {
+            prepared,
+            machine,
+            filesystem_scope,
+            evaluation_sponsor,
+            execution_profile,
+            artifact_only: _,
+        } = admitted;
+        let refuse = |reason: String| failed(&machine.name, &reason);
+        let checked = prepared
+            .checked_trees()
+            .ok_or_else(|| refuse("Build has no admitted source judgment".into()))?;
+        let toolchain =
+            source::source_identity::toolchain_source_identities(checked.symbols.source_files())
+                .map_err(&refuse)?;
+        let mut production = psi_compiler::TerminalProductionRequest::new(
+            checked,
+            psi_compiler::TerminalMachineSelection::Symbol(machine.symbol),
+            &toolchain,
+        );
+        production.publication = terminal_codec::TerminalPublication::Invocation;
+        let produced = production
+            .produce(Default::default(), &mut psi_compiler::UnmeasuredProduction)
+            .map_err(|error| error.diagnostics())?;
+
+        // These are Terminal units. An existing tree-measured sponsor is never
+        // relabeled or silently replaced by a fresh account.
+        let measurement = crate::activation::measurement();
+        const INVOCATION_FUEL: u64 = 100_000;
+        let sponsor = match evaluation_sponsor {
+            Some(sponsor) => sponsor,
+            None => {
+                // Standalone compilation previously had only a per-invocation work
+                // ceiling. Its private account adds measurement, not filesystem grants.
+                let limits = BuildEvaluationSponsorLimits::new(
+                    INVOCATION_FUEL,
+                    u64::MAX,
+                    u64::MAX,
+                    u64::MAX,
+                    u64::MAX,
+                    u64::MAX,
+                    u64::MAX,
+                    u64::MAX,
+                )
+                .ok_or_else(|| refuse("invalid standalone Build limits".into()))?;
+                BuildEvaluationSponsor::new_with_measurement(limits, measurement)
+                    .map_err(|error| refuse(error.to_string()))?
+            }
+        };
+        let account = sponsor
+            .begin_invocation(measurement, INVOCATION_FUEL)
+            .map_err(|error| refuse(error.to_string()))?;
+        Ok(Self {
+            produced: Arc::new(produced),
+            account,
+            machine: Arc::new(machine),
+            filesystem_scope,
+            host_issued: false,
+            execution_profile,
+        })
+    }
+
+    /// Issue this invocation's host once. It cannot be replaced to restart effects
+    /// after the caller drops a paused or failed activation.
+    pub fn host(&mut self) -> Result<Arc<crate::TerminalBuildHost>, Vec<Diagnostic>> {
+        if self.host_issued {
+            return Err(self.refuse("Build invocation already issued its execution host"));
+        }
+        self.host_issued = true;
+        crate::TerminalBuildHost::new(
+            Arc::clone(&self.produced),
+            &self.account,
+            Arc::clone(&self.machine),
+            &self.filesystem_scope,
+            self.execution_profile,
+        )
+        .map_err(|reason| self.refuse(&reason))
+    }
+
+    pub(crate) fn validate_return(&self, returned: &ReturnedBuild) -> Result<(), Vec<Diagnostic>> {
+        if !self.host_issued || returned.identity != self.produced.view().custody_identity() {
+            return Err(self.refuse("Build completion belongs to another invocation"));
+        }
+        Ok(())
+    }
+
+    pub(crate) fn complete(
+        self,
+        completed: crate::ReturnedBuild,
+    ) -> Result<ComputedBuildConfig, Vec<Diagnostic>> {
+        self.validate_return(&completed)?;
+        let declaration = &completed.declaration;
+        // A graph is not settlement by itself. The retained return must carry
+        // the exact join of its issued requests and acquired selections.
+        if completed.source_join.is_none()
+            && completed
+                .requests
+                .iter()
+                .any(|issued| matches!(issued.request(), BuildRequest::Dependency { .. }))
+        {
+            return Err(self.refuse(
+                "dependency requests require coordinator settlement before Product compilation",
+            ));
+        }
+        let artifact_only = matches!(declaration, build_declarations::BuildDeclaration::Application(application) if application.artifact_only);
+        if artifact_only && !completed.root_bindings.is_empty() {
+            return Err(
+                self.refuse("artifact-only Build cannot select executable entries or providers")
+            );
+        }
+        let mut observations =
+            package_compilation::CapturedBuildObservations::new(&self.filesystem_scope);
+        if let Some(filesystem) = completed.filesystem {
+            observations.retain_filesystem_effects(filesystem)?;
+        }
+        observations.retain_build_log(
+            completed
+                .log
+                .publish(&self.account)
+                .map_err(|reason| self.refuse(&reason))?,
+        )?;
+        let observation_summary =
+            observations.settle(self.machine.filesystem_reachable, &self.machine.name)?;
+        if artifact_only && observation_summary.required_output_settlements().is_empty() {
+            return Err(self.refuse("artifact-only Build requires at least one completed output"));
+        }
+        let generated_sources = observation_summary.select_generated_sources(&self.machine.name)?;
+        let usage = *self
+            .account
+            .snapshot()
+            .map_err(|error| self.refuse(&error.to_string()))?
+            .record();
+        let native_binding_evaluation = if completed.native_bindings.is_empty() {
+            None
+        } else {
+            Some(Arc::new(
+                provider_planning::native_bindings::NativeBuildEvaluation::from_execution(
+                    completed.identity.semantic(),
+                    usage,
+                    &observation_summary,
+                )
+                .map_err(|reason| self.refuse(&reason))?,
+            ))
+        };
+        let config = BuildConfig {
+            settings: completed.settings,
+            native_binding_evaluation,
+            ..Default::default()
+        };
+        Ok(ComputedBuildConfig {
+            config,
+            root_binding_requests: completed.root_bindings,
+            declared_product_selections: completed.declared_product_selections,
+            product_selection_requests: completed.product_selections,
+            native_binding_requests: completed.native_bindings,
+            native_formations: completed.native_formations,
+            behavior_exclusion_requests: completed.exclusions,
+            project_declaration: Some(completed.declaration),
+            optimization_report_request: completed.optimization_report,
+            evaluation_usage: Some(usage),
+            observation_summary: Some(observation_summary),
+            selected_build_machine_symbol: Some(self.machine.symbol),
+            generated_sources,
+        })
+    }
+
+    fn refuse(&self, reason: &str) -> Vec<Diagnostic> {
+        failed(&self.machine.name, reason)
+    }
+}
+
+fn failed(name: &str, reason: &str) -> Vec<Diagnostic> {
+    let message = format!("Terminal Build `{name}` failed: {reason}");
+    vec![Diagnostic::error(message)]
+}

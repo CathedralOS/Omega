@@ -13,6 +13,9 @@ use crate::types::{
     TypeReferenceHandle, TypeReferenceNode,
 };
 use arena::HandleSpan;
+use language_semantics::type_identity::vocabulary::{
+    ArrayLengthForm, ConstraintForm, DomainFamily, IndexForm, Label, Spelled,
+};
 
 pub(crate) fn normalize_constrained_base(
     program: &TypedTrees,
@@ -102,7 +105,7 @@ pub(crate) fn normalized_range_endpoint(
     if end_inclusive {
         identity
     } else {
-        compound("exclusive-end", [identity])
+        compound(IndexForm::ExclusiveEnd, [identity])
     }
 }
 
@@ -111,7 +114,7 @@ pub(crate) fn normalized_range_integer(
     context: &TypeIdentityContext<'_>,
 ) -> String {
     if context.qualification == TypeIdentityQualification::PackageQualified {
-        atom("integer", &value.to_string())
+        atom(IndexForm::Integer, &value.to_string())
     } else {
         value.to_string()
     }
@@ -131,9 +134,9 @@ fn normalized_declared_domain_identity(
         return ordinary_name;
     }
     compound(
-        "declared-domain",
+        ConstraintForm::DeclaredDomain,
         std::iter::once(atom(
-            "name",
+            Label::Name,
             &context.name(program, domain.symbol, &ordinary_name),
         ))
         .chain(
@@ -155,11 +158,11 @@ pub(crate) fn normalized_compiler_domain_identity(
             normalized_declared_domain_identity(program, domain, context)
         }
         DomainConstraintSubject::Carry(permission) => compound(
-            "compiler-domain",
+            ConstraintForm::CompilerDomain,
             [
-                atom("family", "carry"),
+                atom(Label::Family, DomainFamily::Carry.spelling()),
                 atom(
-                    "permission",
+                    Label::Permission,
                     match permission {
                         language_semantics::CarryPermission::AcrossSuspend => "across-suspend",
                         language_semantics::CarryPermission::AnyCpu => "any-cpu",
@@ -170,11 +173,11 @@ pub(crate) fn normalized_compiler_domain_identity(
             ],
         ),
         DomainConstraintSubject::Value(value_domain) => compound(
-            "compiler-domain",
+            ConstraintForm::CompilerDomain,
             [
-                atom("family", "value"),
+                atom(Label::Family, DomainFamily::Value.spelling()),
                 atom(
-                    "domain",
+                    Label::Domain,
                     match value_domain {
                         language_semantics::value_domain::ValueDomain::Finite => "finite",
                     },
@@ -182,11 +185,11 @@ pub(crate) fn normalized_compiler_domain_identity(
             ],
         ),
         DomainConstraintSubject::OmegaLayout { grammar } => compound(
-            "compiler-domain",
+            ConstraintForm::CompilerDomain,
             [
-                atom("family", "omega-layout"),
+                atom(Label::Family, DomainFamily::OmegaLayout.spelling()),
                 atom(
-                    "grammar",
+                    Label::Grammar,
                     match grammar {
                         crate::types::OmegaLayoutGrammar::Derived => "derived",
                     },
@@ -195,7 +198,7 @@ pub(crate) fn normalized_compiler_domain_identity(
             .into_iter()
             .chain(domain.arguments.iter().map(|argument| {
                 compound(
-                    "schema",
+                    Label::Schema,
                     [normalize_type_reference(program, *argument, context)],
                 )
             })),
@@ -224,13 +227,22 @@ pub(crate) enum NormalizedConstraint {
 impl NormalizedConstraint {
     pub(crate) fn encode(self) -> String {
         match self {
-            Self::Arithmetic(name) => compound("arithmetic-domain", [atom("name", &name)]),
+            Self::Arithmetic(name) => {
+                compound(ConstraintForm::ArithmeticDomain, [atom(Label::Name, &name)])
+            }
             Self::CompilerDomain(identity) => identity,
-            Self::DeclaredDomain(name) => compound("declared-domain", [atom("name", &name)]),
-            Self::Named(name) => compound("named-constraint", [atom("name", &name)]),
+            Self::DeclaredDomain(name) => {
+                compound(ConstraintForm::DeclaredDomain, [atom(Label::Name, &name)])
+            }
+            Self::Named(name) => {
+                compound(ConstraintForm::NamedConstraint, [atom(Label::Name, &name)])
+            }
             Self::Range { minimum, maximum } => compound(
-                "range",
-                [atom("minimum", &minimum), atom("maximum", &maximum)],
+                ConstraintForm::Range,
+                [
+                    atom(Label::Minimum, &minimum),
+                    atom(Label::Maximum, &maximum),
+                ],
             ),
         }
     }
@@ -243,7 +255,7 @@ pub(crate) fn normalize_array_length(
 ) -> String {
     match length {
         FixedArrayLength::Literal(value) if context.invalid_application.is_some() => {
-            atom("integer", &value.to_string())
+            atom(IndexForm::Integer, &value.to_string())
         }
         FixedArrayLength::ConstParameter { symbol, name }
             if context.invalid_application.is_some() =>
@@ -254,10 +266,13 @@ pub(crate) fn normalize_array_length(
             let TypeReferenceNode::ConstExpression(expression) =
                 program.type_reference_table.type_reference(*value)
             else {
-                return atom("invalid-array-expression", "missing constant recipe");
+                return atom(
+                    ArrayLengthForm::InvalidExpression,
+                    "missing constant recipe",
+                );
             };
             compound(
-                "const-expression",
+                ArrayLengthForm::ConstExpression,
                 [super::identity_context::normalize_index_expression(
                     program,
                     *expression,
@@ -265,25 +280,31 @@ pub(crate) fn normalize_array_length(
                 )],
             )
         }
-        FixedArrayLength::Literal(value) => atom("literal", &value.to_string()),
+        FixedArrayLength::Literal(value) => atom(ArrayLengthForm::Literal, &value.to_string()),
         FixedArrayLength::ConstParameter { symbol, name } => {
             substitution::array_length(program, *symbol, name.as_str(), context).unwrap_or_else(
                 || {
                     atom(
-                        "const-parameter",
+                        ArrayLengthForm::ConstParameter,
                         &context.name(program, *symbol, name.as_str()),
                     )
                 },
             )
         }
         FixedArrayLength::ConstCall { machine, name, .. } => atom(
-            "const-call",
+            ArrayLengthForm::ConstCall,
             &context.name(program, *machine, name.as_str()),
         ),
     }
 }
 
-pub(crate) fn atom(tag: &str, value: &str) -> String {
+/// The text of a production with no children.
+pub(crate) fn bare(tag: impl Spelled) -> String {
+    tag.spelling().to_owned()
+}
+
+pub(crate) fn atom(tag: impl Spelled, value: &str) -> String {
+    let tag = tag.spelling();
     let mut output = String::with_capacity(tag.len() + value.len() + 2);
     output.push_str(tag);
     output.push('(');
@@ -306,7 +327,8 @@ pub(crate) fn atom(tag: &str, value: &str) -> String {
     output
 }
 
-pub(crate) fn byte_atom(tag: &str, value: &[u8]) -> String {
+pub(crate) fn byte_atom(tag: impl Spelled, value: &[u8]) -> String {
+    let tag = tag.spelling();
     let mut output = String::with_capacity(tag.len() + value.len().saturating_mul(2) + 24);
     output.push_str(tag);
     output.push('(');
@@ -321,7 +343,8 @@ pub(crate) fn byte_atom(tag: &str, value: &[u8]) -> String {
     output
 }
 
-pub(crate) fn compound(tag: &str, parts: impl IntoIterator<Item = String>) -> String {
+pub(crate) fn compound(tag: impl Spelled, parts: impl IntoIterator<Item = String>) -> String {
+    let tag = tag.spelling();
     let parts = parts.into_iter().collect::<Vec<_>>();
     let mut output =
         String::with_capacity(tag.len() + parts.iter().map(String::len).sum::<usize>() + 2);

@@ -11,7 +11,7 @@ use validation::find_call_site;
 
 use crate::flow::canonical_place_from_symbol;
 use crate::flow::canonical_place_segments_may_overlap;
-use crate::places::place_at;
+use crate::published::places::place_at;
 
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;
@@ -362,7 +362,7 @@ fn exclusive_loan_places(
                 segments: Vec::new(),
             };
             place.extend_segments(borrow.access_segments.span_or_empty(access.segments));
-            crate::collections::push_unique(&mut places, place);
+            crate::shared::collections::push_unique(&mut places, place);
         }
     }
 
@@ -476,7 +476,7 @@ fn shared_call_storage_regions(
             call_frames,
         )? {
             let StorageRegion::Declared(coarse) = region else {
-                crate::collections::push_unique(&mut places, region);
+                crate::shared::collections::push_unique(&mut places, region);
                 continue;
             };
             // The durable frame path deliberately drops index selectors to the
@@ -505,12 +505,12 @@ fn shared_call_storage_regions(
             };
             if refinements.is_empty() {
                 let region = StorageRegion::Declared(coarse);
-                crate::collections::push_unique(&mut places, region);
+                crate::shared::collections::push_unique(&mut places, region);
                 continue;
             }
             for refined in refinements {
                 let region = StorageRegion::Declared(refined);
-                crate::collections::push_unique(&mut places, region);
+                crate::shared::collections::push_unique(&mut places, region);
             }
         }
     }
@@ -575,7 +575,7 @@ fn boundary_frame_access_places(
             break;
         };
         for rebased in rebased {
-            crate::collections::push_unique(&mut exclusive_referents, rebased);
+            crate::shared::collections::push_unique(&mut exclusive_referents, rebased);
         }
     }
     if refinable
@@ -635,7 +635,7 @@ fn boundary_frame_access_places(
                 ) {
                     Some(rebased) => {
                         for anchor in rebased {
-                            crate::collections::push_unique(&mut coarse_anchors, anchor);
+                            crate::shared::collections::push_unique(&mut coarse_anchors, anchor);
                         }
                     }
                     None => {
@@ -668,7 +668,7 @@ fn boundary_frame_access_places(
         ) {
             Some(rebased) => {
                 for receiver in rebased {
-                    crate::collections::push_unique(&mut coarse_anchors, receiver);
+                    crate::shared::collections::push_unique(&mut coarse_anchors, receiver);
                 }
             }
             None => refinable = false,
@@ -847,7 +847,7 @@ pub(crate) fn frame_storage_writes(
             source,
             call_frames,
         )? {
-            crate::collections::push_unique(&mut places, place);
+            crate::shared::collections::push_unique(&mut places, place);
         }
     }
     local_origins::close_storage_places_over_aliases(

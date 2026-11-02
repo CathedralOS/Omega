@@ -6250,11 +6250,8 @@ pass/providers/runtime_provider_reference_allocation_exit built 4196ms exit:0 @a
 pass/providers/runtime_provider_reference_computed_exit built 4345ms exit:0 @a92f16431042
 pass/providers/runtime_provider_reference_deep_exit built 4049ms exit:0 @a92f16431042
 pass/providers/runtime_provider_reference_nested_exit built 3991ms exit:0 @a92f16431042
-pass/providers/runtime_provider_reference_state_exit incomplete 2696ms regressed-from:built+exit:0 @a92f16431042
-	`main` has no executable body: this compiler does not lower a transition of it yet (state loan parents: incomplete captured storage dependencies); in state `main::entry`, statement 1
-pass/providers/runtime_provider_reference_view_exit rejected 2856ms regressed-from:built+exit:0 @a92f16431042
-	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
-	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
+pass/providers/runtime_provider_reference_state_exit built 4358ms exit:0 @d66d243e63b0+wt
+pass/providers/runtime_provider_reference_view_exit built 4821ms exit:0 @d66d243e63b0+wt
 pass/providers/runtime_qualified_fixed_array_foreign_exit built 2595ms exit:0 @a92f16431042
 pass/providers/runtime_result_domain_requirement_overload_exit built 8908ms exit:70 @a92f16431042
 pass/providers/runtime_transitive_provider_slot_exit built 8832ms exit:0 @a92f16431042

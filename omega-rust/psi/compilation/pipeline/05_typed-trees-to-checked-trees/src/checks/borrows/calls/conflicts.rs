@@ -12,7 +12,7 @@ use super::staging::completed_observation_before_terminal_transfer;
 use checked_trees::{BorrowCallFact, CheckFacts, FlowStateFact};
 use diagnostics::Diagnostic;
 
-use crate::labels::{borrow_access_label, symbol_name};
+use crate::published::labels::{borrow_access_label, symbol_name};
 
 use super::super::details::active_loan_detail;
 use super::super::overlap::StatedOrderingPremise;
@@ -134,7 +134,7 @@ pub(in crate::checks::borrows) fn check_staged_operand_move<'program>(
                 }
                 diagnostics.push(Diagnostic::error(format!(
                     "state `{}` receives owned `{}` while an earlier argument in the same call still borrows it",
-                    crate::labels::call_target_label(program, call.target_symbol),
+                    crate::published::labels::call_target_label(program, call.target_symbol),
                     validation::CanonicalPlace { root: event.root, segments: path.to_vec() }.label(program),
                 )));
             }
@@ -164,6 +164,9 @@ pub(super) fn check_call_access_conflicts<'p>(
     let exiting_source =
         source_exiting_without_local_loan_carriers(program, state_flow, borrow_call, call_frames);
     let boundary = InvocationBoundary::at(program, facts, state_flow, borrow_call);
+    let access_routes = boundary
+        .as_ref()
+        .and_then(|boundary| boundary.argument_routes(&accesses));
     let ended_before_call =
         loans_ended_before_call(program, facts, state_flow, borrow_call, boundary.as_ref());
     let active_loans: Vec<_> = facts
@@ -247,6 +250,22 @@ pub(super) fn check_call_access_conflicts<'p>(
 
     for (index, access) in accesses.iter().enumerate() {
         for (other_index, other_access) in accesses.iter().enumerate().skip(index + 1) {
+            // The source schedule owns conditional evaluation. Alternative
+            // arms of one operand cannot hold loans together, while a sibling
+            // operand still competes with every arm it can reach.
+            if access_routes.as_ref().is_some_and(|routes| {
+                let first = &routes[index];
+                let second = &routes[other_index];
+                !first.is_empty()
+                    && !second.is_empty()
+                    && !first.iter().any(|first| {
+                        second.iter().any(|second| {
+                            crate::checks::ownership_occurrences::routes_compatible(first, second)
+                        })
+                    })
+            }) {
+                continue;
+            }
             // A completed actual does not compete with the inputs that
             // produced it. Keep those inputs in the roster: a later sibling
             // must respect even an unselected declared lifetime dependency.

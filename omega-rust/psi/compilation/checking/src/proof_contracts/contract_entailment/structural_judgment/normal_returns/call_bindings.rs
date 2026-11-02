@@ -182,7 +182,7 @@ impl<'program> StructuralJudge<'program> {
             if subject.preserved_on_return || !subject.stable_on_return {
                 continue;
             }
-            let Some(coordinate) = self.captured_reference_subject(&subject.entry) else {
+            let Some(coordinate) = self.captured_reference_subject(&subject.entry, scope.1) else {
                 continue;
             };
             self.capture_sequence += 1;
@@ -239,6 +239,11 @@ impl<'program> StructuralJudge<'program> {
                 coordinate,
                 value,
                 backing: None,
+                representation: subject
+                    .entry
+                    .scalar_storage_coordinate(program, scope.1)
+                    .filter(|scalar| !scalar.preserves_scalar_value)
+                    .map(|scalar| (scalar.view_primitive, scalar.source_primitive)),
             });
         }
         Some(CapturedCallBindings {

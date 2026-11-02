@@ -1,4 +1,4 @@
-# Stage 06 reads of source context (TypedTrees, typed_trees::expression,
+# Psi 06 reads of source context (TypedTrees, typed_trees::expression,
 # .typed) per file. Counts may only fall: stages do not reconstruct missing
 # input facts (omega-rust/pipeline.md "Public contracts").
 # Written by `python tools/check_rules.py --update-source-context`.
@@ -7,7 +7,7 @@
 4 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/declarations/state_selection_tests.rs
 5 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/emission/borrowed_window.rs
 10 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/emission/call_qualifications.rs
-11 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/emission/claim_bindings.rs
+9 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/emission/claim_bindings.rs
 1 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/emission/claim_bindings/selections.rs
 6 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/emission/loan_completions.rs
 1 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/emission/operation_emission/boundary_calls.rs
@@ -45,7 +45,6 @@
 3 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/scalar_lowering/branch_states/structural_values.rs
 1 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/scalar_lowering/computations.rs
 1 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/scalar_lowering/computations/byte_comparisons.rs
-1 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/scalar_lowering/computations/cases.rs
 4 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/scalar_lowering/computations/dispatch.rs
 8 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/scalar_lowering/computations/fields.rs
 2 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/scalar_lowering/computations/observations.rs
@@ -91,7 +90,7 @@
 7 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/scalar_applications/conditions.rs
 2 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/scalar_applications/proof_scope.rs
 5 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/scalar_applications/tests.rs
-3 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/structural_values/emission.rs
+2 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/structural_values/emission.rs
 1 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/structural_values/emission/completed_projection.rs
 4 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/structural_values/emission/completed_storage.rs
 1 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/structural_values/emission/completions.rs

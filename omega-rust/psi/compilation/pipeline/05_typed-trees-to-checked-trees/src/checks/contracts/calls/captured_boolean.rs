@@ -7,12 +7,12 @@ use crate::checks::float_implications::contexts_prove_comparison;
 use crate::checks::operators::InvocationContexts;
 use crate::checks::operators::closed_operators_are_builtin;
 use crate::checks::operators::selected_float_boolean_requirement;
-use crate::facts::boolean_predicates::BoundPredicate;
-use crate::facts::boolean_predicates::bind_parameters;
-use crate::facts::contract_occurrences::append_expression_occurrences;
-use crate::facts::contract_occurrences::append_selector_occurrences;
-use crate::places::place_at;
-use crate::semantic::facts::contract_parameter_position;
+use crate::published::facts::boolean_predicates::BoundPredicate;
+use crate::published::facts::boolean_predicates::bind_parameters;
+use crate::published::facts::contract_occurrences::append_expression_occurrences;
+use crate::published::facts::contract_occurrences::append_selector_occurrences;
+use crate::published::places::place_at;
+use crate::published::semantic::facts::contract_parameter_position;
 use crate::values::lower_callable_scalar_contract_predicate;
 use crate::values::lower_parameter_boolean_expression;
 use checked_trees::{CheckFacts, FlowCallFact, FlowStateFact};
@@ -82,18 +82,20 @@ pub(super) fn judgment(
     })();
     if proven == Some(true)
         || (proven != Some(false)
-            && phase_profile::scope("psi.05.check_checked_facts.check_flow_call_contracts.captured_boolean.captured_float", || {
-                captured_float_requirement(program, facts, state, call, expression)
-            }) == Some(true))
+            && phase_profile::scope(
+                "psi.05.check_checked_facts.check_flow_call_contracts.captured_boolean.captured_float",
+                || captured_float_requirement(program, facts, state, call, expression),
+            ) == Some(true))
     {
         return Some(true);
     }
     // Ordinary proof routes observe the authored actual, not its initializer.
     // A retained value-origin proof may discharge the requirement first; a
     // failed origin proof cannot weaken the original operand's epoch fence.
-    if phase_profile::scope("psi.05.check_checked_facts.check_flow_call_contracts.captured_boolean.preserves_captures", || {
-        source_substitution_preserves_captures(program, facts, state, call, requirement)
-    }) == Some(true)
+    if phase_profile::scope(
+        "psi.05.check_checked_facts.check_flow_call_contracts.captured_boolean.preserves_captures",
+        || source_substitution_preserves_captures(program, facts, state, call, requirement),
+    ) == Some(true)
     {
         None
     } else {
@@ -201,23 +203,34 @@ fn captured_contract_proven(
             // actuals of this call. This capture-owned proof must precede the
             // source-substitution fence; repeatability of either runtime call
             // is neither necessary nor inferred.
-            let result = phase_profile::scope("psi.05.check_checked_facts.check_flow_call_contracts.captured_boolean.call_guarantees", || {
-                super::super::prover::call_guarantees::proves(
-                    program, facts, state, call, contexts, *required, frames,
-                )
-            }) || phase_profile::scope("psi.05.check_checked_facts.check_flow_call_contracts.captured_boolean.current_values", || {
-                super::super::current_values::proves_call(program, state, call, *required, frames)
-            }) || phase_profile::scope("psi.05.check_checked_facts.check_flow_call_contracts.captured_boolean.structural", || {
-                super::super::entailment::structural_call_requirement(
-                    program,
-                    facts,
-                    state,
-                    call,
-                    *required,
-                    Some(contract_handle),
-                    frames,
-                )
-            });
+            let result = phase_profile::scope(
+                "psi.05.check_checked_facts.check_flow_call_contracts.captured_boolean.call_guarantees",
+                || {
+                    super::super::prover::call_guarantees::proves(
+                        program, facts, state, call, contexts, *required, frames,
+                    )
+                },
+            ) || phase_profile::scope(
+                "psi.05.check_checked_facts.check_flow_call_contracts.captured_boolean.current_values",
+                || {
+                    super::super::current_values::proves_call(
+                        program, state, call, *required, frames,
+                    )
+                },
+            ) || phase_profile::scope(
+                "psi.05.check_checked_facts.check_flow_call_contracts.captured_boolean.structural",
+                || {
+                    super::super::entailment::structural_call_requirement(
+                        program,
+                        facts,
+                        state,
+                        call,
+                        *required,
+                        Some(contract_handle),
+                        frames,
+                    )
+                },
+            );
             whole_contract_cache.push((contract_handle, result));
             result
         };
@@ -227,20 +240,23 @@ fn captured_contract_proven(
     }
     // The retained contract and its call inputs are invariant across children.
     // Continue with expression-dependent attempts after this one fails.
-    phase_profile::scope("psi.05.check_checked_facts.check_flow_call_contracts.captured_boolean.captured_expr", || {
-        captured_expression_proven(
-            program,
-            facts,
-            state,
-            call,
-            contexts,
-            contract,
-            target,
-            expression,
-            expression_intervals,
-            frames,
-        )
-    })
+    phase_profile::scope(
+        "psi.05.check_checked_facts.check_flow_call_contracts.captured_boolean.captured_expr",
+        || {
+            captured_expression_proven(
+                program,
+                facts,
+                state,
+                call,
+                contexts,
+                contract,
+                target,
+                expression,
+                expression_intervals,
+                frames,
+            )
+        },
+    )
 }
 
 /// Compose expression-dependent evidence after the whole-contract attempt.
@@ -457,8 +473,10 @@ fn bound_contract_predicate(
     };
     let actual = validation::call_target_parameters(program, target)?;
     let declared_parameters = if let ContractProofFactOwner::CallSignature { .. } = contract.owner {
-        let signature =
-            crate::proof::contracts::call_signatures::signature(&facts.proof, contract.owner)?;
+        let signature = crate::published::proof::contracts::call_signatures::signature(
+            &facts.proof,
+            contract.owner,
+        )?;
         program.state_signature_parameters(signature)
     } else {
         validation::call_target_parameters(program, declared)?

@@ -10,7 +10,7 @@
 use omega_language_std::console;
 
 trait Shape<T> {
-    machine code<Width: u32>(subject: &T) -> u32 where Width == 16 || Width == 32 || Width == 64;
+    machine code<Width: u32>(subject: &T) -> u32 requires Width == 16 || Width == 32 || Width == 64;
 }
 
 data Item {
@@ -34,11 +34,11 @@ machine Item::lifted_code<Width: u32>(item: &Item) -> u32 satisfies Shape<Item>:
 }
 
 Primary satisfies Shape<Item> {
-    machine code<Width: u32>(subject: &Item) -> u32 where Width == 16 || Width == 32 || Width == 64 { Item::code<Width>(subject) }
+    machine code<Width: u32>(subject: &Item) -> u32 requires Width == 16 || Width == 32 || Width == 64 { Item::code<Width>(subject) }
 }
 
 Bumped satisfies Shape<Item> {
-    machine code<Width: u32>(subject: &Item) -> u32 where Width == 16 || Width == 32 || Width == 64 { Item::lifted_code<Width>(subject) }
+    machine code<Width: u32>(subject: &Item) -> u32 requires Width == 16 || Width == 32 || Width == 64 { Item::lifted_code<Width>(subject) }
 }
 
 machine scan(selected: dyn Shape<Item>, item: &Item, w: u32) -> u32

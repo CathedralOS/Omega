@@ -3,7 +3,7 @@
 //! on the selected result. Neither a receiving type nor a loan issues a domain.
 
 use super::Execution;
-use crate::semantic::places::append_place;
+use crate::published::semantic::places::append_place;
 use arena::{Handle, HandleSpan};
 use checked_trees::{FlowCallFact, FlowConstraintRef, FlowOperandFact, FlowSemanticContextRef};
 use facts::{Fact, FactOrigin, FactPayload, FactPlace, PlaceRoot, ProgramPoint};
@@ -80,13 +80,13 @@ impl Execution<'_, '_, '_> {
                 PlaceRoot::Expression(value.expression),
                 &path,
             );
-            let context = crate::semantic::facts::append_observation_context(
+            let context = crate::published::semantic::facts::append_observation_context(
                 self.semantic,
                 Fact {
                     place: FactPlace::Place(place),
                     point,
                     origin: FactOrigin::CallEnsures,
-                    evidence: crate::facts::propagated_evidence(target),
+                    evidence: crate::published::facts::propagated_evidence(target),
                     payload: FactPayload::DomainMembership {
                         value: value.expression,
                         domain: HandleSpan::empty(),
@@ -122,7 +122,7 @@ impl Execution<'_, '_, '_> {
             let place = crate::flow::project_captured_view_place(backing, path)?;
             let dependency =
                 FactPlace::Place(append_place(self.semantic, place.root, &place.segments));
-            crate::collections::push_unique(&mut dependencies, dependency);
+            crate::shared::collections::push_unique(&mut dependencies, dependency);
         }
         (!dependencies.is_empty()).then_some(dependencies)
     }

@@ -104,7 +104,7 @@ impl ContractExpressionEvaluator<'_, '_> {
         symbol: SymbolHandle,
         name: Option<&str>,
     ) -> Option<ExpressionHandle> {
-        let arguments = crate::call_formals::arguments_aligned_to_formals(
+        let arguments = crate::shared::call_formals::arguments_aligned_to_formals(
             self.program,
             self.call_site.target_symbol(self.program),
             self.target_parameters.len(),

@@ -7,6 +7,7 @@
 //! and discarded arena calls. Missing or ambiguous context fails closed.
 
 use crate::frozen_program::expression_table;
+use crate::proof_contracts::contract_entailment::static_applications::generic_tuple_requirements;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, StaticMachineArgument};
@@ -22,14 +23,14 @@ impl<'program> CallScopes<'program> {
     pub(super) fn build(program: &'program dyn crate::CheckingInput) -> Self {
         // Both applied trait telescopes and runtime value-family membership
         // need the call's exact state. A nongeneric trait can still declare a
-        // generic method whose where clause relies on state Requires facts.
+        // generic method whose requires clause relies on state Requires facts.
         // An applied requirement call's trait application is admitted under
         // its caller's telescope, so it needs the same exact context.
         if !program.traits().iter().any(|owner| {
             program
                 .trait_machine_signatures(owner)
                 .iter()
-                .any(|signature| !signature.where_facts.is_empty())
+                .any(|signature| !generic_tuple_requirements(program, signature).is_empty())
         }) && !expression_table(program).iter_expressions().any(|(_, expression)| {
                 matches!(
                     expression,
@@ -108,7 +109,7 @@ pub(super) fn validate(
         }
     };
     let target = source.symbol;
-    if source.where_facts.is_empty() {
+    if generic_tuple_requirements(program, source).is_empty() {
         return;
     }
     let executable = match call {
@@ -195,35 +196,40 @@ pub(super) fn validate(
     let signature = scope
         .as_ref()
         .and_then(|scope| program.applied_callable_signature(scope, target));
+    // Without its applied telescope no tuple is refuted; the call's entry
+    // proof still owes every requirement.
     let Some(signature) = signature else {
-        diagnostics.push(Diagnostic::error(format!(
-            "cannot prove declared where facts for static application of requirement `{}::{}` under its complete applied telescope", owner.name, source.name,
-        )));
         return;
     };
-    validate_where_facts(
+    validate_tuple_requirements(
         program,
         owner,
         signature,
         arguments,
         call.lexical_owner(program),
         context.map(|(_, state)| state),
+        true,
         diagnostics,
     );
 }
 
-pub(super) fn validate_where_facts(
+/// Admit a static tuple against its generic-tuple `requires` facts. A call also
+/// owes those facts as entry obligations, proven there with the caller's flow
+/// facts, so a call refuses here only a tuple that structurally falsifies
+/// them; an application that is not a call refuses any tuple left unproved.
+pub(super) fn validate_tuple_requirements(
     program: &dyn crate::CheckingInput,
     owner: &typed_trees::trait_definition::TraitDefinition,
     source: &typed_trees::signature::StateSignature,
     arguments: &[StaticMachineArgument],
     lexical_owner: SymbolHandle,
     caller_state: Option<&State>,
+    entry_proof_follows: bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     use crate::StrictArithmeticImplicationJudgment;
-    use crate::proof_contracts::contract_entailment::static_applications::static_application_where_judgment;
-    let judgment = static_application_where_judgment(
+    use crate::proof_contracts::contract_entailment::static_applications::static_application_requirement_judgment;
+    let judgment = static_application_requirement_judgment(
         program,
         source,
         arguments,
@@ -234,10 +240,11 @@ pub(super) fn validate_where_facts(
     match judgment {
         StrictArithmeticImplicationJudgment::Proven => {}
         StrictArithmeticImplicationJudgment::Refuted => diagnostics.push(Diagnostic::error(format!(
-            "static application of requirement `{}::{}` violates its declared where facts: the complete tuple is structurally false", owner.name, source.name,
+            "static application of requirement `{}::{}` violates its declared requires facts: the complete tuple is structurally false", owner.name, source.name,
         ))),
+        StrictArithmeticImplicationJudgment::Unknown if entry_proof_follows => {}
         StrictArithmeticImplicationJudgment::Unknown => diagnostics.push(Diagnostic::error(format!(
-            "cannot prove declared where facts for static application of requirement `{}::{}` under its complete applied telescope", owner.name, source.name,
+            "cannot prove declared requires facts for static application of requirement `{}::{}` under its complete applied telescope", owner.name, source.name,
         ))),
     }
 }
