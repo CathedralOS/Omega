@@ -40,4 +40,5 @@ layout-plans = { path = "../../../psi/foundation/layout-plans" }
 source = { path = "../../../psi/foundation/source" }
 symbols = { path = "../../../psi/foundation/symbols" }
 typed-trees = { path = "../../../psi/compilation/representations/typed-trees" }
+checked-trees = { path = "../../../psi/compilation/representations/checked-trees" }
 build-declarations = { path = "../../packages/build-declarations" }

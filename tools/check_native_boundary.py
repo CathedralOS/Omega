@@ -138,11 +138,6 @@ FIREWALL_ALLOWANCES = (
               "Debt: reads CheckedTrees and boundary adapter dispatch from checked source"),
     Allowance(SELECTED_DISPATCH, TERMINAL_PRODUCTION,
               "Debt: prepares PreparedProviderInventory and ExternalProviderDeclarations itself"),
-    Allowance(SELECTED_DISPATCH, f"{PSI}/compilation/build-time-evaluation",
-              "Debt: validates selected provider bodies and operators through compile-time evaluation"),
-    Allowance(SELECTED_DISPATCH, f"{REPRESENTATION_PLANNING}/selections",
-              "Sanctioned: pipeline.md:1301-1303, the selections package \"keeps consumers free "
-              "of a dependency on admission\" (OpaqueRepresentationSelection)"),
     Allowance(PROVIDER_PLANNING, f"{PSI}/compilation/build-time-evaluation",
               "Debt: provider declarations and BuildTimeValue from compile-time evaluation"),
     Allowance(PROVIDER_PLANNING, f"{REPRESENTATION_PLANNING}/selections",

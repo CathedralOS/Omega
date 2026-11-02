@@ -13,7 +13,6 @@ mod checked_interpreter_dispatch;
 
 pub(crate) use checked_body::exact_checked_body_entry;
 mod compiler_intrinsic;
-mod constant_evaluation;
 mod intrinsic_review;
 mod numeric_provider;
 pub use numeric_provider::NumericProviderSelection;
@@ -24,7 +23,6 @@ mod selected_execution;
 pub use checked_interpreter_dispatch::{
     CheckedInterpreterDispatch, prepare_checked_interpreter_dispatch,
 };
-pub use constant_evaluation::SelectedConstantEvaluation;
 
 pub use compiler_intrinsic::{
     SelectedCompilerIntrinsicExecutionIdentity,
@@ -37,7 +35,7 @@ pub(crate) use intrinsic_review::{
 pub use provider_binding::{ProviderBindingRequest, prepare_selected_execution};
 pub use selected_execution::SelectedExecution;
 
-pub(crate) use selected_dispatch::derive_selected_primitive_float_binary_execution;
+pub use selected_dispatch::derive_selected_primitive_float_binary_execution;
 pub use selected_dispatch::{
     CheckedOperatorAuthoredUseKind, derive_checked_nongeneric_operator_application_realizations,
     derive_checked_specialized_operator_application_realizations,

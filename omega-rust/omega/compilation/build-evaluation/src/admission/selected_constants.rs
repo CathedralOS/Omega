@@ -3,7 +3,11 @@
 //! its value in the typed program once; final checking consumes that program
 //! and the compile does not replay the folds against its own checked result
 //! (pipeline.md, "Verification placement").
-use crate::derive_selected_primitive_float_binary_execution;
+//!
+//! Build admission is the only caller: it resumes Psi's pending source
+//! evaluation for the Build program before checking it. The fold reads typed
+//! source, so it lives here rather than in Omega realization; selected
+//! dispatch still supplies the float-intrinsic recognition.
 use build_time_evaluation::validate_selected_provider_bodies;
 use build_time_evaluation::{
     PreCheckEvaluation, SelectedBuildTimeBinaryOperator, SelectedBuildTimeOperators,
@@ -13,10 +17,11 @@ use checked_trees::CheckedProviderPlanCommitment;
 use diagnostics::Diagnostic;
 use effects::SelectedProviderPlanFacts;
 use provider_planning::target_machines::selected_constant_target_bodies;
+use selected_dispatch::derive_selected_primitive_float_binary_execution;
 use typed_trees::TypedTrees;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SelectedConstantEvaluation {
+pub(crate) struct SelectedConstantEvaluation {
     operators: Vec<SelectedBuildTimeBinaryOperator>,
     /// Selected uses whose meaning is the selected provider's ordinary checked
     /// machine body. Each row carries the exact provider entry the semantic
@@ -33,7 +38,7 @@ pub struct SelectedConstantEvaluation {
     selection: typed_trees::references::DeclarationSelection,
     /// The opaque representation selections the layout authority consults for
     /// the same fold; Build admission has none and supplies an empty set.
-    opaque_representation_selections: Vec<representation_selections::OpaqueRepresentationSelection>,
+    opaque_representation_selections: Vec<representation_planning::OpaqueRepresentationSelection>,
 }
 
 impl SelectedConstantEvaluation {
@@ -48,7 +53,7 @@ impl SelectedConstantEvaluation {
     /// the `u64` literal the layout authority reports for this target, in
     /// constant and runtime positions alike, before the deferred
     /// continuations' own evaluation observes the program.
-    pub fn evaluate_pending(
+    pub(crate) fn evaluate_pending(
         self,
         typed: &mut TypedTrees,
         pending: Vec<PreCheckEvaluation>,
@@ -77,10 +82,10 @@ impl SelectedConstantEvaluation {
     /// does not enter a source stage to reconstruct them. `target_profile` and
     /// `opaque_representation_selections` are the exact selection the deferred
     /// data-layout queries are answered under.
-    pub fn prepare(
+    pub(crate) fn prepare(
         services: typed_trees::service_declarations::ServiceCatalog<'_>,
         target_profile: target::TargetProfile,
-        opaque_representation_selections: &[representation_selections::OpaqueRepresentationSelection],
+        opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
         facts: &checked_trees::CheckedOperatorFacts,
         plans: &SelectedProviderPlanFacts,
     ) -> Result<Self, Vec<Diagnostic>> {

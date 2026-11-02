@@ -11,8 +11,6 @@ path = "src/lib.rs"
 [dependencies]
 provider-selection = { path = "../provider-selection" }
 backend-plan = { path = "../../backend/plans/backend-plan" }
-build-time-evaluation = { path = "../../../../psi/compilation/build-time-evaluation" }
-representation-selections = { path = "../../../../psi/compilation/checking/representation-planning/selections" }
 trust-model = { path = "../trust-model" }
 effects = { path = "../../backend/plans/effects" }
 package-compilation = { path = "../../../packages/compilation-inputs" }
