@@ -72,15 +72,6 @@ pub(crate) fn specialization_selection_dependency_symbols(
     let mut applications = Vec::new();
     if let Some(application) = program.machine_specialization(owner.symbol) {
         applications.push(application.binding_application);
-        // Evidence arguments keep their exact checked row maps separately
-        // from the executable binding telescope. Both carry proof sources.
-        for conformance in &application.conformance_applications {
-            typed_trees::references::visit_closed_conformance(
-                program,
-                &mut dependencies,
-                conformance,
-            );
-        }
     }
     for (_, captured) in program
         .captured_machine_applications

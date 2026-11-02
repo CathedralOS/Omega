@@ -104,62 +104,42 @@ baseline producer (`1efc2536b3bc`, opt-level 1) accepts all nine twins. Windows 
 macOS execution of the re-expressed sources is not observed; binding a hosted
 target does not establish execution on that host.
 
-## Generic evidence production
+## Generic evidence and normal completion
 
-The same fact has a second production under each place's `generic_evidence/`
-folder. `forwarded<S satisfies IndependentSource>` consumes only the selected
-requirement's public guarantee. `GoodSource` independently returns 7.
-`ReservedSource` forwards to `GoodSource` in the positive and only changes that
-actual to `ReservedSource` in the reject twin. The caller, result bound, copied
-transport and subtraction remain identical; the invalid implementation is never
-selected by `main`.
+The earlier generic-evidence reproduction does not demonstrate a missing
+citation dependency. Its exact selected cycle (`CircularSource::source` calling
+`forwarded<CircularSource>`, which calls that same source) has no normal return.
+The completion owner establishes that control fact without importing a guarantee,
+so its `ensures` is vacuous under ordinary partial correctness. Withholding a
+cyclic guarantee must not manufacture an exit obligation for that program.
 
-| Place | Positive | Reject twin |
-| --- | --- | --- |
-| local | [program](local/generic_evidence/main.omg) | [program](local/generic_evidence/invalid/main.omg) |
-| field | [program](field/generic_evidence/main.omg) | [program](field/generic_evidence/invalid/main.omg) |
-| parameter | [program](parameter/generic_evidence/main.omg) | [program](parameter/generic_evidence/invalid/main.omg) |
-| call_result | [program](call_result/generic_evidence/main.omg) | [program](call_result/generic_evidence/invalid/main.omg) |
-| match_join | [program](match_join/generic_evidence/main.omg) | [program](match_join/generic_evidence/invalid/main.omg) |
-| const_name | [program](const_name/generic_evidence/main.omg) | [program](const_name/generic_evidence/invalid/main.omg) |
-| other_state | [program](other_state/generic_evidence/main.omg) | [program](other_state/generic_evidence/invalid/main.omg) |
-| other_machine | [program](other_machine/generic_evidence/main.omg) | [program](other_machine/generic_evidence/invalid/main.omg) |
-| target_body | [program](target_body/generic_evidence/main.omg) | [program](target_body/generic_evidence/invalid/main.omg) |
-
-The 18 Source/Build pairs are pinned under
-`tests/omega/{pass,fail}/facts/independent_call_result_bound_generic_evidence_through_<place>_{exit,rejected}`.
-Every positive binds all four hosted entries and expects exit 0; every twin
-requires rejection of an unproved exit contract. The original transport bodies
-are retained, including both match paths and ordinary Build-selected target
-implementations.
-
-The verified optimized producer `6416b0fdfbe3cd7db319e5c4803f64d3254160cd`
-checks all nine positives **and wrongly checks all nine twins** on macOS arm64,
-with its frozen 189-file SDK. An initial authored target-body formation error
-(missing explicit empty `reaches`) is retained separately and excluded; the
-corrected positive/twin both check. These are Source observations, not runtime
-claims or runs of the new candidate.
-
-The candidate dependency walk now visits each exact closed conformance map
-already retained on `MachineSpecialization`, using the same ordinary reference
-walker as captured maps. The binding application and closed evidence maps are
-separate proof-source rosters; reading only the former lost the supplied row.
-Independent Source review accepts this traversal. Fresh rejection, both-engine
-execution, preservation controls and golden recording remain pending; this
-paragraph does not close the requirement.
-
-Open: the same dropped dependency in the generic-evidence production. A binder
-`S satisfies IndependentSource` instantiated at the implementation that defines the
-caller is still accepted, because an evidence binder stands for the implementation
-a call's type argument names and its dependencies do not yet include that
-implementation's row:
+A returning base path distinguishes that case from a recursive result whose
+postcondition still needs proof:
 
 ```omega
 trait Source { machine source(input: u64) -> u64 ensures result == 7; }
-GoodSource satisfies Source { machine source(input: u64) -> u64 ensures result == 7 { 7 } }
-CircularSource satisfies Source { machine source(input: u64) -> u64 ensures result == 7 { forwarded<CircularSource>(input) } }
-machine forwarded<S satisfies Source>(input: u64) -> u64 ensures result == 7 { S::source(input) }
+GoodSource satisfies Source {
+    machine source(input: u64) -> u64 ensures result == 7 { 7 }
+}
+ReservedSource satisfies Source {
+    machine source(input: u64) -> u64 ensures result == 7 {
+        match input == 0 { true -> 7, false -> forwarded<ReservedSource>(input) }
+    }
+}
+machine forwarded<S satisfies Source>(input: u64) -> u64 ensures result == 7 {
+    S::source(input)
+}
 ```
 
-The refusal names the machine and statement but not the cycle that withheld the
-imported guarantee; naming the cycle is also open.
+Verified optimized producer `6416b0fdfbe3cd7db319e5c4803f64d3254160cd`,
+on macOS arm64 with its frozen 189-file SDK, already rejects this returning
+cycle for unproved exit contracts in `ReservedSource::source` and its exact
+`forwarded` specialization. Changing only the recursive branch's evidence actual
+to `GoodSource` checks successfully with the same implementation declarations
+still visible. These are Source observations, not a new runtime qualification or a
+claim that every generic-evidence application is complete.
+
+The incorrect no-return rejection controls and an unnecessary candidate repair
+were withdrawn after that distinction was observed. No compiler behavior changes
+for this correction. Diagnostics identify the unproved exits; explaining the
+complete citation cycle remains separate work.
