@@ -755,9 +755,11 @@ fn collect_owned_type_reference_positions(
     positions
 }
 
-/// Type owners admitted for original-scope machine constant selection. Public
-/// exposure belongs only to the entry signature, never local/state storage.
-pub(in crate::preparation::generic_data) fn collect_machine_type_reference_positions(
+/// Source callable types admitted for original-scope constant selection.
+/// Concrete trait members own parameter/result types even when they need no
+/// instantiated signature. Open enclosing/member telescopes stay templates.
+/// Public machine exposure belongs only to the entry, never local/state storage.
+pub(in crate::preparation::generic_data) fn collect_callable_type_reference_positions(
     syntax: &SyntaxTrees,
 ) -> (Vec<TypeReferenceHandle>, Vec<TypeReferenceHandle>) {
     let mut positions = Vec::new();
@@ -786,6 +788,37 @@ pub(in crate::preparation::generic_data) fn collect_machine_type_reference_posit
                 for reference in super::super::uses::statement_type_inputs(syntax, *statement) {
                     collect_type_positions(syntax, reference, &mut positions, true);
                 }
+            }
+        }
+    }
+    // Bodyless requirements reuse their authored signature when neither the
+    // trait nor the member has static operands. Their source type expressions
+    // therefore need the same formation/evaluation intake as machine headers;
+    // waiting for a new typed occurrence would leave these original types open.
+    for item in syntax.root_items() {
+        let Item::Trait(definition) = item else {
+            continue;
+        };
+        if !definition.type_parameters.is_empty() {
+            continue;
+        }
+        for handle in syntax.items.state_signatures(definition.machines) {
+            let signature = syntax.items.state_signature(*handle);
+            if !signature.type_parameters.is_empty() {
+                continue;
+            }
+            let start = positions.len();
+            collect_type_positions(syntax, signature.return_type, &mut positions, true);
+            for parameter in syntax.items.state_parameters(signature.parameters) {
+                collect_type_positions(
+                    syntax,
+                    syntax.items.state_parameter(*parameter).type_reference,
+                    &mut positions,
+                    true,
+                );
+            }
+            if definition.is_public {
+                public_positions.extend_from_slice(&positions[start..]);
             }
         }
     }

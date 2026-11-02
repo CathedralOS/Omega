@@ -73,7 +73,7 @@ pub(in crate::preparation::generic_data) use const_evaluation::{
     canonicalize_const_definition, canonicalize_selected_declaration_value,
     canonicalize_selected_declaration_value_with_admission, canonicalize_selected_index_expression,
     capture_machine_runtime_template_names, checked_fact_integer,
-    collect_data_type_reference_positions, collect_machine_type_reference_positions,
+    collect_callable_type_reference_positions, collect_data_type_reference_positions,
     const_integer_in_envelope, const_integer_type, domain_index_parameters,
     evaluate_const_argument_expression, generic_const_integer_types, integer_literal_value,
     normalize_generic_template_const_expressions, prepare_closed_application,
@@ -116,7 +116,7 @@ pub fn closed_const_arguments(
             .into_iter()
             .collect();
     let (machine_positions, machine_public_positions_vec) =
-        collect_machine_type_reference_positions(syntax);
+        collect_callable_type_reference_positions(syntax);
     let machine_public_positions: HashSet<TypeReferenceHandle> =
         machine_public_positions_vec.into_iter().collect();
     let (data_arguments, machine_arguments) = {
@@ -265,7 +265,7 @@ pub fn closed_array_extent_expressions(
 ) -> Vec<(TypeReferenceHandle, TypeReferenceHandle, bool)> {
     let mut positions = collect_data_type_reference_positions(syntax, false);
     let mut public = collect_data_type_reference_positions(syntax, true);
-    let (machine, public_machine) = collect_machine_type_reference_positions(syntax);
+    let (machine, public_machine) = collect_callable_type_reference_positions(syntax);
     positions.extend(machine);
     public.extend(public_machine);
     let destination = syntax
@@ -299,7 +299,7 @@ pub fn retain_deferred_array_extent(
     entry: Identifier,
 ) {
     let mut owners = collect_data_type_reference_positions(syntax, false);
-    owners.extend(collect_machine_type_reference_positions(syntax).0);
+    owners.extend(collect_callable_type_reference_positions(syntax).0);
     for owner in owners {
         let node = syntax.type_references.type_reference(owner).clone();
         if let TypeReferenceNode::FixedArray {
@@ -319,9 +319,9 @@ pub fn retain_deferred_array_extent(
     }
 }
 
-/// Authored constant arguments in nongeneric machine type owners. Discovery
+/// Authored constant arguments in nongeneric callable type owners. Discovery
 /// supplies destinations, not value-selection authority: callers must resolve
-/// each expression in its original machine and state scope before evaluation.
+/// each expression in its original declaration scope before evaluation.
 pub fn closed_machine_const_arguments(
     syntax: &mut SyntaxTrees,
     sources: Option<std::sync::Arc<source::SourceMap>>,
@@ -331,7 +331,7 @@ pub fn closed_machine_const_arguments(
 ) -> Result<Vec<(TypeReferenceHandle, TypeReferenceHandle, bool)>, Vec<Diagnostic>> {
     let selection =
         ConstantSelection::with_retained_base(syntax, sources, top_level_bindings, retained_base)?;
-    let (positions, public_positions_vec) = collect_machine_type_reference_positions(syntax);
+    let (positions, public_positions_vec) = collect_callable_type_reference_positions(syntax);
     let public_positions: HashSet<TypeReferenceHandle> = public_positions_vec.into_iter().collect();
     let mut arguments = collect_closed_const_arguments(
         syntax,
