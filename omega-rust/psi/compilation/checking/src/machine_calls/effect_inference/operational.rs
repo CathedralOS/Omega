@@ -775,8 +775,7 @@ fn export_selected_call_contexts(
 ) -> flow_effects::SelectedCallContexts {
     let mut resolved = Vec::new();
     let mut position = 0;
-    // Resolution can intern a context that no earlier round reached only when
-    // the fixed point is incomplete; walking by index publishes it as well.
+    // Walk by index so a context interned while resolving is exported too.
     while position < contexts.len() {
         let owner = &machines[contexts[position].machine];
         let selectors = contexts[position].selectors.clone();
@@ -811,6 +810,7 @@ fn export_selected_call_contexts(
             exported.contexts.append(flow_effects::SelectedCallContext {
                 machine: machines[contexts[position].machine].symbol,
                 unknown: contexts.is_unknown(position),
+                published: machines[contexts[position].machine].uses_published_contract,
                 calls: HandleSpan::empty(),
             })
         })
@@ -819,11 +819,10 @@ fn export_selected_call_contexts(
         let mut span = HandleSpan::empty();
         for (state, call, resolution) in calls {
             let mut targets = HandleSpan::empty();
-            for (machine, context) in resolution.targets {
+            for (_, context) in resolution.targets {
                 exported.targets.append_to_span(
                     &mut targets,
                     flow_effects::SelectedContextTarget {
-                        machine,
                         context: handles[context],
                     },
                 );

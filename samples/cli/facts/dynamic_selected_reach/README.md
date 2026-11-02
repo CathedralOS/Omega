@@ -39,6 +39,11 @@ through Build.
 Run each positive with `omega run --both <place>/main.omg` and each twin with
 `omega --check <place>/invalid/main.omg`.
 
+This row follows dynamic dispatch's "Coercion retains the selected
+conformance's exact envelope". [Effects](../../../../wiki/spec/language/effects.md)
+says dynamic calls keep pinned requirement ceilings; the conflict is open as
+question 3 in [OWNER_QUESTIONS.md](../../../../OWNER_QUESTIONS.md).
+
 Nearest row: [dynamic suspension](../dynamic_suspension/README.md) narrows only
 the suspension and blocking summary. Its twins change the requirement input and
 reject a contract; these twins change the selection and reject a reach row.

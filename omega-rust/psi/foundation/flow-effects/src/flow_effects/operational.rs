@@ -170,6 +170,9 @@ pub struct SelectedCallContext {
     pub machine: SymbolHandle,
     /// Every selector argument is unknown: the machine's declaration context.
     pub unknown: bool,
+    /// The machine's published contract stands for its body under every
+    /// selection, so this context summarizes exactly as its declaration does.
+    pub published: bool,
     pub calls: HandleSpan<SelectedContextCall>,
 }
 
@@ -187,7 +190,6 @@ pub struct SelectedContextCall {
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct SelectedContextTarget {
-    pub machine: SymbolHandle,
     pub context: Handle<SelectedCallContext>,
 }
 

@@ -6,12 +6,14 @@
 //! A declaration is a ceiling, not a body contribution. Keep the complete
 //! derived body row beside the published contract: callers consume an authored
 //! ceiling (including its slack), or the inferred row when the clause is absent.
-//! Universal body checks always use pinned requirement ceilings, never a selected
-//! implementation's smaller body. A dispatch whose selector the operational
+//! A dispatch whose selector is unknown, such as a dynamic parameter, uses the
+//! requirement's pinned ceiling. A dispatch whose selector the operational
 //! fixed point resolved under a known selector context contributes the
-//! selected realizations' rows instead of the requirement's ceiling: the
-//! selector retains the selected conformance's exact envelope. Each known
-//! context is summarized as one more instance of its machine's body.
+//! selected realizations' published rows instead: the selector retains the
+//! selected conformance's exact envelope. Each known context of a private
+//! checked machine is summarized as one more instance of its body; a machine
+//! whose published contract stands for its body reads its declaration entry
+//! under every selection, as the operational summary does.
 
 use arena::{Handle, HandleSpan};
 use language_semantics::{ServiceReachId, ServiceReachInterface};
@@ -149,7 +151,10 @@ pub(crate) fn infer_service_reaches_uncached(
         }
     }
     for (handle, context) in contexts.contexts.iter() {
-        if context.unknown || context_work_index(&context_work, handle).is_some() {
+        if context.unknown
+            || context.published
+            || context_work_index(&context_work, handle).is_some()
+        {
             continue;
         }
         let Some(machine) = work_index
@@ -163,8 +168,8 @@ pub(crate) fn infer_service_reaches_uncached(
     }
     let call_targets = |call: &MachineReachCall| -> Vec<usize> {
         match &call.selected {
-            // A context without its own entry falls back to its machine's
-            // declaration entry, which over-approximates every selection.
+            // A context without its own entry (a published machine) reads its
+            // machine's declaration entry.
             Some(selected) => selected
                 .iter()
                 .filter_map(|context| {
