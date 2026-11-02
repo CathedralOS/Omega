@@ -18,8 +18,7 @@ pub(crate) use dependencies::edit::{
     plan_dependency_addition_from_source, plan_dependency_replacement_from_source,
 };
 pub(crate) use dependencies::{
-    BuildDependencyEditPlan, BuildFileReplacement, DependencyProjectionError,
-    DependencySourceRequest,
+    BuildDependencyEditPlan, BuildFileReplacement, DependencySourceRequest,
 };
 
 /// Flat roster position for one build-dependency purpose: product
