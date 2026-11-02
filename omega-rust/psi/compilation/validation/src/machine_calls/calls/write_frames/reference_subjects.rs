@@ -729,6 +729,20 @@ pub(super) fn backing_origins(
     )?;
     let mut captured = Vec::new();
     for origin in origins {
+        if let Some((_, referent)) = origin.source.result_home() {
+            // A provider's returned reference retains its completed invocation
+            // instead of a caller declaration. Its admitted referent validates
+            // owned selectors; its type cannot supply an inner pointer load.
+            if !origin.source.builtin_coordinates
+                || !origin.source.recasts.is_empty()
+                || origin.source.representation.is_some()
+            {
+                return None;
+            }
+            validate_referent_projection(program, referent, &origin.source.segments, &[])?;
+            push_unique_origin(&mut captured, origin);
+            continue;
+        }
         if (!origin.source.root.is_valid() && !origin.source.is_static())
             || !origin.source.builtin_coordinates
         {
