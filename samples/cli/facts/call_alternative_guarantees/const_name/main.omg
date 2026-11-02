@@ -20,7 +20,7 @@ machine make(choice: Choice) -> Counter {
     Counter { value: selected }
 }
 machine main() crashes Trap {
-    
+
     let first: Counter = make(LEFT);
     let second: Counter = make(RIGHT);
     transition first.value == 17 && second.value == 43 && total(first) == 212 && total(second) == 238 {
