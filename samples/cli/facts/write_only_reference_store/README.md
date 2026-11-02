@@ -10,10 +10,9 @@ write-only authority, not readable widening or loan splitting.
 
 `Held` pairs a `target: &Cell` descriptor with a `stamp: i64` neighbor. Every
 positive forms `held` pointing at `main.left`, transports a `&write Held`
-through the place, then stores `Held { target: &main.right, stamp: 9 }` through
-it; the runtime falsifier observes `held.target.value == 85` (from
-`main.right.value + 80`), `main.left.value == 11` untouched, and `stamp == 9`
-written beside the displaced leaf. The observation twin reads the write-only
+through the place, then stores `&main.right` into `slot.target`; the runtime falsifier observes
+`held.target.value == 85`, `main.left.value == 11` untouched, and the sibling
+`stamp == 17` preserved beside the displaced leaf. The observation twin reads the write-only
 referent (`slot.target`) to compute its own replacement and must reject at
 checking.
 
@@ -70,3 +69,22 @@ routed-membership preservation remain open under `WRITE-ONLY-BORROW`.
   carries its referent address through call-result and join transport.
 
 Return to `WRITE-ONLY-BORROW` acceptance after this prerequisite.
+
+## Build-owned target selection
+
+The `target_body` place calls `SelectedLend::lend`, backed by four ordinary
+named implementations selected through explicit target-keyed Build rows.
+The boundary requirement retains the exact write-only input and returned
+write-only view; its single outer reference input supplies the unambiguous
+elided result lifetime. Each checked implementation returns `&write slot`
+without reading the stored descriptor. Build selects the forwarding body,
+never a replacement access mode or referent. This discharges that place's
+remaining **BUILD-OWNED-TARGET-SELECTION** migration; wider source and library
+migration remains open.
+
+[Write-only authority](../../../../wiki/spec/terminal-psi/structural_access.md#write-only-authority),
+[returned-view lifetimes](../../../../wiki/spec/language/lifetimes.md#returned-views),
+and [checked boundary providers](../../../../wiki/spec/terminal-psi/boundary_calls.md#checked-providers)
+govern the exact non-observing transport. Opaque declarations without admitted
+non-observation evidence remain rejected; checked forwarding is not permission
+to read the descriptor through write-only access.

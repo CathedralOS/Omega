@@ -4,4 +4,9 @@ machine build(builder: &mut Build) {
     Build::bind(builder, linux_arm64::ProgramEntry, main);
     Build::bind(builder, macos_arm64::ProgramEntry, main);
     Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::accept_boundary<SelectedLend>(builder);
+    Build::select_provider<SelectedLend, WindowsLend>(builder, windows_x86_64);
+    Build::select_provider<SelectedLend, LinuxX86Lend>(builder, linux_x86_64);
+    Build::select_provider<SelectedLend, MacosLend>(builder, macos_arm64);
+    Build::select_provider<SelectedLend, LinuxArmLend>(builder, linux_arm64);
 }
