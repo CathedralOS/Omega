@@ -90,7 +90,9 @@ jobs:
           CARGO_PROFILE_TEST_OPT_LEVEL: '1'
           CARGO_PROFILE_TEST_DEBUG: '0'
           OMEGA_STRUCT_TRACE: '1'
-        run: cargo test --locked -p validation --lib completed_wrapping_alias -- --nocapture
+        run: |
+          cargo test --locked -p validation --lib completed_wrapping_alias -- --nocapture
+          cargo test --locked -p compiler --test package_review completed_scalar_call_preserves_wrapping_index_guard -- --nocapture
       - name: Optional executable smoke, exact fixtures, or fact samples
         if: github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '')
         env:

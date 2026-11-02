@@ -184,7 +184,12 @@ impl<'program> Engine<'program> {
     }
 
     pub(super) fn harvest_substitution(&mut self, left: &Polynomial, right: &Polynomial) {
-        for (candidate, replacement) in [(left, right), (right, left)] {
+        // Repeated publication of an already established equation must retain
+        // its normal form. Orienting the raw reverse side would otherwise add
+        // y := x after x := y and separate equal observations on bounded replay.
+        let left = self.substituted(left);
+        let right = self.substituted(right);
+        for (candidate, replacement) in [(&left, &right), (&right, &left)] {
             if let Some((atom, 1, constant)) = candidate.as_single_atom()
                 && constant.is_zero()
             {

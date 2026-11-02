@@ -797,6 +797,15 @@ fn completed_scalar_call_preserves_wrapping_index_guard() {
             "fail/facts/compound_index_guard_through_call_result_rejected",
             false,
         ),
+        (
+            "pass/facts/compound_index_guard_through_match_join_exit",
+            true,
+        ),
+        (
+            "fail/facts/compound_index_guard_through_match_join_rejected",
+            false,
+        ),
+        ("fail/facts/compound_index_guard_wrong_call_actual", false),
     ] {
         let source = fixture_package_inputs::repo_root()
             .join("tests/omega")
