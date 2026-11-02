@@ -1,5 +1,5 @@
 use super::identity::nominal_identity;
-use crate::capture::PackageReviewInput;
+use crate::capture::SourceDeclarationInput;
 use crate::record::{
     PackageReviewNominalIdentity, PackageReviewNominalOwner, PackageReviewToolchainSourceIdentity,
 };
@@ -25,7 +25,7 @@ pub(crate) fn reviewed_package_owns(
 /// package owns, or `None` for an instance review must not publish: a nested
 /// declaration or one whose owner is another package.
 pub(crate) fn owned_identity(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     package: PackageKeyIdentity,
     symbol: SymbolHandle,
 ) -> Result<Option<PackageReviewNominalIdentity>, Vec<Diagnostic>> {
@@ -37,13 +37,13 @@ pub(crate) fn owned_identity(
 }
 
 pub(crate) fn nominal_owner(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     symbol: SymbolHandle,
 ) -> Result<PackageReviewNominalOwner, Vec<Diagnostic>> {
     nominal_owner_from_symbols(
         &compilation.typed.symbols,
         symbol,
-        compilation.custody.sources().exact_toolchain_sources(),
+        compilation.exact_toolchain_sources,
     )
 }
 
@@ -113,11 +113,11 @@ pub(crate) fn is_canonical_virtual_toolchain_path(path: &std::path::Path) -> boo
 /// Retained backing can supply referenced identities but is not another review
 /// root. A supplied selection mask cannot hide a live checked declaration.
 pub(crate) fn is_checked_source_instance(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     symbol: SymbolHandle,
 ) -> Result<bool, Vec<Diagnostic>> {
     let symbols = &compilation.typed.symbols;
-    let original = &compilation.custody.typed.symbols;
+    let original = &compilation.original_program.typed.symbols;
     if !symbols.symbols().nodes().is_valid(symbol) || !original.symbols().nodes().is_valid(symbol) {
         return Err(vec![Diagnostic::error(
             "reviewed declaration has no exact checked symbol coordinate",
@@ -143,7 +143,7 @@ pub(crate) fn is_checked_source_instance(
 /// Product review roots exclude Build declarations. Build/service consumers
 /// separately retain their selected source membership under the same custody.
 pub(crate) fn is_product_scope_instance(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     symbol: SymbolHandle,
 ) -> Result<bool, Vec<Diagnostic>> {
     Ok(is_checked_source_instance(compilation, symbol)?

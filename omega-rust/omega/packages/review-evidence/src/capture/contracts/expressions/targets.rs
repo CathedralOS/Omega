@@ -1,41 +1,35 @@
-//! The checked declarations one contract call target can name.
-//!
-//! A target resolves over four declaration species: a realized machine state,
-//! a compile-time machine parameter's structural signature, a trait
-//! requirement, or an operator (including a domain's operators). Both the
-//! value telescope and the static telescope of the call are read from the one
-//! declaration that declares the target, so this join is the single owner of
-//! that enumeration; callers project the half they need.
+//! Review needs the parameters of the exact function a contract calls.
+//! Machines and mathematical functions have different application rules; keep
+//! the declaration kind so each uses its own checker.
 
-use crate::capture::PackageReviewInput;
+use crate::capture::SourceDeclarationInput;
 use symbols::SymbolHandle;
 
-/// One candidate declaration for a contract call target, retaining both of its
-/// telescopes. `conformance_slots` counts the static conformance-bound slots a
-/// realized machine adds after its own type-parameter telescope.
-pub(crate) struct ContractCallTargetTelescopes<'a> {
-    pub(crate) value_parameters: &'a [typed_trees::signature::StateParameter],
-    pub(crate) static_parameters: &'a [typed_trees::data::TypeParameter],
-    pub(crate) conformance_slots: usize,
+pub(crate) enum ContractCallDeclaration<'a> {
+    Runtime {
+        value_parameters: &'a [typed_trees::signature::StateParameter],
+        static_parameters: &'a [typed_trees::data::TypeParameter],
+        conformance_slots: usize,
+    },
+    Mathematical(&'a typed_trees::mathematical::MathematicalDefinition),
 }
 
-/// Every checked declaration whose telescope can declare `target`, in
-/// declaration-species order. A well-formed call target is declared exactly
-/// once here; callers decide how an empty or ambiguous join is refused.
-pub(crate) fn contract_call_target_telescopes<'a>(
-    compilation: &'a PackageReviewInput<'_>,
+/// Find every declaration with this exact symbol. The caller rejects missing
+/// or duplicate declarations instead of choosing one by traversal order.
+pub(crate) fn contract_call_target_declarations<'a>(
+    compilation: &'a SourceDeclarationInput<'_>,
     target: SymbolHandle,
-) -> Vec<ContractCallTargetTelescopes<'a>> {
+) -> Vec<ContractCallDeclaration<'a>> {
     let mut candidates = Vec::new();
     for (machine, state) in compilation.machine_states_named(target) {
-        candidates.push(ContractCallTargetTelescopes {
+        candidates.push(ContractCallDeclaration::Runtime {
             value_parameters: compilation.state_parameters(state),
             static_parameters: compilation.machine_type_parameters(machine),
             conformance_slots: machine.conformance_bounds.len(),
         });
     }
     if let Some((_, signature)) = compilation.machine_parameter_signature(target) {
-        candidates.push(ContractCallTargetTelescopes {
+        candidates.push(ContractCallDeclaration::Runtime {
             value_parameters: compilation.state_signature_parameters(signature),
             static_parameters: compilation.state_signature_type_parameters(signature),
             conformance_slots: 0,
@@ -47,7 +41,7 @@ pub(crate) fn contract_call_target_telescopes<'a>(
             .iter()
             .filter(|signature| signature.symbol == target)
         {
-            candidates.push(ContractCallTargetTelescopes {
+            candidates.push(ContractCallDeclaration::Runtime {
                 value_parameters: compilation.state_signature_parameters(signature),
                 static_parameters: compilation.state_signature_type_parameters(signature),
                 conformance_slots: 0,
@@ -58,11 +52,18 @@ pub(crate) fn contract_call_target_telescopes<'a>(
         .all_operators()
         .filter(|operator| operator.symbol == target)
     {
-        candidates.push(ContractCallTargetTelescopes {
+        candidates.push(ContractCallDeclaration::Runtime {
             value_parameters: compilation.operator_parameters(operator),
             static_parameters: compilation.operator_type_parameters(operator),
             conformance_slots: 0,
         });
     }
+    candidates.extend(
+        compilation
+            .mathematical_definitions()
+            .iter()
+            .filter(|definition| definition.symbol == target)
+            .map(ContractCallDeclaration::Mathematical),
+    );
     candidates
 }

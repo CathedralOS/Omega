@@ -291,10 +291,10 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
     Ok((type_reference, input))
 }
 
-/// Data and domain applications share type/value argument syntax. Binder kinds
+/// Declaration applications share type/value argument syntax. Binder kinds
 /// are decided after resolution, so neither caller may restrict a named index
 /// to a const leaf or discard the structure of a nested type application.
-fn parse_static_argument_reference<'tokens, 'source>(
+pub(crate) fn parse_static_argument_reference<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, TypeReferenceHandle> {

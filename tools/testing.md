@@ -1150,9 +1150,10 @@ python3 tools/corpus_scoreboard.py --cross-golden   # exits 1 on a stale success
 `macos_arm64 native: 64 authored / 172 executed / 746 fixtures` — where
 "authored" means executed with a matching `expected_native_exit.txt`
 oracle. `--base <rev>` diffs two goldens and lists `lost` authored runs as
-regressions; wave reports lead with this number, not commit counts. A
-`regressed` count in the lead line is the standing loss the golden itself
-remembers -- see
+regressions. Wave reports follow [Explain the change](../AGENTS.md#explain-the-change):
+explain which programs now run or fail before giving these counts, and keep
+regressions visible in that summary. A `regressed` count in the scoreboard's
+summary line is the standing loss the golden itself remembers -- see
 [recording a regression](#recording-a-regression-without-pinning-it).
 
 The scoreboard reads the golden, which moves only for fixtures a lander ran;

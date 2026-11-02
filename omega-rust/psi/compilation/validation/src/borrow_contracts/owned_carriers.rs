@@ -154,6 +154,8 @@ fn applied_frontier(
                 &regions.arguments,
                 &regions.applications,
                 &regions.bindings,
+                scopes,
+                callable,
                 declaration,
                 true,
                 LifetimeFrontier::Value,

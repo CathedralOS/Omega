@@ -50,6 +50,25 @@ use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::signature::SignatureContractKind;
 use typed_trees::types::TypeReferenceHandle;
 
+impl StructuralJudge<'_> {
+    /// A postcondition's `result` names the value this path actually returns.
+    /// Bind it in both proof stores: case facts deliberately do not follow
+    /// general value substitutions. Callers have checked that an input
+    /// parameter does not shadow the reserved `result` name.
+    pub(in crate::proof_contracts::contract_entailment) fn bind_returned_value(
+        &mut self,
+        value: &StructuralTerm,
+    ) {
+        self.intake_case_equation(
+            StructuralTerm::Variable(super::super::RESULT_BINDER.to_owned()),
+            value.clone(),
+            0,
+        );
+        Arc::make_mut(&mut self.substitutions)
+            .insert(0, (super::super::RESULT_BINDER.to_owned(), value.clone()));
+    }
+}
+
 pub(in crate::proof_contracts::contract_entailment) struct NormalReturnPath<'program> {
     pub value: StructuralTerm,
     pub judge: StructuralJudge<'program>,

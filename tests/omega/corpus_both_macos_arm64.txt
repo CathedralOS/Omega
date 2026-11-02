@@ -1053,6 +1053,15 @@ pass/facts/prefix_case_identity_other_machine built 1057ms exit:0 interpreter-ex
 pass/facts/prefix_case_identity_other_state built 1024ms exit:0 interpreter-exit:0 interpreter:agrees @55a5fd4e07f8
 pass/facts/prefix_case_identity_parameter built 1211ms exit:0 interpreter-exit:0 interpreter:agrees @55a5fd4e07f8
 pass/facts/prefix_case_identity_target_body built 1327ms exit:0 interpreter-exit:0 interpreter:agrees @55a5fd4e07f8
+pass/facts/provider_contract_endpoint_closed_owner_through_call_result_exit built 3675ms exit:0 interpreter-exit:0 interpreter:agrees @390bdce3859c
+pass/facts/provider_contract_endpoint_closed_owner_through_const_name_exit built 3422ms exit:0 interpreter-exit:0 interpreter:agrees @390bdce3859c
+pass/facts/provider_contract_endpoint_closed_owner_through_field_exit built 3435ms exit:0 interpreter-exit:0 interpreter:agrees @390bdce3859c
+pass/facts/provider_contract_endpoint_closed_owner_through_local_exit built 3425ms exit:0 interpreter-exit:0 interpreter:agrees @390bdce3859c
+pass/facts/provider_contract_endpoint_closed_owner_through_match_join_exit built 3410ms exit:0 interpreter-exit:0 interpreter:agrees @390bdce3859c
+pass/facts/provider_contract_endpoint_closed_owner_through_other_machine_exit built 3408ms exit:0 interpreter-exit:0 interpreter:agrees @390bdce3859c
+pass/facts/provider_contract_endpoint_closed_owner_through_other_state_exit built 3402ms exit:0 interpreter-exit:0 interpreter:agrees @390bdce3859c
+pass/facts/provider_contract_endpoint_closed_owner_through_parameter_exit built 3416ms exit:0 interpreter-exit:0 interpreter:agrees @390bdce3859c
+pass/facts/provider_contract_endpoint_closed_owner_through_target_body_exit built 3444ms exit:0 interpreter-exit:0 interpreter:agrees @390bdce3859c
 pass/facts/quotient_closed_literal built 3876ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @6e42425cd720
 pass/facts/quotient_closed_literal_scalar_first built 2236ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/quotient_closed_literal_through_call_result_exit built 2243ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
@@ -1474,7 +1483,11 @@ pass/facts/write_only_match_join_through_other_state_exit built 36940ms exit:0 i
 pass/facts/write_only_match_join_through_parameter_exit built 36359ms exit:0 interpreter-exit:0 interpreter:agrees @c79bb8268163+wt
 pass/facts/write_only_match_join_through_target_body_exit built 36327ms exit:0 interpreter-exit:0 interpreter:agrees @c79bb8268163+wt
 pass/generics/constructor_inferred_cooked_byte_extent_exit built 2269ms exit:0 interpreter-exit:0 interpreter:agrees @b852a38544d0
+pass/generics/folded_range_endpoint_selection_custody built 26841ms exit:70 interpreter-exit:70 interpreter:agrees @390bdce3859c
 pass/generics/runtime_captured_map_two_method_tuples built 6142ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @f6273e83f99c
+pass/generics/runtime_closed_requirement_in_captured_owner_exit built 3261ms exit:0 interpreter-exit:0 interpreter:agrees @390bdce3859c
+pass/generics/runtime_closed_requirement_in_generic_owner_exit built 3198ms exit:0 interpreter-exit:0 interpreter:agrees @390bdce3859c
+pass/generics/runtime_closed_requirement_mutable_argument_exit built 3194ms exit:0 interpreter-exit:0 interpreter:agrees @390bdce3859c
 pass/generics/runtime_computed_const_forwarded_call_exit built 22347ms exit:0 interpreter-exit:0 interpreter:agrees @c79bb8268163+wt
 pass/generics/runtime_computed_direct_result_exit built 1003ms exit:0 interpreter-exit:0 interpreter:agrees @ba4c5b471bb8
 pass/generics/selected_value_bool_public_contract_exit built 1000ms exit:0 interpreter-exit:0 interpreter:agrees @ba4c5b471bb8
@@ -1490,6 +1503,7 @@ pass/layouts/fixed_layout_unmentioned_valid_policy_exit built 2006ms exit:0 inte
 pass/layouts/nested_reference_carrier_geometry_exit built 1527ms exit:0 interpreter-exit:0 interpreter:agrees @8b519ca647cd+wt
 pass/layouts/runtime_layout_arithmetic_value_flow_exit built 2009ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @8b519ca647cd+wt
 pass/machines/cyclic_private_arrival_guard_context_exit built 1858ms exit:0 interpreter-exit:0 interpreter:agrees @f58fe154c6f3
+pass/modules/package_qualified_scalar_access_exit built 10962ms exit:0 interpreter-exit:0 interpreter:agrees @97115d9cab54
 pass/ownership/runtime_borrowed_match_repeated_repair_exit built 13066ms exit:0 interpreter-exit:0 interpreter:agrees @c79bb8268163+wt
 pass/ownership/runtime_match_expression_moves_selected_payload_exit built 6772ms exit:0 interpreter-exit:0 interpreter:agrees @c79bb8268163+wt
 pass/ownership/runtime_nonreturning_claim_alternative_exit built 3365ms exit:0 interpreter-exit:0 interpreter:agrees @f2a7605fca26
@@ -3674,20 +3688,20 @@ pass/facts/projection_call_premise_through_target_body_exit built 4406ms exit:0 
 pass/facts/provider_contract_endpoint_control_composed_endpoint built 1803ms exit:0 interpreter-exit:0 interpreter:agrees @7f93c4422e22
 pass/facts/provider_contract_endpoint_control_computed_composition_mode built 1797ms exit:0 interpreter-exit:0 interpreter:agrees @7f93c4422e22
 pass/facts/provider_contract_endpoint_control_dormant_target_endpoint_positive built 1946ms exit:0 interpreter-exit:0 interpreter:agrees @7f93c4422e22
-pass/facts/provider_contract_endpoint_control_field_snapshot_before_sibling_write built 1207ms exit:0 interpreter-exit:0 interpreter:agrees @7f93c4422e22
+pass/facts/provider_contract_endpoint_control_field_snapshot_before_sibling_write built 3314ms exit:0 interpreter-exit:0 interpreter:agrees @390bdce3859c
 pass/facts/provider_contract_endpoint_control_forwarded_provider_selection built 1040ms exit:0 interpreter-exit:0 interpreter:agrees @7f93c4422e22
 pass/facts/provider_contract_endpoint_control_generic_forwarded_provider_selection built 2395ms exit:0 interpreter-exit:0 interpreter:agrees @85ebedb7befa
 pass/facts/provider_contract_endpoint_control_indirect_helper built 1050ms exit:0 interpreter-exit:0 interpreter:agrees @7f93c4422e22
-pass/facts/provider_contract_endpoint_control_unrelated_pending_target_contract built 3267ms exit:0 interpreter-exit:0 interpreter:agrees @7f93c4422e22
+pass/facts/provider_contract_endpoint_control_unrelated_pending_target_contract built 3490ms exit:0 interpreter-exit:0 interpreter:agrees @8c239a425808
 pass/facts/provider_contract_endpoint_through_call_result_exit built 1169ms exit:0 interpreter-exit:0 interpreter:agrees @7f93c4422e22
 pass/facts/provider_contract_endpoint_through_const_name_exit built 3806ms exit:0 interpreter-exit:0 interpreter:agrees @7f93c4422e22
-pass/facts/provider_contract_endpoint_through_field_exit built 1156ms exit:0 interpreter-exit:0 interpreter:agrees @7f93c4422e22
+pass/facts/provider_contract_endpoint_through_field_exit built 3295ms exit:0 interpreter-exit:0 interpreter:agrees @390bdce3859c
 pass/facts/provider_contract_endpoint_through_local_exit built 1062ms exit:0 interpreter-exit:0 interpreter:agrees @7f93c4422e22
 pass/facts/provider_contract_endpoint_through_match_join_exit built 1166ms exit:0 interpreter-exit:0 interpreter:agrees @7f93c4422e22
 pass/facts/provider_contract_endpoint_through_other_machine_exit built 1357ms exit:0 interpreter-exit:0 interpreter:agrees @7f93c4422e22
 pass/facts/provider_contract_endpoint_through_other_state_exit built 1108ms exit:0 interpreter-exit:0 interpreter:agrees @7f93c4422e22
 pass/facts/provider_contract_endpoint_through_parameter_exit built 1157ms exit:0 interpreter-exit:0 interpreter:agrees @7f93c4422e22
-pass/facts/provider_contract_endpoint_through_target_body_exit built 3137ms exit:0 interpreter-exit:0 interpreter:agrees @7f93c4422e22
+pass/facts/provider_contract_endpoint_through_target_body_exit built 3370ms exit:0 interpreter-exit:0 interpreter:agrees @390bdce3859c
 pass/facts/qualified_borrowed_join_exit built 3982ms exit:0 interpreter-exit:0 interpreter:agrees @8a884ecc43d5+wt
 pass/facts/qualified_field_capacity_through_call_result_exit built 10294ms exit:0 interpreter-exit:0 interpreter:agrees @ca117899bfe3+wt
 pass/facts/qualified_field_capacity_through_const_name_exit built 10256ms exit:0 interpreter-exit:0 interpreter:agrees @ca117899bfe3+wt
@@ -4512,10 +4526,10 @@ pass/layouts/placed_primitive_aligned_backing built 60162ms exit:0 interpreter-e
 pass/layouts/placed_primitive_authored_name built 19716ms exit:0 interpreter-exit:0 interpreter:agrees @3b18b32f7117+wt
 pass/layouts/placed_primitive_callback built 50141ms exit:0 interpreter-exit:0 interpreter:agrees @3b18b32f7117+wt
 pass/layouts/placed_primitive_generic_concrete built 46236ms exit:0 interpreter-exit:0 interpreter:agrees @3b18b32f7117+wt
-pass/layouts/placed_primitive_mixed_backing_rejected rejected 39846ms expected native-rejection:match @3b18b32f7117+wt
-	native artifact fragment object publication failed: placed backing geometry at MachineId(2)/OperationId(22): actual backing does not meet the placed schema, extent or base congruence
-pass/layouts/placed_primitive_returned_backing built 34156ms exit:0 interpreter-exit:0 interpreter:agrees @3b18b32f7117+wt
-pass/layouts/placed_primitive_stored_backing built 33875ms exit:0 interpreter-exit:0 interpreter:agrees @3b18b32f7117+wt
+pass/layouts/placed_primitive_mixed_backing_rejected rejected 10871ms expected native-rejection:match @97115d9cab54
+	native artifact fragment object publication failed: placed backing geometry at MachineId(24)/OperationId(234): actual backing does not meet the placed schema, extent or base congruence
+pass/layouts/placed_primitive_returned_backing built 9363ms exit:0 interpreter-exit:0 interpreter:agrees @97115d9cab54
+pass/layouts/placed_primitive_stored_backing built 7991ms exit:0 interpreter-exit:0 interpreter:agrees @97115d9cab54
 pass/layouts/placed_primitive_unused_valid built 33913ms exit:0 interpreter-exit:0 interpreter:agrees @3b18b32f7117+wt
 pass/layouts/placed_reference_results/forwarded built 16783ms exit:0 interpreter-exit:0 interpreter:agrees @ca1b6be3f607
 pass/layouts/placed_reference_results/nested built 16311ms exit:0 interpreter-exit:0 interpreter:agrees @ca1b6be3f607

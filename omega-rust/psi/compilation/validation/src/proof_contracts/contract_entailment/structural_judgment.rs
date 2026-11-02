@@ -36,6 +36,7 @@ pub(super) mod normal_returns;
 mod resolution_inputs;
 mod resolution_queries;
 mod returned_fields;
+mod runtime_induction;
 pub(super) mod selected_contracts;
 mod storage_effects;
 mod traversal_inputs;
@@ -557,6 +558,7 @@ pub(super) struct StructuralJudge<'program> {
     // Active executed bodies bound ordinary calls as well as terminal transfers.
     // A recurrent call consumes its checked contract instead of unfolding again.
     body_invocations: Arc<Vec<SymbolHandle>>,
+    runtime_induction: Arc<runtime_induction::RuntimeInduction>,
     active_application: Option<Arc<resolution_queries::ApplicationResolution<'program>>>,
     completed_resolutions:
         Option<Arc<std::sync::Mutex<resolution_queries::CompletedResolutions<'program>>>>,
@@ -631,6 +633,7 @@ impl Clone for StructuralJudge<'_> {
             returned_field_owners: Arc::clone(&self.returned_field_owners),
             returned_field_trace: self.returned_field_trace.clone(),
             body_invocations: Arc::clone(&self.body_invocations),
+            runtime_induction: Arc::clone(&self.runtime_induction),
             active_application: self.active_application.clone(),
             completed_resolutions: self.completed_resolutions.clone(),
             resolution_observations: self.resolution_observations.clone(),
@@ -1122,6 +1125,7 @@ impl<'program> StructuralJudge<'program> {
             returned_field_owners: Arc::new(Vec::new()),
             returned_field_trace: None,
             body_invocations: Arc::new(Vec::new()),
+            runtime_induction: Arc::new(runtime_induction::RuntimeInduction::default()),
             active_application: None,
             completed_resolutions: Some(Arc::new(std::sync::Mutex::new(Default::default()))),
             resolution_observations: None,
@@ -1579,6 +1583,15 @@ impl<'program> StructuralJudge<'program> {
             return term;
         }
         for _ in 0..32 {
+            // A completed result's field contract names this exact snapshot.
+            // Rewriting its enclosing value to a call description first would
+            // discard the more precise, independently admitted field equation.
+            if matches!(term, StructuralTerm::Projection { .. })
+                && let Some((_, replacement)) = self.rewrites.find(&term)
+            {
+                term = replacement.clone();
+                continue;
+            }
             // Authenticate the original applied identity before the existing
             // canonical-result owner runs. Only the Application arm consumes
             // it, after current rewrites and public normal forms.

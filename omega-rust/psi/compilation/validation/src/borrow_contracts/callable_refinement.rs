@@ -392,7 +392,10 @@ impl PreparedCallableBorrowRefinement {
                 &output_elisions,
             )
             .map_err(|region_error| format!("{region_error}; {error}"))?;
-            return Err(error.to_owned());
+            return Err(format!(
+                "{error}; required sources: {:?}; actual sources: {:?}",
+                required_frontier.sources, actual_frontier.sources,
+            ));
         }
         super::region_correspondence::validate(
             program,
@@ -433,6 +436,8 @@ fn contract_frontier(
             &regions.arguments,
             &regions.applications,
             &regions.bindings,
+            contract.application_scopes,
+            contract.argument_owner,
             contract.lexical_owner,
             true,
             frontier,

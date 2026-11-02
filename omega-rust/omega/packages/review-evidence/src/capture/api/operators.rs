@@ -1,4 +1,3 @@
-use crate::capture::PackageReviewInput;
 use crate::capture::behavior::project_crash_cause;
 use crate::capture::contracts::expressions::projection::project_contract_expression;
 use crate::capture::contracts::facts::{ContractProjectionContext, project_contracts};
@@ -10,6 +9,7 @@ use crate::capture::semantics::signatures::parameters::{
 };
 use crate::capture::semantics::types::review_signature_type_identity_with_binders;
 use crate::capture::source::ProjectedReviewRow;
+use crate::capture::{PackageReviewInput, SourceDeclarationInput};
 use crate::record::{
     PackageReviewCrashRoute, PackageReviewCrashRouteGuard, PackageReviewOperatorCoordinate,
     PackageReviewOperatorShape,
@@ -20,7 +20,7 @@ use symbols::SymbolHandle;
 use typed_trees::operator::OperatorDefinition;
 
 pub(crate) fn project_operator_coordinate(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     declaration: &OperatorDefinition,
 ) -> Result<PackageReviewOperatorCoordinate, Vec<Diagnostic>> {
     let identity = nominal_identity(compilation, declaration.symbol)?;

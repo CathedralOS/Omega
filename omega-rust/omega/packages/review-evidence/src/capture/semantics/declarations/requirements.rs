@@ -1,5 +1,5 @@
 use crate::capture::EvidenceOption;
-use crate::capture::PackageReviewInput;
+use crate::capture::SourceDeclarationInput;
 use crate::capture::semantics::declarations::{
     nominal_identity, nominal_owner, provider_requirement_schema,
 };
@@ -9,7 +9,7 @@ use symbols::SymbolHandle;
 use typed_trees::operator::boundary_operator_requirement_identity;
 
 pub(crate) fn trait_requirement_identity(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     owner: &typed_trees::trait_definition::TraitDefinition,
     requirement: &typed_trees::signature::StateSignature,
 ) -> Result<PackageReviewNominalIdentity, Vec<Diagnostic>> {
@@ -28,7 +28,7 @@ pub(crate) fn trait_requirement_identity(
 }
 
 pub(crate) fn trait_requirement_identity_from_symbols(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     trait_symbol: SymbolHandle,
     requirement_symbol: SymbolHandle,
     context: &str,
@@ -59,7 +59,7 @@ pub(crate) fn trait_requirement_identity_from_symbols(
 }
 
 pub(crate) fn provider_requirement_identity(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     schema: provider_planning::ProviderSchemaDeclaration,
     requirement_symbol: SymbolHandle,
 ) -> Result<PackageReviewNominalIdentity, Vec<Diagnostic>> {
@@ -118,7 +118,7 @@ pub(crate) fn provider_requirement_identity(
 }
 
 pub(crate) fn top_level_requirement_identity(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     requirement: &typed_trees::machine::Machine,
 ) -> Result<PackageReviewNominalIdentity, Vec<Diagnostic>> {
     if requirement.supply_mode != language_semantics::MachineSupplyMode::TopLevelRequirement {
@@ -131,7 +131,7 @@ pub(crate) fn top_level_requirement_identity(
 }
 
 fn callable_requirement_identity(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     requirement: &typed_trees::machine::Machine,
 ) -> Result<PackageReviewNominalIdentity, Vec<Diagnostic>> {
     let path = compilation

@@ -200,6 +200,10 @@ retired-syntax deletions to completion.
     [mutable recasts](omega-rust/psi/compilation/validation/recasts.md), and
     returns, preserving the audited inventories in
     [range_suffix_migration.md](wiki/drafts/designs/range_suffix_migration.md).
+  - Reject a bound helper whose call admission depends on that same pending
+    helper result (`provider_contract_endpoint/controls/circular_endpoint_formation`),
+    and reject crash-capable bound helpers at admission rather than stopping at
+    an unrelated missing-body lowering error.
   - Qualify the applicable migrated filesystem customers' native/Terminal
     oracles with **FILESYSTEM-PLATFORM-SERVICES**.
   Acceptance: spec/guide/compiler docs, bundled libraries, samples, `source/psi`,
@@ -326,8 +330,6 @@ retired-syntax deletions to completion.
     and Build companion to both engines without target-specific source rewriting.
   - Carry the facts that still refuse behind a selected implementation: opaque
     write-only boundaries requiring an admitted claim for the selected implementation,
-    a `&write`
-    slot whose referent carries a reference leaf (`write_only_reference_store`),
     and evidence binders in requirement signatures (`selected_crash_formal`:
     the requirement grammar admits none). Their
     `target_body` places keep the retired prefix until then. A requirement
@@ -416,8 +418,8 @@ retired-syntax deletions to completion.
     waits on [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md) question 4; question 5
     asks whether the landed distributivity expansion advances the normalizer
     version.
-  - Migrate library/corpus/embedded declarations off the `operator` introducer
-    ([retirement inventory](wiki/drafts/audits/operator_introducer_retirement_inventory.md))
+  - Migrate top-level library/corpus/embedded declarations off the `operator`
+    introducer ([retirement inventory](wiki/drafts/audits/operator_introducer_retirement_inventory.md))
     and remove legacy parser/IR consumers and undifferentiated
     `MachineSupplyMode::Boundary`.
   Acceptance: `tests/omega/pass/expressions/declared_operator_match_result/`
@@ -495,17 +497,13 @@ narrows realization only.
     `selected-dispatch/src/provider_binding.rs` (selected dispatch, component
     progress, intrinsic review and deferred array/const-generic recipes)
     from typed/checked records to canonical Terminal Psi
-    plus target Build rows, and replace provisional completion-role nomination
-    so unused external candidates do not make selected returning implementations
-    fail closed.
+    plus target Build rows.
   - Move opaque selection and source-qualified review onto canonical Terminal
     Psi, so target planning drops its source-side signature preparation and
     passes source-discard/reload.
   - Move the remaining source-reading provider consumers onto prepared
-    declarations: host classification's catalog-local source join, typed
-    constant/comparison evaluation (including Early Build's typed-only
-    comparison path), general review call coordinates, source-dependent
-    direct-call preparation.
+    declarations: typed constant/comparison evaluation (including Early Build's
+    typed-only comparison path) and general review call coordinates.
   - Move review-only products' complete conformance evidence from checked
     source custody into Terminal Psi.
   - Publish portable dormant-use records and the trust-model accepted-machine
@@ -643,7 +641,7 @@ compile-time, Build, CLI/corpus, and embedded execution through the common core.
   staging once in the Terminal interpreter under
   [scoped build execution](wiki/spec/build/scoped_execution.md) and
   [restricted-build acceptance](wiki/spec/packages/acceptance.md#restricted-build-acceptance).
-  Owners: `omega-rust/omega/compilation/build-evaluation/src/`,
+  Owners: `omega-rust/omega/build-system/build-evaluation/src/`,
   `omega-rust/omega/packages/{build-declarations,package-compilation,source-acquisition,build-output,package-manager}/`,
   and Psi compile-time admission.
   - Connect admitted Build operations, remaining live-storage accounting,
@@ -848,8 +846,7 @@ helper that passes does not close an item.
     to ordinary resource-backed Representation contracts and reflection-specialized library adapters with
     explicit resources, failures, full supported-value
     coverage, round-trip/preservation obligations and optional proved-total
-    forwarding. Demonstrate a separately authored encoded format family and
-    composed cross-representation conversion without compiler format recognition.
+    forwarding.
     Reuse WIRE-CODEC-LIBRARY's reflection/codec route, not a second generator.
   - Migrate Rust and Omega producers, bundled libraries, samples and fixtures;
     delete declaration-level/domain layout selection, empty policy-data and
@@ -1765,7 +1762,7 @@ defines the complete product bar.
     (`omega-rust/omega/packages/package-compilation/src/build_execution/build_value/configuration.rs`),
     with package-local satisfaction discovery, separate runner roots, and
     Terminal Psi + native execution in `omega-rust/omega/compilation/compiler/`.
-  - Extend `omega-rust/omega/compilation/build-evaluation/src/admission/program.rs`
+  - Extend `omega-rust/omega/build-system/build-evaluation/src/admission/program.rs`
     and `omega-rust/omega/packages/package-manager/src/review/restricted_build_grants.rs`
     to carry group-scoped providers, ordinary fixture storage, fresh mock state,
     and lock-reviewed test authority without automatic mutable context

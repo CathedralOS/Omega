@@ -1,8 +1,7 @@
-//! Select each target's whole providers over the shared Terminal artifact, then
-//! prepare remaining source review and Build correspondence. Converting that
-//! result to a checked compilation assembles custody, not another compiler phase.
-//! Source-dependent selection remains migration work. Actual artifact demand,
-//! receiving permissions and native realization belong to the later native join.
+//! Choose the code and calling plans for each requested target.
+//! Selection reads saved declarations and the shared Terminal program. This
+//! module then assembles the completed choices and separate source-inspection
+//! access; executable admission and native emission consume the saved result.
 
 use crate::checked::CheckedCompilation;
 use crate::checked::checking::{attribute_diagnostics, timed};
@@ -25,8 +24,7 @@ fn one_refusal<T>(refused: Result<T, Diagnostic>) -> Result<T, Vec<Diagnostic>> 
     refused.map_err(|error| vec![error])
 }
 
-/// One target's complete provider selection beside shared portable publication
-/// and remaining source correspondence.
+/// One target's completed choices beside shared code and explicit inspection access.
 /// Selection and native declaration preparation are complete; no later
 /// installation phase reopens source or fills in this result. Source-only
 /// consumers request their checked-instance projection at their own boundary.
@@ -49,6 +47,7 @@ pub(crate) struct SelectedProviderCustody {
 /// validate task demands directly; executable products use their artifact's
 /// demands in native proposal construction instead.
 pub(crate) struct SelectedProductTarget {
+    pub(crate) runtime_policy: Arc<package_evidence::permission_acceptance::PreparedRuntimePolicy>,
     pub(crate) custody: SelectedProviderCustody,
     pub(crate) retained_checks: RetainedCompilationChecks,
     pub(crate) independent_components:
@@ -60,6 +59,7 @@ impl SelectedProductTarget {
         source: &CheckedProductSource,
         prepared: PreparedProductTarget,
     ) -> Result<Self, Vec<Diagnostic>> {
+        let runtime_policy = Arc::clone(&prepared.runtime_policy);
         let custody = select_product_providers(source, prepared)?;
         // Direct source consumers do not attach a package session's products.
         // Unprepared Independent demands must not look like a complete empty set.
@@ -77,6 +77,7 @@ impl SelectedProductTarget {
             }
         }
         Ok(Self {
+            runtime_policy,
             custody,
             retained_checks: source.retained_checks.clone(),
             independent_components,
@@ -427,13 +428,14 @@ fn prepare_target_provider_selection(
     )
 }
 
-/// Select this target over shared portable code and prepare remaining source
-/// review inputs, without installing or admitting native execution.
+/// Select this target from saved declarations and shared code, then assemble
+/// source-inspection access for review. Execution admission follows separately.
 fn select_product_providers(
     source: &CheckedProductSource,
     prepared: PreparedProductTarget,
 ) -> Result<SelectedProviderCustody, Vec<Diagnostic>> {
     let PreparedProductTarget {
+        runtime_policy: _,
         profile: selected_target_profile,
         package_inputs,
         declarations,

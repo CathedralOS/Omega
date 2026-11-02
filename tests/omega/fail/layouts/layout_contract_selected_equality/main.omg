@@ -1,5 +1,5 @@
 data Cell { code: u64; tag: u64; }
-trait Equality<T> { operator == related(left: T, right: T) -> bool; }
+trait Equality<T> { machine == related(left: T, right: T) -> bool; }
 Never satisfies Equality<u64> {
     machine related(left: u64, right: u64) -> bool { false }
 }

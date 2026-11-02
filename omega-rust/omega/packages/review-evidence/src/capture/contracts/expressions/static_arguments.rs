@@ -2,7 +2,7 @@ mod conformance;
 mod const_values;
 
 use super::names::portable_ordinal;
-use crate::capture::PackageReviewInput;
+use crate::capture::SourceDeclarationInput;
 use crate::capture::contracts::facts::ContractProjectionContext;
 use crate::capture::semantics::declarations::nominal_identity;
 use crate::capture::semantics::types::lifetimes::substituted_lifetime_binder_ordinal;
@@ -11,7 +11,7 @@ use crate::record::{PackageReviewContractStaticArgument, PackageReviewTypeIdenti
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
-use super::targets::contract_call_target_telescopes;
+use super::targets::{ContractCallDeclaration, contract_call_target_declarations};
 use conformance::project_contract_conformance_application;
 pub(crate) use conformance::require_exact_conformance_static_argument_selections;
 use const_values::project_named_const_static_argument;
@@ -42,43 +42,79 @@ pub(crate) fn contract_call_static_parameter_kind(
 }
 
 pub(crate) fn contract_call_static_parameter_kinds(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     context: &ContractProjectionContext<'_>,
     target: SymbolHandle,
-    supplied_count: usize,
+    arguments: &[typed_trees::expression::StaticMachineArgument],
 ) -> Result<Vec<ContractCallStaticParameterKind>, Vec<Diagnostic>> {
-    let candidates = contract_call_target_telescopes(compilation, target)
-        .into_iter()
-        .map(|telescope| {
-            let mut kinds = telescope
-                .static_parameters
+    let candidates = contract_call_target_declarations(compilation, target);
+    let [parameters] = candidates.as_slice() else {
+        return Err(context.rejected(format!(
+            "contract call target matches {} callable declarations; expected exactly one",
+            candidates.len()
+        )));
+    };
+    let kinds = match parameters {
+        ContractCallDeclaration::Runtime {
+            static_parameters,
+            conformance_slots,
+            ..
+        } => {
+            let mut kinds = static_parameters
                 .iter()
                 .map(contract_call_static_parameter_kind)
                 .collect::<Vec<_>>();
             kinds.extend(std::iter::repeat_n(
                 ContractCallStaticParameterKind::Conformance,
-                telescope.conformance_slots,
+                *conformance_slots,
             ));
             kinds
-        })
-        .collect::<Vec<_>>();
-    let [parameter_kinds] = candidates.as_slice() else {
-        return Err(context.rejected(format!(
-            "contract call target rejoins {} static telescopes; expected exactly one",
-            candidates.len()
-        )));
+        }
+        ContractCallDeclaration::Mathematical(definition) => {
+            if arguments.is_empty() {
+                return Ok(Vec::new());
+            }
+            use validation::mathematical_applications::{
+                FixedCoreVocabulary, MathematicalBinderKind, source_generic_argument_plan,
+            };
+            let vocabulary = FixedCoreVocabulary::resolve(&compilation.symbols);
+            let binders = compilation
+                .data_type_parameters
+                .span_or_empty(definition.binders);
+            let plan = source_generic_argument_plan(
+                compilation.checking_input,
+                binders,
+                arguments,
+                &vocabulary,
+            )
+            .ok_or_else(|| {
+                context.rejected(
+                    "mathematical call static arguments do not match its declared parameters",
+                )
+            })?;
+            plan.into_iter()
+                .filter(|slot| slot.argument.is_some())
+                .map(|slot| match slot.kind {
+                    MathematicalBinderKind::Type => ContractCallStaticParameterKind::Type,
+                    MathematicalBinderKind::Level | MathematicalBinderKind::Term => {
+                        ContractCallStaticParameterKind::Const
+                    }
+                })
+                .collect()
+        }
     };
-    if parameter_kinds.len() != supplied_count {
+    if kinds.len() != arguments.len() {
         return Err(context.rejected(format!(
-            "contract call supplies {supplied_count} static arguments for a checked telescope of {} parameters",
-            parameter_kinds.len(),
+            "contract call supplies {} static arguments for a checked telescope of {} parameters",
+            arguments.len(),
+            kinds.len()
         )));
     }
-    Ok(parameter_kinds.clone())
+    Ok(kinds)
 }
 
 pub(crate) fn project_contract_static_argument(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     context: &ContractProjectionContext<'_>,
     binders: &[(SymbolHandle, String)],
     checked_fact: Option<arena::Handle<typed_trees::domain::ProofFact>>,
@@ -117,7 +153,7 @@ pub(crate) fn project_contract_static_argument(
 }
 
 pub(crate) fn require_exact_named_const_static_argument_selections(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     context: &ContractProjectionContext<'_>,
     expression: typed_trees::expression::ExpressionHandle,
     arguments: &[typed_trees::expression::StaticMachineArgument],
@@ -127,7 +163,7 @@ pub(crate) fn require_exact_named_const_static_argument_selections(
     };
 
     fn collect_argument_consts(
-        compilation: &PackageReviewInput<'_>,
+        compilation: &SourceDeclarationInput<'_>,
         arguments: &[typed_trees::expression::StaticMachineArgument],
         selected: &mut Vec<SymbolHandle>,
     ) {
@@ -178,7 +214,7 @@ pub(crate) fn require_exact_named_const_static_argument_selections(
 }
 
 pub(crate) fn project_static_argument(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     subject_kind: &str,
     subject_name: &str,
     binders: &[(SymbolHandle, String)],
@@ -239,10 +275,7 @@ pub(crate) fn project_static_argument(
             ));
         }
         let base = compilation
-            .exact_owner_nominal_identity(
-                argument.symbol,
-                compilation.custody.sources().exact_toolchain_sources(),
-            )
+            .exact_owner_nominal_identity(argument.symbol, compilation.exact_toolchain_sources)
             .ok_or_else(missing_exact_toolchain_type_owner)?;
         let arguments = application
             .arguments
@@ -353,10 +386,7 @@ pub(crate) fn project_static_argument(
             ));
         }
         let identity = compilation
-            .exact_owner_nominal_identity(
-                argument.symbol,
-                compilation.custody.sources().exact_toolchain_sources(),
-            )
+            .exact_owner_nominal_identity(argument.symbol, compilation.exact_toolchain_sources)
             .ok_or_else(missing_exact_toolchain_type_owner)?;
         return Ok(PackageReviewContractStaticArgument::Type(
             PackageReviewTypeIdentity {

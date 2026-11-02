@@ -1,5 +1,5 @@
-use super::targets::contract_call_target_telescopes;
-use crate::capture::PackageReviewInput;
+use super::targets::{ContractCallDeclaration, contract_call_target_declarations};
+use crate::capture::SourceDeclarationInput;
 use crate::capture::contracts::facts::ContractProjectionContext;
 use crate::capture::semantics::declarations::nominal_identity;
 use crate::record::{PackageReviewByteSequencePredicate, PackageReviewContractCallTarget};
@@ -7,7 +7,7 @@ use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
 pub(crate) fn resolved_contract_call_symbol(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     call: &typed_trees::expression::TableCallExpression,
 ) -> Option<SymbolHandle> {
     call.target_symbol
@@ -20,7 +20,7 @@ pub(crate) fn resolved_contract_call_symbol(
 }
 
 pub(crate) fn contract_call_value_receiver(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     call: &typed_trees::expression::TableCallExpression,
     target: Option<SymbolHandle>,
 ) -> Option<typed_trees::expression::ExpressionHandle> {
@@ -28,7 +28,7 @@ pub(crate) fn contract_call_value_receiver(
         return None;
     }
     if target
-        .is_some_and(|target| contract_call_target_parameter_sets(compilation, target).len() == 1)
+        .is_some_and(|target| contract_call_target_declarations(compilation, target).len() == 1)
     {
         return None;
     }
@@ -53,28 +53,34 @@ pub(crate) fn contract_call_value_receiver(
     Some(call.receiver)
 }
 
-fn contract_call_target_parameter_sets<'a>(
-    compilation: &'a PackageReviewInput<'_>,
-    target: SymbolHandle,
-) -> Vec<&'a [typed_trees::signature::StateParameter]> {
-    contract_call_target_telescopes(compilation, target)
-        .into_iter()
-        .map(|telescope| telescope.value_parameters)
-        .collect()
-}
-
-pub(crate) fn require_exact_contract_call_reference_arguments(
-    compilation: &PackageReviewInput<'_>,
+pub(crate) fn require_checked_contract_call_arguments(
+    compilation: &SourceDeclarationInput<'_>,
     context: &ContractProjectionContext<'_>,
     target: SymbolHandle,
+    expression: typed_trees::expression::ExpressionHandle,
     call: &typed_trees::expression::TableCallExpression,
 ) -> Result<(), Vec<Diagnostic>> {
-    let candidates = contract_call_target_parameter_sets(compilation, target);
+    let candidates = contract_call_target_declarations(compilation, target);
     let [parameters] = candidates.as_slice() else {
         return Err(context.rejected(format!(
-            "contract call target rejoins {} value telescopes; expected exactly one",
+            "contract call target matches {} callable declarations; expected exactly one",
             candidates.len()
         )));
+    };
+    let parameters = match parameters {
+        ContractCallDeclaration::Runtime {
+            value_parameters, ..
+        } => value_parameters,
+        ContractCallDeclaration::Mathematical(_) => {
+            let standalone =
+                crate::capture::contracts::mathematical_calls::MathematicalCallQueries::new(
+                    compilation.checking_input,
+                );
+            return compilation
+                .mathematical_calls
+                .unwrap_or(&standalone)
+                .require_application(expression);
+        }
     };
     let arguments = compilation
         .expression_table
@@ -100,7 +106,7 @@ pub(crate) fn require_exact_contract_call_reference_arguments(
 }
 
 pub(crate) fn exact_fact_call_projection<'compilation>(
-    compilation: &'compilation PackageReviewInput<'compilation>,
+    compilation: &'compilation SourceDeclarationInput<'compilation>,
     context: &ContractProjectionContext<'_>,
     projection_expression: typed_trees::expression::ExpressionHandle,
     call_expression: typed_trees::expression::ExpressionHandle,
@@ -162,7 +168,7 @@ pub(crate) fn exact_fact_call_projection<'compilation>(
 }
 
 pub(crate) fn exact_checked_contract_call_target(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     context: &ContractProjectionContext<'_>,
     expression: typed_trees::expression::ExpressionHandle,
     call: &typed_trees::expression::TableCallExpression,

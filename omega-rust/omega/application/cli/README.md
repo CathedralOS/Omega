@@ -10,12 +10,12 @@ invocations write a requested-byte/count report to `OMEGA_ALLOCATION_PROFILE`
 when set. Use an uninstrumented retained producer for timing comparisons; see
 the [performance tooling guide](../../../../tools/benchmark/comparison.md).
 
-Project Build is owned by the [compiler's Build coordinator](../../compilation/build/README.md).
+Project Build is owned by the [compiler's Build coordinator](../../build-system/omega-build/README.md).
 The CLI package also exposes execution and inspection through its [library](src/lib.rs):
 
 | Operation | Request and result |
 | --- | --- |
-| [Build a project](../../compilation/build/src/build.rs) | Typed target/product request → ordered reports and published products |
+| [Build a project](../../build-system/omega-build/src/build.rs) | Typed target/product request → ordered reports and published products |
 | [Run a project](src/execution/mod.rs) | Execution/comparison options → report, captured process output, and interpreter comparison |
 | [Inspect a machine](src/inspection/mod.rs) | Source, target, and machine → verified module and fixed-work analysis |
 

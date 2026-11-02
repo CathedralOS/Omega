@@ -1,4 +1,4 @@
-//! Nested type/domain closers must not consume an actual right-shift operand.
+//! Declaration application closers must not consume an actual right-shift operand.
 
 use source_files_to_tokens::Lexer;
 use syntax_trees::expression::{BinaryOperator, ExpressionNode};
@@ -14,55 +14,77 @@ fn nested_static_values_keep_closers_shifts_and_named_argument_transactions() {
         "(N + 8u64) >> 1u64",
         "N",
     ] {
-        for domain in [false, true] {
-            let field_type = if domain {
+        for owner in ["type", "domain", "implementation"] {
+            let field_type = if owner == "domain" {
                 format!("u64 in Quantity<Inner<{operand}>>")
             } else {
                 format!("Outer<Inner<{operand}>>")
             };
-            let text = format!("data Packet {{ value: {field_type}; }}");
+            let text = if owner == "implementation" {
+                format!("Selected satisfies Outer<{operand}> {{}}")
+            } else {
+                format!("data Packet {{ value: {field_type}; }}")
+            };
             let tokens = Lexer::new(&text).tokenize().unwrap();
             let syntax = crate::parse_syntax_trees(&tokens).expect("nested static argument");
-            let data = syntax
-                .root_items()
-                .find_map(|item| match item {
-                    Item::Data(data) => Some(data),
-                    _ => None,
-                })
-                .unwrap();
-            let DataMember::Field(field) = &syntax.items.data_members(data.members)[0] else {
-                panic!("field");
-            };
-            let outer_arguments = match syntax.type_references.type_reference(field.type_reference)
-            {
-                TypeReferenceNode::Generic { arguments, .. } => *arguments,
-                TypeReferenceNode::Constrained { constraints, .. } => {
-                    let [TypeConstraintNode::Domain(domain)] =
-                        syntax.type_references.constraints(*constraints)
-                    else {
-                        panic!("domain");
+            let argument = if owner == "implementation" {
+                let implementation = syntax
+                    .root_items()
+                    .find_map(|item| match item {
+                        Item::Conformance(implementation) => Some(implementation),
+                        _ => None,
+                    })
+                    .unwrap();
+                let [argument] = syntax
+                    .type_references
+                    .type_reference_handles(implementation.trait_arguments)
+                else {
+                    panic!("one implementation argument");
+                };
+                *argument
+            } else {
+                let data = syntax
+                    .root_items()
+                    .find_map(|item| match item {
+                        Item::Data(data) => Some(data),
+                        _ => None,
+                    })
+                    .unwrap();
+                let DataMember::Field(field) = &syntax.items.data_members(data.members)[0] else {
+                    panic!("field");
+                };
+                let outer_arguments =
+                    match syntax.type_references.type_reference(field.type_reference) {
+                        TypeReferenceNode::Generic { arguments, .. } => *arguments,
+                        TypeReferenceNode::Constrained { constraints, .. } => {
+                            let [TypeConstraintNode::Domain(domain)] =
+                                syntax.type_references.constraints(*constraints)
+                            else {
+                                panic!("domain");
+                            };
+                            domain.arguments
+                        }
+                        _ => panic!("outer application"),
                     };
-                    domain.arguments
-                }
-                _ => panic!("outer application"),
-            };
-            let [inner] = syntax
-                .type_references
-                .type_reference_handles(outer_arguments)
-            else {
-                panic!("one inner application");
-            };
-            let TypeReferenceNode::Generic { arguments, .. } =
-                syntax.type_references.type_reference(*inner)
-            else {
-                panic!("inner application");
-            };
-            let [argument] = syntax.type_references.type_reference_handles(*arguments) else {
-                panic!("one static value");
+                let [inner] = syntax
+                    .type_references
+                    .type_reference_handles(outer_arguments)
+                else {
+                    panic!("one inner application");
+                };
+                let TypeReferenceNode::Generic { arguments, .. } =
+                    syntax.type_references.type_reference(*inner)
+                else {
+                    panic!("inner application");
+                };
+                let [argument] = syntax.type_references.type_reference_handles(*arguments) else {
+                    panic!("one static value");
+                };
+                *argument
             };
             if operand == "N" {
                 let TypeReferenceNode::Named(name) =
-                    syntax.type_references.type_reference(*argument)
+                    syntax.type_references.type_reference(argument)
                 else {
                     panic!("named argument");
                 };
@@ -75,7 +97,7 @@ fn nested_static_values_keep_closers_shifts_and_named_argument_transactions() {
                 continue;
             }
             let TypeReferenceNode::ConstExpression(expression) =
-                syntax.type_references.type_reference(*argument)
+                syntax.type_references.type_reference(argument)
             else {
                 panic!("retained static expression");
             };

@@ -1,4 +1,4 @@
-use crate::grammar::contracts::conformance::parse_conformance::parse_optional_satisfies_type_arguments;
+use crate::grammar::contracts::conformance::parse_conformance::parse_conformance_trait_application;
 use crate::grammar::type_syntax::parse_type::parse_type_reference_handle;
 use crate::grammar::type_syntax::properties::parse_property_brackets;
 use crate::tokens::token_cursor::{Input, ParseResult};
@@ -202,11 +202,12 @@ pub(crate) fn parse_generic_parameters<'tokens, 'source>(
                 )));
             }
             let rest = input.take_contextual("satisfies")?;
-            let (trait_name, rest) = rest.take_identifier()?;
-            let (arguments, rest) = parse_optional_satisfies_type_arguments(syntax_trees, rest)?;
+            let ((trait_name, lifetime_arguments, arguments), rest) =
+                parse_conformance_trait_application(syntax_trees, rest)?;
             conformance_bounds.push(syntax_trees::item::GenericConformanceBound {
                 binder: name.clone(),
                 trait_name,
+                lifetime_arguments,
                 arguments,
             });
             // Trait applications supply every static slot positionally.

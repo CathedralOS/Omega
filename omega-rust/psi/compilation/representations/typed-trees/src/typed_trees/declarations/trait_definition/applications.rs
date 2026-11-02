@@ -129,7 +129,7 @@ impl TypedTrees {
                                 lexical_owner: owner,
                                 enclosing_data_applications: &[],
                                 arguments: &bound.arguments,
-                                lifetimes: &[],
+                                lifetimes: &bound.lifetime_arguments,
                             },
                         )
                     })

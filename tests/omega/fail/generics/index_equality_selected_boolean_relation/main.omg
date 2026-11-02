@@ -1,8 +1,8 @@
 domain<T, const I: u64> T::Indexed<I>;
 
 trait IndexOperations<Index> {
-    operator + add(left: Index, right: Index) -> Index;
-    operator == related(left: Index, right: Index) -> bool;
+    machine + add(left: Index, right: Index) -> Index;
+    machine == related(left: Index, right: Index) -> bool;
 }
 
 machine indexed<const Left: u64, const Right: u64,

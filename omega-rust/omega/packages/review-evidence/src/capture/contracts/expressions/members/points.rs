@@ -1,7 +1,7 @@
 //! Declaration projection follows the checked precondition's entry scope.
 
 use crate::capture::EvidenceOption;
-use crate::capture::PackageReviewInput;
+use crate::capture::SourceDeclarationInput;
 use crate::capture::contracts::facts::ContractProjectionContext;
 use crate::capture::semantics::facts::exactly_one;
 use checked_trees::{ContractProofFactKind, ContractProofFactOwner};
@@ -9,7 +9,7 @@ use diagnostics::Diagnostic;
 use facts::{FactOrigin, ProgramPoint};
 
 pub(super) fn contract_point(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     context: &ContractProjectionContext<'_>,
     fact: arena::Handle<typed_trees::domain::ProofFact>,
 ) -> Result<(ProgramPoint, Option<FactOrigin>), Vec<Diagnostic>> {

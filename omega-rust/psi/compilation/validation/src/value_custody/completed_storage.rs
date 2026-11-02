@@ -6,6 +6,7 @@ use arena::Handle;
 use checked_trees::FlowOperandFact;
 mod query;
 pub use query::{at_snapshot, contents_preserved_from};
+pub mod versions;
 
 #[derive(Clone)]
 pub enum StoredOperand {

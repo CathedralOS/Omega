@@ -1,4 +1,4 @@
-//! Admit and project checked product custody for Terminal production and handoff.
+//! Supply the completed target choices needed to turn shared code into an executable.
 //!
 //! These projections supply existing stage inputs; they do not lower code,
 //! produce callback bodies, execute native proposal production, or assemble a
@@ -12,34 +12,11 @@ use terminal_psi_to_abstract_operations::{
 };
 
 impl CheckedCompilation {
-    /// Admit the checked product for Terminal production and borrow its exact
-    /// entry. This is product eligibility, not proof or native admission of the
-    /// artifact that Psi has yet to produce.
-    pub fn admit_terminal_production(
-        &self,
-    ) -> Result<&provider_planning::program_entry::SelectedCompilerProgramEntry, Vec<Diagnostic>>
-    {
-        // An Independent edge has no product carrier yet. Reject it before
-        // checking entry custody or allowing a fused artifact to be produced.
-        let execution = self.execution();
-        provider_planning::verify_selected_compositions_are_realized(
-            execution.selected_provider_provenance.as_slice(),
-        )?;
-        // Preserve the build operand's lexical package choice, including when
-        // another package contains a machine with the same display name.
-        let entry = execution.selected_program_entry.as_ref().ok_or_else(|| {
-            vec![Diagnostic::error(
-                "terminal-artifact production requires one exact selected program entry",
-            )]
-        })?;
-        Ok(entry)
-    }
-
     /// Borrow the exact checked selections for a produced Terminal occurrence
     /// roster. Supplied callbacks remain candidates, not admitted native code;
     /// Omega 00 must check their cardinality, identities and source associations.
-    /// Provider identities were closed by checked-provider binding, before
-    /// Terminal production; this projection never reopens typed declarations.
+    /// Provider identities are already settled against the shared Terminal
+    /// program; this projection reads the saved target choices.
     pub fn terminal_native_proposal_request<'input>(
         &'input self,
         selections: &optimization_core::OptimizationSelections,

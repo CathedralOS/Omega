@@ -19,6 +19,7 @@ mod terminal_permissions;
 mod values;
 
 pub use policy_rows::restricted_build_request_acceptance_text;
+pub(crate) use policy_rows::runtime_permission_rows;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageReviewEncodingError {

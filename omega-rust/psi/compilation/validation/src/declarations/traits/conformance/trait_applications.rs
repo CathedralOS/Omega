@@ -92,6 +92,7 @@ pub(crate) fn validate_trait_application_obligations(
                     parameter,
                     contract,
                     *argument,
+                    applied_arguments,
                     caller_scope,
                     diagnostics,
                 )
