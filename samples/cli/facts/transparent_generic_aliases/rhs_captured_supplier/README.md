@@ -41,6 +41,10 @@ the local place. Generated-origin replay now compares transparent alias
 expansions and exact expression-backed array children; independent alias
 formation and all origin tuple checks remain in place.
 
-These three places do not complete other mixed/open RHS contexts,
+The [call result](call_result/README.md) and [match join](match_join/README.md)
+places then passed at source `a1964f50142c` in run 41366197763. Both join arms
+execute; no Rust changes or reruns of the earlier places were needed.
+
+These five places do not complete other mixed/open RHS contexts,
 RHS calls/qualified value names, Product/Build transport, nine-place rows,
 other hosts or the Omega-written producer.

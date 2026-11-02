@@ -1752,8 +1752,12 @@ fail/facts/target_family_contract_operand/callback_capability rejected 517ms exp
 	machine argument `bounded_matches` for `choose` does not refine `Callback`: its requires facts are not a conservative refinement
 fail/facts/target_family_contract_operand/stronger_provider_requirement rejected 1609ms expected @b0315c8f656c
 	machine parameter `Selected` of provider machine `ArmChoice::choose` for trait requirement `Choosing::choose` does not refine `Callback`: its requires facts are not a conservative refinement
+fail/facts/transparent_alias_rhs_captured_supplier_call_result_mismatch_rejected rejected 2345ms expected @a1964f50142c
+	argument `value` for state `forward` expects `[u8; 5]`, got `named value`; expected carrier `array(named(name(u8)),literal(5))`, declared place carrier `array(named(name(u8)),literal(4))`
 fail/facts/transparent_alias_rhs_captured_supplier_field_mismatch_rejected rejected 2118ms expected @7ecc47f1c723
 	argument `value` for state `forward` expects `[u8; 5]`, got `member access`; expected carrier `array(named(name(u8)),literal(5))`, declared place carrier `array(named(name(u8)),literal(4))`
+fail/facts/transparent_alias_rhs_captured_supplier_match_join_mismatch_rejected rejected 2539ms expected @a1964f50142c
+	argument `value` for state `forward` expects `[u8; 5]`, got `named value`; expected carrier `array(named(name(u8)),literal(5))`, declared place carrier `array(named(name(u8)),literal(4))`
 fail/facts/transparent_alias_rhs_captured_supplier_mismatch_rejected rejected 1440ms expected @24d35f3b86c4
 	argument `value` for state `forward` expects `[u8; 5]`, got `named value`; expected carrier `array(named(name(u8)),literal(5))`, declared place carrier `array(named(name(u8)),literal(4))`
 fail/facts/transparent_alias_rhs_captured_supplier_parameter_mismatch_rejected rejected 2241ms expected @7ecc47f1c723
@@ -9860,8 +9864,10 @@ pass/facts/thirtytwo_arg_stack_calling_plan_through_other_machine_exit checked 4
 pass/facts/thirtytwo_arg_stack_calling_plan_through_other_state_exit checked 3591ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/thirtytwo_arg_stack_calling_plan_through_parameter_exit checked 4669ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/thirtytwo_arg_stack_calling_plan_through_target_body_exit checked 3568ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/transparent_alias_rhs_captured_supplier_call_result_exit checked 7568ms check-target:macos_arm64 @a1964f50142c
 pass/facts/transparent_alias_rhs_captured_supplier_exit checked 5439ms check-target:macos_arm64 @24d35f3b86c4
 pass/facts/transparent_alias_rhs_captured_supplier_field_exit checked 8236ms check-target:macos_arm64 @7ecc47f1c723
+pass/facts/transparent_alias_rhs_captured_supplier_match_join_exit checked 7630ms check-target:macos_arm64 @a1964f50142c
 pass/facts/transparent_alias_rhs_captured_supplier_parameter_exit checked 9272ms check-target:macos_arm64 @7ecc47f1c723
 pass/facts/transparent_alias_rhs_const_expression_exit checked 7601ms check-target:macos_arm64 @143d3f1669fb
 pass/facts/transparent_alias_rhs_declaration_scope_exit checked 4008ms check-target:macos_arm64 @8436ab6a7742
