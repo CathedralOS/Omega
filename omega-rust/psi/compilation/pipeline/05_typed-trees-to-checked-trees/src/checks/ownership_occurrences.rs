@@ -191,6 +191,7 @@ pub(super) fn statement_steps_at_evaluation(
 ) -> Vec<StatementOccurrence> {
     let mut order = StatementOrder {
         program,
+        machine,
         state,
         statement_index,
         operators,
@@ -453,6 +454,7 @@ pub(super) fn owned_temporary_occurrences(
 
 struct StatementOrder<'a> {
     program: &'a dyn ::validation::CheckingInput,
+    machine: &'a Machine,
     state: &'a State,
     statement_index: usize,
     operators: &'a CheckedOperatorFacts,
@@ -528,139 +530,159 @@ impl StatementOrder<'_> {
             return;
         }
         let mut invocation = None;
-        match self.program.expression_table.expression(expression) {
-            ExpressionNode::Indexed(indexed) if self.selected_index(expression) => {
-                self.expression(indexed.collection, conditional);
-                self.expression(indexed.index, conditional);
+        if let Some(receiver) = validation::collection_length_receiver(
+            self.program,
+            self.machine,
+            Some(self.state),
+            expression,
+        ) {
+            // Metadata observes the collection descriptor, not a nominal
+            // member or every element of its referent. Keep the original
+            // expression so the storage reader retains that access purpose.
+            self.selectors(receiver, conditional);
+            if let Some(place) = ownership_place_from_expression_in_state(
+                self.program,
+                self.state.symbol,
+                self.statement_index,
+                receiver,
+            ) {
+                self.push(StatementStep::Observe { place, expression });
             }
-            ExpressionNode::Name(_)
-            | ExpressionNode::Member(_)
-            | ExpressionNode::Indexed(_)
-            | ExpressionNode::Borrow(_) => {
-                // Reading a projection observes its maximal selected place,
-                // not every enclosing owner. Computed receivers and selectors
-                // still execute before that observation.
-                self.selectors(expression, conditional);
-                if let Some(place) = ownership_place_from_expression_in_state(
-                    self.program,
-                    self.state.symbol,
-                    self.statement_index,
-                    expression,
-                ) {
-                    self.push(StatementStep::Observe { place, expression });
+        } else {
+            match self.program.expression_table.expression(expression) {
+                ExpressionNode::Indexed(indexed) if self.selected_index(expression) => {
+                    self.expression(indexed.collection, conditional);
+                    self.expression(indexed.index, conditional);
                 }
-            }
-            ExpressionNode::Call(call) => {
-                invocation = Some(self.steps.len());
-                self.expression(call.receiver, conditional);
-                for argument in self
-                    .program
-                    .expression_table
-                    .expression_handles(call.arguments)
-                {
-                    self.expression(*argument, conditional);
+                ExpressionNode::Name(_)
+                | ExpressionNode::Member(_)
+                | ExpressionNode::Indexed(_)
+                | ExpressionNode::Borrow(_) => {
+                    // Reading a projection observes its maximal selected place,
+                    // not every enclosing owner. Computed receivers and selectors
+                    // still execute before that observation.
+                    self.selectors(expression, conditional);
+                    if let Some(place) = ownership_place_from_expression_in_state(
+                        self.program,
+                        self.state.symbol,
+                        self.statement_index,
+                        expression,
+                    ) {
+                        self.push(StatementStep::Observe { place, expression });
+                    }
                 }
-            }
-            ExpressionNode::Match(dispatch) => {
-                self.expression(dispatch.subject, conditional);
-                // Completing a computed subject establishes its anonymous
-                // home before dispatch observes it. Publish that observation
-                // through the same owner inventory as member/index reads;
-                // saved payload aliases do not evaluate the producer again.
-                if let Some(place) = ownership_place_from_expression_in_state(
-                    self.program,
-                    self.state.symbol,
-                    self.statement_index,
-                    dispatch.subject,
-                ) {
-                    self.push(StatementStep::Observe {
-                        place,
-                        expression: dispatch.subject,
-                    });
-                }
-                let prefix = self.route.len();
-                let arms = super::multiplicity::reachable_arms(self.program, dispatch.arms);
-                for (decision, (_, arm)) in arms.iter().enumerate() {
-                    for pattern in self
+                ExpressionNode::Call(call) => {
+                    invocation = Some(self.steps.len());
+                    self.expression(call.receiver, conditional);
+                    for argument in self
                         .program
                         .expression_table
-                        .match_pattern_operands(arm.pattern)
+                        .expression_handles(call.arguments)
                     {
-                        self.expression(pattern, conditional || decision != 0);
-                    }
-                    // Exhaustiveness is checked before ownership. The last
-                    // reachable arm is the remaining route, not a new branch
-                    // with a fabricated unmatched successor.
-                    if decision + 1 < arms.len() {
-                        self.route.push(EvaluationBranch {
-                            expression,
-                            decision,
-                            selected: true,
-                        });
-                        self.expression(arm.value, true);
-                        self.route.pop();
-                        self.route.push(EvaluationBranch {
-                            expression,
-                            decision,
-                            selected: false,
-                        });
-                    } else {
-                        self.expression(arm.value, conditional || decision != 0);
+                        self.expression(*argument, conditional);
                     }
                 }
-                self.route.truncate(prefix);
-            }
-            ExpressionNode::Binary(binary) => {
-                self.expression(binary.left, conditional);
-                if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) {
-                    let evaluate_when = binary.operator == BinaryOperator::And;
-                    // Only closed selected values can skip a subtree here.
-                    // Runtime bindings may have changed during earlier operands.
-                    let left = crate::values::evaluate_closed_boolean_expression(
+                ExpressionNode::Match(dispatch) => {
+                    self.expression(dispatch.subject, conditional);
+                    // Completing a computed subject establishes its anonymous
+                    // home before dispatch observes it. Publish that observation
+                    // through the same owner inventory as member/index reads;
+                    // saved payload aliases do not evaluate the producer again.
+                    if let Some(place) = ownership_place_from_expression_in_state(
                         self.program,
-                        self.operators,
-                        binary.left,
-                        &[],
-                    );
-                    if left != Some(!evaluate_when) {
-                        if left.is_none() {
+                        self.state.symbol,
+                        self.statement_index,
+                        dispatch.subject,
+                    ) {
+                        self.push(StatementStep::Observe {
+                            place,
+                            expression: dispatch.subject,
+                        });
+                    }
+                    let prefix = self.route.len();
+                    let arms = super::multiplicity::reachable_arms(self.program, dispatch.arms);
+                    for (decision, (_, arm)) in arms.iter().enumerate() {
+                        for pattern in self
+                            .program
+                            .expression_table
+                            .match_pattern_operands(arm.pattern)
+                        {
+                            self.expression(pattern, conditional || decision != 0);
+                        }
+                        // Exhaustiveness is checked before ownership. The last
+                        // reachable arm is the remaining route, not a new branch
+                        // with a fabricated unmatched successor.
+                        if decision + 1 < arms.len() {
                             self.route.push(EvaluationBranch {
                                 expression,
-                                decision: 0,
-                                selected: evaluate_when,
+                                decision,
+                                selected: true,
                             });
-                        }
-                        self.expression(binary.right, conditional || left.is_none());
-                        if left.is_none() {
+                            self.expression(arm.value, true);
                             self.route.pop();
+                            self.route.push(EvaluationBranch {
+                                expression,
+                                decision,
+                                selected: false,
+                            });
+                        } else {
+                            self.expression(arm.value, conditional || decision != 0);
                         }
                     }
-                } else {
-                    self.expression(binary.right, conditional);
+                    self.route.truncate(prefix);
                 }
-            }
-            ExpressionNode::Unary(unary) => self.expression(unary.operand, conditional),
-            ExpressionNode::Cast(cast) => self.expression(cast.value, conditional),
-            ExpressionNode::Atomic(atomic) => {
-                for child in atomic_execution_children(self.program, atomic) {
-                    self.expression(child, conditional);
+                ExpressionNode::Binary(binary) => {
+                    self.expression(binary.left, conditional);
+                    if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) {
+                        let evaluate_when = binary.operator == BinaryOperator::And;
+                        // Only closed selected values can skip a subtree here.
+                        // Runtime bindings may have changed during earlier operands.
+                        let left = crate::values::evaluate_closed_boolean_expression(
+                            self.program,
+                            self.operators,
+                            binary.left,
+                            &[],
+                        );
+                        if left != Some(!evaluate_when) {
+                            if left.is_none() {
+                                self.route.push(EvaluationBranch {
+                                    expression,
+                                    decision: 0,
+                                    selected: evaluate_when,
+                                });
+                            }
+                            self.expression(binary.right, conditional || left.is_none());
+                            if left.is_none() {
+                                self.route.pop();
+                            }
+                        }
+                    } else {
+                        self.expression(binary.right, conditional);
+                    }
                 }
-            }
-            ExpressionNode::ArrayLiteral(values) => {
-                for value in self.program.expression_table.expression_handles(*values) {
-                    self.expression(*value, conditional);
+                ExpressionNode::Unary(unary) => self.expression(unary.operand, conditional),
+                ExpressionNode::Cast(cast) => self.expression(cast.value, conditional),
+                ExpressionNode::Atomic(atomic) => {
+                    for child in atomic_execution_children(self.program, atomic) {
+                        self.expression(child, conditional);
+                    }
                 }
-            }
-            ExpressionNode::StructLiteral(literal) => {
-                for field in self.program.expression_table.struct_fields(literal.fields) {
-                    self.expression(field.value, conditional);
+                ExpressionNode::ArrayLiteral(values) => {
+                    for value in self.program.expression_table.expression_handles(*values) {
+                        self.expression(*value, conditional);
+                    }
                 }
+                ExpressionNode::StructLiteral(literal) => {
+                    for field in self.program.expression_table.struct_fields(literal.fields) {
+                        self.expression(field.value, conditional);
+                    }
+                }
+                ExpressionNode::Range(range) => {
+                    self.expression(range.start, conditional);
+                    self.expression(range.end, conditional);
+                }
+                _ => {}
             }
-            ExpressionNode::Range(range) => {
-                self.expression(range.start, conditional);
-                self.expression(range.end, conditional);
-            }
-            _ => {}
         }
         // Ordinary calls and selected operators use their retained exact
         // invocation rows; syntax alone cannot invent an executed boundary.

@@ -40,9 +40,18 @@ struct PendingLoad {
     carrier: TypeReferenceHandle,
     remaining: Vec<PlaceSegment>,
     ancestors: Vec<LoadOccurrence>,
+    /// The receiver's authority locates this address, independently of the
+    /// final descriptor's grant over its own referent.
+    lineage: Vec<Handle<BorrowLoanFact>>,
     /// A borrowed formal supplies its outer grant separately from the stored
     /// ingress leaves of its referee. In `&&T`, both have the empty owner path.
     formal_root: bool,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum LoadPurpose {
+    Referent,
+    DescriptorStorage,
 }
 
 pub(super) fn resolve(
@@ -53,6 +62,45 @@ pub(super) fn resolve(
     constraints: HandleSpan<FlowConstraintRef>,
     place: CapturedPlace,
 ) -> Option<Vec<ResolvedAlias>> {
+    resolve_for(
+        program,
+        facts,
+        state,
+        statement_index,
+        constraints,
+        place,
+        LoadPurpose::Referent,
+    )
+}
+
+pub(super) fn storage(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    statement_index: usize,
+    constraints: HandleSpan<FlowConstraintRef>,
+    place: CapturedPlace,
+) -> Option<Vec<ResolvedAlias>> {
+    resolve_for(
+        program,
+        facts,
+        state,
+        statement_index,
+        constraints,
+        place,
+        LoadPurpose::DescriptorStorage,
+    )
+}
+
+fn resolve_for(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    statement_index: usize,
+    constraints: HandleSpan<FlowConstraintRef>,
+    place: CapturedPlace,
+    purpose: LoadPurpose,
+) -> Option<Vec<ResolvedAlias>> {
     match resolve_loads(
         program,
         facts,
@@ -60,6 +108,7 @@ pub(super) fn resolve(
         statement_index,
         constraints,
         place.clone(),
+        purpose,
     ) {
         Ok(resolved) => Some(resolved),
         Err(reason) => {
@@ -81,7 +130,28 @@ fn resolve_loads(
     statement_index: usize,
     constraints: HandleSpan<FlowConstraintRef>,
     place: CapturedPlace,
+    purpose: LoadPurpose,
 ) -> Result<Vec<ResolvedAlias>, &'static str> {
+    if purpose == LoadPurpose::DescriptorStorage {
+        let declared = validation::canonical_place_type_reference(
+            program,
+            state.state_symbol,
+            statement_index,
+            &CanonicalPlace {
+                root: place.root,
+                segments: place.segments.clone(),
+            },
+        )
+        .and_then(|reference| validation::unwrapped_type_reference(program, reference))
+        .ok_or("the metadata receiver has no exact collection carrier")?;
+        match program.type_reference_table.type_reference(declared) {
+            // A fixed extent is declared geometry through every reference
+            // presentation. Reading it never observes array elements.
+            typed_trees::types::TypeReferenceNode::FixedArray { .. } => return Ok(Vec::new()),
+            typed_trees::types::TypeReferenceNode::Slice { .. } => {}
+            _ => return Err("the metadata receiver is not a declared collection"),
+        }
+    }
     let mut address = place.clone();
     address.segments.clear();
     let carrier = if place.incoming_reference.is_valid() {
@@ -133,10 +203,14 @@ fn resolve_loads(
         carrier,
         remaining: place.segments,
         ancestors: Vec::new(),
+        lineage: Vec::new(),
         formal_root,
     }];
     let mut resolved = Vec::new();
-    while let Some(cursor) = pending.pop() {
+    while let Some(mut cursor) = pending.pop() {
+        cursor.remaining =
+            validation::corresponding_place_projection(program, cursor.carrier, &cursor.remaining)
+                .ok_or("the descriptor path does not correspond to its current carrier")?;
         // Only owned prefixes can precede the next reference. This common
         // projector retains the supplying generic application at every prefix.
         let (prefix, descriptor_type) =
@@ -144,7 +218,14 @@ fn resolve_loads(
                 .ok_or("the remaining typed suffix has no finite reference descriptor")?;
         let reference = validation::reference_shell(program, descriptor_type)
             .ok_or("the selected typed boundary is not a reference")?;
-        let terminal = prefix == cursor.remaining.len();
+        let terminal = prefix == cursor.remaining.len()
+            && (purpose == LoadPurpose::Referent
+                || matches!(
+                    program.type_reference_table.type_reference(
+                        validation::peel_declared_constraints(program, reference.referee)
+                    ),
+                    typed_trees::types::TypeReferenceNode::Slice { .. }
+                ));
         // Loading the final pointer does not read its pointee. Reaching another
         // descriptor through that pointer does, including an empty next prefix.
         if !terminal && !reference.access.is_readable() {
@@ -155,6 +236,17 @@ fn resolve_loads(
             .segments
             .extend_from_slice(&cursor.remaining[..prefix]);
         let remaining = &cursor.remaining[prefix..];
+
+        if terminal && purpose == LoadPurpose::DescriptorStorage {
+            append_distinct(
+                &mut resolved,
+                ResolvedAlias {
+                    place: descriptor,
+                    lineage: cursor.lineage,
+                },
+            );
+            continue;
+        }
 
         if cursor.formal_root && prefix == 0 {
             // This is the declaration's outer borrowed grant, never a lookup
@@ -174,6 +266,7 @@ fn resolve_loads(
                     carrier: reference.referee,
                     remaining: remaining.to_vec(),
                     ancestors: cursor.ancestors,
+                    lineage: cursor.lineage,
                     formal_root: false,
                 });
             }
@@ -253,12 +346,13 @@ fn resolve_loads(
                     carrier: reference.referee,
                     remaining: remaining.to_vec(),
                     ancestors,
+                    lineage: alternative.lineage,
                     formal_root: false,
                 });
             }
         }
     }
-    if resolved.is_empty() {
+    if resolved.is_empty() && purpose != LoadPurpose::DescriptorStorage {
         Err("the completed descriptor has no resolved authority")
     } else {
         Ok(resolved)

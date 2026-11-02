@@ -831,7 +831,7 @@ fn closed_conformance_member_edge_must_name_its_own_requirement() {
 }
 
 #[test]
-fn rejects_retired_where_conformance_test() {
+fn rejects_retired_machine_where_clause() {
     let source = r#"
         trait Converter<Message> { }
 
@@ -841,8 +841,8 @@ fn rejects_retired_where_conformance_test() {
         { }
     "#;
 
-    let error = super::parse_tokenized_error(source, "a where-satisfies test is retired");
-    super::expect_error(&error, "`where T satisfies Trait` is retired");
+    let error = super::parse_tokenized_error(source, "a machine `where` clause is retired");
+    super::expect_error(&error, "found identifier `where`");
 }
 
 #[test]

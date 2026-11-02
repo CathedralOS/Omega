@@ -8,10 +8,11 @@
 //! under that roster, and `close` releases the interpreter state and ends the
 //! binding lifetime.
 //!
-//! The mapping onto the embedding contract: a bound slot is the runtime
-//! carrier `Binding<R>` describes — opaque (the host cannot read internals),
-//! affine (one slot binds once; closing consumes the roster), and checked at
-//! establishment against the declared contract rather than at first use.
+//! The mapping onto the embedding contract: a bound slot is the host's
+//! provider for one demanded requirement — opaque (the host cannot read
+//! internals), affine (one slot binds once; closing consumes the roster), and
+//! checked at establishment against the declared contract rather than at
+//! first use.
 //! Same-requirement slots bind different host objects because dispatch keys
 //! on the slot's `BoundaryMachineId`, never on a trait or name.
 
@@ -22,6 +23,8 @@ mod component_return;
 pub(crate) use component_return::ComponentOwnedReturn;
 mod storage_observation;
 pub use storage_observation::{TerminalStorageObservationError, TerminalStorageObservationValue};
+mod returned_loans;
+pub use returned_loans::{TerminalReturnedLoan, TerminalReturnedLoanError};
 
 use std::collections::BTreeMap;
 
@@ -110,10 +113,9 @@ impl TerminalProcessExitAdmission {
     }
 }
 
-/// One established boundary-requirement binding — the `Binding<R>` carrier at
-/// this surface: an exact import slot joined at establishment to the checked
-/// host adapter that answers it. The instance roster owns it; it cannot
-/// migrate, copy, or rebind into another instance.
+/// One established boundary-requirement binding: an exact import slot joined
+/// at establishment to the checked host adapter that answers it. The instance
+/// roster owns it; it cannot migrate, copy, or rebind into another instance.
 struct TerminalImportBinding<'host> {
     adapter: Box<dyn TerminalImportAdapter + 'host>,
 }
@@ -144,7 +146,7 @@ pub enum TerminalBindingRejection {
     ProviderRealized {
         boundary: BoundaryMachineId,
     },
-    /// The slot already holds an established binding. `Binding<R>` is affine:
+    /// The slot already holds an established binding. A slot binds once:
     /// rebinding requires a fresh instance, not a second supply.
     DuplicateBinding {
         boundary: BoundaryMachineId,

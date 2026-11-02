@@ -167,7 +167,7 @@ mod tests {
 pub(super) struct AllocationImport {
     signature: TerminalImportSignature,
     operation: AllocationOperation,
-    payload: Option<Vec<semantic_vocabulary::CanonicalStructuralPathSegment>>,
+    location: admission::AddressLocation,
     values: Arc<Mutex<AllocationValues>>,
 }
 
@@ -183,7 +183,7 @@ impl AllocationImport {
             return Ok(None);
         };
         let signature = TerminalImportSignature::from(declaration);
-        let payload = admission::validate(
+        let location = admission::validate(
             program,
             declaration,
             binding,
@@ -194,7 +194,7 @@ impl AllocationImport {
         Ok(Some(Self {
             signature,
             operation,
-            payload,
+            location,
             values,
         }))
     }
@@ -214,7 +214,12 @@ impl TerminalEffectHandler for AllocationImport {
     ) -> terminal_interpreter::TerminalCallStorageRequirements<'_> {
         terminal_interpreter::TerminalCallStorageRequirements {
             original: false,
-            arguments: if self.payload.is_some() { &[0] } else { &[] },
+            arguments: if matches!(self.location, admission::AddressLocation::OwnedArgument(_))
+            {
+                &[0]
+            } else {
+                &[]
+            },
         }
     }
 
@@ -262,17 +267,31 @@ impl TerminalEffectHandler for AllocationImport {
                 }
                 let count = u64::try_from(*count).map_err(|_| invalid())?;
                 let width = u64::try_from(*width).map_err(|_| invalid())?;
-                Ok(TerminalEffectResult::Scalar(TerminalScalarValue::Integer {
+                let minted = TerminalScalarValue::Integer {
                     scalar_type: address_type,
                     value: IntegerValue::Unsigned(u128::from(values.allocate(
                         count,
                         width,
                         call.boundary.get(),
                     ))),
-                }))
+                };
+                Ok(match &self.location {
+                    admission::AddressLocation::RecordResult(structural_type, path) => {
+                        TerminalEffectResult::ScalarAggregate(
+                            terminal_interpreter::TerminalScalarAggregateValue {
+                                structural_type: *structural_type,
+                                result_case: None,
+                                fields: vec![(path.clone(), minted)],
+                            },
+                        )
+                    }
+                    _ => TerminalEffectResult::Scalar(minted),
+                })
             }
             AllocationOperation::Release => {
-                let pointer = if let Some(path) = &self.payload {
+                let pointer = if let admission::AddressLocation::OwnedArgument(path) =
+                    &self.location
+                {
                     let [TerminalBoundaryStorageBuffer::Structural(buffer)] = storage else {
                         return Err(invalid());
                     };

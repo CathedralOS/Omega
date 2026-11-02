@@ -151,8 +151,8 @@ fn scalar_refinement_round_trip_retains_full_predicate_and_rejects_foreign_subje
 }
 
 #[test]
-fn fused_binding_type_round_trip_distinguishes_empty_record_and_unknown_tag() {
-    let declaration = StructuralTypeDeclaration {
+fn retired_binding_carrier_tag_decodes_as_an_unknown_shape() {
+    let record = StructuralTypeDeclaration {
         quotient_carrier: None,
         owns_linear_claim: false,
         no_code_affine_cleanup: false,
@@ -161,27 +161,31 @@ fn fused_binding_type_round_trip_distinguishes_empty_record_and_unknown_tag() {
         scalar_restriction: None,
         id: StructuralTypeId::new(7).unwrap(),
         identity: terminal_psi::TerminalIdentityIndex(3),
-        shape: StructuralTypeShape::BindingCarrier,
+        shape: StructuralTypeShape::Record {
+            storage: terminal_psi::StructuralRecordStorage::Packed,
+            fields: Vec::new(),
+        },
     };
-    let mut encoded = Vec::new();
-    encode_type(&mut encoded, &declaration).unwrap();
-    assert_eq!(encoded.last(), Some(&11));
-    let mut cursor = Cursor::new(&encoded);
-    assert_eq!(decode_type(&mut cursor).unwrap(), declaration);
-    assert_eq!(cursor.remaining(), 0);
-
-    let mut record = declaration.clone();
-    record.shape = StructuralTypeShape::Record {
-        storage: terminal_psi::StructuralRecordStorage::Packed,
-        fields: Vec::new(),
+    let mut reference = record.clone();
+    reference.shape = StructuralTypeShape::Reference {
+        referent: StructuralTypeId::new(7).unwrap(),
+        access: StructuralAccess::SharedBorrow,
     };
     let mut record_bytes = Vec::new();
     encode_type(&mut record_bytes, &record).unwrap();
-    assert_ne!(encoded, record_bytes);
-    *encoded.last_mut().unwrap() = 255;
+    let mut reference_bytes = Vec::new();
+    encode_type(&mut reference_bytes, &reference).unwrap();
+    // The two encodings share the declaration header and differ at the shape tag.
+    let header = record_bytes
+        .iter()
+        .zip(&reference_bytes)
+        .take_while(|(left, right)| left == right)
+        .count();
+    let mut retired = record_bytes[..header].to_vec();
+    retired.push(11);
     assert_eq!(
-        decode_type(&mut Cursor::new(&encoded)),
-        Err(FixedViewCopyDecodeError::UnknownStructuralTypeShape(255)),
+        decode_type(&mut Cursor::new(&retired)),
+        Err(FixedViewCopyDecodeError::UnknownStructuralTypeShape(11)),
     );
 }
 

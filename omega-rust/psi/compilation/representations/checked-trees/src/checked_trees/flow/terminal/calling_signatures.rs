@@ -17,6 +17,7 @@ pub struct CheckedCallingSignaturePlan {
     pub operands: Vec<CallingStaticOperand>,
     pub formals: Vec<semantic_vocabulary::CallingGenericFormal>,
     pub default_eligible: bool,
+    pub physical_owner: Result<semantic_vocabulary::CallingDeclarationOwner, String>,
     pub storage: Result<CheckedCallingSignatureStorage, String>,
 }
 

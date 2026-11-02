@@ -3,7 +3,7 @@
 
 use crate::emission::operation_emission::integer::LoweredIntegerComparisonKind;
 use crate::emission::scalar_types::terminal_scalar_type;
-use crate::lowering_error::{LoweringError, unsupported};
+use crate::shared::lowering_error::{LoweringError, unsupported};
 use checked_trees::CheckedTrees;
 use checked_trees::types::PrimitiveType;
 use lowered_psi::LoweredSelectedComparisonOperandOrder;

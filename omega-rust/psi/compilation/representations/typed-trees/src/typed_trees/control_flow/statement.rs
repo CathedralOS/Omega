@@ -60,10 +60,25 @@ pub struct StatementTable {
     expression_handles: Arena<ExpressionHandle>,
     name_path_members: Arena<Identifier>,
     transition_targets: Arena<TransitionTargetNode>,
+    transition_patterns: Arena<TransitionPattern>,
     outcome_proof_selectors: Arena<OutcomeProofSelector>,
 }
 
 impl StatementTable {
+    pub fn insert_transition_patterns(
+        &mut self,
+        patterns: impl IntoIterator<Item = TransitionPattern>,
+    ) -> HandleSpan<TransitionPattern> {
+        self.transition_patterns.insert_many(patterns)
+    }
+
+    pub fn transition_patterns(
+        &self,
+        patterns: HandleSpan<TransitionPattern>,
+    ) -> &[TransitionPattern] {
+        self.transition_patterns.span_or_empty(patterns)
+    }
+
     pub fn new() -> Self {
         Self {
             assembly_graphs: Arena::new(),
@@ -72,6 +87,7 @@ impl StatementTable {
             expression_handles: Arena::new(),
             name_path_members: Arena::new(),
             transition_targets: Arena::new(),
+            transition_patterns: Arena::new(),
             outcome_proof_selectors: Arena::new(),
         }
     }
@@ -326,6 +342,7 @@ impl StatementTable {
             .wrapping_add(self.expression_handles.revision())
             .wrapping_add(self.name_path_members.revision())
             .wrapping_add(self.transition_targets.revision())
+            .wrapping_add(self.transition_patterns.revision())
             .wrapping_add(self.outcome_proof_selectors.revision())
     }
 
@@ -562,8 +579,18 @@ impl Default for TableLocalData {
     }
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
+pub struct TransitionPattern {
+    /// Braced structural pattern, versus an ordinary value/case pattern.
+    pub is_structural: bool,
+    pub subject: ExpressionHandle,
+    pub pattern: crate::expression::TableDestructurePattern,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct TableTransition {
+    /// Retained structural heads, independent of arrival/value target spelling.
+    pub patterns: HandleSpan<TransitionPattern>,
     pub target: TransitionTargetHandle,
     pub continuation: TransitionTargetHandle,
     pub guard: TransitionGuardNode,
@@ -584,6 +611,7 @@ impl TableTransition {
 impl Default for TableTransition {
     fn default() -> Self {
         Self {
+            patterns: HandleSpan::empty(),
             target: TransitionTargetHandle::invalid(),
             continuation: TransitionTargetHandle::invalid(),
             guard: TransitionGuardNode::Always,

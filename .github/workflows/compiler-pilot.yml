@@ -16,6 +16,10 @@ on:
         description: Optional comma-separated exact pass/group/name and fail/group/name IDs; replaces smoke
         type: string
         default: ''
+      checking_only:
+        description: Check only the exact fixtures and rejection controls, without repeating runtime observations
+        type: boolean
+        default: false
       samples:
         description: Optional comma-separated exact samples/cli/facts project paths (with descendants); replaces smoke
         type: string
@@ -99,6 +103,7 @@ jobs:
           OMEGA_COMPILER_PILOT_FIXTURES: ${{ inputs.fixtures }}
           OMEGA_COMPILER_PILOT_SAMPLES: ${{ inputs.samples }}
           OMEGA_COMPILER_PILOT_CLI_FIXTURES: ${{ inputs.cli_fixtures }}
+          OMEGA_COMPILER_PILOT_CHECKING_ONLY: ${{ inputs.checking_only }}
         run: python tools/ci/compiler_pilot.py
       - name: Report actual producer and fixture observations
         if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')

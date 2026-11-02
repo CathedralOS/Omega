@@ -12,7 +12,7 @@ use crate::data_layout_queries::sizing::{
 use checked_trees::typed_trees::data::DataDefinition;
 use checked_trees::typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 use diagnostics::Diagnostic;
-use representation_planning::selection_for_opaque;
+use representation_selections::selection_for_opaque;
 use symbols::SymbolHandle;
 
 impl<'program> LayoutBuilder<'program> {

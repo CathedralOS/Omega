@@ -1,0 +1,1 @@
+field `envelope` generic argument uses boundary trait `Counter` as a value type

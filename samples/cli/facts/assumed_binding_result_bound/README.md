@@ -131,3 +131,7 @@ the same projection with `accepted_assumed_bindings.txt` when a test supplies
 historical rows. A retained lock that differs from the fresh rows rejects.
 Changing the accepted relationship or its source closure invalidates a
 retained lock before execution.
+
+## Build-owned target-body migration
+
+The `target_body` place and its twins carry no source target prefix. `BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected by explicit target-keyed Build rows. The operation, inputs, contracts and exit oracle are unchanged. The entry wrapper and each implementation check a tag (17 for x86-64, 29 for AArch64), so a wrong Build row traps. The requirement and its implementations publish `invokes Required` for the boundary call their bodies make, and `main` adds `SelectedBodyCheck` to its published reach. Observed on macOS x86-64 with optimized producers for base 4f87c9e08b1 and for the #1378 head: the migrated positive exits 0 under `omega run --both` (native and Terminal Psi agree) and every twin and control in the place still rejects with its authored fragment. No compiler change was needed. The other hosted targets keep their authored rows, unexecuted here.

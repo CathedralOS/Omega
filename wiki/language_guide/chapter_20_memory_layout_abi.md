@@ -641,7 +641,7 @@ thereby become interchangeable aliases.
 
 More complex conversion can use a checked adapter. The
 [layout contract](../spec/layouts/plans.md#placement-vocabulary) owns encoding;
-the [implementation note](../../omega-rust/psi/compilation/compile-time/layouts.md)
+the [implementation note](../../omega-rust/psi/compilation/build-time-evaluation/layouts.md)
 records supported widths and materialization shapes without narrowing the language.
 
 ### Loans, aliases, and phases
@@ -741,7 +741,7 @@ Ordinary Stable recasts retain restrictions on the same storage. Recast a detach
 snapshot under its own contract, or establish another operation-governed view
 through legitimate underlying authority. See the
 [recast judgment](../spec/layouts/recasts.md) and
-[implementation limits](../../omega-rust/psi/compilation/checking/recasts.md).
+[implementation limits](../../omega-rust/psi/compilation/validation/recasts.md).
 
 ### Initializing a stricter shape in byte backing
 

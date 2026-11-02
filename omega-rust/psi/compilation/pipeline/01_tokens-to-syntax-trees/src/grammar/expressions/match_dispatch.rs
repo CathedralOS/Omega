@@ -155,6 +155,7 @@ fn parse_pattern<'tokens, 'source>(
     };
     Ok((
         MatchPattern::Destructure(TableDestructurePattern {
+            application_type: Default::default(),
             head,
             fields: fields_span,
             has_rest: fields.has_rest,

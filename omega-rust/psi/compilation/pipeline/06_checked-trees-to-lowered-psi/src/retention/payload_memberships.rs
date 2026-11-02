@@ -14,7 +14,7 @@
 //! rows already seeded by earlier emission. It does not follow a
 //! descriptor to its backing, infer membership from equal storage geometry, or
 //! rewrite a block arrival's intended receiving contract.
-use crate::lowering_error::LoweringError;
+use crate::shared::lowering_error::LoweringError;
 mod membership_reachability;
 mod operand_memberships;
 mod view_memberships;
@@ -123,17 +123,19 @@ pub(crate) fn retain(module: &mut TerminalModule) -> Result<(), LoweringError> {
                         }) {
                             copies.push((block_index, ordinal, contract));
                         }
-                        if let Some(contract) = phase_profile::scope("psi.06.payload.operand", || {
-                            operand_memberships::retained(
-                                module,
-                                machine,
-                                operation,
-                                position,
-                                &mut analysis,
-                                &mut history,
-                                &memberships,
-                            )
-                        }) {
+                        if let Some(contract) =
+                            phase_profile::scope("psi.06.payload.operand", || {
+                                operand_memberships::retained(
+                                    module,
+                                    machine,
+                                    operation,
+                                    position,
+                                    &mut analysis,
+                                    &mut history,
+                                    &memberships,
+                                )
+                            })
+                        {
                             copies.push((block_index, ordinal, contract));
                         }
                         // Every value transfer observes its source at this operation,

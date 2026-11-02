@@ -674,6 +674,90 @@ mod tests {
         }
     }
 
+    #[test]
+    fn opaque_inputs_retain_write_only_authority_through_stored_descriptors() {
+        let mut program = program();
+        let catalogs = program.fixture_module_mut();
+        let mut boundary = boundary_declaration(catalogs, BoundaryMachineId::new(2).unwrap());
+        let scalar = StructuralTypeId::new(1).unwrap();
+        let descriptor = StructuralTypeId::new(2).unwrap();
+        let array = StructuralTypeId::new(3).unwrap();
+        let borrowed = StructuralTypeId::new(4).unwrap();
+        let declaration = |id, shape| terminal_psi::StructuralTypeDeclaration {
+            quotient_carrier: None,
+            id,
+            identity: terminal_psi::TerminalIdentityIndex(0),
+            owns_linear_claim: false,
+            copyable: false,
+            no_code_affine_cleanup: true,
+            descriptor_cleanup: true,
+            shape,
+            scalar_restriction: None,
+        };
+        catalogs.structural_types = vec![
+            declaration(
+                scalar,
+                terminal_psi::StructuralTypeShape::PrimitiveScalar(
+                    semantic_vocabulary::ScalarType::Boolean,
+                ),
+            ),
+            declaration(
+                descriptor,
+                terminal_psi::StructuralTypeShape::Reference {
+                    referent: scalar,
+                    access: StructuralAccess::WriteOnlyBorrow,
+                },
+            ),
+            declaration(
+                array,
+                terminal_psi::StructuralTypeShape::FixedArray {
+                    element: descriptor,
+                    length: terminal_psi::ArrayExtent::Literal(0),
+                },
+            ),
+            declaration(
+                borrowed,
+                terminal_psi::StructuralTypeShape::Reference {
+                    referent: descriptor,
+                    access: StructuralAccess::SharedBorrow,
+                },
+            ),
+        ];
+        boundary
+            .structural_parameters
+            .push(terminal_psi::StructuralParameterDeclaration {
+                place: PlaceId::new(1).unwrap(),
+                position: 0,
+                structural_type: scalar,
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                access: StructuralAccess::WriteOnlyBorrow,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+            });
+        assert!(boundary.requires_checked_non_observation(|id| catalogs.structural_type(id)));
+        boundary.structural_parameters[0].access = StructuralAccess::SharedBorrow;
+        assert!(!boundary.requires_checked_non_observation(|id| catalogs.structural_type(id)));
+        // An empty owned array stores no descriptor. Changing only its extent
+        // introduces the same write-only input obligation as a direct lend.
+        boundary.structural_parameters[0].access = StructuralAccess::Owned;
+        boundary.structural_parameters[0].structural_type = array;
+        assert!(!boundary.requires_checked_non_observation(|id| catalogs.structural_type(id)));
+        catalogs.structural_types[2].shape = terminal_psi::StructuralTypeShape::FixedArray {
+            element: descriptor,
+            length: terminal_psi::ArrayExtent::Literal(1),
+        };
+        assert!(boundary.requires_checked_non_observation(|id| catalogs.structural_type(id)));
+        // A readable outer descriptor grants no observation of its nested
+        // write-only descriptor's referent.
+        boundary.structural_parameters[0].structural_type = borrowed;
+        assert!(boundary.requires_checked_non_observation(|id| catalogs.structural_type(id)));
+        catalogs.structural_types[1].shape = terminal_psi::StructuralTypeShape::Reference {
+            referent: borrowed,
+            access: StructuralAccess::SharedBorrow,
+        };
+        assert!(!boundary.requires_checked_non_observation(|id| catalogs.structural_type(id)));
+    }
+
     fn install_process_exit_caller(
         program: &mut AdmittedTerminalProgram<'_>,
         caller: u64,

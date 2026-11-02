@@ -21,7 +21,10 @@ mod arrival_storage;
 mod storage_dependencies;
 pub use storage_dependencies::{inline_storage_extent_dependencies, storage_operand_dependencies};
 mod calling_storage;
-pub use calling_storage::{callback_storage_has_slots, calling_abi_extent_dependencies};
+pub use calling_storage::{
+    ForeignRecordStorage, callback_storage_has_slots, calling_abi_extent_dependencies,
+    foreign_opaque_carrier, foreign_record_storage, foreign_storage_extent_dependencies,
+};
 pub mod borrowed_storage;
 mod byte_carriers;
 mod byte_sequence_concatenation;

@@ -294,7 +294,6 @@ fn unsupported_descendants_do_not_gain_owned_value_admission() {
             access: terminal_psi::StructuralAccess::SharedBorrow,
         },
         StructuralTypeShape::Sum { cases: Vec::new() },
-        StructuralTypeShape::BindingCarrier,
     ] {
         let mut fixture = Fixture::nested();
         fixture.declarations[1].shape = shape;

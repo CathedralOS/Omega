@@ -866,6 +866,7 @@ impl ExpressionTable {
             ExpressionNode::StructLiteral(literal) => {
                 let fields = self.copy_struct_literal_fields(source, &literal, retain, copies);
                 self.insert(ExpressionNode::StructLiteral(TableStructLiteral {
+                    application_type: literal.application_type,
                     type_name: literal.type_name,
                     type_symbol: literal.type_symbol,
                     case_name: literal.case_name,
@@ -940,6 +941,28 @@ impl ExpressionTable {
             }
         }
         copied
+    }
+
+    pub(crate) fn copy_transition_pattern_from(
+        &mut self,
+        source: &ExpressionTable,
+        retained: crate::statement::TransitionPattern,
+    ) -> crate::statement::TransitionPattern {
+        let copies = &mut CopyGraph::default();
+        let source = CopySource::Table(source);
+        let subject = self.copy_subtree_with_occurrences(
+            source,
+            retained.subject,
+            &retain_every_field,
+            copies,
+        );
+        let pattern =
+            self.copy_destructure_pattern(source, retained.pattern, &retain_every_field, copies);
+        crate::statement::TransitionPattern {
+            is_structural: retained.is_structural,
+            subject,
+            pattern,
+        }
     }
 
     fn copy_match_subject<RetainField>(
@@ -1018,6 +1041,7 @@ impl ExpressionTable {
             .to_vec();
         let proof_selectors = self.insert_match_proof_selectors(selectors);
         super::TableDestructurePattern {
+            application_type: pattern.application_type,
             head,
             fields,
             has_rest: pattern.has_rest,

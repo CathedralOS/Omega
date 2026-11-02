@@ -101,6 +101,32 @@ pub struct FlowPermissionEventFact {
     pub obligation_live: bool,
 }
 
+/// Where one live owned linear transfer lands within the operand that
+/// consumed it. Checking resolves the operand's owning place, root carrier,
+/// transfer storage and claim path once, after the permission ledger is final,
+/// so lowering joins a consuming operand to its claims without re-deriving any
+/// of them. The path names storage only; the event still owns the claim.
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+pub struct FlowOwnedTransferPath {
+    pub event: arena::Handle<FlowPermissionEventFact>,
+    pub placement: FlowOwnedTransferPlacement,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
+pub enum FlowOwnedTransferPlacement {
+    /// The event has no consuming statement, or its operand's owning place,
+    /// root carrier, transfer storage or linear claim path does not resolve.
+    #[default]
+    Unresolved,
+    /// The event's root is not the operand's owning root, such as the read
+    /// anchor of a saved subject. It transfers nothing out of this operand.
+    OtherRoot,
+    /// The claim is under the operand's root but outside the operand's storage.
+    Outside,
+    /// The claim's path relative to the operand's storage.
+    Within(HandleSpan<super::CheckedUnitStructuralPathSegment>),
+}
+
 /// One owned expression destination whose incoming transfers follow its retained
 /// structural-value selection topology. These transfers are conditional and
 /// must never be replayed as the unconditional permission stream.

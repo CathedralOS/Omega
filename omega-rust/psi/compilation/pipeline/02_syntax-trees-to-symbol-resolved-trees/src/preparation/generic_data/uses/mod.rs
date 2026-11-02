@@ -1,5 +1,6 @@
 //! Relabel authored uses only from the exact expected-type context available here.
 
+mod alias_constructors;
 mod assignments;
 mod calls;
 mod constructors;

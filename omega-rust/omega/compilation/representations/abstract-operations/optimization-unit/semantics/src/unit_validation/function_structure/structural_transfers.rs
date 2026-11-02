@@ -363,7 +363,7 @@ pub(super) fn validate(
 }
 
 /// Nominal aggregate arrivals keep source-carried qualifications. Byte,
-/// element-view, reference and binding carriers retain their distinct
+/// element-view and reference carriers retain their distinct
 /// content, backing and permission contracts. Catalog validity and required
 /// membership correspondence grant no new membership or issuer authority;
 /// live custody remains the separate current-ownership transaction.

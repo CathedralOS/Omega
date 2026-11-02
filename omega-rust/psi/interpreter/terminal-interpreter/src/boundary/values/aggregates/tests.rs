@@ -319,7 +319,6 @@ fn zero_array_dimensions_do_not_hide_missing_cyclic_or_unsupported_elements() {
             access: terminal_psi::StructuralAccess::SharedBorrow,
         },
         StructuralTypeShape::Sum { cases: Vec::new() },
-        StructuralTypeShape::BindingCarrier,
     ] {
         let declarations = [array(1, 2, 0), declaration(2, unsupported)];
         assert!(

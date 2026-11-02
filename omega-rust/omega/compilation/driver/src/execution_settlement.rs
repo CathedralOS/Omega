@@ -482,7 +482,6 @@ fn prepare_target_provider_selection(
         &build_config.accepted_component_assumption_digests(),
         boundary_calling_plan_realizations,
         code,
-        &build_config.opaque_representation_selections,
     )
 }
 

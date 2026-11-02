@@ -1031,9 +1031,7 @@ fn is_material_write_only_type(
                 }
             }
             StructuralTypeShape::FixedArray { element, .. } => pending.push(*element),
-            // Service authority is not write-only material storage.
-            StructuralTypeShape::BindingCarrier
-            | StructuralTypeShape::Reference { .. }
+            StructuralTypeShape::Reference { .. }
             | StructuralTypeShape::ByteSequence(_)
             | StructuralTypeShape::ElementView { .. }
             | terminal_psi::sum_or_mixed_shape_pattern!() => return false,

@@ -8,10 +8,10 @@ use super::{
     Argument, CheckedScalarExpressionRole, Expansion, LoweringError, QualifiedScalarType, Site,
     storage, unsupported,
 };
-use crate::checked_facts::value_facts;
 use crate::scalar_lowering::branch_states::prepared::{
     LoweredScalarBranchState, LoweredScalarEffect,
 };
+use crate::shared::checked_facts::value_facts;
 
 impl Expansion<'_> {
     #[allow(clippy::too_many_arguments)]

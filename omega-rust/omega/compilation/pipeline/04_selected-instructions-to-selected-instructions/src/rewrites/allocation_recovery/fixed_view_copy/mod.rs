@@ -10,7 +10,7 @@ use register_model::{
     ValidatedRegisterReservationProfile,
 };
 
-use target_operations_to_selected_instructions::ValidatedSelectedInstructions;
+use selected_instructions::SelectedProgram;
 
 pub(crate) mod compute;
 mod emission;
@@ -33,7 +33,7 @@ use selected_instructions::{
 /// Apply one explicitly selected fixed-view copy policy and independently
 /// reconstruct its complete selected CFG.
 pub(crate) fn materialize_fixed_view_copies(
-    selected: &ValidatedSelectedInstructions,
+    selected: &SelectedProgram,
     ranges: &ValidatedLiveRanges,
     legality: &ValidatedAllocationLegality,
     fixed: &ValidatedFixedPrecoloredIntervals,

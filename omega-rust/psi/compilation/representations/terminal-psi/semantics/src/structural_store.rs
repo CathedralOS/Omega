@@ -118,7 +118,6 @@ fn disposable_storage<'types>(
             descriptor_cleanup && *access != terminal_psi::StructuralAccess::Owned
         }
         StructuralTypeShape::ElementView { .. } => descriptor_cleanup,
-        StructuralTypeShape::BindingCarrier => false,
     };
     visiting.pop();
     valid

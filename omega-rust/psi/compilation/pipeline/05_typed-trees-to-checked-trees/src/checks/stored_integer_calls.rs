@@ -208,6 +208,30 @@ impl<'a> Admission<'a> {
         if !self.call_may_require_fit(state, call, &origins)? {
             return Ok(());
         }
+        // A requirement publishes a contract without a body. Build selects one
+        // implementation per target, so each one performs these same captured
+        // operands; an opaque implementation refuses in `visit_target`. An
+        // open template body has no concrete write types to judge, and its
+        // specialization is not the row this query names, so it refuses too.
+        let implementations =
+            validation::requirement_backing_machines(self.program, call.target_symbol);
+        if !implementations.is_empty() {
+            for implementation in implementations {
+                let target = self
+                    .program
+                    .machine_by_symbol(implementation)
+                    .ok_or("requirement implementation body is absent")?;
+                if self
+                    .program
+                    .typed_program()
+                    .callable_body_has_open_parameters(target)
+                {
+                    return self.check_unknown_call(state, call, &origins);
+                }
+                self.visit_target(state, call, target, origins.clone())?;
+            }
+            return Ok(());
+        }
         let Some(symbol) = call_values::target_machine(self.program, call) else {
             return self.check_unknown_call(state, call, &origins);
         };
@@ -503,6 +527,7 @@ impl<'a> Admission<'a> {
         }
         Some(vec![LocalWriteSource {
             invocation_output: None,
+        invocation_result: None,
             is_image_storage: false,
             root,
             segments: place.segments,

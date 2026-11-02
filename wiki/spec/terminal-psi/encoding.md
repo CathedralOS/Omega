@@ -59,7 +59,7 @@ its logical result and obligations; an encoded proof cannot select them.
 Scalar declarations encode a qualification-set identity after their payload
 type. Zero denotes the bare set and has no catalog row. The module's scalar
 qualification catalog follows the entry identity as six counted tables, in the
-order below. This layout uses semantic format marker 229 even when every table
+order below. This layout uses semantic format marker 235 even when every table
 is empty; older markers reject rather than selecting an optional dialect:
 
 | Catalog table | Row fields |
@@ -792,7 +792,7 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 226 + `u16` vocabulary
+Module bytes are `PSITERM\0` + `u16` format marker 235 + `u16` vocabulary
 marker 130 + a Boolean default-entry presence flag, followed by the entry
 callable when present and the module tables in the declaration order below.
 The entry callable uses its ordinary machine-or-boundary tag and identifier
@@ -904,6 +904,26 @@ Older markers are rejected before their payload is read.
 | 43 | callback applications | counted checked registrar occurrences |
 | 44 | boundary application candidates | counted checked bodies for closed applications |
 | 45 | task activation demands | counted task activation demand rows |
+
+Marker 235 combines the physical declaration-owner eligibility and complete
+logical ABI census with retained compiler-evaluation facts. Its bytes are not
+compatible with either standalone marker 233 or standalone marker 234.
+
+The compiler-evaluation facts are retained independently of executable
+signature availability. Each callable header contains either a deferred refusal
+or its declaration custody, effective service reach, suspension/blocking flags,
+body-local termination judgment, entry-premise flag, linear/static closure
+refusals and normalized package-selection requests. The proof scope also retains
+successful recursive components with exact member and operational-call ordinals,
+and pending target-condition owners. Calling policy instances name their exact
+proof declaration independently of their optional emitted callable.
+
+These records describe checking results; decoding grants no invocation,
+provider or package authority. Before evaluation, admission composes the actual
+target/provider/static-binder closure, verifies recurrent edges against the
+retained whole-component proof, fences pending conditions and rechecks package
+requests against the live authority. A single-use admission is bound to that
+artifact, target, declaration and complete installed provider selection.
 
 Marker 227 separates declaration ABIs from boundary invocation contracts. An
 ABI row retains its nonzero `u64` application id, exact requirement and complete
@@ -1393,16 +1413,11 @@ bound strictly ordered.
 | 7 | Reference | referent structural type id + structural access |
 | 8 | ElementView | element structural type id |
 | 9 | retired | former Fused-only carrier; reject |
-| 11 | BindingCarrier | no encoded payload; logical nonconstructible binding, no storage authorization |
+| 11 | retired | former routed `Binding<R>` carrier; reject |
 
-The binding marker retains logical custody independently of provider selection.
-It is not an empty record: record construction, zero initialization, and byte
-observation cannot establish or inspect a binding. Existing values transfer or
-borrow under their exact occurrence and requirement identity. This declaration
-does not authorize payload erasure. Realization must establish each supplied
-root and select its storage; the current native entry implementation supports
-Fused establishment only. Independent storage cannot inherit that zero-payload
-layout. Tag 9 is retired rather than reinterpreted as this weaker declaration.
+Tags 9 and 11 are retired: a decoder rejects them rather than reinterpreting
+them. Checking rejects a boundary trait in every runtime value position, so no
+structural declaration carries a supplied provider.
 
 <!-- byte-sequence-carrier-tags -->
 

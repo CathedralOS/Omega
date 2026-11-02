@@ -217,6 +217,23 @@ pub(crate) fn ordinary_parameter_path(
         {
             argument.slice_view_projection_path()
         }
+        // Copying a selected value does not move its containing parameter.
+        // Readable owner/borrow custody supplies the observation; the selected
+        // endpoint must itself be a reusable stored value. The exact path
+        // retains Case/Field identities and runtime selectors, so neither
+        // copyability nor an enclosing borrow substitutes for active-case
+        // evidence or the call's recorded operand evaluation.
+        ArgumentPathShape::Static { .. } | ArgumentPathShape::RuntimeIndexed
+            if checked_body
+                && matches!(access, Owned | MutableBorrow | SharedBorrow)
+                && custody.target_access? == Owned
+                && validation::reference_result_custody::source_value_is_copied(
+                    argument.program,
+                    argument.target,
+                ) =>
+        {
+            argument.exact_projection_path()
+        }
         // An owned affine member moves into an owned formal. The exact path
         // walker retains a Case segment's declaration; checked permissions own
         // membership, and execution rejoins the stored discriminator. The guard

@@ -494,7 +494,7 @@ def zone(directory: str) -> str:
 
 # Psi crates Omega realization may read: Terminal installation admission and
 # the shared mathematical checker (check_native_boundary.py's permitted owners).
-OMEGA_READABLE_PSI = ("omega-rust/psi/compilation/checking/terminal-installation",
+OMEGA_READABLE_PSI = ("omega-rust/psi/compilation/validation/terminal-installation",
                       "omega-rust/psi/compilation/proof/admission")
 
 

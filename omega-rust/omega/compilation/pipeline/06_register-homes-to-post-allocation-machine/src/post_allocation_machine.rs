@@ -1,8 +1,7 @@
 //! Optimizer module role: executable entrance. Current register homes to machine facts.
 //!
-//! Allocation supplies the same current-program view after every rewrite.
-//! Machine analysis consumes only current facts and retains allocation
-//! evidence separately. The stage builds the baseline plan under the
+//! Allocation supplies the current program with its admitted facts, including
+//! the program's machine effects, as representation data. The stage builds the baseline plan under the
 //! legality rule, executes the post-allocation optimization phase over it
 //! (`optimization`), then seals the result. This file owns the sealed plan,
 //! the phase run it carries, and their custody receipt.
@@ -16,28 +15,23 @@ use crate::optimization::{
 use crate::plan::{
     PlanSources, compute_post_allocation_machine_plan, seal_post_allocation_machine_plan,
 };
-use optimization_core::OptimizationSelectionIdentity;
-use physical_instructions::PostAllocationMachineIdentity;
-use selected_instructions_to_register_homes::MachineEffectStageError;
-use selected_instructions_to_register_homes::{
-    AllocationEvidence, AllocationOutput, ValidatedPreAllocationMachineEffects,
-    analyze_machine_effects,
+use optimization_core::{
+    OptimizationSelectionIdentity, OptimizationSelections, OptimizationWorkBudget,
 };
+use physical_instructions::PostAllocationMachineIdentity;
+use register_environment::ValidatedTargetRegisterEnvironment;
+use register_homes::AllocatedProgramFacts;
+use selected_instructions::PreAllocationMachineEffectPlan;
+use std::sync::Arc;
 
 pub fn stage_optimized_post_allocation_machine_plan(
-    allocation: &AllocationOutput<'_>,
+    allocation: AllocatedProgramFacts<'_>,
+    environment: &ValidatedTargetRegisterEnvironment,
+    selections: &OptimizationSelections,
+    budget: OptimizationWorkBudget,
 ) -> Result<StagedOptimizedPostAllocationMachinePlan, OptimizedPostAllocationMachinePipelineError> {
-    let selected = allocation.selected();
-    let environment = allocation.register_environment();
-    let effects = analyze_machine_effects(selected, environment)
-        .map_err(OptimizedPostAllocationMachinePipelineError::MachineEffects)?;
     let mut machine = compute_post_allocation_machine_plan(&PlanSources {
-        selected,
-        effects: &effects,
-        ranges: allocation.ranges(),
-        legality: allocation.legality(),
-        homes: allocation.homes(),
-        manifest: allocation.post_allocation_manifest(),
+        allocation,
         register_environment: environment.identity(),
         physical: environment.physical(),
         constraints: environment.constraints(),
@@ -45,29 +39,27 @@ pub fn stage_optimized_post_allocation_machine_plan(
     .map_err(OptimizedPostAllocationMachinePipelineError::PostAllocation)?;
     let optimization = execute_post_allocation_machine_optimizations(
         &mut machine,
-        allocation.selected_plan(),
-        &effects,
-        allocation.selections(),
-        allocation.budget_per_pass(),
+        allocation.selected.plan,
+        allocation.effects,
+        selections,
+        budget,
     )
     .map_err(OptimizedPostAllocationMachinePipelineError::Optimization)?;
     let machine = seal_post_allocation_machine_plan(machine)
         .map_err(OptimizedPostAllocationMachinePipelineError::PostAllocation)?;
     Ok(seal_staged_post_allocation_machine(
-        allocation.evidence().clone(),
-        effects,
+        Arc::clone(allocation.effects),
         machine,
         optimization,
     ))
 }
 
 fn seal_staged_post_allocation_machine(
-    source: AllocationEvidence,
-    effects: ValidatedPreAllocationMachineEffects,
+    effects: Arc<PreAllocationMachineEffectPlan>,
     machine: ValidatedPostAllocationMachinePlan,
     optimization: PostAllocationMachineOptimizationRun,
 ) -> StagedOptimizedPostAllocationMachinePlan {
-    let custody = post_allocation_machine_custody(source, &effects, &machine, &optimization);
+    let custody = post_allocation_machine_custody(&effects, &machine, &optimization);
     StagedOptimizedPostAllocationMachinePlan {
         effects,
         machine,
@@ -77,14 +69,12 @@ fn seal_staged_post_allocation_machine(
 }
 
 fn post_allocation_machine_custody(
-    source: AllocationEvidence,
-    effects: &ValidatedPreAllocationMachineEffects,
+    effects: &PreAllocationMachineEffectPlan,
     machine: &ValidatedPostAllocationMachinePlan,
     optimization: &PostAllocationMachineOptimizationRun,
 ) -> StagedOptimizedPostAllocationMachineCustodyReceipt {
     StagedOptimizedPostAllocationMachineCustodyReceipt {
-        source,
-        effects: effects.receipt().identity(),
+        effects: effects.identity,
         machine: machine.receipt().identity(),
         phase_selections: optimization.phase_selections(),
         optimization_source: optimization.source(),
@@ -96,12 +86,12 @@ fn post_allocation_machine_custody(
     }
 }
 
-/// Home-aware machine facts over the current allocation, with the allocation
-/// evidence they were built from and the post-allocation phase run that
+/// Home-aware machine facts over the current allocation, with the machine
+/// effects they were built from and the post-allocation phase run that
 /// produced them. This remains non-emission and non-publication authority.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StagedOptimizedPostAllocationMachinePlan {
-    effects: ValidatedPreAllocationMachineEffects,
+    effects: Arc<PreAllocationMachineEffectPlan>,
     machine: ValidatedPostAllocationMachinePlan,
     optimization: PostAllocationMachineOptimizationRun,
     custody: StagedOptimizedPostAllocationMachineCustodyReceipt,
@@ -109,7 +99,7 @@ pub struct StagedOptimizedPostAllocationMachinePlan {
 
 impl StagedOptimizedPostAllocationMachinePlan {
     borrowed_accessors! {
-        effects: ValidatedPreAllocationMachineEffects,
+        effects: Arc<PreAllocationMachineEffectPlan>,
         machine: ValidatedPostAllocationMachinePlan,
         /// The post-allocation phase execution whose result `machine` is.
         optimization: PostAllocationMachineOptimizationRun,
@@ -119,7 +109,6 @@ impl StagedOptimizedPostAllocationMachinePlan {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StagedOptimizedPostAllocationMachineCustodyReceipt {
-    source: AllocationEvidence,
     effects: selected_instructions::PreAllocationMachineEffectIdentity,
     machine: PostAllocationMachineIdentity,
     phase_selections: OptimizationSelectionIdentity,
@@ -132,9 +121,6 @@ pub struct StagedOptimizedPostAllocationMachineCustodyReceipt {
 }
 
 impl StagedOptimizedPostAllocationMachineCustodyReceipt {
-    borrowed_accessors! {
-        source: AllocationEvidence,
-    }
     copied_accessors! {
         effects: selected_instructions::PreAllocationMachineEffectIdentity,
         machine: PostAllocationMachineIdentity,
@@ -152,7 +138,6 @@ impl StagedOptimizedPostAllocationMachineCustodyReceipt {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptimizedPostAllocationMachinePipelineError {
-    MachineEffects(MachineEffectStageError),
     PostAllocation(PostAllocationMachineError),
     Optimization(PostAllocationMachineOptimizationError),
 }

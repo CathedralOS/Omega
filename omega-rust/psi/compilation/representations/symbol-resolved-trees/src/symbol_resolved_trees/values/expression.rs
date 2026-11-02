@@ -198,9 +198,20 @@ impl ExpressionTable {
         &mut self,
         subject: ExpressionHandle,
     ) -> Handle<MatchSubjectCapture> {
-        self.spans
-            .match_subjects
-            .insert(MatchSubjectCapture { subject })
+        self.spans.match_subjects.insert(MatchSubjectCapture {
+            purpose: SubjectCapturePurpose::Match,
+            subject,
+        })
+    }
+
+    pub fn insert_transition_subject(
+        &mut self,
+        subject: ExpressionHandle,
+    ) -> Handle<MatchSubjectCapture> {
+        self.spans.match_subjects.insert(MatchSubjectCapture {
+            purpose: SubjectCapturePurpose::Transition,
+            subject,
+        })
     }
 
     pub fn match_subject(&self, capture: Handle<MatchSubjectCapture>) -> &MatchSubjectCapture {
@@ -784,6 +795,8 @@ pub struct TableRangeExpression {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct TableMembershipExpression {
+    /// A retained pattern observes a tag; it is not an authored `in` or value equality.
+    pub is_pattern: bool,
     pub value: ExpressionHandle,
     pub domain: HandleSpan<DiagnosticName>,
     /// Exact declared-domain identity. Invalid for implicit `Type::Case` domains.
@@ -886,6 +899,8 @@ impl TableNamePath {
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, compiler_storage::Record)]
 pub struct TableStructLiteral {
+    /// Exact inferred source type use, including transparent-alias formation.
+    pub application_type: Handle<crate::types::TypeReference>,
     pub type_name: DiagnosticName,
     pub type_symbol: SymbolHandle,
     /// `Some` when the literal constructs a CASE of `type_name`
@@ -967,7 +982,16 @@ pub struct TableMatchExpression {
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
+pub enum SubjectCapturePurpose {
+    #[default]
+    Match,
+    /// The transition already established its ordinary DispatchSubject local.
+    Transition,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct MatchSubjectCapture {
+    pub purpose: SubjectCapturePurpose,
     pub subject: ExpressionHandle,
 }
 
@@ -994,6 +1018,8 @@ pub enum MatchPattern {
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TableDestructurePattern {
+    /// Exact inferred source type use, including transparent-alias formation.
+    pub application_type: Handle<crate::types::TypeReference>,
     pub head: ExpressionHandle,
     pub fields: HandleSpan<TableMatchField>,
     pub has_rest: bool,

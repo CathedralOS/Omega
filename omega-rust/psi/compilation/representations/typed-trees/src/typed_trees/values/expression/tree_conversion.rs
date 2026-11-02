@@ -249,6 +249,7 @@ impl ExpressionTable {
             Expression::StructLiteral(struct_literal) => {
                 let fields = self.insert_struct_field_span_from_tree(&struct_literal.fields);
                 self.insert(ExpressionNode::StructLiteral(TableStructLiteral {
+                    application_type: Default::default(),
                     type_name: struct_literal.type_name.clone(),
                     type_symbol: SymbolHandle::invalid(),
                     case_name: struct_literal.case_name.clone(),

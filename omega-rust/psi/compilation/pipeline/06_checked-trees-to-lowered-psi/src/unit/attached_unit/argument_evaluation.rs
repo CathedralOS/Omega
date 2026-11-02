@@ -16,7 +16,6 @@ use super::{
     direct_expression_contains_short_circuit, edge_id, emit_direct_expression,
     terminal_scalar_type, unsupported, validate_direct_parameter_types, value_id,
 };
-use crate::checked_facts::value_facts;
 use crate::emission::affine_cleanup::structural_operands;
 use crate::emission::borrowed_window::terminal_multiplicity;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
@@ -40,6 +39,7 @@ use crate::expression_preparation::qualifications::received_scalar_type;
 use crate::scalar_lowering::branch_states::prepared::scalar_state_emission_order;
 use crate::scalar_lowering::contracts::LoweredProofTerm;
 use crate::scalar_lowering::contracts::{erased_proof_formal_declarations, lowered_proof_terms};
+use crate::shared::checked_facts::value_facts;
 use crate::unit::attached_unit::OperationEnvironment;
 use checked_trees::CheckedCallScalarArgument;
 use state_emission::emit_state;

@@ -109,7 +109,20 @@ impl ExpressionTable {
         &mut self,
         subject: ExpressionHandle,
     ) -> Handle<MatchSubjectCapture> {
-        self.match_subjects.insert(MatchSubjectCapture { subject })
+        self.match_subjects.insert(MatchSubjectCapture {
+            purpose: SubjectCapturePurpose::Match,
+            subject,
+        })
+    }
+
+    pub fn insert_transition_subject(
+        &mut self,
+        subject: ExpressionHandle,
+    ) -> Handle<MatchSubjectCapture> {
+        self.match_subjects.insert(MatchSubjectCapture {
+            purpose: SubjectCapturePurpose::Transition,
+            subject,
+        })
     }
 
     pub fn match_subject(&self, capture: Handle<MatchSubjectCapture>) -> &MatchSubjectCapture {
@@ -510,6 +523,8 @@ pub struct EvidenceProjection {
 
 #[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, compiler_storage::Record)]
 pub struct TableStructLiteral {
+    /// Exact inferred source type use, including transparent-alias formation.
+    pub application_type: crate::types::TypeReferenceHandle,
     /// Complete authored static name; resolution decides whether it selects
     /// a record or a case. Path length does not determine that distinction.
     pub constructor_name: Identifier,
@@ -519,6 +534,7 @@ pub struct TableStructLiteral {
 impl Default for TableStructLiteral {
     fn default() -> Self {
         Self {
+            application_type: Default::default(),
             constructor_name: Identifier::generated(""),
             fields: HandleSpan::empty(),
         }
@@ -600,7 +616,25 @@ pub struct TableMatchExpression {
     syntax_trees_derive::PlainSyntaxEquivalent,
     compiler_storage::Record,
 )]
+pub enum SubjectCapturePurpose {
+    #[default]
+    Match,
+    /// The transition already established its ordinary DispatchSubject local.
+    Transition,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    Default,
+    PartialEq,
+    Eq,
+    syntax_trees_derive::PlainSyntaxEquivalent,
+    compiler_storage::Record,
+)]
 pub struct MatchSubjectCapture {
+    pub purpose: SubjectCapturePurpose,
     pub subject: ExpressionHandle,
 }
 
@@ -650,6 +684,8 @@ pub enum MatchPattern {
 /// spelling does not create another value owner or grant reference access.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TableDestructurePattern {
+    /// Exact inferred source type use, including transparent-alias formation.
+    pub application_type: crate::types::TypeReferenceHandle,
     pub head: ExpressionHandle,
     pub fields: HandleSpan<TableMatchField>,
     pub has_rest: bool,

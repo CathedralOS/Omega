@@ -241,7 +241,19 @@ impl TypedTreeTables {
                                 .copy_from(&source_tables.expression_table, guard),
                         ),
                     };
+                    let patterns = source
+                        .transition_patterns(transition.patterns)
+                        .iter()
+                        .map(|pattern| {
+                            self.expression_table.copy_transition_pattern_from(
+                                &source_tables.expression_table,
+                                *pattern,
+                            )
+                        })
+                        .collect::<Vec<_>>();
+                    let patterns = self.statement_table.insert_transition_patterns(patterns);
                     StatementNode::Transition(TableTransition {
+                        patterns,
                         target,
                         continuation,
                         guard,
@@ -395,6 +407,35 @@ impl TypedTreeTables {
                     current.pattern = pattern;
                 }
                 StatementNode::Transition(transition) => {
+                    for retained in self
+                        .statement_table
+                        .transition_patterns(transition.patterns)
+                        .to_vec()
+                    {
+                        self.expression_table
+                            .remap_symbols_in(retained.subject, symbols);
+                        for expression in [
+                            retained.pattern.head,
+                            retained.pattern.guard,
+                            retained.pattern.condition,
+                        ] {
+                            self.expression_table.remap_symbols_in(expression, symbols);
+                        }
+                        for handle in retained.pattern.fields.handles() {
+                            let field = self.expression_table.match_fields(retained.pattern.fields)
+                                [(handle.arena_index()
+                                    - retained.pattern.fields.start().arena_index())
+                                    as usize]
+                                .clone();
+                            if let crate::expression::MatchFieldAction::Equal(value) = field.action
+                            {
+                                self.expression_table.remap_symbols_in(value, symbols);
+                            }
+                            self.expression_table.match_field_mut(handle).field_symbol =
+                                remapped(field.field_symbol, symbols);
+                        }
+                    }
+
                     self.statement_table.remap_transition_target_symbols(
                         transition.target,
                         &mut self.expression_table,

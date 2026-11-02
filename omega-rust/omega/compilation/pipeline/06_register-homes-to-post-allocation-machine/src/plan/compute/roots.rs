@@ -1,71 +1,70 @@
 //! Identity-root and structural-roster admission before construction.
 
 use crate::PostAllocationMachineError;
-use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
+use register_homes::AllocatedProgramFacts;
 
 use super::PlanSources;
 
-pub(super) fn validate<S: ValidatedSelectedAnalysis>(
-    sources: &PlanSources<'_, S>,
-) -> Result<(), PostAllocationMachineError> {
+pub(super) fn validate(sources: &PlanSources<'_>) -> Result<(), PostAllocationMachineError> {
     let PlanSources {
-        selected,
-        effects,
-        ranges,
-        legality,
-        homes,
-        manifest,
+        allocation,
         register_environment,
         physical,
         constraints,
     } = *sources;
-    if effects.receipt().selected() != selected.selected_identity()
-        || ranges.receipt().selected() != selected.selected_identity()
-    {
+    let AllocatedProgramFacts {
+        selected,
+        effects,
+        ranges,
+        ranges_identity,
+        legality,
+        legality_identity,
+        homes,
+        homes_identity,
+        manifest,
+    } = allocation;
+    if effects.selected != selected.identity || ranges.selected != selected.identity {
         return Err(PostAllocationMachineError::SelectedRootMismatch);
     }
-    if effects.plan().optimization_unit != selected.optimization_unit_identity()
-        || ranges.receipt().optimization_unit() != selected.optimization_unit_identity()
+    if effects.optimization_unit != selected.optimization_unit
+        || ranges.optimization_unit != selected.optimization_unit
     {
         return Err(PostAllocationMachineError::OptimizationUnitMismatch);
     }
-    if effects.plan().fuel_schedule != selected.fuel_schedule_identity()
-        || ranges.receipt().fuel_schedule() != selected.fuel_schedule_identity()
+    if effects.fuel_schedule != selected.fuel_schedule
+        || ranges.fuel_schedule != selected.fuel_schedule
     {
         return Err(PostAllocationMachineError::FuelScheduleMismatch);
     }
-    if legality.receipt().ranges() != ranges.receipt().identity() {
+    if legality.ranges != ranges_identity {
         return Err(PostAllocationMachineError::RangeRootMismatch);
     }
-    if homes.receipt().ranges() != ranges.receipt().identity()
-        || homes.receipt().legality() != legality.receipt().identity()
-    {
+    if homes.ranges != ranges_identity || homes.legality != legality_identity {
         return Err(PostAllocationMachineError::HomeRootMismatch);
     }
-    if effects.plan().register_environment != register_environment
-        || legality.receipt().register_environment() != register_environment
-        || homes.receipt().register_environment() != register_environment
+    if effects.register_environment != register_environment
+        || legality.register_environment != register_environment
+        || homes.register_environment != register_environment
     {
         return Err(PostAllocationMachineError::RegisterEnvironmentMismatch);
     }
-    let record = manifest.record();
-    if record.target != selected.selected_plan().target
-        || record.selected != selected.selected_identity()
-        || record.ranges != ranges.receipt().identity()
-        || record.legality != legality.receipt().identity()
-        || record.homes != homes.receipt().identity()
-        || record.register_environment != register_environment
+    if manifest.target != selected.plan.target
+        || manifest.selected != selected.identity
+        || manifest.ranges != ranges_identity
+        || manifest.legality != legality_identity
+        || manifest.homes != homes_identity
+        || manifest.register_environment != register_environment
     {
         return Err(PostAllocationMachineError::PostAllocationManifestMismatch);
     }
-    if effects.plan().target != selected.selected_plan().target {
+    if effects.target != selected.plan.target {
         return Err(PostAllocationMachineError::TargetMismatch);
     }
-    if physical.model().architecture != selected.selected_plan().target.architecture {
+    if physical.model().architecture != selected.plan.target.architecture {
         return Err(PostAllocationMachineError::PhysicalRegisterModelMismatch);
     }
     if constraints.physical_identity() != physical.identity()
-        || constraints.identity() != effects.plan().register_constraints
+        || constraints.identity() != effects.register_constraints
     {
         return Err(PostAllocationMachineError::RegisterConstraintCatalogMismatch);
     }

@@ -13,7 +13,8 @@ use typed_trees::{machine::Machine, statement::StatementNode};
 mod result_candidates;
 
 pub(in crate::flow) use result_candidates::{
-    ReferenceResultSourceKind, call_result_captured_sources, call_result_leaf_sources,
+    ReferenceResultBacking, ReferenceResultSourceKind, call_result_captured_sources,
+    call_result_leaf_sources,
 };
 
 pub(crate) use result_candidates::{

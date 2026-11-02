@@ -5,8 +5,8 @@
 //! restoring the whole observation scope prevents a guard or sibling from
 //! borrowing a value defined only in one of those successors.
 
-use crate::lowering_error::{LoweringError, unsupported};
-use crate::terminal_identities::{mint, operation_id};
+use crate::shared::lowering_error::{LoweringError, unsupported};
+use crate::shared::terminal_identities::{mint, operation_id};
 use lowered_psi::{
     LoweredSourceCallOccurrence, LoweredSourceCallSite, LoweredSourceFrontierBindings,
 };
@@ -16,7 +16,7 @@ use semantic_vocabulary::{
 use terminal_psi::{Operation, OperationKind, OperationResult, ValueDeclaration};
 
 use crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment;
-use crate::terminal_identities::edge_id;
+use crate::shared::terminal_identities::edge_id;
 pub(crate) use lowered_psi::LoweredSourceCallOrigin as SourceInvocation;
 pub(crate) use lowered_psi::LoweredStatementCallCoordinate as SourceCallCoordinate;
 
@@ -40,7 +40,7 @@ pub(crate) struct PendingInvocationCompletion {
 pub(crate) enum PendingInvocationOutcome {
     ModuleNoNormal {
         callee: semantic_vocabulary::MachineId,
-        inputs: crate::direct_calls::ModuleInvocationArguments,
+        inputs: crate::shared::direct_calls::ModuleInvocationArguments,
     },
     External {
         boundary: semantic_vocabulary::BoundaryMachineId,
@@ -613,7 +613,7 @@ impl OperationBuffer {
         &mut self,
         bound_decided: bool,
     ) -> semantic_vocabulary::ObligationId {
-        let obligation = crate::terminal_identities::obligation_id(
+        let obligation = crate::shared::terminal_identities::obligation_id(
             self.next_identity
                 .checked_add(1)
                 .expect("read obligation follows its operation identity"),
@@ -765,10 +765,12 @@ impl OperationBuffer {
         let Some(completion) = self.invocation_completion.take() else {
             return Ok(None);
         };
-        let edge = edge_id(crate::terminal_identities::allocate_dense(next_edge)?);
+        let edge = edge_id(crate::shared::terminal_identities::allocate_dense(
+            next_edge,
+        )?);
         let (site, terminator) = match completion.outcome {
             PendingInvocationOutcome::ModuleNoNormal { callee, inputs } => {
-                let crate::direct_calls::ModuleInvocationArguments {
+                let crate::shared::direct_calls::ModuleInvocationArguments {
                     arguments,
                     erased_arguments,
                     erased_proof_arguments,

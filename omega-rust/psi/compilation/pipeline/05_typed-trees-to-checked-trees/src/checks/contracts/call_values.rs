@@ -35,21 +35,24 @@ pub(crate) fn target_machine(
         })
 }
 
-/// Entry predicates use the selected body's formal identities while source
-/// captures keep the portable call's telescope. Only an exact checked family
-/// member can supply that positional correspondence; other mismatches refuse.
+/// Entry predicates use the performing body's formal identities while source
+/// captures keep the called declaration's telescope. Only an exact checked
+/// family member or a satisfier of the called requirement shares that
+/// positional correspondence; other mismatches refuse.
 fn invocation_body_parameters<'program>(
     program: &'program dyn validation::CheckingInput,
     call: &FlowCallFact,
     body: SymbolHandle,
 ) -> Option<&'program [StateParameter]> {
-    let target = target_machine(program, call)?;
-    if target != body {
-        let interface = program.machine_by_symbol(target)?;
-        validation::target_family_members(program, interface)?
-            .iter()
-            .any(|member| member.machine == body)
-            .then_some(())?;
+    let target = target_machine(program, call);
+    if target != Some(body) {
+        let family_member = target
+            .and_then(|target| program.machine_by_symbol(target))
+            .and_then(|interface| validation::target_family_members(program, interface))
+            .is_some_and(|members| members.iter().any(|member| member.machine == body));
+        let implementation =
+            validation::requirement_backing_machines(program, call.target_symbol).contains(&body);
+        (family_member || implementation).then_some(())?;
     }
     let machine = program.machine_by_symbol(body)?;
     Some(program.state_parameters(program.machine_states(machine).first()?))

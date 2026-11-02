@@ -33,7 +33,7 @@ use checked_trees::typed_trees::types::{
     TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
 use diagnostics::Diagnostic;
-use representation_planning::OpaqueRepresentationSelection;
+use representation_selections::OpaqueRepresentationSelection;
 use symbols::{BuiltinType, SymbolHandle};
 use target::NativeTarget;
 

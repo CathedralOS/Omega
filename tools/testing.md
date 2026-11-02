@@ -130,8 +130,10 @@ ordinary CLI update/review/resume followed by `run --both --keep`; it does not
 repeat that package check in the corpus runner. It freezes
 tracked fixture/library inputs and requires explicit native and Terminal exit
 markers. It preserves raw logs for both review phases; managed acceptance is
-ordinary pending-row decisions, not a copied lock. Stream, inspection and RAM
-oracles are refused before building rather than silently omitted. For example:
+ordinary pending-row decisions, not a copied lock. Plain names in `expected_terminal_inspections.txt` run through public named
+inspection and canonical artifact reload with matching program identity. Stream,
+RAM and debug/runtime/control inspection oracles remain refused before building
+rather than silently omitted. For example:
 
 ```sh
 gh workflow run compiler-pilot.yml --ref work/NAME \
@@ -169,9 +171,19 @@ optimized executable before running its selected witnesses. Changes to the pinne
 toolchain, lockfile or root manifest select a new cache; Cargo rebuilds changed
 compiler inputs.
 
+For successive small Windows PRs in one capability, keep the work branch across
+landings when the Windows namespace has no main cache. GitHub's
+[cache access rules](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching#restrictions-for-accessing-a-cache)
+exclude sibling-branch caches. Land each completed witness separately on that
+branch; the next run can retain its warmed Cargo objects and still authenticates
+the exact producer and inputs.
+
 Locally, the same selector is `python tools/ci/compiler_pilot.py --fixtures IDS`
 or `OMEGA_COMPILER_PILOT_FIXTURES=IDS`. IDs must name existing normalized directories under `pass/` or `fail/`
 containing `main.omg`, including nested fact-place paths.
+For canonical checking rows after runtime is already qualified, add
+`--checking-only` (manual workflow input `checking_only: true`). It requires
+exact fixture IDs and refuses sample or ordinary CLI execution selectors.
 Empty entries, duplicates, traversal, missing roots and substring-filter
 collisions refuse before building; malformed input never selects default smoke.
 An unset/empty environment variable leaves the default unchanged. Pass fixtures

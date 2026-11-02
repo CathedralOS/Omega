@@ -3,7 +3,7 @@ use symbols::{SymbolHandle, SymbolTable};
 
 use super::references::{
     assign_call_symbol, assign_member_symbol, assign_membership_symbol, assign_name_symbol,
-    assign_struct_literal_symbols,
+    assign_pattern_head_symbol, assign_struct_literal_symbols,
 };
 use crate::symbols::scope::MachineScope;
 use symbol_resolved_trees::expression::ExpressionHandle;
@@ -40,6 +40,10 @@ macro_rules! context_wrapped {
             .$method($parameter);
         }
     };
+}
+
+context_wrapped! {
+    assign_pattern_head_symbols(expression: ExpressionHandle) => assign_pattern_head
 }
 
 context_wrapped! {
@@ -152,6 +156,9 @@ impl ExpressionSymbolContext<'_, '_> {
     /// Reassigns one type reference with this context's symbol table, machine
     /// scope, parameters, state symbol, and child arenas — every walk's call.
     fn reassign_type_reference(&mut self, type_reference: arena::Handle<TypeReference>) {
+        if !type_reference.is_valid() {
+            return;
+        }
         crate::symbols::type_references::reassign_type_reference_symbols_and_values(
             self.symbols,
             self.machine,
@@ -189,6 +196,41 @@ impl ExpressionSymbolContext<'_, '_> {
         }
     }
 
+    fn assign_pattern_head(&mut self, expression: ExpressionHandle) {
+        if !expression.is_valid() {
+            return;
+        }
+        if let ExpressionNode::Name(path) = self.expression_table.expression(expression).clone() {
+            if self
+                .declaration_references
+                .contains(&self.expression_table.source_span(expression))
+            {
+                let declaration = self.machine.declaration_scope(SymbolHandle::invalid(), &[]);
+                assign_pattern_head_symbol(
+                    self.symbols,
+                    &declaration,
+                    &[],
+                    SymbolHandle::invalid(),
+                    self.expression_table,
+                    &path,
+                    expression,
+                );
+                return;
+            }
+            assign_pattern_head_symbol(
+                self.symbols,
+                self.machine,
+                self.parameters,
+                self.state_symbol,
+                self.expression_table,
+                &path,
+                expression,
+            );
+        } else {
+            self.assign_expression_table_symbols(expression);
+        }
+    }
+
     fn assign_expression_table_symbols(&mut self, expression: ExpressionHandle) {
         if !expression.is_valid() {
             return;
@@ -203,8 +245,17 @@ impl ExpressionSymbolContext<'_, '_> {
                         .expression_table
                         .match_pattern_dependencies(arm.pattern)
                         .collect::<Vec<_>>();
+                    let head = match arm.pattern {
+                        MatchPattern::Value(head) => head,
+                        MatchPattern::Destructure(pattern) => pattern.head,
+                        MatchPattern::Wildcard => Default::default(),
+                    };
                     for pattern in dependencies {
-                        self.assign_expression_table_symbols(pattern);
+                        if pattern == head {
+                            self.assign_pattern_head(pattern);
+                        } else {
+                            self.assign_expression_table_symbols(pattern);
+                        }
                     }
                     self.normalize_domain_pattern(&mut dispatch, &mut arm);
                     self.expression_table
@@ -213,6 +264,7 @@ impl ExpressionSymbolContext<'_, '_> {
                     if let symbol_resolved_trees::expression::MatchPattern::Destructure(pattern) =
                         arm.pattern
                     {
+                        self.reassign_type_reference(pattern.application_type);
                         let head = crate::symbols::expression_paths::pattern_head_symbol(
                             self.expression_table,
                             pattern.head,
@@ -230,7 +282,15 @@ impl ExpressionSymbolContext<'_, '_> {
             }
             // The definition's subject and each head are visited by Match.
             // An alias is not another use/evaluation of that source subtree.
-            ExpressionNode::SavedSubject(_) => {}
+            ExpressionNode::SavedSubject(saved) => {
+                if self.expression_table.match_subject(saved.capture).purpose
+                    == symbol_resolved_trees::expression::SubjectCapturePurpose::Transition
+                {
+                    let subject = self.expression_table.match_subject(saved.capture).subject;
+                    self.assign_expression_table_symbols(subject);
+                    self.assign_pattern_head(saved.pattern_head);
+                }
+            }
             ExpressionNode::Atomic(atomic) => {
                 // The instruction-observed prior has its own destination expression,
                 // distinct from references inside the arithmetic-shaped carrier.
@@ -352,6 +412,7 @@ impl ExpressionSymbolContext<'_, '_> {
                 );
             }
             ExpressionNode::StructLiteral(struct_literal) => {
+                self.reassign_type_reference(struct_literal.application_type);
                 let count = struct_literal.fields.count();
                 for offset in 0..count {
                     let field = &self.expression_table.struct_fields(struct_literal.fields)
@@ -450,6 +511,7 @@ impl ExpressionSymbolContext<'_, '_> {
         let condition =
             self.expression_table
                 .insert(ExpressionNode::Membership(TableMembershipExpression {
+                    is_pattern: false,
                     value: saved,
                     domain: path.members,
                     domain_symbol: domain,
@@ -480,6 +542,7 @@ impl ExpressionSymbolContext<'_, '_> {
             }
         } else {
             TableDestructurePattern {
+                application_type: Default::default(),
                 head,
                 fields: HandleSpan::empty(),
                 has_rest: true,

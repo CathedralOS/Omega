@@ -4,7 +4,7 @@
 //! slot. Retain that relationship here; neither runtime names nor catalog
 //! order can reconstruct an exact generic/inherited requirement application.
 
-use crate::lowering_error::LoweringError;
+use crate::shared::lowering_error::LoweringError;
 use checked_trees::CheckedTrees;
 use lowered_psi::{LoweredBuildProviderRequirement, LoweredSourceCallOccurrence};
 

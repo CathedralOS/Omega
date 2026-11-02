@@ -10,13 +10,13 @@ compiler-storage = { path = "../../../psi/foundation/compiler-storage" }
 component-description = { path = "../backend/artifacts/component-description" }
 build-declarations = { path = "../../packages/build-declarations" }
 build-output = { path = "../../packages/build-output" }
-build-time-evaluation = { path = "../../../psi/compilation/compile-time" }
+build-time-evaluation = { path = "../../../psi/compilation/build-time-evaluation" }
 calling-conventions = { path = "../backend/calling-conventions" }
 runtime-abi = { path = "../backend/runtime/runtime-abi" }
 checked-trees = { path = "../../../psi/compilation/representations/checked-trees" }
-effects = { path = "../backend/plans/provider-evidence" }
+effects = { path = "../backend/plans/effects" }
 provider-planning = { path = "../realization/provider-planning" }
-representation-planning = { path = "../../../psi/compilation/checking/representation-planning" }
+representation-planning = { path = "../../../psi/compilation/validation/representation-planning" }
 selected-dispatch = { path = "../realization/selected-dispatch" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 source = { path = "../../../psi/foundation/source" }
@@ -24,7 +24,7 @@ symbols = { path = "../../../psi/foundation/symbols" }
 psi-compiler = { path = "../../../psi/compilation/driver" }
 task-plans = { path = "../backend/runtime/task-plans" }
 typed-trees = { path = "../../../psi/compilation/representations/typed-trees" }
-validation = { path = "../../../psi/compilation/checking" }
+validation = { path = "../../../psi/compilation/validation" }
 artifacts = { path = "../../foundation/artifacts" }
 backend-plan = { path = "../backend/plans/backend-plan" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
@@ -37,7 +37,7 @@ platform-custody = { path = "../../foundation/platform-custody" }
 target = { path = "../backend/target" }
 terminal-codec = { path = "../../../psi/compilation/representations/terminal-psi/codec" }
 terminal-psi = { path = "../../../psi/compilation/representations/terminal-psi" }
-terminal-installation = { path = "../../../psi/compilation/checking/terminal-installation" }
+terminal-installation = { path = "../../../psi/compilation/validation/terminal-installation" }
 program-entry-plan = { path = "../backend/plans/program-entry-plan" }
 target-operations = { path = "../representations/target-operations" }
 terminal-psi-to-abstract-operations = { path = "../pipeline/00_terminal-psi-to-abstract-operations" }

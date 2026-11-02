@@ -9,11 +9,11 @@ requires Payload == Mode<Count>
 { value: Payload; }
 
 machine capacity<Payload, const Count: u32>() -> u32
-where Payload == Mode<Count>
+requires Payload == Mode<Count>
 { Count }
 
 machine recovered<const Count: u32, Payload>() -> u32
-where Payload == Mode<Count>
+requires Payload == Mode<Count>
 { Count }
 
 data Main {

@@ -396,6 +396,7 @@ impl Lower<'_> {
                     })
                     .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
                 Node::StructLiteral(expr::TableStructLiteral {
+                    application_type: Default::default(),
                     type_name: self.identifier(name),
                     type_symbol,
                     case_name: case.map(|name| self.identifier(name)),
@@ -506,6 +507,7 @@ impl Lower<'_> {
                     })
                     .collect::<Vec<_>>();
                 MatchPattern::Destructure(expr::TableDestructurePattern {
+                    application_type: Default::default(),
                     head: self.expression(head)?,
                     fields: expressions_of_mut(self.program).insert_match_fields(fields),
                     has_rest,

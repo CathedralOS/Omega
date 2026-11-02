@@ -321,6 +321,7 @@ pub(super) fn normalize_case_membership_facts(
         // instead of publishing an unresolved declared-domain receipt.
         let expression = expressions.insert(ExpressionNode::Membership(
             symbol_resolved_trees::expression::TableMembershipExpression {
+                is_pattern: false,
                 value: membership.value,
                 domain,
                 domain_symbol: SymbolHandle::invalid(),

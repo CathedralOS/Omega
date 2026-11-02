@@ -116,6 +116,9 @@ pub struct CheckedBoundaryMachinePlan {
     /// boundary declaration this is `machine`; for a boundary-trait
     /// requirement it is the declaring trait that owns the crash capsule.
     pub contract_owner: SymbolHandle,
+    /// A boundary trait contributes a nominal service identity; an ordinary
+    /// trait's logical invocation contract does not create service authority.
+    pub owning_service: Option<language_semantics::ServiceReachId>,
     /// Present for a bodyless attached boundary declaration; absent for a
     /// static boundary-trait requirement, which has no runtime provider value.
     pub attachment_type_identity: Option<TypeIdentityId>,

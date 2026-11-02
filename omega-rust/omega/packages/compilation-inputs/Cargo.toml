@@ -26,10 +26,10 @@ psi-compiler = { path = "../../../psi/compilation/driver" }
 build-declarations = { path = "../build-declarations" }
 build-output = { path = "../build-output" }
 platform-custody = { path = "../../foundation/platform-custody" }
-effects = { path = "../../compilation/backend/plans/provider-evidence" }
+effects = { path = "../../compilation/backend/plans/effects" }
 target = { path = "../../compilation/backend/target" }
 checked-trees = { path = "../../../psi/compilation/representations/checked-trees" }
-build-time-evaluation = { path = "../../../psi/compilation/compile-time" }
+build-time-evaluation = { path = "../../../psi/compilation/build-time-evaluation" }
 filesystem-authority = { path = "../../../psi/foundation/filesystem-authority" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 terminal-psi = { path = "../../../psi/compilation/representations/terminal-psi" }

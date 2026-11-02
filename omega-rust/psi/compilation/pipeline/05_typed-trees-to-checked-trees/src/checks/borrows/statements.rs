@@ -192,6 +192,17 @@ pub(super) fn check_statement_borrows<'p>(
                     continue;
                 }
 
+                if completion_roster_supplies_operand_loan(
+                    program,
+                    facts,
+                    loan_handle,
+                    loan,
+                    active_loan,
+                    stated_premises,
+                    bound_lookup,
+                ) {
+                    continue;
+                }
                 diagnostics.push(Diagnostic::error(format!(
                     "statement {} creates local borrow `{}` while local borrow `{}` is still active ({})",
                     statement.statement_index,
@@ -289,6 +300,7 @@ pub(super) fn check_statement_borrows<'p>(
                             statement,
                             place,
                             expression: *expression,
+                            evaluation: occurrence.evaluation,
                             active_loans: &active,
                         },
                         stated_premises,
@@ -861,6 +873,48 @@ pub(super) fn supplier_preserves_loan(
         | checked_trees::BorrowLoanLineage::SuppliedOutput
         | checked_trees::BorrowLoanLineage::LifetimeDependency => false,
     }
+}
+
+/// A statement-completion roster row (zero formation expression) records a
+/// descriptor that a call in this statement installed, but it is published at
+/// the completion cut, after the operands that ran later in the same statement.
+/// An operand loan formed by one of those later operands that transports this
+/// very descriptor out of the roster's owner (a match arm moving the slot an
+/// effectful subject refilled) is therefore derived from the roster row, not
+/// simultaneous with it. Judge that pair in evaluation order, as the same loans
+/// split across two statements are: the operand loan is the forming loan and
+/// the roster row its supplier.
+fn completion_roster_supplies_operand_loan<'p>(
+    program: &'p dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    roster_handle: arena::Handle<checked_trees::BorrowLoanFact>,
+    roster: &checked_trees::BorrowLoanFact,
+    operand: &checked_trees::BorrowLoanFact,
+    stated_premises: &[StatedOrderingPremise],
+    bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
+) -> bool {
+    if roster.formation_expression.is_valid()
+        || roster.established_by_call.is_valid()
+        || !operand.formation_expression.is_valid()
+        || operand.statement_index != roster.statement_index
+    {
+        return false;
+    }
+    let compatibility = borrow_loan_compatibility(
+        program,
+        facts,
+        operand,
+        roster,
+        stated_premises,
+        bound_lookup,
+    );
+    supplier_preserves_loan(
+        &facts.borrow,
+        operand,
+        roster_handle,
+        roster,
+        &compatibility,
+    )
 }
 
 pub(super) fn local_loan_ends_before_successor(

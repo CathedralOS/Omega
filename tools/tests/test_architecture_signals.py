@@ -17,10 +17,10 @@ from architecture_signals import (
 
 CRATES = {
     "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees": "psi:05",
-    "omega-rust/psi/compilation/checking": "validation",
+    "omega-rust/psi/compilation/validation": "validation",
 }
 STAGE_05 = "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src"
-CHECKING = "omega-rust/psi/compilation/checking/src"
+CHECKING = "omega-rust/psi/compilation/validation/src"
 
 
 def log(*commits):
@@ -193,7 +193,7 @@ class CrateMapTests(unittest.TestCase):
             package(root, "image-emission", "omega-rust/omega/compilation/backend/images/x",
                     ["terminal-installation"]),
             package(root, "terminal-installation",
-                    "omega-rust/psi/compilation/checking/terminal-installation"),
+                    "omega-rust/psi/compilation/validation/terminal-installation"),
         ]}
         return crate_map(metadata, PIPELINE_MD, root)
 

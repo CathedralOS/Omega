@@ -81,8 +81,8 @@ use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::runtime_elements::{self, ProjectionStep};
 use crate::emission::structural_scalar_store::{WindowLeaf, lower_window_path};
 use crate::expression_preparation::bindings::structural_paths::lower_structural_path;
-use crate::lowering_error::unsupported;
-use crate::terminal_identities::lookup_type_id;
+use crate::shared::lowering_error::unsupported;
+use crate::shared::terminal_identities::lookup_type_id;
 use checked_trees::{
     CheckedStructuralAccess, CheckedUnitStructuralArgumentPlan,
     CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralResultBindingPlan,

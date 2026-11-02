@@ -11,9 +11,9 @@ use super::super::super::{
 };
 use super::super::{CheckedTrees, LoweringError, catalogs};
 use super::CheckedComposedUnitControlStatePlan;
-use crate::checked_facts::flow_facts;
 use crate::emission::operation_emission::buffer::{OperationBuffer, StructuralBinding};
 use crate::emission::value_successor;
+use crate::shared::checked_facts::flow_facts;
 use crate::unit::attached_unit::composed_control::emission::{FrameValues, StateFrame};
 
 /// Emit the selected structural producer through ordinary operand preparation.

@@ -349,6 +349,42 @@ pub(crate) fn lower_statement_node(
         }
         StatementNode::Transition(transition) => {
             let mut hoisted = Vec::new();
+            let outer_captures = lowerer.expression_match_captures.len();
+            let mut patterns = Vec::new();
+            for source in syntax_trees
+                .statements
+                .transition_patterns(transition.patterns)
+            {
+                let subject = lower_statement_expression(lowerer, syntax_trees, source.subject)?;
+                let capture = expression_table(lowerer).insert_transition_subject(subject);
+                let pattern =
+                    crate::lowering::expression::match_dispatch::lower_destructure_pattern(
+                        lowerer,
+                        syntax_trees,
+                        source.pattern,
+                        source.capture,
+                        capture,
+                    )?;
+                let symbol_resolved_trees::expression::MatchPattern::Destructure(pattern) = pattern
+                else {
+                    unreachable!()
+                };
+                lowerer.expression_match_captures.push(
+                    crate::resolution::lowerer::MatchArmCapture {
+                        syntax_capture: source.capture,
+                        syntax_head: source.pattern.head,
+                        resolved_capture: capture,
+                        resolved_head: pattern.head,
+                    },
+                );
+                patterns.push(symbol_resolved_trees::statement::TransitionPattern {
+                    is_structural: source.is_structural,
+                    subject,
+                    capture,
+                    pattern,
+                });
+            }
+
             // Establish a match's shared subject before lowering its payload
             // receivers. Target expressions remain guarded; only the subject
             // address is evaluated before selection, once for the whole match.
@@ -451,7 +487,10 @@ pub(crate) fn lower_statement_node(
                     }
                 }
             }
+            lowerer.expression_match_captures.truncate(outer_captures);
             hoisted.push(Statement::Transition(Transition {
+                source_guard: None,
+                patterns: patterns.into_boxed_slice(),
                 target,
                 continuation,
                 guard,

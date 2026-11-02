@@ -10,11 +10,11 @@ use super::{
     emit_direct_expression, scalar_carriers, scalar_source_types, terminal_scalar_type,
     unsupported, validate_direct_parameter_types,
 };
-use crate::checked_facts::value_facts;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
+use crate::shared::checked_facts::value_facts;
 use crate::unit::attached_unit::OperationEnvironment;
 
 impl Evaluation {

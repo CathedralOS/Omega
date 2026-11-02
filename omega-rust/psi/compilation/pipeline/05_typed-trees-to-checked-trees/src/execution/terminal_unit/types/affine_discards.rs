@@ -2,11 +2,9 @@
 //! the residual complement of a partially moved owned parameter.
 
 use super::*;
-use checked_trees::CheckedByteSequenceCarrier;
 use facts::PlaceRoot;
 use language_semantics::PermissionProvenance;
 use typed_trees::type_identity::TypeIdentityId;
-use typed_trees::types::FixedArrayLength;
 
 /// Whole-root discards plus the residual complement of a partially moved
 /// owned parameter. Only owned transfers consume that custody. Establishing a
@@ -241,80 +239,6 @@ pub(in crate::execution::terminal_unit) fn return_unit_affine_discards(
         residual_affine_discards,
         has_projected_parameter_moves,
     ))
-}
-
-/// Check source access independently of structural shape collection. Generic
-/// arguments and declaration fields are both inspected: substituting an owned
-/// argument cannot turn an authored reference field into owned storage.
-pub(super) fn partial_affine_source_contents_are_owned(
-    program: &dyn ::validation::CheckingInput,
-    reference: TypeReferenceHandle,
-    visited: &mut Vec<SymbolHandle>,
-) -> bool {
-    if !reference.is_valid() {
-        return false;
-    }
-    // Range and policy constraints do not give primitive fields cleanup or
-    // reference access. This classifier peels constraints but rejects references.
-    if program.primitive_type_reference(reference).is_some() {
-        return true;
-    }
-    // Preserve the existing no-cleanup bounded-byte field carrier, whose
-    // domain spelling is retained by that carrier's own source classifier.
-    if structural_access_for_type_reference(program, reference)
-        == Some(CheckedStructuralAccess::Owned)
-        && matches!(
-            byte_sequence_carrier(program, reference, &[]),
-            Some(CheckedByteSequenceCarrier::BoundedOwned { .. })
-        )
-    {
-        return true;
-    }
-    let symbol = match program.type_reference_table.type_reference(reference) {
-        TypeReferenceNode::Named { symbol, .. } => *symbol,
-        TypeReferenceNode::Generic {
-            base_symbol,
-            arguments,
-            ..
-        } => {
-            if !program
-                .type_reference_table
-                .type_reference_handles(*arguments)
-                .iter()
-                .all(|argument| {
-                    partial_affine_source_contents_are_owned(program, *argument, visited)
-                })
-            {
-                return false;
-            }
-            *base_symbol
-        }
-        TypeReferenceNode::FixedArray {
-            element_type,
-            length: FixedArrayLength::Literal(1..),
-        } => return partial_affine_source_contents_are_owned(program, *element_type, visited),
-        _ => return false,
-    };
-    let Some(data) = program.data_definition_by_symbol(symbol) else {
-        // Concrete arguments were checked at their application; an authored
-        // type binder has no reference or qualification wrapper of its own.
-        return program.data_definitions().iter().any(|data| {
-            program
-                .data_type_parameters(data)
-                .iter()
-                .any(|parameter| parameter.symbol == symbol)
-        });
-    };
-    if visited.contains(&symbol) {
-        return true;
-    }
-    visited.push(symbol);
-    program
-        .data_member_fields(program.data_members(data))
-        .all(|field| {
-            !field.relevance.is_erased()
-                && partial_affine_source_contents_are_owned(program, field.type_reference, visited)
-        })
 }
 
 /// Resolve a moved endpoint in the same checked shape catalog used to

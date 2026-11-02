@@ -40,8 +40,6 @@ fn replay_structural_shape(
     }
     let declaration = declarations.get(&structural_type)?;
     let shape = match &declaration.shape {
-        // A nested established Binding contributes no condition payload.
-        terminal_psi::StructuralTypeShape::BindingCarrier => ValueShape::integer(0, 1),
         // Scalar loans retain an address and a storage codec. Aggregate loans
         // retain only an address. Reconstruct that distinction from the
         // referent declaration, not its byte extent or the target's claimed

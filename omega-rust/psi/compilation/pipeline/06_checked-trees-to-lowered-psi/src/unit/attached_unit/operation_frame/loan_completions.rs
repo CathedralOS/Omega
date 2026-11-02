@@ -4,8 +4,8 @@ use super::StructuralArgument;
 use crate::emission::call_qualifications::declaration_represents;
 use crate::emission::call_qualifications::for_call;
 use crate::emission::operation_emission::buffer::SourceCallCoordinate;
-use crate::lowering_error::LoweringError;
-use crate::terminal_identities::lookup_domain_id_for_carrier;
+use crate::shared::lowering_error::LoweringError;
+use crate::shared::terminal_identities::lookup_domain_id_for_carrier;
 
 impl OperationFrame<'_, '_> {
     pub(super) fn publish_loan_completions(
@@ -18,7 +18,7 @@ impl OperationFrame<'_, '_> {
             statement_index: call.coordinate.statement_index as usize,
             call_ordinal: call.coordinate.call_ordinal as usize,
         };
-        let (_, state) = crate::declarations::state_declaration(self.checked, self.state)?;
+        let (_, state) = crate::shared::declarations::state_declaration(self.checked, self.state)?;
         let prepared = crate::emission::loan_completions::prepare(
             identities,
             self.checked,

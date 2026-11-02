@@ -78,7 +78,7 @@ Ordered value exits use guarded.rs and the ordinary structural-value emitter.
 Source-to-execution coverage belongs to tests/omega: the ownership state-graph
 fixture composes direct projections, retained local aliases, calls and backedges.
 */
-use crate::declarations::state_declaration;
+use crate::shared::declarations::state_declaration;
 use checked_trees::{
     CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan,
     CheckedStructuralControlSuccessorPlan,

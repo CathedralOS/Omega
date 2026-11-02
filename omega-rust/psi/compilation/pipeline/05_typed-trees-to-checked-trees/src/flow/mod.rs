@@ -161,7 +161,8 @@ use context::{
     FlowBuildContext, SharedFlowTables, active_context_facts, source_transfer_cases_selected,
 };
 pub(crate) use context::{
-    active_context_handles, call_flows, expressions, indexed_statements, state_statements,
+    active_context_handles, call_flows, contract_returned_value, expressions, indexed_statements,
+    state_returned_value, state_statements,
 };
 pub(crate) use domain::build_domain_facts;
 pub(crate) use domain::context_survives_place_mutations;

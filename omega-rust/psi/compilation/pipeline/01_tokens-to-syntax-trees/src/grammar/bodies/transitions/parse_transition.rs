@@ -76,15 +76,8 @@ pub(crate) fn parse_transition_block_handles<'tokens, 'source>(
         TransitionTargetHandle,
         arena::HandleSpan<syntax_trees::statement::TableOutcomeProofSelector>,
         source::SourceSpan,
+        HandleSpan<syntax_trees::statement::TransitionPattern>,
     )> = Vec::new();
-    // (marker name, subject) per destructure arm. Computed transition subjects
-    // have already become generated places above, so every arm has a declared
-    // type carrier for the missing/unknown-field law. Deduplicated by name
-    // (identical patterns share one marker; duplicate local names would
-    // collide in symbol resolution).
-    let mut pattern_markers: Vec<(syntax_trees::statement::TableLocalPattern, ExpressionHandle)> =
-        Vec::new();
-
     while !input.at_punctuation(PunctuationKind::RightBrace) {
         let (guard, bindings, bool_tuple, rest) =
             parse_transition_guard_node(syntax_trees, input, &subject)?;
@@ -107,13 +100,8 @@ pub(crate) fn parse_transition_block_handles<'tokens, 'source>(
         };
         input = rest;
 
-        // Retain the exact pattern independently of its diagnostic local name.
-        for arm_binding in &bindings {
-            if let Some(spelling) = &arm_binding.spelling {
-                pattern_markers.push((spelling.pattern, arm_binding.subject));
-            }
-        }
-
+        let patterns = stmts(syntax_trees)
+            .insert_transition_patterns(bindings.iter().filter_map(|binding| binding.pattern));
         let proof_selectors = bindings
             .first()
             .map(|bindings| {
@@ -121,7 +109,7 @@ pub(crate) fn parse_transition_block_handles<'tokens, 'source>(
                     .insert_outcome_proof_selectors(bindings.proof_selectors.iter().cloned())
             })
             .unwrap_or_else(HandleSpan::empty);
-        parsed_arms.push((guard, target, proof_selectors, source_span));
+        parsed_arms.push((guard, target, proof_selectors, source_span, patterns));
         arm_bool_tuples.push(bool_tuple);
     }
 
@@ -150,26 +138,9 @@ pub(crate) fn parse_transition_block_handles<'tokens, 'source>(
         statements.push(handle);
     }
 
-    for (ordinal, (pattern, subject_place)) in pattern_markers.into_iter().enumerate() {
-        let marker = stmts(syntax_trees).insert(StatementNode::LocalData(
-            syntax_trees::statement::TableLocalData {
-                pattern: Some(pattern),
-                role: language_core::LocalBindingRole::ArmPattern,
-                name: syntax_trees::identifier::Identifier::generated(format!(
-                    "__arm_pattern#{ordinal}"
-                )),
-                type_reference: syntax_trees::types::TypeReferenceHandle::invalid(),
-                initial_value: subject_place,
-                is_mutable: false,
-                relevance: language_core::BindingRelevance::Relevant,
-            },
-        ));
-        let handle = items(syntax_trees).append_statement_handle(marker);
-        statements.push(handle);
-    }
-
-    for (guard, target, proof_selectors, source_span) in parsed_arms {
+    for (guard, target, proof_selectors, source_span, patterns) in parsed_arms {
         let statement = stmts(syntax_trees).insert(StatementNode::Transition(TableTransition {
+            patterns,
             target,
             continuation: TransitionTargetHandle::invalid(),
             guard,
@@ -238,6 +209,7 @@ pub(crate) fn parse_transition_block_handles<'tokens, 'source>(
                 *last,
                 StatementNode::Transition(TableTransition {
                     guard: syntax_trees::statement::TransitionGuardNode::Always,
+                    patterns: HandleSpan::empty(),
                     ..transition
                 }),
             );

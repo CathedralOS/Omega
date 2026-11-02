@@ -1,7 +1,7 @@
 //! Preserve conditional body custody without publishing output membership.
 
 use super::{Emission, LoweringError, source_path, unsupported};
-use crate::checked_facts::flow_facts;
+use crate::shared::checked_facts::flow_facts;
 use arena::Handle;
 use checked_trees::facts::{
     ContentBodyAvailableInput, ContentBodyClaimBinding, ContentBodyCustody, ContentBodyDerivation,

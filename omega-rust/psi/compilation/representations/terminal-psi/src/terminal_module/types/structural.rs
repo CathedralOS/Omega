@@ -73,11 +73,6 @@ pub struct StructuralReferentIdentity {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum StructuralTypeShape {
-    /// A logical routed binding, independent of its provider's storage mode.
-    /// It is not constructible by a record literal or zero initialization.
-    /// Ordinary loans preserve its occurrence; realization must establish
-    /// the binding before choosing its storage. The marker grants no authority.
-    BindingCarrier,
     /// A permission carrier retaining the original referent, not an owned copy
     /// of its storage. Owning or moving this value transfers the loan only;
     /// projection through `Referent` must independently respect borrowed access.
@@ -828,7 +823,6 @@ fn structural_type_contains_by<'types>(
             }
             StructuralTypeShape::ElementView { element, .. } => pending.push(*element),
             StructuralTypeShape::Reference { .. }
-            | StructuralTypeShape::BindingCarrier
             | StructuralTypeShape::PrimitiveScalar(_)
             | StructuralTypeShape::ByteSequence(_) => {}
         }

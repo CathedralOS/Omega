@@ -81,6 +81,7 @@ use typed_trees::types::PrimitiveType;
 
 pub(crate) use multiplicity::ClaimOutcomePreparation;
 pub(crate) use multiplicity::prepare_permission_events;
+pub(crate) use multiplicity::publish_owned_transfer_paths;
 pub(crate) use multiplicity::{
     nominal_drop_machine_symbol, owned_temporary_type, reference_access,
     type_carries_linear_obligation, type_multiplicity, type_reference_is_reference,
@@ -294,6 +295,21 @@ pub(crate) fn check_checked_facts_recording(
     }) {
         Ok((proven, coordinates, obligations)) => {
             facts.proven_scalar_indexes = proven;
+            let mut selectors = coordinates
+                .iter()
+                .filter_map(|(occurrence, coordinate)| {
+                    match program.expression_table.expression(*occurrence) {
+                        typed_trees::expression::ExpressionNode::Indexed(indexed) => {
+                            Some((indexed.index, *coordinate))
+                        }
+                        _ => None,
+                    }
+                })
+                .collect::<Vec<_>>();
+            selectors
+                .sort_by_key(|(selector, _)| checked_trees::operators::handle_position(*selector));
+            selectors.dedup_by_key(|(selector, _)| *selector);
+            facts.scalar_selector_coordinates = selectors;
             facts.scalar_index_coordinates = coordinates;
             facts.constant_recipe_obligations.extend(obligations);
         }

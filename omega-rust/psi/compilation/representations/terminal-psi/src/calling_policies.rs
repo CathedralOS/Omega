@@ -19,6 +19,9 @@ pub struct CallingAbiDeclaration {
     pub operands: Vec<CallingStaticOperand>,
     pub formals: Vec<semantic_vocabulary::CallingGenericFormal>,
     pub default_eligible: bool,
+    /// Frozen declaring-owner eligibility, independently of ABI storage or
+    /// selected policy results. Refuse only when this declaration is consumed.
+    pub physical_owner: Result<semantic_vocabulary::CallingDeclarationOwner, String>,
     pub storage: Result<CallingAbiStorage, String>,
 }
 
@@ -107,6 +110,9 @@ pub struct CallingPolicyRequest {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CallingPolicyInstance {
     pub declaring_application: TerminalIdentityIndex,
+    /// The exact checked declaration remains demandable before executable
+    /// lowering succeeds. Admission never needs a body just to refuse it.
+    pub policy_declaration: Result<crate::ProofDeclarationId, String>,
     pub policy: Result<crate::TargetMachineCallable, String>,
     pub signatures: Result<Vec<CallingSignatureId>, String>,
 }

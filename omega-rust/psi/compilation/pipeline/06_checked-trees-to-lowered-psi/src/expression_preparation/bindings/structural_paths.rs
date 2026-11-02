@@ -7,7 +7,7 @@
 
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
-use crate::lowering_error::{LoweringError, unsupported};
+use crate::shared::lowering_error::{LoweringError, unsupported};
 
 macro_rules! unsupported_error {
     ($message:literal) => {
@@ -470,7 +470,31 @@ fn prepare_structural_argument_projection<'a>(
             &mut path,
         )?;
     }
+    retain_proven_selector_coordinates(checked, &mut path);
     Ok((path, tip))
+}
+
+/// A completed selector whose every bounds check agreed on one value selects
+/// that exact element. Its authored evaluation still runs at its operand slot;
+/// only the storage coordinate becomes fixed, so custody, overlap and restoration
+/// compare the same element the checker proved instead of an unknown index.
+pub(crate) fn retain_proven_selector_coordinates(
+    checked: &checked_trees::CheckedTrees,
+    path: &mut [PreparedStructuralPathSegment],
+) {
+    let computations = &checked.facts.values.scalar_computations;
+    for segment in path {
+        let PreparedStructuralPathSegment::ComputedIndex(computation) = *segment else {
+            continue;
+        };
+        if !computations.nodes.is_valid(computation) {
+            continue;
+        }
+        let selector = computations.nodes.get(computation).authored_root;
+        if let Some(index) = checked.facts.selector_coordinate(selector) {
+            *segment = PreparedStructuralPathSegment::EvaluatedFixedIndex { index, computation };
+        }
+    }
 }
 
 fn prepare_root_projection<'a>(
@@ -931,13 +955,14 @@ pub(crate) fn lower_reference_origin_path(
                 let checked_trees::CheckedReferenceStorage::View { stored_scalar } = storage else {
                     return unsupported("returned view has no formation codec");
                 };
-                let declaration = crate::terminal_identities::structural_declaration_by_identity(
-                    types,
-                    identities,
-                    checked,
-                    *type_identity,
-                    "returned view lost its checked declaration",
-                )?;
+                let declaration =
+                    crate::shared::terminal_identities::structural_declaration_by_identity(
+                        types,
+                        identities,
+                        checked,
+                        *type_identity,
+                        "returned view lost its checked declaration",
+                    )?;
                 terminal_semantics::representation_view_declaration(
                     types.iter(),
                     declaration.id,

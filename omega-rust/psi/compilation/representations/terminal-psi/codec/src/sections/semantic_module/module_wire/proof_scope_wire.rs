@@ -96,6 +96,53 @@ pub(super) fn encode(writer: &mut Writer, scope: &ProofApplicationScope) -> Resu
         target(writer, &header.source_target)?;
         writer.boolean(header.product_eligible);
         writer.boolean(header.supplies_checked_body);
+        writer.boolean(header.compiler_evaluation.is_ok());
+        match &header.compiler_evaluation {
+            Ok(facts) => {
+                writer.string("compiler-evaluation display name", &facts.name)?;
+                match facts.custody {
+                    semantic_vocabulary::compiler_evaluation::DeclarationCustody::Package(
+                        package,
+                    ) => {
+                        writer.u8(1);
+                        ProviderPackage::write(writer, &Some(package))?;
+                    }
+                    semantic_vocabulary::compiler_evaluation::DeclarationCustody::Toolchain => {
+                        writer.u8(2)
+                    }
+                    semantic_vocabulary::compiler_evaluation::DeclarationCustody::UnownedUser => {
+                        writer.u8(3)
+                    }
+                    semantic_vocabulary::compiler_evaluation::DeclarationCustody::Missing => {
+                        writer.u8(4)
+                    }
+                }
+                writer.len("compiler-evaluation services", facts.effects.services.len())?;
+                for service in &facts.effects.services {
+                    writer.string("compiler-evaluation service", service)?;
+                }
+                writer.boolean(facts.effects.may_suspend);
+                writer.boolean(facts.effects.may_block);
+                writer.boolean(facts.local_terminates);
+                writer.boolean(facts.entry_requires);
+                target(writer, &facts.linear_carrier)?;
+                target(writer, &facts.static_application)?;
+                writer.boolean(facts.selections.is_ok());
+                match &facts.selections {
+                    Ok(requests) => {
+                        writer.len("compiler-evaluation authority requests", requests.len())?;
+                        for request in requests {
+                            ProviderPackage::write(writer, &Some(request.requester))?;
+                            ProviderPackage::write(writer, &Some(request.owner))?;
+                        }
+                    }
+                    Err(reason) => {
+                        writer.string("uncovered compiler-evaluation selections", reason)?
+                    }
+                }
+            }
+            Err(reason) => writer.string("unavailable compiler-evaluation facts", reason)?,
+        }
         writer.boolean(header.synchronous_invocations.is_ok());
         match &header.synchronous_invocations {
             Ok(targets) => {
@@ -188,6 +235,31 @@ pub(super) fn encode(writer: &mut Writer, scope: &ProofApplicationScope) -> Resu
         }
         references(writer, &graph.cleanup, row.cleanup)?;
     }
+    writer.len(
+        "checked recursive components",
+        scope.recursive_components.len(),
+    )?;
+    writer.len(
+        "pending compiler-evaluation conditions",
+        scope.pending_evaluation_conditions.len(),
+    )?;
+    for (_, owner) in scope.pending_evaluation_conditions.iter() {
+        writer.u32(owner.0);
+    }
+    for (_, component) in scope.recursive_components.iter() {
+        references(writer, &scope.recursive_members, component.members)?;
+        let calls = scope.recursive_calls.span(component.calls).ok_or(
+            CodecError::MalformedStructuralFoundation(
+                "checked recursive component lost its call span",
+            ),
+        )?;
+        writer.len("checked recursive calls", calls.len())?;
+        for call in calls {
+            writer.u32(call.caller.0);
+            writer.u32(call.call_ordinal);
+            writer.u32(call.callee.0);
+        }
+    }
     Ok(())
 }
 
@@ -258,6 +330,51 @@ pub(super) fn decode(reader: &mut Reader<'_>) -> Result<ProofApplicationScope, C
         let source_target = read_target(reader)?;
         let product_eligible = reader.boolean()?;
         let supplies_checked_body = reader.boolean()?;
+        let compiler_evaluation = if reader.boolean()? {
+            let name = reader.string("compiler-evaluation display name")?;
+            let custody = match reader.u8()? {
+                1 => semantic_vocabulary::compiler_evaluation::DeclarationCustody::Package(
+                    ProviderPackage::read(reader)?.ok_or(
+                        CodecError::MalformedStructuralFoundation(
+                            "compiler-evaluation package custody is absent",
+                        ),
+                    )?,
+                ),
+                2 => semantic_vocabulary::compiler_evaluation::DeclarationCustody::Toolchain,
+                3 => semantic_vocabulary::compiler_evaluation::DeclarationCustody::UnownedUser,
+                4 => semantic_vocabulary::compiler_evaluation::DeclarationCustody::Missing,
+                tag => return Err(CodecError::InvalidTag("compiler-evaluation custody", tag)),
+            };
+            Ok(
+                semantic_vocabulary::compiler_evaluation::CompilerEvaluationDeclaration {
+                    name,
+                    custody,
+                    effects: semantic_vocabulary::compiler_evaluation::CompilerEvaluationEffects {
+                        services: decode_counted(reader, |reader| {
+                            reader.string("compiler-evaluation service")
+                        })?,
+                        may_suspend: reader.boolean()?,
+                        may_block: reader.boolean()?,
+                    },
+                    local_terminates: reader.boolean()?,
+                    entry_requires: reader.boolean()?,
+                    linear_carrier: read_target(reader)?,
+                    static_application: read_target(reader)?,
+                    selections: if reader.boolean()? {
+                        Ok(decode_counted(reader, |reader| {
+                            Ok(semantic_vocabulary::compiler_evaluation::DeclarationAuthorityRequest {
+                        requester: ProviderPackage::read(reader)?.ok_or(CodecError::MalformedStructuralFoundation("compiler-evaluation requester is absent"))?,
+                        owner: ProviderPackage::read(reader)?.ok_or(CodecError::MalformedStructuralFoundation("compiler-evaluation owner is absent"))?,
+                    })
+                        })?)
+                    } else {
+                        Err(reader.string("uncovered compiler-evaluation selections")?)
+                    },
+                },
+            )
+        } else {
+            Err(reader.string("unavailable compiler-evaluation facts")?)
+        };
         let synchronous_invocations = if reader.boolean()? {
             Ok(decode_counted(reader, |reader| {
                 Ok(terminal_psi::DeclaredSynchronousBoundaryTarget {
@@ -280,6 +397,7 @@ pub(super) fn decode(reader: &mut Reader<'_>) -> Result<ProofApplicationScope, C
             source_target,
             product_eligible,
             supplies_checked_body,
+            compiler_evaluation,
             synchronous_invocations,
         });
     }
@@ -358,6 +476,26 @@ pub(super) fn decode(reader: &mut Reader<'_>) -> Result<ProofApplicationScope, C
             calls,
             cleanup,
         });
+    }
+    let component_count = reader.count()?;
+    for _ in 0..reader.count()? {
+        result
+            .pending_evaluation_conditions
+            .insert(ProofDeclarationId(reader.u32()?));
+    }
+    for _ in 0..component_count {
+        let members = read_references(reader, &mut result.recursive_members)?;
+        let calls = decode_counted(reader, |reader| {
+            Ok(terminal_psi::ProofCheckedRecursiveCall {
+                caller: ProofDeclarationId(reader.u32()?),
+                call_ordinal: reader.u32()?,
+                callee: ProofDeclarationId(reader.u32()?),
+            })
+        })?;
+        let calls = result.recursive_calls.insert_many(calls);
+        result
+            .recursive_components
+            .insert(terminal_psi::ProofCheckedRecursiveComponent { members, calls });
     }
     Ok(result)
 }

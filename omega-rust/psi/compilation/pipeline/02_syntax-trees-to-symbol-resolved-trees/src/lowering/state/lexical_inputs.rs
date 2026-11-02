@@ -88,22 +88,36 @@ pub(crate) fn lower_state_lexical_inputs(
                 syntax::statement::StatementNode::LocalData(local) => Some(local),
                 _ => None,
             };
-            for reference in statement_type_inputs(syntax, statement) {
-                if local.is_some_and(|local| local.type_reference == reference) {
-                    continue;
-                }
-                inputs.types.push((
-                    inputs.locals.len(),
-                    lower_type_reference_handle(lowerer, syntax, reference)?,
-                ));
-            }
-            if matches!(demand, LexicalInputDemand::CallResults) {
-                for expression in statement_call_inputs(syntax, statement) {
-                    inputs.calls.push((
-                        inputs.locals.len(),
-                        lower_private_expression_into_table(lowerer, syntax, expression)?,
-                    ));
-                }
+            let types = statement_type_inputs(syntax, statement)
+                .into_iter()
+                .filter(|reference| !local.is_some_and(|local| local.type_reference == *reference))
+                .collect::<Vec<_>>();
+            let calls = if matches!(demand, LexicalInputDemand::CallResults) {
+                statement_call_inputs(syntax, statement)
+            } else {
+                Vec::new()
+            };
+            if !types.is_empty() || !calls.is_empty() {
+                crate::lowering::expression::match_dispatch::with_transition_pattern_captures(
+                    lowerer,
+                    syntax,
+                    statement,
+                    |lowerer| {
+                        for reference in types {
+                            inputs.types.push((
+                                inputs.locals.len(),
+                                lower_type_reference_handle(lowerer, syntax, reference)?,
+                            ));
+                        }
+                        for expression in calls {
+                            inputs.calls.push((
+                                inputs.locals.len(),
+                                lower_private_expression_into_table(lowerer, syntax, expression)?,
+                            ));
+                        }
+                        Ok(())
+                    },
+                )?;
             }
             // The declaration enters scope after every input of its own
             // statement, including inputs nested in its runtime initializer.
