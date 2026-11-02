@@ -1836,8 +1836,8 @@ defines the complete product bar.
   - Make Linux x86-64 filesystem calls such as `set_len` run through the
     program's selected filesystem implementation. In the
     [permission checks](omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/providers/provider_admission/terminal_authority_permissions.rs),
-    accept receivers that grant every needed operation, including receivers
-    that grant additional operations. In
+    accept supplied permissions that cover every operation the call needs,
+    even if they allow additional operations. In
     [review evidence](omega-rust/omega/packages/review-evidence/src/capture/authority.rs)
     and [package review](omega-rust/omega/packages/package-manager/src/review/),
     replace the broad filesystem category with the operation-specific categories

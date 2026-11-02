@@ -97,8 +97,8 @@ impl<'program> StaticDeclaration<'program> {
 /// Decide whether a call must still be checked against its original declaration
 /// because its enclosing function or arguments are generic. Confirm the exact
 /// callee and argument ownership here; the caller still checks types, lifetimes,
-/// bounds and proofs. A concrete call cannot use this path to hide a missing
-/// instantiated callee.
+/// bounds and proofs. A call in a fully instantiated body cannot use this path
+/// to hide a missing instantiated callee.
 fn is_declared_source_tuple(
     program: &dyn crate::CheckingInput,
     application: &StaticMachineApplication,

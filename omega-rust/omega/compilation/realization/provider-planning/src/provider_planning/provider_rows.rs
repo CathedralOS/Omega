@@ -1,24 +1,24 @@
-//! Keep original provider rows and their optional direct-call inputs together.
+//! Save source details needed to generate calls and memory accesses. Keep each
+//! operation associated with its original implementation, then attach target
+//! calling details without looking up declarations in source again.
 //!
-//! Source/layout preparation retains original row coordinates and deferred
-//! foreign ABI failures and immutable intrinsic declaration facts. It creates
-//! no projected plan or host grant. Selected execution joins target/accepted
-//! bindings and constructs complete leaves without reopening checked source.
+//! Save declaration errors too, so later steps report them in the same order.
 
 use crate::DerivedProviderPlan;
 use diagnostics::Diagnostic;
 use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow};
 
-/// Physical rows are attached, while declaration refusals remain deferred until
-/// the original post-entry completion boundary consumes them.
+/// Calling details are attached. Saved declaration errors wait until after
+/// program-entry checks, preserving which error is reported first.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DeferredProviderRows {
     direct: Vec<Option<DirectBoundaryInput>>,
     declarations: Result<RowDeclarations, Diagnostic>,
 }
 
-/// Source results stay attached to their original candidate. Direct identity
-/// failures and completion declaration failures have different demand points.
+/// Keep checked declarations with the implementation they describe.
+/// Report direct-call identity errors when attaching calling details;
+/// report declaration errors later, after program-entry checks.
 pub(crate) struct CapturedProviderRows {
     direct: Result<Vec<Option<DirectBoundaryDeclaration>>, Vec<Diagnostic>>,
     declarations: Result<RowDeclarations, Diagnostic>,
@@ -430,8 +430,9 @@ fn capture_row_declarations(
 }
 
 impl ProviderPlanCandidate<DeferredProviderRows> {
-    /// Consume saved declaration refusals at the original post-entry boundary.
-    /// Target Calling has changed only schema attachments, not row coordinates.
+    /// Report saved declaration errors after program-entry checks, then combine
+    /// declarations with calling details. Attaching calling plans preserved
+    /// the operation order, so the two lists still match by position.
     pub(crate) fn finish_row_declarations(self) -> Result<ProviderPlanCandidate, Diagnostic> {
         let Self { source, rows } = self;
         let declarations = rows.declarations?;
