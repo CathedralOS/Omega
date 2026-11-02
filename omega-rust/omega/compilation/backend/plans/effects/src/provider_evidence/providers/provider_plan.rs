@@ -574,7 +574,7 @@ impl ProviderPlan {
                 binding_identity
             ));
         }
-        let mut hash = crate::fnv1a::Fnv1a::new();
+        let mut hash = semantic_vocabulary::Fnv1a::new();
         hash.bytes(rendered.as_bytes());
         // Report coordinates distinguish exact applied receiver rosters too.
         // This is still a compact coordinate, never an admission identity.

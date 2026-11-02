@@ -19,7 +19,6 @@
 
 mod artifacts;
 mod authority_digests;
-mod fnv1a;
 mod installation;
 mod placement;
 mod post_handoff_writer;

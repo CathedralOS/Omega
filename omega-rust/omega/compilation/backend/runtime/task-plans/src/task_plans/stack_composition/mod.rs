@@ -22,8 +22,8 @@
 //! storage contract defines.
 
 use super::validate_alignment;
-use crate::fnv1a::Fnv1a;
 use crate::task_plans::identities::commitment_digest;
+use semantic_vocabulary::Fnv1a;
 
 use crate::{
     AdmittedStackContributionReportId, CanonicalSuspensionCrossing,
