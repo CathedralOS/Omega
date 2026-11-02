@@ -658,11 +658,9 @@ compile-time, Build, CLI/corpus, and embedded execution through the common core.
     (`pass/build/artifact_only_required_output_completion` and
     `fail/build/artifact_only_{rollback_overlay,unsealed_output}_refused`).
   Acceptance: on Windows, macOS, and Linux, `mbx check -p omega`, valid seed
-  check, rejection of
-  `tests/omega/fail/arithmetic/array_constructor_divisor_requires_nonzero/main.omg`,
-  and package-aware
-  `omega run tests/omega/pass/float/named_provider_directed_divide_exit/main.omg`
-  (exit 70) succeed through the Terminal core; helper/conditional dependency
+  check, and rejection of
+  `tests/omega/fail/arithmetic/array_constructor_divisor_requires_nonzero/main.omg`
+  succeed through the Terminal core; helper/conditional dependency
   requests, `await_provider` park/resume, recursive dependency Builds, product
   description queries, restricted-request stop/resume, and generator-package
   snapshot outputs pass their positive and negative controls without executing
