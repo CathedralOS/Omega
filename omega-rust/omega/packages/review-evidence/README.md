@@ -140,8 +140,8 @@ selected schema application and declaring requirement rejoin the complete
 calling component. Service reach, direct invocations, progress-profile subjects,
 and establishment routes retain exact declaration owners independently of the
 readable service strings. Evaluated imports and syscalls retain their producer and
-binding meaning, not evaluation receipts. Table bindings retain exact attached
-data identities; installation rows retain both the published ceiling and the
+binding meaning, not evaluation receipts. Table bindings retain the exact
+data identity their leaf's first parameter borrows; installation rows retain both the published ceiling and the
 checked realization reach.
 
 Operator and top-level requirement signature capture borrows the checked

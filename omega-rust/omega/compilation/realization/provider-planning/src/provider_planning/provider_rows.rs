@@ -221,7 +221,7 @@ impl DirectBoundaryInput {
         if let backend_plan::DirectBoundaryExecution::Foreign(Ok(binding)) = &mut execution {
             binding.trait_name = self.callable_identity.clone();
             binding.requirement_identity = self.callable_identity.clone();
-            binding.table_type = self.realization_owner.clone();
+            binding.provider_type = self.realization_owner.clone();
         }
         let leaf = backend_plan::DirectBoundaryLeaf {
             declaration_identity: self.declaration_identity.clone(),
