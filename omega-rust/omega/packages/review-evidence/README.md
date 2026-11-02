@@ -140,8 +140,8 @@ selected schema application and declaring requirement rejoin the complete
 calling component. Service reach, direct invocations, progress-profile subjects,
 and establishment routes retain exact declaration owners independently of the
 readable service strings. Evaluated imports and syscalls retain their producer and
-binding meaning, not evaluation receipts. Table bindings retain exact attached
-data identities; installation rows retain both the published ceiling and the
+binding meaning, not evaluation receipts. Table bindings retain the exact
+data identity their leaf's first parameter borrows; installation rows retain both the published ceiling and the
 checked realization reach.
 
 Operator and top-level requirement signature capture borrows the checked
@@ -310,7 +310,11 @@ containing source graph supplies the membership predicate; this does not require
 direct dependency edges, reconstruct foreign declarations, or grant authority.
 One lowerable node, depth, and requested-unescape-storage budget spans both
 identity grammars. Returned plain usage lets enclosing locks debit subsequent
-baselines instead of resetting their aggregate resources.
+baselines instead of resetting their aggregate resources. A refusal is a
+`PackagePolicyMembershipFailure`: the error class, and for `MalformedIdentity` a
+bounded window of the innermost identity text where reading stopped, so a failed
+lock names the declaration rather than only the rule. Exhausting a limit or
+naming an unknown package is never reported as malformed.
 
 The crate root exports `project_checked_package_policy` and
 `project_checked_terminal_permission_policy`. The manager owns comparison and

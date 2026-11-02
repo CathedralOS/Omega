@@ -2,11 +2,16 @@
 
 mod framing;
 mod membership_accounting;
+#[cfg(test)]
+mod tests;
 mod visitor;
 
 use crate::record::PackagePolicyBaseline;
 pub(crate) use membership_accounting::PackagePolicyMembershipUsage;
-pub use membership_accounting::{PackagePolicyMembershipError, PackagePolicyMembershipLimits};
+pub use membership_accounting::{
+    MalformedIdentityExcerpt, PackagePolicyMembershipError, PackagePolicyMembershipFailure,
+    PackagePolicyMembershipLimits,
+};
 use semantic_vocabulary::PackageKeyIdentity;
 
 pub(super) trait Observer {
@@ -23,15 +28,19 @@ impl PackagePolicyBaseline {
         &self,
         contains: impl FnMut(PackageKeyIdentity) -> bool,
         limits: PackagePolicyMembershipLimits,
-    ) -> Result<PackagePolicyMembershipUsage, PackagePolicyMembershipError> {
+    ) -> Result<PackagePolicyMembershipUsage, PackagePolicyMembershipFailure> {
         let mut visitor = visitor::Visitor::new(contains, limits);
         let mut encoder = super::encoder::Encoder::policy_membership(&mut visitor);
         let result = super::baseline::framed_policy(&mut encoder, self);
-        if let Some(error) = encoder.membership_error() {
-            return Err(error);
+        let membership_error = encoder.membership_error();
+        drop(encoder);
+        if let Some(error) = membership_error {
+            return Err(PackagePolicyMembershipFailure::new(
+                error,
+                visitor.unreadable_identity(),
+            ));
         }
         result.map_err(|_| PackagePolicyMembershipError::InvalidPolicy)?;
-        drop(encoder);
         Ok(visitor.usage())
     }
 }

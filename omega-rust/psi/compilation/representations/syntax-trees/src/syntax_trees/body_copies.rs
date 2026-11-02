@@ -524,6 +524,14 @@ impl SyntaxCopy<'_> {
             self.type_references
                 .retain_const_argument_expression(copied, expression);
         }
+        if let Some(normalization) = other.type_references.const_argument_normalization(handle)
+            && normalization.materialized_expression.is_valid()
+        {
+            let expression =
+                self.copy_expression_handle(other, normalization.materialized_expression);
+            self.type_references
+                .retain_const_argument_materialized_expression(copied, expression);
+        }
         if origin.is_valid() {
             let application = self.copy_type_reference_handle(other, origin);
             self.type_references

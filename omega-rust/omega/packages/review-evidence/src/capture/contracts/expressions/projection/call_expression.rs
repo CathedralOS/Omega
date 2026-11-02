@@ -26,6 +26,15 @@ pub(super) fn project_call_expression(
     checked_fact: Option<arena::Handle<typed_trees::domain::ProofFact>>,
     child: &impl Fn(ExpressionHandle) -> Result<PackageReviewContractExpression, Vec<Diagnostic>>,
 ) -> Result<PackageReviewContractExpression, Vec<Diagnostic>> {
+    if call.layout_query.is_some() {
+        return super::super::layout_queries::project_layout_query(
+            compilation,
+            context,
+            binders,
+            expression,
+            call,
+        );
+    }
     let target = exact_checked_contract_call_target(compilation, context, expression, call)?;
     let resolved_symbol = resolved_contract_call_symbol(compilation, call)
         .or_else(|| compilation.derive_checked_nominal_call_target(expression));
