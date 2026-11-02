@@ -21,13 +21,15 @@ machine equal_bytes(left: &[u8], right: &[u8]) -> bool {
         true -> scan(left, right)
         false -> false
     }
-    machine scan(left: &[u8], right: &[u8]) -> bool {
+    machine scan(left: &[u8], right: &[u8]) -> bool
+    requires left.len == right.len {
         transition left.len > 0u64 {
             true -> item(left, right)
             false -> true
         }
     }
-    machine item(left: &[u8], right: &[u8]) -> bool {
+    machine item(left: &[u8], right: &[u8]) -> bool
+    requires left.len == right.len && left.len > 0u64 {
         transition left[0u64] == right[0u64] {
             true -> scan(&left[1u64..], &right[1u64..])
             false -> false
