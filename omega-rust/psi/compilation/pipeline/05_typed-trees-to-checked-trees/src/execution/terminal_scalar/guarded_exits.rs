@@ -377,7 +377,7 @@ fn tail(
                         .iter_mut()
                         .find(|(candidate, _)| *candidate == subject)
                     {
-                        crate::collections::push_unique(cases, case);
+                        crate::shared::collections::push_unique(cases, case);
                     } else {
                         case_columns.push((subject, vec![case]));
                     }
