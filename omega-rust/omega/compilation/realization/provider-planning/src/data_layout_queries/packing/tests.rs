@@ -2,11 +2,11 @@
 //! addressable size, and a maximal-but-valid layout still packs.
 
 use super::{PlannedField, align_to, pack_fields, place_fields_by_plan};
-use crate::{FieldLayout, TypeLayout, TypeLayoutDescriptor};
+use crate::data_layout_queries::{FieldLayout, TypeLayout, TypeLayoutDescriptor};
 use arena::Arena;
+use checked_trees::typed_trees::name::Identifier;
 use std::sync::Arc;
 use symbols::SymbolHandle;
-use typed_trees::name::Identifier;
 
 fn planned(name: &str, size: usize, alignment: usize) -> PlannedField {
     PlannedField {
@@ -70,19 +70,25 @@ fn maximal_but_valid_layout_still_packs() {
     )
     .expect("a layout ending on the last aligned extent packs");
     assert_eq!(offsets(&storage, span), [0, usize::MAX - 15]);
-    assert_eq!(layout, crate::type_layout(usize::MAX - 7, 8));
+    assert_eq!(
+        layout,
+        crate::data_layout_queries::type_layout(usize::MAX - 7, 8)
+    );
 
     // A single unaligned field may occupy the whole addressable size.
     let mut storage = Arena::new();
     let (span, layout) = pack_fields(&mut storage, [planned("all", usize::MAX, 1)])
         .expect("a full-width byte array alone packs");
     assert_eq!(offsets(&storage, span), [0]);
-    assert_eq!(layout, crate::type_layout(usize::MAX, 1));
+    assert_eq!(
+        layout,
+        crate::data_layout_queries::type_layout(usize::MAX, 1)
+    );
 }
 
 #[test]
 fn plan_directed_placement_rejects_arity_mismatch_and_wrapping_fields() {
-    let layout = crate::type_layout(16, 8);
+    let layout = crate::data_layout_queries::type_layout(16, 8);
     let mut storage = Arena::new();
     let (span, placed) = place_fields_by_plan(
         &mut storage,

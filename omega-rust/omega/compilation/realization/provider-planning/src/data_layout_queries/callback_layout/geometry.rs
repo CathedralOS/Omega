@@ -1,6 +1,6 @@
 use super::PrivateCallbackLayout;
-use crate::TargetClosedDataLayoutIdentity;
-use crate::sizing::pointer_layout;
+use crate::data_layout_queries::TargetClosedDataLayoutIdentity;
+use crate::data_layout_queries::sizing::pointer_layout;
 use target::NativeTarget;
 
 pub(super) fn validate(entry: &PrivateCallbackLayout, target: NativeTarget) -> Result<(), String> {

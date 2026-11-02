@@ -7,7 +7,9 @@ mod geometry;
 #[cfg(test)]
 mod tests;
 
-use crate::{TargetClosedDataLayoutIdentity, TargetClosedPrivateCallbackDemand};
+use crate::data_layout_queries::{
+    TargetClosedDataLayoutIdentity, TargetClosedPrivateCallbackDemand,
+};
 use arena::{Arena, HandleSpan};
 use calling_conventions::{
     NativeParameterId, NativePlace, callback_layout_field_slot_id, callback_layout_slot_id,
@@ -29,7 +31,7 @@ pub struct PrivateCallbackLayout {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PrivateCallbackInlineField {
     pub(crate) symbol: SymbolHandle,
-    pub(crate) field_layout: crate::FieldLayout,
+    pub(crate) field_layout: crate::data_layout_queries::FieldLayout,
     pub(crate) identity: Arc<str>,
     pub(crate) offset: usize,
     pub(crate) extent: usize,
@@ -43,7 +45,7 @@ impl Default for PrivateCallbackInlineField {
     fn default() -> Self {
         Self {
             symbol: SymbolHandle::default(),
-            field_layout: crate::FieldLayout::default(),
+            field_layout: crate::data_layout_queries::FieldLayout::default(),
             identity: Arc::from(""),
             offset: 0,
             extent: 0,
@@ -53,7 +55,7 @@ impl Default for PrivateCallbackInlineField {
                 data_identity: Arc::from(""),
                 layout_subject_identity: None,
                 layout: calling_conventions::LayoutPlanId::new(1).expect("nonzero arena dummy"),
-                physical: crate::TypeLayout::default(),
+                physical: crate::data_layout_queries::TypeLayout::default(),
             },
         }
     }

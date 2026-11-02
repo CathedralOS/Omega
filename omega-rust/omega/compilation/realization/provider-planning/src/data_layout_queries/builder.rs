@@ -15,25 +15,27 @@ mod semantic_ranges;
 mod tests;
 mod type_reference_layouts;
 
-use crate::builder::generic_bindings::GenericLayoutBinding;
-use crate::builder::generic_bindings::binding_for_type;
-use crate::builder::generic_bindings::fixed_array_length;
-use crate::builder::private_callback_closure::close_private_callback_layouts;
-use crate::sizing::pointer_layout;
-use crate::{
+use crate::data_layout_queries::builder::generic_bindings::GenericLayoutBinding;
+use crate::data_layout_queries::builder::generic_bindings::binding_for_type;
+use crate::data_layout_queries::builder::generic_bindings::fixed_array_length;
+use crate::data_layout_queries::builder::private_callback_closure::close_private_callback_layouts;
+use crate::data_layout_queries::sizing::pointer_layout;
+use crate::data_layout_queries::{
     BitFieldLayout, DataLayout, FieldLayout, LayoutPlan, RepeatedFieldLayout, StoredIntegerLayout,
     TargetClosedDataLayoutIdentity, TargetClosedPrivateCallbackDemand, TypeLayout,
     TypeLayoutDescriptor, VariantLayout,
 };
 use arena::{Arena, Handle};
+use checked_trees::typed_trees::TypedTrees;
+use checked_trees::typed_trees::data::{DataDefinition, DataMember};
+use checked_trees::typed_trees::trait_definition::TraitDefinition;
+use checked_trees::typed_trees::types::{
+    TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
+};
 use diagnostics::Diagnostic;
-use representation_selections::OpaqueRepresentationSelection;
+use representation_planning::OpaqueRepresentationSelection;
 use symbols::{BuiltinType, SymbolHandle};
 use target::NativeTarget;
-use typed_trees::TypedTrees;
-use typed_trees::data::{DataDefinition, DataMember};
-use typed_trees::trait_definition::TraitDefinition;
-use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
 /// Build the selected target's general physical layout plan.
 ///
@@ -44,7 +46,7 @@ use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceN
 /// carrier as the semantic source type.
 pub fn build_layout_plan(
     program: &TypedTrees,
-    target: impl Into<crate::LayoutTarget>,
+    target: impl Into<crate::data_layout_queries::LayoutTarget>,
     opaque_representation_selections: &[OpaqueRepresentationSelection],
 ) -> Result<LayoutPlan, Diagnostic> {
     build_layout_plan_for_roots(
@@ -65,7 +67,7 @@ pub fn build_layout_plan(
 /// view; unrelated declarations never acquire a physical layout demand.
 pub fn build_layout_plan_for_roots(
     program: &TypedTrees,
-    target: impl Into<crate::LayoutTarget>,
+    target: impl Into<crate::data_layout_queries::LayoutTarget>,
     opaque_representation_selections: &[OpaqueRepresentationSelection],
     roots: impl IntoIterator<Item = SymbolHandle>,
 ) -> Result<LayoutPlan, Diagnostic> {
@@ -82,7 +84,7 @@ pub fn build_layout_plan_for_roots(
     // templates are skipped. Runtime admissibility belongs to checking; this
     // catalog only omits carriers without geometry. An explicit recursive
     // by-value demand is rejected by the visit-stack backstop.
-    let proof_only = typed_trees::proof_only::classify(program);
+    let proof_only = checked_trees::typed_trees::proof_only::classify(program);
 
     for data_definition in program.data_definitions() {
         if !roots.contains(&data_definition.symbol) {
@@ -113,7 +115,7 @@ pub fn build_layout_plan_for_roots(
 /// representation.
 pub fn layout_type_reference(
     program: &TypedTrees,
-    target: impl Into<crate::LayoutTarget>,
+    target: impl Into<crate::data_layout_queries::LayoutTarget>,
     opaque_representation_selections: &[OpaqueRepresentationSelection],
     type_reference: TypeReferenceHandle,
 ) -> Result<TypeLayout, Diagnostic> {
@@ -131,7 +133,7 @@ pub fn layout_type_reference(
 /// not closed. A fresh builder owns each query; no provisional geometry escapes.
 pub fn try_layout_type_reference(
     program: &TypedTrees,
-    target: impl Into<crate::LayoutTarget>,
+    target: impl Into<crate::data_layout_queries::LayoutTarget>,
     opaque_representation_selections: &[OpaqueRepresentationSelection],
     type_reference: TypeReferenceHandle,
 ) -> Result<Option<TypeLayout>, Diagnostic> {
@@ -237,7 +239,7 @@ impl LayoutVisitStack {
 impl<'program> LayoutBuilder<'program> {
     fn new(
         program: &'program TypedTrees,
-        target: crate::LayoutTarget,
+        target: crate::data_layout_queries::LayoutTarget,
         opaque_representation_selections: &'program [OpaqueRepresentationSelection],
         opaque_representation_demand: OpaqueRepresentationDemand,
     ) -> Self {

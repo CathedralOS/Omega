@@ -1,8 +1,8 @@
 //! Generic layout bindings and the const arguments they resolve.
 
+use checked_trees::typed_trees::TypedTrees;
+use checked_trees::typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
-use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct GenericLayoutBinding<'program> {
