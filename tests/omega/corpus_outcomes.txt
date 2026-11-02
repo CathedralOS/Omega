@@ -2647,7 +2647,7 @@ fail/facts/resident_backing_runtime_cells_unbounded_rejected rejected 8432ms exp
 	cannot prove requires contract for call merge_vacant_extents from exchange: prefix.taken.length == 0 || suffix.length == 0 || embed(suffix.base) == embed(prefix.taken.base) + embed(prefix.taken.length) (needs fact `left.length == 0 || right.length == 0 || embed(right.base) == embed(left.base) + embed(left.length)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove ensures contract for exit from exchange at statement 6: result.storage.base == storage.base
 	cannot prove ensures contract for exit from exchange at statement 6: result.storage.length == storage.length
-fail/facts/resident_backing_runtime_growth_swapped_source rejected 24692ms expected @3a4409d34005
+fail/facts/resident_backing_runtime_growth_swapped_source rejected 20024ms expected @b7a1f6a9630c
 	cannot prove ensures contract for exit from copy_prefix at statement 1: result.original.base == original.base
 	cannot prove ensures contract for exit from copy_prefix at statement 1: result.original.length == original.length
 	cannot prove ensures contract for exit from copy_prefix at statement 1: result.replacement.base == replacement.base
@@ -3135,6 +3135,10 @@ fail/proofs/exact_widening_without_source_bound rejected 6482ms expected @46cdd6
 fail/proofs/linear_result_not_repeatable_denotation rejected 4918ms expected @8c2fec05b2ca
 	specification call `mint` has no observation-free, reach-free, crash-free value denotation: the application carries forbidden denotational content
 	specification call `mint` has no observation-free, reach-free, crash-free value denotation: the application carries forbidden denotational content
+fail/proofs/normal_call_overwritten_nested_field rejected 5721ms expected @b7a1f6a9630c
+	cannot prove requires contract for call need from main: value == 2 (needs fact `value == 2` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/proofs/normal_call_replaced_nested_record rejected 4354ms expected @b7a1f6a9630c
+	cannot prove requires contract for call need from main: value == 2 (needs fact `value == 2` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/proofs/refined_conversion_does_not_strengthen_base_view rejected 4347ms expected @e97ed21415d9
 	specification call `try_from` is not denotational: the selected machine is not unconditionally terminating
 	specification call `try_from` is not denotational: the selected machine is not unconditionally terminating
@@ -10278,7 +10282,7 @@ pass/facts/resident_backing_other_state_exit checked 9185ms check-target:macos_a
 pass/facts/resident_backing_parameter_exit checked 9413ms check-target:macos_arm64 @b3876048c0a2
 pass/facts/resident_backing_plain_ram_exit checked 7289ms check-target:macos_arm64 @c6b8285077a8+wt
 pass/facts/resident_backing_runtime_cells_exit checked 10759ms check-target:macos_arm64 @c6b8285077a8+wt
-pass/facts/resident_backing_runtime_growth_exit checked 32578ms check-target:macos_arm64 @3a4409d34005
+pass/facts/resident_backing_runtime_growth_exit checked 22253ms check-target:macos_arm64 @b7a1f6a9630c
 pass/facts/resident_backing_runtime_helper_loop_exit checked 19198ms check-target:macos_arm64 @4083ce80c932
 pass/facts/resident_backing_runtime_loop_exit checked 20840ms check-target:macos_arm64 @6fe30d215f49
 pass/facts/resident_backing_runtime_reconstruction_loop_exit checked 24170ms check-target:macos_arm64 @3a4409d34005
@@ -13590,6 +13594,7 @@ pass/proofs/nested_machine_proof_erasure_exit checked 3400ms check-target:macos_
 pass/proofs/nested_machine_public_contract_exit checked 4119ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/nested_machine_rank_forwarding checked 1958ms @ccdb99ca2214
 pass/proofs/nested_machine_unrelated_selection_exit checked 3321ms check-target:macos_arm64 @ccdb99ca2214
+pass/proofs/normal_call_retained_nested_fields_exit checked 6966ms check-target:macos_arm64 @b7a1f6a9630c
 pass/proofs/normal_return_expression_statement_sequence_exit checked 3275ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/numeric_state_contract checked 2613ms @ccdb99ca2214
 pass/proofs/numeric_state_contract_exit checked 3582ms check-target:macos_arm64 @9a91500d1caa
