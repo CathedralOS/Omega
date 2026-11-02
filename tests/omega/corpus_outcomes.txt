@@ -666,7 +666,7 @@ fail/facts/generic_calling_policy/missing_nested_provider rejected 19466ms expec
 	calling-policy helper requires an exact Build or target-default provider selection
 fail/facts/generic_calling_policy/missing_policy_provider rejected 18177ms expected @002791b61f14
 	slot `ValuePlan` has 3 covering provider plans for the selected target: `<selected target>::SysVValuePlan::satisfies::ValuePlan` [<fingerprint>], `<selected target>::MicrosoftValuePlan::satisfies::ValuePlan` [<fingerprint>], `<selected target>::AapcsValuePlan::satisfies::ValuePlan` [<fingerprint>] -- choose one in build.omg with `Build::select_provider<ValuePlan, ProviderType>(b);`
-fail/facts/generic_calling_policy/shared_parent_roots_rejected rejected 26379ms expected @89b79a0458c8
+fail/facts/generic_calling_policy/shared_parent_roots_rejected rejected 29645ms expected @27df46d55c29
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
 fail/facts/generic_calling_policy/unused_descendant_rejected rejected 20322ms expected @002791b61f14
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
