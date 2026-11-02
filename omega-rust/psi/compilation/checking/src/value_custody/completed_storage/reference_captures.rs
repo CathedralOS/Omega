@@ -196,12 +196,24 @@ impl Resolver<'_> {
                 return Selection::Unavailable;
             }
             return self
-                .reference_leaf(value, path, copied.references, prefix)
+                .reference_leaf(
+                    value,
+                    path,
+                    copied.references,
+                    prefix,
+                    self.control.operands.get(copied.source).type_reference,
+                )
                 .unwrap_or(Selection::Unavailable);
         }
         if !capture.reference_leaves.is_empty() {
             return self
-                .reference_leaf(value, path, capture.reference_leaves, &[])
+                .reference_leaf(
+                    value,
+                    path,
+                    capture.reference_leaves,
+                    &[],
+                    capture.type_reference,
+                )
                 .unwrap_or(Selection::Unavailable);
         }
         if view && self.control.operand_retentions.is_valid(capture.retention) {
@@ -360,15 +372,28 @@ impl Resolver<'_> {
         path: &[PlaceSegment],
         references: arena::HandleSpan<checked_trees::FlowCapturedReferenceLeaf>,
         prefix: &[PlaceSegment],
+        reference: typed_trees::types::TypeReferenceHandle,
     ) -> Option<Selection> {
         let mut whole_path = prefix.to_vec();
         whole_path.extend_from_slice(path);
+        let Some(whole_path) =
+            super::captures::captured_projection(self.program, reference, &whole_path)
+        else {
+            return Some(Selection::Unavailable);
+        };
         let Some(leaves) = self.control.captured_reference_leaves.span(references) else {
             return Some(Selection::Unavailable);
         };
         let mut matched = None;
         for leaf in leaves {
-            let Some(leaf_path) = self.control.operand_child_paths.span(leaf.path) else {
+            let Some(leaf_path) =
+                self.control
+                    .operand_child_paths
+                    .span(leaf.path)
+                    .and_then(|path| {
+                        super::captures::captured_projection(self.program, reference, path)
+                    })
+            else {
                 return Some(Selection::Unavailable);
             };
             if leaf_path.len() <= whole_path.len()
@@ -380,7 +405,7 @@ impl Resolver<'_> {
                     )
                 })
             {
-                if matched.replace((*leaf, leaf_path.to_vec())).is_some() {
+                if matched.replace((*leaf, leaf_path)).is_some() {
                     return Some(Selection::Unavailable);
                 }
             }
@@ -474,6 +499,10 @@ impl Resolver<'_> {
         reference: typed_trees::types::TypeReferenceHandle,
         path: &[PlaceSegment],
     ) -> Option<Selection> {
+        let Some(path) = super::captures::captured_projection(self.program, reference, path) else {
+            return Some(Selection::Unavailable);
+        };
+        let path = path.as_slice();
         let query = (retention, reference, path.to_vec());
         if let Some((_, result)) = self.profile_memo.iter().find(|(prior, _)| *prior == query) {
             return result.clone();
@@ -548,7 +577,11 @@ impl Resolver<'_> {
             .span_or_empty(profile.leaves)
             .iter()
             .filter_map(|leaf| {
-                let prefix = self.control.operand_retained_paths.span_or_empty(leaf.path);
+                let prefix = super::captures::captured_projection(
+                    self.program,
+                    reference,
+                    self.control.operand_retained_paths.span_or_empty(leaf.path),
+                )?;
                 (!prefix.is_empty()
                     && prefix.len() <= path.len()
                     && prefix.iter().zip(path).all(|(left, right)| {
