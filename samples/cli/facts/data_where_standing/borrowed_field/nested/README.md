@@ -59,12 +59,25 @@ exit 0 and binds all four hosted targets.
   runtime observation.
 
 The fixed discovery base is `539d46c0eb8aa68b72e9f3b326c27d8ed2959346`.
-All nine frozen positives refused the exact i32 addition. Current repairs have
-carried all nine through checking; eight places have actual macOS ARM64 native
-and Terminal exit 0/0 observations. The call-result place and the saved-descriptor
-control still need native transport repair. Exact source copies and oracles are
-pinned under `tests/omega/{pass,fail}/facts/data_where_standing_nested_borrowed_field_*`;
-complete corpus and row qualification remain pending.
+All nine frozen positives refused the exact i32 addition. All nine places and
+both positive descriptor controls now produce native and Terminal exits 0/0
+on macOS ARM64 through ordinary `omega run --both` and the pinned corpus route.
+The nine predicate-removal twins and three identity/authority controls reject
+their intended obligations. Exact source copies and oracles are pinned under
+`tests/omega/{pass,fail}/facts/data_where_standing_nested_borrowed_field_*`.
+Runtime guards also observe the saved pointer after replacement and the field
+production's transported canaries; these strengthen the original oracles without
+changing the bound or consuming arithmetic.
+
+Prepare each positive with `omega update --project <place> --target macos_arm64
+--offline`, then run `omega run --both <place>/main.omg`. Producer revisions,
+binary digests, original refusals and measured engine outcomes are retained in
+the PR evidence. Four existing descriptor, recast and ownership neighbors also
+pass the focused corpus check.
+
+This qualifies replacement of a local reference binding. Replacing an ancestor
+pointer inside incoming storage retains a conservative replay fence and is not
+qualified by these controls.
 
 This production does not close the parent task's remaining recursive/case/
 collection inventories, proposition handback, filesystem qualification or
