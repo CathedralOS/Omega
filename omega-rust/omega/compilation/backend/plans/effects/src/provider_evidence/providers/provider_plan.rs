@@ -70,9 +70,17 @@ pub enum ProviderBinding {
     VtableSlot { index: i64 },
     /// Field-model vtable dispatch: the fn-ptr field of a named table
     /// struct; the byte offset resolves from the layout plan downstream.
-    VtableField { table: String, field: String },
+    VtableField {
+        table: String,
+        field: String,
+        storage: Result<TableFieldStorage, String>,
+    },
     /// UEFI service-table function (the boot-services shape).
-    TableFunction { table: String, field: String },
+    TableFunction {
+        table: String,
+        field: String,
+        storage: Result<TableFieldStorage, String>,
+    },
     /// An ORDINARY CHECKED MACHINE realizing the requirement (the ruling's
     /// composite form: lowering sequences and argument adaptation are
     /// checked Omega code with an explicit satisfies edge, never authored
@@ -87,6 +95,16 @@ pub enum ProviderBinding {
         /// for toolchain, standalone, and focused source-free programs.
         machine_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
     },
+}
+
+/// Checked correspondence for a table-address read, before target layout.
+/// The application names storage, not merely its nominal record declaration;
+/// the field names the exact declaration within that application. Retaining
+/// this use grants neither a readable loan nor foreign execution authority.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TableFieldStorage {
+    pub table_application: String,
+    pub field_declaration: String,
 }
 
 /// One method's normalized provider binding. Composite argument adaptation is
@@ -967,8 +985,8 @@ impl ProviderPlan {
                         ));
                     }
                 }
-                ProviderBinding::VtableField { table, field }
-                | ProviderBinding::TableFunction { table, field } => {
+                ProviderBinding::VtableField { table, field, .. }
+                | ProviderBinding::TableFunction { table, field, .. } => {
                     // The table is the record the leaf's first parameter
                     // borrows. A provider holds no state, so neither its name
                     // nor a data declaration qualifying the leaf supplies it.

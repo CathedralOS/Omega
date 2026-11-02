@@ -326,10 +326,8 @@ retired-syntax deletions to completion.
     write-only boundaries requiring an admitted claim for the selected implementation,
     a `&write`
     slot whose referent carries a reference leaf (`write_only_reference_store`),
-    evidence binders in requirement signatures (`selected_crash_formal`,
-    `selected_value_application`: the requirement grammar admits none), and
-    effectful performed writes (`narrowed_integer_write`: IntegerAt fit is
-    judged only from a body, so a requirement call has none). Their
+    and evidence binders in requirement signatures (`selected_crash_formal`,
+    `selected_value_application`: the requirement grammar admits none). Their
     `target_body` places keep the retired prefix until then. A requirement
     publishes `invokes` for each boundary trait its implementations invoke, and
     a public caller with an explicit ceiling names the requirement; migrated
@@ -820,10 +818,10 @@ helper that passes does not close an item.
     exposure, acyclic expansion and canonical type/ABI identity through both
     compiler producers and retained artifacts.
     The Rust reference [qualified-case row](samples/cli/facts/transparent_generic_aliases/qualified_cases/README.md)
-    preserves imported alias applications through construction and matching in
-    local, field, parameter and call-result places; the remaining five places
-    and broader pattern inference remain open.
-    The complete alias row, remaining binder/case/pattern cases, alias-RHS
+    now preserves imported alias applications through construction and matching
+    in all nine places on Linux x86-64, with exact payload reject twins.
+    Broader pattern inference remains open. The other alias-form rows,
+    remaining binder/case/pattern cases and alias-RHS
     expression operands beyond the [Const-formal](samples/cli/facts/transparent_generic_aliases/rhs_const_expression/README.md),
     [declaration-scope](samples/cli/facts/transparent_generic_aliases/rhs_const_scope/README.md),
     and [captured-supplier nine-place row](samples/cli/facts/transparent_generic_aliases/rhs_captured_supplier/README.md)
@@ -1866,8 +1864,7 @@ defines the complete product bar.
   end to end (`Psi 05–08` and `Omega 00–09`):
   - Validate the Windows portable `FilesystemService` implementation natively
     (anonymous SQOS on owned path opens, HANDLE storage, explicit permissions and
-    data sync), run `file_journal` (exit 7), `note_vault` (exit 14), Windows raw
-    breadth fixture (exit 70), and provide trusted
+    data sync), run `file_journal` (exit 7) and `note_vault` (exit 14), and provide trusted
     Terminal adapters for the exact authored foreign bindings.
   - Run `tests/omega/pass/filesystem/windows_canonicalize_exit` (exit 70 on
     Windows) and wire the occurrence-bound close proof helpers in

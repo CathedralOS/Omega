@@ -8,6 +8,7 @@
 mod compute;
 mod custody;
 
+use crate::SelectedOptimizationInput;
 use crate::{LivenessError, ValidatedLiveness};
 use optimization_core::{
     OptimizationIdentityBundleIdentity, OptimizationSelections, OptimizationUnitIdentity,
@@ -15,18 +16,21 @@ use optimization_core::{
     PrePhysicalOptimizationManifestIdentity,
 };
 use register_environment::ValidatedTargetRegisterEnvironment;
+use selected_instructions::SelectedProgram;
+use selected_instructions::StagedOptimizedCustodyCore;
 use selected_instructions::{LivenessIdentity, SelectedInstructionPlanIdentity};
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
-use target_operations_to_selected_instructions::{
-    StagedOptimizedCustodyCore, StagedOptimizedSelectedInstructions, ValidatedSelectedInstructions,
-};
 use terminal_psi::TerminalPsiIdentity;
 
 pub(crate) fn stage_optimized_liveness(
-    selected: StagedOptimizedSelectedInstructions,
+    selected: SelectedOptimizationInput,
 ) -> Result<StagedOptimizedLiveness, OptimizedLivenessCustodyError> {
     let liveness = compute::compute_liveness(&selected)?;
-    let custody = custody::liveness_custody_receipt(selected.custody(), liveness.receipt());
+    let custody = custody::liveness_custody_receipt(
+        selected.custody,
+        selected.program.identity,
+        liveness.receipt(),
+    );
     Ok(StagedOptimizedLiveness {
         selected,
         liveness,
@@ -34,24 +38,17 @@ pub(crate) fn stage_optimized_liveness(
     })
 }
 
-/// Opt-in liveness staging over the complete selected-instruction custody
-/// carrier. This grants no interval, allocation, emission, or publication
+/// Opt-in liveness staging over the selected program instruction selection
+/// handed over. This grants no interval, allocation, emission, or publication
 /// authority.
 #[derive(Debug)]
 pub struct StagedOptimizedLiveness {
-    selected: StagedOptimizedSelectedInstructions,
+    selected: SelectedOptimizationInput,
     liveness: ValidatedLiveness,
     custody: StagedOptimizedLivenessCustodyReceipt,
 }
 
 impl StagedOptimizedLiveness {
-    /// The producer stage, which owns the optimized-target product later
-    /// stages share; ordinary consumers read the current program through
-    /// `selected` below.
-    pub const fn selected_stage(&self) -> &StagedOptimizedSelectedInstructions {
-        &self.selected
-    }
-
     staged_producer_accessors!(selected; selected, register_environment, selections, budget_per_pass);
 
     pub const fn liveness(&self) -> &ValidatedLiveness {
@@ -71,7 +68,7 @@ pub struct StagedOptimizedLivenessCustodyReceipt {
 }
 
 impl StagedOptimizedLivenessCustodyReceipt {
-    target_operations_to_selected_instructions::staging_custody_core_accessors!();
+    selected_instructions::staging_custody_core_accessors!();
 
     receipt_accessor_rows!(StagedOptimizedLivenessCustodyReceipt {
         selected: SelectedInstructionPlanIdentity,

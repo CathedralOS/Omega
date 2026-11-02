@@ -29,7 +29,7 @@ pub use effects::{
     CompilerIntrinsicExecutionIdentity, CompilerNumericType, CompilerPrimitiveFloatBinaryOperation,
     CompilerPrimitiveIntegerComparisonOperation,
 };
-pub(crate) use external_binding_rows::extract_native_external_binding_rows;
+pub use external_binding_rows::extract_native_external_binding_rows;
 pub(crate) use provenance_replay::{
     DerivedProviderPlan, ProviderPlanProvenance, SelectedTargetMachineOrigin,
 };

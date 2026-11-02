@@ -18,8 +18,8 @@
 use physical_instructions::{
     PostAllocationMachineFunction, PostAllocationMachineInstruction, PostAllocationMachinePlan,
 };
+use selected_instructions::CurrentSelectedProgram;
 use selected_instructions::{SelectedFunction, SelectedInstruction, terminator_instruction};
-use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
 use crate::OptimizedSelectedFormEncodingError as Error;
 use machine_code::{
@@ -29,13 +29,12 @@ use machine_code::{
 /// Walk the selected to post-allocation machine row correspondence in
 /// lockstep, rejecting a roster whose functions, blocks or instructions do not
 /// pair up, and hand each paired row to `visit`.
-pub(super) fn for_each_row<S, V>(
-    selected: &S,
+pub(super) fn for_each_row<V>(
+    selected: CurrentSelectedProgram<'_>,
     machine: &PostAllocationMachinePlan,
     mut visit: V,
 ) -> Result<(), Error>
 where
-    S: ValidatedSelectedAnalysis,
     V: FnMut(
         &SelectedFunction,
         &SelectedInstruction,
@@ -43,7 +42,7 @@ where
         &PostAllocationMachineInstruction,
     ) -> Result<(), Error>,
 {
-    let selected_plan = selected.selected_plan();
+    let selected_plan = selected.plan;
     if selected_plan.functions.len() != machine.functions.len() {
         return Err(Error::FunctionRosterMismatch);
     }

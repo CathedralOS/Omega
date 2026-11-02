@@ -122,7 +122,11 @@ impl Captures<'_> {
         let mut output = Vec::new();
         for leaf in leaves {
             let result_path = loan_place_segments(self.program, state.return_type, &leaf.path)?;
-            let owner_path = loan_owner_path(self.program, state.return_type, &leaf.path)?;
+            let owner_path = crate::corresponding_loan_owner_path(
+                self.program,
+                state.return_type,
+                &loan_owner_path(self.program, state.return_type, &leaf.path)?,
+            )?;
             let mut captured = false;
             for origin in origins
                 .iter()
@@ -131,7 +135,7 @@ impl Captures<'_> {
                 let mut covered = false;
                 for loan in site_loans.iter().filter(|loan| {
                     loan.root == facts::PlaceRoot::Symbol(origin.source.root)
-                        && self.facts.borrow.owner_segments.span(loan.owner_path)
+                        && self.returned_loan_owner_path(state, loan).as_deref()
                             == Some(owner_path.as_slice())
                         && self.origin_matches_returned_loan(state, loan, &origin.source)
                 }) {

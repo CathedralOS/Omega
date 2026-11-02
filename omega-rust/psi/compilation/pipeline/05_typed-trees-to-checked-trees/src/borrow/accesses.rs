@@ -216,7 +216,7 @@ fn collect_formal_argument_accesses(
         }
         let formal_reference = formal;
         let formal = validation::reference_shell(program, formal_reference)?;
-        let reference = collection.expression_type_reference(argument)?;
+        let reference = collection.value_type_reference(argument)?;
         // A reference binding forwards its loan; a place lent as a whole
         // slice view does too. Its storage backs the formal's descriptor
         // through the invocation, so its read is the live borrow, not a
