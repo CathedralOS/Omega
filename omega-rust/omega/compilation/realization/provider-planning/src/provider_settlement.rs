@@ -9,20 +9,11 @@
 //! one subordinate admission: re-verifying the component descriptions the
 //! package inputs attached before provider planning joins them.
 //!
-//! The canonical `FilesystemHost` slot may use a fallback toolchain plan when
-//! its accepted schema has no selected authored provider. TimeHost is supplied
-//! entirely by ordinary target-scoped std providers.
-//! `Console` is deliberately absent from the fallback set:
-//! its canonical boundary is authored-provider-complete — every hosted
-//! target ships a named `NativeConsole` implementation plus a
-//! `provider_defaults` selection in `targets/<target>/console_impl.omg`, and
-//! its leaves close through intrinsic review, syscall rows, or DLL imports
-//! under accepted bindings. A program whose `Console` boundary selects no
-//! provider is missing program content, not a settlement slot; provider
-//! identity is nominal and never inferred from the boundary's name.
+//! A semantic binding classifies an exact service declaration; it never supplies
+//! an implementation. Provider supply comes from declared candidates and explicit
+//! assumption links, with independent component admission retained here.
 
 pub(crate) mod assumed_bindings;
-mod canonical_filesystem_host;
 mod completion;
 mod composition_modes;
 mod independent_components;
@@ -34,175 +25,10 @@ use crate::ProviderSelection;
 use crate::SelectedProviderReviewProvenance;
 use crate::calling_policy_plans::BoundaryCallingPlanRealization;
 use crate::evaluated_via_bindings::EvaluatedViaBindingTable;
-use crate::provider_planning::trait_name_text;
-use checked_trees::typed_trees::service_declarations::ServiceCatalog;
 use diagnostics::Diagnostic;
 use effects::SelectedProviderPlanFacts;
-use effects::provider_plan::{
-    ProviderBinding, ProviderIdentityTable, ProviderPlan, ProviderPlanRow,
-};
-use package_compilation::{
-    AcceptedSemanticBinding, AcceptedSemanticBindingRole, PackageCompilationInputs,
-};
-
-/// Resolve the exact Product boundary and normalized schema for the canonical
-/// filesystem host binding.
-fn resolve_canonical_host_binding<'trees>(
-    services: ServiceCatalog<'trees>,
-    calling_plans: &[BoundaryCallingPlanRealization],
-    binding: &AcceptedSemanticBinding,
-) -> Result<
-    (
-        &'trees checked_trees::typed_trees::trait_definition::TraitDefinition,
-        effects::provider_plan::ServiceSchema,
-    ),
-    Diagnostic,
-> {
-    let typed = services.context().typed;
-    let matches = services
-        .declared_traits()
-        .filter_map(|declaration| {
-            if declaration.package != Some(binding.package())
-                || declaration.path != binding.declaration_path()
-            {
-                return None;
-            }
-            let prepared = declaration.surface?;
-            let definition = typed.trait_definition_by_symbol(declaration.schema.symbol())?;
-            let schema = crate::service_schema::attach_calling(&prepared, calling_plans);
-            (schema.declaration.trait_package_identity == Some(binding.package())
-                && package_compilation::accepted_service_schema_digest(binding.role(), &schema)
-                    == binding.normalized_schema_digest())
-            .then_some((definition, schema))
-        })
-        .collect::<Vec<_>>();
-    let [resolved] = matches.as_slice() else {
-        return Err(Diagnostic::error(format!(
-            "accepted semantic binding {:?} resolved to {} exact package-owned boundary declarations instead of one",
-            binding.role(),
-            matches.len(),
-        )));
-    };
-    Ok(resolved.clone())
-}
-
-/// One canonical host requirement realized by one positional kernel syscall
-/// on the selected target.
-pub(super) struct ToolchainSettledLeaf {
-    /// Canonical requirement name; locates the method inside the accepted
-    /// service schema. It is never an identity key in the emitted plan — the
-    /// row carries the method's complete normalized requirement identity.
-    pub method: &'static str,
-    /// Target syscall number for the selected target profile.
-    pub number: i64,
-}
-
-/// Mint one canonical host's toolchain-settled plan. `leaves` is the host's
-/// reviewed realization table for the selected target (empty when the target
-/// has none); each leaf names the schema method it satisfies and the syscall
-/// that realizes it. `provider` and `host_label` supply the plan's nominal
-/// identity and diagnostic label.
-fn mint_toolchain_settled_plan(
-    services: ServiceCatalog<'_>,
-    calling_plans: &[BoundaryCallingPlanRealization],
-    accepted_binding: Option<&AcceptedSemanticBinding>,
-    target_name: Option<&'static str>,
-    already_selected: &[ProviderPlan],
-    leaves: &[ToolchainSettledLeaf],
-    provider: &'static str,
-    host_label: &'static str,
-) -> Result<Option<crate::DerivedProviderPlan>, Vec<Diagnostic>> {
-    let Some(binding) = accepted_binding else {
-        return Ok(None);
-    };
-    let Some(target_name) = target_name else {
-        return Ok(None);
-    };
-    if leaves.is_empty() {
-        return Ok(None);
-    }
-    let (definition, schema) = resolve_canonical_host_binding(services, calling_plans, binding)
-        .map_err(|error| vec![error])?;
-    let signatures = services
-        .context()
-        .typed
-        .trait_machine_signatures(definition);
-    if already_selected.iter().any(|selected| {
-        selected.schema.declaration.trait_package_identity
-            == schema.declaration.trait_package_identity
-            && selected.schema.declaration.trait_name == schema.declaration.trait_name
-    }) {
-        return Ok(None);
-    }
-    let mut rows = Vec::with_capacity(leaves.len());
-    let mut requirement_symbols = Vec::with_capacity(leaves.len());
-    let mut identities = ProviderIdentityTable::default();
-    for leaf in leaves {
-        let Some(method) = schema
-            .declaration
-            .methods
-            .iter()
-            .find(|method| method.name == leaf.method)
-        else {
-            continue;
-        };
-        let Some(signature) = signatures
-            .iter()
-            .find(|signature| signature.name.as_str() == method.name)
-        else {
-            return Err(vec![Diagnostic::error(format!(
-                "canonical `{host_label}` requirement `{}` has no retained typed requirement signature",
-                leaf.method,
-            ))]);
-        };
-        requirement_symbols.push(signature.symbol);
-        rows.push(ProviderPlanRow {
-            method: method.name.clone(),
-            requirement_identity: identities
-                .intern(schema.identity_text(method.requirement_identity)),
-            requirement_lifetime_partition: Vec::new(),
-            admitted_same_stack_bytes: 0,
-            binding: ProviderBinding::Syscall {
-                number: leaf.number,
-            },
-        });
-    }
-    if rows.is_empty() {
-        // Nothing the schema demands has a toolchain-settled realization:
-        // no plan mints, the same as an unreviewed realization table.
-        return Ok(None);
-    }
-    let plan = ProviderPlan {
-        name: crate::satisfies_plan_name(target_name, trait_name_text(&schema), provider),
-        provider_type: provider.to_owned(),
-        provider_type_package_identity: None,
-        provider_application: Default::default(),
-        target: target_name.to_owned(),
-        schema,
-        rows,
-        identities,
-        origin_package_identity: None,
-        origin_package: "omega toolchain".to_owned(),
-        digest_memo: Default::default(),
-    };
-    let errors = plan.validate_candidate_against_schema();
-    if !errors.is_empty() {
-        return Err(vec![Diagnostic::error(format!(
-            "toolchain-settled `{host_label}` plan is malformed: {}",
-            errors.join("; ")
-        ))]);
-    }
-    let provenance = crate::ProviderPlanProvenance {
-        schema: crate::ProviderSchemaDeclaration::BoundaryTrait(definition.symbol),
-        provider_type: None,
-        named_application: None,
-        row_requirements: requirement_symbols,
-        row_realizations: vec![crate::ProviderRowRealization::Toolchain; plan.rows.len()],
-        row_target_machine_origins: vec![None; plan.rows.len()],
-        row_accessors: vec![None; plan.rows.len()],
-    };
-    Ok(Some(crate::DerivedProviderPlan { plan, provenance }))
-}
+use effects::provider_plan::ProviderPlan;
+use package_compilation::PackageCompilationInputs;
 
 /// Target defaults and declaration origins prepared before provider planning.
 /// Build admission resolves its retained declarations to these exact typed
@@ -367,7 +193,6 @@ impl<Intrinsic> ProviderSettlement<Intrinsic> {
 /// slots. Unselected exported implementations remain checked review content.
 pub fn settle_checked_providers(
     checked: &checked_trees::CheckedTrees,
-    services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'_>,
     selected_target_profile: Option<target::TargetProfile>,
     package_inputs: Option<&PackageCompilationInputs>,
     prepared_providers: Result<crate::target_machines::PreparedProductProviders, Vec<Diagnostic>>,
@@ -375,13 +200,6 @@ pub fn settle_checked_providers(
     boundary_calling_plan_realizations: Vec<BoundaryCallingPlanRealization>,
     calling_program: std::sync::Arc<crate::calling_policy_plans::CallingProgram>,
 ) -> Result<CheckedProviderSelection, Vec<Diagnostic>> {
-    if !std::ptr::eq(services.context().typed, &*checked.typed)
-        || services.context().scope != source::DependencyScope::Product
-    {
-        return Err(vec![Diagnostic::error(
-            "provider settlement service catalog belongs to another Product program",
-        )]);
-    }
     let typed = &checked.typed;
     // Every Product body has already been checked. This target chooses only
     // realization rows; it never narrows the source program.
@@ -430,7 +248,7 @@ pub fn settle_checked_providers(
         provider_selection::ProviderApplicationDemand::Product(canonical_roots.as_deref()),
         &assumptions,
     )?;
-    let mut provider_declarations = canonical_selection.plans.clone();
+    let provider_declarations = canonical_selection.plans.clone();
     let selected_provider_plans = choices
         .into_iter()
         .map(
@@ -451,7 +269,7 @@ pub fn settle_checked_providers(
         native_target: provider_selection_target,
         boundary_calling_plan_realizations: &boundary_calling_plan_realizations,
     };
-    let mut provider_candidates = product_candidates
+    let provider_candidates = product_candidates
         .into_iter()
         .map(|candidate| {
             candidate
@@ -459,29 +277,7 @@ pub fn settle_checked_providers(
                 .attach_physical_rows(candidate.source, &direct_context)
         })
         .collect::<Result<Vec<_>, _>>()?;
-    // The canonical `FilesystemHost` slot admits no authored conformance or
-    // selection row; the toolchain mints the per-target realization plan
-    // itself. It joins extraction, fused-service erasure, closure facts, the
-    // retained candidate inventory, and the post-derivation review provenance
-    // below without entering the pre-selection derivation provenance.
-    let selected_semantic_plans = selected_provider_plans
-        .iter()
-        .map(|selected| selected.derived.plan.clone())
-        .collect::<Vec<_>>();
-    let toolchain_filesystem_plan = canonical_filesystem_host::mint_canonical_filesystem_host_plan(
-        services,
-        &boundary_calling_plan_realizations,
-        package_inputs.and_then(|inputs| {
-            inputs.accepted_semantic_binding(AcceptedSemanticBindingRole::FilesystemHostService)
-        }),
-        target_name,
-        &selected_semantic_plans,
-    )?;
-    // The cycle rule reads every closed checked instance, including uncalled ones,
-    // and requires every schema method to bind a plan row. The toolchain plan covers
-    // only its honestly realizable leaves and its syscall rows can never
-    // invoke, so it joins after the authored-plan cycle check, before the
-    // external-binding extraction that binds its syscall numbers.
+    // Check every declared closed instance, including uncalled candidates.
     backend_plan::synchronous_invocations::validate_declared_synchronous_invocation_cycles(
         &provider_declarations,
         artifact.module(),
@@ -492,11 +288,6 @@ pub fn settle_checked_providers(
         &selected_provider_plans
             .iter()
             .map(|selected| &selected.derived.plan)
-            .chain(
-                toolchain_filesystem_plan
-                    .iter()
-                    .map(|derived| &derived.plan),
-            )
             .collect::<Vec<_>>(),
         &boundary_calling_plan_realizations,
         &calling_program,
@@ -523,51 +314,11 @@ pub fn settle_checked_providers(
         target_name,
         &provider_candidates
             .iter()
-            .filter_map(crate::ProviderPlanCandidate::derived)
+            .map(crate::ProviderPlanCandidate::derived)
             .collect::<Vec<_>>(),
     )?;
     if package_inputs.is_some_and(PackageCompilationInputs::semantic_role_discovery) {
         semantic_roles::validate_proposed(typed, &selected_provider_provenance)?;
-    }
-    for minted in [toolchain_filesystem_plan].into_iter().flatten() {
-        selected_provider_plan_facts = selected_provider_plan_facts
-            .with_toolchain_settled_plan(minted.plan.clone())
-            .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        // Review provenance stays index-aligned with `facts.plans()` (the
-        // intrinsic-review join zips them positionally); splice the toolchain
-        // row at the same slot the sorted insert landed on. Its provenance
-        // already records toolchain supply rather than an invented body.
-        let index = selected_provider_plan_facts
-            .plans()
-            .iter()
-            .position(|plan| *plan == minted.plan)
-            .ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "toolchain-settled canonical-host plan missing from selected facts after join",
-                )]
-            })?;
-        selected_provider_provenance.insert(
-            index,
-            SelectedProviderReviewProvenance {
-                plan: minted.plan.clone(),
-                provider: minted.provenance,
-                selected_by: crate::ProviderSelectionProvenance::UniqueCoveringCandidate,
-                row_compiler_intrinsic_executions: Vec::new(),
-                row_external_completion_leaves: vec![Vec::new(); minted.plan.rows.len()],
-            },
-        );
-        provider_declarations.insert(
-            index,
-            backend_plan::TerminalTargetProviderPlan {
-                plan: minted.plan.clone(),
-                provider_declaration: None,
-                row_numeric_realizations: vec![None; minted.plan.rows.len()],
-            },
-        );
-        // The trust report replays every selected plan against exactly one
-        // retained candidate; the toolchain-settled plan is a real retained
-        // candidate for the slot even though no package authored it.
-        provider_candidates.push(crate::ProviderPlanCandidate::toolchain(minted.plan));
     }
     for assumption in prepared_assumptions.rows {
         assumption.validate_calling(&boundary_calling_plan_realizations)?;

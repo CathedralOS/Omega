@@ -3,7 +3,7 @@ use crate::{
     StagedOptimizedRegisterHomesAfterLiteralFolds,
     StagedOptimizedRegisterHomesAfterSelectedLowering,
 };
-use selected_instructions_to_selected_instructions::SelectedProgramRef;
+use selected_instruction_analyses::SelectedProgramRef;
 
 impl ProjectAllocation for StagedOptimizedRegisterHomesAfterLiteralFolds {
     fn project_allocation(&self) -> AllocationOutput<'_> {

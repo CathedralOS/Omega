@@ -60,33 +60,20 @@ pub struct ProviderRowDeclarations {
     pub exit_process: crate::intrinsic_declarations::ExitProcessDeclaration,
 }
 
-/// One candidate inventory owner. Toolchain-only plans have no authored source
-/// provenance; they cannot manufacture direct declaration inputs.
+/// One original candidate and its row-aligned declaration evidence.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderPlanCandidate<Rows = PreparedProviderRows> {
-    source: ProviderPlanCandidateSource,
+    source: DerivedProviderPlan,
     rows: Rows,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum ProviderPlanCandidateSource {
-    Derived(DerivedProviderPlan),
-    Toolchain(ProviderPlan),
 }
 
 impl<Rows> ProviderPlanCandidate<Rows> {
     pub fn plan(&self) -> &ProviderPlan {
-        match &self.source {
-            ProviderPlanCandidateSource::Derived(source) => &source.plan,
-            ProviderPlanCandidateSource::Toolchain(plan) => plan,
-        }
+        &self.source.plan
     }
 
-    pub(crate) fn derived(&self) -> Option<&DerivedProviderPlan> {
-        match &self.source {
-            ProviderPlanCandidateSource::Derived(source) => Some(source),
-            ProviderPlanCandidateSource::Toolchain(_) => None,
-        }
+    pub(crate) fn derived(&self) -> &DerivedProviderPlan {
+        &self.source
     }
 
     /// Borrow the producer's original row, without truncating a copied plan or
@@ -95,7 +82,7 @@ impl<Rows> ProviderPlanCandidate<Rows> {
         &self,
         input: &DirectBoundaryInput,
     ) -> Result<DirectBoundarySource<'_>, Diagnostic> {
-        self.source.direct_source(input.row_index)
+        derived_direct_source(&self.source, input.row_index)
     }
 }
 
@@ -118,19 +105,8 @@ impl ProviderPlanCandidate {
     }
 
     /// Rejoin exact producer provenance, never a first same-name candidate.
-    /// Toolchain rows have no authored realization and cannot supply row facts.
     pub fn matches_selection(&self, selected: &crate::SelectedProviderReviewProvenance) -> bool {
-        self.plan() == &selected.plan
-            && match &self.source {
-                ProviderPlanCandidateSource::Derived(source) => {
-                    source.provenance == selected.provider
-                }
-                ProviderPlanCandidateSource::Toolchain(_) => selected
-                    .provider
-                    .row_realizations
-                    .iter()
-                    .all(|row| matches!(row, crate::ProviderRowRealization::Toolchain)),
-            }
+        self.plan() == &selected.plan && self.source.provenance == selected.provider
     }
 
     pub fn accessor(&self) -> Result<Option<&crate::SealedAccessor>, Diagnostic> {
@@ -139,17 +115,6 @@ impl ProviderPlanCandidate {
             .as_ref()
             .map(Option::as_ref)
             .map_err(Clone::clone)
-    }
-}
-
-impl ProviderPlanCandidateSource {
-    fn direct_source(&self, row_index: usize) -> Result<DirectBoundarySource<'_>, Diagnostic> {
-        let Self::Derived(source) = self else {
-            return Err(Diagnostic::error(
-                "direct boundary has no original provider provenance",
-            ));
-        };
-        derived_direct_source(source, row_index)
     }
 }
 
@@ -400,7 +365,7 @@ impl CapturedProviderRows {
                 })
                 .collect();
         Ok(ProviderPlanCandidate {
-            source: ProviderPlanCandidateSource::Derived(source),
+            source,
             rows: DeferredProviderRows {
                 direct,
                 declarations: self.declarations,
@@ -464,22 +429,6 @@ fn capture_row_declarations(
 }
 
 impl ProviderPlanCandidate<DeferredProviderRows> {
-    pub(crate) fn toolchain(plan: ProviderPlan) -> Self {
-        // The toolchain mint owns syscall rows, never authored declarations or
-        // sealed-accessor claims. It cannot stand in for failed source capture.
-        let count = plan.rows.len();
-        Self {
-            source: ProviderPlanCandidateSource::Toolchain(plan),
-            rows: DeferredProviderRows {
-                direct: vec![None; count],
-                declarations: Ok(RowDeclarations {
-                    placed: Ok(None),
-                    rows: vec![None; count],
-                }),
-            },
-        }
-    }
-
     /// Consume saved declaration refusals at the original post-entry boundary.
     /// Target Calling has changed only schema attachments, not row coordinates.
     pub(crate) fn finish_row_declarations(self) -> Result<ProviderPlanCandidate, Diagnostic> {

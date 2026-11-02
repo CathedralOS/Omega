@@ -151,7 +151,8 @@ pub use preservation::{
 
 // Upstream selected-program analyses. `AllocationOutput` carries the ranges
 // and legality; the post-allocation stages name these through this crate.
-pub use selected_instructions_to_selected_instructions::{
-    MachineEffectStageError, ValidatedAllocationLegality, ValidatedLiveRanges,
-    ValidatedPreAllocationMachineEffects, ValidatedSelectedAnalysis, analyze_machine_effects,
+pub use selected_instruction_analyses::{
+    MachineEffectStageError, SelectedProgramView, ValidatedAllocationLegality, ValidatedLiveRanges,
+    ValidatedPreAllocationMachineEffects, analyze_machine_effects,
 };
+pub use selected_instructions_to_selected_instructions::ValidatedSelectedAnalysis;

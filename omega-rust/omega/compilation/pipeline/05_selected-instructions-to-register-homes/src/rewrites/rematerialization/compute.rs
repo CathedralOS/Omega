@@ -3,13 +3,15 @@ use optimization_core::OptimizationWorkBudget;
 use register_homes::{
     PostAllocationSelectedTransformation, RecoveryClassificationPolicy, SpillChoicePolicy,
 };
+use selected_instruction_analyses::{
+    analyze_allocation_legality, analyze_live_ranges, analyze_liveness, choose_spill_victims,
+    classify_pressure_recovery,
+};
 use selected_instructions_to_selected_instructions::{
-    PressureRematerializationPolicy, analyze_allocation_legality, analyze_live_ranges,
-    analyze_liveness, choose_spill_victims, classify_pressure_recovery,
-    rematerialize_selected_active_resident,
+    PressureRematerializationPolicy, rematerialize_selected_active_resident,
 };
 
-use selected_instructions_to_selected_instructions::StagedOptimizedAllocationLegality;
+use selected_instruction_analyses::StagedOptimizedAllocationLegality;
 
 use super::custody::{custody_receipt, pressure_custody_receipt};
 use super::{

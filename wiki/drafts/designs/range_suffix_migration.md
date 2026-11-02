@@ -419,6 +419,39 @@ and a mutation leaving invalid timestamp storage reject. Clock-dependent
 hosted consumers named in that witness; a pure arithmetic run alone does not
 qualify their host bindings.
 
+## Audited partial-measure input and retired local store
+
+The [measure input inventory](../../../tests/omega/pass/termination/runtime_measure_input_requirement_exit/README.md#historical-declarations)
+reconciles `constrained_measure_parameter_domain` before `818f643f12d`:
+`Countdown::Remaining.value: u64 [1..=5]` becomes a bare measure formal whose
+identity helper requires `value >= 1 && value <= 5`; `walk.remaining:
+u64 [0..=5]` retains its ordinary `requires remaining <= 5` and unsigned floor.
+Applying the view still owes its input formation before ranking. The
+migration-only `OneToFive` nominal domain is removed. A zero-inclusive helper
+supplies the runnable positive counterpart, exercising both countdown and empty
+arrivals without changing the identity operation or `0..=5` rank range.
+
+`fail/proofs/bounded_assignment_operand_skips_later_same_named_local`, introduced
+at `05c35f12138` after the original census, is retired. Its three old positions
+were const `N: u64 [0..=100]`, the input's `u64 [0..=3]` array element, and local
+`total: u64 [0..=4]`. `818f643f12d` manufactured `Total` and `Narrow` domains to
+keep the local's persistent bounded-store obligation. Under the canonical
+local rule, initialization establishes facts but no anonymous destination type
+restriction; a later assignment replaces those facts. No independent nominal
+identity or containing-data invariant owns this fixture's `total <= 4` goal.
+Its fixture and one source-outcome header plus one diagnostic continuation are
+removed together, without inventing a wrapper owner to preserve a retired rule.
+The general binding-identity rule remains exercised by
+`pass/modules/runtime_nominal_constant_lexical_ownership_exit` (an earlier
+selected constant versus a later same-spelled local) and
+`fail/modules/same_name_record_field_extent` (distinct owners with same-spelled
+fields); actual owner-predicate store controls remain in `data_where_standing`.
+
+These declarations do not complete the historical audit. The same migration's
+`Bound` domain in `pass/generics/folded_range_endpoint_selection_custody`,
+remaining storage/reference propositions, customer runtime qualification and
+suffix retirement retain their owning acceptance.
+
 ## Audited ranked borrowed-field customers
 
 The six `[0..=8]` declarations in

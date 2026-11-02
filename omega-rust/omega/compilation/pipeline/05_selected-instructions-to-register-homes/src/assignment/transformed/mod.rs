@@ -10,12 +10,14 @@ use crate::{
     RegisterHomeError, ValidatedPostAllocationOptimizationManifest, ValidatedRegisterHomes,
 };
 use register_homes::PostAllocationOptimizationManifestError;
+use selected_instruction_analyses::{
+    SelectedProgramRef, ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedLiveness,
+};
 use selected_instructions_to_selected_instructions::{
-    OptimizedLiteralFoldCustodyError, OptimizedPreAllocationCustodyError, SelectedProgramRef,
+    OptimizedLiteralFoldCustodyError, OptimizedPreAllocationCustodyError,
     StagedOptimizedLiteralFoldCustodyReceipt, StagedOptimizedLiteralFolds,
     StagedPreAllocationOptimizationCustodyReceipt, StagedPreAllocationOptimizationRun,
     StagedSelectedLoweringOptimizationCustodyReceipt, StagedSelectedLoweringOptimizationRun,
-    ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedLiveness,
 };
 
 use super::PostHomeCustodyReceipt;

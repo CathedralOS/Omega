@@ -10,7 +10,7 @@ use optimization_core::OptimizationWorkBudget;
 
 use crate::AllocationOutput;
 use register_environment::selected_abi_preservation;
-use selected_instructions_to_selected_instructions::ValidatedSelectedAnalysis;
+use selected_instruction_analyses::SelectedProgramView;
 
 use super::{
     AllocatedCalleeSavedRequirementError, AllocatedCalleeSavedRequirementPlan,

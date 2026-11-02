@@ -30,15 +30,19 @@ use super::{
 use crate::assignment::home_assignment::compute::FunctionHomeReuse;
 use optimization_core::OptimizationWorkBudget;
 use register_homes::PostAllocationSelectedTransformation;
+use selected_instruction_analyses::SelectedProgramView;
+use selected_instruction_analyses::{
+    RecoveryReanalysisError, SelectedProgramRef, StagedOptimizedAllocationLegality,
+    UnsealedRecoveryFacts, ValidatedAllocationLegality, ValidatedAllocatorAvailability,
+    ValidatedLiveRanges, ValidatedLiveness,
+};
 use selected_instructions::{
     FunctionLiveRanges, SelectedInstructionPlan, VirtualRegisterId, VirtualRegisterOrigin,
 };
 use selected_instructions_to_selected_instructions::{
-    FixedViewCopyPolicy, RecoveryReanalysisError, RuntimeSpillError, RuntimeSpillSpanPolicy,
-    SelectedProgramRef, StagedOptimizedAllocationLegality, StagedOptimizedSelectedReanalysis,
-    StagedPreAllocationOptimizationRun, StagedSelectedLoweringOptimizationRun,
-    UnsealedRecoveryFacts, ValidatedAllocationLegality, ValidatedAllocatorAvailability,
-    ValidatedLiveRanges, ValidatedLiveness, ValidatedRuntimeSpill, ValidatedRuntimeSplit,
+    FixedViewCopyPolicy, RuntimeSpillError, RuntimeSpillSpanPolicy,
+    StagedOptimizedSelectedReanalysis, StagedPreAllocationOptimizationRun,
+    StagedSelectedLoweringOptimizationRun, ValidatedRuntimeSpill, ValidatedRuntimeSplit,
     ValidatedSelectedAnalysis, materialize_selected_fixed_occurrences,
     rematerialize_selected_runtime_value, spill_selected_runtime_value,
     spill_selected_runtime_value_with_crossing_status, split_selected_runtime_value,
@@ -1272,17 +1276,14 @@ fn recover_over(
                                             &SelectedProgramRef::new(&crossing),
                                         )
                                     })?;
-                                match phase_profile::scope(
-                                    "omega.05.crossing_probe_all",
-                                    || {
-                                        home_reuse.probe_all(
-                                            environment.identity(),
-                                            probe.legality_functions(),
-                                            probe.range_functions(),
-                                            environment.physical(),
-                                        )
-                                    },
-                                ) {
+                                match phase_profile::scope("omega.05.crossing_probe_all", || {
+                                    home_reuse.probe_all(
+                                        environment.identity(),
+                                        probe.legality_functions(),
+                                        probe.range_functions(),
+                                        environment.physical(),
+                                    )
+                                }) {
                                     Ok(()) => {
                                         let rewrite = RuntimeSpillStepRewrite::Spill(crossing);
                                         recorded.push(rewrite.transformation());

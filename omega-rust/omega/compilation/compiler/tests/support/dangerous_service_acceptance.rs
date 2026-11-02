@@ -63,18 +63,10 @@ pub struct RequiredDangerousServices {
 /// through the selected provider type instead, exactly as the binding
 /// constructors attribute it.
 ///
-/// `FilesystemHost` and `TimeHost` are canonical toolchain-settled slots and
-/// cannot count through a selected plan: no package may author a conformance
-/// for them, and provider settlement mints their plan only after the build
-/// has accepted the slot's semantic binding (`provider_settlement` in
-/// build-evaluation). Keying their acceptance on a selected plan therefore
-/// could never fire, and every entry holding one of these carriers stopped
-/// at establishment's missing-Fused-provider rejection even on the targets
-/// whose settlement table does realize the slot. Their demand is instead the
-/// selected entry's own service requirements — its reach and any remaining
-/// `Binding<R>` fields, the same surface consumer package review nominates
-/// these bindings from — which is why the preliminary compile tolerates the
-/// still-unsettled fields.
+/// Filesystem and clock roles classify exact package-owned requirements. Their
+/// nomination follows the selected entry's service requirements, independently
+/// of provider selection. Accepting a role supplies neither a provider nor an
+/// execution permission; the program must carry its ordinary selected supply.
 ///
 /// Console and ProcessExit operations are the trait signatures the program's
 /// resolved calls select — a `Binding<R>` receiver resolves its call

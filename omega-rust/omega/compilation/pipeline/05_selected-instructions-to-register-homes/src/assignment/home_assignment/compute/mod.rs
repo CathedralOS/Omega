@@ -16,10 +16,8 @@ use std::sync::Arc;
 
 use crate::{RegisterHomeError, RegisterHomePlan};
 use register_homes::{FunctionAllocationLegality, FunctionRegisterHomes};
+use selected_instruction_analyses::{ValidatedAllocationLegality, ValidatedLiveRanges};
 use selected_instructions::FunctionLiveRanges;
-use selected_instructions_to_selected_instructions::{
-    ValidatedAllocationLegality, ValidatedLiveRanges,
-};
 
 pub(crate) use placement::compute_function;
 

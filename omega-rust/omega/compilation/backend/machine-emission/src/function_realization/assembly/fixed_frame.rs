@@ -19,10 +19,10 @@ use post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFo
 use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
 use resolved_layout_to_resolved_layout::ResolvedLayoutOptimization;
 use selected_form_encoding_to_resolved_layout::StagedOptimizedResolvedSelectedFormLayout;
+use selected_instructions_to_register_homes::SelectedProgramView;
 use selected_instructions_to_register_homes::ValidatedAllocatedCalleeSavedRequirements;
 use selected_instructions_to_register_homes::{
     AllocationEvidence, AllocationOutput, PostAllocationSelectedTransformation,
-    ValidatedSelectedAnalysis,
 };
 
 #[allow(clippy::too_many_arguments)]
