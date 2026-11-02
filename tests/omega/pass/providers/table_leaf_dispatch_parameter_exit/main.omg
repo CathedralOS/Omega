@@ -6,6 +6,7 @@
 // offset 0); a table function does not (abs receives -7, not the table).
 use omega::language::core::external_binding;
 boundary trait Symbols {
+    machine open(name: addr, flags: i32) -> addr reaches;
     machine lookup(handle: addr, name: &[u8; 7]) -> addr reaches;
 }
 data Measured { text: [u8; 8]; measure: addr; }
@@ -16,7 +17,8 @@ machine measured_length(table: &Measured) -> u64
 satisfies Measure::length via ForeignBinding::VtableField(measure);
 machine holder_absolute(table: &Holder, input: i32) -> i32
 satisfies Absolute::value via ForeignBinding::TableFunction(absolute);
-machine exercise(handle: addr) reaches Symbols + Measure + Absolute crashes Trap {
+machine main() reaches Symbols + Measure + Absolute crashes Trap {
+    let handle: addr = Symbols::open(0 as addr, 1);
     let length_name: [u8; 7] = "strlen\0";
     let absolute_name: [u8; 7] = "abs\0\0\0\0";
     let length_function: addr = Symbols::lookup(handle, &length_name);
@@ -31,11 +33,4 @@ machine exercise(handle: addr) reaches Symbols + Measure + Absolute crashes Trap
     }
     machine accepted() {}
     machine rejected() { crash Trap; }
-}
-machine linux_main() reaches Symbols + Measure + Absolute crashes Trap {
-    exercise(0 as addr);
-}
-machine macos_main() reaches Symbols + Measure + Absolute crashes Trap {
-    // Darwin's RTLD_DEFAULT is ((void *) -2), unlike Linux's null handle.
-    exercise(18446744073709551614u64 as addr);
 }
