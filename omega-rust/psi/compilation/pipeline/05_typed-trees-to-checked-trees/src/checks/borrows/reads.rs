@@ -463,15 +463,24 @@ pub(super) fn check_storage_read<'p>(
         return;
     }
     let label = read.place.label(program);
+    let refusal = |message: String| {
+        super::staged_values::refusal(
+            program,
+            read.state,
+            statement_index,
+            read.expression,
+            &message,
+        )
+    };
     if backings.is_none() {
-        diagnostics.push(Diagnostic::error(format!(
+        diagnostics.push(refusal(format!(
             "statement {statement_index} {verb} `{label}` without an exact retained backing for its loan",
         )));
         return;
     }
     for loan_handle in conflicts {
         let loan = facts.borrow.loans.get(loan_handle);
-        diagnostics.push(Diagnostic::error(format!(
+        diagnostics.push(refusal(format!(
             "statement {statement_index} {verb} `{label}` while local borrow `{}` is still active ({})",
             symbol_name(program, loan.owner_symbol),
             active_loan_detail(read.state, facts, loan_handle, statement_index)
