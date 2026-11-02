@@ -469,7 +469,12 @@ pub fn settle_checked_providers(
         facts: mut selected_provider_plan_facts,
         demanded_plans: boundary_provider_demands,
         choices,
-    } = prepared.select(artifact, canonical_roots.as_deref(), &assumptions)?;
+        invoked_declarations: _,
+    } = prepared.select(
+        artifact,
+        provider_selection::ProviderApplicationDemand::Product(canonical_roots.as_deref()),
+        &assumptions,
+    )?;
     let mut provider_declarations = canonical_selection.plans.clone();
     let selected_provider_plans = choices
         .into_iter()

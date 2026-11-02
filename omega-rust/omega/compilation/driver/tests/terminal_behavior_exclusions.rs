@@ -141,6 +141,11 @@ fn assert_calling_review_outlives_source(relative: &str) {
         let execution = checked.execution();
         let source = execution.provider_source.program();
         let target = execution.selected_target_profile.expect("fixture target");
+        let defaults = provider_planning::target_machines::settle_provider_defaults(
+            execution.provider_source.inventory().origins(),
+            checked.provider_defaults(),
+            target,
+        );
         let prepare_policy = || {
             provider_planning::calling_policy_plans::prepare_boundary_calling_plans(
                 source,
@@ -152,6 +157,13 @@ fn assert_calling_review_outlives_source(relative: &str) {
                 target,
                 &checked.build().config.opaque_representation_selections,
                 package_inputs.as_ref(),
+                provider_planning::calling_policy_plans::CallingPolicyProviderInputs {
+                    body_declarations: execution.provider_source.inventory().direct_calls(),
+                    defaults: &defaults.provider_defaults,
+                    requested: &checked.build().config.provider_selections,
+                    exact_toolchain_sources: checked.sources().exact_toolchain_sources(),
+                },
+                &checked.providers().calling_program,
             )
             .expect("retain source admission and review correspondence")
         };

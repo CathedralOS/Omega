@@ -174,7 +174,23 @@ impl TargetProviderPreparationRequest<'_> {
         let mut prepared = Vec::with_capacity(candidates.len());
         for candidate in candidates {
             let schema = candidate.provenance.schema.symbol();
-            let schema_owner = self.declaration_identity(schema)?;
+            // A whole map also supplies its inherited requirements. Calls name
+            // their declaring owner, not necessarily this map's root trait.
+            let mut schema_symbols = vec![schema];
+            if let Some(definition) = self.context.typed.trait_definition_by_symbol(schema) {
+                checked_trees::typed_trees::trait_definition::AppliedTraitScope::abstract_scope(
+                    definition,
+                )
+                .visit(self.context.typed, &mut |scope| {
+                    if !schema_symbols.contains(&scope.declaration.symbol) {
+                        schema_symbols.push(scope.declaration.symbol);
+                    }
+                });
+            }
+            let schema_owners = schema_symbols
+                .into_iter()
+                .map(|symbol| self.declaration_identity(symbol))
+                .collect::<Result<Vec<_>, _>>()?;
             let explicitly_selected = explicit_choices
                 .iter()
                 .any(|choice| choice.subject.selects_plan(&Ok(schema), &candidate.plan));
@@ -214,7 +230,7 @@ impl TargetProviderPreparationRequest<'_> {
                         }
                     }),
                 },
-                schema_owner,
+                schema_owners,
                 explicitly_selected,
             });
         }

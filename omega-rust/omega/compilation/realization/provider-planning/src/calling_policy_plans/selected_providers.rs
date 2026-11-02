@@ -1,15 +1,14 @@
-//! Choose checked semantic execution before evaluating native calling plans.
+//! Choose semantic helpers over the shared Terminal invocation graph.
 //!
-//! A policy may call a pure boundary helper selected by Build. Selecting its
-//! checked declaration needs the neutral service contract, not the ABI value
-//! that the policy is computing. Ordinary derivation and whole-map selection
-//! own that choice; final settlement later attaches evaluated calling evidence.
-//! These provisional commitments never become native calling identities.
+//! Calling uses neutral contracts: its ABI result does not yet exist. The
+//! ordinary canonical selector closes exact invocation demand through selected
+//! providers. Source correspondence below only prepares the existing Psi
+//! admission inputs; it does not discover demand or select another whole map.
+//! Neutral commitments never become final native calling identities.
 
 use checked_trees::typed_trees::service_declarations::ServiceCatalog;
 use diagnostics::Diagnostic;
 use language_semantics::direct_calls::DirectCallDeclarations;
-use std::collections::HashSet;
 use symbols::SymbolHandle;
 
 pub struct CallingPolicyProviderInputs<'program> {
@@ -29,169 +28,199 @@ pub(super) fn prepare(
     services: ServiceCatalog<'_>,
     target: target::TargetProfile,
     roots: &[SymbolHandle],
-    machine_bodies: &[build_time_evaluation::SelectedBuildTimeMachineBody],
     inputs: &CallingPolicyProviderInputs<'_>,
+    code: &super::CallingProgram,
 ) -> Result<SelectedPolicyProviders, Vec<Diagnostic>> {
-    let typed = checked.typed.as_ref();
-    let candidates = crate::derive_satisfies_plans(crate::ProviderPlanDerivation::unevaluated(
+    let failure = |reason: String| vec![Diagnostic::error(reason)];
+    let artifact = code.artifact.view();
+    let module = artifact.module();
+    let scope = &module.scalar_applications.proof_scope;
+    let mut declarations = Vec::with_capacity(roots.len());
+    for root in roots {
+        let entry = code
+            .entries
+            .iter()
+            .find(|(source, _)| source == root)
+            .ok_or_else(|| {
+                failure("calling helper selection lost its exact published root".into())
+            })?
+            .1
+            .as_ref()
+            .map_err(Clone::clone)?;
+        let declaration = scope
+            .callable_declaration(terminal_psi::TargetMachineCallable::Machine(*entry))
+            .ok_or_else(|| {
+                failure("calling helper selection lost its exact invocation declaration".into())
+            })?;
+        if !declarations.contains(&declaration) {
+            declarations.push(declaration);
+        }
+    }
+    let inventory = crate::target_machines::AuthoredTargetProviders::unevaluated(
         services,
         inputs.body_declarations,
+        inputs.defaults,
+        target,
+    )?;
+    let prepared = crate::target_machines::TargetProviderPreparationRequest {
+        context: services.context(),
+        exact_toolchain_sources: inputs.exact_toolchain_sources,
+        application_roots: None,
+        application_scopes: &[],
+        overrides: inputs.requested,
+        assumed_bindings: &[],
+        independent_components: &[],
+        selected: None,
+        targets: &[],
+    }
+    .prepare_target(target.target_name(), &inventory, &[])?;
+    let selected = prepared.select(
+        artifact,
+        provider_selection::ProviderApplicationDemand::Invocation(&declarations),
         &[],
-        Some(target.target_name()),
-    ))?;
-    let graph = build_time_evaluation::BuildTimeAdmissionPlan::infer(typed, None)
-        .with_selected_machine_bodies(typed, machine_bodies)
-        .map_err(|reason| vec![Diagnostic::error(reason)])?;
-    let mut roots = roots.to_vec();
-    let mut prior_demands = HashSet::new();
-    let selected = loop {
-        let closure = graph.execution_dependencies(typed, &roots);
-        let demands: HashSet<_> = checked
-            .facts
-            .operators
-            .resolved_expression_selections()
-            .filter(|(_, origin, _, _)| {
-                origin
-                    .machine_symbol()
-                    .is_some_and(|owner| closure.contains(&owner))
-            })
-            .map(|(_, _, requirement, _)| requirement)
-            .filter(|requirement| is_boundary_requirement(typed, *requirement))
-            .collect();
-        let demanded = candidates
-            .iter()
-            .filter(|candidate| {
-                candidate
-                    .provenance
-                    .row_requirements
-                    .iter()
-                    .any(|requirement| demands.contains(requirement))
-            })
-            .cloned()
-            .collect::<Vec<_>>();
-        // Unrelated authored/native supplies stay with ordinary settlement.
-        // Keep every choice for a demanded schema, including invalid choices:
-        // filtering by provider availability would silently discard a refusal.
-        let relevant = |choice: &&crate::ProviderSelection| {
-            demanded.iter().any(|candidate| {
-                candidate.plan.rows.iter().any(|row| {
-                    choice.subject.selects_schema(
-                        candidate.provenance.schema.symbol(),
-                        candidate.plan.identity_text(row.requirement_identity),
-                        candidate.plan.schema.root_application_identity(),
-                    )
-                })
-            })
-        };
-        let defaults = inputs
-            .defaults
-            .iter()
-            .filter(relevant)
-            .cloned()
-            .collect::<Vec<_>>();
-        let requested = inputs
-            .requested
-            .iter()
-            .filter(relevant)
-            .cloned()
-            .collect::<Vec<_>>();
-        let selected =
-            crate::select_derived_provider_plans(&demanded, target, &defaults, &requested)?;
-        for choice in &selected {
-            if !matches!(
-                choice.selected_by,
-                crate::ProviderSelectionProvenance::BuildOverride(_)
-                    | crate::ProviderSelectionProvenance::TargetDefault(_)
-            ) {
-                return Err(vec![Diagnostic::error(
-                    "calling-policy helper requires an exact Build or target-default provider selection",
-                )]);
-            }
+    )?;
+    for choice in &selected.choices {
+        if !matches!(
+            choice.selected_by,
+            provider_selection::SelectionProvenance::BuildOverride(_)
+                | provider_selection::SelectionProvenance::TargetDefault(_)
+        ) {
+            return Err(failure("calling-policy helper requires an exact Build or target-default provider selection".into()));
         }
-        let plans = selected
-            .iter()
-            .map(|selected| selected.derived.plan.clone())
-            .collect::<Vec<_>>();
-        for requirement in &demands {
-            let (_, plan) =
-                crate::selected_requirement_plan(services.context(), &plans, *requirement)
-                    .ok_or_else(|| {
-                        vec![Diagnostic::error(
-                            "calling-policy helper has no exact selected checked provider",
-                        )]
-                    })?;
-            let (body, _) = crate::selected_requirement_checked_adapter(services, plan, *requirement)
-                .map_err(|error| vec![error])?
-                .ok_or_else(|| vec![Diagnostic::error("calling-policy evaluation requires a checked helper body; native supply is not semantic execution")])?;
-            if !roots.contains(&body.symbol) {
-                roots.push(body.symbol);
-            }
-        }
-        if demands == prior_demands {
-            break selected;
-        }
-        prior_demands = demands;
-    };
-    let (plans, provenance) = crate::selected_provider_plan_facts(services.context(), selected)?;
-    let closure = graph.execution_dependencies(typed, &roots);
+    }
+
+    // Only the existing Psi admission adapter reads Source here. The canonical
+    // fixed point already decided the called declarations and selected plans.
+    // An exact occurrence substitution is not authority for another call to
+    // the same implementation body.
+    let machines = source_invocation_machines(checked, module, &selected.invoked_declarations)?;
     let mut bodies = Vec::new();
     for (expression, origin, requirement, _) in
         checked.facts.operators.resolved_expression_selections()
     {
         if !origin
             .machine_symbol()
-            .is_some_and(|owner| closure.contains(&owner))
+            .is_some_and(|owner| machines.contains(&owner))
         {
             continue;
         }
-        let Some((_, plan)) =
-            crate::selected_requirement_plan(services.context(), plans.plans(), requirement)
-        else {
+        let mut matching = selected.choices.iter().flat_map(|choice| {
+            choice
+                .candidate
+                .owner
+                .row_requirements
+                .iter()
+                .enumerate()
+                .filter_map(move |(ordinal, source)| {
+                    (*source == requirement).then_some((choice, ordinal))
+                })
+        });
+        let Some((choice, ordinal)) = matching.next() else {
             continue;
         };
-        if let Some(body) = crate::prepare_selected_build_time_provider_body(
-            services,
-            target,
-            plan,
-            expression,
-            origin,
-            requirement,
-        )
-        .map_err(|error| vec![error])?
-        {
-            bodies.push(body);
+        if matching.next().is_some() {
+            return Err(failure(
+                "calling helper occurrence has competing selected Source correspondences".into(),
+            ));
         }
-    }
-    // Semantic execution needs exact closed declarations, not native family
-    // relationships. Native handoff prepares those from its complete roster.
-    let declarations = provenance
-        .iter()
-        .map(|retained| {
-            crate::native_provider_sources::close_provider_declarations(
-                services.context(),
-                inputs.exact_toolchain_sources,
-                &retained.plan,
-                &retained.provider,
+        let plan = &choice.candidate.plan;
+        let owner = &choice.candidate.owner;
+        let row = plan
+            .rows
+            .get(ordinal)
+            .ok_or_else(|| failure("calling helper lost its selected row".into()))?;
+        if !matches!(
+            row.binding,
+            effects::provider_plan::ProviderBinding::CheckedAdapter { .. }
+        ) {
+            return Err(failure("calling-policy evaluation requires a checked helper body; native supply is not semantic execution".into()));
+        }
+        let body = owner
+            .row_realizations
+            .get(ordinal)
+            .and_then(|realization| realization.authored())
+            .and_then(|symbol| checked.typed.machine(symbol))
+            .ok_or_else(|| {
+                failure("calling helper lost its selected Source body correspondence".into())
+            })?;
+        let declaration = owner.provider_type.ok_or_else(|| {
+            failure("calling helper lost its selecting declaration correspondence".into())
+        })?;
+        bodies.push(
+            build_time_evaluation::SelectedBuildTimeProviderBody::prepare(
+                &checked.typed,
+                expression,
+                origin,
+                requirement,
+                body,
+                plan.provider_type.clone(),
+                declaration,
+                plan.provider_type_package_identity,
+                target.target_name(),
+                checked_trees::CheckedProviderPlanCommitment::from_digest(
+                    *plan.identity_digest().as_bytes(),
+                ),
             )
-        })
-        .collect::<Result<Vec<_>, _>>()?;
+            .map_err(failure)?,
+        );
+    }
     Ok(SelectedPolicyProviders {
         bodies,
-        declarations,
+        declarations: selected.selection.plans,
     })
 }
 
-fn is_boundary_requirement(
-    typed: &checked_trees::typed_trees::TypedTrees,
-    requirement: SymbolHandle,
-) -> bool {
-    typed
-        .trait_machine_signature(requirement)
-        .is_some_and(|(owner, _)| owner.is_boundary)
-        || typed
-            .operator_definition_by_symbol(requirement)
-            .is_some_and(|operator| operator.is_boundary)
-        || typed.machine(requirement).is_some_and(|machine| {
-            machine.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
-        })
+/// Rejoin exact checked headers solely for the remaining Source admission
+/// floor. No source call traversal or provider choice occurs at this adapter.
+fn source_invocation_machines(
+    checked: &checked_trees::CheckedTrees,
+    module: &terminal_psi::TerminalModule,
+    invoked: &[terminal_psi::ProofDeclarationId],
+) -> Result<Vec<SymbolHandle>, Vec<Diagnostic>> {
+    let mut callables = Vec::new();
+    for (_, header) in module
+        .scalar_applications
+        .proof_scope
+        .callable_headers
+        .iter()
+    {
+        if !invoked.contains(&header.declaration) {
+            continue;
+        }
+        let identity = header
+            .callable
+            .as_ref()
+            .map_err(|reason| vec![Diagnostic::error(reason.clone())])?;
+        let callable = module.identities.text(*identity).ok_or_else(|| {
+            vec![Diagnostic::error(
+                "invoked callable lost its canonical identity",
+            )]
+        })?;
+        callables.push((
+            callable,
+            header.package,
+            header.source_target.as_deref(),
+            header.product_eligible,
+        ));
+    }
+    callables.sort_unstable();
+    let mut machines = Vec::new();
+    for (_, header) in checked.facts.declaration_descriptions.headers.iter() {
+        if !header.callable.is_valid() {
+            continue;
+        }
+        let callable = checked.callable_identity_text(header.callable);
+        if callables
+            .binary_search(&(
+                callable.as_str(),
+                header.package,
+                header.source_target.as_deref(),
+                header.product_eligible,
+            ))
+            .is_ok()
+        {
+            machines.push(header.machine);
+        }
+    }
+    Ok(machines)
 }
