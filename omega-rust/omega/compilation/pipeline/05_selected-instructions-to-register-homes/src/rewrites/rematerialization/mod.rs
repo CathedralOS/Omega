@@ -10,6 +10,10 @@ mod custody;
 use optimization_core::OptimizationWorkBudget;
 
 use crate::{
+    PressureRematerializationError, PressureRematerializationPolicy,
+    ValidatedPressureRematerialization,
+};
+use crate::{
     RegisterHomeError, ValidatedPostAllocationOptimizationManifest, ValidatedRegisterHomes,
 };
 use register_homes::{
@@ -25,10 +29,6 @@ use selected_instruction_analyses::{
 };
 use selected_instructions::{
     LiveRangeIdentity, LivenessIdentity, PressureRematerializationIdentity,
-};
-use selected_instructions_to_selected_instructions::{
-    PressureRematerializationError, PressureRematerializationPolicy,
-    ValidatedPressureRematerialization,
 };
 
 pub(crate) use compute::{

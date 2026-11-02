@@ -12,8 +12,11 @@
 
 use optimization_core::{Optimization, OptimizationExecutionPhase};
 
-use super::{
+use selected_instruction_analyses::{
     ALLOCATION_RECOVERY_RULE_CATALOG, AllocationRecoveryRuleCatalogEntry,
+};
+
+use super::{
     PRE_ALLOCATION_RULE_CATALOG, PreAllocationRuleCatalogEntry, SELECTED_LOWERING_RULE_CATALOG,
     SelectedLoweringRuleCatalogEntry,
 };

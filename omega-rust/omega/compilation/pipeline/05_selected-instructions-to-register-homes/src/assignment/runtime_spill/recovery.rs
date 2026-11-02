@@ -28,6 +28,15 @@ use super::{
     RuntimeSpillManifestBase, RuntimeSpillSource, RuntimeSpillStep, RuntimeSpillStepRewrite,
 };
 use crate::assignment::home_assignment::compute::FunctionHomeReuse;
+use crate::{
+    FixedViewCopyPolicy, ValidatedRuntimeSpill, ValidatedRuntimeSplit, ValidatedSelectedAnalysis,
+};
+use crate::{
+    RuntimeSpillError, RuntimeSpillSpanPolicy, StagedOptimizedSelectedReanalysis,
+    materialize_selected_fixed_occurrences, rematerialize_selected_runtime_value,
+    spill_selected_runtime_value, spill_selected_runtime_value_with_crossing_status,
+    split_selected_runtime_value,
+};
 use optimization_core::OptimizationWorkBudget;
 use register_homes::PostAllocationSelectedTransformation;
 use selected_instruction_analyses::SelectedProgramView;
@@ -40,12 +49,7 @@ use selected_instructions::{
     FunctionLiveRanges, SelectedInstructionPlan, VirtualRegisterId, VirtualRegisterOrigin,
 };
 use selected_instructions_to_selected_instructions::{
-    FixedViewCopyPolicy, RuntimeSpillError, RuntimeSpillSpanPolicy,
-    StagedOptimizedSelectedReanalysis, StagedPreAllocationOptimizationRun,
-    StagedSelectedLoweringOptimizationRun, ValidatedRuntimeSpill, ValidatedRuntimeSplit,
-    ValidatedSelectedAnalysis, materialize_selected_fixed_occurrences,
-    rematerialize_selected_runtime_value, spill_selected_runtime_value,
-    spill_selected_runtime_value_with_crossing_status, split_selected_runtime_value,
+    StagedPreAllocationOptimizationRun, StagedSelectedLoweringOptimizationRun,
 };
 
 pub(crate) fn assign_source_reusing(

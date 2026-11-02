@@ -2,8 +2,8 @@ use crate::assign_register_homes;
 use crate::assignment::post_allocation_manifest::project_post_allocation_optimization_manifest;
 use register_homes::PostAllocationSelectedTransformation;
 
+use crate::StagedOptimizedSelectedReanalysis;
 use selected_instruction_analyses::StagedOptimizedAllocationLegality;
-use selected_instructions_to_selected_instructions::StagedOptimizedSelectedReanalysis;
 
 use super::custody::custody_receipt;
 use super::{

@@ -1,11 +1,11 @@
 use super::{AllocationAdmissionError, AllocationOutput, ProjectAllocation};
+use crate::FixedViewCopyPolicy;
 use crate::{
     StagedOptimizedActiveResidentRematerialization, StagedOptimizedRegisterHomes,
     StagedOptimizedRegisterHomesAfterFixedViewCopies,
     StagedOptimizedRegisterHomesAfterLiteralFolds, StagedOptimizedRegisterHomesAfterPreAllocation,
     StagedOptimizedRegisterHomesAfterSelectedLowering,
 };
-use selected_instructions_to_selected_instructions::FixedViewCopyPolicy;
 
 #[cfg(test)]
 mod tests;

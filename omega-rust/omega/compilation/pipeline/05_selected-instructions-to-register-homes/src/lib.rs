@@ -83,11 +83,46 @@ macro_rules! stage_error_display {
 
 pub(crate) use optimization_core::digest_encoder;
 #[macro_use]
+extern crate selected_instruction_analyses;
+
+// The shared analyses, work accounting and codec the moved recovery code
+// names at the crate root.
+use selected_instruction_analyses as analyses;
+#[allow(unused_imports)]
+pub(crate) use selected_instruction_analyses::*;
+use selected_instructions::{FixedViewCopyIdentity, PressureRematerializationIdentity};
+
+#[macro_use]
 mod assignment;
 mod output;
 mod preservation;
+mod reanalysis;
 mod register_allocation;
 mod rewrites;
+mod selected_input;
+
+// The recovery rewrites and the reanalysis over fixed-view copies, at the
+// crate root where their own modules name them.
+pub use reanalysis::{
+    OptimizedSelectedReanalysisError, StagedOptimizedSelectedReanalysis,
+    StagedOptimizedSelectedReanalysisCustodyReceipt, stage_optimized_selected_reanalysis,
+};
+pub(crate) use rewrites::*;
+pub use rewrites::{
+    FixedOccurrencesError, FixedViewCopy, FixedViewCopyPlan, FixedViewCopyPolicy,
+    FixedViewCopySourceEvidence, OptimizedFixedPrecoloredSegmentHomeCustodyError,
+    OptimizedFixedViewCopyCustodyError, PressureRematerializationError,
+    PressureRematerializationPolicy, RuntimeRematerializationError, RuntimeSpillError,
+    RuntimeSpillSpanPolicy, RuntimeSplitError, ValidatedFixedOccurrences, ValidatedFixedViewCopies,
+    ValidatedPressureRematerialization, ValidatedRuntimeRematerialization, ValidatedRuntimeSpill,
+    ValidatedRuntimeSplit, fixed_view_copy_identity, materialize_selected_fixed_occurrences,
+    probe_optimized_fixed_precolored_segment_homes, rematerialize_selected_active_resident,
+    rematerialize_selected_runtime_value, spill_selected_runtime_value,
+    spill_selected_runtime_value_with_crossing_status,
+    spill_selected_runtime_value_with_span_policy, split_selected_runtime_value,
+    stage_optimized_fixed_precolored_segment_homes, stage_optimized_fixed_view_copies,
+};
+pub use selected_input::ValidatedSelectedAnalysis;
 
 // The entry and its route.
 pub use register_allocation::{RegisterAllocationError, stage_register_allocation};
@@ -155,4 +190,3 @@ pub use selected_instruction_analyses::{
     MachineEffectStageError, SelectedProgramView, ValidatedAllocationLegality, ValidatedLiveRanges,
     ValidatedPreAllocationMachineEffects, analyze_machine_effects,
 };
-pub use selected_instructions_to_selected_instructions::ValidatedSelectedAnalysis;

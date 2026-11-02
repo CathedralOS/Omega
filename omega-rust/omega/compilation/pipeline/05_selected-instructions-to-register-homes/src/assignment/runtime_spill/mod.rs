@@ -2,6 +2,14 @@
 
 mod recovery;
 
+use crate::{
+    FixedOccurrencesError, RuntimeRematerializationError, RuntimeSpillError, RuntimeSplitError,
+    StagedOptimizedSelectedReanalysis,
+};
+use crate::{
+    FixedViewCopyPolicy, ValidatedFixedOccurrences, ValidatedRuntimeRematerialization,
+    ValidatedRuntimeSpill, ValidatedRuntimeSplit,
+};
 use crate::{ValidatedPostAllocationOptimizationManifest, ValidatedRegisterHomes};
 use optimization_core::{
     PreAllocationOptimizationCompletionIdentity, PrePhysicalOptimizationManifestIdentity,
@@ -23,10 +31,7 @@ use selected_instruction_analyses::{
 };
 use selected_instructions::SelectedInstructionPlan;
 use selected_instructions_to_selected_instructions::{
-    FixedOccurrencesError, FixedViewCopyPolicy, RuntimeRematerializationError, RuntimeSpillError,
-    RuntimeSplitError, StagedOptimizedSelectedReanalysis, StagedPreAllocationOptimizationRun,
-    StagedSelectedLoweringOptimizationRun, ValidatedFixedOccurrences,
-    ValidatedRuntimeRematerialization, ValidatedRuntimeSpill, ValidatedRuntimeSplit,
+    StagedPreAllocationOptimizationRun, StagedSelectedLoweringOptimizationRun,
 };
 
 /// A completed recovery: its source custody, the final step and the final
