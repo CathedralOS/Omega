@@ -61,7 +61,7 @@ and must correlate the actual returned address with an admitted captured endpoin
   execute the oracle on matching hosts. An interpreter decline, even beside a
   wrapper exit 0, is not execution agreement.
 
-## Baseline and remaining acceptance
+## Baseline and execution evidence
 
 At fixed source `f243fb583a50596be3287aafefdd864d3d3eaa58`, all nine positives
 check and all nine shared-input controls reject. The bounded root probe executes
@@ -71,8 +71,32 @@ its wrapper exit 0 is retained as a red Terminal baseline.
 
 Raw profiles, source digests, commands and outputs are retained in the continuing
 claim's `build/opaque-host-reference/fill-{baseline,row-baseline-checks}.json`.
-The row is unfinished until all nine native/Terminal agreements and the reject
-controls qualify. Matching Windows, macOS and Linux ARM64 execution remains
-unmeasured at this checkpoint. General host-owned allocations, unbounded native
+Optimized producers at `a871b3a06cd00925246befecf4866787dc6b8875` execute all
+nine positive corpus fixtures with actual native exit 0, interpreter exit 0 and
+`interpreter:agrees`. The nine shared-input twins reject with their authored
+access diagnostic. These observations are recorded at source
+`9e24c7342c2aa5aadb81182616e887f42144e57b`; both explicit runtime oracles are
+retained beside every positive fixture.
+
+`mbx run -p compiler --example host_reference_result` exercises 22 public SDK
+scenarios across retained and decoded artifacts. Its ordinary host writes the
+fill word, then returns an opaque selection of the captured Cell. The guest
+observes that write and changes the same backing twice. Missing opt-in and
+missing capture refuse before callback. Stale selections, a wrong type or path,
+insufficient access and an opaque numeric identity refuse normal completion.
+The [two-input control](controls/host_regions/main.omg) captures two same-typed
+Cells while only input zero supplies the result region: selecting input one
+rejects. Storage exhaustion after the callback refuses completion; retry cannot
+repeat the effect. Closing every scenario releases all accounted storage and
+payload. The control is a checking-only project whose actual host is supplied
+through the public SDK, so it has no invented native binding.
+
+The sample gate requires explicit engine agreement and retains both numeric
+exits. A successful wrapper beside `interp: DECLINED` is a failing oracle;
+missing, duplicate and disagreeing engine reports also fail. Its refusal and
+observation controls pass with the rest of the 56 gate tests.
+
+Final production CLI qualification and matching Windows, macOS and Linux ARM64
+execution remain pending at this checkpoint. General host-owned allocations, unbounded native
 addresses and unrelated resource/qualification issuance are not supplied by this
 captured-input carrier.
