@@ -249,7 +249,11 @@ impl Execution<'_, '_, '_> {
     ) -> Option<Vec<PlaceSegment>> {
         let owner = crate::borrow::owner_path_from_place_segments(self.program, path);
         let structural = crate::borrow::structural_owner_path(self.program, &owner)?;
-        validation::canonical_qualification_path(self.program, returned, &structural).ok()
+        validation::reference_result_custody::loan_place_segments(
+            self.program,
+            returned,
+            &structural,
+        )
     }
 
     /// Complete body-derived image leaves, independent of the declaration's

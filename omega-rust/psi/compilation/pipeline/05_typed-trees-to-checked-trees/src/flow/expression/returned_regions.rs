@@ -34,9 +34,11 @@ impl Execution<'_, '_, '_> {
         validation::reference_shell(self.program, reference)?;
         let mut regions = Vec::new();
         for origin in origins {
-            let output_path =
-                validation::canonical_qualification_path(self.program, returned, &origin.path)
-                    .ok()?;
+            let output_path = validation::reference_result_custody::loan_place_segments(
+                self.program,
+                returned,
+                &origin.path,
+            )?;
             if output_path != path {
                 continue;
             }
@@ -190,7 +192,7 @@ fn region_sources<'program>(
             .collect::<Option<Vec<_>>>()?;
         // Coverage belongs to one returned leaf. Another field's image or
         // missing relation cannot veto it; every matching alternative can.
-        if validation::canonical_qualification_path(program, returned, &output).ok()?
+        if validation::reference_result_custody::loan_place_segments(program, returned, &output)?
             != requested_path
         {
             continue;

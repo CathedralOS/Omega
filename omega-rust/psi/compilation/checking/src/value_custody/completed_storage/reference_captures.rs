@@ -136,6 +136,17 @@ struct Resolver<'a> {
 }
 impl Resolver<'_> {
     fn select(&mut self, value: Handle<FlowOperandFact>, path: &[PlaceSegment]) -> Selection {
+        if !self.control.operands.is_valid(value) {
+            return Selection::Unavailable;
+        }
+        let Some(path) = super::captures::captured_projection(
+            self.program,
+            self.control.operands.get(value).type_reference,
+            path,
+        ) else {
+            return Selection::Unavailable;
+        };
+        let path = path.as_slice();
         let query = Query {
             value,
             path: path.to_vec(),
