@@ -204,9 +204,7 @@ impl<'program> StructuralJudge<'program> {
         let mut outcomes = Vec::new();
         for subject in evaluate(self, subject_expression)? {
             subject.observed_value()?;
-            let observed_subject = subject
-                .judge
-                .completed_match_case_observation(&subject.value);
+            let observed_subject = subject.judge.completed_nominal_observation(&subject.value);
             let judgment = subject.judge.admitted_case_judgment(
                 subject_expression,
                 &subject.value,
