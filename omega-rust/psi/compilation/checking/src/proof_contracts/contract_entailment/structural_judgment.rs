@@ -2481,6 +2481,22 @@ impl<'program> StructuralJudge<'program> {
             lexical_owner,
             call,
         );
+        if closed.is_none()
+            && let Some(super::specification_calls::SelectedCallContract::Signature(signature)) =
+                super::specification_calls::selected_call_contract(
+                    self.program,
+                    lexical_owner,
+                    call,
+                )
+            && crate::machine_calls::denotational_calls::signature_has_closed_value_contract(
+                self.program,
+                signature,
+            )
+        {
+            // An abstract logical application consumes its exact public
+            // effect/progress promise. It gains no body or result equation.
+            return true;
+        }
         let target = closed.map_or_else(
             || super::structural_terms::structural_call_target(self.program, lexical_owner, call),
             |(_, entry)| entry.symbol,

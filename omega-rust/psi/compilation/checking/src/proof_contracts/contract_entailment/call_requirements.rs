@@ -810,6 +810,16 @@ fn runtime_fact_for_parameters(
                 program, owner, parameters, expression, binary,
             );
         }
+        if matches!(
+            binary.operator,
+            BinaryOperator::Equal | BinaryOperator::NotEqual
+        ) && super::structural_terms::has_identity_equality_meaning(
+            program, owner, parameters, expression,
+        ) {
+            // A formed data-Id requirement is a supported prefix question,
+            // not an executable Boolean equality application or a proof of it.
+            return true;
+        }
     }
     let term = super::structural_terms::structural_term(
         program,

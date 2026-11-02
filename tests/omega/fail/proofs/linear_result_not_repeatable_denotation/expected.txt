@@ -1,1 +1,2 @@
+specification call `mint`
 forbidden denotational content
