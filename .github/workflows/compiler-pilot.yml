@@ -125,6 +125,11 @@ jobs:
               'omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/execution/terminal_unit/types/shape_collector.rs',
               'omega-rust/psi/compilation/representations/terminal-psi/semantics/src/primitive_place.rs',
               'omega-rust/psi/compilation/representations/terminal-psi/semantics/src/inline_carriers.rs',
+              'omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/lowering/scalar/element_views/establishment.rs',
+              'omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/emission/completed_place.rs',
+              'omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/operation_frame.rs',
+              'omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/emission/borrowed_window.rs',
+              'omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/structural_values/emission.rs',
           ):
               source = Path(name)
               destination = output / name

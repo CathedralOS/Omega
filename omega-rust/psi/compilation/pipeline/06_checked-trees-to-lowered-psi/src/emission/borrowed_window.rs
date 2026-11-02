@@ -412,6 +412,30 @@ impl BorrowedWindowLedger {
                     &place.projected_qualifications,
                     &path,
                 );
+            // An indexed destination keeps the view's current pointer and
+            // length before the RHS runs. Borrowing its descriptor slot would
+            // allow a later replacement of that slot to redirect the store.
+            let capture = if let Some(shape) = super::completed_place::descriptor_shape(
+                structural_types,
+                place.root_type,
+                &path,
+            ) {
+                super::completed_place::Capture::DescriptorValue {
+                    shape,
+                    preferred: None,
+                }
+            } else {
+                super::completed_place::Capture::Address(capture_type)
+            };
+            let (capture_type, qualifications, projected_qualifications) =
+                super::completed_place::present_capture(
+                    &capture,
+                    access,
+                    structural_types,
+                    environment.structural_domains(),
+                    qualifications,
+                    projected_qualifications,
+                )?;
             let source = super::completed_address::capture(
                 place.source,
                 path,

@@ -63,25 +63,24 @@ listed boundary.
 
 ## Current result
 
-The first place is unfinished. The compiler now proves the five success
-postconditions that previously failed, and it can put the incoming slice into
-the inline `Request`. It still stops while planning cleanup for an encoder
-branch: it cannot determine which part of the original request remains after
-its fields are moved. Native and Terminal execution have not run.
+The row is unfinished. The compiler now proves the original program's five
+success postconditions, retains its incoming slice in the request and gets past
+the original cleanup failure. Native lowering then refuses a descriptor
+operation. Two existing byte-field controls also reject at borrowed state
+transfers; those regressions must be repaired before this change can land.
+Native and Terminal execution have not run.
 
-[Run 41505955288](https://github.com/CathedralOS/Omega/actions/runs/41505955288)
-used source `1a9062c50669d96745270ae0f77f35fd7a5caec3` and an authenticated,
-optimized Linux x86-64 compiler. The original positive reached this error:
+[Run 41509361186](https://github.com/CathedralOS/Omega/actions/runs/41509361186)
+used source `0f31e145c578f03d0c6b807a586cbe06888ba640` and an authenticated,
+optimized Linux x86-64 compiler. Rust checking and the byte-field contract unit
+test passed. The qualified-byte positive checked. All three invalid controls
+rejected for their expected reasons: the short-buffer guard, shared access and
+writing to backing storage while a stored view remains live.
 
-```text
-cleanup cannot reconstruct its remaining region partition
-```
-
-The two supporting positive controls checked. All five invalid controls rejected
-for their expected reasons: the short-buffer guard, wrong lifetime arguments,
-shared-to-mutable access, and two cases where an input parameter named `result`
-must keep its own meaning. The mutable-to-shared control checked. This is source
-checking evidence, not a runtime result.
+Compiler preparation took 982 seconds; the seven fixture checks took 57 seconds.
+[Run 41512897493](https://github.com/CathedralOS/Omega/actions/runs/41512897493)
+reuses unchanged Rust inputs to trace the native refusal. The eight new places
+and their twins are authored and remain unverified.
 
 The frozen program, Build files and guard-only twin remain unchanged from
 `10fba736d8eb1ed0de892a360d8fb6dba4882599`. The earlier baseline

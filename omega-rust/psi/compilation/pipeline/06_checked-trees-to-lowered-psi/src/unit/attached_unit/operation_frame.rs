@@ -381,6 +381,10 @@ impl<'f, 'c> OperationFrame<'f, 'c> {
 }
 
 impl OperationEnvironment<'_> {
+    pub(crate) fn structural_domains(&self) -> &[terminal_psi::StructuralDomainDeclaration] {
+        self.callees.domain_declarations
+    }
+
     pub(super) fn reborrow(&mut self) -> OperationEnvironment<'_> {
         OperationEnvironment {
             checked: self.checked,

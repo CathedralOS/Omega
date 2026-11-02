@@ -356,26 +356,23 @@ mod tests {
         let StructuralTypeShape::Record { fields, .. } = &mut declarations[0].shape else {
             panic!("record")
         };
-        fields[0].field_type = StructuralFieldType::ByteSequence(
-            ByteSequenceCarrier::BorrowedView {
+        fields[0].field_type =
+            StructuralFieldType::ByteSequence(ByteSequenceCarrier::BorrowedView {
                 access: Some(StructuralAccess::MutableBorrow),
-            },
-        );
-        declarations[1].shape = StructuralTypeShape::ByteSequence(
-            ByteSequenceCarrier::BorrowedView {
+            });
+        declarations[1].shape =
+            StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
                 access: Some(StructuralAccess::MutableBorrow),
-            },
-        );
+            });
         validate_inline_carriers(&declarations, &declarations[0]).unwrap();
         assert!(
             crate::runtime_structural_path_tip(declarations.iter(), declarations[0].id, &path)
                 .is_some()
         );
-        declarations[1].shape = StructuralTypeShape::ByteSequence(
-            ByteSequenceCarrier::BorrowedView {
+        declarations[1].shape =
+            StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
                 access: Some(StructuralAccess::SharedBorrow),
-            },
-        );
+            });
         assert!(validate_inline_carriers(&declarations, &declarations[0]).is_err());
         assert!(
             crate::runtime_structural_path_tip(declarations.iter(), declarations[0].id, &path)
