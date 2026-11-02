@@ -330,7 +330,7 @@ fn parse_refinement_clause<'tokens, 'source>(
             // later operational clauses cannot become service names.
             let mut reaches = Vec::new();
             let mut installation_bound = false;
-            input = crate::contracts::take_operational_reaches_clause(
+            input = crate::grammar::contracts::take_operational_reaches_clause(
                 input,
                 &mut signature.service_reach_keyword_source_spans,
                 &mut reaches,
