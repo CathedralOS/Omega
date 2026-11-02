@@ -1,1 +1,1 @@
-has no ordinary checked `Terminates` guarantee
+recursive machine-call cycle has no ordinary termination proof

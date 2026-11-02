@@ -1,0 +1,30 @@
+// Expected exit: 0
+// Joint ranking admits a compile-time cycle whose nested member has no own witness.
+machine count(remaining: u64) -> u64
+terminates by remaining {
+    transition { _ -> pair(remaining, remaining) }
+    machine pair(left: u64, right: u64) -> u64 {
+        transition left > 0 {
+            true -> step(right)
+            false -> left
+        }
+    }
+}
+machine step(pending: u64) -> u64
+terminates by pending {
+    transition pending > 0 {
+        true -> count(pending - 1)
+        false -> pending
+    }
+}
+machine extent() -> u64 { count(5) }
+data Observed { bytes: [u8; extent()]; }
+machine main() crashes Trap {
+    let mut observed: Observed;
+    transition observed.bytes.len == 0 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

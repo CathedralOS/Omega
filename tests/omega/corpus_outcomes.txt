@@ -8,6 +8,8 @@
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
 # context: {"incoming_observations_from": "e8e2fe90b14b2a7bad0e714ba635161d80c9f585", "integration_base": "2e9f231f798bffee7a2bd46857d02adb79de70b6", "measurement": "Historical three-way integration, not a new whole-corpus run. Keep incoming-main observations changed since 66fc7ac3c97, otherwise retain qualified ccdb99ca2214 observations. Also preserve the two additional incoming-main rows from e8e2fe90b14b; no compiler rebase or new full run.", "recorded_source": "ccdb99ca2214b93c0e2535a31cb34a3e2167d9dd", "schema": "omega-corpus-context-v1"}
+fail/borrows/independent_invocation_reference_result_escapes rejected 1619ms expected @c0424312ea2a+wt
+	machine `Code::reply` returns a view borrowing the local `bytes`, which does not outlive the call; return a view of storage that outlives the invocation instead
 fail/build/activation_borrowed_field_replacement_refused rejected 361ms expected @3a020eca642a
 	the compiler-owned Build activation cannot be replaced as a whole value
 fail/build/activation_owned_field_refused rejected 227ms expected @3a020eca642a
@@ -3341,6 +3343,7 @@ pass/collections/zero_length_byte_array_admission checked 2088ms @ccdb99ca2214
 pass/compile_time/const_overload_nested_dependency_exit checked 4023ms check-target:macos_arm64 @ccdb99ca2214
 pass/compile_time/const_overload_selected_dependency_exit checked 3628ms check-target:macos_arm64 @ccdb99ca2214
 pass/components/independent_same_spelling_packages checked 9944ms check-target:macos_arm64 @230151eef4fe
+pass/comptime/const_joint_ranked_call_component checked 2290ms check-target:macos_arm64 @6416b0fdfbe3
 pass/comptime/provider_boundary_range_endpoint_exit rejected 32220ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	native artifact native artifact lowering failed: TargetFamily("native provider declaration roster differs from the complete selected plans")
 pass/comptime/range_endpoint_requires_discharge_exit checked 16565ms check-target:macos_arm64 @ccdb99ca2214
@@ -6625,15 +6628,15 @@ pass/facts/generic_calling_policy/literal_arguments_exit checked 21185ms check-t
 pass/facts/generic_calling_policy/nested_argument_exit rejected 17926ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
 	executed provider choice lost its complete static application
 pass/facts/generic_calling_policy/nested_data_const_exit checked 19027ms check-target:linux_x86_64 @ccdb99ca2214
-pass/facts/generic_calling_policy_through_call_result_exit checked 14156ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/generic_calling_policy_through_const_name_exit checked 18879ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/generic_calling_policy_through_field_exit checked 15476ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/generic_calling_policy_through_local_exit checked 14514ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/generic_calling_policy_through_match_join_exit checked 13574ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/generic_calling_policy_through_other_machine_exit checked 14877ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/generic_calling_policy_through_other_state_exit checked 16066ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/generic_calling_policy_through_parameter_exit checked 14455ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/generic_calling_policy_through_target_body_exit checked 14038ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/generic_calling_policy_through_call_result_exit checked 22159ms check-target:macos_arm64 @6416b0fdfbe3
+pass/facts/generic_calling_policy_through_const_name_exit checked 19953ms check-target:macos_arm64 @6416b0fdfbe3
+pass/facts/generic_calling_policy_through_field_exit checked 19763ms check-target:macos_arm64 @6416b0fdfbe3
+pass/facts/generic_calling_policy_through_local_exit checked 19963ms check-target:macos_arm64 @6416b0fdfbe3
+pass/facts/generic_calling_policy_through_match_join_exit checked 19855ms check-target:macos_arm64 @6416b0fdfbe3
+pass/facts/generic_calling_policy_through_other_machine_exit checked 19931ms check-target:macos_arm64 @6416b0fdfbe3
+pass/facts/generic_calling_policy_through_other_state_exit checked 19941ms check-target:macos_arm64 @6416b0fdfbe3
+pass/facts/generic_calling_policy_through_parameter_exit checked 19840ms check-target:macos_arm64 @6416b0fdfbe3
+pass/facts/generic_calling_policy_through_target_body_exit checked 20148ms check-target:macos_arm64 @6416b0fdfbe3
 pass/facts/generic_case_subject_through_call_result_exit checked 3665ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/generic_case_subject_through_const_name_exit checked 4218ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/generic_case_subject_through_field_exit checked 4066ms check-target:macos_arm64 @ccdb99ca2214
@@ -23314,8 +23317,8 @@ fail/facts/generic_calling_policy/distinct_applications_exit rejected 19651ms ex
 	calling policy accepted an invalid plan: value 0 placement exceeds its declared shape
 fail/facts/generic_calling_policy/inline_const_exit rejected 13225ms expected @ccdb99ca2214
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
-fail/facts/generic_calling_policy/literal_range_exit rejected 14001ms expected @ccdb99ca2214
-	conformance `GenericPolicy` parameter `Width` has an invalid literal value: integer node `u64(-1)` does not fit exact carrier `u64`
+fail/facts/generic_calling_policy/literal_range_exit rejected 6251ms expected @5200323ba1d0+wt
+	authored declaration typing could not extend its retained source: Lowering(Diagnostic { severity: Error, message: "integer node `u64(-1)` does not fit exact carrier `u64`", exceeded_provision: None, source_span: None, resolved_location: None })
 fail/facts/generic_calling_policy/missing_argument rejected 8861ms expected @ccdb99ca2214
 	generic conformance `GenericPolicy` requires 2 explicit non-lifetime argument(s), got 1; expected subject and trait shape never fill its own telescope
 fail/facts/generic_calling_policy/nested_argument_exit rejected 9443ms expected @ccdb99ca2214
@@ -23324,29 +23327,29 @@ fail/facts/generic_calling_policy/nested_data_const_exit rejected 10682ms expect
 	const parameter `Count` of `Box` requires an integer literal argument or an in-scope const parameter, got `bool`
 fail/facts/generic_calling_policy/parameter_bound rejected 15027ms expected @ccdb99ca2214
 	type parameter `Element [copy]` of `GenericPolicy` was instantiated with `Box<u64>`, which does not satisfy `[copy]`
-fail/facts/generic_calling_policy/target_helper_unranked rejected 19096ms unexpected @ccdb99ca2214
-	step budget exceeded
+fail/facts/generic_calling_policy/target_helper_unranked rejected 17289ms expected @6416b0fdfbe3
+	machine `GenericPolicy::plan$specialized$f7fb9fdb5acaf62f$1$19321` is not build-time admissible: recursive machine-call cycle has no ordinary termination proof along `GenericPolicy::plan$specialized$f7fb9fdb5acaf62f$1$19321 -> SysVValuePlan::plan -> repeat -> repeat`; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure
 fail/facts/generic_calling_policy/unresolved_argument rejected 9217ms expected @ccdb99ca2214
 	conformance `GenericPolicy` parameter `Width` requires a const argument, but `UnknownWidth` has another static category
 fail/facts/generic_calling_policy/wrong_argument_kind rejected 8686ms expected @ccdb99ca2214
 	conformance `GenericPolicy` parameter `Width` requires a const argument, but `<structural type>` has another static category
-fail/facts/generic_calling_policy_through_call_result_rejected rejected 13208ms expected @ccdb99ca2214
+fail/facts/generic_calling_policy_through_call_result_rejected rejected 16868ms expected @6416b0fdfbe3
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
-fail/facts/generic_calling_policy_through_const_name_rejected rejected 17216ms expected @ccdb99ca2214
+fail/facts/generic_calling_policy_through_const_name_rejected rejected 17042ms expected @6416b0fdfbe3
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
-fail/facts/generic_calling_policy_through_field_rejected rejected 20599ms expected @ccdb99ca2214
+fail/facts/generic_calling_policy_through_field_rejected rejected 16824ms expected @6416b0fdfbe3
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
-fail/facts/generic_calling_policy_through_local_rejected rejected 16615ms expected @ccdb99ca2214
+fail/facts/generic_calling_policy_through_local_rejected rejected 16719ms expected @6416b0fdfbe3
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
-fail/facts/generic_calling_policy_through_match_join_rejected rejected 19167ms expected @ccdb99ca2214
+fail/facts/generic_calling_policy_through_match_join_rejected rejected 16860ms expected @6416b0fdfbe3
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
-fail/facts/generic_calling_policy_through_other_machine_rejected rejected 15283ms expected @ccdb99ca2214
+fail/facts/generic_calling_policy_through_other_machine_rejected rejected 16966ms expected @6416b0fdfbe3
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
-fail/facts/generic_calling_policy_through_other_state_rejected rejected 17629ms expected @ccdb99ca2214
+fail/facts/generic_calling_policy_through_other_state_rejected rejected 16843ms expected @6416b0fdfbe3
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
-fail/facts/generic_calling_policy_through_parameter_rejected rejected 19457ms expected @ccdb99ca2214
+fail/facts/generic_calling_policy_through_parameter_rejected rejected 16929ms expected @6416b0fdfbe3
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
-fail/facts/generic_calling_policy_through_target_body_rejected rejected 18355ms expected @ccdb99ca2214
+fail/facts/generic_calling_policy_through_target_body_rejected rejected 17037ms expected @6416b0fdfbe3
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
 fail/facts/generic_case_subject_through_call_result_rejected rejected 1886ms expected @ccdb99ca2214
 	case membership must test a value of the exact declaring data type (machine `observe`, state `entry`)
@@ -34889,6 +34892,7 @@ run/borrows/conditional_returned_descriptor_origins checked 3069ms check-target:
 run/borrows/direct_runtime_index_write checked 11454ms check-target:macos_arm64 @ccdb99ca2214
 run/borrows/dynamic_ancestor_static_byte_child_exit checked 10424ms check-target:macos_arm64 @ccdb99ca2214
 run/borrows/incoming_carrier_transport checked 3740ms check-target:macos_arm64 @ccdb99ca2214
+run/borrows/independent_invocation_reference_results checked 2534ms check-target:macos_arm64 @c0424312ea2a+wt
 run/borrows/indexed_loan_element_write checked 49683ms check-target:macos_arm64 @911f6617ba9e
 run/borrows/local_mut_borrow checked 10253ms check-target:macos_arm64 @ccdb99ca2214
 run/borrows/mut_record_loan_member_access checked 10447ms check-target:macos_arm64 @ccdb99ca2214

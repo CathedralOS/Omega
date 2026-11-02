@@ -40,20 +40,149 @@ pub(crate) fn admit_machine_rankings(
     program: &dyn ::validation::CheckingInput,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> checked_trees::CheckedRankArrivalPlan {
-    let mut admitted = checked_trees::CheckedRankArrivalPlan::default();
     let topology = validation::prepare_runtime_rank_components(program);
+    admit_machine_rankings_with_topology(program, call_frames, topology.as_ref(), None)
+}
+
+/// Pre-check one complete recursive component through source admission's
+/// separate runtime and proof judgments. Unrelated rankings are not demanded.
+pub(crate) fn infer_checked_recursive_machine_terminations(
+    program: &dyn ::validation::CheckingInput,
+    machine_symbol: symbols::SymbolHandle,
+    body: arena::HandleSpan<typed_trees::state::State>,
+) -> Vec<checked_trees::CheckedRuntimeRankMember> {
+    phase_profile::count("semantic_admission.recursion.queries", 1);
+    phase_profile::checkpoint(
+        "recursive admission entered",
+        "semantic_admission.recursion.queries",
+    );
+    let _query = phase_profile::guard("semantic_admission.recursion.query");
+    let mut matching = program
+        .machines()
+        .iter()
+        .enumerate()
+        .filter(|(_, machine)| machine.symbol == machine_symbol && machine.states == body);
+    let Some((position, machine)) = matching.next() else {
+        return Vec::new();
+    };
+    if matching.next().is_some() {
+        return Vec::new();
+    }
+    let proof_only = phase_profile::scope("semantic_admission.recursion.classification", || {
+        validation::proof_only_classification(program)
+    });
+    phase_profile::checkpoint(
+        "recursive classification complete",
+        "semantic_admission.recursion.classification",
+    );
+    if proof_only.is_proof_machine(program, machine) {
+        let proven =
+            validation::infer_checked_proof_recursive_machines(program, machine_symbol, body)
+                .into_iter()
+                .map(|machine| checked_trees::CheckedRuntimeRankMember {
+                    machine: machine.symbol,
+                    body: machine.states,
+                })
+                .collect();
+        phase_profile::checkpoint(
+            "recursive proof admission complete",
+            "semantic_admission.recursion.proof.validation",
+        );
+        return proven;
+    }
+    let topology = phase_profile::scope("semantic_admission.recursion.runtime.topology", || {
+        validation::prepare_runtime_rank_components(program)
+    });
+    phase_profile::checkpoint(
+        "recursive runtime topology complete",
+        "semantic_admission.recursion.runtime.topology",
+    );
+    let Some(topology) = topology else {
+        return Vec::new();
+    };
+    let Some(component) = topology.component_containing(position) else {
+        return Vec::new();
+    };
+    phase_profile::count(
+        "semantic_admission.recursion.runtime.members",
+        component.len() as u64,
+    );
+    let call_frames = phase_profile::scope("semantic_admission.recursion.runtime.frames", || {
+        validation::CallFrameResolver::new(program)
+    });
+    phase_profile::checkpoint(
+        "recursive runtime frames complete",
+        "semantic_admission.recursion.runtime.frames",
+    );
+    let admitted = admit_machine_rankings_with_topology(
+        program,
+        call_frames.as_ref(),
+        Some(&topology),
+        Some(component),
+    );
+    component
+        .iter()
+        .map(|position| {
+            let machine = program.machines().get(*position)?;
+            let judgment = admitted.judgment_for_body(machine.symbol, machine.states)?;
+            if !judgment.local_terminates
+                || !judgment.diagnostic.is_empty()
+                || admitted.runtime_components.iter().any(|(_, component)| {
+                    !component.diagnostic.is_empty()
+                        && admitted
+                            .runtime_members
+                            .span_or_empty(component.members)
+                            .iter()
+                            .any(|member| {
+                                member.machine == machine.symbol && member.body == machine.states
+                            })
+                })
+            {
+                return None;
+            }
+            Some(checked_trees::CheckedRuntimeRankMember {
+                machine: machine.symbol,
+                body: machine.states,
+            })
+        })
+        .collect::<Option<Vec<_>>>()
+        .unwrap_or_default()
+}
+
+fn admit_machine_rankings_with_topology(
+    program: &dyn ::validation::CheckingInput,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    topology: Option<&validation::RuntimeRankComponents>,
+    demanded: Option<&[usize]>,
+) -> checked_trees::CheckedRankArrivalPlan {
+    let mut admitted = checked_trees::CheckedRankArrivalPlan::default();
+    let selection =
+        demanded.map(|_| phase_profile::guard("semantic_admission.recursion.runtime.selection"));
     let mut components = topology
         .as_ref()
         .map(|topology| {
             topology
                 .joint_components(program)
+                .filter(|component| demanded.is_none_or(|demanded| *component == demanded))
                 .map(|component| {
                     component_selection::select(program, topology, component, call_frames)
                 })
                 .collect::<Vec<_>>()
         })
         .unwrap_or_default();
+    drop(selection);
+    if demanded.is_some() {
+        phase_profile::checkpoint(
+            "recursive runtime selection complete",
+            "semantic_admission.recursion.runtime.selection",
+        );
+    }
+    let judgments =
+        demanded.map(|_| phase_profile::guard("semantic_admission.recursion.runtime.judgments"));
     for (position, machine) in program.machines().iter().enumerate() {
+        if demanded.is_some_and(|demanded| !demanded.contains(&position)) {
+            continue;
+        }
         let cycle = graph::machine_has_cycle(program, machine);
         let witness = machine.termination_plan.implementation_witness.as_ref();
         let claimed = witness.is_some()
@@ -231,6 +360,13 @@ pub(crate) fn admit_machine_rankings(
                 observations,
                 diagnostic,
             });
+    }
+    drop(judgments);
+    if demanded.is_some() {
+        phase_profile::checkpoint(
+            "recursive runtime judgments complete",
+            "semantic_admission.recursion.runtime.judgments",
+        );
     }
     for component in components {
         if let Some(source) = component.source_natural {

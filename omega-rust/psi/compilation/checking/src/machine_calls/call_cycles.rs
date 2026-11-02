@@ -521,7 +521,11 @@ pub(crate) fn validate_machine_call_cycles(
         &edges,
         &proof_dependencies,
         &mut ranking_failures,
-    );
+        None,
+    )
+    .into_iter()
+    .map(|(_, component)| component)
+    .collect::<Vec<_>>();
 
     for members in strongly_connected_components(&edges) {
         // Runtime singletons retain their actual call edge and use the same
@@ -589,15 +593,83 @@ pub(crate) fn validate_machine_call_cycles(
     proof_components
 }
 
+/// Positive proof-recursion judgments for these exact source bodies. This
+/// shares structural and computed proof ranking with ordinary validation;
+/// runtime tail-position admission never supplies proof-call evidence.
+pub fn infer_checked_proof_recursive_machines(
+    program: &dyn crate::CheckingInput,
+    machine: SymbolHandle,
+    body: arena::HandleSpan<typed_trees::state::State>,
+) -> Vec<&typed_trees::machine::Machine> {
+    let mut matching = program
+        .machines()
+        .iter()
+        .enumerate()
+        .filter(|(_, candidate)| candidate.symbol == machine && candidate.states == body);
+    let Some((position, machine)) = matching.next() else {
+        return Vec::new();
+    };
+    if matching.next().is_some() {
+        return Vec::new();
+    }
+    let (proof_only, graph) =
+        phase_profile::scope("semantic_admission.recursion.proof.topology", || {
+            let proof_only = crate::proof_only_classification(program);
+            let graph = build_machine_call_graph(program, &proof_only);
+            (proof_only, graph)
+        });
+    phase_profile::checkpoint(
+        "recursive proof topology complete",
+        "semantic_admission.recursion.proof.topology",
+    );
+    if !proof_only.is_proof_machine(program, machine) {
+        return Vec::new();
+    }
+    phase_profile::scope("semantic_admission.recursion.proof.validation", || {
+        build_validated_proof_recursive_components(
+            program,
+            &proof_only,
+            &graph.edges,
+            &graph.proof_dependencies,
+            &mut Vec::new(),
+            Some(position),
+        )
+        .into_iter()
+        .flat_map(|(positions, _)| positions)
+        .map(|position| &program.machines()[position])
+        .collect()
+    })
+}
+
 fn build_validated_proof_recursive_components(
     program: &dyn crate::CheckingInput,
     proof_only: &typed_trees::proof_only::ProofOnlyClassification,
     adjacency: &[Vec<usize>],
     proof_dependencies: &[Vec<usize>],
     failures: &mut Vec<(Vec<usize>, &'static str)>,
-) -> Vec<ValidatedProofCallComponent> {
+    demanded: Option<usize>,
+) -> Vec<(Vec<usize>, ValidatedProofCallComponent)> {
     let machines = program.machines();
-    proof_components::complete(program, proof_only, adjacency, proof_dependencies)
+    let components = match demanded {
+        Some(position) => proof_components::complete_for_machine(
+            program,
+            proof_only,
+            adjacency,
+            proof_dependencies,
+            position,
+        ),
+        None => proof_components::complete(program, proof_only, adjacency, proof_dependencies),
+    };
+    if demanded.is_some() {
+        phase_profile::count(
+            "semantic_admission.recursion.proof.members",
+            components
+                .iter()
+                .map(|component| component.members.len() as u64)
+                .sum(),
+        );
+    }
+    components
         .into_iter()
         .filter_map(|component| {
             let structural =
@@ -617,7 +689,7 @@ fn build_validated_proof_recursive_components(
                     }
                 }
             };
-            Some(ValidatedProofCallComponent {
+            let validated = ValidatedProofCallComponent {
                 members: component
                     .members
                     .iter()
@@ -625,7 +697,8 @@ fn build_validated_proof_recursive_components(
                     .collect(),
                 structural,
                 intervals,
-            })
+            };
+            Some((component.members, validated))
         })
         .collect()
 }
@@ -709,9 +782,19 @@ fn collect_exact_proof_call_edges(
     program: &dyn crate::CheckingInput,
     proof_only: &typed_trees::proof_only::ProofOnlyClassification,
 ) -> Vec<ExactProofCallEdge> {
+    collect_exact_proof_call_edges_in_machines(program, proof_only, None)
+}
+
+fn collect_exact_proof_call_edges_in_machines(
+    program: &dyn crate::CheckingInput,
+    proof_only: &typed_trees::proof_only::ProofOnlyClassification,
+    demanded: Option<&[usize]>,
+) -> Vec<ExactProofCallEdge> {
     let mut edges = Vec::new();
     for (caller, machine) in program.machines().iter().enumerate() {
-        if !proof_only.is_proof_machine(program, machine) {
+        if demanded.is_some_and(|demanded| !demanded.contains(&caller))
+            || !proof_only.is_proof_machine(program, machine)
+        {
             continue;
         }
         for state in program.machine_states(machine) {

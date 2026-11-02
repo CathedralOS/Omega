@@ -29,6 +29,7 @@ mod plan_computation;
 mod policy_signature;
 mod scalar_completion;
 mod selected_application;
+mod selected_providers;
 mod signature_review;
 mod terminal_execution;
 mod terminal_signature;
@@ -37,6 +38,7 @@ pub use calling_program::CallingProgram;
 pub use policy_signature::CallingPolicySignature;
 pub use selected_application::component_calling_applications;
 pub(crate) use selected_application::selected_source_calling_applications;
+pub use selected_providers::CallingPolicyProviderInputs;
 pub use terminal_execution::{TerminalCallingPolicyInvocation, evaluate_terminal_calling_policy};
 pub use terminal_signature::{CanonicalCallingSignature, CanonicalOpaqueUse};
 

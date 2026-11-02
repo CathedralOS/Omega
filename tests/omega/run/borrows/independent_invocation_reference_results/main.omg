@@ -1,0 +1,48 @@
+// Expected exit: 0
+// Independent invocation descriptors retain their own slots through forwarding and local storage.
+data Envelope<Element> { value: Element; }
+data Payload { first: Envelope<&[u8]>; second: Envelope<&[u8]>; }
+data Reply { case Value(number: u64); case Message(payload: Payload); }
+boundary trait Replies { machine reply(message: bool) -> Reply reaches; }
+Code satisfies Replies {
+    machine reply(message: bool) -> Reply {
+        transition message {
+            true -> Reply::Message { payload: Payload {
+                first: Envelope { value: "a" }, second: Envelope { value: "bc" }
+            } }
+            false -> Reply::Value { number: 17 }
+        }
+    }
+}
+machine forward(message: bool) -> Reply reaches Replies { Replies::reply(message) }
+machine saved(message: bool) -> Reply reaches Replies {
+    let result: Reply = Replies::reply(message);
+    result
+}
+machine observed(reply: Reply, message: bool) -> bool {
+    transition reply {
+        Reply::Value { number } -> number_matches(number, message)
+        Reply::Message { payload } -> inspect(payload, message)
+    }
+    machine number_matches(number: u64, message: bool) -> bool { number == 17 && message == false }
+    machine inspect(payload: Payload, message: bool) -> bool {
+        transition payload.first.value.len == 1 && payload.second.value.len == 2 {
+            true -> contents(payload, message)
+            false -> false
+        }
+    }
+    machine contents(payload: Payload, message: bool) -> bool
+        requires payload.first.value.len == 1 && payload.second.value.len == 2 {
+        message && payload.first.value[0] == 97 && payload.second.value[0] == 98
+            && payload.second.value[1] == 99
+    }
+}
+machine main() reaches Replies crashes Trap {
+    transition observed(forward(true), true) && observed(saved(true), true)
+        && observed(saved(false), false) && observed(Replies::reply(false), false) {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}
