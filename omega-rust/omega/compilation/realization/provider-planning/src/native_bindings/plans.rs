@@ -32,14 +32,15 @@ pub struct NativeBuildRowOrigin {
 
 /// Exact declaration facts for completed Build binding intents. Capturing these
 /// records does not evaluate a locator, consume Calling, or admit a provider.
-/// The original supply owns the diagnostic/evaluation provenance; declaration
-/// and surface refusals remain at their original settlement boundaries.
+/// Each occurrence supplies its own evaluation evidence at settlement; only
+/// declarations are shared. Declaration and surface refusals remain at their
+/// original settlement boundaries.
 pub struct PreparedNativeBuildBindings {
     rows: Vec<PreparedNativeBuildBinding>,
 }
 
 struct PreparedNativeBuildBinding {
-    supply: NativeBuildSupply,
+    selection: build_time_evaluation::native_bindings::NativeBindingSelection,
     requirement: Result<PreparedNativeRequirement, Vec<Diagnostic>>,
 }
 
@@ -87,7 +88,7 @@ impl PreparedNativeBuildBindings {
                     })
                 })();
                 PreparedNativeBuildBinding {
-                    supply: supply.clone(),
+                    selection: selection.clone(),
                     requirement,
                 }
             })
@@ -97,17 +98,30 @@ impl PreparedNativeBuildBindings {
 
     pub(crate) fn derive(
         &self,
+        supplies: &[NativeBuildSupply],
         calling: &[crate::calling_policy_plans::BoundaryCallingPlanRealization],
         selected_target: Option<target::TargetProfile>,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     ) -> Result<Vec<DerivedProviderPlan>, Vec<Diagnostic>> {
+        if self.rows.len() != supplies.len() {
+            return Err(vec![Diagnostic::error(
+                "native Build supplies differ from the prepared declaration roster",
+            )]);
+        }
         let mut plans: Vec<DerivedProviderPlan> = Vec::new();
-        for prepared_binding in &self.rows {
-            let supply = &prepared_binding.supply;
+        for (prepared_binding, supply) in self.rows.iter().zip(supplies) {
             let selection = &supply.selection;
             let fail = |reason: String| {
                 vec![Diagnostic::error(reason).with_source_span(selection.source_span)]
             };
+            // Source cohorts share declarations, never another occurrence's
+            // measured evaluation. Bind the exact authored row to the current
+            // Build evidence without a source lookup or a first-match search.
+            if prepared_binding.selection != *selection {
+                return Err(fail(
+                    "native Build supply differs from its prepared declaration".into(),
+                ));
+            }
             let requirement = prepared_binding
                 .requirement
                 .as_ref()
