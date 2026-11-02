@@ -644,9 +644,7 @@ compile-time, Build, CLI/corpus, and embedded execution through the common core.
   - Connect admitted Build operations, remaining live-storage accounting,
     remaining host operations (including admitted carriers for reference results from
     opaque host providers), and the staged dependency preparation/provider
-    park/resume contract to the production Build scheduler, and replace the
-    Rust-supplied default declaration for a missing `build.omg` with ordinary
-    source Build execution.
+    park/resume contract to the production Build scheduler.
   - **BUILD-PRODUCT-REFERENCES / TERMINAL-BUILD-QUERIES:** keep `bind`,
     `select_provider`, `assume_binding_contract`, test registration, and product
     description/schema queries inert during Build and resolve them at the final

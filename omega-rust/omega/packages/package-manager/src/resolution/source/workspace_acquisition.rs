@@ -36,7 +36,7 @@ impl WorkspaceMemberObservation {
         returned: &build_evaluation::ReturnedBuild,
         dependencies: Vec<Arc<super::ResolvedBuildSources>>,
     ) -> Result<Self, String> {
-        if declaration.declaration() != returned.declaration()
+        if Some(declaration.declaration()) != returned.declaration()
             || returned.demanded_sources().len() != dependencies.len()
             || returned
                 .demanded_sources()
