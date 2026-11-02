@@ -1118,6 +1118,23 @@ fn machine_from_signature(
         });
         HandleSpan::from_parts(clause, 1)
     });
+    let ordinary_parameters = syntax
+        .items
+        .type_parameters(signature.type_parameters)
+        .iter()
+        .filter(|parameter| {
+            !matches!(
+                parameter.kind,
+                syntax_trees::item::TypeParameterKind::Implementation
+            )
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    let mut type_parameters = HandleSpan::empty();
+    for parameter in ordinary_parameters {
+        let handle = syntax.items.append_type_parameter(parameter);
+        type_parameters.push_contiguous(handle);
+    }
     Machine {
         target_family_interface: false,
         name: machine_name,
@@ -1137,9 +1154,9 @@ fn machine_from_signature(
         generic_data_template: Default::default(),
         where_facts: signature.where_facts,
         lifetime_parameters: signature.lifetime_parameters.clone(),
-        type_parameters: signature.type_parameters,
+        type_parameters,
         satisfies,
-        conformance_bounds: Vec::new(),
+        conformance_bounds: signature.conformance_bounds.clone(),
         terminates_guarantee: signature.terminates_guarantee,
         ranking_subjects: HandleSpan::<ExpressionHandle>::empty(),
         ranking_view: HandleSpan::empty(),

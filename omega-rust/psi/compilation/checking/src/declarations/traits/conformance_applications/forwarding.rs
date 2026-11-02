@@ -6,8 +6,9 @@ use symbols::SymbolKind;
 use typed_trees::{
     data::TypeParameterKind,
     type_identity::{
-        AppliedTypeIdentityScope, IndexIdentityArgument, NormalizedTypeIdentity,
-        applied_index_identity, applied_type_identity_in_scope,
+        AppliedTypeIdentityScope, IndexIdentityArgument, LifetimeParameterIdentity,
+        NormalizedTypeIdentity, applied_index_identity_in_region_scope,
+        applied_type_identity_in_region_scope,
     },
 };
 use typed_trees::{expression::StaticMachineArgument, machine::GenericConformanceBound};
@@ -52,16 +53,35 @@ pub(crate) fn applied_bound_argument_identities(
     argument_owner: symbols::SymbolHandle,
     scopes: &[AppliedTypeIdentityScope<'_>],
 ) -> Option<Vec<NormalizedTypeIdentity>> {
+    applied_bound_argument_identities_in_region_scope(
+        program,
+        bound,
+        receiving_owner,
+        argument_owner,
+        scopes,
+        &[],
+    )
+}
+
+pub(crate) fn applied_bound_argument_identities_in_region_scope(
+    program: &dyn crate::CheckingInput,
+    bound: &GenericConformanceBound,
+    receiving_owner: symbols::SymbolHandle,
+    argument_owner: symbols::SymbolHandle,
+    scopes: &[AppliedTypeIdentityScope<'_>],
+    regions: &[(LifetimeParameterIdentity, LifetimeParameterIdentity)],
+) -> Option<Vec<NormalizedTypeIdentity>> {
     let carrier = crate::refinement_fit::resolve_bound_carrier(program, bound.trait_symbol);
     let identity = |arguments: &[typed_trees::types::TypeReferenceHandle],
                     scopes: &[AppliedTypeIdentityScope<'_>]| {
-        applied_trait_argument_identities(
+        trait_argument_identities_in_region_scope(
             program,
             carrier.base,
             arguments,
             receiving_owner,
             argument_owner,
             scopes,
+            regions,
         )
     };
     if let Some((refinement, base)) = carrier
@@ -92,7 +112,7 @@ pub(crate) fn applied_bound_argument_identities(
             arguments: &head,
             lifetimes: &[],
         });
-        applied_trait_argument_identities(
+        trait_argument_identities_in_region_scope(
             program,
             carrier.base,
             program
@@ -101,6 +121,7 @@ pub(crate) fn applied_bound_argument_identities(
             refinement.symbol,
             argument_owner,
             &scopes,
+            regions,
         )
     } else {
         identity(&bound.arguments, scopes)
@@ -118,6 +139,26 @@ pub(crate) fn applied_trait_argument_identities(
     argument_owner: symbols::SymbolHandle,
     scopes: &[AppliedTypeIdentityScope<'_>],
 ) -> Option<Vec<NormalizedTypeIdentity>> {
+    trait_argument_identities_in_region_scope(
+        program,
+        declaration,
+        arguments,
+        receiving_owner,
+        argument_owner,
+        scopes,
+        &[],
+    )
+}
+
+fn trait_argument_identities_in_region_scope(
+    program: &dyn crate::CheckingInput,
+    declaration: symbols::SymbolHandle,
+    arguments: &[typed_trees::types::TypeReferenceHandle],
+    receiving_owner: symbols::SymbolHandle,
+    argument_owner: symbols::SymbolHandle,
+    scopes: &[AppliedTypeIdentityScope<'_>],
+    regions: &[(LifetimeParameterIdentity, LifetimeParameterIdentity)],
+) -> Option<Vec<NormalizedTypeIdentity>> {
     let definition = program.trait_definition_by_symbol(declaration)?;
     let parameters = program.trait_type_parameters(definition);
     if parameters.len() != arguments.len() {
@@ -128,19 +169,21 @@ pub(crate) fn applied_trait_argument_identities(
         .zip(arguments)
         .map(|(parameter, argument)| match parameter.kind {
             TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. } => {
-                applied_index_identity(
+                applied_index_identity_in_region_scope(
                     program.typed_program(),
                     IndexIdentityArgument::TypeReference(*argument),
                     argument_owner,
                     scopes,
+                    regions,
                 )
             }
-            _ => applied_type_identity_in_scope(
+            _ => applied_type_identity_in_region_scope(
                 program.typed_program(),
                 *argument,
                 receiving_owner,
                 argument_owner,
                 scopes,
+                regions,
             ),
         })
         .collect()

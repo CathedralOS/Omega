@@ -120,6 +120,7 @@ pub fn applied_type_identity(
         lexical_owner,
         scopes,
         TypeIdentityQualification::Ordinary,
+        &[],
     )
 }
 
@@ -139,6 +140,49 @@ pub fn applied_type_identity_in_scope(
         argument_owner,
         scopes,
         TypeIdentityQualification::Ordinary,
+        &[],
+    )
+}
+
+/// Normalize a type under an already established exact region frame. Source
+/// slots and supplying scopes resolve before this one-step correspondence;
+/// the rows are semantic identities, independent of payload spellings.
+pub fn applied_type_identity_in_region_scope(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+    receiving_owner: SymbolHandle,
+    argument_owner: SymbolHandle,
+    scopes: &[AppliedTypeIdentityScope<'_>],
+    resolved_lifetimes: &[(LifetimeParameterIdentity, LifetimeParameterIdentity)],
+) -> Option<NormalizedTypeIdentity> {
+    qualified_applied_type_identity(
+        program,
+        reference,
+        receiving_owner,
+        argument_owner,
+        scopes,
+        TypeIdentityQualification::Ordinary,
+        resolved_lifetimes,
+    )
+}
+
+/// Normalize a value-role operand under the same exact region correspondence
+/// as a containing type argument. This does not establish the frame or admit
+/// an index; those remain the caller's obligations.
+pub fn applied_index_identity_in_region_scope(
+    program: &TypedTrees,
+    argument: IndexIdentityArgument<'_>,
+    argument_owner: SymbolHandle,
+    scopes: &[AppliedTypeIdentityScope<'_>],
+    resolved_lifetimes: &[(LifetimeParameterIdentity, LifetimeParameterIdentity)],
+) -> Option<NormalizedTypeIdentity> {
+    qualified_applied_index_identity(
+        program,
+        argument,
+        argument_owner,
+        scopes,
+        TypeIdentityQualification::Ordinary,
+        resolved_lifetimes,
     )
 }
 
@@ -182,6 +226,7 @@ pub fn applied_index_identity(
         lexical_owner,
         scopes,
         TypeIdentityQualification::Ordinary,
+        &[],
     )
 }
 
@@ -200,6 +245,7 @@ pub fn portable_applied_index_identity(
         lexical_owner,
         scopes,
         TypeIdentityQualification::PackageQualified,
+        &[],
     )
 }
 
@@ -209,6 +255,7 @@ fn qualified_applied_index_identity(
     lexical_owner: SymbolHandle,
     scopes: &[AppliedTypeIdentityScope<'_>],
     qualification: TypeIdentityQualification,
+    resolved_lifetimes: &[(LifetimeParameterIdentity, LifetimeParameterIdentity)],
 ) -> Option<NormalizedTypeIdentity> {
     let invalid = Cell::new(false);
     let identity = substitution::index_argument(
@@ -216,6 +263,7 @@ fn qualified_applied_index_identity(
         argument,
         &TypeIdentityContext {
             application_scopes: scopes,
+            resolved_lifetimes,
             application_owner: lexical_owner,
             qualification,
             invalid_application: Some(&invalid),
@@ -242,6 +290,7 @@ pub fn portable_applied_type_identity(
         lexical_owner,
         scopes,
         TypeIdentityQualification::PackageQualified,
+        &[],
     )
 }
 
@@ -252,6 +301,7 @@ fn qualified_applied_type_identity(
     argument_owner: SymbolHandle,
     scopes: &[AppliedTypeIdentityScope<'_>],
     qualification: TypeIdentityQualification,
+    resolved_lifetimes: &[(LifetimeParameterIdentity, LifetimeParameterIdentity)],
 ) -> Option<NormalizedTypeIdentity> {
     let invalid = Cell::new(false);
     let identity = normalize_type_reference(
@@ -259,6 +309,7 @@ fn qualified_applied_type_identity(
         reference,
         &TypeIdentityContext {
             application_scopes: scopes,
+            resolved_lifetimes,
             application_owner: lexical_owner,
             application_argument_owner: argument_owner,
             qualification,

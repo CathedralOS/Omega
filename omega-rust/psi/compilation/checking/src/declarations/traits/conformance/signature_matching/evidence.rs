@@ -2,6 +2,9 @@
 //! ordinary forwarding. A later concrete implementation cannot establish a
 //! stronger provider precondition on the public member's behalf.
 
+use crate::conformance_applications::{
+    applied_bound_argument_identities_in_region_scope, validate_forwarded_argument,
+};
 use diagnostics::Diagnostic;
 use typed_trees::{
     data::{TypeParameter, TypeParameterKind},
@@ -18,9 +21,16 @@ pub(super) fn validate(
     requirement: &StateSignature,
     provider: &Machine,
     actual_parameters: &[TypeParameter],
+    frame: &crate::borrow_contracts::CallableLifetimeFrame,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let required_parameters = program.state_signature_type_parameters(requirement);
+    if !required_parameters
+        .iter()
+        .any(|parameter| parameter.kind == TypeParameterKind::Implementation)
+    {
+        return;
+    }
     let actuals = actual_parameters
         .iter()
         .map(|parameter| StaticMachineArgument {
@@ -39,18 +49,22 @@ pub(super) fn validate(
             )
         })
         .collect::<Vec<_>>();
-    let lifetimes = requirement
-        .lifetime_parameters
+    let required_regions = frame
+        .required
         .iter()
-        .zip(&provider.lifetime_parameters)
-        .map(|(required, actual)| (required.as_str().to_owned(), actual.as_str().to_owned()))
+        .map(|binding| (binding.parameter, binding.argument))
+        .collect::<Vec<_>>();
+    let actual_regions = frame
+        .actual
+        .iter()
+        .map(|binding| (binding.parameter, binding.argument))
         .collect::<Vec<_>>();
     application.with_identity_scopes(program.typed_program(), |outer| {
         let mut scopes = outer.to_vec();
         scopes.push(AppliedTypeIdentityScope {
             declaration: requirement.symbol,
             arguments: &operands,
-            lifetimes: &lifetimes,
+            lifetimes: &[],
         });
         for (required, actual) in required_parameters.iter().zip(actual_parameters) {
             if required.kind != TypeParameterKind::Implementation { continue; }
@@ -66,14 +80,14 @@ pub(super) fn validate(
                 path: vec![required.name.clone()].into_boxed_slice(),
                 ..Default::default()
             };
-            let expected = crate::conformance_applications::applied_bound_argument_identities(
-                program, demanded, provider.symbol, provider.symbol, &[],
+            let expected = applied_bound_argument_identities_in_region_scope(
+                program, demanded, provider.symbol, provider.symbol, &[], &actual_regions,
             );
-            if let Err(reason) = crate::conformance_applications::validate_forwarded_argument(
+            if let Err(reason) = validate_forwarded_argument(
                 program, demanded, &selected, |promised| {
                     expected.as_ref().zip(
-                        crate::conformance_applications::applied_bound_argument_identities(
-                            program, promised, requirement.symbol, provider.symbol, &scopes,
+                        applied_bound_argument_identities_in_region_scope(
+                            program, promised, requirement.symbol, provider.symbol, &scopes, &required_regions,
                         ).as_ref(),
                     ).is_some_and(|(demanded, promised)| demanded == promised)
                 },

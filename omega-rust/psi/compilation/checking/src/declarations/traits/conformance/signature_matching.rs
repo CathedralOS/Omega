@@ -324,14 +324,6 @@ pub(crate) fn validate_applied_trait_signature(
         return;
     }
     let mut required_generic_types = trait_type_parameters.to_vec();
-    evidence::validate(
-        program,
-        application,
-        requirement,
-        callable_machine,
-        &actual_type_parameters,
-        diagnostics,
-    );
     // Value and const parameters may occur as named index arguments in a
     // dependent result too. Their positional bindings above must participate
     // in matching just as type binders do; declaration-local symbols differ.
@@ -482,6 +474,15 @@ pub(crate) fn validate_applied_trait_signature(
                 program, &required, &actual,
             )?;
             let frame = prepared.lifetime_frame(program, &required, &actual)?;
+            evidence::validate(
+                program,
+                application,
+                requirement,
+                callable_machine,
+                &actual_type_parameters,
+                &frame,
+                diagnostics,
+            );
             crate::machine_calls::machine_parameters::validate_trait_callable_parameter_refinement(
                 program,
                 &format!(
