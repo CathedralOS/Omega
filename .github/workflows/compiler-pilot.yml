@@ -99,16 +99,9 @@ jobs:
         if: github.event_name != 'workflow_dispatch'
         id: compiler-check
         run: cargo check --locked -p omega
-      - name: Restore the exact retained compiler for copied-case baseline
+      - name: Qualify the exact private-arrival repair and original copied-case row
         if: github.event_name == 'workflow_dispatch'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh run download 41429826043 --name compiler-pilot-linux_x86_64-3c9cfd4b5e2d143394d5f407d8b5a7f7bcd727cb-1 --dir build/case-retained-input
-          git fetch --depth=1 origin 3c9cfd4b5e2d143394d5f407d8b5a7f7bcd727cb
-      - name: Trace the exact private copied-case arrival without Rust
-        if: github.event_name == 'workflow_dispatch'
-        run: python tools/build_slot.py -- python tools/ci/copied_case_trace1.py
+        run: python tools/build_slot.py -- python tools/ci/copied_case_repair1.py
       - name: Optional executable observations
         if: github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
         env:
