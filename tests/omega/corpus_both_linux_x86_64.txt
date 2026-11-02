@@ -7654,11 +7654,11 @@ pass/wire/runtime_wire_encode_borrowed_scalar_slice_exit built 17508ms exit:70 i
 pass/wire/runtime_wire_encode_byte_slice_exit built 16736ms exit:70 interpreter-exit:70 interpreter:agrees @78bb5e4e3ee6+wt
 pass/wire/runtime_wire_encode_interior_scalar_slice_exit built 15841ms exit:70 interpreter-exit:70 interpreter:agrees @78bb5e4e3ee6+wt
 pass/wire/runtime_wire_exact_array_without_count_exit built 17221ms exit:70 interpreter-exit:70 interpreter:agrees @78bb5e4e3ee6+wt
-pass/wire/runtime_wire_policy_authored_plan_exit built 24437ms exit:70 interpreter-exit:70 interpreter:agrees @78bb5e4e3ee6+wt
+pass/wire/runtime_wire_policy_authored_plan_exit built 102825ms exit:70 interpreter-exit:70 interpreter:agrees @0151cda77112
 pass/wire/runtime_wire_roundtrip_nested_and_repeated_exit built 24809ms exit:70 interpreter-exit:70 interpreter:agrees @78bb5e4e3ee6+wt
 pass/wire/runtime_wire_signed_extremes_roundtrip_exit built 21732ms exit:0 interpreter-exit:0 interpreter:agrees @78bb5e4e3ee6+wt
 pass/wire/runtime_wire_utf8_edge_verdicts_exit built 17283ms exit:70 interpreter-exit:70 interpreter:agrees @78bb5e4e3ee6+wt
-pass/wire/systems_wire_protocol_exit built 29715ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @78bb5e4e3ee6+wt
+pass/wire/systems_wire_protocol_exit built 104648ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @0151cda77112
 pass/wire/wire_compatibility_migration_across_shapes built 10140ms exit:0 interpreter-exit:0 interpreter:agrees @78bb5e4e3ee6+wt
 pass/wire/wire_data_reserved_field built 2993ms @78bb5e4e3ee6+wt
 pass/wire/wire_field_numbers checked 13513ms @78bb5e4e3ee6+wt
