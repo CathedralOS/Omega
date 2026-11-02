@@ -560,6 +560,8 @@ fail/facts/fixed_region_byte_roundtrip_through_local_overlap_rejected rejected 4
 	statement 4 mutates `destination[2]` while local borrow `output` is still active (borrowed at statement 3; its last use is at statement 5)
 fail/facts/fixed_region_byte_roundtrip_through_local_short_region_rejected rejected 2324ms expected @ee194ea71d07
 	machine `main` state `entry`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `[u8; 40]` are not representation-compatible
+fail/facts/float_comparison_route_nonnumeric_contract_rejected rejected 8727ms expected @cc26a0e67500
+	cannot prove requires contract for call bounded from select: value <= 1.0 (needs fact `value <= 1.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/foreign_retained_shared_borrow_borrowed_slot_swap rejected 2053ms expected @13c1304502d6
 	statement 13 mutates `first_buffer.value` while local borrow `state` is still active (borrowed at statement 7; its last use is at statement 14)
 fail/facts/foreign_retained_shared_borrow_persistent_restore rejected 2021ms expected @13c1304502d6
