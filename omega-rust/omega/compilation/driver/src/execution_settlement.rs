@@ -391,7 +391,11 @@ fn select_checked_providers(
         .map(|entry| entry.settle_calling_plans(&providers.boundary_calling_plan_realizations))
         .transpose()?;
     if let Some(entry) = &mut selected_program_entry {
-        entry.bind_physical_adapter(typed, &selected_provider_provenance)?;
+        entry.bind_physical_adapter(
+            providers.calling_program.artifact.semantic_module(),
+            &selected_provider_provenance,
+            &providers.provider_declarations,
+        )?;
     }
     provider_planning::target_machines::reject_reached_inert_sibling_calls(
         one_refusal(source.provider_inventory.direct_calls_for(&source.program))?,
