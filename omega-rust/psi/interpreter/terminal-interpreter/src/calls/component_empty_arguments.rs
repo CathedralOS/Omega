@@ -78,8 +78,15 @@ impl SharedEmptyArgument {
             return Err(malformed());
         }
         let key = ScalarStorageAddressKey::Scalar(StructuralRuntimePlace::from(value));
-        if child.component_borrowed_addresses.contains_key(&key) {
-            return Err(malformed());
+        if let Some(existing) = child.component_borrowed_addresses.get(&key) {
+            // Both formals were checked SharedBorrow above. A cohort may
+            // retain the same actual formed home; a different origin cannot
+            // replace an already established receiving alias.
+            return if existing == &self.original {
+                Ok(())
+            } else {
+                Err(malformed())
+            };
         }
         child
             .component_borrowed_addresses

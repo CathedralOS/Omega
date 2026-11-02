@@ -400,9 +400,16 @@ impl<'artifact> TerminalExecution<'artifact> {
             .collect();
         let scalar_scope =
             (!scalar_arguments.is_empty()).then(crate::scalar_storage::ScalarLoanScope::new);
+        let mut scalar_views = BTreeMap::new();
         let scalar_arguments = scalar_arguments
             .into_iter()
-            .map(|argument| argument.lend(self, scalar_scope.as_ref().ok_or_else(malformed)?))
+            .map(|argument| {
+                argument.lend(
+                    self,
+                    scalar_scope.as_ref().ok_or_else(malformed)?,
+                    &mut scalar_views,
+                )
+            })
             .collect::<Result<_, _>>()?;
         Ok(PreparedComponentArguments {
             custody: ComponentInputCustody {

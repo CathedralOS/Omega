@@ -4,7 +4,7 @@ Parent outcome: `PIPELINE-ARCHITECTURE-ENFORCEMENT` remains open.
 
 Fact: A suspended independent component writes 73 to the caller's original scalar-backed record, preserving neighbor cells and storage addresses.
 
-All nine places select the separately produced `producer::Writer` with independent composition through ordinary Build dependency discovery. Each calls the same checked interface, compares aggregate and member addresses inside the provider, writes the actual count cell, and checks untouched neighbors after return. The match join exercises both alternatives and checks the unselected record. The target-body place selects an ordinary named implementation.
+All nine places select the separately produced `producer::Writer` with independent composition through ordinary Build dependency discovery. Each calls the same checked interface, compares aggregate and member addresses inside the provider, writes the actual count cell, reads it through two shared aliases in a second independent component, and checks untouched neighbors after return. Both shared records retain the original aggregate/member addresses; repeated shared empty inputs retain their same formed home. The match join exercises both alternatives and checks the unselected record. The target-body place selects an ordinary named implementation.
 
 Each positive declares exit 0 and has a twin lending immutable access to the mutable formal. Native and Terminal execution must both return 0; removing the write, changing an address, selecting the wrong record, or taking a failed arm traps.
 

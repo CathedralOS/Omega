@@ -19,3 +19,18 @@ public Writer satisfies Lending {
     }
 }
 machine component_entry() {}
+
+public boundary trait Reading {
+    machine read(left: &Word, right: &Word, token: &Token, same_token: &Token, original: addr, member: addr) -> u64
+    reaches suspends crashes Trap;
+}
+public Reader satisfies Reading {
+    machine read(left: &Word, right: &Word, token: &Token, same_token: &Token, original: addr, member: addr) -> u64
+    reaches suspends crashes Trap {
+        transition left.count == 73 && right.count == 73 && address_of(left) == original && address_of(right) == original && address_of(&left.count) == member && address_of(&right.count) == member && address_of(token) == address_of(same_token) {
+            true -> left.count
+            _ -> bad()
+        }
+        machine bad() -> u64 { crash Trap; }
+    }
+}

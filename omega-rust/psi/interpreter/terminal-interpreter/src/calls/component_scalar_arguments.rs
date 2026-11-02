@@ -166,11 +166,28 @@ impl PreparedScalarArgument {
         self,
         source: &mut TerminalExecution<'_>,
         lifetime: &ScalarLoanScope,
+        views: &mut BTreeMap<ScalarStorageAddressKey, (StructuralAccess, ScalarCell)>,
     ) -> Result<LentScalarArgument, TerminalInterpretError> {
         let mut cells = Vec::with_capacity(self.cells.len());
         for prepared in self.cells {
-            let original = cell_mut(source, &prepared.source).ok_or_else(malformed)?;
-            let borrowed = lifetime.lend(original, self.access)?;
+            // A shared cohort names one actual endpoint. Retain the same view
+            // identity for repeated arguments, rather than manufacturing a
+            // second cell or merging independent exclusive permissions.
+            let borrowed = if let Some((access, previous)) = views.get(&prepared.source) {
+                if *access != StructuralAccess::SharedBorrow
+                    || self.access != StructuralAccess::SharedBorrow
+                {
+                    return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                        "component inputs overlap an exclusive scalar home",
+                    ));
+                }
+                previous.clone()
+            } else {
+                let original = cell_mut(source, &prepared.source).ok_or_else(malformed)?;
+                let borrowed = lifetime.lend(original, self.access)?;
+                views.insert(prepared.source.clone(), (self.access, borrowed.clone()));
+                borrowed
+            };
             cells.push((prepared, borrowed));
         }
         Ok(LentScalarArgument {
@@ -228,9 +245,14 @@ impl LentScalarArgument {
                 return Err(reject());
             }
             let key = scalar_key(&destination)?;
-            if cell(child, &key).is_some() {
-                return Err(malformed());
-            }
+            let needs_binding = if let Some(existing) = cell(child, &key) {
+                if self.access != StructuralAccess::SharedBorrow || existing != original {
+                    return Err(malformed());
+                }
+                false
+            } else {
+                true
+            };
             let destination_parent = parent(&key);
             if destination_parent.opaque_identity != root.opaque_identity
                 || !destination_parent.path.starts_with(&root.path)
@@ -251,14 +273,18 @@ impl LentScalarArgument {
                 )?;
             }
             insert_address(&mut addresses, key.clone(), &prepared.address)?;
-            bindings.push((key, original.clone()));
+            if needs_binding {
+                bindings.push((key, original.clone()));
+            }
         }
         if !destinations.is_empty() {
             return Err(malformed());
         }
-        for key in addresses.keys() {
-            if child.component_borrowed_addresses.contains_key(key) {
-                return Err(malformed());
+        for (key, address) in &addresses {
+            if let Some(existing) = child.component_borrowed_addresses.get(key) {
+                if self.access != StructuralAccess::SharedBorrow || existing != address {
+                    return Err(malformed());
+                }
             }
         }
         // These are aliases of the existing endpoints. Fund receiving rows
@@ -278,7 +304,9 @@ impl LentScalarArgument {
             }
         }
         for (key, address) in addresses {
-            child.component_borrowed_addresses.insert(key, address)?;
+            if !child.component_borrowed_addresses.contains_key(&key) {
+                child.component_borrowed_addresses.insert(key, address)?;
+            }
         }
         Ok(())
     }
