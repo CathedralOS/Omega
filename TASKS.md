@@ -820,7 +820,7 @@ helper that passes does not close an item.
     The Rust reference [qualified-case row](samples/cli/facts/transparent_generic_aliases/qualified_cases/README.md)
     now preserves imported alias applications through construction and matching
     in all nine places on Linux x86-64, with exact payload reject twins.
-    Broader pattern inference remains open. Complete the other alias-form rows,
+    Broader pattern inference remains open. The other alias-form rows,
     remaining binder/case/pattern cases and alias-RHS
     expression operands beyond the [Const-formal](samples/cli/facts/transparent_generic_aliases/rhs_const_expression/README.md),
     [declaration-scope](samples/cli/facts/transparent_generic_aliases/rhs_const_scope/README.md),
