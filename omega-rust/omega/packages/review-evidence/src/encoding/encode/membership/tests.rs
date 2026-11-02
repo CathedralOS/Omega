@@ -186,6 +186,21 @@ fn std_identities_with_const_operands_are_readable() {
     assert_eq!(accepting.unreadable_identity(), None);
 }
 
+/// A derived declaration is named by the generic application that produced it. That
+/// application's owners are package owners like any other: they used to read as
+/// binder text, which membership never searched.
+#[test]
+fn a_derived_declaration_names_owners_the_source_graph_must_contain() {
+    let origin = format!("generic(name({}),{})", escaped(&nominal()), nominal());
+    let derived = format!("derived-application({origin})");
+    let identity = format!("named(name({}))", escaped(&derived));
+    assert_eq!(visitor(roomy(), true).type_identity(&identity), Ok(()));
+    assert_eq!(
+        visitor(roomy(), false).type_identity(&identity),
+        Err(Error::UnknownPackage { package: owner() })
+    );
+}
+
 #[test]
 fn a_zero_package_owner_is_malformed() {
     let zero = "0".repeat(64);
@@ -198,7 +213,8 @@ fn a_zero_package_owner_is_malformed() {
 
 #[test]
 fn a_rejected_identity_reports_the_text_the_grammar_stopped_on() {
-    // `ref` takes one operand; a second one is a rendering the grammar does not read.
+    // `ref` takes one operand. A second is a region, which only an application-scoped
+    // rendering carries, so the grammar refuses it where its comma stands.
     let identity = format!("ref({},elided-region)", nominal());
     let mut rejecting = visitor(roomy(), true);
     assert_eq!(

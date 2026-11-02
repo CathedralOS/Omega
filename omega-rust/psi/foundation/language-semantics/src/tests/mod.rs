@@ -8,3 +8,4 @@ mod service_reach;
 
 mod array_extent_identity;
 mod type_identity;
+mod type_identity_vocabulary;

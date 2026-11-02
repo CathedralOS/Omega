@@ -2,10 +2,13 @@
 //! A whole match introduces one lexical capture; aliases encode its depth,
 //! not an arena address or a fresh normalization of the original expression.
 
-use super::{TypeIdentityContext, atom, compound, normalize_index_expression};
+use super::{TypeIdentityContext, atom, bare, compound, normalize_index_expression};
 use crate::TypedTrees;
 use crate::expression::{
     ExpressionHandle, MatchFieldAction, MatchPattern, TableMatchExpression, TableSavedSubject,
+};
+use language_semantics::type_identity::vocabulary::{
+    FieldActionForm, IndexForm, Label, PatternForm,
 };
 
 fn unavailable(context: &TypeIdentityContext<'_>) -> String {
@@ -20,7 +23,7 @@ fn unavailable(context: &TypeIdentityContext<'_>) -> String {
     }
     // This is diagnostic structure only. Fallible identity entrances reject
     // the flag; consumers must never compare this marker as an identity.
-    "unbound-match-subject".to_owned()
+    bare(IndexForm::UnboundMatchSubject)
 }
 
 pub(super) fn normalize_match(
@@ -56,26 +59,26 @@ pub(super) fn normalize_match(
         ..*context
     };
     compound(
-        "match",
+        IndexForm::Match,
         std::iter::once(subject).chain(table.match_arms(dispatch.arms).iter().map(|arm| {
             let pattern = match arm.pattern {
                 MatchPattern::Value(value) => normalize_index_expression(program, value, &nested),
-                MatchPattern::Wildcard => "wildcard".to_owned(),
+                MatchPattern::Wildcard => bare(PatternForm::Wildcard),
                 MatchPattern::Destructure(pattern) => {
                     let fields = table.match_fields(pattern.fields).iter().map(|field| {
                         let action = match &field.action {
-                            MatchFieldAction::Bind(_) => "bind".to_owned(),
+                            MatchFieldAction::Bind(_) => bare(FieldActionForm::Bind),
                             MatchFieldAction::Equal(value) => compound(
-                                "equal",
+                                FieldActionForm::Equal,
                                 [normalize_index_expression(program, *value, &nested)],
                             ),
-                            MatchFieldAction::Waive => "waive".to_owned(),
+                            MatchFieldAction::Waive => bare(FieldActionForm::Waive),
                         };
                         compound(
-                            "field",
+                            Label::Field,
                             [
                                 atom(
-                                    "name",
+                                    Label::Name,
                                     &context.name(
                                         program,
                                         field.field_symbol,
@@ -92,31 +95,31 @@ pub(super) fn normalize_match(
                         .enumerate()
                         .map(|(ordinal, selector)| {
                             compound(
-                                "proof-selector",
+                                Label::ProofSelector,
                                 [
-                                    atom("field", selector.output_field.as_str()),
-                                    atom("binding", &ordinal.to_string()),
+                                    atom(Label::Field, selector.output_field.as_str()),
+                                    atom(Label::Binding, &ordinal.to_string()),
                                 ],
                             )
                         });
                     compound(
-                        "destructure",
+                        PatternForm::Destructure,
                         [
                             normalize_index_expression(program, pattern.head, &nested),
-                            compound("fields", fields),
-                            atom("rest", if pattern.has_rest { "yes" } else { "no" }),
+                            compound(Label::Fields, fields),
+                            atom(Label::Rest, if pattern.has_rest { "yes" } else { "no" }),
                             if pattern.guard.is_valid() {
                                 normalize_index_expression(program, pattern.guard, &nested)
                             } else {
-                                "no-guard".to_owned()
+                                bare(Label::NoGuard)
                             },
-                            compound("proof-selectors", selectors),
+                            compound(Label::ProofSelectors, selectors),
                         ],
                     )
                 }
             };
             compound(
-                "arm",
+                Label::Arm,
                 [
                     pattern,
                     normalize_index_expression(program, arm.value, &nested),
@@ -149,9 +152,9 @@ pub(super) fn normalize_saved_subject(
         return unavailable(context);
     };
     compound(
-        "saved-subject",
+        IndexForm::SavedSubject,
         [
-            atom("depth", &depth.to_string()),
+            atom(Label::Depth, &depth.to_string()),
             normalize_index_expression(program, saved.pattern_head, context),
         ],
     )
