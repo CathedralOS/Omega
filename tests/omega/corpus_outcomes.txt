@@ -2081,7 +2081,7 @@ fail/facts/nested_machine_repeated_selector_through_parameter rejected 35618ms e
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_repeated_selector_through_target_body rejected 41117ms expected @c760f9058006
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-fail/facts/nested_machine_repeated_selector_unformed_arm rejected 31709ms @c760f9058006
+fail/facts/nested_machine_repeated_selector_unformed_arm rejected 16167ms expected @580e9aaf97dd
 	cannot prove the `terminates by` ranking for machine count
 	machine call cycle: `count`, `forward` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_repeated_selector_unformed_child rejected 14613ms expected @c760f9058006
