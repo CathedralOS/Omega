@@ -114,6 +114,10 @@ def contract_returned_value(contract: int) -> tuple[int, int, int]:
     return (19, contract, 0)
 
 
+def data_subject(item: int) -> tuple[int, int, int]:
+    return (20, item, 0)
+
+
 def domain_subject(handle: int) -> tuple[int, int, int]:
     """A domain's subject binder in its predicates."""
     return (16, handle, 0)
@@ -992,6 +996,13 @@ def main() -> None:
         b"machine f(x: u64) -> u64\nensures result >= x\n{ x }",
         (builtin("u64"), builtin("u64")),
         (returned_value(0), parameter(0), NOT_A_NAME, parameter(0)),
+    )
+    accepted(
+        program,
+        "data-default-fact-retains-subject",
+        b"data Value requires self == self { value: u64; }",
+        (builtin("u64"),),
+        (data_subject(0), data_subject(0), NOT_A_NAME),
     )
     accepted(
         program,
