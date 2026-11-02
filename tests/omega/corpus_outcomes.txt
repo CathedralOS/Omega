@@ -2742,7 +2742,7 @@ pass/build/sibling_module_slot_family_rows_exit rejected 16789ms check-target:ma
 pass/build/static_assumed_binding_spelling_exit checked 3772ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/terminal_calling_policy_execution checked 78393ms check-target:macos_arm64 terminal-runtime.retained_plan:match terminal-inspections:match @647f9c72eddf
 pass/build/terminal_nested_input_contents checked 6990ms check-target:macos_arm64 terminal-runtime.inspect:unrequested terminal-runtime.inspect_second:unrequested terminal-runtime.inspect_erased:unrequested terminal-runtime.inspect_reference:unrequested terminal-inspections:match @38f862ee379f
-pass/build/terminal_private_callback_calling checked 33692ms check-target:macos_arm64 @647f9c72eddf
+pass/build/terminal_private_callback_calling checked 74649ms check-target:macos_arm64 callback-body-controls:match terminal-inspections:match @65b0b3576d3c
 pass/build/terminal_project_requests checked 6659ms check-target:macos_arm64 terminal-runtime.requests:unrequested terminal-inspections:match @ccdb99ca2214
 pass/build/terminal_result_custody checked 20950ms check-target:macos_arm64 terminal-runtime.shared:unrequested terminal-runtime.distinct:unrequested terminal-runtime.selected:unrequested terminal-runtime.empty:unrequested terminal-runtime.number:unrequested terminal-inspections:match @ccdb99ca2214
 pass/build/uefi_context_cleanup_entry checked 18992ms check-target:uefi_x86_64 @ccdb99ca2214
@@ -4273,7 +4273,7 @@ pass/effects/reach_through_machine_param checked 2976ms @ccdb99ca2214
 pass/effects/reviewed_service_rows_exit checked 18046ms check-target:macos_arm64 @ccdb99ca2214
 pass/effects/root_service_audit checked 4242ms @ccdb99ca2214
 pass/effects/runtime_empty_boundary_reach_exit checked 17176ms check-target:macos_arm64 @ccdb99ca2214
-pass/effects/static_boundary_callback_reach checked 3594ms check-target:macos_arm64 @ccdb99ca2214
+pass/effects/static_boundary_callback_reach checked 4654ms check-target:macos_arm64 callback-body-controls:match terminal-inspections:match @65b0b3576d3c
 pass/effects/structural_callback_reach checked 3061ms @ccdb99ca2214
 pass/effects/top_level_callback_provider_ceiling checked 2504ms @ccdb99ca2214
 pass/effects/windows_filesystem_capability_rows checked 37396ms @ccdb99ca2214
