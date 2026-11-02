@@ -8,7 +8,7 @@
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
 # context: {"incoming_observations_from": "e8e2fe90b14b2a7bad0e714ba635161d80c9f585", "integration_base": "2e9f231f798bffee7a2bd46857d02adb79de70b6", "measurement": "Historical three-way integration, not a new whole-corpus run. Keep incoming-main observations changed since 66fc7ac3c97, otherwise retain qualified ccdb99ca2214 observations. Also preserve the two additional incoming-main rows from e8e2fe90b14b; no compiler rebase or new full run.", "recorded_source": "ccdb99ca2214b93c0e2535a31cb34a3e2167d9dd", "schema": "omega-corpus-context-v1"}
-fail/borrows/borrowed_reference_field_live_child_write rejected 14790ms expected @0e4c4184733ef6ae219a198b6012a7f24d2e15e3
+fail/borrows/borrowed_reference_field_live_child_write rejected 6506ms expected @db6331a216fde821d9ba7e2a6bd6171a77e2ee0c
 	statement 1 mutates `held.target.value` while local borrow `child` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
 fail/borrows/collection_metadata_descriptor_slot_suspended rejected 4601ms expected @e2e21da6e1d9
 	statement 4 reads `alias.view` while local borrow `exclusive` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
@@ -3419,7 +3419,7 @@ pass/borrows/borrowed_array_loop checked 3310ms @ccdb99ca2214
 pass/borrows/borrowed_case_leaf_copy_exit checked 15634ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/borrowed_record_reference_field_state_writeback_exit checked 3753ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/borrowed_record_stack_parameter_writeback_exit checked 16964ms check-target:macos_arm64 @ccdb99ca2214
-pass/borrows/borrowed_reference_field_read_and_write_exit checked 18119ms check-target:macos_arm64 @0e4c4184733ef6ae219a198b6012a7f24d2e15e3
+pass/borrows/borrowed_reference_field_read_and_write_exit checked 8890ms check-target:macos_arm64 @db6331a216fde821d9ba7e2a6bd6171a77e2ee0c
 pass/borrows/borrowed_sum_dispatch checked 3608ms @ccdb99ca2214
 pass/borrows/borrowed_window_parameter_provenance_exit checked 3456ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/boundary_scalar_slice_write_exit checked 3831ms check-target:macos_arm64 @ccdb99ca2214
@@ -11663,15 +11663,15 @@ pass/facts/write_only_recast_through_other_machine_exit checked 3267ms check-tar
 pass/facts/write_only_recast_through_other_state_exit checked 2853ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/write_only_recast_through_parameter_exit checked 3843ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/write_only_recast_through_target_body_exit checked 3827ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/write_only_reference_store_through_call_result_exit checked 16221ms check-target:macos_arm64 @0e4c4184733ef6ae219a198b6012a7f24d2e15e3
-pass/facts/write_only_reference_store_through_const_name_exit checked 16124ms check-target:macos_arm64 @0e4c4184733ef6ae219a198b6012a7f24d2e15e3
-pass/facts/write_only_reference_store_through_field_exit checked 16036ms check-target:macos_arm64 @0e4c4184733ef6ae219a198b6012a7f24d2e15e3
-pass/facts/write_only_reference_store_through_local_exit checked 15951ms check-target:macos_arm64 @0e4c4184733ef6ae219a198b6012a7f24d2e15e3
-pass/facts/write_only_reference_store_through_match_join_exit checked 18057ms check-target:macos_arm64 @5e5778c44d370122762d1e313398087dd18c092b
-pass/facts/write_only_reference_store_through_other_machine_exit checked 16410ms check-target:macos_arm64 @0e4c4184733ef6ae219a198b6012a7f24d2e15e3
-pass/facts/write_only_reference_store_through_other_state_exit checked 16275ms check-target:macos_arm64 @0e4c4184733ef6ae219a198b6012a7f24d2e15e3
-pass/facts/write_only_reference_store_through_parameter_exit checked 16134ms check-target:macos_arm64 @0e4c4184733ef6ae219a198b6012a7f24d2e15e3
-pass/facts/write_only_reference_store_through_target_body_exit checked 16247ms check-target:macos_arm64 @0e4c4184733ef6ae219a198b6012a7f24d2e15e3
+pass/facts/write_only_reference_store_through_call_result_exit checked 8249ms check-target:macos_arm64 @db6331a216fde821d9ba7e2a6bd6171a77e2ee0c
+pass/facts/write_only_reference_store_through_const_name_exit checked 8125ms check-target:macos_arm64 @db6331a216fde821d9ba7e2a6bd6171a77e2ee0c
+pass/facts/write_only_reference_store_through_field_exit checked 8090ms check-target:macos_arm64 @db6331a216fde821d9ba7e2a6bd6171a77e2ee0c
+pass/facts/write_only_reference_store_through_local_exit checked 8185ms check-target:macos_arm64 @db6331a216fde821d9ba7e2a6bd6171a77e2ee0c
+pass/facts/write_only_reference_store_through_match_join_exit checked 8177ms check-target:macos_arm64 @db6331a216fde821d9ba7e2a6bd6171a77e2ee0c
+pass/facts/write_only_reference_store_through_other_machine_exit checked 8303ms check-target:macos_arm64 @db6331a216fde821d9ba7e2a6bd6171a77e2ee0c
+pass/facts/write_only_reference_store_through_other_state_exit checked 8289ms check-target:macos_arm64 @db6331a216fde821d9ba7e2a6bd6171a77e2ee0c
+pass/facts/write_only_reference_store_through_parameter_exit checked 8263ms check-target:macos_arm64 @db6331a216fde821d9ba7e2a6bd6171a77e2ee0c
+pass/facts/write_only_reference_store_through_target_body_exit checked 8259ms check-target:macos_arm64 @db6331a216fde821d9ba7e2a6bd6171a77e2ee0c
 pass/facts/zero_byte_erased_carrier_through_call_result_exit checked 3441ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/zero_byte_erased_carrier_through_const_name_exit checked 3441ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/zero_byte_erased_carrier_through_field_exit checked 3810ms check-target:macos_arm64 @ccdb99ca2214
@@ -31361,23 +31361,23 @@ fail/facts/write_only_recast_through_target_body_rejected rejected 1507ms expect
 	machine `overwrite` state `entry` local `view` requires mutable source access; shared or immutable storage cannot supply it
 	machine `overwrite` state `entry` local `view` requires mutable source access; shared or immutable storage cannot supply it
 	machine `overwrite` state `entry` local `view` requires mutable source access; shared or immutable storage cannot supply it
-fail/facts/write_only_reference_store_through_call_result_rejected rejected 7760ms expected @5e5778c44d370122762d1e313398087dd18c092b
+fail/facts/write_only_reference_store_through_call_result_rejected rejected 1614ms expected @db6331a216fde821d9ba7e2a6bd6171a77e2ee0c
 	machine `main` state `entry` reads field `target` from write-only parameter `slot`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
-fail/facts/write_only_reference_store_through_const_name_rejected rejected 9537ms expected @5e5778c44d370122762d1e313398087dd18c092b
+fail/facts/write_only_reference_store_through_const_name_rejected rejected 1610ms expected @db6331a216fde821d9ba7e2a6bd6171a77e2ee0c
 	machine `main` state `entry` reads field `target` from write-only parameter `slot`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
-fail/facts/write_only_reference_store_through_field_rejected rejected 8037ms expected @5e5778c44d370122762d1e313398087dd18c092b
+fail/facts/write_only_reference_store_through_field_rejected rejected 1581ms expected @db6331a216fde821d9ba7e2a6bd6171a77e2ee0c
 	machine `main` state `entry` observes write-only referent through a selected value; `&write` permits replacement or exact `&write` forwarding, never observation
-fail/facts/write_only_reference_store_through_local_rejected rejected 7299ms expected @5e5778c44d370122762d1e313398087dd18c092b
+fail/facts/write_only_reference_store_through_local_rejected rejected 1644ms expected @db6331a216fde821d9ba7e2a6bd6171a77e2ee0c
 	machine `main` state `entry` reads field `target` from write-only parameter `slot`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
-fail/facts/write_only_reference_store_through_match_join_rejected rejected 7713ms expected @5e5778c44d370122762d1e313398087dd18c092b
+fail/facts/write_only_reference_store_through_match_join_rejected rejected 1725ms expected @db6331a216fde821d9ba7e2a6bd6171a77e2ee0c
 	machine `exercise` state `entry` reads field `target` from write-only parameter `slot`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
-fail/facts/write_only_reference_store_through_other_machine_rejected rejected 7692ms expected @5e5778c44d370122762d1e313398087dd18c092b
+fail/facts/write_only_reference_store_through_other_machine_rejected rejected 1659ms expected @db6331a216fde821d9ba7e2a6bd6171a77e2ee0c
 	machine `install` state `entry` reads field `target` from write-only parameter `slot`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
-fail/facts/write_only_reference_store_through_other_state_rejected rejected 7615ms expected @5e5778c44d370122762d1e313398087dd18c092b
+fail/facts/write_only_reference_store_through_other_state_rejected rejected 1647ms expected @db6331a216fde821d9ba7e2a6bd6171a77e2ee0c
 	machine `later` state `entry` reads field `target` from write-only parameter `slot`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
-fail/facts/write_only_reference_store_through_parameter_rejected rejected 7699ms expected @5e5778c44d370122762d1e313398087dd18c092b
+fail/facts/write_only_reference_store_through_parameter_rejected rejected 1668ms expected @db6331a216fde821d9ba7e2a6bd6171a77e2ee0c
 	machine `install` state `entry` reads field `target` from write-only parameter `slot`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
-fail/facts/write_only_reference_store_through_target_body_rejected rejected 5958ms expected @5e5778c44d370122762d1e313398087dd18c092b
+fail/facts/write_only_reference_store_through_target_body_rejected rejected 1270ms expected @db6331a216fde821d9ba7e2a6bd6171a77e2ee0c
 	machine `WindowsStore::install` state `install` reads field `target` from write-only parameter `slot`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
 	machine `LinuxX86Store::install` state `install` reads field `target` from write-only parameter `slot`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
 	machine `MacosStore::install` state `install` reads field `target` from write-only parameter `slot`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation

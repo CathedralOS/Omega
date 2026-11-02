@@ -99,15 +99,15 @@ nine twins reject for observing write-only contents. The root program and all
 nine places also pass the ordinary `omega run --both` sample path, with the
 invalid projects matching their authored rejection expectations.
 
-[The full focused run](https://github.com/CathedralOS/Omega/actions/runs/41521723559)
+[The integrated focused run](https://github.com/CathedralOS/Omega/actions/runs/41528819705)
 records 14 executable positives and 17 intended rejections, including the
 nine-place row, valid incoming-pointer reads and writes, conflicting live
 children, forbidden intermediate reads, opaque boundaries, and an exclusive
-lifetime anchor. [The final sample run](https://github.com/CathedralOS/Omega/actions/runs/41523427365)
-freshly checks the stronger match witness, all nine aligned twins, and all 19
-public projects. The compiler binaries are identical between these runs;
-only the changed witnesses need the later observations. Exact source stamps
-remain on the corpus records, with raw receipts in the claim and PR evidence.
+lifetime anchor. It also checks all 19 public projects, including both match
+choices and the aligned reject twins. The run uses the compiler after merging
+main's flow and native-admission changes. Corpus records retain that actual
+source stamp; raw receipts and earlier observations remain in the claim and
+PR evidence.
 Execution on the other three hosted targets remains unverified here.
 
 This row establishes replacement of a stored reference through write-only
