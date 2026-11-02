@@ -279,6 +279,7 @@ pub(super) fn assign_statement_symbols(
                     let is_case = symbols.get(selected).kind == SymbolKind::Variant;
                     Some(expression_table.insert(ExpressionNode::Membership(
                         TableMembershipExpression {
+                            is_pattern: true,
                             value: retained.subject,
                             domain: head.members,
                             domain_symbol: if is_case {

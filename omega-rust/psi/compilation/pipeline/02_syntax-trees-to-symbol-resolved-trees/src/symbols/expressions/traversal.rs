@@ -515,6 +515,7 @@ impl ExpressionSymbolContext<'_, '_> {
         let condition =
             self.expression_table
                 .insert(ExpressionNode::Membership(TableMembershipExpression {
+                    is_pattern: false,
                     value: saved,
                     domain: path.members,
                     domain_symbol: domain,

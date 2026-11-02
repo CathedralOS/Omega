@@ -354,6 +354,7 @@ fn lower_nonbinary_expression_node_into_table(
             }
             Ok(expression_table(lowerer).insert(ExpressionNode::Membership(
                 TableMembershipExpression {
+                    is_pattern: false,
                     value,
                     domain,
                     domain_symbol: SymbolHandle::invalid(),

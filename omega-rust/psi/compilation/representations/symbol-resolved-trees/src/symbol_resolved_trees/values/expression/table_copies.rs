@@ -241,6 +241,7 @@ impl ExpressionTable {
                 let value = self.copy_graph(source, membership.value, copies);
                 let domain = self.copy_name_path_members(source, membership.domain);
                 self.insert(ExpressionNode::Membership(TableMembershipExpression {
+                    is_pattern: membership.is_pattern,
                     value,
                     domain,
                     domain_symbol: membership.domain_symbol,

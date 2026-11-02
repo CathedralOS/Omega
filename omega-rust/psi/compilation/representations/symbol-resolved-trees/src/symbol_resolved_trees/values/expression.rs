@@ -795,6 +795,8 @@ pub struct TableRangeExpression {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct TableMembershipExpression {
+    /// A retained pattern observes a tag; it is not an authored `in` or value equality.
+    pub is_pattern: bool,
     pub value: ExpressionHandle,
     pub domain: HandleSpan<DiagnosticName>,
     /// Exact declared-domain identity. Invalid for implicit `Type::Case` domains.

@@ -1435,6 +1435,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             membership.domain,
             membership.case_type_symbol,
             membership.case_symbol,
+            membership.is_pattern,
         ) {
             return Ok(lowered);
         }
