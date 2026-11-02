@@ -113,6 +113,7 @@ impl StructuralJudge<'_> {
                 coordinate: coordinate.clone(),
                 value: value.clone(),
                 backing: Some(backing.clone()),
+                representation: None,
             });
             self.retain_storage_value(coordinate.clone(), value, false);
             if let Some(stored) = std::sync::Arc::make_mut(&mut self.stored_values)
@@ -137,7 +138,17 @@ impl StructuralJudge<'_> {
         let backing = storage
             .backing
             .map(|backing| self.freeze_scalar_read_backing(state, backing));
-        self.retain_storage_value(storage.coordinate.clone(), storage.value, false);
+        let value = match storage.representation {
+            Some((source, target)) => {
+                super::super::super::structural_terms::normalize_scalar_representation(
+                    source,
+                    target,
+                    storage.value,
+                )
+            }
+            None => storage.value,
+        };
+        self.retain_storage_value(storage.coordinate.clone(), value, false);
         if let Some(backing) = backing
             && let Some(stored) = std::sync::Arc::make_mut(&mut self.stored_values)
                 .iter_mut()

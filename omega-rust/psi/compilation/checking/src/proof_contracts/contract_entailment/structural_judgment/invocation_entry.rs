@@ -64,7 +64,7 @@ impl<'program> StructuralJudge<'program> {
                 (parameter.symbol, value)
             })
             .collect::<Vec<_>>();
-        self.enter_storage_scope(entry, subjects, &bindings);
+        self.enter_storage_scope(entry, scope.1, subjects, &bindings);
         // Expression caches and source premises are invocation-local. Their
         // captured equations/predicates remain detached values, not a license
         // to reevaluate a caller expression through new callee bindings.

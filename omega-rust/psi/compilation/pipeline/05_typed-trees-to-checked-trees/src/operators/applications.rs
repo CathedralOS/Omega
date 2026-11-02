@@ -12,7 +12,7 @@ use typed_trees::types::TypeReferenceHandle;
 
 use validation::{expression_type_reference_for_origin, indexed_operand_types};
 
-/// The requirement-slot identity stage 00 binds on one boundary application:
+/// The requirement-slot identity Omega 00 binds on one boundary application:
 /// the canonical operator overload identity, or the normalized machine
 /// overload when the operator is a token view of a requirement machine.
 fn boundary_application_requirement_identity(

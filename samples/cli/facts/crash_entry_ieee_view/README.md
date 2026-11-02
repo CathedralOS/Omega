@@ -28,6 +28,10 @@ Pinned corpus fixtures are `pass/facts/crash_entry_ieee_view_through_<place>_exi
 
 The local place also pins its writable carrier, because the view route reads the shared entry-provenance local carrier rule: `pass/facts/crash_entry_ieee_view_local_writable_exit` records the same observation in a writable local that is never written, and `fail/facts/crash_entry_ieee_view_local_written_rejected` overwrites that local with `0.0` before the call, so the guard is live and the route stays uncovered (`at statement 3 call 0`).
 
+## Current failure
+
+On base `05a6f6af37e` (Windows x86-64, opt-level 1) every place refuses at checking before execution, as the corpus golden already records (`regressed-from:checked` at `ccdb99ca2214`): for example `local` rejects with `` call from `read_bits` to `maybe_zero` at statement 2 call 0 has an uncovered Trap crash route `` and `target_body` with `` call from `read_bits` to `forward` at statement 2 call 0 has an uncovered Trap crash route ``. The view no longer carries the recorded `1.0` observation into the guard. The Execution record below is the earlier macOS measurement.
+
 ## Execution
 
 Every positive place (and every `*_through_<place>_exit` fixture) binds
@@ -40,11 +44,15 @@ at checking with its intended fragment. The corpus records nine native
 for the nine pinned positives; each row names the base revision it was
 measured at.
 
+## Selected target body
+
+`target_body` selects its `forward` through Build. `SelectedForward` is a boundary trait whose one member publishes the same conditional `crashes Trap` route as the callee; `X86Forward` and `ArmForward` satisfy it, and `build.omg` picks one per target with `Build::select_provider`. The public reader therefore publishes `reaches SelectedForward invokes SelectedForward`, and the caller discharges the selected member's route from the entry fact without a crash ceiling of its own. Each entry first calls `SelectedBodyCheck::require_tag` with its target's tag, so a wrong selection traps in both engines: selecting `ArmBodyCheck` for `windows_x86_64` gave native exit `-1073741795` and `interp crash: Trap`. The reject twins differ from the positive only in the entry requirement and reject at the selected `forward` call.
+
 ## Requirements and Evidence
 
 - **Establishment:** `requires value == 1065353216` (or `packet.bits` / `ONE_BITS` / the successor machine's same equality) establishes the entry integer before `&value as &f32` observes it.
 - **Identity and lifetime:** the view records the IEEE value of the entry integer's bits. The crash guard reads that record. A writable local keeps that record only while nothing between its declaration and the read can overwrite it or lend it exclusive access: the write window the shared entry-provenance law applies, witnessed by the writable and written local pins.
-- **Composition:** the same sentence is the local copy, the `Packet.bits` field, the direct parameter, the returned parameter, the match join, the const name, the successor machine, the forwarding machine, and the four target-qualified bodies.
+- **Composition:** the same sentence is the local copy, the `Packet.bits` field, the direct parameter, the returned parameter, the match join, the const name, the successor machine, the forwarding machine, and the Build-selected `forward` implementation.
 - **Soundness boundaries:** the recast reinterprets bits. It does not convert the integer numerically. A missing proof or a zero bit pattern keeps the Trap route.
 - **Checked-to-Terminal Psi lowering (`Psi 06–08`):** the entry-integer proof and the view's IEEE record are checked and erased; the recast keeps the same scalar carrier, and the Terminal Psi interpreter executes all nine places in complete agreement with native execution (`interp exit: 0` beside `native exit 0`).
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** `ProgramEntry` settles for all four hosted targets; the `i32`/`f32` view pair keeps one scalar lane with no aggregate or stack placement, and `CallPlan`/`StatePlan` place the observed value in registers.

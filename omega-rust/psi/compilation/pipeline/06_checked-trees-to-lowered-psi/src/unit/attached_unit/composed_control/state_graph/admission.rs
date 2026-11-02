@@ -2,7 +2,7 @@
 //! (a closed checked body without attachments), and the derivations the
 //! emitter reads back — the live state mask, each position's authored owner,
 //! entry aliases, claim transport, exclusive handoffs and the boundaries its
-//! calls name. Stage 05 judged every state's parameter custody, entry claims,
+//! calls name. Psi 05 judged every state's parameter custody, entry claims,
 //! edge transfers and closed-sum dispatch when it built the plan; lowering
 //! lowers that plan and does not re-derive those judgments from source
 //! (see the lowering ruling in TASKS.md, "Lowering simplification").

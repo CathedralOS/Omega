@@ -3,7 +3,7 @@
 public boundary trait Service {
     machine echo<const Count: u64>(value: i32) -> i32
     reaches
-    where Count == 4 || Count == 8 || Count == 12
+    requires Count == 4 || Count == 8 || Count == 12
     blocks;
 }
 data Provider {}
@@ -37,7 +37,7 @@ linux_x86_64 machine Main::main(main: &mut Main) reaches Service crashes Trap {
 }
 
 ProviderServiceImplementation satisfies Service {
-    machine echo<const Count: u64>(value: i32) -> i32 where Count == 4 || Count == 8 || Count == 12 { Provider::echo<Count>(value) }
+    machine echo<const Count: u64>(value: i32) -> i32 requires Count == 4 || Count == 8 || Count == 12 { Provider::echo<Count>(value) }
 }
 
 // The entry owns ordinary local state; selection supplies no context.

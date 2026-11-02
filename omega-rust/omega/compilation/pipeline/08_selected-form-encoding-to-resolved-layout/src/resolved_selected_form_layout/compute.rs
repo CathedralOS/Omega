@@ -1,28 +1,28 @@
 use std::collections::BTreeMap;
 
 use register_model::ValidatedPhysicalRegisterModel;
-use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
+use selected_instructions::CurrentSelectedProgram;
 
-use post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding;
-use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
+use machine_code::SelectedFormEncoding;
+use physical_instructions::PostAllocationMachinePlan;
 
 use super::StagedOptimizedResolvedSelectedFormLayout;
 use super::error::OptimizedResolvedSelectedFormLayoutError as Error;
 use super::ordinary::{instructions, layout, select};
 use machine_code::{ResolvedMachineLayout, resolved_machine_layout_identity as layout_identity};
 
-pub(super) fn compute<S: ValidatedSelectedAnalysis>(
-    selected: &S,
-    machine: &StagedOptimizedPostAllocationMachinePlan,
+pub(super) fn compute(
+    selected: CurrentSelectedProgram<'_>,
+    machine: &PostAllocationMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,
-    pre_layout: &StagedOptimizedSelectedFormEncoding,
+    pre_layout: &SelectedFormEncoding,
 ) -> Result<StagedOptimizedResolvedSelectedFormLayout, Error> {
-    // The encoding was produced by stage 07 in this compile; it is not
+    // The encoding was produced by Omega 07 in this compile; it is not
     // re-encoded here. The root checks below bind it to these inputs.
-    let selected_plan = selected.selected_plan();
-    let machine_plan = machine.machine().plan();
-    if pre_layout.selected() != selected.selected_identity()
-        || pre_layout.machine() != machine.machine().receipt().identity()
+    let selected_plan = selected.plan;
+    let machine_plan = machine;
+    if pre_layout.selected() != selected.identity
+        || pre_layout.machine() != machine.identity
         || selected_plan.target != machine_plan.target
         || selected_plan.target.architecture != physical.model().architecture
         || selected_plan.functions.len() != machine_plan.functions.len()
@@ -68,8 +68,8 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
         return Err(Error::RootMismatch);
     }
 
-    let selected_root = selected.selected_identity();
-    let machine_root = machine.machine().receipt().identity();
+    let selected_root = selected.identity;
+    let machine_root = machine.identity;
     let pre_layout_root = pre_layout.identity();
     let target = selected_plan.target;
     let identity = layout_identity(

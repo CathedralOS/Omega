@@ -1,7 +1,7 @@
 //! Checked call origins already bind their selected state and contract in
-//! stage 05. This owner projects that single selection into the emitted module;
+//! Psi 05. This owner projects that single selection into the emitted module;
 //! it does not compare the call roster with a second reconstructed selection.
-//! Calls as stage 05 recorded them. Statement custody joins
+//! Calls as Psi 05 recorded them. Statement custody joins
 //! every flow call row (`FlowCallFact`) to its authored call site and records
 //! the site kind, the callee as spelled, the explicit arguments,
 //! what the statement does with the result, and whether a named transition is

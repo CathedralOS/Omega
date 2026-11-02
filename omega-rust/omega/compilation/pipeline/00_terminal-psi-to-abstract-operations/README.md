@@ -42,10 +42,10 @@ The entry map is [lib.rs](src/lib.rs). Responsibilities are separate modules:
   without defining a second copy of its custody fields.
 - [native_admission.rs](src/native_admission.rs): the complete native entrance.
   Canonical input preparation, provider settlement and installation, and
-  mechanism/exclusion review produce one admitted input before stage 01.
+  mechanism/exclusion review produce one admitted input before Omega 01.
   [Provider admission](src/provider_admission/mod.rs) derives each demanded
   leaf's mechanism and admits builtins through the receiving policy and target
-  catalog; it reads the bindings the proposal derived instead of rejoining them. Stage 02 consumes these facts;
+  catalog; it reads the bindings the proposal derived instead of rejoining them. Omega 02 consumes these facts;
   neither it nor the compiler reconstructs the admission sequence.
 - [artifact_admission.rs](src/artifact_admission.rs): canonical preparation,
   optional obligation-ledger replay, and distinct ordinary/optimizer/native

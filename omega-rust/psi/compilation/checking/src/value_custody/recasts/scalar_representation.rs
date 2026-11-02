@@ -157,9 +157,12 @@ pub(super) fn mutable_scalar_representation_facts(
                         maximum: FloatEndpoint::from_integer(primitive, maximum)?,
                     },
                     (PrimitiveType::F32 | PrimitiveType::F64, Some(_)) => return None,
-                    (_, Some(range)) => ScalarRepresentationSet::ExactBitPatterns(
-                        integer_range_bit_patterns(primitive, range)?,
-                    ),
+                    (_, Some(range)) => {
+                        ScalarRepresentationSet::ExactBitPatterns(integer_range_bit_patterns(
+                            primitive,
+                            (i128::from(range.0), i128::from(range.1)),
+                        )?)
+                    }
                     (_, None) => ScalarRepresentationSet::ExactBitPatterns(
                         full_scalar_bit_patterns(primitive),
                     ),
@@ -211,7 +214,8 @@ pub(super) fn encode_stored_integer_facts(
         }
         layout_plans::IntegerInterpretation::Unsigned => (0, i64::try_from(mask).ok()?),
     };
-    let admitted = integer_range_bit_patterns(primitive, (minimum, maximum))?;
+    let admitted =
+        integer_range_bit_patterns(primitive, (i128::from(minimum), i128::from(maximum)))?;
     let fitting = intersect_bit_pattern_intervals(std::mem::take(values), &admitted);
     *values = normalize_bit_pattern_intervals(
         fitting
@@ -242,12 +246,16 @@ pub(super) fn full_scalar_bit_patterns(primitive: PrimitiveType) -> Vec<(u64, u6
 /// `i32 [-1..=99]` is correctly distinct despite having the same cardinality.
 fn integer_range_bit_patterns(
     primitive: PrimitiveType,
-    (minimum, maximum): (i64, i64),
+    (minimum, maximum): (i128, i128),
 ) -> Option<Vec<(u64, u64)>> {
     if minimum > maximum || !primitive.accepts_integer_literal() {
         return None;
     }
     let bit_count = primitive.scalar_byte_size()? * 8;
+    let (primitive_minimum, primitive_maximum) = primitive_integer_extent(primitive)?;
+    if minimum < primitive_minimum || maximum > primitive_maximum {
+        return None;
+    }
     let mask = if bit_count == 64 {
         u64::MAX
     } else {
@@ -255,16 +263,7 @@ fn integer_range_bit_patterns(
     };
     let signed = primitive.is_signed_integer();
     if signed {
-        let (primitive_minimum, primitive_maximum) = if bit_count == 64 {
-            (i64::MIN, i64::MAX)
-        } else {
-            let half = 1i64 << (bit_count - 1);
-            (-half, half - 1)
-        };
-        if minimum < primitive_minimum || maximum > primitive_maximum {
-            return None;
-        }
-        let bits = |value: i64| (value as u64) & mask;
+        let bits = |value: i128| (value as u64) & mask;
         return Some(normalize_bit_pattern_intervals(
             if maximum < 0 || minimum >= 0 {
                 vec![(bits(minimum), bits(maximum))]
@@ -274,10 +273,10 @@ fn integer_range_bit_patterns(
         ));
     }
 
-    if minimum < 0 || (bit_count < 64 && maximum as u64 > mask) {
-        return None;
-    }
-    Some(vec![(minimum as u64, maximum as u64)])
+    Some(vec![(
+        u64::try_from(minimum).ok()?,
+        u64::try_from(maximum).ok()?,
+    )])
 }
 
 /// Narrow a representation set by a place's `where`-fact value interval, so a
@@ -305,7 +304,8 @@ pub(super) fn narrow_to_integer_interval(
         return;
     }
     if let ScalarRepresentationSet::ExactBitPatterns(values) = &mut facts.values
-        && let Some(interval) = integer_range_bit_patterns(primitive, (minimum, maximum))
+        && let Some(interval) =
+            integer_range_bit_patterns(primitive, (i128::from(minimum), i128::from(maximum)))
     {
         *values = intersect_bit_pattern_intervals(std::mem::take(values), &interval);
     }
@@ -392,9 +392,14 @@ pub(super) fn narrow_by_field_representation_bounds(
             return None;
         };
         let (carrier_minimum, carrier_maximum) = primitive_integer_extent(primitive)?;
-        let minimum = interval.low.unwrap_or(carrier_minimum).max(carrier_minimum);
+        let minimum = interval
+            .low
+            .map(i128::from)
+            .unwrap_or(carrier_minimum)
+            .max(carrier_minimum);
         let maximum = interval
             .high
+            .map(i128::from)
             .unwrap_or(carrier_maximum)
             .min(carrier_maximum);
         let interval = integer_range_bit_patterns(primitive, (minimum, maximum))?;
@@ -408,21 +413,19 @@ pub(super) fn narrow_by_field_representation_bounds(
 }
 
 /// The inclusive value extent of an integer carrier, for one-sided bounds.
-/// `u64` values above `i64::MAX` have no `i64` spelling, so a one-sided `u64`
-/// bound stays unsupported rather than truncating the extent.
-fn primitive_integer_extent(primitive: PrimitiveType) -> Option<(i64, i64)> {
+/// The wider calculation retains every `u64` value when a predicate leaves
+/// its upper endpoint open. Predicate bounds retain their admitted meaning;
+/// the host signed carrier must not invent a smaller language carrier.
+fn primitive_integer_extent(primitive: PrimitiveType) -> Option<(i128, i128)> {
     let bit_count = primitive.scalar_byte_size()? * 8;
-    if primitive.is_signed_integer() {
-        if bit_count == 64 {
-            return Some((i64::MIN, i64::MAX));
-        }
-        let half = 1i64 << (bit_count - 1);
-        return Some((-half, half - 1));
-    }
-    if bit_count >= 64 {
+    if !primitive.accepts_integer_literal() || !(1..=64).contains(&bit_count) {
         return None;
     }
-    Some((0, (1i64 << bit_count) - 1))
+    if primitive.is_signed_integer() {
+        let half = 1i128 << (bit_count - 1);
+        return Some((-half, half - 1));
+    }
+    Some((0, (1i128 << bit_count) - 1))
 }
 
 fn intersect_bit_pattern_intervals(

@@ -651,13 +651,24 @@ pub(super) fn lower_operation(
                             ..
                         },
                     ) = site.operations.last()
-                        && site
+                    {
+                        if site
                             .live
                             .structural_homes
                             .insert(home.place(), home.clone())
                             .is_some()
-                    {
-                        return Err(LoweringError::unsupported_control_flow(function.machine));
+                        {
+                            return Err(LoweringError::unsupported_control_flow(function.machine));
+                        }
+                        let (_, result) = home.operation_result().ok_or_else(|| {
+                            LoweringError::unsupported_control_flow(function.machine)
+                        })?;
+                        super::references::boundary_result_references(
+                            function,
+                            structural_types,
+                            result,
+                            site.live,
+                        )?;
                     }
                     Ok(())
                 }

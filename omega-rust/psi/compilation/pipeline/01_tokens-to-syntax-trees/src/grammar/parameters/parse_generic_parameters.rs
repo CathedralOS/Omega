@@ -23,7 +23,7 @@ pub(crate) enum GenericParameterSyntax {
     StaticBinders,
     TraitRequirements,
     /// A requirement signature inside a trait body. Runtime-capable `Value`
-    /// binders are admitted so a finite `where Binder == literal || ...`
+    /// binders are admitted so a finite `requires Binder == literal || ...`
     /// family can enumerate them; conformance binders stay on the trait or
     /// provider declaration where a dynamic envelope can still refuse them.
     RequirementSignature,

@@ -1,5 +1,5 @@
 //! Source-scanning guard pinning the realization path's canonical module
-//! decode to stage-00 admission.
+//! decode to Omega 00 admission.
 //!
 //! `terminal_codec::decode_module` is the most expensive admission step the
 //! compiler runs: scalar qualification, canonical ordering, structural
@@ -9,7 +9,7 @@
 //! consumer holding the artifact reads `semantic_module()` and pays nothing.
 //! The only caller that may decode is the byte entrance — a function whose
 //! input is loose section bytes rather than an artifact — and in Omega that is
-//! stage-00's `lower_artifact`. Provider installation reads the admitted
+//! Omega 00's `lower_artifact`. Provider installation reads the admitted
 //! artifact's retained module through `admit_checked_provider_installation`.
 //!
 //! A decode added anywhere else re-runs the whole admission against a module
@@ -59,7 +59,7 @@ const TO_BYTES_OUTPUT: &str = concat!("to_bytes", "()");
 const PERMITTED_MODULE_DECODES: &[(&str, usize, &str)] = &[(
     "omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/artifact_admission.rs",
     1,
-    "stage-00 admission: `lower_artifact` decodes loose canonical sections",
+    "Omega 00 admission: `lower_artifact` decodes loose canonical sections",
 )];
 
 /// The complete permitted set of `CanonicalTerminalArtifact::from_bytes`
@@ -217,7 +217,7 @@ fn realization_decodes_terminal_module_only_at_stage_00_admission() {
     assert_eq!(
         found,
         permitted,
-        "canonical module decode moved off stage-00 admission; every consumer holding a \
+        "canonical module decode moved off Omega 00 admission; every consumer holding a \
          CanonicalTerminalArtifact reads semantic_module() instead of re-decoding, and only the \
          loose-bytes entrances may call decode_module. Permitted sites:\n{}",
         describe(PERMITTED_MODULE_DECODES),

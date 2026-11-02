@@ -13,6 +13,11 @@ pub(super) struct InitializedStorageBits {
 }
 
 impl InitializedStorageBits {
+    pub(super) fn covers_entire_extent(&self) -> bool {
+        self.limit == 0
+            || matches!(self.ranges.as_slice(), [range] if range.start == 0 && range.end == self.limit)
+    }
+
     pub(super) fn prepare(source: &MutableRecordRepresentation) -> Option<Self> {
         let limit = source.size.checked_mul(8)?;
         let count = source.leaves.iter().try_fold(0usize, |count, leaf| {

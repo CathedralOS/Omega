@@ -310,7 +310,7 @@ impl Builder<'_, '_> {
 
     /// Pattern-bound copies belong to the selected subject's already captured
     /// scalar payload namespace. Rejoin its exact completed descriptor rather
-    /// than retaining another read of a dynamic source projection. Stage 06's
+    /// than retaining another read of a dynamic source projection. Psi 06's
     /// ordinary case payload bindings supply these leaves before all target
     /// operands; arithmetic and calls still use their shared computation graph.
     fn captured_case_scalar_field(

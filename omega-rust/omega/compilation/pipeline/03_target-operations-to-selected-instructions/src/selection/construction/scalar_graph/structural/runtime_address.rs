@@ -234,7 +234,7 @@ pub(in crate::selection) fn footprint(
     )
 }
 
-fn footprint_at_origin(
+pub(super) fn footprint_at_origin(
     builder: &mut Builder<'_>,
     origin: selected_instructions::SelectedMemoryAccessOrigin,
     place: PlaceId,

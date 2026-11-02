@@ -23,10 +23,15 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
         return Err(OptimizedSelectedFormEncodingError::PhysicalModelMismatch);
     }
     let target = selected.selected_plan().target;
-    let mut rows = Vec::new();
+    // The admitted machine receipt already owns this complete instruction
+    // roster. Reserve its capacity once instead of temporarily doubling a
+    // large row table. This is no coverage limit: the same full paired walk
+    // below still produces and checks every instruction.
+    let row_count = staged.machine().receipt().instruction_count();
+    let mut rows = Vec::with_capacity(row_count);
     // Every row's bytes and footprint land in these two buffers; a row keeps
     // only its span and handle into them.
-    let mut encoded = SelectedFormEncodedRowStore::new();
+    let mut encoded = SelectedFormEncodedRowStore::with_row_capacity(row_count);
     crate::rows::for_each_row(
         selected,
         machine,

@@ -33,10 +33,13 @@ mod invocation_entry;
 mod licenses;
 mod mathematical_predicates;
 pub(super) mod normal_returns;
+mod resolution_inputs;
 mod resolution_queries;
 mod returned_fields;
 pub(super) mod selected_contracts;
 mod storage_effects;
+mod traversal_inputs;
+pub(in crate::proof_contracts::contract_entailment) use traversal_inputs::StructuralTraversalInputs;
 mod value_correspondence;
 mod value_predicates;
 

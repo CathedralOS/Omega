@@ -60,7 +60,7 @@ pub(super) fn lower(
     // The accessor's authored storage starts at its transfer container. Keep
     // this actual reference, including captured projections and call results;
     // recovering a whole-view parent would select a historical source instead
-    // of the pointer currently carried by the argument. Stage 00 admitted the
+    // of the pointer currently carried by the argument. Omega 00 admitted the
     // exact boundary against every reachable placed origin. This stage joins
     // its exact accessor type to current descriptor storage, not a new grant.
     let location = argument.clone();

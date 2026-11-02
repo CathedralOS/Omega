@@ -381,7 +381,7 @@ pub(super) fn validate(
                         "conditional successor has nonsemantic attribution role",
                     ));
                 }
-                [when_taken, when_fallthrough]
+                [when_taken.as_ref(), when_fallthrough.as_ref()]
                     .into_iter()
                     .filter(|successor| successor.role == SelectedSuccessorRole::Semantic)
                     .map(semantic_edge)

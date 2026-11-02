@@ -51,7 +51,7 @@ pub(crate) fn lower_declarations(
     let mut parameter_rosters = Vec::with_capacity(boundaries.len());
     for (index, (plan, identity)) in boundaries.iter().enumerate() {
         validate_requirement_kind(checked, plan)?;
-        // Stage 05 retained the exact boundary's scalar consequences. Lower
+        // Psi 05 retained the exact boundary's scalar consequences. Lower
         // that roster; deriving and comparing it again would replay checking
         // against the same source in the same compilation.
         let parameters = lower_unit_parameters(
@@ -566,7 +566,7 @@ pub(crate) fn lower_boundary_result(
 }
 
 /// Add the boundary `machine` names to the closure roster once, under its
-/// canonical identity. Stage 05 planned each call against this exact target.
+/// canonical identity. Psi 05 planned each call against this exact target.
 pub(crate) fn retain_unit_boundary<'plans>(
     checked: &CheckedTrees,
     plans: UnitPlans<'plans>,

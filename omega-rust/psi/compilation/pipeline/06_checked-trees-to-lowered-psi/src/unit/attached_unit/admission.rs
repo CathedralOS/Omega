@@ -2,7 +2,7 @@
 //! every boundary their calls name into the closure roster, and admit each
 //! composed body's callable graph.
 //!
-//! Stage 05 planned each call against its exact target, contract and reach,
+//! Psi 05 planned each call against its exact target, contract and reach,
 //! so admission does not re-check them; it only gathers what emission needs.
 //! The result retains each checked source alongside its admitted body, which
 //! emission consumes in order.

@@ -63,6 +63,12 @@ pub(super) struct PostCallStorage {
     pub(super) coordinate: super::storage_effects::CapturedStorageCoordinate,
     pub(super) value: StructuralTerm,
     pub(super) backing: Option<crate::machine_calls::calls::CapturedStorageReadBacking>,
+    /// Interpret the callee's logical value in the original source storage.
+    /// Admission and the captured recast chain establish this correspondence.
+    pub(super) representation: Option<(
+        typed_trees::types::PrimitiveType,
+        typed_trees::types::PrimitiveType,
+    )>,
 }
 
 /// Completing an address/effect traversal does not observe its stored value.
@@ -2139,6 +2145,11 @@ impl<'program> StructuralJudge<'program> {
         scope: ValueScope<'_>,
     ) -> Option<StructuralTerm> {
         let program = self.program;
+        crate::reference_shell(program, subject.parameter_type)?
+            .access
+            .is_readable()
+            .then_some(())?;
+        let scalar = subject.scalar_storage_coordinate(program, scope.1);
         let [source] = subject.sources.as_slice() else {
             // Origin authority quantifies over the complete join. Its actual
             // value was selected by this path's ordered operand evaluation.
@@ -2186,7 +2197,7 @@ impl<'program> StructuralJudge<'program> {
             );
         };
         if let Some(value) = self
-            .captured_reference_subject(subject)
+            .captured_reference_subject(subject, scope.1)
             .and_then(|coordinate| self.current_storage_value(&coordinate))
         {
             return Some(
@@ -2197,36 +2208,49 @@ impl<'program> StructuralJudge<'program> {
                     StructuralTerm::ObservedValue {
                         observed_type: subject.type_reference,
                         descriptor: None,
-                        value: Box::new(value),
+                        value: Box::new(match &scalar {
+                            Some(scalar) if !scalar.preserves_scalar_value => {
+                                super::super::structural_terms::normalize_scalar_representation(
+                                    scalar.source_primitive,
+                                    scalar.view_primitive,
+                                    value,
+                                )
+                            }
+                            _ => value,
+                        }),
                     }
                 } else {
                     value
                 },
             );
         }
-        if self.storage_binding_invalidated(source.root) {
+        let place = scalar
+            .as_ref()
+            .map(|scalar| scalar.place.clone())
+            .unwrap_or_else(|| crate::CanonicalPlace {
+                root: facts::PlaceRoot::Symbol(source.root),
+                segments: source.segments.clone(),
+            });
+        let root = place.root.as_symbol()?;
+        if self.storage_binding_invalidated(root) {
             return None;
         }
         // The frame publishes a checked exact declaration path. Scope lookup
         // only locates that root's current observation; no initializer replay
         // or similarly spelled declaration may stand in for it.
-        let is_parameter = program
-            .state_parameter_by_symbol(scope.1, source.root)
-            .is_some();
-        let is_local = program
-            .state_local_declaration(scope.1, source.root)
-            .is_some();
+        let is_parameter = program.state_parameter_by_symbol(scope.1, root).is_some();
+        let is_local = program.state_local_declaration(scope.1, root).is_some();
         if !(is_parameter || is_local) || !subject.type_reference.is_valid() {
             return None;
         }
-        let mut current_type = crate::state_root_type(program, scope.1, source.root)?;
-        let name = program.symbols.name(source.root);
+        let mut current_type = crate::state_root_type(program, scope.1, root)?;
+        let name = program.symbols.name(root);
         let mut roots = environment.iter().filter(|(binding, _)| binding == name);
         let mut value = roots.next()?.1.clone();
         if roots.next().is_some() {
             return None;
         }
-        for segment in &source.segments {
+        for segment in &place.segments {
             match segment {
                 facts::PlaceSegment::Field { symbol } => {
                     value = self.observed_field_term(value, program.symbols.name(*symbol), 0)?;
@@ -2259,6 +2283,16 @@ impl<'program> StructuralJudge<'program> {
                 _ => return None,
             }
         }
+        let value = match &scalar {
+            Some(scalar) if !scalar.preserves_scalar_value => {
+                super::super::structural_terms::normalize_scalar_representation(
+                    scalar.source_primitive,
+                    scalar.view_primitive,
+                    value,
+                )
+            }
+            _ => value,
+        };
         if program
             .primitive_type_reference(subject.type_reference)
             .is_some()
@@ -2283,6 +2317,31 @@ impl<'program> StructuralJudge<'program> {
         environment: &[(String, StructuralTerm)],
         scope: ValueScope<'_>,
     ) -> Option<Vec<NormalReturnPath<'program>>> {
+        let completions =
+            self.normal_operation_completions(statement_index, expression, environment, scope)?;
+        let mut results = Vec::with_capacity(completions.len());
+        for judge in completions {
+            let value = judge
+                .normal_results
+                .iter()
+                .find(|(source, _)| *source == expression)?
+                .1
+                .clone();
+            results.push(NormalReturnPath::observed(value, judge));
+        }
+        (!results.is_empty()).then_some(results)
+    }
+
+    /// Unit and value calls complete the same transfer. Consumers of returned
+    /// storage need this frontier without manufacturing a Unit value. The
+    /// ordinary result query selects its value from these same completions.
+    pub(in crate::proof_contracts::contract_entailment) fn normal_operation_completions(
+        &self,
+        statement_index: usize,
+        expression: ExpressionHandle,
+        environment: &[(String, StructuralTerm)],
+        scope: ValueScope<'_>,
+    ) -> Option<Vec<StructuralJudge<'program>>> {
         let entries = self.normal_operation_entries(
             statement_index,
             expression,
@@ -2307,13 +2366,7 @@ impl<'program> StructuralJudge<'program> {
                 scope,
                 &writes,
             )?;
-            let value = judge
-                .normal_results
-                .iter()
-                .find(|(source, _)| *source == expression)?
-                .1
-                .clone();
-            results.push(NormalReturnPath::observed(value, judge));
+            results.push(judge);
         }
         (!results.is_empty()).then_some(results)
     }
