@@ -39,7 +39,7 @@ pub(super) struct CandidateViews<'a> {
 }
 
 impl<'a> CandidateViews<'a> {
-    pub(super) fn new(
+    pub fn new(
         function: &'a FunctionLiveRanges,
         availability: &'a ValidatedAllocatorAvailability,
         physical: &'a ValidatedPhysicalRegisterModel,

@@ -32,7 +32,7 @@ pub(crate) struct FunctionIndex<'function> {
 }
 
 impl<'function> FunctionIndex<'function> {
-    pub(crate) fn new(function: &'function SelectedFunction) -> Self {
+    pub fn new(function: &'function SelectedFunction) -> Self {
         let mut registers_identity = true;
         let mut registers_strictly_sorted = true;
         let mut parameters = Vec::new();

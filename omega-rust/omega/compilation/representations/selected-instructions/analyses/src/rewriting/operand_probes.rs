@@ -10,7 +10,7 @@ use selected_instructions::{
     ValidatedMachineEffectCatalog, VirtualRegisterId,
 };
 
-pub(super) fn effect_declaration(
+pub fn effect_declaration(
     catalog: &ValidatedMachineEffectCatalog,
     semantic: MachineSemanticKind,
     constraint: register_model::RegisterConstraintKey,
@@ -25,7 +25,7 @@ pub(super) fn effect_declaration(
     Some(declaration)
 }
 
-pub(super) fn last_definition_before(
+pub fn last_definition_before(
     instructions: &[SelectedInstruction],
     position: usize,
     register: VirtualRegisterId,
@@ -39,7 +39,7 @@ pub(super) fn last_definition_before(
 
 /// The non-unit declaration surface an isolated form must carry: no memory
 /// access, no trap, no barrier, no call, no cleanup.
-pub(crate) fn isolated_declaration(declaration: &MachineEffectDeclaration) -> bool {
+pub fn isolated_declaration(declaration: &MachineEffectDeclaration) -> bool {
     declaration.memory == MachineMemoryEffect::NoneV1
         && declaration.trap == MachineTrapBehavior::NeverV1
         && declaration.barrier == MachineBarrier::None

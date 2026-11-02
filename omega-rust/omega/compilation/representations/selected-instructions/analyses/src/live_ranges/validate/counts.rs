@@ -9,7 +9,7 @@ pub(crate) struct FunctionCounts {
 }
 
 impl FunctionCounts {
-    pub(super) fn new(function: &FunctionLiveRanges) -> Self {
+    pub fn new(function: &FunctionLiveRanges) -> Self {
         Self {
             virtual_register_count: function.virtual_registers.len(),
             virtual_fragment_count: function
