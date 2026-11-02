@@ -95,6 +95,9 @@ and enqueues an already-armed green head. An armed request alone does not
 guarantee unattended publication; verify the final state.
 
 Write `PR_BODY` using [Explain the change](../AGENTS.md#explain-the-change).
+Pass multiline prose through a UTF-8 file with `--body-file`, as above, or a
+structured API body field. Do not interpolate it into shell command text:
+backticks and escape sequences can execute commands or corrupt identifiers.
 Check its opening against the submitted diff before creating the PR or marking
 it ready; update the whole explanation when the scope changes. Summarize focused
 validation after the behavior and mechanism, then link or include the detailed
