@@ -3,8 +3,10 @@
 //! and iterate the same complete key order as the former flat BTreeMap.
 use super::replay::Value;
 use super::{DescriptorContentsQuery, DescriptorLocation, PlaceId};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
+mod row_pages;
+use row_pages::RowPages;
 
 /// Storage root is the leading coordinate of both concrete key orderings.
 /// Partitioning therefore preserves their complete flat ordered iteration.
@@ -26,7 +28,7 @@ impl OriginKey for DescriptorContentsQuery {
 // at most one 64-root directory page instead of every root in a large body.
 // Numeric pages preserve PlaceId order; they carry no provenance meaning.
 const ROOT_PAGE_SHIFT: u32 = 6;
-type RootRows<Key> = BTreeMap<PlaceId, Arc<BTreeMap<Key, Value>>>;
+type RootRows<Key> = BTreeMap<PlaceId, Arc<RowPages<Key>>>;
 fn page(root: PlaceId) -> u64 {
     root.get() >> ROOT_PAGE_SHIFT
 }
@@ -43,6 +45,39 @@ impl<Key: OriginKey> Default for OriginMap<Key> {
     }
 }
 impl<Key: OriginKey> OriginMap<Key> {
+    /// Every differing raw entry is included. Identical immutable pages can
+    /// be skipped; unchanged neighbors in a detached page may also be returned.
+    pub(super) fn keys_in_changed_pages(&self, other: &Self) -> BTreeSet<Key> {
+        let mut keys = BTreeSet::new();
+        if std::ptr::eq(self, other) {
+            return keys;
+        }
+        for (page, roots) in &self.pages {
+            let peers = other.pages.get(page);
+            if peers.is_some_and(|peer| Arc::ptr_eq(roots, peer)) {
+                continue;
+            }
+            for (root, rows) in roots.iter() {
+                match peers.and_then(|peer| peer.get(root)) {
+                    Some(peer) if Arc::ptr_eq(rows, peer) => {}
+                    Some(peer) => keys.extend(rows.keys_in_changed_pages(peer)),
+                    None => keys.extend(rows.keys().cloned()),
+                }
+            }
+        }
+        for (page, roots) in &other.pages {
+            let peers = self.pages.get(page);
+            if peers.is_some_and(|peer| Arc::ptr_eq(roots, peer)) {
+                continue;
+            }
+            for (root, rows) in roots.iter() {
+                if peers.and_then(|peer| peer.get(root)).is_none() {
+                    keys.extend(rows.keys().cloned());
+                }
+            }
+        }
+        keys
+    }
     pub(super) fn new() -> Self {
         Self::default()
     }
@@ -134,8 +169,8 @@ impl<Key: OriginKey> FromIterator<(Key, Value)> for OriginMap<Key> {
 
 pub(super) struct IntoIter<Key: OriginKey> {
     pages: std::collections::btree_map::IntoValues<u64, Arc<RootRows<Key>>>,
-    roots: Option<std::collections::btree_map::IntoValues<PlaceId, Arc<BTreeMap<Key, Value>>>>,
-    current: Option<std::collections::btree_map::IntoIter<Key, Value>>,
+    roots: Option<std::collections::btree_map::IntoValues<PlaceId, Arc<RowPages<Key>>>>,
+    current: Option<row_pages::IntoIter<Key>>,
 }
 impl<Key: OriginKey> Iterator for IntoIter<Key> {
     type Item = (Key, Value);
@@ -175,6 +210,55 @@ mod tests {
 
     fn location(root: u64) -> DescriptorLocation {
         DescriptorLocation::whole(PlaceId::new(root).unwrap())
+    }
+    #[test]
+    fn wide_root_pages_preserve_logical_order_and_earlier_snapshots() {
+        let mut map = OriginMap::new();
+        let mut reference = BTreeMap::new();
+        for ordinal in 0..512 {
+            let index = ordinal * 197 % 512;
+            let mut key = location(1);
+            key.path
+                .push(crate::descriptor_lifetimes::DescriptorPathSegment::FixedIndex(index));
+            let value =
+                (index % 2 == 0).then(|| BTreeSet::from([Origin::Storage(location(5000 + index))]));
+            map.insert(key.clone(), value.clone());
+            reference.insert(key, value);
+        }
+        let snapshot = map.clone();
+        let original = reference.clone();
+        let mut reversed = OriginMap::new();
+        for (key, value) in reference.iter().rev() {
+            reversed.insert(key.clone(), value.clone());
+        }
+        assert_eq!(map, reversed);
+        assert!(map.keys_in_changed_pages(&snapshot).is_empty());
+        for (key, value) in reference.iter_mut().step_by(17) {
+            *map.get_mut(key).unwrap() = None;
+            *value = None;
+        }
+        let keep = |key: &DescriptorLocation| match key.path.last() {
+            Some(crate::descriptor_lifetimes::DescriptorPathSegment::FixedIndex(index)) => {
+                index % 7 != 0
+            }
+            _ => true,
+        };
+        map.retain(|key, _| keep(key));
+        reference.retain(|key, _| keep(key));
+        let possible = map.keys_in_changed_pages(&snapshot);
+        for key in reference.keys().chain(original.keys()) {
+            if reference.get(key) != original.get(key) {
+                assert!(possible.contains(key));
+            }
+        }
+        assert!(map.iter().eq(reference.iter()));
+        assert!(map.iter().rev().eq(reference.iter().rev()));
+        assert!(snapshot.iter().eq(original.iter()));
+        for key in original.keys() {
+            assert_eq!(map.get(key), reference.get(key));
+        }
+        assert!(map.into_iter().eq(reference.into_iter()));
+        assert!(snapshot.into_iter().eq(original.into_iter()));
     }
     #[test]
     fn replay_writes_share_untouched_roots_and_preserve_unknown_and_absent_slots() {

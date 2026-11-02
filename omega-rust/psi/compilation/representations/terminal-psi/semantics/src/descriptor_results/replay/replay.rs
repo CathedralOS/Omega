@@ -1616,50 +1616,25 @@ fn merge_state(existing: &mut State, incoming: &State) -> bool {
             changed = true;
         }
     }
-    // The maps already order the union of keys. Walk each once rather than
-    // rebuilding that union and searching both maps again for every slot.
+    // Identical immutable pages have identical raw slot values. Contents
+    // above still need their symbolic incoming-family join, even when equal.
     let mut slot_updates = Vec::new();
-    {
-        let mut left = before.slots.iter().peekable();
-        let mut right = incoming.slots.iter().peekable();
-        while left.peek().is_some() || right.peek().is_some() {
-            let order = match (left.peek(), right.peek()) {
-                (Some((left, _)), Some((right, _))) => left.cmp(right),
-                (Some(_), None) => std::cmp::Ordering::Less,
-                (None, Some(_)) => std::cmp::Ordering::Greater,
-                (None, None) => unreachable!(),
-            };
-            let (location, previous, arriving) = match order {
-                std::cmp::Ordering::Less => {
-                    let (location, value) = left.next().unwrap();
-                    (location, Some(value), None)
-                }
-                std::cmp::Ordering::Greater => {
-                    let (location, value) = right.next().unwrap();
-                    (location, None, Some(value))
-                }
-                std::cmp::Ordering::Equal => {
-                    let (location, previous) = left.next().unwrap();
-                    let (_, arriving) = right.next().unwrap();
-                    (location, Some(previous), Some(arriving))
-                }
-            };
-            // Raw slot unions are idempotent; symbolic contents joins above are
-            // not. Missing and present-unknown entries must remain distinct.
-            if previous == arriving {
-                continue;
-            }
-            let value = match (
-                previous.and_then(Option::as_ref),
-                arriving.and_then(Option::as_ref),
-            ) {
-                (Some(left), Some(right)) => Some(left.union(right).cloned().collect()),
-                _ => None,
-            };
-            if previous != Some(&value) {
-                slot_updates.push((location.clone(), value));
-                changed = true;
-            }
+    for location in before.slots.keys_in_changed_pages(&incoming.slots) {
+        let previous = before.slots.get(&location);
+        let arriving = incoming.slots.get(&location);
+        if previous == arriving {
+            continue;
+        }
+        let value = match (
+            previous.and_then(Option::as_ref),
+            arriving.and_then(Option::as_ref),
+        ) {
+            (Some(left), Some(right)) => Some(left.union(right).cloned().collect()),
+            _ => None,
+        };
+        if previous != Some(&value) {
+            slot_updates.push((location, value));
+            changed = true;
         }
     }
     // Finish every read of the original maps before releasing this scratch
@@ -2059,6 +2034,57 @@ mod snapshot_tests {
                 }
             }
         }
+    }
+    #[test]
+    fn shared_slot_pages_join_changed_values_without_losing_missing_or_unknown() {
+        let key = |index| {
+            let mut key = location(1);
+            key.path.push(DescriptorPathSegment::FixedIndex(index));
+            key
+        };
+        let mut existing = State::default();
+        for index in 0..512 {
+            existing.slots_mut().insert(
+                key(index),
+                Some(BTreeSet::from([Origin::Storage(location(9000 + index))])),
+            );
+        }
+        let snapshot = existing.clone();
+        let mut incoming = existing.clone();
+        incoming.slots_mut().insert(
+            key(0),
+            Some(BTreeSet::from([Origin::Storage(location(5001))])),
+        );
+        incoming.slots_mut().insert(key(17), None);
+        incoming
+            .slots_mut()
+            .retain(|location, _| location != &key(5));
+        let candidates = existing.slots.keys_in_changed_pages(&incoming.slots);
+        assert!(candidates.contains(&key(0)) && candidates.contains(&key(5)));
+        assert!(candidates.contains(&key(17)) && candidates.len() <= 64);
+        assert!(merge_state(&mut existing, &incoming));
+        assert_eq!(
+            existing.slots.get(&key(0)),
+            Some(&Some(BTreeSet::from([
+                Origin::Storage(location(9000)),
+                Origin::Storage(location(5001)),
+            ])))
+        );
+        assert_eq!(existing.slots.get(&key(5)), Some(&None));
+        assert_eq!(existing.slots.get(&key(17)), Some(&None));
+        for index in 1..512 {
+            if index != 5 && index != 17 {
+                assert_eq!(
+                    existing.slots.get(&key(index)),
+                    snapshot.slots.get(&key(index))
+                );
+            }
+        }
+        assert_eq!(
+            snapshot.slots.get(&key(0)),
+            Some(&Some(BTreeSet::from([Origin::Storage(location(9000)),])))
+        );
+        assert!(!merge_state(&mut existing, &incoming));
     }
     #[test]
     fn join_slot_updates_release_only_the_scratch_snapshot_before_writing() {
