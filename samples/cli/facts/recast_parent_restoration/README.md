@@ -164,3 +164,34 @@ control refuses Terminal production with `computed borrow lost its established
 local`; the exact-source baseline CLI reproduces that refusal before execution.
 The original failed gate, its new measured row and the baseline replay remain
 retained. This is not a claim that the whole execution selection passed.
+
+
+## Case-bearing backing coordinates
+
+The [case-backed marker control](controls/case_backing/main.omg) and its
+[nonmutating sibling](controls/case_backing/nonmutating/main.omg) wrap the same
+`Pair` in `Envelope::Some`. Explicit incoming facts establish the current parent
+predicate independently of the later stores. The helpers preserve its scalar
+read set, and both parents' neighbors and markers remain observable.
+
+The [overlapping-call control](controls/case_backing/invalid/main.omg) changes
+only the helper by inserting an all-one scalar store. It must refuse the scalar
+handback immediately, even though a later caller store restores zero. Canonical
+case selectors distinguish semantic paths; write frames project them into
+physical storage, where different case names cannot prove disjointness.
+The retained R2 CLI wrongly source-checks all three controls. R4's coordinate
+repair checks the two valid controls and rejects the overlapping helper for its
+intended scalar-handback obligation.
+
+Initial native production then refused the two valid controls at the native
+reference source's duplicate path whitelist. Terminal's canonical typed
+projection geometry already represents case-qualified storage; source lookup
+must use that owner while retaining access and active-case obligations.
+The frozen failed attempts remain in the evidence record. The optimized R5 CLI
+then executes both valid case-backed controls with native/Terminal exits 0/0,
+rejects the overlapping helper at handback, and repeats all nine original
+places/twins plus the marker and dirty-forward controls successfully. Its actual
+producer is `d1bc08fc53210f0fddffec513b887a9d3686ca44` plus compiler patch
+`453b9476fa0e86ebb9d7f31f5288688e157d164570c22949e62df71be5ec9daa`,
+executable SHA-256
+`734b7cf202544897579aa655310bd9dc21248b06d2fdb7bad675d69efb7bc2fb`.

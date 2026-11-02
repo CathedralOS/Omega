@@ -62,10 +62,18 @@ pub(crate) fn referent_predicates_preserved(
     }
     // An empty field list can still carry a case-classifier requirement.
     // Without a classifier footprint, require the complete parent unchanged.
+    // Canonical identities retain case selectors; physical write frames erase
+    // them and coarsen collection selectors. Compare in the frame owner's
+    // vocabulary, never against a diagnostic label of the same storage.
+    let frame_root = parent.root.as_symbol();
+    let parent_frame =
+        frame_root.and_then(|root| crate::frame_coordinate_path(program, root, &parent.segments));
     let classifier_unwritten = !dependencies.is_empty()
-        || !written
-            .iter()
-            .any(|path| super::place_paths::place_paths_overlap(path, &parent.label(program)));
+        || parent_frame.as_deref().is_some_and(|parent| {
+            !written
+                .iter()
+                .any(|path| super::place_paths::place_paths_overlap(path, parent))
+        });
     let predicate_unwritten = classifier_unwritten
         && dependencies.iter().all(|symbol| {
             let Some((_, field)) = program.any_field_owner(*symbol) else {
@@ -87,10 +95,14 @@ pub(crate) fn referent_predicates_preserved(
                 &mut place.segments,
                 field.symbol,
             );
-            let label = place.label(program);
+            let Some(path) = frame_root
+                .and_then(|root| crate::frame_coordinate_path(program, root, &place.segments))
+            else {
+                return false;
+            };
             !written
                 .iter()
-                .any(|path| super::place_paths::place_paths_overlap(path, &label))
+                .any(|written| super::place_paths::place_paths_overlap(written, &path))
         });
     if predicate_unwritten {
         let Some(receiver) = crate::value_custody::places::canonical_place_type_reference(
@@ -150,9 +162,13 @@ pub(crate) fn referent_predicates_preserved(
             field.symbol,
         );
         let label = place.label(program);
-        let unwritten = !written
-            .iter()
-            .any(|path| super::place_paths::place_paths_overlap(path, &label));
+        let unwritten = frame_root
+            .and_then(|root| crate::frame_coordinate_path(program, root, &place.segments))
+            .is_some_and(|path| {
+                !written
+                    .iter()
+                    .any(|written| super::place_paths::place_paths_overlap(written, &path))
+            });
         let interval =
             unwritten
                 .then(|| environment.get(&label))
