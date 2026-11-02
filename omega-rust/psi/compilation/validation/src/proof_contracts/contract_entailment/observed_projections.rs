@@ -342,7 +342,14 @@ pub(super) fn completed_reference_descriptor(
     if sources.is_empty() {
         return None;
     }
-    let descriptor = receiver.into_collection_descriptor();
+    // Owned reads retain a fresh value identity. Its completed-value receipt
+    // names the denotation actually read, so descriptor selection must consume
+    // that receipt rather than compare the new snapshot with a declaration
+    // spelling. This recovers no reference contents and performs no equation
+    // search; the complete read-source frontier above remains mandatory.
+    let descriptor = judge
+        .completed_nominal_observation(&receiver)
+        .into_collection_descriptor();
     descriptor.observation_identity_key()?;
     match program.expression_table.expression(expression) {
         ExpressionNode::Member(member) => {
