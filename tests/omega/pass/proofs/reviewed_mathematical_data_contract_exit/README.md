@@ -13,6 +13,6 @@ finds no parameter declaration. Cathedral's `Bump` fails at the same operation.
 
 Validate package update through the public CLI as well as `omega run --both`;
 the corpus runner alone does not exercise the complete package-review route.
-The [invalid control](../../../../fail/proofs/reviewed_mathematical_data_contract_rejected/main.omg)
+The [invalid control](../../../fail/proofs/reviewed_mathematical_data_contract_rejected/main.omg)
 changes only the constructed value from 73 to 101 and must reject for violating
 the data invariant. It does not remove or weaken the mathematical contract.

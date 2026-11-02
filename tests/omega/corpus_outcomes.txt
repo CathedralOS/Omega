@@ -3044,6 +3044,8 @@ fail/proofs/refined_conversion_does_not_strengthen_base_view rejected 4347ms exp
 	specification call `try_from` is not denotational: the selected machine is not unconditionally terminating
 fail/proofs/representation_agreement_empty_encoder rejected 5249ms expected @e97ed21415d9
 	cannot prove ensures contract for exit from FalseAgreement::encode_covers at statement 0: RefuseEveryValue.try_from(value) == Result::Ok
+fail/proofs/reviewed_mathematical_data_contract_rejected rejected 733ms expected @2949992b6aa5
+	data `Bounded` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/proofs/selected_law_citation_linear_resource_reuse rejected 4194ms expected @8c2fec05b2ca
 	cannot use `token` in machine `main` state `entry` (statement 2) after `token` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `token` first
 fail/providers/applied_calling_surface_incomplete_result rejected 8128ms expected @d9073fc2214b
@@ -13515,6 +13517,7 @@ pass/proofs/quotient_symbolic_endpoint checked 3783ms @ccdb99ca2214
 pass/proofs/recursive_terminal_erased_evidence checked 2610ms @ccdb99ca2214
 pass/proofs/representation_agreement_corrupt_decode_traps checked 10879ms check-target:macos_arm64 @e97ed21415d9
 pass/proofs/requires_bridge_telescope checked 3084ms @ccdb99ca2214
+pass/proofs/reviewed_mathematical_data_contract_exit checked 3510ms check-target:macos_arm64 @2949992b6aa5
 pass/proofs/ring_full_polynomial_compile checked 11534ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/ring_law_conformance checked 12155ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/runtime_byte_predicate_state_contract_exit checked 12017ms check-target:macos_arm64 @ccdb99ca2214
