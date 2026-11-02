@@ -6,8 +6,8 @@ use semantic_vocabulary::{ScalarRefinement, ScalarTerm, ScalarType};
 use typed_trees::types::PrimitiveType;
 
 use crate::emission::scalar_types::{integer_value, terminal_scalar_type};
-use crate::lowering_error::{LoweringError, unsupported};
 use crate::proofs::contract_predicates::{self, PredicateTerms};
+use crate::shared::lowering_error::{LoweringError, unsupported};
 
 pub(super) fn lower(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,

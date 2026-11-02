@@ -419,7 +419,7 @@ impl CleanupEmission<'_> {
             let position = u32::try_from(ordinal).map_err(|_| {
                 LoweringError::Unsupported("cleanup capture structural roster exceeds u32")
             })?;
-            let place = crate::terminal_identities::place_id(allocate_dense(next_place)?);
+            let place = crate::shared::terminal_identities::place_id(allocate_dense(next_place)?);
             places.push(terminal_psi::StructuralPlaceDeclaration {
                 id: place,
                 kind: semantic_vocabulary::StructuralPlaceKind::BlockParameter {

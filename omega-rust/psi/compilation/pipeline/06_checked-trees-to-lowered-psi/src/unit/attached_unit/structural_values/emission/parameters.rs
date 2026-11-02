@@ -10,7 +10,7 @@ use super::super::super::{
 };
 use super::{Emission, ProjectionSource};
 use crate::expression_preparation::bindings::StructuralLocalBinding;
-use crate::terminal_identities::stored_structural_identity;
+use crate::shared::terminal_identities::stored_structural_identity;
 use crate::unit::attached_unit::structural_values::ValueOutcome;
 use checked_trees::{CheckedStructuralValueHandle, CheckedStructuralValueKind};
 
@@ -60,7 +60,8 @@ impl Emission<'_, '_, '_> {
         &self,
         argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
     ) -> Result<Option<&StructuralParameterDeclaration>, LoweringError> {
-        let (_, authored) = crate::declarations::state_declaration(self.checked, self.state)?;
+        let (_, authored) =
+            crate::shared::declarations::state_declaration(self.checked, self.state)?;
         let parameters = self.checked.state_parameters(authored);
         let (position, parameter) = match &argument.source {
             checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {

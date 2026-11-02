@@ -29,7 +29,7 @@ use crate::expression_preparation::qualifications::SourceScalarReturn;
 use crate::proofs::crash_routes::{lower_checked_crash_exit, lower_structural_crash_predicates};
 use crate::scalar_lowering::computations::observations::prepare;
 use crate::scalar_lowering::contracts::erased_proof_formal_declarations;
-use crate::terminal_identities::lookup_type_id;
+use crate::shared::terminal_identities::lookup_type_id;
 use crate::unit::attached_unit::composed_control::emission::OperationSequence;
 use crate::unit::attached_unit::composed_control::emission::{FrameValues, StateFrame};
 use crate::unit::attached_unit::signatures::find;

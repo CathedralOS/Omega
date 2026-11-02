@@ -16,13 +16,13 @@
 //!
 //! Consumers go the other way: [`direct_call_parts`] reads the callee, result
 //! role and operand lanes back from whichever operation a call took, and
-//! [`crate::call_operands::structural_arguments`] supplies all dispatch kinds
+//! [`crate::shared::call_operands::structural_arguments`] supplies all dispatch kinds
 //! when the consumer needs argument custody rather than a direct callee. A
 //! consumer that needs only those facts never lists the five operations.
 
 use crate::emission::operation_emission::buffer::SourceQuotientCall;
 use crate::emission::operation_emission::buffer::{OperationBuffer, SourceInvocation};
-use crate::lowering_error::LoweringError;
+use crate::shared::lowering_error::LoweringError;
 use lowered_psi::LoweredSourceFrontierBindings;
 use semantic_vocabulary::{MachineId, ObligationId, ProofTerm, ScalarTerm, ValueId};
 use terminal_psi::{

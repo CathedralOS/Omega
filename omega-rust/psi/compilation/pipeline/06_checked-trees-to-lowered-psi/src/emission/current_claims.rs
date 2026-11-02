@@ -4,7 +4,7 @@
 //! These rows name custody already authorized by checked events; they establish
 //! no resource, access, qualification, liveness or cleanup permission.
 
-use crate::lowering_error::{LoweringError, unsupported};
+use crate::shared::lowering_error::{LoweringError, unsupported};
 use semantic_vocabulary::PlaceId;
 use terminal_psi::{StructuralArgument, StructuralPathSegment, StructuralResultClaimBinding};
 

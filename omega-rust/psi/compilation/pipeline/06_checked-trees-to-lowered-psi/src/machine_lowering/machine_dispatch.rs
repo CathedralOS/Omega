@@ -1,14 +1,16 @@
 //! Exact checked-plan selection and dispatch into one Terminal Psi machine family.
 
-use crate::checked_facts::flow_facts;
+use crate::shared::checked_facts::flow_facts;
 use checked_trees::{
     CheckedTerminalMachineSelection, CheckedTerminalSignatureEligibility, CheckedTrees,
     CheckedUnitPlan,
 };
 
-use crate::lowering_error::LoweringError;
-use crate::producer_result::{DebugPublication, LoweredSelectedMachine, LoweringCompletion};
 use crate::scalar_lowering::call_closure::callee::CheckedScalarCallee;
+use crate::shared::lowering_error::LoweringError;
+use crate::shared::producer_result::{
+    DebugPublication, LoweredSelectedMachine, LoweringCompletion,
+};
 use crate::unit::attached_unit::lower_unit_effect_closure;
 use crate::unit::lower_unit_plan_machine;
 
@@ -57,7 +59,7 @@ pub fn select_terminal_machine<'checked>(
     }
 }
 
-use crate::lowering_error::unsupported;
+use crate::shared::lowering_error::unsupported;
 
 pub(crate) fn lower_selected_machine(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,

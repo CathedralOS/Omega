@@ -10,8 +10,6 @@ use super::{
     lower_scalar_call, parameter, produced_values, storage, structural_arguments, subslices,
     unsupported,
 };
-use crate::checked_facts::{flow_facts, value_facts};
-use crate::declarations::target_signature;
 use crate::emission::operation_emission::LoweredScalarBinding;
 use crate::emission::operation_emission::dynamic_calls::LoweredDynamicCallBinding;
 use crate::expression_preparation::qualifications::received_scalar_type;
@@ -19,6 +17,8 @@ use crate::scalar_lowering::branch_states::prepared::{
     LoweredScalarBranchState, LoweredScalarBranchTerminator, LoweredScalarEffect,
 };
 use crate::scalar_lowering::contracts::caller_erased_proof_roster;
+use crate::shared::checked_facts::{flow_facts, value_facts};
+use crate::shared::declarations::target_signature;
 use arena::HandleSpan;
 use checked_trees::{
     CheckedScalarComputationStructuralArgument, CheckedScalarComputationTemporaryCleanup,
@@ -420,8 +420,10 @@ impl Expansion<'_> {
                                 )?;
                                 let mut source = actual.clone();
                                 source.path.truncate(length);
-                                let place = crate::terminal_identities::place_id(
-                                    crate::terminal_identities::allocate_dense(self.next_place)?,
+                                let place = crate::shared::terminal_identities::place_id(
+                                    crate::shared::terminal_identities::allocate_dense(
+                                        self.next_place,
+                                    )?,
                                 );
                                 let access = match actual.access {
                                     terminal_psi::StructuralAccess::Owned => {
@@ -456,8 +458,10 @@ impl Expansion<'_> {
                                         "computed copy lost its authored operand",
                                     ),
                                 )?;
-                                let place = crate::terminal_identities::place_id(
-                                    crate::terminal_identities::allocate_dense(self.next_place)?,
+                                let place = crate::shared::terminal_identities::place_id(
+                                    crate::shared::terminal_identities::allocate_dense(
+                                        self.next_place,
+                                    )?,
                                 );
                                 operands.push(Operand::Structural {
                                     effect: LoweredScalarEffect::CopyStructuralValue {
@@ -550,7 +554,8 @@ impl Expansion<'_> {
             "computed call lost its completed prefix",
         ))?;
         let coordinate = source.coordinate;
-        let (_, caller_state) = crate::declarations::state_declaration(self.checked, site.state)?;
+        let (_, caller_state) =
+            crate::shared::declarations::state_declaration(self.checked, site.state)?;
         let loan_completions = if let Some(coordinate) = coordinate.statement() {
             crate::emission::loan_completions::prepare(
                 identities,

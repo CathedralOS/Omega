@@ -7,7 +7,6 @@
 
 use super::super::view_ranges::ViewRangeSite;
 use super::{OperationFrame, StructuralResults, StructuralTypeRoster, allocate_structural_result};
-use crate::checked_facts::{flow_facts, value_facts};
 use crate::emission::borrowed_window::{BorrowedWindowRepairValue, WindowEvaluation};
 use crate::emission::operation_emission::buffer::StructuralBinding;
 use crate::emission::operation_emission::place_declarations::operation_result_place;
@@ -15,9 +14,10 @@ use crate::emission::structural_byte_sequence_store::prepare_types;
 use crate::expression_preparation::bindings::structural_paths::lower_static_argument_path;
 use crate::expression_preparation::bindings::view_locals::ViewCarrier;
 use crate::expression_preparation::qualifications::type_atoms;
-use crate::reference_custody::result_multiplicity;
-use crate::terminal_identities::lookup_domain_id_for_carrier;
-use crate::terminal_identities::stored_structural_identity;
+use crate::shared::checked_facts::{flow_facts, value_facts};
+use crate::shared::reference_custody::result_multiplicity;
+use crate::shared::terminal_identities::lookup_domain_id_for_carrier;
+use crate::shared::terminal_identities::stored_structural_identity;
 use crate::unit::{
     CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan, LoweringError, Operation,
     OperationKind, OperationResult, PlaceId, StructuralAccess, StructuralDomainId,
@@ -268,7 +268,7 @@ impl OperationFrame<'_, '_> {
                 if let Some(binding) = super::super::structural_values::local_binding(
                     operation,
                     declaration,
-                    crate::terminal_identities::lookup_type_id(
+                    crate::shared::terminal_identities::lookup_type_id(
                         self.type_ids,
                         &result.type_identity,
                     )?,
@@ -725,7 +725,8 @@ impl OperationFrame<'_, '_> {
         self.results
             .require_next(result, "structural local result binding is not dense")?;
         let structural_type = lookup_type_id(self.type_ids, &result.type_identity)?;
-        let multiplicity = crate::terminal_identities::structural_multiplicity(result.multiplicity);
+        let multiplicity =
+            crate::shared::terminal_identities::structural_multiplicity(result.multiplicity);
         // A descriptor home's declared byte domains, on its own view carrier.
         let mut qualifications = qualifications
             .iter()
@@ -907,7 +908,9 @@ impl OperationFrame<'_, '_> {
                     place: repair.place,
                     position: 0,
                     structural_type: selected,
-                    multiplicity: crate::terminal_identities::structural_multiplicity(multiplicity),
+                    multiplicity: crate::shared::terminal_identities::structural_multiplicity(
+                        multiplicity,
+                    ),
                     access: StructuralAccess::Owned,
                     qualifications,
                     projected_qualifications,
@@ -1215,9 +1218,10 @@ impl OperationFrame<'_, '_> {
                     // Shared source use is unrestricted, but a materialized
                     // pointer descriptor owns an affine lifetime obligation.
                     // Views retain their separate descriptor multiplicity.
-                    parameter.multiplicity = crate::terminal_identities::structural_multiplicity(
-                        result_multiplicity(self.checked, formal.type_reference),
-                    );
+                    parameter.multiplicity =
+                        crate::shared::terminal_identities::structural_multiplicity(
+                            result_multiplicity(self.checked, formal.type_reference),
+                        );
                 } else if parameter.access != StructuralAccess::Owned
                     || parameter.structural_type != replacement.structural_type
                 {
