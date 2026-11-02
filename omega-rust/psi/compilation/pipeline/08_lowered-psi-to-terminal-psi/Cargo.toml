@@ -19,4 +19,4 @@ language-core = { path = "../../../foundation/language-core" }
 numerics = { path = "../../../foundation/numerics" }
 lowered-psi-to-lowered-psi = { path = "../07_lowered-psi-to-lowered-psi" }
 terminal-codec = { path = "../../representations/terminal-psi/codec" }
-validation = { path = "../../checking" }
+validation = { path = "../../validation" }

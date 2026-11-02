@@ -38,7 +38,7 @@ PERMITTED_OWNERS = (
     "omega-rust/omega/foundation",
     "omega-rust/psi/foundation",
     "omega-rust/psi/compilation/representations/terminal-psi",
-    "omega-rust/psi/compilation/checking/terminal-installation",
+    "omega-rust/psi/compilation/validation/terminal-installation",
     "omega-rust/psi/compilation/proof/admission",
 )
 RUNTIME_ROOT = "omega-rust/omega/interpreter/terminal-runtime"
@@ -99,7 +99,7 @@ SOURCE_SIDE_PSI = (
     PSI_PIPELINE,
     PSI_FACADE,
     f"{PSI}/compilation/compile-time",
-    f"{PSI}/compilation/checking/representation-planning",
+    f"{PSI}/compilation/validation/representation-planning",
     f"{PSI}/interpreter",
 )
 OMEGA_STAGES = tuple(
@@ -123,7 +123,7 @@ def stage(number):
 
 SELECTED_DISPATCH = f"{OMEGA}/compilation/realization/selected-dispatch"
 PROVIDER_PLANNING = f"{OMEGA}/compilation/realization/provider-planning"
-REPRESENTATION_PLANNING = f"{PSI}/compilation/checking/representation-planning"
+REPRESENTATION_PLANNING = f"{PSI}/compilation/validation/representation-planning"
 STAGE_DEBT = "Debt: stage output type lives in the producing stage crate instead of compilation/representations"
 
 # Frozen on 2026-11-01. Delete a row with the edge; never add one.
@@ -240,7 +240,7 @@ FORBIDDEN_DEPENDENCIES = tuple(Rule(*rule) for rule in (
             f"{PSI}/compilation/compile-time",
             f"{PSI}/interpreter/checked-interpreter",
             f"{PSI_PIPELINE}/05_typed-trees-to-checked-trees",
-            f"{PSI}/compilation/checking/terminal-installation",
+            f"{PSI}/compilation/validation/terminal-installation",
             f"{PSI}/compilation/representations/terminal-psi",
             f"{OMEGA}/compilation/backend/target",
             f"{PSI}/foundation/semantic-vocabulary",
@@ -388,7 +388,7 @@ def realization_checker_entry_violations(metadata):
     """
     root = Path(metadata["workspace_root"]).resolve()
     realization = root / "omega-rust/omega/compilation/realization"
-    checker = root / "omega-rust/psi/compilation/checking"
+    checker = root / "omega-rust/psi/compilation/validation"
     violations = []
     for package in metadata["packages"]:
         source = Path(package["manifest_path"]).resolve().parent

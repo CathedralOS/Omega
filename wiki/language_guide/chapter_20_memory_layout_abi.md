@@ -741,7 +741,7 @@ Ordinary Stable recasts retain restrictions on the same storage. Recast a detach
 snapshot under its own contract, or establish another operation-governed view
 through legitimate underlying authority. See the
 [recast judgment](../spec/layouts/recasts.md) and
-[implementation limits](../../omega-rust/psi/compilation/checking/recasts.md).
+[implementation limits](../../omega-rust/psi/compilation/validation/recasts.md).
 
 ### Initializing a stricter shape in byte backing
 

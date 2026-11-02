@@ -27,6 +27,6 @@ symbols = { path = "../../../foundation/symbols" }
 terminal-psi = { path = "../../representations/terminal-psi" }
 terminal-semantics = { path = "../../representations/terminal-psi/semantics" }
 terminal-codec = { path = "../../representations/terminal-psi/codec" }
-validation = { path = "../../checking" }
+validation = { path = "../../validation" }
 phase-profile = { path = "../../../foundation/phase-profile" }
 

@@ -67,7 +67,7 @@ spelling. In `tests/omega/fail/modules/duplicate_imported_machine_overload_rejec
 The repaired producer no longer reports it, and the fixture's diagnostics again equal the
 golden's recorded pair.
 
-The repair is in `omega-rust/psi/compilation/checking/src/declarations/symbols/top_level.rs`.
+The repair is in `omega-rust/psi/compilation/validation/src/declarations/symbols/top_level.rs`.
 Each roster entry records whether its machine is declared inside another machine, and the
 two bare-name lookups (`machine`, `machine_symbol`) skip such entries. Resolution has
 already stamped every in-scope use with its symbol, so no legitimate use reads the

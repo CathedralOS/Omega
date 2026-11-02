@@ -13,13 +13,13 @@ compiler-storage = { path = "../../foundation/compiler-storage" }
 typed-trees-to-typed-trees = { path = "../pipeline/04_typed-trees-to-typed-trees" }
 build-time-values = { path = "../../foundation/build-time-values" }
 checked-trees = { path = "../representations/checked-trees" }
-validation = { path = "../checking" }
+validation = { path = "../validation" }
 arena = { path = "../../foundation/arena" }
 access-plans = { path = "../../foundation/access-plans" }
 checked-interpreter = { path = "../../interpreter/checked-interpreter" }
 psi-terminal-production = { path = "../driver/terminal-production" }
 terminal-interpreter = { path = "../../interpreter/terminal-interpreter" }
-terminal-installation = { path = "../checking/terminal-installation" }
+terminal-installation = { path = "../validation/terminal-installation" }
 terminal-codec = { path = "../representations/terminal-psi/codec" }
 terminal-psi = { path = "../representations/terminal-psi" }
 terminal-semantics = { path = "../representations/terminal-psi/semantics" }

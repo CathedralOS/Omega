@@ -1000,7 +1000,7 @@ library APIs; they do not introduce another compiler driver.
 | Responsibility | Owner |
 | --- | --- |
 | Current program forms and their attached records/codecs | Each half's `compilation/representations/`, grouped by program family |
-| Source-program judgments | Psi `compilation/checking/`; source proof planning/search in `compilation/proof/`, independent mathematical checking in `compilation/proof/admission/` |
+| Source-program judgments | Psi `compilation/validation/`; source proof planning/search in `compilation/proof/`, independent mathematical checking in `compilation/proof/admission/` |
 | Terminal encoding, semantic reconstruction and fuel | Independent packages beneath Psi `compilation/representations/terminal-psi/` |
 | Transformation, rewrite, private scratch and analyses | Each half's `compilation/pipeline/`, in the owning `X-to-Y` or `X-to-X` package |
 | ISA, ABI, runtime carriers, object/relocation/image mechanics | Omega `compilation/backend/` |
@@ -1047,7 +1047,7 @@ installation/task evidence belongs to backend runtime; boundary-application
 companions belong to backend artifacts; provider authority evidence belongs to
 backend plans. Target-independent opaque representation-selection records remain
 an independent package beside their Psi admission owner at
-`psi/compilation/checking/representation-planning/`. None of these is a pipeline program IR.
+`psi/compilation/validation/representation-planning/`. None of these is a pipeline program IR.
 
 ### Subsystem entrances and supporting packages
 
@@ -1306,9 +1306,9 @@ Exact consumed-source and toolchain identities belong to the shared
 `psi/foundation/source/src/source_identity.rs` owner; package review and early
 Psi use the same byte protocol without importing each other's orchestration.
 
-`psi/compilation/checking/` owns reusable judgments, with source-program checking
+`psi/compilation/validation/` owns reusable judgments, with source-program checking
 separate from Terminal receiving-boundary admission. Its independent
-[`terminal-installation`](psi/compilation/checking/terminal-installation/src/lib.rs)
+[`terminal-installation`](psi/compilation/validation/terminal-installation/src/lib.rs)
 package admits provider selections and assumed links against an exact Terminal
 artifact and owns shared structural-entry backing descriptions. It consumes no
 source trees, target layout, compiler driver or execution engine. Native lowering
@@ -1317,7 +1317,7 @@ constructs host-import dispatch from it. This semantic library is not a source
 checker or an additional transform stage.
 
 Its independent
-[`representation-planning`](psi/compilation/checking/representation-planning/README.md)
+[`representation-planning`](psi/compilation/validation/representation-planning/README.md)
 package admits source-level opaque representation relationships and checks their
 transitive cleanup and copy properties. The caller supplies build authority;
 backend layout derives target shape from the admitted carrier. Its independent
@@ -1532,7 +1532,7 @@ names (Psi's `semantic-vocabulary` and `flow-effects`, for example).
   the same representation; do not invent a `PreOptimized`/`PostOptimized` pair.
   The folders must expose the connected `X-to-Y`, `Y-to-Y`, `Y-to-Z` sequence,
   not merely name individually plausible calculations. See [optimization phases](../wiki/spec/build/optimizations.md#phase-and-product-boundaries).
-- Psi `compilation/checking/` — reusable source-program judgments.
+- Psi `compilation/validation/` — reusable source-program judgments.
 - Psi `compilation/proof/` — source obligation construction and proof search; independent
   `compilation/proof/admission/` owns the shared mathematical checker.
 - Terminal companion packages live beneath `compilation/representations/terminal-psi/`:
