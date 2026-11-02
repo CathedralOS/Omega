@@ -164,8 +164,8 @@ retired-syntax deletions to completion.
     result/Unit postconditions, effects/markers, loans, invariant/hole
     restoration, cleanup, linear custody, and joint SCC measures using
     declaration calls needing exclusive-loan arguments or owned affine transfers,
-    borrowed outer input homes or repeated selector
-    occurrences, other remaining declared body forms, nonscalar orders beyond fixed-integer
+    borrowed outer input homes, other remaining declared body forms,
+    nonscalar orders beyond fixed-integer
     lexicographic products, or dependent distances with computed endpoints
     without ambient parent entry facts).
   - Update Terminal production, codecs/checking, both interpreters, native

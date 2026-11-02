@@ -270,3 +270,10 @@ shared window separately from the scalar proof reads.
 [Declaration-local selector coordinates](local/declared_measure/computed_record/selected_value/README.md)
 carry the same private-cycle fact through indexed measure reads in all nine
 places, with public-contract and computed-selector compositions.
+
+[Repeated declared reads](local/declared_measure/computed_record/selected_value/repeated_calls/README.md)
+retain distinct supplying call telescopes across the same nine places, with
+zero-step twins, a self-selected input, a two-slot sum and a conserved-sum
+refusal. Their Boolean dispatch keeps declaration calls in the complete rank
+observation graph through Terminal/native execution. The broader nested-machine
+contracts and migration remain open.
