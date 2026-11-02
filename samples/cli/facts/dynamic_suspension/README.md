@@ -59,8 +59,8 @@ The 15 positives execute with native and Terminal exit 0. Five suspension-codec
 tests pass, including target roundtrip and rejection of retired target tags.
 These are local observations; full parent acceptance remains open.
 
-The additional [Unit call](unit_call/main.omg) exercises a statement call's
-data-only contract telescope, with its own [invalid input](unit_call/invalid/main.omg).
+The additional [Unit call](unit_call/main.omg) proves a requirement at a
+statement-position call, with its own [invalid input](unit_call/invalid/main.omg).
 A statement call evaluates the selected slot's whole operand roster and drops
 the selector prefix before binding formals, exactly like an expression call.
 `tests/omega/{pass,fail}/traits/*dyn_statement_call_operand_positions*` pin
