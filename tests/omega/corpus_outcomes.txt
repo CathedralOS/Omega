@@ -3199,7 +3199,7 @@ pass/build/default_component_abi_extents checked 3454ms check-target:macos_arm64
 pass/build/dependency_declaration_queries checked 4143ms @ccdb99ca2214
 pass/build/dependency_generated_source_unimported rejected 376ms regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	quoted byte literal has 41 source byte(s), but owned fixed byte array `[u8; 38]` requires exactly 38; fixed-array literal copying neither truncates nor pads
-pass/build/dependency_implementation_closure rejected 1453ms regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
+pass/build/dependency_implementation_closure rejected 873ms regressed-from:checked+check-target:macos_arm64 @5aa8f65b471e
 	fixed-array length `[u8; placed_byte_count()]`: const evaluation of `placed_byte_count` failed: Lowering(InvalidDeclarationIdentity("checked machine identity: declaration `@array-extent-1-43` has non-hermetic source origin `User`"))
 pass/build/described_runner_entry_left_exit checked 17644ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/described_runner_entry_right_exit checked 19223ms check-target:macos_arm64 @ccdb99ca2214
