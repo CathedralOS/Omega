@@ -1147,12 +1147,12 @@ pub(super) fn validate_referent_projection(
     program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
     segments: &[PlaceSegment],
-    bindings: &super::type_instantiation::TypeBindings,
+    bindings: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> Option<()> {
     let mut cursor = stored_origins::StorageProjectionCursor::with_bindings(
         program,
         reference,
-        bindings.clone(),
+        bindings.to_vec(),
     );
     for segment in segments {
         cursor.advance(segment)?;
