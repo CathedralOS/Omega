@@ -60,7 +60,8 @@ pub struct ProviderRowDeclarations {
     pub exit_process: crate::intrinsic_declarations::ExitProcessDeclaration,
 }
 
-/// One original candidate and its row-aligned declaration evidence.
+/// Keep a possible implementation together with the declarations for its
+/// individual operations, so later code does not have to find them in source.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderPlanCandidate<Rows = PreparedProviderRows> {
     source: DerivedProviderPlan,

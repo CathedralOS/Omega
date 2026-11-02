@@ -1833,16 +1833,16 @@ defines the complete product bar.
   and [critical service audit policy](wiki/spec/packages/review.md#critical-service-audit-policy):
   - Carry core's critical service catalog and root `Build::audit_service<R>`
     selections through install/update review and compact lock acceptance.
-  - Settle demanded Linux x86-64 filesystem `BoundaryCall`s (`set_len`) in
-    ordinary selected raw-family providers and native settlement,
-    replace equality-based receiver checks in
-    `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/providers/provider_admission/terminal_authority_permissions.rs`
-    with demand-based containment, and replace the broad filesystem arm in
-    `omega-rust/omega/packages/review-evidence/src/capture/authority.rs` and
-    `omega-rust/omega/packages/package-manager/src/review/audit/triage/` with
-    exact cohort classifications from
-    `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/providers/provider_admission/settlements/source_imports.rs`
-    and `omega-rust/omega/packages/package-manager/src/review/candidate/semantic_bindings.rs`.
+  - Make Linux x86-64 filesystem calls such as `set_len` run through the
+    program's selected filesystem implementation. In the
+    [permission checks](omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/providers/provider_admission/terminal_authority_permissions.rs),
+    accept receivers that grant every needed operation, including receivers
+    that grant additional operations. In
+    [review evidence](omega-rust/omega/packages/review-evidence/src/capture/authority.rs)
+    and [package review](omega-rust/omega/packages/package-manager/src/review/),
+    replace the broad filesystem category with the operation-specific categories
+    produced by [native import selection](omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/providers/provider_admission/settlements/source_imports.rs)
+    and [accepted API bindings](omega-rust/omega/packages/package-manager/src/review/candidate/semantic_bindings.rs).
   Acceptance: `tests/omega/pass/host/console_exit_process_exit` (exit 70),
   Cathedral native smoke, `samples/cli/basics/cli_mvp`, and Squalr build and run
   without a synthesized receiver-policy file; denying policies reject and

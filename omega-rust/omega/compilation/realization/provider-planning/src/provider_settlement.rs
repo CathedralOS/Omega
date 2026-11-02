@@ -9,9 +9,10 @@
 //! one subordinate admission: re-verifying the component descriptions the
 //! package inputs attached before provider planning joins them.
 //!
-//! A semantic binding classifies an exact service declaration; it never supplies
-//! an implementation. Provider supply comes from declared candidates and explicit
-//! assumption links, with independent component admission retained here.
+//! Recognizing an API as a filesystem or other service must not invent code
+//! that implements it. Use the implementations declared by the program and
+//! selected by its build settings. Explicit links between APIs and verification
+//! of independently compiled components still follow their usual checks.
 
 pub(crate) mod assumed_bindings;
 mod completion;
