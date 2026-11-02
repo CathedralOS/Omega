@@ -13,8 +13,8 @@ use terminal_psi::{
 
 use crate::emission::scalar_types::terminal_scalar_type;
 use crate::expression_preparation::bindings::structural_paths::terminal_access;
-use crate::lowering_error::{LoweringError, unsupported};
-use crate::terminal_identities::{allocate_dense, lookup_type_id, structural_field_id};
+use crate::shared::lowering_error::{LoweringError, unsupported};
+use crate::shared::terminal_identities::{allocate_dense, lookup_type_id, structural_field_id};
 
 mod scalar_refinements;
 

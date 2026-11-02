@@ -11,11 +11,11 @@ use super::parameters::{
     lower_unit_scalar_parameter_types,
 };
 use crate::expression_preparation::qualifications::PreparedScalarQualifications;
-use crate::lowering_error::LoweringError;
-use crate::lowering_error::unsupported;
-use crate::terminal_identities::StructuralDomainBinding;
-use crate::terminal_identities::allocate_dense;
-use crate::terminal_identities::value_id;
+use crate::shared::lowering_error::LoweringError;
+use crate::shared::lowering_error::unsupported;
+use crate::shared::terminal_identities::StructuralDomainBinding;
+use crate::shared::terminal_identities::allocate_dense;
+use crate::shared::terminal_identities::value_id;
 use checked_trees::CheckedTrees;
 
 use semantic_vocabulary::Proposition;

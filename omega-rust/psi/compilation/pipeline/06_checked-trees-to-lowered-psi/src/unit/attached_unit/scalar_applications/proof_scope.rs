@@ -2,8 +2,8 @@
 //!
 //! Publication assigns fresh artifact-local ids. Distinct overloads, binders
 //! and specializations cannot alias just because their nominal names coincide.
-use crate::lowering_error::LoweringError;
 use crate::machine_lowering::declarations;
+use crate::shared::lowering_error::LoweringError;
 use checked_trees::CheckedTrees;
 use semantic_vocabulary::proof_applications::ProofCallGraph;
 use symbols::SymbolHandle;

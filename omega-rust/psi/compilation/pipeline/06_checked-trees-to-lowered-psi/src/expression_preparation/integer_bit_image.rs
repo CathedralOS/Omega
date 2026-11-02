@@ -29,7 +29,7 @@
 
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::emission::operation_emission::integer::LoweredIntegerBinaryKind;
-use crate::lowering_error::{LoweringError, unsupported};
+use crate::shared::lowering_error::{LoweringError, unsupported};
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
 
 /// Interpret the source bit image on the selected representation carrier.

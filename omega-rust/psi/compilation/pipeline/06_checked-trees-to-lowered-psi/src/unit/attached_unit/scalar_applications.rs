@@ -5,9 +5,9 @@
 //! declaration namespaces. A nested helper is never a substitute for the root
 //! expression, and an absent checked entry cannot become an executable recipe.
 
-use crate::checked_facts::flow_facts;
 use crate::emission::scalar_types::terminal_scalar_type;
-use crate::lowering_error::LoweringError;
+use crate::shared::checked_facts::flow_facts;
+use crate::shared::lowering_error::LoweringError;
 use checked_trees::{CheckedScalarComputationKind, CheckedTrees};
 use semantic_vocabulary::{ScalarApplicationId, ScalarType, StructuralTypeId};
 use terminal_psi::{LayoutMeasurement, ScalarApplication, ScalarApplications};

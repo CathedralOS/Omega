@@ -6,9 +6,9 @@
 //! owned-result contract to a descriptor that lends original backing.
 
 use super::{CheckedTrees, LoweringError, unsupported};
-use crate::checked_facts::value_facts;
 use crate::expression_preparation::computation_graph::produced_value_root;
-use crate::terminal_identities::stored_structural_identity;
+use crate::shared::checked_facts::value_facts;
+use crate::shared::terminal_identities::stored_structural_identity;
 use checked_trees::{
     CheckedScalarComputationKind, CheckedScalarComputationStructuralArgument,
     CheckedStructuralValueHandle, CheckedUnitStructuralArgumentSourcePlan, FlowCallFact,
@@ -95,13 +95,14 @@ pub(crate) fn prepare(
             // home and invalidate the checked Referent path. Authority and
             // ordinary operands retain their distinct occurrence identities.
             let identity = stored_structural_identity(checked, root.type_reference);
-            let declaration = crate::terminal_identities::structural_declaration_by_identity(
-                types,
-                identities,
-                checked,
-                identity,
-                "computed producer has no structural type namespace",
-            )?;
+            let declaration =
+                crate::shared::terminal_identities::structural_declaration_by_identity(
+                    types,
+                    identities,
+                    checked,
+                    identity,
+                    "computed producer has no structural type namespace",
+                )?;
             if let Some(existing) = slots.iter().find(|slot| {
                 slot.source_call == source_call && slot.argument_ordinal == argument_ordinal
             }) {

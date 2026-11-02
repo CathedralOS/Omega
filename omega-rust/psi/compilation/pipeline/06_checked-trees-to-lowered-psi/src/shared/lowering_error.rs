@@ -3,7 +3,7 @@
 //! Unsupported constructs fail closed with a static reason; structured
 //! variants retain the identity a caller needs to report or test the refusal.
 
-use crate::checked_facts::flow_facts;
+use crate::shared::checked_facts::flow_facts;
 use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 use language_semantics::PermissionClaimIdentity;

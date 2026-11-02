@@ -6,7 +6,7 @@
 //! (`DebugPublication`). The entrance reads those modes to decide what
 //! remains to run.
 
-use crate::lowering_error::{LoweringError, unsupported};
+use crate::shared::lowering_error::{LoweringError, unsupported};
 use lowered_psi::LoweredPsi;
 
 #[derive(Default, Debug, PartialEq, Eq)]

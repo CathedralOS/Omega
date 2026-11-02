@@ -12,7 +12,7 @@ use crate::emission::operation_emission::buffer::{OperationBuffer, structural_re
 use crate::emission::operation_emission::place_declarations::operation_result_place;
 use crate::emission::scalar_types::terminal_scalar_type;
 use crate::retention::access_lifecycles::storage_fields;
-use crate::terminal_identities::lookup_domain_id_for_carrier;
+use crate::shared::terminal_identities::lookup_domain_id_for_carrier;
 use checked_trees::CheckedUnitStructuralResultBindingPlan;
 
 /// The checked expression the reference operation actually evaluates.
@@ -25,7 +25,8 @@ pub(crate) struct Formation<'checked> {
     /// The supplying endpoint, never the receiving reference annotation.
     pub(crate) backing_type: typed_trees::types::TypeReferenceHandle,
     pub(crate) qualification_decisions: arena::HandleSpan<checked_trees::CheckedValueQualification>,
-    pub(crate) domain_ids: &'checked [crate::terminal_identities::StructuralDomainBinding],
+    pub(crate) domain_ids:
+        &'checked [crate::shared::terminal_identities::StructuralDomainBinding],
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -73,7 +74,7 @@ pub(crate) fn publish_storage(
             None,
         ));
     };
-    let byte_offset = crate::terminal_identities::value_id(allocate_dense(next_value)?);
+    let byte_offset = crate::shared::terminal_identities::value_id(allocate_dense(next_value)?);
     let value = terminal_psi::ValueDeclaration {
         id: byte_offset,
         scalar_type: crate::unit::terminal_scalar_type(crate::unit::PrimitiveType::U64)?,

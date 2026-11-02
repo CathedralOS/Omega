@@ -34,7 +34,7 @@ use super::{
 use crate::emission::operation_emission::buffer::structural_result_declaration;
 use crate::emission::operation_emission::place_declarations::operation_result_place;
 use crate::expression_preparation::bindings::StructuralLocalBinding;
-use crate::terminal_identities::obligation_id;
+use crate::shared::terminal_identities::obligation_id;
 use crate::unit::StructuralTypeDeclaration;
 
 /// One immutable module namespace for scalar-to-storage correspondence.
@@ -424,7 +424,7 @@ impl super::argument_evaluation::Evaluation {
             parameter_index,
         } = source.source
         {
-            let (_, authored) = crate::declarations::state_declaration(checked, state)?;
+            let (_, authored) = crate::shared::declarations::state_declaration(checked, state)?;
             let parameter = checked
                 .state_parameters(authored)
                 .iter()

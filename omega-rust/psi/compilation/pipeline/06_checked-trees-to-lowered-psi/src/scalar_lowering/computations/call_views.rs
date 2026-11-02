@@ -2,8 +2,8 @@
 //! completes. Reserve the result place while the comparison expression is
 //! still being built, then emit the call into that same place.
 use super::{CheckedTrees, LoweringError};
-use crate::checked_facts::value_facts;
-use crate::terminal_identities::stored_structural_identity;
+use crate::shared::checked_facts::value_facts;
+use crate::shared::terminal_identities::stored_structural_identity;
 use checked_trees::expression::ExpressionHandle;
 use checked_trees::{
     CheckedScalarComputationKind, CheckedUnitCallCoordinate, CheckedUnitStructuralArgumentPlan,
@@ -52,13 +52,14 @@ pub(crate) fn prepare(
                     "call byte view lost its checked result",
                 ))?;
             let identity = stored_structural_identity(checked, root.type_reference);
-            let declaration = crate::terminal_identities::structural_declaration_by_identity(
-                types,
-                identities,
-                checked,
-                identity,
-                "call byte view has no structural type namespace",
-            )?;
+            let declaration =
+                crate::shared::terminal_identities::structural_declaration_by_identity(
+                    types,
+                    identities,
+                    checked,
+                    identity,
+                    "call byte view has no structural type namespace",
+                )?;
             if let Some(existing) = slots.iter().find(|slot| slot.expression == expression) {
                 if existing.structural_type != declaration.id {
                     return super::unsupported("call byte view occurrence has conflicting types");

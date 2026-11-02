@@ -71,12 +71,12 @@ use super::primitive_locals::PrimitiveLocal;
 use super::signatures::MachineSignature;
 use super::view_ranges::ViewRangeSite;
 use super::{parameters, reference_results};
-use crate::checked_facts::flow_facts;
 use crate::emission::borrowed_window::BorrowedWindowLedger;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::expression_preparation::bindings::structural_paths::lower_static_argument_path;
 use crate::expression_preparation::bindings::structural_paths::structural_argument;
+use crate::shared::checked_facts::flow_facts;
 use crate::unit::{
     BoundaryMachineId, CheckedScalarExpressionRole, CheckedTrees, CheckedUnitEffectOperationPlan,
     LoweringError, Operation, OperationKind, OperationResult, PlaceId, ServiceId, ServiceReachId,
@@ -172,7 +172,7 @@ pub(super) struct Callees<'f> {
     /// `MachineSignature::call_target` is what a call substitutes into.
     pub(super) signatures: &'f [MachineSignature],
     pub(super) boundaries: &'f [BoundaryParameters],
-    pub(super) domain_ids: &'f [crate::terminal_identities::StructuralDomainBinding],
+    pub(super) domain_ids: &'f [crate::shared::terminal_identities::StructuralDomainBinding],
     pub(super) domain_declarations: &'f [terminal_psi::StructuralDomainDeclaration],
     /// The closure's Unit bodies: a scalar call may name one that completes
     /// with a scalar instead of a prepared scalar callee.

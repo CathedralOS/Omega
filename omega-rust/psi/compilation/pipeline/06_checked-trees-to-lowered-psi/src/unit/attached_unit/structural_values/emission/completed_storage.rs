@@ -13,7 +13,7 @@ use crate::emission::claim_bindings::direct_establishment_claims;
 use crate::emission::claim_bindings::emit_establishment_claims;
 use crate::emission::formation_memberships::publish;
 use crate::emission::operation_emission::place_declarations::operation_result_place;
-use crate::terminal_identities::lookup_domain_id_for_carrier;
+use crate::shared::terminal_identities::lookup_domain_id_for_carrier;
 
 impl Emission<'_, '_, '_> {
     /// A private value edge changes storage identity, not membership.

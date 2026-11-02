@@ -40,6 +40,8 @@ fail/build/terminal_calling_policy_unrelated_constant rejected 42791ms expected 
 	constant checking: scalar predicate is false: requires contract for call bounded from main state entry statement 5
 fail/calls/completed_narrowing_result_case_bounds rejected 544ms @33b180036351
 	data `ByteRead` case `Byte` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/calls/runtime_guarded_reference_return_nested_local_escape rejected 4129ms expected @c79bb8268163+wt
+	machine `failed` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 fail/capabilities/recursive_synchronous_invocations rejected 2175ms expected @2fc408782574
 	machine `a` omits `invokes Third` from its published synchronous-invocation ceiling, but its body may invoke that binding before returning (published invokes: [First, Second])
 fail/cases/constructor_subject_range_narrowing_unproved rejected 1204ms expected @95750e8d2f8d
@@ -3474,10 +3476,9 @@ pass/calls/runtime_fused_child_computed_borrow_exit checked 3223ms check-target:
 pass/calls/runtime_guard_call_vs_call_exit checked 16242ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_guarded_boundary_tail_call_exit checked 17155ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_guarded_effectful_transition_argument_exit checked 11041ms check-target:macos_arm64 @ccdb99ca2214
-pass/calls/runtime_guarded_reference_return_before_crash_exit incomplete 3049ms terminal-targets:unchecked regressed-from:checked+check-target:macos_arm64+terminal-target.linux_x86_64:0+terminal-target.linux_arm64:0+terminal-target.macos_arm64:0+terminal-target.windows_x86_64:0+terminal-target-artifact:unchanged+terminal-targets:match @ccdb99ca2214
-	`main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data); in state `main::entry`, statement 1
-pass/calls/runtime_guarded_reference_return_crash incomplete 3826ms terminal-targets:unchecked regressed-from:checked+check-target:macos_arm64+terminal-target.linux_x86_64:trap+terminal-target.linux_arm64:trap+terminal-target.macos_arm64:trap+terminal-target.windows_x86_64:trap+terminal-target-artifact:unchanged+terminal-targets:match @ccdb99ca2214
-	`main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data); in state `main::entry`, statement 1
+pass/calls/runtime_guarded_reference_return_before_crash_exit checked 6256ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @c79bb8268163+wt
+pass/calls/runtime_guarded_reference_return_crash checked 6225ms check-target:macos_arm64 terminal-target.linux_x86_64:trap terminal-target.linux_arm64:trap terminal-target.macos_arm64:trap terminal-target.windows_x86_64:trap terminal-target-artifact:unchanged terminal-targets:match @c79bb8268163+wt
+pass/calls/runtime_guarded_reference_return_machine_crash checked 6226ms check-target:macos_arm64 terminal-target.linux_x86_64:trap terminal-target.linux_arm64:trap terminal-target.macos_arm64:trap terminal-target.windows_x86_64:trap terminal-target-artifact:unchanged terminal-targets:match @c79bb8268163+wt
 pass/calls/runtime_guarded_terminal_array_operands_exit checked 3100ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_guarded_terminal_guard_order_exit checked 3315ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_guarded_terminal_mutable_reference_result_exit checked 3296ms check-target:macos_arm64 @ccdb99ca2214
@@ -9092,39 +9093,15 @@ pass/facts/recorded_build_role/other_machine checked 17905ms check-target:macos_
 pass/facts/recorded_build_role/other_state checked 18217ms check-target:macos_arm64 @1a41b8e686ed
 pass/facts/recorded_build_role/parameter checked 19855ms check-target:macos_arm64 @1a41b8e686ed
 pass/facts/recorded_build_role/target_body checked 18785ms check-target:macos_arm64 @1a41b8e686ed
-pass/facts/recoverable_replacement_window_through_call_result_exit rejected 4000ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	linear state-call result first::Success.token in repair::entry at statement 1 has no unique conserved claim mapping; return a path-aligned source place or publish an explicit outcome mapping; join candidate in machine `repair` state `entry` statement 1 call 0 to `entry`: callee return frontier correspondence is unavailable; return state `entry` statement 1 TransitionTarget: returned capture omits a declared claim path on an alternative
-	linear state-call result second::Success.token in repair::entry at statement 4 has no unique conserved claim mapping; return a path-aligned source place or publish an explicit outcome mapping; join candidate in machine `repair` state `entry` statement 4 call 0 to `entry`: callee return frontier correspondence is unavailable; return state `entry` statement 1 TransitionTarget: returned capture omits a declared claim path on an alternative
-pass/facts/recoverable_replacement_window_through_const_name_exit rejected 3764ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	linear state-call result first::Success.token in repair::entry at statement 1 has no unique conserved claim mapping; return a path-aligned source place or publish an explicit outcome mapping; join candidate in machine `repair` state `entry` statement 1 call 0 to `entry`: callee return frontier correspondence is unavailable; return state `entry` statement 1 TransitionTarget: returned capture omits a declared claim path on an alternative
-	linear state-call result second::Success.token in repair::entry at statement 4 has no unique conserved claim mapping; return a path-aligned source place or publish an explicit outcome mapping; join candidate in machine `repair` state `entry` statement 4 call 0 to `entry`: callee return frontier correspondence is unavailable; return state `entry` statement 1 TransitionTarget: returned capture omits a declared claim path on an alternative
-pass/facts/recoverable_replacement_window_through_field_exit rejected 3899ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	linear state-call result first::Success.token in repair::entry at statement 1 has no unique conserved claim mapping; return a path-aligned source place or publish an explicit outcome mapping; join candidate in machine `repair` state `entry` statement 1 call 0 to `entry`: callee return frontier correspondence is unavailable; return state `entry` statement 1 TransitionTarget: returned capture omits a declared claim path on an alternative
-	linear state-call result second::Success.token in repair::entry at statement 4 has no unique conserved claim mapping; return a path-aligned source place or publish an explicit outcome mapping; join candidate in machine `repair` state `entry` statement 4 call 0 to `entry`: callee return frontier correspondence is unavailable; return state `entry` statement 1 TransitionTarget: returned capture omits a declared claim path on an alternative
-pass/facts/recoverable_replacement_window_through_local_exit rejected 3590ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	linear state-call result first::Success.token in repair::entry at statement 1 has no unique conserved claim mapping; return a path-aligned source place or publish an explicit outcome mapping; join candidate in machine `repair` state `entry` statement 1 call 0 to `entry`: callee return frontier correspondence is unavailable; return state `entry` statement 1 TransitionTarget: returned capture omits a declared claim path on an alternative
-	linear state-call result second::Success.token in repair::entry at statement 4 has no unique conserved claim mapping; return a path-aligned source place or publish an explicit outcome mapping; join candidate in machine `repair` state `entry` statement 4 call 0 to `entry`: callee return frontier correspondence is unavailable; return state `entry` statement 1 TransitionTarget: returned capture omits a declared claim path on an alternative
-pass/facts/recoverable_replacement_window_through_match_join_exit rejected 3728ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	linear state-call result first::Success.token in repair::entry at statement 1 has no unique conserved claim mapping; return a path-aligned source place or publish an explicit outcome mapping; join candidate in machine `repair` state `entry` statement 1 call 0 to `entry`: callee return frontier correspondence is unavailable; return state `entry` statement 1 TransitionTarget: returned capture omits a declared claim path on an alternative
-	linear state-call result second::Success.token in repair::entry at statement 4 has no unique conserved claim mapping; return a path-aligned source place or publish an explicit outcome mapping; join candidate in machine `repair` state `entry` statement 4 call 0 to `entry`: callee return frontier correspondence is unavailable; return state `entry` statement 1 TransitionTarget: returned capture omits a declared claim path on an alternative
-pass/facts/recoverable_replacement_window_through_other_machine_exit rejected 4421ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	linear state-call result first::Success.token in repair::entry at statement 1 has no unique conserved claim mapping; return a path-aligned source place or publish an explicit outcome mapping; join candidate in machine `repair` state `entry` statement 1 call 0 to `entry`: callee return frontier correspondence is unavailable; return state `entry` statement 1 TransitionTarget: returned capture omits a declared claim path on an alternative
-	linear state-call result second::Success.token in repair::entry at statement 4 has no unique conserved claim mapping; return a path-aligned source place or publish an explicit outcome mapping; join candidate in machine `repair` state `entry` statement 4 call 0 to `entry`: callee return frontier correspondence is unavailable; return state `entry` statement 1 TransitionTarget: returned capture omits a declared claim path on an alternative
-pass/facts/recoverable_replacement_window_through_other_state_exit rejected 3334ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	linear state-call result first::Success.token in repair::entry at statement 1 has no unique conserved claim mapping; return a path-aligned source place or publish an explicit outcome mapping; join candidate in machine `repair` state `entry` statement 1 call 0 to `entry`: callee return frontier correspondence is unavailable; return state `entry` statement 1 TransitionTarget: returned capture omits a declared claim path on an alternative
-	linear state-call result second::Success.token in repair::entry at statement 4 has no unique conserved claim mapping; return a path-aligned source place or publish an explicit outcome mapping; join candidate in machine `repair` state `entry` statement 4 call 0 to `entry`: callee return frontier correspondence is unavailable; return state `entry` statement 1 TransitionTarget: returned capture omits a declared claim path on an alternative
-pass/facts/recoverable_replacement_window_through_parameter_exit rejected 3517ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	linear state-call result first::Success.token in repair::entry at statement 1 has no unique conserved claim mapping; return a path-aligned source place or publish an explicit outcome mapping; join candidate in machine `repair` state `entry` statement 1 call 0 to `entry`: callee return frontier correspondence is unavailable; return state `entry` statement 1 TransitionTarget: returned capture omits a declared claim path on an alternative
-	linear state-call result second::Success.token in repair::entry at statement 4 has no unique conserved claim mapping; return a path-aligned source place or publish an explicit outcome mapping; join candidate in machine `repair` state `entry` statement 4 call 0 to `entry`: callee return frontier correspondence is unavailable; return state `entry` statement 1 TransitionTarget: returned capture omits a declared claim path on an alternative
-pass/facts/recoverable_replacement_window_through_target_body_exit rejected 3960ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	linear state-call result first::Success.token in repair::entry at statement 1 has no unique conserved claim mapping; return a path-aligned source place or publish an explicit outcome mapping; join candidate in machine `repair::linux_x86_64` state `entry` statement 1 call 0 to `entry`: callee return frontier correspondence is unavailable; return state `entry` statement 1 TransitionTarget: returned capture omits a declared claim path on an alternative
-	linear state-call result second::Success.token in repair::entry at statement 4 has no unique conserved claim mapping; return a path-aligned source place or publish an explicit outcome mapping; join candidate in machine `repair::linux_x86_64` state `entry` statement 4 call 0 to `entry`: callee return frontier correspondence is unavailable; return state `entry` statement 1 TransitionTarget: returned capture omits a declared claim path on an alternative
-	linear state-call result first::Success.token in repair::entry at statement 1 has no unique conserved claim mapping; return a path-aligned source place or publish an explicit outcome mapping; join candidate in machine `repair::linux_arm64` state `entry` statement 1 call 0 to `entry`: callee return frontier correspondence is unavailable; return state `entry` statement 1 TransitionTarget: returned capture omits a declared claim path on an alternative
-	linear state-call result second::Success.token in repair::entry at statement 4 has no unique conserved claim mapping; return a path-aligned source place or publish an explicit outcome mapping; join candidate in machine `repair::linux_arm64` state `entry` statement 4 call 0 to `entry`: callee return frontier correspondence is unavailable; return state `entry` statement 1 TransitionTarget: returned capture omits a declared claim path on an alternative
-	linear state-call result first::Success.token in repair::entry at statement 1 has no unique conserved claim mapping; return a path-aligned source place or publish an explicit outcome mapping; join candidate in machine `repair::macos_arm64` state `entry` statement 1 call 0 to `entry`: callee return frontier correspondence is unavailable; return state `entry` statement 1 TransitionTarget: returned capture omits a declared claim path on an alternative
-	linear state-call result second::Success.token in repair::entry at statement 4 has no unique conserved claim mapping; return a path-aligned source place or publish an explicit outcome mapping; join candidate in machine `repair::macos_arm64` state `entry` statement 4 call 0 to `entry`: callee return frontier correspondence is unavailable; return state `entry` statement 1 TransitionTarget: returned capture omits a declared claim path on an alternative
-	linear state-call result first::Success.token in repair::entry at statement 1 has no unique conserved claim mapping; return a path-aligned source place or publish an explicit outcome mapping; join candidate in machine `repair::windows_x86_64` state `entry` statement 1 call 0 to `entry`: callee return frontier correspondence is unavailable; return state `entry` statement 1 TransitionTarget: returned capture omits a declared claim path on an alternative
-	linear state-call result second::Success.token in repair::entry at statement 4 has no unique conserved claim mapping; return a path-aligned source place or publish an explicit outcome mapping; join candidate in machine `repair::windows_x86_64` state `entry` statement 4 call 0 to `entry`: callee return frontier correspondence is unavailable; return state `entry` statement 1 TransitionTarget: returned capture omits a declared claim path on an alternative
+pass/facts/recoverable_replacement_window_through_call_result_exit checked 9556ms check-target:macos_arm64 @c79bb8268163+wt
+pass/facts/recoverable_replacement_window_through_const_name_exit checked 9618ms check-target:macos_arm64 @c79bb8268163+wt
+pass/facts/recoverable_replacement_window_through_field_exit checked 17157ms check-target:macos_arm64 @c79bb8268163+wt
+pass/facts/recoverable_replacement_window_through_local_exit checked 19006ms check-target:macos_arm64 @c79bb8268163+wt
+pass/facts/recoverable_replacement_window_through_match_join_exit checked 14017ms check-target:macos_arm64 @c79bb8268163+wt
+pass/facts/recoverable_replacement_window_through_other_machine_exit checked 24056ms check-target:macos_arm64 @c79bb8268163+wt
+pass/facts/recoverable_replacement_window_through_other_state_exit checked 11898ms check-target:macos_arm64 @c79bb8268163+wt
+pass/facts/recoverable_replacement_window_through_parameter_exit checked 12013ms check-target:macos_arm64 @c79bb8268163+wt
+pass/facts/recoverable_replacement_window_through_target_body_exit checked 19176ms check-target:macos_arm64 @c79bb8268163+wt
 pass/facts/reference_arrival_handoff_cleanup_receiver_exit checked 3690ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/reference_arrival_handoff_cleanup_receiver_order_exit checked 1639ms check-target:macos_arm64 @e5a7f19e3929
 pass/facts/reference_arrival_handoff_cleanup_receiver_parameter_rebound_exit checked 1652ms check-target:macos_arm64 @e5a7f19e3929
@@ -11425,11 +11402,7 @@ pass/generics/nested_static_type_equality_refines_delivery checked 4601ms @99a35
 pass/generics/nominal_machine_parameter_satisfaction_compile checked 2272ms @ccdb99ca2214
 pass/generics/omitted_data_binder_range_equation checked 65952ms check-target:macos_arm64 @911f6617ba9e
 pass/generics/omitted_fixed_domain_array_equation checked 7865ms @911f6617ba9e
-pass/generics/open_computed_quantity_result rejected 20943ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @e5ac5a94234e
-	cannot form specification operator `==` in machine `establish_three` requires contract: no exact selected meaning
-	cannot form specification operator `==` in machine `establish_three` ensures contract: no exact selected meaning
-	cannot form specification operator `+` in machine `establish_three$specialized$f2ee5d8dd2d9e06f$0` requires contract: no exact selected meaning
-	cannot form specification operator `+` in machine `establish_three$specialized$f2ee5d8dd2d9e06f$0` ensures contract: no exact selected meaning
+pass/generics/open_computed_quantity_result checked 75268ms check-target:macos_arm64 @0eba905c6ff0
 pass/generics/open_const_completed_exit_positive checked 6864ms check-target:macos_arm64 @ea132c1fff8b
 pass/generics/open_const_distinct_applications checked 6663ms check-target:macos_arm64 @ea132c1fff8b
 pass/generics/open_const_float_owned_dependency checked 7295ms check-target:macos_arm64 @ccdb99ca2214
@@ -12257,9 +12230,7 @@ pass/ownership/runtime_borrowed_case_result_restore_exit rejected 3288ms check-t
 	linear state-call result attempt::Success.token in apply::entry at statement 1 has no unique conserved claim mapping; return a path-aligned source place or publish an explicit outcome mapping; join candidate in machine `apply` state `entry` statement 1 call 0 to `entry`: callee return frontier correspondence is unavailable; return state `entry` statement 1 TransitionTarget: returned capture omits a declared claim path on an alternative
 pass/ownership/runtime_borrowed_content_partition_exit checked 34289ms check-target:macos_arm64 @911f6617ba9e
 pass/ownership/runtime_borrowed_content_partition_nested_reverse_exit checked 33028ms check-target:macos_arm64 @911f6617ba9e
-pass/ownership/runtime_borrowed_match_repeated_repair_exit rejected 3737ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	linear state-call result first::Success.token in repair::entry at statement 1 has no unique conserved claim mapping; return a path-aligned source place or publish an explicit outcome mapping; join candidate in machine `repair` state `entry` statement 1 call 0 to `entry`: callee return frontier correspondence is unavailable; return state `entry` statement 1 TransitionTarget: returned capture omits a declared claim path on an alternative
-	linear state-call result second::Success.token in repair::entry at statement 4 has no unique conserved claim mapping; return a path-aligned source place or publish an explicit outcome mapping; join candidate in machine `repair` state `entry` statement 4 call 0 to `entry`: callee return frontier correspondence is unavailable; return state `entry` statement 1 TransitionTarget: returned capture omits a declared claim path on an alternative
+pass/ownership/runtime_borrowed_match_repeated_repair_exit checked 11963ms check-target:macos_arm64 @c79bb8268163+wt
 pass/ownership/runtime_borrowed_operand_order_exit checked 4184ms check-target:macos_arm64 @ccdb99ca2214
 pass/ownership/runtime_borrowed_projected_claim_transform_exit checked 12110ms check-target:macos_arm64 @ccdb99ca2214
 pass/ownership/runtime_borrowed_projected_linear_return_exit checked 3825ms check-target:macos_arm64 @ccdb99ca2214
@@ -12313,6 +12284,7 @@ pass/ownership/runtime_known_case_scalar_call_exit checked 3516ms check-target:m
 pass/ownership/runtime_linear_case_payload_forward_exit checked 4994ms check-target:macos_arm64 @ccdb99ca2214
 pass/ownership/runtime_local_subslice_element_window_exit checked 4277ms check-target:macos_arm64 @ccdb99ca2214
 pass/ownership/runtime_match_conditional_observation_cleanup_exit checked 3543ms check-target:macos_arm64 @ccdb99ca2214
+pass/ownership/runtime_match_expression_moves_selected_payload_exit checked 14352ms check-target:macos_arm64 @c79bb8268163+wt
 pass/ownership/runtime_match_nested_observation_cleanup_exit checked 3618ms check-target:macos_arm64 @ccdb99ca2214
 pass/ownership/runtime_match_observation_cleanup_exit checked 5516ms check-target:macos_arm64 @ccdb99ca2214
 pass/ownership/runtime_match_projected_subject_cleanup_exit checked 3949ms check-target:macos_arm64 @ccdb99ca2214
@@ -27024,27 +26996,25 @@ fail/facts/record_layout_geometry_unproved_parameter rejected 3419ms unexpected 
 	constant checking: scalar range condition 2: bounds [-8, -8] lie outside [0, 18446744073709551615]
 fail/facts/record_layout_geometry_unproved_target_body rejected 3808ms unexpected @ccdb99ca2214
 	constant checking: scalar range condition 2: bounds [-8, -8] lie outside [0, 18446744073709551615]
-fail/facts/recoverable_replacement_window_through_call_result_rejected rejected 3080ms expected @ccdb99ca2214
+fail/facts/recoverable_replacement_window_through_call_result_rejected rejected 7910ms expected @c79bb8268163+wt
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `repair`, state `entry` (statement 3): `holder.token` must hold a value again before this state's exits consume the borrow
-fail/facts/recoverable_replacement_window_through_const_name_rejected rejected 3274ms expected @ccdb99ca2214
+fail/facts/recoverable_replacement_window_through_const_name_rejected rejected 9226ms expected @c79bb8268163+wt
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `repair`, state `entry` (statement 3): `holder.token` must hold a value again before this state's exits consume the borrow
-fail/facts/recoverable_replacement_window_through_field_rejected rejected 2942ms expected @ccdb99ca2214
+fail/facts/recoverable_replacement_window_through_field_rejected rejected 6348ms expected @c79bb8268163+wt
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `repair`, state `entry` (statement 3): `holder.token` must hold a value again before this state's exits consume the borrow
-fail/facts/recoverable_replacement_window_through_local_rejected rejected 3689ms expected @ccdb99ca2214
+fail/facts/recoverable_replacement_window_through_local_rejected rejected 11399ms expected @c79bb8268163+wt
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `repair`, state `entry` (statement 3): `holder.token` must hold a value again before this state's exits consume the borrow
-fail/facts/recoverable_replacement_window_through_match_join_rejected rejected 3349ms expected @ccdb99ca2214
+fail/facts/recoverable_replacement_window_through_match_join_rejected rejected 9949ms expected @c79bb8268163+wt
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `repair`, state `entry` (statement 3): `holder.token` must hold a value again before this state's exits consume the borrow
-fail/facts/recoverable_replacement_window_through_other_machine_rejected rejected 5045ms expected @ccdb99ca2214
+fail/facts/recoverable_replacement_window_through_other_machine_rejected rejected 6794ms expected @c79bb8268163+wt
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `repair`, state `entry` (statement 3): `holder.token` must hold a value again before this state's exits consume the borrow
-fail/facts/recoverable_replacement_window_through_other_state_rejected rejected 3291ms expected @ccdb99ca2214
+fail/facts/recoverable_replacement_window_through_other_state_rejected rejected 6401ms expected @c79bb8268163+wt
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `repair`, state `entry` (statement 3): `holder.token` must hold a value again before this state's exits consume the borrow
-fail/facts/recoverable_replacement_window_through_parameter_rejected rejected 3465ms expected @ccdb99ca2214
+fail/facts/recoverable_replacement_window_through_parameter_rejected rejected 6503ms expected @c79bb8268163+wt
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `repair`, state `entry` (statement 3): `holder.token` must hold a value again before this state's exits consume the borrow
-fail/facts/recoverable_replacement_window_through_target_body_rejected rejected 4305ms expected @ccdb99ca2214
-	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `repair`, state `entry` (statement 3): `holder.token` must hold a value again before this state's exits consume the borrow
-	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `repair`, state `entry` (statement 3): `holder.token` must hold a value again before this state's exits consume the borrow
-	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `repair`, state `entry` (statement 3): `holder.token` must hold a value again before this state's exits consume the borrow
-	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `repair`, state `entry` (statement 3): `holder.token` must hold a value again before this state's exits consume the borrow
+fail/facts/recoverable_replacement_window_through_target_body_rejected rejected 5811ms expected @c79bb8268163+wt
+	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `X86Repair::repair`, state `repair` (statement 4): `holder.token` must hold a value again before this state's exits consume the borrow
+	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `ArmRepair::repair`, state `repair` (statement 4): `holder.token` must hold a value again before this state's exits consume the borrow
 fail/facts/reference_arrival_handoff_cleanup_receiver_order_held_residual rejected 1213ms expected @e5a7f19e3929
 	statement 7 reads `output.value` while local borrow `original` is still active (borrowed at statement 2; its last use is at statement 8)
 	statement 7 reads `spare.value` while local borrow `alternate` is still active (borrowed at statement 4; its last use is at statement 8)
@@ -31075,13 +31045,10 @@ fail/generics/grouped_decimal_const_zero_division_rejected rejected 241ms unexpe
 	division by zero in closed const argument: the divisor is provably zero, which always traps at runtime. Remove the operation or use a nonzero divisor.
 fail/generics/index_algebra_law_requires_identity rejected 2239ms expected @af2cbd5e6837
 	index compatibility condition `index-equality:Indexed:reorder::entry:exit-0:Indexed<Left + Right>==Indexed<Right + Left>` is not established: actual `Indexed<Left + Right>` and expected `Indexed<Right + Left>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `add` of `IndexOperations` licenses no law
-fail/generics/index_equality_foreign_algebra rejected 903ms unexpected @ccdb99ca2214
-	cannot form specification operator `==` in machine `establish_three` requires contract: no exact selected meaning
-	cannot form specification operator `==` in machine `establish_three` ensures contract: no exact selected meaning
-	cannot form specification operator `+` in machine `establish_three$specialized$329cd042af21d75b$0` requires contract: no exact selected meaning
-	cannot form specification operator `+` in machine `establish_three$specialized$329cd042af21d75b$0` ensures contract: no exact selected meaning
-fail/generics/index_equality_selected_boolean_relation rejected 807ms unexpected @ccdb99ca2214
-	cannot form specification operator `==` in machine `relation_is_not_equality` requires contract: no exact selected meaning
+fail/generics/index_equality_foreign_algebra rejected 3463ms expected @0eba905c6ff0
+	index compatibility condition `index-equality:Indexed:cannot_borrow_other_application::entry:statement-1:Indexed<1 + 2>==Indexed<3>` is not established: actual `Indexed<1 + 2>` and expected `Indexed<3>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `add` of `IndexAdd` licenses no law
+fail/generics/index_equality_selected_boolean_relation rejected 3358ms expected @0eba905c6ff0
+	index compatibility condition `index-equality:Indexed:relation_is_not_equality::entry:statement-0:Indexed<Left + Right>==Indexed<4>` is not established: actual `Indexed<Left + Right>` and expected `Indexed<4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `add` of `IndexOperations` licenses no law
 fail/generics/indexed_domain_capacity_invalid_initializer rejected 1206ms expected @911f6617ba9e
 	construction of `DomainBytes<u64 in AtMost<256>, 256>` field `length` cannot be proven within its declared range `0..=256`; constrain the value, construct with a literal in range, or widen the field
 	`as ... in AtMost<256>` cannot mint: a `AtMost<256>` domain fact is FALSE at this value -- the predicate obligation is owed (decision 19's "predicate obligation not discharged" class)
@@ -33018,8 +32985,8 @@ fail/proofs/result_extent_authored_subtraction rejected 2812ms expected @ccdb99c
 	cannot prove requires contract for call need_two from main: selected.len == 2 (needs fact `bytes.len == 2` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/proofs/result_extent_formal_shadows_result rejected 3185ms expected @ccdb99ca2214
 	cannot prove requires contract for call need_two from main: selected.len == 2 (needs fact `bytes.len == 2` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/proofs/result_index_abstract_bound_operator rejected 953ms unexpected @ccdb99ca2214
-	cannot form specification operator `==` in trait `Outer` state `issue` ensures contract: no exact selected meaning
+fail/proofs/result_index_abstract_bound_operator rejected 1415ms unexpected @0eba905c6ff0
+	cannot form specification operator `[]` in trait `Outer` state `issue` ensures contract: no exact selected meaning
 fail/proofs/result_index_authored_operator rejected 2210ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from issue at statement 0: result.items[0].code == 7
 fail/proofs/result_index_false_producer rejected 3455ms expected @ccdb99ca2214

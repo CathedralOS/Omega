@@ -1,7 +1,7 @@
 //! Edge operands, cleanup and proof terms use the predecessor's namespace.
 
 use super::IdentityMap;
-use crate::lowering_error::LoweringError;
+use crate::shared::lowering_error::LoweringError;
 use semantic_vocabulary::{BlockId, EdgeId};
 use terminal_psi::{SuccessorEdge, TerminalAffineCleanupAction, Terminator};
 

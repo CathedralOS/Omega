@@ -1,6 +1,6 @@
 //! Project diagnostic attribution while the lowering still owns source joins.
 
-use crate::direct_calls::direct_call_parts;
+use crate::shared::direct_calls::direct_call_parts;
 use checked_trees::CheckedTrees;
 use semantic_vocabulary::MachineId;
 use std::collections::BTreeMap;
@@ -29,7 +29,9 @@ pub fn lowered_module_provenance(
             // Module custody uses its selected state. Diagnostic attribution
             // names that state's machine through the same exact occurrence join;
             // it is neither a source-label fallback nor an execution premise.
-            if let Ok(target) = crate::call_sites::selected_module_target(checked, occurrence) {
+            if let Ok(target) =
+                crate::shared::call_sites::selected_module_target(checked, occurrence)
+            {
                 name(&mut provenance, checked, *callee, target.machine.symbol);
             }
         }

@@ -1,6 +1,6 @@
 //! Task machine suspension, blocking and the selected runtime provider.
 
-use crate::task_activation::start_selections::TaskStartSelection;
+use crate::projections::task_activation::start_selections::TaskStartSelection;
 use diagnostics::Diagnostic;
 
 fn exact_task_machine_plan<P>(

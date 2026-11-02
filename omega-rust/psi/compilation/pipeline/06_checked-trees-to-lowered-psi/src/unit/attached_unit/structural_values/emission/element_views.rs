@@ -15,7 +15,7 @@ use crate::emission::operation_emission::expressions::{
 };
 use crate::expression_preparation::bindings::LoanAccess;
 use crate::expression_preparation::prepare_expression::exact_u64_index;
-use crate::terminal_identities::obligation_id;
+use crate::shared::terminal_identities::obligation_id;
 
 impl Emission<'_, '_, '_> {
     /// Establish one borrowed element view without a selection join: the op
@@ -257,7 +257,7 @@ impl Emission<'_, '_, '_> {
                     source_length: source_length.ok_or(LoweringError::Unsupported(
                         "representation view lost its captured count",
                     ))?,
-                    obligation: crate::terminal_identities::obligation_id(
+                    obligation: crate::shared::terminal_identities::obligation_id(
                         id.get().checked_add(1).ok_or(LoweringError::Unsupported(
                             "representation count obligation identity overflows",
                         ))?,

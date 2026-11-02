@@ -7,7 +7,7 @@ use super::super::super::{PlaceId, ValueDeclaration, terminal_scalar_type, unsup
 use super::super::{LoweringError, catalogs};
 use super::CheckedComposedUnitControlStatePlan;
 use crate::emission::operation_emission::buffer::{OperationBuffer, StructuralBinding};
-use crate::terminal_identities::fresh_field_snapshot;
+use crate::shared::terminal_identities::fresh_field_snapshot;
 
 pub(super) struct PreparedCase<'a> {
     pub outcome: &'a checked_trees::CheckedClosedSumCaseOutcomePlan,

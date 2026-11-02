@@ -139,15 +139,18 @@ impl Captures<'_> {
         state: &State,
         active: &mut Vec<SymbolHandle>,
     ) -> Option<Vec<CheckedReturnedReferencePlan>> {
-        // An admitted closed nonreturning control graph has no normal result
-        // whose descriptors could escape. This is the empty return relation,
-        // not evidence that a possibly returning descriptor is inactive.
-        // Unknown completion and unavailable captures remain unavailable.
-        if crate::normal_completion_possible(self.program, state) == Some(false) {
-            return Some(Vec::new());
-        }
         if active.contains(&state.symbol) || active.len() >= super::MAX_REFERENCE_ORIGIN_DEPTH {
             return None;
+        }
+        if !crate::normal_completion_possible(self.program, state)? {
+            // A machine proved never to complete normally publishes no result,
+            // so it owes no returned reference origins. Its own state graph and
+            // every caller capture read this same empty roster; a caller arm
+            // that forwards completion here contributes no descriptors. The
+            // proof follows completion through nested and other machines, so
+            // the declaration owner of a crash-only destination does not
+            // matter. Potentially returning machines keep the full capture.
+            return Some(Vec::new());
         }
         active.push(state.symbol);
         let result = self.normal_returns(state, active, None);
@@ -195,6 +198,9 @@ impl Captures<'_> {
                 StatementNode::Expression(expression)
                     if statement_index + 1 == statements.len() =>
                 {
+                    if !crate::expression_normal_completion_possible(self.program, *expression)? {
+                        continue;
+                    }
                     let target = Default::default();
                     let call = self.ordinary_return_call(
                         state,
@@ -215,6 +221,19 @@ impl Captures<'_> {
                         }
                         match self.program.statement_table.transition_target(target) {
                             TransitionTargetNode::Value(expression) => {
+                                // A terminal call proved never to complete
+                                // normally (into a nested or other machine
+                                // that only crashes) yields no result. Its
+                                // call-site loan would otherwise publish an
+                                // invocation-owned origin for a value that is
+                                // never produced. Potentially returning calls
+                                // keep their full capture obligation.
+                                if !crate::expression_normal_completion_possible(
+                                    self.program,
+                                    *expression,
+                                )? {
+                                    continue;
+                                }
                                 let call = self.ordinary_return_call(
                                     state,
                                     statement_index,

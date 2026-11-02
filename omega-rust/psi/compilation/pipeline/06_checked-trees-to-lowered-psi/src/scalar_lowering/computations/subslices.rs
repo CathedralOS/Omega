@@ -62,13 +62,14 @@ pub(crate) fn prepare(
                 };
                 let expression = range.expression;
                 let bytes = range.family == ViewFamily::Bytes;
-                let declaration = crate::terminal_identities::structural_declaration_by_identity(
-                    types,
-                    identities,
-                    checked,
-                    argument.type_identity,
-                    "computed range has no structural type namespace",
-                )?;
+                let declaration =
+                    crate::shared::terminal_identities::structural_declaration_by_identity(
+                        types,
+                        identities,
+                        checked,
+                        argument.type_identity,
+                        "computed range has no structural type namespace",
+                    )?;
                 if let Some(existing) = slots.iter().find(|slot| slot.expression == expression) {
                     if existing.structural_type != declaration.id || existing.bytes != bytes {
                         return unsupported("computed range occurrence has conflicting types");

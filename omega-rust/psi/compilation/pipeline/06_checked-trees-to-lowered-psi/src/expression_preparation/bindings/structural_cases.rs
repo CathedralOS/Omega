@@ -8,7 +8,7 @@ use super::{
     StructuralTypeDeclaration, unsupported,
 };
 use crate::emission::structural_observations::explicit_path;
-use crate::structural_types::unique_declaration;
+use crate::shared::structural_types::unique_declaration;
 
 #[derive(Clone)]
 pub(crate) struct StructuralCaseBinding {

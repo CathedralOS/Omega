@@ -4,7 +4,7 @@
 //! tags; explicit source-cast replay owns permission for that change.
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
-use crate::lowering_error::{LoweringError, unsupported};
+use crate::shared::lowering_error::{LoweringError, unsupported};
 use semantic_vocabulary::EdgeId;
 use semantic_vocabulary::{BlockId, MachineId};
 use terminal_psi::{StructuralArgument, Terminator, ValueDeclaration};

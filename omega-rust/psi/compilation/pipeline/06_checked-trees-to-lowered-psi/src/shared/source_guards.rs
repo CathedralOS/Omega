@@ -115,7 +115,7 @@ fn lowering_reads_checked_type_facts_without_reconstruction() {
 /// A value lowering needs from the authored program is recorded in a stage
 /// 04 plan row or checked fact (a state's `let` locals are
 /// `CheckFacts::state_locals`); reference custody is the recorded
-/// `CheckFacts::reference_custody`, read through `crate::reference_custody`.
+/// `CheckFacts::reference_custody`, read through `crate::shared::reference_custody`.
 #[test]
 fn lowering_reads_no_authored_statements_or_expressions() {
     let violations = violations(&[
@@ -231,7 +231,7 @@ fn direct_call_patterns_are_not_mints() {
         "Call { callee }"
     )));
     assert!(direct_call_construction(concat!(
-        "let call = crate::direct_calls::Direct",
+        "let call = crate::shared::direct_calls::Direct",
         "Call { callee };"
     )));
     assert!(!direct_call_construction(concat!(

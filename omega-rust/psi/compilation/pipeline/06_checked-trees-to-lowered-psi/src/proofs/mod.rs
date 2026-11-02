@@ -52,8 +52,8 @@ use terminal_psi::{
 
 use crate::emission::scalar_types::{integer_scalar_type, terminal_scalar_type};
 use crate::expression_preparation::prepare_expression::lower_checked_scalar_expression;
-use crate::lowering_error::{LoweringError, unsupported};
-use crate::terminal_identities::{
+use crate::shared::lowering_error::{LoweringError, unsupported};
+use crate::shared::terminal_identities::{
     dense_identity, lookup_claim_id, obligation_id, proposition_id, value_id,
 };
 

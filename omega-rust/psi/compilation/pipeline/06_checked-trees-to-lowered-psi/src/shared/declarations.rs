@@ -7,7 +7,7 @@
 //! statement and expression bodies belong to Psi 05, which records what
 //! lowering needs in the plan.
 
-use crate::lowering_error::{LoweringError, unsupported};
+use crate::shared::lowering_error::{LoweringError, unsupported};
 use checked_trees::CheckedTrees;
 use checked_trees::signature::StateParameter;
 use symbols::SymbolHandle;

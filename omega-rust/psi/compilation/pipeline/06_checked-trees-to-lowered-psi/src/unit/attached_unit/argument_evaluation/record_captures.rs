@@ -2,11 +2,11 @@
 //! Primitive loans share the original addressable home. Coordinate snapshots
 //! stay private across joins; later observations cannot overwrite them.
 use super::{Evaluation, LoweringError, StructuralTypeDeclaration, ValueDeclaration};
-use crate::checked_facts::value_facts;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::expressions::emit_direct_expression;
 use crate::expression_preparation::computation_graph::borrowed_arguments_from_roots;
 use crate::expression_preparation::prepare_expression::exact_u64_index;
+use crate::shared::checked_facts::value_facts;
 use terminal_psi::{StructuralPlaceDeclaration, StructuralTypeShape};
 
 impl Evaluation {
