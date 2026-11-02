@@ -935,11 +935,20 @@ impl StructuralJudge<'_> {
         else {
             return;
         };
+        let version = self
+            .read_storage_version(state, expression)
+            .or(self.storage_version);
         if !super::super::structural_terms::term_is_unobserved_descriptor(self.program, value)
             && let Some(case) = self
                 .stored_values
                 .iter()
-                .find(|stored| stored.coordinate == coordinate)
+                .find(|stored| {
+                    stored.coordinate == coordinate
+                        && (!self.graph_storage_mode()
+                            || version.is_some_and(|at| {
+                                self.current_value_valid(stored, &coordinate, at)
+                            }))
+                })
                 .and_then(|stored| stored.selected_case)
             && let Some((owner, _)) = self.program.variant_owner(case)
             && let Some(definition) = self.program.data_constructor_definition(
@@ -962,18 +971,20 @@ impl StructuralJudge<'_> {
                 case: selected.symbol,
             });
         }
-        self.intake_storage_field_observations(&coordinate, reference, value);
+        self.intake_storage_field_observations(&coordinate, reference, value, version);
     }
 
     /// Attach surviving child observations to a fresh aggregate identity. Both
     /// whole reads and normal-call handback must perform this join: replacing
     /// the whole observation alone would hide unchanged fields behind an opaque
-    /// new value. The write footprint has already retired overlapping children.
+    /// new value. Graph-backed observations retain their history after writes;
+    /// only the read cut can establish which children are still current.
     fn intake_storage_field_observations(
         &mut self,
         coordinate: &CapturedStorageCoordinate,
         reference: TypeReferenceHandle,
         value: &super::StructuralTerm,
+        version: Option<StorageVersion>,
     ) {
         let equations = self
             .stored_values
@@ -982,6 +993,10 @@ impl StructuralJudge<'_> {
                 if stored.coordinate.root != coordinate.root
                     || stored.coordinate.segments.len() <= coordinate.segments.len()
                     || !stored.coordinate.segments.starts_with(&coordinate.segments)
+                    || (self.graph_storage_mode()
+                        && !version.is_some_and(|at| {
+                            self.current_value_valid(stored, &stored.coordinate, at)
+                        }))
                 {
                     return None;
                 }
