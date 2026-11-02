@@ -2277,6 +2277,15 @@ pass/facts/bounded_scalar_sums_through_other_machine_exit built 3283ms exit:0 in
 pass/facts/bounded_scalar_sums_through_other_state_exit built 3662ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/bounded_scalar_sums_through_parameter_exit built 3586ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/bounded_scalar_sums_through_target_body_exit built 3989ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
+pass/facts/call_alternative_guarantees_call_result_exit built 16016ms exit:0 interpreter-exit:0 interpreter:agrees @2cfbda3635e2+wt
+pass/facts/call_alternative_guarantees_const_name_exit built 15913ms exit:0 interpreter-exit:0 interpreter:agrees @2cfbda3635e2+wt
+pass/facts/call_alternative_guarantees_field_exit built 14261ms exit:0 interpreter-exit:0 interpreter:agrees @2cfbda3635e2+wt
+pass/facts/call_alternative_guarantees_local_exit built 16382ms exit:0 interpreter-exit:0 interpreter:agrees @2cfbda3635e2+wt
+pass/facts/call_alternative_guarantees_match_join_exit built 18573ms exit:0 interpreter-exit:0 interpreter:agrees @2cfbda3635e2+wt
+pass/facts/call_alternative_guarantees_other_machine_exit built 18673ms exit:0 interpreter-exit:0 interpreter:agrees @2cfbda3635e2+wt
+pass/facts/call_alternative_guarantees_other_state_exit built 14514ms exit:0 interpreter-exit:0 interpreter:agrees @2cfbda3635e2+wt
+pass/facts/call_alternative_guarantees_parameter_exit built 14644ms exit:0 interpreter-exit:0 interpreter:agrees @2cfbda3635e2+wt
+pass/facts/call_alternative_guarantees_target_body_exit built 16818ms exit:0 interpreter-exit:0 interpreter:agrees @2cfbda3635e2+wt
 pass/facts/call_result_bound_discharge_through_call_result_exit built 3527ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/call_result_bound_discharge_through_const_name_exit built 7721ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/call_result_bound_discharge_through_field_exit built 3736ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
@@ -2667,6 +2676,7 @@ pass/facts/data_where_standing_through_other_machine_exit built 3708ms exit:0 in
 pass/facts/data_where_standing_through_other_state_exit built 2721ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/data_where_standing_through_parameter_exit built 2934ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/data_where_standing_through_target_body_exit built 2636ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
+pass/facts/default_domain_mathematical_coupling_exit built 16975ms exit:0 interpreter-exit:0 interpreter:agrees @2cfbda3635e2+wt
 pass/facts/dependency_type_qualified_call_by_value_exit built 7586ms exit:0 interpreter-exit:0 interpreter:agrees @900e2e7ae6af
 pass/facts/dependency_type_qualified_call_operator_token_exit built 6837ms exit:0 interpreter-exit:0 interpreter:agrees @900e2e7ae6af
 pass/facts/dependency_type_qualified_call_private_helper_exit built 5727ms exit:0 interpreter-exit:0 interpreter:agrees @900e2e7ae6af
@@ -5698,7 +5708,7 @@ pass/memory/address_translation_canary rejected 877ms @5f668826adf3+wt
 	Exact integer cast in machine `CathedralPageTables::install_huge` state `install_huge` from `addr` to `u64` is not provably representable; prove the embedded address fits the destination integer range at this occurrence; count and address widths are independent.
 	Exact integer cast in machine `CathedralPageTables::install_huge` state `install_huge` from `addr` to `u64` is not provably representable; prove the embedded address fits the destination integer range at this occurrence; count and address widths are independent.
 	Exact integer cast in machine `CathedralPageTables::remove_huge` state `remove_huge` from `addr` to `u64` is not provably representable; prove the embedded address fits the destination integer range at this occurrence; count and address widths are independent.
-pass/memory/bump_allocator_canary built 4691ms @5f668826adf3+wt
+pass/memory/bump_allocator_canary built 44580ms exit:0 interpreter-exit:0 interpreter:agrees @2cfbda3635e2+wt
 pass/memory/indexed_resident_bodyless_handback checked 1870ms @5f668826adf3+wt
 pass/memory/interrupt_table_canary checked 6524ms @5f668826adf3+wt
 pass/memory/resident_content_mutation_transport checked 4926ms @5f668826adf3+wt
