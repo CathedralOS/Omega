@@ -20,7 +20,7 @@ use crate::{
 };
 use optimization_core::OptimizationSelections;
 use register_environment::ValidatedTargetRegisterEnvironment;
-use target_operations_to_selected_instructions::ValidatedSelectedInstructions;
+use selected_instructions::SelectedProgram;
 
 /// Borrow-only admission probe for this stage: the same source custody check
 /// and fixed/precolored derivation the consuming entry runs, without taking
@@ -78,7 +78,7 @@ impl StagedOptimizedFixedPrecoloredSegmentHomes {
 
     /// The current selected program this probe describes. Segment homes do
     /// not transform the program, so the source program remains current.
-    pub const fn selected(&self) -> &ValidatedSelectedInstructions {
+    pub const fn selected(&self) -> &SelectedProgram {
         self.source.selected()
     }
 

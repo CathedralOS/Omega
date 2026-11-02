@@ -230,6 +230,8 @@ fail/facts/build_activation_borrow/parameter rejected 648ms expected @3a020eca64
 	root binding requires a compiler-issued &mut Build receiver
 fail/facts/build_activation_borrow/target_body rejected 548ms expected @3a020eca642a
 	root binding requires a compiler-issued &mut Build receiver
+fail/facts/build_activation_borrow_entry_return_shared_source_rejected rejected 2155ms expected @b208ceef9bc2
+	argument `left` for state `entry` is declared `&mut` (`&mut Cell`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/facts/c_layout_nested_representation_field_rejected rejected 1615ms expected @b78ea1d59bc7
 	policy `CAbiPolicy::plan$specialized$557e22dbe2a1843e$0` produced an invalid plan: entry_count 65 is outside 0..=64
 fail/facts/c_layout_nested_representation_local_rejected rejected 2407ms expected @b78ea1d59bc7
@@ -1048,6 +1050,8 @@ fail/facts/named_const_callable_family_through_parameter_rejected rejected 681ms
 	generic machine `apply` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `observe_four` state `observe_four::entry`: Const slot `Count` conflicts: 5 [identity named(integer-const(5)); supplier unretained] versus 4 [identity named(integer-const(4)); supplier unretained]
 fail/facts/named_const_callable_family_through_target_body_rejected rejected 613ms expected @75dd4e483f7a
 	generic machine `apply` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `X86Observe::observe` state `X86Observe::observe::observe`: Const slot `Count` conflicts: 5 [identity named(integer-const(5)); supplier unretained] versus 4 [identity named(integer-const(4)); supplier unretained]
+fail/facts/narrowed_integer_write_unselected_implementation_rejected rejected 8244ms expected @aa06f04853cc+wt
+	IntegerAt call in main requires every performed value to fit its physical storage: performed integer value is not proven to fit
 fail/facts/nested_machine_declared_selector_computed_selector rejected 7800ms expected @b3e852cfac94
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_declared_selector_distinct_contexts rejected 7818ms expected @b3e852cfac94
@@ -2362,7 +2366,13 @@ fail/facts/transparent_alias_qualified_case_wrong_payload_rejected rejected 2003
 	construction of `leaf::choices::Choice<u64>` field `value` stores a boolean into a `u64` field, which holds a numeric value
 fail/facts/transparent_alias_qualified_case_wrong_payload_through_call_result_rejected rejected 4327ms expected @417ca5344d79
 	construction of `leaf::choices::Choice<u64>` field `value` stores a boolean into a `u64` field, which holds a numeric value
+fail/facts/transparent_alias_qualified_case_wrong_payload_through_const_name_rejected rejected 5776ms expected @2360394fa4f4
+	construction of `leaf::choices::Choice<u64>` field `value` stores a boolean into a `u64` field, which holds a numeric value
 fail/facts/transparent_alias_qualified_case_wrong_payload_through_field_rejected rejected 2037ms expected @417ca5344d79
+	construction of `leaf::choices::Choice<u64>` field `value` stores a boolean into a `u64` field, which holds a numeric value
+fail/facts/transparent_alias_qualified_case_wrong_payload_through_match_join_rejected rejected 6220ms expected @2360394fa4f4
+	construction of `leaf::choices::Choice<u64>` field `value` stores a boolean into a `u64` field, which holds a numeric value
+fail/facts/transparent_alias_qualified_case_wrong_payload_through_other_state_rejected rejected 4778ms expected @2360394fa4f4
 	construction of `leaf::choices::Choice<u64>` field `value` stores a boolean into a `u64` field, which holds a numeric value
 fail/facts/transparent_alias_qualified_case_wrong_payload_through_parameter_rejected rejected 1939ms expected @417ca5344d79
 	construction of `leaf::choices::Choice<u64>` field `value` stores a boolean into a `u64` field, which holds a numeric value
@@ -2503,6 +2513,8 @@ fail/layouts/fixed_layout_unbounded_policy_geometry_rejected rejected 818ms expe
 	recast has no complete exact layout alternative roster
 fail/layouts/fixed_layout_uncalled_policy_member_rejected rejected 566ms expected @2ba727eefb59+wt
 	policy `Policy::plan$specialized$d6370627ca0e1e1b$0` produced an invalid plan: alignment 0 is not a positive power of two
+fail/layouts/generic_requirement_implementation_integer_at_requires_fit rejected 8232ms expected @aa06f04853cc+wt
+	IntegerAt call in main requires every performed value to fit its physical storage: effectful invocation has no complete performed-write body
 fail/layouts/local_access_declaration_shadows_core_view rejected 648ms expected @b43a5fa574e6
 	duplicate data `Access`
 	generic data `Access` expected 0 arguments but got 2
@@ -5623,6 +5635,7 @@ pass/facts/build_activation_borrow/other_machine checked 18694ms check-target:ma
 pass/facts/build_activation_borrow/other_state checked 25421ms check-target:macos_arm64 @3a020eca642a
 pass/facts/build_activation_borrow/parameter checked 15952ms check-target:macos_arm64 @3a020eca642a
 pass/facts/build_activation_borrow/target_body checked 12537ms check-target:macos_arm64 @3a020eca642a
+pass/facts/build_activation_borrow_entry_return_exit checked 12083ms check-target:macos_arm64 @b208ceef9bc2
 pass/facts/build_target_provider_through_call_result_exit checked 8454ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
 pass/facts/build_target_provider_through_const_name_exit checked 7119ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
 pass/facts/build_target_provider_through_field_exit checked 7948ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
@@ -8102,7 +8115,7 @@ pass/facts/narrowed_integer_write_through_other_machine_exit checked 3840ms chec
 pass/facts/narrowed_integer_write_through_other_state_exit rejected 2523ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	IntegerAt call in apply requires every performed value to fit its physical storage: performed integer value is not proven to fit
 pass/facts/narrowed_integer_write_through_parameter_exit checked 4065ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/narrowed_integer_write_through_target_body_exit checked 3504ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/narrowed_integer_write_through_target_body_exit checked 11837ms check-target:macos_arm64 @aa06f04853cc+wt
 pass/facts/negated_mathematical_order_through_call_result_exit checked 4146ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/negated_mathematical_order_through_const_name_exit checked 3349ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/negated_mathematical_order_through_field_exit checked 3251ms check-target:macos_arm64 @ccdb99ca2214
@@ -10522,7 +10535,10 @@ pass/facts/thirtytwo_arg_stack_calling_plan_through_parameter_exit checked 4669m
 pass/facts/thirtytwo_arg_stack_calling_plan_through_target_body_exit checked 3568ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/transparent_alias_qualified_cases_exit checked 6791ms check-target:macos_arm64 @6defc740839f
 pass/facts/transparent_alias_qualified_cases_through_call_result_exit checked 11689ms check-target:macos_arm64 @417ca5344d79
+pass/facts/transparent_alias_qualified_cases_through_const_name_exit checked 13240ms check-target:macos_arm64 @2360394fa4f4
 pass/facts/transparent_alias_qualified_cases_through_field_exit checked 12925ms check-target:macos_arm64 @417ca5344d79
+pass/facts/transparent_alias_qualified_cases_through_match_join_exit checked 13240ms check-target:macos_arm64 @2360394fa4f4
+pass/facts/transparent_alias_qualified_cases_through_other_state_exit checked 12405ms check-target:macos_arm64 @2360394fa4f4
 pass/facts/transparent_alias_qualified_cases_through_parameter_exit checked 9638ms check-target:macos_arm64 @417ca5344d79
 pass/facts/transparent_alias_rhs_captured_supplier_call_result_exit checked 7568ms check-target:macos_arm64 @a1964f50142c
 pass/facts/transparent_alias_rhs_captured_supplier_const_name_exit checked 7750ms check-target:macos_arm64 @df2704cb8b18
@@ -25307,7 +25323,7 @@ fail/facts/narrowed_integer_write_through_other_state_rejected rejected 2901ms u
 	IntegerAt call in apply requires every performed value to fit its physical storage: performed integer value is not proven to fit
 fail/facts/narrowed_integer_write_through_parameter_rejected rejected 3195ms expected @ccdb99ca2214
 	IntegerAt call in main requires every performed value to fit its physical storage: performed integer value is not proven to fit
-fail/facts/narrowed_integer_write_through_target_body_rejected rejected 2847ms expected @ccdb99ca2214
+fail/facts/narrowed_integer_write_through_target_body_rejected rejected 8245ms expected @aa06f04853cc+wt
 	IntegerAt call in main requires every performed value to fit its physical storage: performed integer value is not proven to fit
 fail/facts/negated_mathematical_order_through_call_result_rejected rejected 3088ms expected @ccdb99ca2214
 	cannot prove the value assigned to `value` in establish is in domain `u64::Small`; a place declared `in u64::Small` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)

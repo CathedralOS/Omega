@@ -8,6 +8,7 @@
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
 # context: {"cpus": 5, "jobs": "1", "load1_end": 1.64, "load1_start": 0.54, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+pass/facts/build_activation_borrow_entry_return_exit built 11951ms exit:0 interpreter-exit:0 interpreter:agrees @b208ceef9bc2
 pass/facts/domain_selected_cleanup_enclosing_generic_telescope_exit built 14212ms exit:0 interpreter-exit:0 interpreter:agrees @dfac2536232b
 pass/facts/domain_selected_cleanup_erased_interface_exit built 13801ms exit:0 interpreter-exit:0 interpreter:agrees @dfac2536232b
 pass/facts/dynamic_float_input_alternatives_equal_exit built 19259ms exit:0 interpreter-exit:0 interpreter:agrees @95f6bd2b4430
@@ -5055,7 +5056,10 @@ pass/facts/thirtytwo_arg_stack_calling_plan_through_parameter_exit built 125106m
 pass/facts/thirtytwo_arg_stack_calling_plan_through_target_body_exit built 182731ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/transparent_alias_qualified_cases_exit built 6476ms exit:0 interpreter-exit:0 interpreter:agrees @6defc740839f
 pass/facts/transparent_alias_qualified_cases_through_call_result_exit built 10518ms exit:0 interpreter-exit:0 interpreter:agrees @417ca5344d79
+pass/facts/transparent_alias_qualified_cases_through_const_name_exit built 11469ms exit:0 interpreter-exit:0 interpreter:agrees @2360394fa4f4
 pass/facts/transparent_alias_qualified_cases_through_field_exit built 10527ms exit:0 interpreter-exit:0 interpreter:agrees @417ca5344d79
+pass/facts/transparent_alias_qualified_cases_through_match_join_exit built 11470ms exit:0 interpreter-exit:0 interpreter:agrees @2360394fa4f4
+pass/facts/transparent_alias_qualified_cases_through_other_state_exit built 9959ms exit:0 interpreter-exit:0 interpreter:agrees @2360394fa4f4
 pass/facts/transparent_alias_qualified_cases_through_parameter_exit built 8697ms exit:0 interpreter-exit:0 interpreter:agrees @417ca5344d79
 pass/facts/transparent_alias_rhs_captured_supplier_call_result_exit built 8063ms exit:0 interpreter-exit:0 interpreter:agrees @a1964f50142c
 pass/facts/transparent_alias_rhs_captured_supplier_const_name_exit built 7003ms exit:0 interpreter-exit:0 interpreter:agrees @df2704cb8b18

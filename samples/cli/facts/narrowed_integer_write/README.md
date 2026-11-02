@@ -28,7 +28,7 @@ in an unrelated generic library declaration.
 | [const name](const_name/main.omg) | Named static value [invalid](const_name/invalid/main.omg) |
 | [other state](other_state/main.omg) | Nested machine arrival [invalid](other_state/invalid/main.omg) |
 | [other machine](other_machine/main.omg) | Generic forwarding with a separate type binder [invalid](other_machine/invalid/main.omg) |
-| [target body](target_body/main.omg) | Checked body for each hosted target [invalid](target_body/invalid/main.omg) |
+| [target body](target_body/main.omg) | Build-selected named implementation of a requirement [invalid](target_body/invalid/main.omg) |
 
 Each place has an `invalid/main.omg` twin and a corresponding pin under
 `tests/omega/{pass,fail}/facts/narrowed_integer_write_through_<place>_*`.
@@ -41,10 +41,19 @@ The [completed-result control](controls/completed_result/main.omg) also copies
 its scalar through an inline call before a later operand writes 70 to the old
 source. Its twin starts that source at 200: the later 70 must not justify the
 earlier result's physical store. Matching fixtures pin this snapshot boundary.
-The [non-host-body control](controls/nonhost_body/invalid/main.omg) writes 200
-only in the Linux x86-64 member while the other three members forward 70.
-Psi must reject it even when macOS ARM64 is the realization target. The portable
-interface's empty body cannot stand in for its members' performed writes.
+The target-body place calls the `SelectedPerform` requirement; Build selects
+`X86Perform` or `ArmPerform` per target. A requirement has no body, so Psi
+judges the narrowing store through every satisfier's checked body against the
+caller's captured operands (owner: **BUILD-OWNED-TARGET-SELECTION**, "carry the
+facts that still refuse behind a selected implementation"). Before that repair
+the positive refused with `effectful invocation has no complete performed-write
+body`. The [unselected-implementation control](controls/nonhost_body/invalid/main.omg)
+adds `SparePerform`, which stores 200 and which no Build row selects, while
+`X86Perform` and `ArmPerform` forward 70. Psi must reject it for every realized
+target: a selected implementation cannot stand in for the others' performed
+writes. A generic implementation's open template body refuses rather than
+being judged without its concrete write types. It is pinned as
+`tests/omega/fail/facts/narrowed_integer_write_unselected_implementation_rejected`.
 
 The [direct-assignment control](controls/direct_assignment/main.omg) writes the
 same 70 through a nested encoded view, then passes the retained leaf alongside
