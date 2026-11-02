@@ -2366,9 +2366,13 @@ fail/facts/transparent_alias_qualified_case_wrong_payload_through_field_rejected
 	construction of `leaf::choices::Choice<u64>` field `value` stores a boolean into a `u64` field, which holds a numeric value
 fail/facts/transparent_alias_qualified_case_wrong_payload_through_match_join_rejected rejected 6220ms expected @2360394fa4f4
 	construction of `leaf::choices::Choice<u64>` field `value` stores a boolean into a `u64` field, which holds a numeric value
+fail/facts/transparent_alias_qualified_case_wrong_payload_through_other_machine_rejected rejected 7861ms expected @9715740cac5f
+	construction of `choices::Choice<u64>` field `value` stores a boolean into a `u64` field, which holds a numeric value
 fail/facts/transparent_alias_qualified_case_wrong_payload_through_other_state_rejected rejected 4778ms expected @2360394fa4f4
 	construction of `leaf::choices::Choice<u64>` field `value` stores a boolean into a `u64` field, which holds a numeric value
 fail/facts/transparent_alias_qualified_case_wrong_payload_through_parameter_rejected rejected 1939ms expected @417ca5344d79
+	construction of `leaf::choices::Choice<u64>` field `value` stores a boolean into a `u64` field, which holds a numeric value
+fail/facts/transparent_alias_qualified_case_wrong_payload_through_target_body_rejected rejected 7940ms expected @9715740cac5f
 	construction of `leaf::choices::Choice<u64>` field `value` stores a boolean into a `u64` field, which holds a numeric value
 fail/facts/transparent_alias_rhs_captured_supplier_call_result_mismatch_rejected rejected 2345ms expected @a1964f50142c
 	argument `value` for state `forward` expects `[u8; 5]`, got `named value`; expected carrier `array(named(name(u8)),literal(5))`, declared place carrier `array(named(name(u8)),literal(4))`
@@ -10529,8 +10533,10 @@ pass/facts/transparent_alias_qualified_cases_through_call_result_exit checked 11
 pass/facts/transparent_alias_qualified_cases_through_const_name_exit checked 13240ms check-target:macos_arm64 @2360394fa4f4
 pass/facts/transparent_alias_qualified_cases_through_field_exit checked 12925ms check-target:macos_arm64 @417ca5344d79
 pass/facts/transparent_alias_qualified_cases_through_match_join_exit checked 13240ms check-target:macos_arm64 @2360394fa4f4
+pass/facts/transparent_alias_qualified_cases_through_other_machine_exit checked 17597ms check-target:macos_arm64 @9715740cac5f
 pass/facts/transparent_alias_qualified_cases_through_other_state_exit checked 12405ms check-target:macos_arm64 @2360394fa4f4
 pass/facts/transparent_alias_qualified_cases_through_parameter_exit checked 9638ms check-target:macos_arm64 @417ca5344d79
+pass/facts/transparent_alias_qualified_cases_through_target_body_exit checked 17590ms check-target:macos_arm64 @9715740cac5f
 pass/facts/transparent_alias_rhs_captured_supplier_call_result_exit checked 7568ms check-target:macos_arm64 @a1964f50142c
 pass/facts/transparent_alias_rhs_captured_supplier_const_name_exit checked 7750ms check-target:macos_arm64 @df2704cb8b18
 pass/facts/transparent_alias_rhs_captured_supplier_exit checked 5439ms check-target:macos_arm64 @24d35f3b86c4
