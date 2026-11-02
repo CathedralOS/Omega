@@ -107,8 +107,9 @@ pub(super) struct ScalarLoanBinding {
     pub(super) argument_index: usize,
     field_path: Vec<CanonicalStructuralPathSegment>,
     pub(super) access: StructuralAccess,
-    source: PlaceId,
+    pub(super) source: PlaceId,
     pub(super) storage: PrimitiveStorage,
+    pub(super) resident_storage: Option<PrimitiveStorage>,
     pub(super) direct_original: bool,
     scalar_type: ScalarType,
     shared_view: bool,
@@ -240,6 +241,7 @@ impl BoundaryScalarLoans {
         });
         self.bindings.push(ScalarLoanBinding {
             direct_original: false,
+            resident_storage: None,
             identity,
             argument_index,
             field_path,
@@ -286,7 +288,10 @@ impl BoundaryScalarLoans {
             // host code. Callback code receives no mutable execution reference.
             let current = execution.read_primitive_storage(
                 binding.source,
-                binding.storage.clone(),
+                binding
+                    .resident_storage
+                    .clone()
+                    .unwrap_or_else(|| binding.storage.clone()),
                 binding.scalar_type,
                 binding.scalar_type,
                 binding.shared_view,
@@ -317,7 +322,12 @@ impl BoundaryScalarLoans {
         for (buffer, binding) in buffers.into_iter().zip(self.bindings) {
             if binding.access != StructuralAccess::SharedBorrow {
                 if binding.direct_original {
-                    execution.record_original_scalar_write(&binding.storage)?;
+                    execution.record_original_scalar_write(
+                        binding
+                            .resident_storage
+                            .as_ref()
+                            .unwrap_or(&binding.storage),
+                    )?;
                 } else {
                     execution.store_primitive_storage(
                         binding.source,

@@ -160,6 +160,7 @@ fn capture_byte_view(
                     referent: Vec::new(),
                     access: binding.access,
                     values,
+                    allocation_contents: Vec::new(),
                     argument_path: Vec::new(),
                     view_type: binding.view_type(),
                     references: Vec::new(),
@@ -207,8 +208,11 @@ impl BoundaryStorageInputs {
             return Ok(());
         }
         let mut captures = Vec::new();
+        let mut scalar_storages = Vec::with_capacity(self.scalars.bindings.len());
         for binding in &self.scalars.bindings {
-            let original = execution.original_scalar_owner(&binding.storage, identity_cursor)?;
+            let storage = original_scalar_storage(execution, &binding.storage)?;
+            scalar_storages.push(storage.clone());
+            let original = execution.original_scalar_owner(&storage, identity_cursor)?;
             if binding.access == StructuralAccess::MutableBorrow
                 && !execution.normal_qualifications_cover(
                     &original,
@@ -221,17 +225,21 @@ impl BoundaryStorageInputs {
                     "mutable original scalar storage lacks its owner qualification preservation",
                 ));
             }
-            let value = execution.original_scalar(&original, &binding.storage)?;
+            let value = execution.original_scalar(&original, &storage)?;
+            let allocation_contents =
+                execution.original_scalar_allocation(binding.source, &original, &storage)?;
+            let mut request = execution.original_storage_request(
+                &original,
+                binding.argument_index,
+                binding.access,
+                value.path.clone(),
+                vec![value],
+            )?;
+            request.allocation_contents = allocation_contents;
             captures.push(CapturedOriginal {
                 owner: Some(StructuralRuntimePlace::from(&original)),
-                request: execution.original_storage_request(
-                    &original,
-                    binding.argument_index,
-                    binding.access,
-                    value.path.clone(),
-                    vec![value],
-                )?,
-                endpoints: vec![binding.storage.endpoint.clone()],
+                request,
+                endpoints: vec![storage.endpoint.clone()],
             });
         }
         for binding in &self.structural {
@@ -470,14 +478,51 @@ impl BoundaryStorageInputs {
                 }
             }
         }
-        for binding in &mut self.scalars.bindings {
+        for (binding, storage) in self
+            .scalars
+            .bindings
+            .iter_mut()
+            .zip(scalar_storages.into_iter())
+        {
             binding.direct_original = true;
+            binding.resident_storage = Some(storage);
         }
         for binding in &mut self.structural {
             binding.direct_original = true;
         }
         Ok(())
     }
+}
+
+fn original_scalar_storage(
+    execution: &TerminalExecution<'_>,
+    storage: &PrimitiveStorage,
+) -> Result<PrimitiveStorage, TerminalInterpretError> {
+    let PrimitiveStorageEndpoint::ViewByte { bytes, index } = &storage.endpoint else {
+        return Ok(storage.clone());
+    };
+    let Some(window) = bytes.original_array() else {
+        return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+            "original byte-view scalar requires its captured array window",
+        ));
+    };
+    if *index >= window.length {
+        return Err(malformed());
+    }
+    let index = window
+        .offset
+        .checked_add(*index)
+        .ok_or_else(malformed)?;
+    if index >= execution.stored_byte_array_length(&window.array)? {
+        return Err(malformed());
+    }
+    Ok(PrimitiveStorage {
+        endpoint: PrimitiveStorageEndpoint::ArrayElement {
+            array: window.array.clone(),
+            index,
+        },
+        encoding: storage.encoding,
+    })
 }
 
 fn endpoint_parent(
@@ -544,6 +589,40 @@ impl TerminalExecution<'_> {
                 })
             }
         }
+    }
+
+    /// A scalar loan preserves every initialized scalar in the physical
+    /// allocation it points into. The returned cells are an allocation image
+    /// only: `values` still names the authenticated endpoint that receives
+    /// resident custody.
+    fn original_scalar_allocation(
+        &self,
+        source: semantic_vocabulary::PlaceId,
+        original: &TerminalStructuralValue,
+        storage: &PrimitiveStorage,
+    ) -> Result<Vec<TerminalOriginalScalarValue>, TerminalInterpretError> {
+        let leaves = crate::structural_storage::contents::describe(
+            self,
+            original,
+            StructuralAccess::SharedBorrow,
+            None,
+        )?
+        .leaves;
+        let (_, scalars) = crate::structural_storage::contents::capture(
+            self,
+            source,
+            original,
+            None,
+            None,
+            StructuralAccess::SharedBorrow,
+            &leaves,
+            &[],
+        )?;
+        scalars
+            .into_iter()
+            .filter(|scalar| scalar.storage.endpoint != storage.endpoint)
+            .map(|scalar| self.original_scalar(original, &scalar.storage))
+            .collect()
     }
 
     fn original_scalar_owner(
@@ -655,6 +734,7 @@ impl TerminalExecution<'_> {
             referent,
             access,
             values,
+            allocation_contents: Vec::new(),
             argument_path: Vec::new(),
             view_type: original.structural_type,
             references: Vec::new(),
