@@ -108,6 +108,7 @@ impl ExpressionTable {
         // declaration-selection occurrences are minted. Keep the exact source
         // coordinate so finalization can reunite every retained copy.
         let source_span = origin.source_span(expression);
+        let materialization_source = origin.materialization_source(expression);
         let occurrences = origin
             .authored_selection_occurrences(expression)
             .collect::<Vec<_>>();
@@ -322,6 +323,10 @@ impl ExpressionTable {
                 .resize(position + 1, (Handle::invalid(), Handle::invalid()));
         }
         copies.expressions[position] = (expression, copied);
+        if materialization_source.is_valid() {
+            let authored = self.copy_graph(source, materialization_source, copies);
+            self.retain_materialization_source(copied, authored);
+        }
         copied
     }
 

@@ -2113,6 +2113,10 @@ pub fn visit_expression(
     if !expression.is_valid() || !retained.expression(expression) {
         return;
     }
+    let authored = program.expression_table.materialization_source(expression);
+    if authored.is_valid() && retained.type_expression(authored) {
+        visit_expression(program, retained, authored);
+    }
     if retained.derived_declaration_references()
         && let Some(operation) = program.expression_table.open_index_operation(expression)
     {

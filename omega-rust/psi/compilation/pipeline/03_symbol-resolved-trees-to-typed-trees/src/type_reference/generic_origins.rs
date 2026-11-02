@@ -1,7 +1,7 @@
 //! Independently rejoin a use's application to its shared generated carrier.
 //!
 //! Structural construction retains the original application before its complete
-//! typed context exists. Range equality finishes after symbols and operators are
+//! typed context exists. Range and materialized-value equality finish after symbols and operators are
 //! installed, on both ordinary and seeded paths. Never evaluate a landed bound
 //! using the partially built program: it can lack its carrier or an authored
 //! operator which vetoes builtin arithmetic. Final replay uses original operands,
@@ -15,16 +15,29 @@ use resolved::name::DiagnosticName;
 use resolved::types::{FixedArrayLength, TypeConstraint, TypeReference};
 use symbols::{SymbolHandle, SymbolKind};
 
-/// Complete the range equality deferred by structural type construction.
+/// Complete computed-argument equality deferred by structural type construction.
 /// Reuse the retained source roster rather than adding a second obligation IR.
-pub(crate) fn validate_range_arguments(
+pub(crate) fn validate_computed_arguments(
     source: &resolved::SymbolResolvedTrees,
     typed: &typed::TypedTrees,
 ) -> Result<(), Diagnostic> {
     if source.tables.types.generic_application_origins.is_empty()
-        || !type_constraints(source)
+        || (!type_constraints(source)
             .iter()
             .any(|(_, constraint)| matches!(constraint, TypeConstraint::Range { .. }))
+            && !source
+                .tables
+                .bodies
+                .expressions
+                .iter_expressions()
+                .any(|(expression, _)| {
+                    source
+                        .tables
+                        .bodies
+                        .expressions
+                        .materialization_source(expression)
+                        .is_valid()
+                }))
     {
         return Ok(());
     }
@@ -384,24 +397,28 @@ fn validate_origin<'source>(
         source,
         typed: typed.as_mut().map(ReplayTyped::reborrow),
         active: Vec::new(),
+        failure: None,
         canonical_lifetimes: &definition.lifetime_parameters,
         actual_lifetimes: &arguments.lifetime_arguments,
     };
     if source.symbols.get(arguments.base_symbol).kind != SymbolKind::Data
         || arguments.base_symbol != shared.base_symbol
         || !equality.arguments(arguments.arguments, shared.arguments)
-        || selected.is_some_and(|previous| {
-            let mut exact = Equality {
-                source,
-                typed,
-                active: Vec::new(),
-                canonical_lifetimes: &[],
-                actual_lifetimes: &[],
-            };
-            !exact.reference(previous, application)
-        })
     {
-        return Err(mismatch(name));
+        return Err(equality.failure.take().unwrap_or_else(|| mismatch(name)));
+    }
+    if let Some(previous) = selected {
+        let mut exact = Equality {
+            source,
+            typed,
+            active: Vec::new(),
+            failure: None,
+            canonical_lifetimes: &[],
+            actual_lifetimes: &[],
+        };
+        if !exact.reference(previous, application) {
+            return Err(exact.failure.take().unwrap_or_else(|| mismatch(name)));
+        }
     }
     Ok(application)
 }
@@ -433,6 +450,7 @@ struct Equality<'source, 'typed> {
     source: &'source resolved::SymbolResolvedTrees,
     typed: Option<ReplayTyped<'typed>>,
     active: Vec<(Handle<TypeReference>, Handle<TypeReference>)>,
+    failure: Option<Diagnostic>,
     canonical_lifetimes: &'source [DiagnosticName],
     actual_lifetimes: &'source [DiagnosticName],
 }
@@ -563,7 +581,30 @@ impl Equality<'_, '_> {
                     && self.arguments(*left_arguments, *right_arguments)
             }
             (TypeReference::ConstExpression(left), TypeReference::ConstExpression(right)) => {
-                left.expression.is_valid() && left == right
+                if !left.expression.is_valid() || !right.expression.is_valid() {
+                    return false;
+                }
+                if left == right {
+                    return true;
+                }
+                let expressions = &self.source.tables.bodies.expressions;
+                if !expressions
+                    .materialization_source(left.expression)
+                    .is_valid()
+                    || !expressions
+                        .materialization_source(right.expression)
+                        .is_valid()
+                {
+                    return false;
+                }
+                // Copies of a completed value have independent arena handles.
+                // As for landed ranges, structural construction may defer this
+                // equation, but final replay owes both complete canonical values
+                // under their independently selected nominal carriers.
+                self.typed.is_none()
+                    || self
+                        .closed_materialized_value(left)
+                        .is_some_and(|left| Some(left) == self.closed_materialized_value(right))
             }
             (TypeReference::Unit, TypeReference::Unit) => true,
             _ => false,
@@ -601,7 +642,7 @@ impl Equality<'_, '_> {
                     end_inclusive: right_inclusive,
                 },
                 // Numeric equality must wait for completed symbols and operators;
-                // validate_range_arguments performs that rejoin before publication.
+                // validate_computed_arguments performs that rejoin before publication.
             ) => {
                 self.typed.is_none()
                     || self
@@ -611,6 +652,55 @@ impl Equality<'_, '_> {
                         })
             }
             _ => false,
+        }
+    }
+
+    fn closed_materialized_value(
+        &mut self,
+        source: &resolved::types::ConstExpressionTypeReference,
+    ) -> Option<(String, String)> {
+        let expressions = &self.source.tables.bodies.expressions;
+        let reference = expressions.source_span(source.expression);
+        let typed = self.typed.as_mut()?.get_mut();
+        let result = (|| {
+            let expression =
+                lower_expression_handle_from_table(expressions, typed, source.expression)?;
+            let carrier = validation::parameter_expression_result_type_reference(
+                typed,
+                source.lexical_owner,
+                &[],
+                expression,
+            )
+            .ok_or_else(|| {
+                Diagnostic::error(
+                    "completed const argument lost its independently selected carrier",
+                )
+                .with_source_span(reference)
+            })?;
+            let value = validation::normalize_closed_const_expression(
+                typed,
+                source.lexical_owner,
+                expression,
+                carrier,
+            )
+            .map_err(|reason| {
+                Diagnostic::error(format!("completed const argument replay failed: {reason}",))
+                    .with_source_span(reference)
+            })?
+            .ok_or_else(|| {
+                Diagnostic::error(
+                    "completed const argument is not canonical under its selected carrier",
+                )
+                .with_source_span(reference)
+            })?;
+            Ok((value.type_name, value.encoding))
+        })();
+        match result {
+            Ok(value) => Some(value),
+            Err(error) => {
+                self.failure.get_or_insert(error);
+                None
+            }
         }
     }
 
