@@ -41,11 +41,9 @@ use effects::SelectedProviderPlanFacts;
 use effects::provider_plan::{
     ProviderBinding, ProviderIdentityTable, ProviderPlan, ProviderPlanRow,
 };
-use language_semantics::direct_calls::DirectCallDeclarations;
 use package_compilation::{
     AcceptedSemanticBinding, AcceptedSemanticBindingRole, PackageCompilationInputs,
 };
-use symbols::SymbolHandle;
 
 /// Resolve the exact Product boundary and normalized schema for the canonical
 /// filesystem host binding.
@@ -237,9 +235,9 @@ pub struct ProviderSettlement<Rows = crate::PreparedProviderRows> {
     /// Complete execution declarations, including compiler-settled leaf plans.
     /// Callback projection and native handoff share this same closed roster.
     pub provider_declarations: std::sync::Arc<[backend_plan::TerminalTargetProviderPlan]>,
-    /// Original authored candidates and their defaults, before native Build
-    /// supplies and compiler-minted plans enter the execution inventory.
-    pub(crate) authored_providers: std::sync::Arc<crate::target_machines::AuthoredTargetProviders>,
+    /// Source-closed authored choices, separate from the actual selected
+    /// native-augmented receipt. Publication borrows no Source context.
+    pub provider_publication: crate::target_machines::ProviderPublicationCatalog,
     /// Exact target used to derive candidate plans, including semantic-only
     /// checking's supported host profile. This grants no deployment entry.
     pub planning_target_profile: Option<target::TargetProfile>,
@@ -289,7 +287,7 @@ impl ProviderSettlement<crate::UnpreparedProviderRows> {
             selected_provider_publication,
             boundary_provider_demands,
             provider_declarations,
-            authored_providers,
+            provider_publication,
             planning_target_profile,
             boundary_calling_plan_realizations,
             component_calling_applications,
@@ -313,7 +311,7 @@ impl ProviderSettlement<crate::UnpreparedProviderRows> {
             selected_provider_publication,
             boundary_provider_demands,
             provider_declarations,
-            authored_providers,
+            provider_publication,
             planning_target_profile,
             boundary_calling_plan_realizations,
             component_calling_applications,
@@ -328,11 +326,6 @@ impl ProviderSettlement<crate::UnpreparedProviderRows> {
 }
 
 impl<Intrinsic> ProviderSettlement<Intrinsic> {
-    pub fn authored_providers(
-        &self,
-    ) -> &std::sync::Arc<crate::target_machines::AuthoredTargetProviders> {
-        &self.authored_providers
-    }
     /// Publish the complete calling catalog from its producing owners. Explicit
     /// policy rows can also own an external import; retain that same application
     /// once. Default native policies retain their materialized geometry here too.
@@ -378,17 +371,10 @@ impl<Intrinsic> ProviderSettlement<Intrinsic> {
 /// slots. Unselected exported implementations remain checked review content.
 pub fn settle_checked_providers(
     checked: &checked_trees::CheckedTrees,
-    exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
     services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'_>,
-    body_declarations: &DirectCallDeclarations<SymbolHandle>,
-    settled_target_machines: SettledTargetMachineDeclarations,
     selected_target_profile: Option<target::TargetProfile>,
     package_inputs: Option<&PackageCompilationInputs>,
-    evaluated_bindings: Result<EvaluatedViaBindingTable, Vec<Diagnostic>>,
-    build_provider_selections: &[ProviderSelection],
-    application_roots: Option<&[(String, SymbolHandle)]>,
-    native_bindings: &crate::native_bindings::PreparedNativeBuildBindings,
-    native_supplies: &[crate::native_bindings::NativeBuildSupply],
+    prepared_providers: Result<crate::target_machines::PreparedProductProviders, Vec<Diagnostic>>,
     assumed_bindings: &[build_time_evaluation::assumed_bindings::AssumedBindingContract],
     accepted_component_assumptions: &std::collections::BTreeSet<[u8; 32]>,
     boundary_calling_plan_realizations: Vec<BoundaryCallingPlanRealization>,
@@ -412,26 +398,15 @@ pub fn settle_checked_providers(
     // PRV4 provider selection mirrors the native pipeline: candidates remain
     // separate by provider type and only the uniquely covering candidate may
     // rewrite adapter calls in the interpreter program.
-    let mut evaluated_via_bindings = evaluated_bindings?;
-    let authored_providers =
-        std::sync::Arc::new(crate::target_machines::AuthoredTargetProviders::derive(
-            services,
-            body_declarations,
-            &boundary_calling_plan_realizations,
-            &evaluated_via_bindings,
-            planning_target,
-            settled_target_machines,
-        )?);
-    let mut derived_provider_plans = authored_providers.candidates().to_vec();
-    let mut identities = evaluated_via_bindings.identities().clone().into_builder();
-    let native_build_plans = native_bindings.derive(
-        native_supplies,
-        &boundary_calling_plan_realizations,
+    let prepared = prepared_providers?.attach_calling(
+        checked,
         planning_target,
-        &mut identities,
+        &boundary_calling_plan_realizations,
     )?;
-    derived_provider_plans.extend(native_build_plans.iter().cloned());
-    evaluated_via_bindings.retain_extended_identities(identities.build())?;
+    let evaluated_via_bindings = prepared.bindings;
+    let derived_provider_plans = prepared.candidates;
+    let native_build_plans = derived_provider_plans[prepared.native_start..].to_vec();
+    let provider_publication = prepared.publication;
     let independent_components = independent_components::verify_independent_components(
         package_inputs,
         accepted_component_assumptions,
@@ -441,21 +416,8 @@ pub fn settle_checked_providers(
     .collect::<Vec<_>>();
     let assumptions = assumed_binding_coordinates(typed, assumed_bindings)?;
     let profile = planning_target.unwrap_or_else(target::TargetProfile::host);
-    let prepared = crate::target_machines::TargetProviderPreparationRequest {
-        context: crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product),
-        exact_toolchain_sources,
-        application_roots,
-        overrides: build_provider_selections,
-        assumed_bindings: &assumptions,
-        independent_components: &independent_components,
-        selected: None,
-        targets: &[],
-    }
-    .prepare_target(
-        profile.target_name(),
-        &authored_providers,
-        &native_build_plans,
-    )?;
+    let mut prepared = prepared.choices?;
+    prepared.independent_components = independent_components.clone();
     let artifact = calling_program.artifact.view();
     let canonical_roots = prepared.close_application_roots(artifact)?;
     let provider_selection::SelectedTargetProviders {
@@ -776,7 +738,7 @@ pub fn settle_checked_providers(
             selected_provider_publication,
             boundary_provider_demands,
             provider_declarations: provider_declarations.into(),
-            authored_providers,
+            provider_publication,
             planning_target_profile: planning_target,
             boundary_calling_plan_realizations,
             component_calling_applications,

@@ -10,16 +10,13 @@ use artifacts::compile_timings::{CompileTimings, EXECUTION_SETTLEMENT};
 use compilation_products::CheckedProductSource;
 use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
-use provider_planning::SettledTargetMachineDeclarations;
+use provider_planning::target_machines::{PreparedProductProviders, ProductProviderPreparation};
 
 pub(crate) struct PreparedProductTarget {
     pub(crate) profile: Option<target::TargetProfile>,
     pub(crate) package_inputs: Option<PackageCompilationInputs>,
     pub(crate) declarations: Result<PreparedTargetDeclarations, Vec<Diagnostic>>,
-    pub(crate) evaluated_bindings: Result<
-        provider_planning::evaluated_via_bindings::EvaluatedViaBindingTable,
-        Vec<Diagnostic>,
-    >,
+    pub(crate) deployment: Result<(), Vec<Diagnostic>>,
     pub(crate) timings: CompileTimings,
 }
 
@@ -28,7 +25,7 @@ pub(crate) struct PreparedTargetDeclarations {
         Option<provider_planning::program_entry::PreparedCompilerProgramEntry>,
         Vec<Diagnostic>,
     >,
-    pub(crate) target_machines: SettledTargetMachineDeclarations,
+    pub(crate) providers: Result<PreparedProductProviders, Vec<Diagnostic>>,
 }
 
 impl PreparedProductTarget {
@@ -75,7 +72,8 @@ impl PreparedProductTarget {
         } else {
             CompileTimings::default()
         };
-        let (declarations, evaluated_bindings) = timed(&mut timings, EXECUTION_SETTLEMENT, |_| {
+        let deployment = source.computed_build_config.config.provider_deployment();
+        let declarations = timed(&mut timings, EXECUTION_SETTLEMENT, |_| {
             // Ownership/default acquisition used to refuse before Calling, but
             // a formed entry's refusal belongs after provider selection.
             let declarations = (|| {
@@ -98,10 +96,7 @@ impl PreparedProductTarget {
                     &source.provider_defaults,
                     profile.unwrap_or_else(target::TargetProfile::host),
                 );
-                Ok(PreparedTargetDeclarations {
-                    entry,
-                    target_machines,
-                })
+                Ok((entry, target_machines))
             })();
             // Evaluate the same complete authored population under this actual
             // occurrence's fallback target. Do not filter inactive authored
@@ -115,13 +110,40 @@ impl PreparedProductTarget {
                     profile.or_else(target::TargetProfile::host_if_supported),
                     package_inputs.as_ref(),
                 );
-            (declarations, evaluated_bindings)
+            declarations.map(|(entry, target_machines)| {
+                let providers = (|| {
+                    let deployment = deployment.as_ref().map_err(Clone::clone)?;
+                    ProductProviderPreparation {
+                        checked: &source.program,
+                        services: source
+                            .provider_inventory
+                            .services_for(&source.program)
+                            .map_err(|error| vec![error])?,
+                        body_declarations: source
+                            .provider_inventory
+                            .direct_calls_for(&source.program)
+                            .map_err(|error| vec![error])?,
+                        origins: source.provider_inventory.origins(),
+                        defaults: &source.provider_defaults,
+                        target_machines,
+                        selected_target_profile: profile,
+                        evaluated_bindings: evaluated_bindings?,
+                        application_roots: deployment.roots.as_deref(),
+                        overrides: &source.computed_build_config.config.provider_selections,
+                        exact_toolchain_sources: source.sources.exact_toolchain_sources(),
+                        native_bindings: &source.native_bindings,
+                        native_supplies: &source.computed_build_config.config.native_bindings,
+                    }
+                    .capture()
+                })();
+                PreparedTargetDeclarations { entry, providers }
+            })
         });
         Ok(Self {
             profile,
             package_inputs,
             declarations,
-            evaluated_bindings,
+            deployment: deployment.map(|_| ()),
             timings,
         })
     }

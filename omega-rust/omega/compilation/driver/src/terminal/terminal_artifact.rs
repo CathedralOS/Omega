@@ -196,7 +196,7 @@ impl<'a> PreparedTerminalProduct<'a> {
         let view = &request.view;
         if request.use_kind != TerminalProductUse::Application {
             let provider_publication =
-                prepare_target_provider_publication(view, request.use_kind, requested_scopes)?;
+                prepare_target_provider_publication(view, request.use_kind, requested_scopes);
             return Ok(Self {
                 position,
                 request,
@@ -218,7 +218,7 @@ impl<'a> PreparedTerminalProduct<'a> {
         // Admit its behavior and callbacks while retaining the semantic receipt.
         let physical_adapter = entry.physical_adapter();
         let provider_publication =
-            prepare_target_provider_publication(view, request.use_kind, requested_scopes)?;
+            prepare_target_provider_publication(view, request.use_kind, requested_scopes);
         Ok(Self {
             position,
             request,
@@ -493,110 +493,23 @@ fn admit_terminal_production<'a>(
     })
 }
 
-/// Prepare the Build companion while checked custody is available. Selection
-/// waits for the emitted demand catalog: selecting every source candidate here
-/// would demand unused providers. Preparation retains unavailable targets as
-/// deferred refusal rows, never cohort failures.
+/// Join Source-produced choices with this use's actual receipt and request
+/// roster. Inspection selects against its own artifact instead of reusing the
+/// Product receipt. No declaration lookup or candidate derivation remains here.
 fn prepare_target_provider_publication(
     source: &TerminalProductionView<'_>,
     use_kind: TerminalProductUse<'_>,
     requested_scopes: &[String],
-) -> Result<provider_planning::target_machines::PreparedTargetProviderPublication, Vec<Diagnostic>>
-{
-    let mut targets = source
-        .provider_defaults
-        .iter()
-        .filter_map(|row| row.target.clone())
-        .collect::<Vec<_>>();
-    targets.extend(
-        source
-            .build
-            .config
-            .provider_selections
-            .iter()
-            .filter_map(|selection| {
-                selection
-                    .target
-                    .map(|target| target.canonical_name().to_owned())
-            }),
-    );
-    for binding in &source.build.config.root_bindings {
-        if let Some((owner, _)) = binding.slot.rsplit_once("::")
-            && let Ok(profile) = target::TargetProfile::from_root_slot_owner(owner)
-        {
-            targets.push(profile.target_name().to_owned());
-        }
-    }
-    targets.push(
-        source
-            .selected_target_profile
-            .unwrap_or_else(target::TargetProfile::host)
-            .target_name()
-            .to_owned(),
-    );
-    targets.extend(
-        checked_trees::ProofApplications::new(
-            &source.program.facts.proof_applications,
-            &source.program.facts.operational,
-        )
-        .scopes(
-            source
-                .selected_target_profile
-                .unwrap_or_else(target::TargetProfile::host)
-                .target_name(),
-        )
-        .into_iter()
-        .map(str::to_owned),
-    );
-    // Build rows are not the request domain. Even a sibling with no authored
-    // row needs a complete (possibly refused) proposal in this publication.
-    targets.extend(requested_scopes.iter().cloned());
-    targets.sort();
-    targets.dedup();
-    let inventory = provider_planning::target_machines::TargetProviderInventoryRequest {
-        body_declarations: source.provider_inventory.direct_calls(),
-        origins: source.provider_inventory.origins(),
-        services: source
-            .provider_inventory
-            .services_for(source.program)
-            .map_err(|error| vec![error])?,
-        defaults: source.provider_defaults,
-        authored: source.provider_settlement.authored_providers(),
-        calling_plans: &source
-            .provider_settlement
-            .boundary_calling_plan_realizations,
-        bindings: &source.provider_settlement.evaluated_via_bindings,
+) -> provider_planning::target_machines::PreparedTargetProviderPublication {
+    let selected = match use_kind {
+        TerminalProductUse::Inspection(_) => None,
+        _ => Some(&source.provider_settlement.selected_provider_publication),
     };
-    let targets = targets
-        .into_iter()
-        .map(|target| {
-            let prepared = inventory.prepare(&target);
-            (target, prepared)
-        })
-        .collect::<Vec<_>>();
-    let deployment = source.build.config.provider_deployment()?;
-    Ok(
-        provider_planning::target_machines::TargetProviderPreparationRequest {
-            application_roots: deployment.roots.as_deref(),
-            context: provider_planning::ProviderPlanningContext::new(
-                &source.program.typed,
-                source::DependencyScope::Product,
-            ),
-            exact_toolchain_sources: source.sources.exact_toolchain_sources(),
-            overrides: &source.build.config.provider_selections,
-            assumed_bindings: source.plan_facts.assumed_bindings(),
-            independent_components: &source.provider_settlement.verified_independent_components,
-            // A named inspection has its own requested root and semantic
-            // publication. It must select against that catalog, not replay a
-            // receipt bound to the shared Product artifact. Ordinary Product
-            // publication keeps its already-settled exact choice unchanged.
-            selected: match use_kind {
-                TerminalProductUse::Inspection(_) => None,
-                _ => Some(&source.provider_settlement.selected_provider_publication),
-            },
-            targets: &targets,
-        }
-        .prepare(),
+    source.provider_settlement.provider_publication.prepare(
+        requested_scopes,
+        selected,
+        source.plan_facts.assumed_bindings(),
+        &source.provider_settlement.verified_independent_components,
     )
 }
 

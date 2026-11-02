@@ -96,10 +96,11 @@ impl PreparedNativeBuildBindings {
         Self { rows }
     }
 
-    pub(crate) fn derive(
+    /// Form neutral candidates once from this occurrence's Build evidence.
+    /// Final schema/Calling validation belongs after evaluated attachment.
+    pub(crate) fn form(
         &self,
         supplies: &[NativeBuildSupply],
-        calling: &[crate::calling_policy_plans::BoundaryCallingPlanRealization],
         selected_target: Option<target::TargetProfile>,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     ) -> Result<Vec<DerivedProviderPlan>, Vec<Diagnostic>> {
@@ -151,7 +152,7 @@ impl PreparedNativeBuildBindings {
                 })?
                 .surface()
                 .map_err(|error| vec![error])?;
-            let schema = crate::service_schema::attach_calling(&prepared, calling);
+            let schema = crate::service_schema::attach_calling(&prepared, &[]);
             let group = plans.iter().position(|candidate| {
                 candidate.provenance.schema.symbol() == requirement.owner
                     && candidate.plan.target == target.target_name()
@@ -245,16 +246,6 @@ impl PreparedNativeBuildBindings {
                 )));
             candidate.provenance.row_target_machine_origins.push(None);
             candidate.provenance.row_accessors.push(None);
-        }
-        for candidate in &plans {
-            let errors = candidate.plan.validate_candidate_against_schema();
-            if !errors.is_empty() {
-                return Err(vec![Diagnostic::error(format!(
-                    "incomplete native Build provider `{}`: {}",
-                    candidate.plan.name,
-                    errors.join("; ")
-                ))]);
-            }
         }
         Ok(plans)
     }
