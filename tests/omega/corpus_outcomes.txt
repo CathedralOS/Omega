@@ -2611,6 +2611,8 @@ fail/facts/resident_backing_runtime_cells_unbounded_rejected rejected 8432ms exp
 	cannot prove requires contract for call merge_vacant_extents from exchange: prefix.taken.length == 0 || suffix.length == 0 || embed(suffix.base) == embed(prefix.taken.base) + embed(prefix.taken.length) (needs fact `left.length == 0 || right.length == 0 || embed(right.base) == embed(left.base) + embed(left.length)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove ensures contract for exit from exchange at statement 6: result.storage.base == storage.base
 	cannot prove ensures contract for exit from exchange at statement 6: result.storage.length == storage.length
+fail/facts/resident_backing_runtime_helper_loop_duplicate rejected 15333ms expected @4083ce80c932
+	cannot use `first` in machine `step` state `entry` (statement 1) after `first` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `first` first
 fail/facts/resident_backing_runtime_loop_changed_arrival rejected 8586ms expected @e993f43ba966+wt
 	cannot prove ensures contract for exit from carry at statement 1: result.first.base == first.base
 	cannot prove ensures contract for exit from carry at statement 1: result.second.base == second.base
@@ -10130,6 +10132,7 @@ pass/facts/resident_backing_other_state_exit checked 9185ms check-target:macos_a
 pass/facts/resident_backing_parameter_exit checked 9413ms check-target:macos_arm64 @b3876048c0a2
 pass/facts/resident_backing_plain_ram_exit checked 7289ms check-target:macos_arm64 @c6b8285077a8+wt
 pass/facts/resident_backing_runtime_cells_exit checked 10759ms check-target:macos_arm64 @c6b8285077a8+wt
+pass/facts/resident_backing_runtime_helper_loop_exit checked 19198ms check-target:macos_arm64 @4083ce80c932
 pass/facts/resident_backing_runtime_loop_exit checked 20840ms check-target:macos_arm64 @6fe30d215f49
 pass/facts/resident_backing_target_body_exit checked 9694ms check-target:macos_arm64 @b3876048c0a2
 pass/facts/result_cleanup_guarantees_through_call_result_exit checked 4216ms check-target:macos_arm64 @ccdb99ca2214
