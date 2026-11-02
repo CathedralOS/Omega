@@ -9,6 +9,7 @@ path = "src/lib.rs"
 
 [dependencies]
 selected-instructions-to-selected-instructions = { path = "../04_selected-instructions-to-selected-instructions" }
+selected-instruction-analyses = { path = "../../representations/selected-instructions/analyses" }
 register-environment = { path = "../../backend/register-environment" }
 isa-aarch64 = { path = "../../backend/instruction-set-architectures/isa-aarch64" }
 isa-x86_64 = { path = "../../backend/instruction-set-architectures/isa-x86_64" }

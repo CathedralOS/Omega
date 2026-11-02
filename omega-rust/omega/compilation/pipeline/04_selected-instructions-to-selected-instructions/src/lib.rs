@@ -15,275 +15,23 @@
 //! [`SelectedInstructionOptimizationOutput`] from
 //! `selected_optimization::optimization_output`.
 
-/// The six analysis identities every validation receipt and analysis input
-/// in this stage carries: live ranges, allocation legality, the register
-/// environment, allocator availability, the optimization unit and the fuel
-/// schedule. Expanded inside each receipt's `impl` so `self.<field>`
-/// resolves on the receiver's own field names.
-macro_rules! shared_analysis_identity_accessors {
-    ($visibility:vis) => {
-        $visibility const fn ranges(self) -> LiveRangeIdentity {
-            self.ranges
-        }
-        $visibility const fn legality(self) -> AllocationLegalityIdentity {
-            self.legality
-        }
-        $visibility const fn register_environment(
-            self,
-        ) -> TargetRegisterEnvironmentIdentity {
-            self.register_environment
-        }
-        $visibility const fn allocator_availability(
-            self,
-        ) -> AllocatorAvailabilityIdentity {
-            self.allocator_availability
-        }
-        $visibility const fn optimization_unit(self) -> OptimizationUnitIdentity {
-            self.optimization_unit
-        }
-        $visibility const fn fuel_schedule(self) -> FuelScheduleIdentity {
-            self.fuel_schedule
-        }
-    };
-}
+#[macro_use]
+extern crate selected_instruction_analyses;
 
-/// One owner row per receipt accessor: the field's own name read back as its
-/// own type. A receipt whose rows are not one of the shared identity blocks
-/// lists them here instead of restating the body at the site; `ref` selects
-/// the `&self` receiver for receipts whose callers hold a reference.
-macro_rules! receipt_accessor_rows {
-    (ref $name:ident { $( $(#[$meta:meta])* $field:ident : $ty:ty ),* $(,)? }) => {
-        $( $(#[$meta])* pub const fn $field(&self) -> $ty { self.$field } )*
-    };
-    ($name:ident { $( $(#[$meta:meta])* $field:ident : $ty:ty ),* $(,)? }) => {
-        $( $(#[$meta])* pub const fn $field(self) -> $ty { self.$field } )*
-    };
-    (nested $name:ident, $row:ident { $( $(#[$meta:meta])* $field:ident : $ty:ty ),* $(,)? }) => {
-        $( $(#[$meta])* pub const fn $field(self) -> $ty { self.$row.$field() } )*
-    };
-}
+// Current selected-program facts and the shared work accounting live in
+// the selected-instruction analyses package; this stage stages and rewrites
+// over them.
+use selected_instruction_analyses as analyses;
+use selected_instruction_analyses::work_accounting;
 
-/// A by-value receipt whose accessor rows are exactly its fields. The struct
-/// and `receipt_accessor_rows!` stay one roster.
-macro_rules! copy_receipt {
-    (
-        $(#[$meta:meta])*
-        $vis:vis struct $name:ident {
-            $(
-                $(#[$fmeta:meta])*
-                $fvis:vis $field:ident : $ty:ty
-            ),* $(,)?
-        }
-    ) => {
-        $(#[$meta])*
-        $vis struct $name {
-            $(
-                $(#[$fmeta])*
-                $fvis $field: $ty
-            ),*
-        }
-
-        impl $name {
-            receipt_accessor_rows!($name {
-                $($(#[$fmeta])* $field: $ty),*
-            });
-        }
-    };
-}
-
-/// The producer rows a staged shell re-serves unchanged: one internal rule per
-/// accessor, so a shell names its producer field and the rows it re-serves
-/// instead of restating each delegation body and its doc. `$producer` is the
-/// field holding the retained producer stage, and every row delegates to that
-/// producer's own method of the same name.
-macro_rules! staged_producer_accessors {
-    ($producer:ident; $($row:ident),* $(,)?) => {
-        $( staged_producer_accessors!(@row $producer, $row); )*
-    };
-    (@row $producer:ident, selected) => {
-        /// The current selected program this stage describes.
-        pub const fn selected(&self) -> &SelectedProgram {
-            self.$producer.selected()
-        }
-    };
-    (@row $producer:ident, liveness) => {
-        /// The liveness facts over the current program.
-        pub const fn liveness(&self) -> &ValidatedLiveness {
-            self.$producer.liveness()
-        }
-    };
-    (@row $producer:ident, ranges) => {
-        /// The live ranges over the current program.
-        pub const fn ranges(&self) -> &ValidatedLiveRanges {
-            self.$producer.ranges()
-        }
-    };
-    (@row $producer:ident, register_environment) => {
-        /// The target register environment admitted with the current program.
-        pub const fn register_environment(&self) -> &ValidatedTargetRegisterEnvironment {
-            self.$producer.register_environment()
-        }
-    };
-    (@row $producer:ident, allocator_availability) => {
-        /// The environment-derived allocator availability governing the program.
-        pub const fn allocator_availability(&self) -> &ValidatedAllocatorAvailability {
-            self.$producer.allocator_availability()
-        }
-    };
-    (@row $producer:ident, source_legality_stage) => {
-        /// The source legality stage this stage's program was derived from.
-        pub const fn source_legality_stage(&self) -> &StagedOptimizedAllocationLegality {
-            self.$producer.source_legality_stage()
-        }
-    };
-    (@row $producer:ident, selections) => {
-        /// The governing optimizer selections for this admission.
-        pub fn selections(&self) -> &OptimizationSelections {
-            self.$producer.selections()
-        }
-    };
-    (@row $producer:ident, budget_per_pass) => {
-        /// The per-pass work budget admitted beside the same evidence.
-        pub fn budget_per_pass(&self) -> OptimizationWorkBudget {
-            self.$producer.budget_per_pass()
-        }
-    };
-}
-
-/// The validated analyses a staged optimization keeps: liveness, live
-/// ranges, and allocation legality.
-macro_rules! validated_analysis_accessors {
-    () => {
-        pub const fn liveness(&self) -> &ValidatedLiveness {
-            &self.liveness
-        }
-        pub const fn ranges(&self) -> &ValidatedLiveRanges {
-            &self.ranges
-        }
-        pub const fn legality(&self) -> &ValidatedAllocationLegality {
-            &self.legality
-        }
-    };
-}
-
-/// `From<WorkDefect>` for every bounded stage error that carries
-/// `Work(WorkDefect)`: a charge's `?` lands in the stage's own refusal surface
-/// without a per-stage adapter block or a per-site mapping.
-macro_rules! work_defect_conversion {
-    ($($error:ty),+ $(,)?) => {$(
-        impl From<WorkDefect> for $error {
-            fn from(defect: WorkDefect) -> Self {
-                Self::Work(defect)
-            }
-        }
-    )+};
-}
-
-/// One owner row for a validated analysis carrier: the admitted plan, its
-/// receipt, and the two projections every consumer reads — `plan()` and the
-/// receipt's own accessor rows. Each analysis names its carrier, plan and
-/// receipt types instead of restating the shell.
-macro_rules! validated_plan_carrier {
-    ($carrier:ident : $plan:ty, $receipt:ty) => {
-        #[derive(Debug, Clone, PartialEq, Eq)]
-        pub struct $carrier {
-            pub(crate) plan: $plan,
-            pub(crate) receipt: $receipt,
-        }
-
-        impl $carrier {
-            pub const fn plan(&self) -> &$plan {
-                &self.plan
-            }
-
-            receipt_accessor_rows!(ref $carrier {
-                receipt: $receipt,
-            });
-        }
-    };
-}
-
-/// The same carrier for an analysis that shares its admitted plan with a
-/// successor pass: the plan rides behind an `Arc`, and beside the receipt it
-/// keeps each function's share of the receipt identity so a successor plan
-/// that carries a function over unchanged need not hash it again. The row
-/// names the report-only fields the analysis keeps beside those shares.
-macro_rules! shared_plan_carrier {
-    (
-        $carrier:ident : $plan:ty, $receipt:ty {
-            $( $(#[$meta:meta])* $vis:vis $field:ident : $ty:ty ),* $(,)?
-        }
-    ) => {
-        #[derive(Debug, Clone, PartialEq, Eq)]
-        pub struct $carrier {
-            pub(crate) plan: std::sync::Arc<$plan>,
-            pub(crate) receipt: $receipt,
-            /// Each function's share of the receipt identity, kept so a
-            /// successor plan that carries a function over unchanged need
-            /// not hash it again.
-            pub(crate) function_digests: std::sync::Arc<[[u8; 32]]>,
-            $($(#[$meta])* $vis $field: $ty,)*
-        }
-
-        impl $carrier {
-            pub fn plan(&self) -> &$plan {
-                &self.plan
-            }
-
-            receipt_accessor_rows!(ref $carrier {
-                receipt: $receipt,
-            });
-        }
-    };
-}
-
-/// The whole seal of a freshly produced plan: every receipt row is copied from
-/// the plan root the producer just built, and that plan becomes the validated
-/// carrier. A bounded pass names its plan, carrier, receipt, identity function
-/// and the plan fields its receipt records instead of restating the body.
-macro_rules! seal_plan {
-    (
-        $seal:ident($plan:ty) -> $carrier:ident : $receipt:ident
-            = $identity:path, $error:ty
-        { $($field:ident),* $(,)? }
-    ) => {
-        /// Admit a freshly produced plan with its receipt; the producer calls
-        /// this instead of replaying its own output.
-        pub(crate) fn $seal(candidate: $plan) -> Result<$carrier, $error> {
-            let receipt = $receipt {
-                identity: $identity(&candidate),
-                $($field: candidate.$field,)*
-            };
-            Ok($carrier {
-                plan: candidate,
-                receipt,
-            })
-        }
-    };
-}
-
-/// `Display` and `Error` for the crate's `<context>: {self:?}` refusal
-/// convention. The caller passes the whole context, so both the
-/// `invalid <rewrite>` and the `<analysis> failed` spellings render from one
-/// owner.
-macro_rules! failed_display {
-    ($type:ty, $message:literal) => {
-        impl std::fmt::Display for $type {
-            fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                write!(formatter, concat!($message, ": {:?}"), self)
-            }
-        }
-
-        impl std::error::Error for $type {}
-    };
-}
-
-mod analyses;
 mod codec_bytes;
 mod cursor;
+mod reanalysis;
+mod selected_input;
+pub use selected_input::ValidatedSelectedAnalysis;
+pub use selected_instruction_analyses::SelectedProgramView;
 mod rewrites;
 mod selected_optimization;
-mod work_accounting;
 
 // The stage entry and the output it publishes.
 pub use selected_optimization::optimization_output::{
@@ -291,51 +39,42 @@ pub use selected_optimization::optimization_output::{
     SelectedInstructionOptimizationOutput,
 };
 
-pub use selected_optimization::{SelectedOptimizationInput, optimize_selected_instructions};
+pub use selected_instruction_analyses::SelectedOptimizationInput;
+pub use selected_optimization::optimize_selected_instructions;
 
 // The refusal every bounded pass in this stage shares.
-pub use work_accounting::WorkDefect;
+pub use selected_instruction_analyses::WorkDefect;
 
 // Current selected-program facts and their independent validation.
-pub(crate) use analyses::materialize_allocator_availability;
 pub use analyses::{
     AllocationLegalityError, LiveRangeError, LivenessError, MachineEffectStageError,
-    OptimizedAllocationLegalityCustodyError, OptimizedSelectedReanalysisError,
-    OwnedSelectedProgram, RecoveryClassificationError, RecoveryReanalysisError, SelectedProgramRef,
-    SpillChoiceError, StagedOptimizedAllocationLegality,
-    StagedOptimizedAllocationLegalityCustodyReceipt, StagedOptimizedLiveRanges,
-    StagedOptimizedSelectedReanalysis, StagedOptimizedSelectedReanalysisCustodyReceipt,
-    UnsealedRecoveryFacts, ValidatedAllocationLegality, ValidatedAllocatorAvailability,
-    ValidatedLiveRanges, ValidatedLiveness, ValidatedPreAllocationMachineEffects,
-    ValidatedRecoveryClassifications, ValidatedSelectedAnalysis, ValidatedSpillChoices,
+    OptimizedAllocationLegalityCustodyError, OwnedSelectedProgram, RecoveryClassificationError,
+    RecoveryReanalysisError, SelectedProgramRef, SpillChoiceError,
+    StagedOptimizedAllocationLegality, StagedOptimizedAllocationLegalityCustodyReceipt,
+    StagedOptimizedLiveRanges, UnsealedRecoveryFacts, ValidatedAllocationLegality,
+    ValidatedAllocatorAvailability, ValidatedLiveRanges, ValidatedLiveness,
+    ValidatedPreAllocationMachineEffects, ValidatedRecoveryClassifications, ValidatedSpillChoices,
     analyze_allocation_legality, analyze_allocation_legality_reusing, analyze_live_ranges,
     analyze_live_ranges_reusing, analyze_liveness, analyze_liveness_reusing,
     analyze_machine_effects, choose_spill_victims, classify_pressure_recovery,
     stage_optimized_allocation_legality,
     stage_optimized_allocation_legality_for_active_resident_immediate_u64_multi_use_rematerialization_v1,
-    stage_optimized_selected_reanalysis,
 };
 pub(crate) use analyses::{
-    AllocationLegalityValidationReceipt, AllocatorAvailabilityError, FixedPrecoloredIntervalError,
-    FixedPrecoloredIntervalValidationReceipt, FixedPrecoloredSegmentHomeError,
-    FixedPrecoloredSegmentHomeValidationReceipt, FixedPrecoloredSplitRequirementError,
-    FixedPrecoloredSplitRequirementValidationReceipt, LiveRangeValidationReceipt,
-    LivenessValidationReceipt, MachineEffectError, OptimizedLiveRangeCustodyError,
-    OptimizedLivenessCustodyError, StagedOptimizedLiveRangeCustodyReceipt, StagedOptimizedLiveness,
-    StagedOptimizedLivenessCustodyReceipt, ValidatedFixedPrecoloredIntervals,
-    ValidatedFixedPrecoloredSegmentHomes, ValidatedFixedPrecoloredSplitRequirements,
-    analyze_fixed_precolored_intervals, analyze_fixed_precolored_split_requirements,
-    assign_fixed_precolored_segment_homes, stage_optimized_live_ranges, stage_optimized_liveness,
+    FixedPrecoloredIntervalError, FixedPrecoloredIntervalValidationReceipt,
+    FixedPrecoloredSegmentHomeError, FixedPrecoloredSegmentHomeValidationReceipt,
+    FixedPrecoloredSplitRequirementError, FixedPrecoloredSplitRequirementValidationReceipt,
+    OptimizedLiveRangeCustodyError, OptimizedLivenessCustodyError,
+    ValidatedFixedPrecoloredIntervals, ValidatedFixedPrecoloredSegmentHomes,
+    ValidatedFixedPrecoloredSplitRequirements, analyze_fixed_precolored_intervals,
+    analyze_fixed_precolored_split_requirements, assign_fixed_precolored_segment_homes,
+    stage_optimized_live_ranges, stage_optimized_liveness,
+};
+pub use reanalysis::{
+    OptimizedSelectedReanalysisError, StagedOptimizedSelectedReanalysis,
+    StagedOptimizedSelectedReanalysisCustodyReceipt, stage_optimized_selected_reanalysis,
 };
 
-// The five bounded stages of this group carry the shared work refusal.
-work_defect_conversion!(
-    FixedPrecoloredIntervalError,
-    FixedPrecoloredSegmentHomeError,
-    FixedPrecoloredSplitRequirementError,
-    RecoveryClassificationError,
-    SpillChoiceError,
-);
 // Selected-CFG rewrites: the executed catalog slices, the recovery rewrites
 // register assignment replays, and the unexecuted families.
 pub use rewrites::unexecuted;

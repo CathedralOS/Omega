@@ -1,0 +1,23 @@
+[package]
+name = "selected-instruction-analyses"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+arena = { path = "../../../../../psi/foundation/arena" }
+register-environment = { path = "../../../backend/register-environment" }
+isa-aarch64 = { path = "../../../backend/instruction-set-architectures/isa-aarch64" }
+isa-x86_64 = { path = "../../../backend/instruction-set-architectures/isa-x86_64" }
+optimization-core = { path = "../../../../foundation/optimization-core" }
+phase-profile = { path = "../../../../../psi/foundation/phase-profile" }
+register-model = { path = "../../../backend/register-model" }
+register-homes = { path = "../../register-homes" }
+selected-instructions = { path = ".." }
+target = { path = "../../../backend/target" }
+semantic-vocabulary = { path = "../../../../../psi/foundation/semantic-vocabulary" }
+terminal-psi = { path = "../../../../../psi/compilation/representations/terminal-psi" }
+optimization-unit = { path = "../../abstract-operations/optimization-unit" }
+
+[dev-dependencies]
+target-operations = { path = "../../target-operations" }

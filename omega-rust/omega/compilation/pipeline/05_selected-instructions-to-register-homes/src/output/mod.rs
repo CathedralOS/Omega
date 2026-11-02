@@ -50,7 +50,7 @@ use crate::{
 use optimization_core::{OptimizationSelections, OptimizationWorkBudget};
 use register_environment::ValidatedTargetRegisterEnvironment;
 pub use retained::RetainedAllocation;
-use selected_instructions_to_selected_instructions::{
+use selected_instruction_analyses::{
     SelectedProgramRef, ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedLiveness,
 };
 
@@ -138,7 +138,7 @@ pub enum AllocationAdmissionError {
     /// selection: a declared rule did not run, or an undeclared one did.
     SelectionMismatch,
     /// The current program's machine effects could not be analyzed.
-    MachineEffects(selected_instructions_to_selected_instructions::MachineEffectStageError),
+    MachineEffects(selected_instruction_analyses::MachineEffectStageError),
 }
 
 stage_error_display!(AllocationAdmissionError, "allocation admission failed");
