@@ -38,8 +38,6 @@ use super::super::operand_contexts::contents_observation_survives;
 use super::super::operand_contexts::contents_overlap;
 use super::super::reference_spans::appended_span_since;
 use super::super::stable_case_subject;
-use crate::authored_selections::typed_operator_has_no_authored_selection;
-use crate::facts::boolean_predicates;
 use crate::flow::append_constraint_ref;
 use crate::flow::expressions;
 use crate::flow::guard_predicates::{expression_is_stable_predicate, guard_observations};
@@ -47,7 +45,9 @@ use crate::flow::reference_spans;
 use crate::flow::retained_constraint_refs;
 use crate::flow::retained_flow_contexts;
 use crate::flow::{FlowBuildContext, GuardObservation};
-use crate::semantic::places::append_place;
+use crate::published::facts::boolean_predicates;
+use crate::published::semantic::places::append_place;
+use crate::shared::authored_selections::typed_operator_has_no_authored_selection;
 use crate::values;
 use arena::{Handle, HandleSpan};
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -475,13 +475,15 @@ fn append_case_constraint_context(
         if variant.where_facts.is_empty() {
             continue;
         }
-        let Some(place) = crate::semantic::places::canonical_place_to_fact_place_in_state(
-            program,
-            semantic,
-            state_symbol,
-            statement_index,
-            subject,
-        ) else {
+        let Some(place) =
+            crate::published::semantic::places::canonical_place_to_fact_place_in_state(
+                program,
+                semantic,
+                state_symbol,
+                statement_index,
+                subject,
+            )
+        else {
             continue;
         };
         let subject_label = program.render_proof_expression(subject, ProofSubstitutions::None);
@@ -792,7 +794,7 @@ pub(in crate::flow) fn append_predicate_context(
                     ))
                 })
                 .collect::<Vec<_>>();
-            let context = crate::semantic::facts::append_observation_context(
+            let context = crate::published::semantic::facts::append_observation_context(
                 semantic,
                 Fact {
                     place: FactPlace::Place(place),
@@ -1199,7 +1201,7 @@ fn append_observation_context(
             return Handle::invalid();
         }
         let place = append_place(semantic, observed.root, &observed.segments);
-        crate::collections::push_unique(&mut places, place);
+        crate::shared::collections::push_unique(&mut places, place);
     }
     let mut refs = HandleSpan::empty();
     let mut dependent = Handle::invalid();

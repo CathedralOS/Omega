@@ -11,63 +11,64 @@ requires counter == 0
     true
 }
 
-linux_x86_64 machine apply(chosen: &mut Slot, other: &mut Slot, visits: &mut u64) -> i64
-requires chosen in Slot::Present, other in Slot::Present, visits == 0
-{
-    let selected: &mut [i64] = match choose(visits) {
-        true -> &mut chosen.value[0..2]
-        false -> &mut other.value[2..4]
-    };
-    selected[0] = 41;
-    let written: i64 = selected[0];
-    chosen = Slot::Present { value: [7, 0, 7, 0] };
-    written
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
+}
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+boundary trait SelectedApply {
+    machine apply(chosen: &mut Slot, other: &mut Slot, visits: &mut u64) -> i64 reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    requires chosen in Slot::Present, other in Slot::Present, visits == 0;
+}
+X86Apply satisfies SelectedApply {
+    machine apply(chosen: &mut Slot, other: &mut Slot, visits: &mut u64) -> i64 reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    requires chosen in Slot::Present, other in Slot::Present, visits == 0
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let selected: &mut [i64] = match choose(visits) {
+            true -> &mut chosen.value[0..2]
+            false -> &mut other.value[2..4]
+        };
+        selected[0] = 41;
+        let written: i64 = selected[0];
+        chosen = Slot::Present { value: [7, 0, 7, 0] };
+        written
+    }
+}
+ArmApply satisfies SelectedApply {
+    machine apply(chosen: &mut Slot, other: &mut Slot, visits: &mut u64) -> i64 reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    requires chosen in Slot::Present, other in Slot::Present, visits == 0
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let selected: &mut [i64] = match choose(visits) {
+            true -> &mut chosen.value[0..2]
+            false -> &mut other.value[2..4]
+        };
+        selected[0] = 41;
+        let written: i64 = selected[0];
+        chosen = Slot::Present { value: [7, 0, 7, 0] };
+        written
+    }
 }
 
-linux_arm64 machine apply(chosen: &mut Slot, other: &mut Slot, visits: &mut u64) -> i64
-requires chosen in Slot::Present, other in Slot::Present, visits == 0
-{
-    let selected: &mut [i64] = match choose(visits) {
-        true -> &mut chosen.value[0..2]
-        false -> &mut other.value[2..4]
-    };
-    selected[0] = 41;
-    let written: i64 = selected[0];
-    chosen = Slot::Present { value: [7, 0, 7, 0] };
-    written
-}
-
-macos_arm64 machine apply(chosen: &mut Slot, other: &mut Slot, visits: &mut u64) -> i64
-requires chosen in Slot::Present, other in Slot::Present, visits == 0
-{
-    let selected: &mut [i64] = match choose(visits) {
-        true -> &mut chosen.value[0..2]
-        false -> &mut other.value[2..4]
-    };
-    selected[0] = 41;
-    let written: i64 = selected[0];
-    chosen = Slot::Present { value: [7, 0, 7, 0] };
-    written
-}
-
-windows_x86_64 machine apply(chosen: &mut Slot, other: &mut Slot, visits: &mut u64) -> i64
-requires chosen in Slot::Present, other in Slot::Present, visits == 0
-{
-    let selected: &mut [i64] = match choose(visits) {
-        true -> &mut chosen.value[0..2]
-        false -> &mut other.value[2..4]
-    };
-    selected[0] = 41;
-    let written: i64 = selected[0];
-    chosen = Slot::Present { value: [7, 0, 7, 0] };
-    written
-}
 
 machine main() crashes Trap {
     let mut chosen: Slot = Slot::Present { value: [17, 0, 5, 6] };
     let mut other: Slot = Slot::Present { value: [0, 0, 8, 9] };
     let mut visits: u64 = 0;
-    let written: i64 = apply(&mut chosen, &mut other, &mut visits);
+    let written: i64 = SelectedApply::apply(&mut chosen, &mut other, &mut visits);
     transition chosen {
         Slot::Present { value } -> kept(written, value[0], visits)
         Slot::Absent -> wrong()
@@ -81,4 +82,12 @@ machine main() crashes Trap {
 
     machine done() {}
     machine wrong() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

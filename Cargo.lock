@@ -184,6 +184,7 @@ dependencies = [
  "build-declarations",
  "build-output",
  "build-time-evaluation",
+ "calling-conventions",
  "compilation-products",
  "diagnostics",
  "effects",
@@ -1076,13 +1077,11 @@ name = "layout"
 version = "0.1.0"
 dependencies = [
  "arena",
- "build-time-evaluation",
  "calling-conventions",
  "diagnostics",
  "language-semantics",
  "layout-plans",
  "numerics",
- "representation-selections",
  "runtime-abi",
  "semantic-vocabulary",
  "source-files-to-tokens",
@@ -1824,14 +1823,17 @@ dependencies = [
  "semantic-vocabulary",
  "source",
  "source-audit",
+ "source-files-to-tokens",
+ "symbol-resolved-trees-to-typed-trees",
  "symbols",
+ "syntax-trees-to-symbol-resolved-trees",
  "target",
  "terminal-codec",
  "terminal-fuel",
  "terminal-installation",
- "terminal-interpreter",
  "terminal-psi",
  "terminal-semantics",
+ "tokens-to-syntax-trees",
 ]
 
 [[package]]
@@ -2140,11 +2142,8 @@ dependencies = [
  "machine-code",
  "optimization-core",
  "physical-instructions",
- "post-allocation-machine-to-selected-form-encoding",
- "register-homes-to-post-allocation-machine",
  "register-model",
  "selected-instructions",
- "selected-instructions-to-register-homes",
  "semantic-vocabulary",
  "target",
 ]

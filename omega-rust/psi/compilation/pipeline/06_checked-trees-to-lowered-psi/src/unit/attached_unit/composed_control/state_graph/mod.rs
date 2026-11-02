@@ -7,13 +7,13 @@
 //! Reachability, parameter preparation and aliased claim transport run here
 //! once, in dependency order, and failures retain their actual diagnostic.
 //!
-//! Stage 05 publishes the complete source-admitted ranking tuple and its roots.
+//! Psi 05 publishes the complete source-admitted ranking tuple and its roots.
 //! `admission::admit` checks the contract identity, computes the reachable states
 //! (`topology::live`), then checks each state in authored order: its
 //! structural parameters (the persistent receiver through `parameters`), its
 //! scalar prefix (`scalars`), and its terminator, at the statement ordinal
-//! the stage 05 plan records, through `guarded`, `cases`, `returns` or
-//! `edges`. The body's effect operations are stage 05's plan and emit as
+//! the Psi 05 plan records, through `guarded`, `cases`, `returns` or
+//! `edges`. The body's effect operations are Psi 05's plan and emit as
 //! planned; nothing here rejoins them to their authored statements. It then
 //! binds invocation claim aliases (`claims::bind_invocation_claims`) and admits the
 //! reachable states' calls.

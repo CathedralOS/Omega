@@ -220,7 +220,7 @@ pub(super) fn append_element_replacement_predicates(
         return;
     };
     let parent = parent.to_vec();
-    let carrier = crate::semantic::places::append_place(semantic, written.root, &parent);
+    let carrier = crate::published::semantic::places::append_place(semantic, written.root, &parent);
     // The element selector may vary; the retained whole-carrier fact must
     // still name storage independently of mutable selectors.
     if !semantic

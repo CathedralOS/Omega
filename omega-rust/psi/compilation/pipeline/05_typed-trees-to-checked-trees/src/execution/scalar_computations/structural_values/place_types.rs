@@ -7,7 +7,7 @@
 //! retirement separately retain each stored carrier's custody.
 
 use super::super::{ExpressionHandle, ExpressionNode, SymbolHandle};
-use crate::places::place_at;
+use crate::published::places::place_at;
 use typed_trees::types::TypeReferenceHandle;
 
 /// The place shape a shared-borrow arm target must canonicalize to: a named

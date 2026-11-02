@@ -14,23 +14,7 @@ use typed_trees::type_identity::{IndexIdentityArgument, normalized_index_identit
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
 fn declarations(program: &dyn CheckingInput) -> impl Iterator<Item = &CleanupSelection> {
-    program
-        .data_definitions()
-        .iter()
-        .filter_map(|data| data.cleanup_selection.as_ref())
-        .chain(
-            program
-                .domain_definitions()
-                .iter()
-                .filter_map(|domain| domain.cleanup_selection.as_ref()),
-        )
-        .chain(
-            program
-                .applied_domain_applications
-                .iter()
-                .filter(|application| program.domain_definition(application.declaration).is_some())
-                .filter_map(|application| application.theory.cleanup_selection.as_ref()),
-        )
+    program.cleanup_selections()
 }
 
 fn target(program: &dyn CheckingInput, selection: &CleanupSelection) -> SymbolHandle {
@@ -283,6 +267,25 @@ pub(super) fn owner_for_machine(
         owner = Some(data.symbol);
     }
     owner
+}
+
+/// The exact closed subject of the selections this executable instance
+/// implements. Every selection naming it must agree on one carrier identity.
+pub(super) fn subject_for_executable(
+    program: &dyn CheckingInput,
+    machine: SymbolHandle,
+) -> Option<TypeReferenceHandle> {
+    let mut subject = None;
+    for selection in declarations(program).filter(|selection| selection.executable == machine) {
+        match subject {
+            None => subject = Some(selection.subject),
+            Some(previous)
+                if program.normalized_type_identity(previous)
+                    == program.normalized_type_identity(selection.subject) => {}
+            Some(_) => return None,
+        }
+    }
+    subject
 }
 
 pub(super) fn validate_declaration_owners(

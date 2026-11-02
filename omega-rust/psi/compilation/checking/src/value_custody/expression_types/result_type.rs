@@ -366,29 +366,32 @@ fn result_type(
             // callers cannot borrow that raw result: they need its applied
             // signature. Keep this owner distinction instead of making the
             // context-free call query guess a generic instantiation.
-            let scoped_requirement_result = match owner {
-                ExpressionOwner::State { machine, .. } => program
-                    .requirement_call_signature(machine.symbol, call)
-                    .filter(|signature| signature.return_type.is_valid())
-                    .map(|signature| signature.return_type),
-                ExpressionOwner::Declaration { owner_symbol, .. }
-                    if call.target_symbol.is_valid() =>
-                {
-                    let parent = program.symbols.get(owner_symbol).parent;
-                    (program.symbols.get(call.target_symbol).parent == parent)
-                        .then(|| program.trait_definition_by_symbol(parent))
-                        .flatten()
-                        .and_then(|definition| {
-                            program
-                                .trait_machine_signature_by_symbol(definition, call.target_symbol)
-                        })
-                        .filter(|signature| {
-                            signature.type_parameters.is_empty() && signature.return_type.is_valid()
-                        })
-                        .map(|signature| signature.return_type)
-                }
-                _ => None,
-            };
+            let scoped_requirement_result = program
+                .requirement_call_signature(owner.symbol(), call)
+                .filter(|signature| signature.return_type.is_valid())
+                .map(|signature| signature.return_type)
+                .or_else(|| match owner {
+                    ExpressionOwner::Declaration { owner_symbol, .. }
+                        if call.target_symbol.is_valid() =>
+                    {
+                        let parent = program.symbols.get(owner_symbol).parent;
+                        (program.symbols.get(call.target_symbol).parent == parent)
+                            .then(|| program.trait_definition_by_symbol(parent))
+                            .flatten()
+                            .and_then(|definition| {
+                                program.trait_machine_signature_by_symbol(
+                                    definition,
+                                    call.target_symbol,
+                                )
+                            })
+                            .filter(|signature| {
+                                signature.type_parameters.is_empty()
+                                    && signature.return_type.is_valid()
+                            })
+                            .map(|signature| signature.return_type)
+                    }
+                    _ => None,
+                });
             let retained = expression_table(program).constructed_value_type_reference(expression);
             let declared_result = retained
                 .is_valid()

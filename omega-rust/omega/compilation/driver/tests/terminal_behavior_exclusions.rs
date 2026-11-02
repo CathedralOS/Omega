@@ -257,6 +257,7 @@ fn assert_calling_review_outlives_source(relative: &str) {
             source_owner: wrong_owner.clone(),
             artifact: Arc::clone(&code.artifact),
             source_records: Arc::clone(&code.source_records),
+            evaluator: code.evaluator,
         };
         (
             prepared,
@@ -289,6 +290,7 @@ fn assert_calling_review_outlives_source(relative: &str) {
 
     let decoded_code = provider_planning::calling_policy_plans::CallingProgram {
         source_owner: code.source_owner.clone(),
+        evaluator: code.evaluator,
         artifact: Arc::new(
             terminal_codec::CanonicalTerminalArtifact::from_bytes(&code.artifact.to_bytes())
                 .expect("checked Calling facts survive canonical transport"),
@@ -606,7 +608,7 @@ fn exclusion_tickets_reject_foreign_receivers_and_replay(checked: &compiler::Che
         program.entry().unwrap().structural_parameters[0].structural_type,
         Vec::new(),
     );
-    let host = build_evaluation::terminal_bindings::TerminalBuildBindingHost::new(
+    let host = build_evaluation::host::bindings::TerminalBuildBindingHost::new(
         artifact,
         produced.build_bindings(),
         original.clone(),

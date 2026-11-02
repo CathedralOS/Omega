@@ -33,18 +33,16 @@ pub(super) struct OperatorPhysicalSpan {
 /// boundary-settlement lane owns it, not the operator lane — while named
 /// `boundary operator` calls in local initializers stop at statement-sequence
 /// planning (`call: flow call`) and spelled `boundary operator` uses stop at
-/// scalar-local admission (`pure initializer`);
-/// `tests::boundary_operator_frontier` in stage 05 pins all three outcomes.
+/// scalar-local admission (`pure initializer`).
 /// Of the remaining `ExactCompilerIntrinsic` families, only the float and
 /// integer comparisons are producible: they are the only intrinsic
-/// realizations with a Terminal operation of their own, and stage 07's
+/// realizations with a Terminal operation of their own, and Psi 08's
 /// occurrence replay rebuilds only them. Float arithmetic, negation,
 /// conversion and builtins have no Terminal operation to bind, and Terminal
 /// nearest-FMA is refused at comparison-coverage settlement for lack of
 /// selected-provider custody. A selected float guard over receiver fields
-/// stops earlier still, at stage 05 scalar field observation
-/// (`tests::boundary_operator_frontier`). The `Call*` arms still bind
-/// replayed artifacts naming them; extending the intrinsic arms before an
+/// stops earlier still, at Psi 06 scalar field observation. The `Call*` arms
+/// still bind replayed artifacts naming them; extending the intrinsic arms before an
 /// occurrence exists would dead-code this lane, so the arm to extend is
 /// whichever family the next replay change first makes survivable.
 ///

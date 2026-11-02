@@ -5,7 +5,7 @@
 //! precedes each activation; retaining code
 //! grants neither invocation nor provider authority.
 
-use super::{CanonicalCallingSignature, TerminalCallingPolicyInvocation};
+use super::{CallingPolicyEvaluator, CanonicalCallingSignature, TerminalCallingPolicyInvocation};
 use calling_conventions::ValidatedBoundaryEntryPlan;
 use evaluation_accounting::{
     BuildEvaluationSponsor, BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity,
@@ -31,6 +31,9 @@ pub struct CallingProgram {
     pub source_owner: std::sync::Weak<checked_trees::CheckedTrees>,
     pub artifact: std::sync::Arc<CanonicalTerminalArtifact>,
     pub source_records: std::sync::Arc<[checked_trees::typed_trees::SourceRecordCorrespondence]>,
+    /// Build evaluation's Terminal executor. Function identity is not part of
+    /// the catalog's equality.
+    pub evaluator: CallingPolicyEvaluator,
 }
 
 impl PartialEq for CallingProgram {
@@ -126,7 +129,7 @@ impl CallingProgram {
             },
             providers,
         )?;
-        let (plan, _) = super::evaluate_terminal_calling_policy(TerminalCallingPolicyInvocation {
+        let (plan, _) = (self.evaluator)(TerminalCallingPolicyInvocation {
             artifact: &self.artifact,
             entry: policy,
             target,

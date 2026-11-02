@@ -38,9 +38,9 @@ pub(super) fn resolve(
     (
         Vec<u8>,
         Option<Box<ResolvedBranchEvidence>>,
-        Option<SelectedFormInternalMachineFixup>,
-        Option<SelectedFormNormalizedForeignCallFixup>,
-        Option<SelectedFormImageAddressFixup>,
+        Option<Box<SelectedFormInternalMachineFixup>>,
+        Option<Box<SelectedFormNormalizedForeignCallFixup>>,
+        Option<Box<SelectedFormImageAddressFixup>>,
     ),
     Error,
 > {
@@ -57,13 +57,13 @@ pub(super) fn resolve(
         ) => Ok((
             bytes.to_vec(),
             None,
-            Some(validate_internal_fixup(
+            Some(Box::new(validate_internal_fixup(
                 architecture,
                 instruction,
                 instruction_offset,
                 bytes,
-                *fixup,
-            )?),
+                **fixup,
+            )?)),
             None,
             None,
         )),
@@ -74,13 +74,13 @@ pub(super) fn resolve(
             bytes.to_vec(),
             None,
             None,
-            Some(validate_foreign_fixup(
+            Some(Box::new(validate_foreign_fixup(
                 architecture,
                 instruction,
                 instruction_offset,
                 bytes,
-                fixup.clone(),
-            )?),
+                fixup.as_ref().clone(),
+            )?)),
             None,
         )),
         (
@@ -91,7 +91,11 @@ pub(super) fn resolve(
             None,
             None,
             None,
-            Some(validate_image_address_fixup(instruction, bytes, *fixup)?),
+            Some(Box::new(validate_image_address_fixup(
+                instruction,
+                bytes,
+                **fixup,
+            )?)),
         )),
         (
             SelectedFormMachineDisposition::RetainedV1,

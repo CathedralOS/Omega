@@ -28,7 +28,7 @@ pub(super) fn contains(operation: &CheckedUnitEffectOperationPlan) -> bool {
 }
 
 /// The call's `ordinal`th structural argument, a range, with its endpoints
-/// keyed at the call-argument site stage 05 recorded on it.
+/// keyed at the call-argument site Psi 05 recorded on it.
 fn locate<'a>(
     state: symbols::SymbolHandle,
     operation: &'a CheckedUnitEffectOperationPlan,

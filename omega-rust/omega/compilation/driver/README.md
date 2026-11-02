@@ -9,17 +9,17 @@ not implement package loading, build evaluation, transformation algorithms or
 visualization semantics. See the [pipeline map](../../../pipeline.md).
 
 [Terminal production](../../../psi/compilation/driver/terminal-production/README.md)
-is the Psi-owned stage-06–08 sequence called directly by ordinary, package and
+is the Psi 06–08 sequence called directly by ordinary, package and
 inspection consumers. This driver supplies its product exclusion policy and
 timing observer, not a second production entrance. Permission-ledger validation
-belongs to stage 06; entry eligibility, source receipt joins and publication
-belong to stage 08. Their language rules do not live in the coordinator.
+belongs to Psi 06; entry eligibility, source receipt joins and publication
+belong to Psi 08. Their language rules do not live in the coordinator.
 
 The independent [native compiler](../native-production/README.md) owns the
 Terminal-to-image sequence behind a source-free dependency boundary. This
 coordinator calls it after Terminal production; it no longer owns native stages.
 Consumers use
-`native-artifact`, `image-emission`, and stage 00's `provider_admission` directly
+`native-artifact`, `image-emission`, and Omega 00's `provider_admission` directly
 for those contracts. Reports and publication come from `compilation-products`;
 there is no compiler-owned `report` or `artifact_publication` module. Root-level
 request/result exports remain conveniences for the compilation entrypoints.
@@ -61,7 +61,7 @@ image and reloaded Terminal artifact. Build-helper production in
 [package compilation](src/checked/package_compilation.rs) publishes the same
 checked source without private constant replay. The waiting Build activation
 owns exact slot admission, canonical scalar completion and component installation
-in [provider installation](../build-evaluation/src/terminal_execution/provider_installation.rs).
+in [provider installation](../build-evaluation/src/activation/provider_installation.rs).
 Its live account pays the evaluation, and installed components retain completed
 scalar inputs for the rest of that invocation.
 
@@ -256,7 +256,7 @@ checked pass; eliminating that duplicate semantic work is separate from moving
 the protocol out of the coordinator. There is no compiler-private package gate
 or public raw Build checkpoint that can bypass the evaluation protocol.
 Checked-product selection belongs to
-[Psi stage 05](../../../psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/product_pruning/mod.rs):
+[Psi 05](../../../psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/products/product_pruning/mod.rs):
 the coordinator supplies the requested roots after rollback; the stage owns the
 identity case, root validation, pruning and selection evidence. It consumes only
 checked trees, not the Omega provider-settlement carrier.
@@ -354,7 +354,7 @@ Callback placements stay in Omega rather than travelling through
 Psi as an opaque payload. One effective Psi optimization selection governs the
 whole program, including callback roots. The coordinator joins callback entries
 in that shared artifact before asking
-[Omega stage 00](../pipeline/00_terminal-psi-to-abstract-operations/src/retained_terminal/proposal.rs)
+[Omega 00](../pipeline/00_terminal-psi-to-abstract-operations/src/retained_terminal/proposal.rs)
 to construct the native proposal. Canonical semantic decoding, selected-provider
 demands, entry/comparison/boundary joins and callback placement replay belong to
 that stage, not to the compiler. Missing callback bodies reject during shared
@@ -644,7 +644,7 @@ entry. Use rooted provider and callback controls retaining complete argument,
 result, and resource custody; metadata-only receipt tests do not close the route.
 
 Canonical callback applications and target calling applications enter the
-realization request separately. Stage 00's
+realization request separately. Omega 00's
 [callback settlement](../pipeline/00_terminal-psi-to-abstract-operations/src/callback_settlement/placement.rs)
 joins their exact requirement and static binder ordinal, then produces the
 [backend placement](../backend/plans/backend-plan/src/callback_placements.rs):

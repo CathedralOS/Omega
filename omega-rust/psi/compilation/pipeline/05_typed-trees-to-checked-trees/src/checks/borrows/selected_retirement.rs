@@ -6,7 +6,7 @@
 //! Carried loans, derived holders and unknown origins retain ordinary lifetime
 //! checks. This supplies no new loan or restoration authority.
 
-use crate::places::place_at;
+use crate::published::places::place_at;
 use arena::Handle;
 use checked_trees::{BorrowCallFact, BorrowLoanFact, CheckFacts, FlowStateFact};
 use typed_trees::statement::TransitionTargetHandle;

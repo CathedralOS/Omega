@@ -63,7 +63,9 @@ pub(super) fn post_store_predicate_holds(
             program,
             machine,
             state,
-            completed_prefix,
+            crate::proof_contracts::contract_entailment::CapturedPredicatePoint::Prefix(
+                completed_prefix,
+            ),
             receiver,
             receiver_type,
             place.definition,
@@ -270,7 +272,9 @@ pub(super) fn post_store_predicate_holds(
             program,
             machine,
             state,
-            completed_prefix,
+            crate::proof_contracts::contract_entailment::CapturedPredicatePoint::Prefix(
+                completed_prefix,
+            ),
             receiver,
             receiver_type,
             place.definition,

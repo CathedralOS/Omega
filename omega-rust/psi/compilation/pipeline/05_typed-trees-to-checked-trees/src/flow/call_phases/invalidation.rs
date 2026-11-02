@@ -66,7 +66,7 @@ impl CallStorageWrites {
         if let Some(arguments) = arguments {
             for contribution in &mut observed.contributions {
                 for alias in arguments.mutation_observation_aliases(&contribution.write) {
-                    crate::collections::push_unique(&mut contribution.observations, alias);
+                    crate::shared::collections::push_unique(&mut contribution.observations, alias);
                 }
             }
             observed.observation_places = observed
@@ -130,17 +130,20 @@ fn call_storage_mutations(
     state: &State,
     borrow_call: &BorrowCallFact,
 ) -> Option<Vec<ObservedCallMutation>> {
-    let writes = phase_profile::scope("psi.05.build_check_facts.flow.invoke.mutation_writes", || {
-        call_mutation_writes(
-            program,
-            machine.symbol,
-            state.symbol,
-            borrow,
-            borrow_call,
-            build.state_mutation_summary_cache,
-            build.call_frames,
-        )
-    })?;
+    let writes = phase_profile::scope(
+        "psi.05.build_check_facts.flow.invoke.mutation_writes",
+        || {
+            call_mutation_writes(
+                program,
+                machine.symbol,
+                state.symbol,
+                borrow,
+                borrow_call,
+                build.state_mutation_summary_cache,
+                build.call_frames,
+            )
+        },
+    )?;
     let mut result = Vec::new();
     for mut write in writes {
         // Unresolved content names the carrier the capability is attached to.

@@ -8,10 +8,11 @@ mod validation;
 
 pub use error::OptimizedResolvedSelectedFormLayoutError;
 use register_model::ValidatedPhysicalRegisterModel;
+use selected_instructions::CurrentSelectedProgram;
 use selected_instructions::{MachineSizeKnowledge, SelectedFunction, SelectedTerminator};
-use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
 use machine_code::ResolvedMachineLayout;
+use machine_code::SelectedFormEncoding;
 use machine_code::SelectedFormEncodingIdentity;
 pub use machine_code::{
     ResolvedBranchEvidence, ResolvedConditionalBranchEvidence, ResolvedConditionalBranchPredicate,
@@ -19,28 +20,27 @@ pub use machine_code::{
     ResolvedSelectedFormRow, ResolvedSelectedFunctionLayout, SelectedFunctionLayoutPolicy,
 };
 use physical_instructions::PostAllocationMachineOptimizationCustody;
-use post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding;
-use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
+use physical_instructions::PostAllocationMachinePlan;
 use std::sync::Arc;
 use target::NativeTarget;
 
 /// Resolve the current encoded program and independently admit its layout.
-pub fn stage_optimized_resolved_selected_form_layout<S: ValidatedSelectedAnalysis>(
-    selected: &S,
-    machine: &StagedOptimizedPostAllocationMachinePlan,
+pub fn stage_optimized_resolved_selected_form_layout(
+    selected: CurrentSelectedProgram<'_>,
+    machine: &PostAllocationMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,
-    pre_layout: &StagedOptimizedSelectedFormEncoding,
+    pre_layout: &SelectedFormEncoding,
 ) -> Result<StagedOptimizedResolvedSelectedFormLayout, OptimizedResolvedSelectedFormLayoutError> {
     let artifact = compute::compute(selected, machine, physical, pre_layout)?;
     admit_resolved_machine_layout(selected, machine, physical, pre_layout, artifact.program)
 }
 
 /// Replay the exact encoding roots, byte accounting, and all resolved rows.
-pub fn validate_optimized_resolved_selected_form_layout<S: ValidatedSelectedAnalysis>(
-    selected: &S,
-    machine: &StagedOptimizedPostAllocationMachinePlan,
+pub fn validate_optimized_resolved_selected_form_layout(
+    selected: CurrentSelectedProgram<'_>,
+    machine: &PostAllocationMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,
-    pre_layout: &StagedOptimizedSelectedFormEncoding,
+    pre_layout: &SelectedFormEncoding,
     artifact: &StagedOptimizedResolvedSelectedFormLayout,
 ) -> Result<(), OptimizedResolvedSelectedFormLayoutError> {
     validation::validate(selected, machine, physical, pre_layout, artifact)
@@ -49,11 +49,11 @@ pub fn validate_optimized_resolved_selected_form_layout<S: ValidatedSelectedAnal
 /// Independently admit retained current data, without a producer-stage history.
 /// Content identity alone is insufficient: replay checks the selected program,
 /// machine, target decoding, offsets, fixups, and exact optimization records.
-pub(crate) fn admit_resolved_machine_layout<S: ValidatedSelectedAnalysis>(
-    selected: &S,
-    machine: &StagedOptimizedPostAllocationMachinePlan,
+pub(crate) fn admit_resolved_machine_layout(
+    selected: CurrentSelectedProgram<'_>,
+    machine: &PostAllocationMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,
-    pre_layout: &StagedOptimizedSelectedFormEncoding,
+    pre_layout: &SelectedFormEncoding,
     program: std::sync::Arc<machine_code::ResolvedMachineLayout>,
 ) -> Result<StagedOptimizedResolvedSelectedFormLayout, OptimizedResolvedSelectedFormLayoutError> {
     let artifact = StagedOptimizedResolvedSelectedFormLayout { program };

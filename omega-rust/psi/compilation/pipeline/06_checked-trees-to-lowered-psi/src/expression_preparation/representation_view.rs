@@ -1,6 +1,6 @@
 //! Replay one retained §5b representation re-view of a scalar place.
 //!
-//! Stage 05 retains `&place as &T` (inline, or read through a loan local bound
+//! Psi 05 retains `&place as &T` (inline, or read through a loan local bound
 //! to one) as `CheckedScalarExpression::RepresentationView`: the source place's
 //! own read at its declared carrier, wrapped in the view carrier. The source
 //! read therefore still passes every declared-type check its ordinary lowering
@@ -35,7 +35,7 @@
 //!   already compared the representation sets; certificate search must not
 //!   rediscover that result from the lowered field observations.
 //! - A retained view must change its carrier. A same-carrier recast only
-//!   changes facts and stage 05 reads the place directly, so an identity pair
+//!   changes facts and Psi 05 reads the place directly, so an identity pair
 //!   here is a malformed judgment rather than a no-op to accept silently.
 //! - Any other pairing rejects: unequal widths, two floats, or a Boolean
 //!   against a float have no bit view to replay.
@@ -108,7 +108,7 @@ pub(crate) fn replay(
 /// Replay a byte-region view from its first runtime-selected `u8` element:
 /// the view's `B / 8` bytes are that element and its successors, assembled
 /// little-endian on the unsigned `B`-bit carrier -- the byte order of every
-/// admitted layout, and the order the checked interpreter assembles. Stage 05
+/// admitted layout, and the order the checked interpreter assembles. Psi 05
 /// admits this view only after the recast judgment proved the footprint
 /// (`index <= N - B/8`), so each byte read carries that decision
 /// (`bound_decided`) when its declared extent is the proven one. A signed

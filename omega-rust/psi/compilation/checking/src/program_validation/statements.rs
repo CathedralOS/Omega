@@ -114,6 +114,16 @@ pub(super) fn validate_completion_value(
         &return_owner,
         diagnostics,
     );
+    crate::value_custody::recasts::pending_views::report_consumption(
+        program,
+        machine,
+        state,
+        scope.statement_index,
+        value,
+        state.return_type,
+        &return_owner,
+        diagnostics,
+    );
     struct_literals::validate_array_literal_elements(
         program,
         machine,
@@ -213,6 +223,14 @@ pub(super) fn validate_state_statement_node<'p>(
     let diagnostic_mark = diagnostics.len();
     if let Some(state) = current_state {
         access_views::validate_statement(program, machine, state, statement, diagnostics);
+        crate::proof_contracts::contract_entailment::validate_scalar_loan_handbacks(
+            program,
+            machine,
+            state,
+            statement_index,
+            call_frames,
+            diagnostics,
+        );
     }
     let scope = StatementScope {
         program,

@@ -323,15 +323,22 @@ fn check_compatible_values(
     let value_data = data_symbol(value);
     // Comparing a reference-backed scalar observes its referent. Result
     // custody is checked separately and never established by this read view.
-    let peer_type = declared_value_type(program, machine, state, peer)
+    let peer_declared = declared_value_type(program, machine, state, peer);
+    let value_declared = declared_value_type(program, machine, state, value);
+    let peer_type = peer_declared
         .map(|reference| crate::value_custody::places::assignment_value_type(program, reference));
-    let value_type = declared_value_type(program, machine, state, value)
+    let value_type = value_declared
         .map(|reference| crate::value_custody::places::assignment_value_type(program, reference));
     let mismatch = if let (Some(peer_type), Some(value_type)) = (peer_type, value_type) {
         // Numeric range predicates may weaken at a join, but semantic policy
         // may not. The result query retains only predicates shared by every
         // arm; accepting these operands does not export either arm's range.
         program.normalized_type_identity(peer_type) != program.normalized_type_identity(value_type)
+            && !peer_declared
+                .zip(value_declared)
+                .is_some_and(|(peer, value)| {
+                    borrowed_arrays_share_element_view(program, peer, value)
+                })
             && !matches!(
                 (super::result_type::arithmetic_carrier(program, peer_type),
                  super::result_type::arithmetic_carrier(program, value_type)),
@@ -380,4 +387,44 @@ fn check_compatible_values(
                 .with_source_span(expression_table(program).source_span(value)),
         );
     }
+}
+
+/// Two loans of fixed arrays that differ only in extent select one element
+/// view at run time: each arm adapts to the destination's `[T]` view exactly
+/// as a direct `&mut array` initializer does, and the view's stored length is
+/// the selected array's own extent. The dispatch has no destination type of
+/// its own, so it admits the pair here and the destination's structural value
+/// judges every arm; an array-typed destination still refuses the arm whose
+/// extent differs. Access and lifetime stay exact, and the element identity
+/// must agree, so no arm becomes readable, longer-lived or reinterpreted.
+fn borrowed_arrays_share_element_view(
+    program: &dyn crate::CheckingInput,
+    left: typed_trees::types::TypeReferenceHandle,
+    right: typed_trees::types::TypeReferenceHandle,
+) -> bool {
+    use typed_trees::types::TypeReferenceNode;
+    let borrowed_array = |reference| match program.type_reference_table.type_reference(reference) {
+        TypeReferenceNode::Reference {
+            referee,
+            access,
+            lifetime,
+        } => match program.type_reference_table.type_reference(*referee) {
+            TypeReferenceNode::FixedArray { element_type, .. } => {
+                Some((*access, lifetime, *element_type))
+            }
+            _ => None,
+        },
+        _ => None,
+    };
+    let (
+        Some((left_access, left_lifetime, left_element)),
+        Some((right_access, right_lifetime, right_element)),
+    ) = (borrowed_array(left), borrowed_array(right))
+    else {
+        return false;
+    };
+    left_access == right_access
+        && left_lifetime == right_lifetime
+        && program.normalized_type_identity(left_element)
+            == program.normalized_type_identity(right_element)
 }

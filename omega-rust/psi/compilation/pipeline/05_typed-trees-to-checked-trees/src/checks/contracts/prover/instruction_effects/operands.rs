@@ -3,7 +3,7 @@
 //! remain flow-owned; neither aliases nor initializers are executed here.
 use super::super::call_guarantees::{arithmetic, callable::Callable};
 use super::{QueryArgument, QueryArguments};
-use crate::places::place_at;
+use crate::published::places::place_at;
 use crate::values::applied_projection_segments;
 use checked_trees::{CheckFacts, FlowOperandFact, FlowStateFact};
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};

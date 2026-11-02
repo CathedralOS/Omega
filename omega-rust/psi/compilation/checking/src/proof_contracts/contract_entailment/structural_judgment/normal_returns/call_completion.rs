@@ -175,9 +175,8 @@ impl<'program> StructuralJudge<'program> {
         // carrier; importing the raw generic return type here would lose that
         // correspondence. Actuals remain the completed input observations.
         if let (Some(captured), Some(presentation)) = (&captured, &result_presentation)
-            && !crate::proof_contracts::quotients::type_has_forbidden_denotational_content(
+            && !crate::proof_contracts::carrier_contents::type_has_forbidden_value_observation_content(
                 program,
-                &crate::proof_only_classification(program),
                 presentation.type_reference,
             )
         {

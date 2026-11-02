@@ -114,7 +114,7 @@ pub(crate) fn scalar_returns(
 
 /// The exit a state's normal cleanup row names at `statement_index`: its
 /// transition's continuation when `continuation`, otherwise its target or
-/// final expression. Stage 05 records exactly one row per exit.
+/// final expression. Psi 05 records exactly one row per exit.
 pub(crate) fn coordinate(
     source: NormalExitSource<'_>,
     statement_index: usize,

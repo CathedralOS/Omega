@@ -27,8 +27,8 @@ type HashMap<K, V> = std::collections::HashMap<K, V, symbols::BuildSymbolHasher>
 pub(super) type TypeIdentityMemo = HashMap<TypeReferenceHandle, NormalizedTypeIdentity>;
 
 /// Write-frame inference asks these same questions once per frame
-/// expression: verdicts at empty outer bindings are pure functions of the
-/// queried handle. The verdict memo is owned by the program
+/// expression: verdicts are pure functions of the queried handle, mode and
+/// exact outer type bindings. The verdict memo is owned by the program
 /// (`TypedTrees::with_isolation_verdicts`); the program's structural
 /// fingerprint is the revision key it rebuilds against — every table, root
 /// roster, and planning Vec joins the key, so any mutation reopens it.
@@ -229,10 +229,11 @@ fn type_is_caller_isolated(
     program: &dyn crate::CheckingInput,
     handle: TypeReferenceHandle,
     proof_value: bool,
+    bindings: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> bool {
-    if let Some(verdict) = with_isolation_cache(program, |cache| {
-        cache.isolation.get(&(handle, proof_value)).copied()
-    }) {
+    let key = (handle, proof_value, bindings.to_vec());
+    if let Some(verdict) = with_isolation_cache(program, |cache| cache.isolation.get(&key).copied())
+    {
         return verdict;
     }
     let verdict = type_is_caller_isolated_local_inner(
@@ -241,11 +242,11 @@ fn type_is_caller_isolated(
         &mut Vec::<TypeReferenceHandle>::new(),
         proof_value,
         &mut Vec::new(),
-        &mut Vec::new(),
+        &mut bindings.to_vec(),
         &mut TypeIdentityMemo::default(),
     );
     with_isolation_cache(program, |cache| {
-        cache.isolation.insert((handle, proof_value), verdict);
+        cache.isolation.insert(key, verdict);
     });
     verdict
 }
@@ -254,7 +255,7 @@ pub(super) fn type_is_caller_isolated_local(
     program: &dyn crate::CheckingInput,
     handle: TypeReferenceHandle,
 ) -> bool {
-    type_is_caller_isolated(program, handle, false)
+    type_is_caller_isolated(program, handle, false, &[])
 }
 
 /// Under an active substitution, the declared members of a generic
@@ -266,15 +267,7 @@ pub(super) fn type_is_caller_isolated_local_in(
     handle: TypeReferenceHandle,
     bindings: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> bool {
-    type_is_caller_isolated_local_inner(
-        program,
-        handle,
-        &mut Vec::<TypeReferenceHandle>::new(),
-        false,
-        &mut Vec::new(),
-        &mut bindings.to_vec(),
-        &mut TypeIdentityMemo::default(),
-    )
+    type_is_caller_isolated(program, handle, false, bindings)
 }
 
 /// Erased recursive proof values can have finite constructor terms without a
@@ -284,7 +277,7 @@ pub(super) fn type_is_caller_isolated_proof_value(
     program: &dyn crate::CheckingInput,
     handle: TypeReferenceHandle,
 ) -> bool {
-    type_is_caller_isolated(program, handle, true)
+    type_is_caller_isolated(program, handle, true, &[])
 }
 
 /// `visiting` records instantiated containers, not bare definition symbols:

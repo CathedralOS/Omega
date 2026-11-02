@@ -123,7 +123,7 @@ pub struct ExecutedBuildSelection {
     /// The typed Build operation that executed, independently of its operands.
     pub operation: language_semantics::declaration_selection::BuildOperation,
     pub machine: symbols::SymbolHandle,
-    /// The authored call: stage 02 retains every provider-selection
+    /// The authored call: Psi 02 retains every provider-selection
     /// spelling, statement or discard included, as this one expression.
     pub expression: typed_trees::expression::ExpressionHandle,
     /// Zero means the omitted default; otherwise the evaluated toolchain case.

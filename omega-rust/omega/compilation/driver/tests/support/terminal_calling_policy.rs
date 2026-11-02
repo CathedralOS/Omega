@@ -1,5 +1,6 @@
 //! Execute authored calling code after external canonical artifact ingress.
 
+use build_evaluation::evaluate_terminal_calling_policy;
 use calling_conventions::{MachineRegister, ValueLocation};
 use evaluation_accounting::{
     BuildEvaluationSponsor, BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity,
@@ -7,7 +8,7 @@ use evaluation_accounting::{
 };
 use provider_planning::calling_policy_plans::{
     CallingPolicySignature, CanonicalCallingSignature, TerminalCallingPolicyInvocation,
-    admit_terminal_calling_policy, evaluate_terminal_calling_policy,
+    admit_terminal_calling_policy,
 };
 use terminal_codec::CanonicalTerminalArtifact;
 

@@ -1,7 +1,7 @@
 //! Record projections bind a declared field once, then resolve the current local place
 //! at each evaluation site. They materialize an ordinary scalar binding before
 //! later effects; neither a synthetic parameter nor a delayed return load may
-//! stand in for that observation. Stage 05 retains the root type and field identity
+//! stand in for that observation. Psi 05 retains the root type and field identity
 //! together with explicit stored-reference crossings; lowering consumes that plan.
 //! Reads through references use PrimitiveScalarRead because they observe a value
 //! without naming a canonical owned leaf. Terminal independently checks custody.
@@ -29,7 +29,7 @@
 //! ordinary read of a field the source declares, with the source's facts. An
 //! equal-width integer leaf of the other sign reads its declared carrier and
 //! replays the view's modular image; any other carrier change refuses.
-//! A silent loan local's captured place is its stage 05 `CheckedPlaceLoanPlan`
+//! A silent loan local's captured place is its Psi 05 `CheckedPlaceLoanPlan`
 //! row: its root, root type and authored segments resolve here against the
 //! structural type catalog, never against the loan's initializer.
 //! Stores use the same captured source and normalized geometry. A loan local

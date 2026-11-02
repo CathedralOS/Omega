@@ -75,3 +75,12 @@ exploratory generic provider body with an open const guard still rejects its
 own crash site; it is not claimed as completed by this selected-consumer row.
 Run identities, commands, source hashes and actual engine outcomes are retained
 in qualification evidence rather than inferred from folder presence.
+
+## Build-owned target-body migration
+
+The `target_body` place still spells the retired target prefix. Its family
+member is generic over an implementation map, and a boundary requirement's
+signature does not admit an evidence binder, so the place cannot yet move to
+named implementations selected by Build rows without changing the fact. The
+owner decision is
+[OWNER_QUESTIONS.md question 6](../../../../OWNER_QUESTIONS.md#6-may-a-boundary-requirements-own-signature-bind-a-generic-evidence-parameter).

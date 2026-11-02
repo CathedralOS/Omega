@@ -187,7 +187,7 @@ fn tuple_rows_cover(
     let mut subjects = Vec::new();
     for row in &rows {
         for (subject, _) in &row.columns {
-            crate::collections::push_unique(&mut subjects, subject);
+            crate::shared::collections::push_unique(&mut subjects, subject);
         }
     }
     if subjects.is_empty() {
@@ -350,7 +350,8 @@ fn tail(
                         ..
                     } = boolean.as_ref()
                     {
-                        let (_, case) = crate::proof::exact_outcome_case_test(program, guard)?;
+                        let (_, case) =
+                            crate::published::proof::exact_outcome_case_test(program, guard)?;
                         Some((CaseSubject::Expression(subject.clone()), case))
                     } else {
                         None

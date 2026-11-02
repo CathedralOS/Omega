@@ -178,7 +178,7 @@ fn reused_product_selection_shares_the_checked_program() {
 
 #[test]
 fn canonical_proof_completion_has_no_source_rewrite_api() {
-    let coordinator = include_str!("../../build-evaluation/src/scalar_completion.rs");
+    let coordinator = include_str!("../../build-evaluation/src/activation/scalar_completion.rs");
     assert_absent(
         &[coordinator],
         "coordinator owns",
@@ -313,7 +313,7 @@ fn checked_operator_choice_consumes_retained_candidates() {
 #[test]
 fn issuer_identities_precede_occurrence_production() {
     let preparation = include_str!(
-        "../../../../psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/semantic/facts.rs"
+        "../../../../psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/published/semantic/facts.rs"
     );
     assert_in_order(
         preparation,
@@ -410,9 +410,7 @@ fn component_handoff_retains_the_producing_join() {
 
 #[test]
 fn terminal_calling_activation_uses_only_canonical_geometry() {
-    let execution = include_str!(
-        "../../realization/provider-planning/src/calling_policy_plans/terminal_execution.rs"
-    );
+    let execution = include_str!("../../build-evaluation/src/calling_policy_execution.rs");
     let protocol = include_str!(
         "../../realization/provider-planning/src/calling_policy_plans/policy_signature.rs"
     );

@@ -13,8 +13,8 @@
 //! conclusions do not become execution facts: executable operations still need
 //! their ordinary Terminal justification rows.
 
-use crate::collections::push_unique;
 use crate::flow::indexed_statements;
+use crate::shared::collections::push_unique;
 use checked_trees::CheckFacts;
 
 /// Source roots remain available to checking; execution consumers exclude the

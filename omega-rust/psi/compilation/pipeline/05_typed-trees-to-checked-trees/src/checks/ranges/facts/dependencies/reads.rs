@@ -1,9 +1,9 @@
 use super::{EXPRESSION_WALK_DEPTH_BOUND, ExpressionHandle, ExpressionNode, Machine, State};
 use crate::checks::ranges::facts::RangeCallContext;
-use crate::collections::push_unique;
 use crate::flow::expressions;
-use crate::places::place_at;
-use crate::proof::contract_target_from_state_symbol;
+use crate::published::places::place_at;
+use crate::published::proof::contract_target_from_state_symbol;
+use crate::shared::collections::push_unique;
 use facts::PlaceRoot;
 use typed_trees::expression::MatchPattern;
 use validation::CanonicalPlace;

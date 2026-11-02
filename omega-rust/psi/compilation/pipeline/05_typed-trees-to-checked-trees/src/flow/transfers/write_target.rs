@@ -82,8 +82,11 @@ pub(in crate::flow) fn statement_write(
                 })
                 .collect::<Vec<_>>();
             let target = targets.first()?;
-            let target_place =
-                crate::semantic::places::append_place(semantic, target.root, &target.segments);
+            let target_place = crate::published::semantic::places::append_place(
+                semantic,
+                target.root,
+                &target.segments,
+            );
             if targets.len() != 1 {
                 target_is_exact = false;
                 candidate_targets = targets;
@@ -164,7 +167,8 @@ pub(in crate::flow) fn narrow_pinned_selectors(
                 .span_or_empty(semantic.places.get(target_place).segments)
     {
         let root = semantic.places.get(target_place).root;
-        target_place = crate::semantic::places::append_place(semantic, root, &target_segments);
+        target_place =
+            crate::published::semantic::places::append_place(semantic, root, &target_segments);
     }
     (target_place, stable_value_target)
 }

@@ -4,7 +4,7 @@
 // `RepresentationSpecialization` crosses each copy back to `whole`'s
 // `EstablishRecord` chain -- ordinary field identities resolved to their
 // roster's verifier handles first -- folding `member` and `nested` to
-// `BooleanConstant(true)` and `level` to `IntegerConstant(7)` when stage 01
+// `BooleanConstant(true)` and `level` to `IntegerConstant(7)` when Omega 01
 // runs the pass. The fold is semantics-preserving, so the authored exit is
 // the same with or without it: the transition takes `done` only when the
 // reads return the authored values, and a misresolved projection reads the

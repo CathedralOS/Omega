@@ -8,7 +8,7 @@ use super::super::super::prover::scalar_value_at_place;
 use super::super::super::return_values::exit_return_expression;
 use super::{domain_predicate_meaning, exact_integer_reference};
 use crate::flow::canonical_place_from_semantic_place;
-use crate::places::place_at;
+use crate::published::places::place_at;
 use checked_trees::{CheckFacts, FlowExitFact};
 use facts::{ContractFactKind, Fact, FactContextHandle, FactOrigin, FactPayload};
 use language_semantics::SemanticDomainId;

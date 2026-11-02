@@ -65,7 +65,7 @@ pub(crate) fn validate(
         | SelectedInstructionKind::RestoreFloatingControl { .. }
         | SelectedInstructionKind::Store64 { .. }
         | SelectedInstructionKind::FrameAddress { .. }) => {
-            let address = row.address.ok_or(Error::ArtifactMismatch)?;
+            let address = row.address().ok_or(Error::ArtifactMismatch)?;
             // The symbolic operation must be the address family this kind
             // owns; the producer's route declaration is not trusted here.
             if !admits_address_operation(kind, address.symbolic) {

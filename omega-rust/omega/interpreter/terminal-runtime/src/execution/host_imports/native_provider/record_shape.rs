@@ -173,6 +173,88 @@ pub(in crate::execution::host_imports) fn matches_signed_record_array(
         })
 }
 
+/// Complete fixed integer record, ordered by its selected native offsets.
+/// The codec still admits the whole semantic roster and exact storage plan;
+/// an equal byte extent cannot donate missing fields, references or padding.
+pub(in crate::execution::host_imports) fn matches_integer_record(
+    program: &TerminalProgram,
+    layouts: &[NativeBorrowedStorageLayout],
+    root: StructuralTypeId,
+    expected: &[(IntegerSign, u16)],
+) -> bool {
+    let Some(StructuralTypeShape::Record { fields, .. }) =
+        program.structural_type(root).map(|row| &row.shape)
+    else {
+        return false;
+    };
+    if fields
+        .iter()
+        .filter(|field| !field.relevance.is_erased())
+        .count()
+        != expected.len()
+    {
+        return false;
+    }
+    let mut semantic = expected
+        .iter()
+        .map(|&(sign, bits)| IntegerType::new(sign, bits).map(ScalarType::Integer))
+        .collect::<Result<Vec<_>, _>>();
+    let Ok(remaining) = &mut semantic else {
+        return false;
+    };
+    for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
+        let scalar = match &field.field_type {
+            StructuralFieldType::Scalar(scalar) => Some(*scalar),
+            StructuralFieldType::BoundedInteger(bounds) => {
+                Some(ScalarType::Integer(bounds.integer_type()))
+            }
+            StructuralFieldType::RefinedScalar(refinement) => Some(refinement.carrier()),
+            StructuralFieldType::Structural(child) => {
+                match program.structural_type(*child).map(|row| &row.shape) {
+                    Some(StructuralTypeShape::PrimitiveScalar(scalar)) => Some(*scalar),
+                    _ => None,
+                }
+            }
+            _ => None,
+        };
+        let Some(position) =
+            scalar.and_then(|scalar| remaining.iter().position(|expected| *expected == scalar))
+        else {
+            return false;
+        };
+        remaining.remove(position);
+    }
+    let Ok(codec) = StorageCodec::admit(program, layouts, root) else {
+        return false;
+    };
+    if !codec.references.is_empty() || codec.fields.len() != expected.len() {
+        return false;
+    }
+    let mut offset = 0usize;
+    for &(sign, bits) in expected {
+        let Ok(integer) = IntegerType::new(sign, bits) else {
+            return false;
+        };
+        if bits % 8 != 0 {
+            return false;
+        }
+        let scalar = ScalarType::Integer(integer);
+        let bytes = usize::from(bits / 8);
+        if codec.alignment < bytes
+            || !codec.fields.iter().any(|field| {
+                field.offset == offset && field.logical == scalar && field.stored == scalar
+            })
+        {
+            return false;
+        }
+        let Some(next) = offset.checked_add(bytes) else {
+            return false;
+        };
+        offset = next;
+    }
+    codec.extent == offset
+}
+
 pub(super) fn validate<'declaration>(
     signature: &BoundarySignatureGeometry,
     root: u16,

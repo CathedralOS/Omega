@@ -307,7 +307,6 @@ impl<'program> Collector<'program, '_> {
                 TypeParameterKind::Machine {
                     contract: MachineParameterContract::Structural(signature),
                 } => {
-                    self.predicate_facts(signature.where_facts)?;
                     self.contracts(signature.contracts)?;
                     self.type_parameters(signature.type_parameters)?;
                     self.state_parameters(signature.parameters)?;

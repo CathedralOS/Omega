@@ -40,7 +40,7 @@ use symbol_resolved_trees as resolved;
 use typed_trees::types::PrimitiveType;
 
 /// The exact declaration path of the root trait whose implementations the
-/// sealed `==` route consults: the same trait stage 02 synthesizes rows for.
+/// sealed `==` route consults: the same trait Psi 02 synthesizes rows for.
 const EQUATABLE_TRAIT_PATH: &str = "Equatable";
 const EQUALS_REQUIREMENT: &str = "equals";
 

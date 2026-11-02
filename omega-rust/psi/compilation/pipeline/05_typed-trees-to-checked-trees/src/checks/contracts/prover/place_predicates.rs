@@ -18,7 +18,7 @@ pub(in crate::checks::contracts) fn place_predicate(
     {
         return Some((PlacePredicate::Bytes(predicate), subject));
     }
-    crate::proof::exact_outcome_case_test(program, expression)
+    crate::published::proof::exact_outcome_case_test(program, expression)
         .map(|(subject, case)| (PlacePredicate::Case(case), subject))
 }
 

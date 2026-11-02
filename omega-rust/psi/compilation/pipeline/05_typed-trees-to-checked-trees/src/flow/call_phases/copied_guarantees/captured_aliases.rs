@@ -3,7 +3,6 @@
 //! neither this association nor its inverse projection grants a storage write.
 
 use super::ArgumentSources;
-use crate::collections::push_unique;
 use crate::flow::canonical_place_segments_may_overlap;
 use crate::flow::expressions;
 use crate::flow::mutation::CallMutationWrite;
@@ -11,7 +10,8 @@ use crate::flow::mutation::captured_alias_projection;
 use crate::flow::operand_binds_live_view;
 use crate::flow::operand_contexts::binding_overwrite;
 use crate::flow::operand_values::project_captured_view_place;
-use crate::places::place_at;
+use crate::published::places::place_at;
+use crate::shared::collections::push_unique;
 use validation::CanonicalPlace;
 
 impl ArgumentSources<'_, '_> {

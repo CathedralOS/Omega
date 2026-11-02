@@ -25,7 +25,7 @@ use checked_trees::{
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
-use crate::labels::symbol_name;
+use crate::published::labels::symbol_name;
 
 use super::overlap::StatedOrderingPremise;
 use super::simultaneous::{Hold, simultaneous_hold_conflict};

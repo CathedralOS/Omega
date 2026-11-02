@@ -45,10 +45,6 @@ impl<T> HandleSpanBuilder<T> {
             .expect("handle span count overflow");
     }
 
-    pub(crate) fn count(&self) -> u32 {
-        self.count
-    }
-
     pub(crate) fn is_empty(&self) -> bool {
         self.count == 0
     }

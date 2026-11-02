@@ -7,8 +7,8 @@ use crate::checks::multiplicity::linear_obligations::{LinearPlace, WrittenLinear
 use crate::checks::multiplicity::type_multiplicity::{
     data_field_name, expression_establishes_obligation, literal_variant,
 };
-use crate::collections::push_unique;
 use crate::flow::{assignment_preserves_reference_binding, expressions};
+use crate::shared::collections::push_unique;
 use checked_trees::CheckFacts;
 use checked_trees::FlowPermissionEvaluation;
 use facts::PlaceRoot;

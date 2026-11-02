@@ -7,7 +7,7 @@
 //! slot or relabels derived loans as direct reborrows.
 
 use super::aliases::{self, ResolvedAlias};
-use crate::places::place_at;
+use crate::published::places::place_at;
 use arena::HandleSpan;
 use checked_trees::{
     BorrowLoanLineage, CapturedPlace, CheckFacts, FlowConstraintRef, FlowStateFact,
@@ -206,7 +206,7 @@ pub(super) fn retain_captured_lineage(
             aliases::retained_lineage(&facts.borrow, borrow_state, candidate.local_loan)
         {
             for alternative in alternatives {
-                crate::collections::push_unique(&mut lineage, alternative);
+                crate::shared::collections::push_unique(&mut lineage, alternative);
             }
             resolved.push(ResolvedAlias {
                 place: candidate.place,
@@ -247,7 +247,7 @@ pub(super) fn retain_captured_lineage(
                 source.place.segments.extend_from_slice(&place.segments);
                 if source.place == candidate.place {
                     for ancestor in source.lineage {
-                        crate::collections::push_unique(&mut lineage, ancestor);
+                        crate::shared::collections::push_unique(&mut lineage, ancestor);
                     }
                 }
             }

@@ -93,7 +93,7 @@ realization migration.
 
 Within shared Unit assembly, [admission](src/unit/attached_unit/admission.rs)
 retains the ordered body roster and collects every boundary its calls name;
-stage 05 already planned each call against its exact target.
+Psi 05 already planned each call against its exact target.
 [Signatures](src/unit/attached_unit/signatures.rs) allocates all formals
 before deriving requirements, retaining structural/scalar parameters, authored
 predicate positions and machine-local claims together. Ordinary and composed
@@ -104,7 +104,7 @@ states and parameter aliases before binding invocation claim names; no boolean
 custody preflight speculates with an unaliased graph or selects another emitter.
 Ordinary state edges consume checked transfers directly, without authenticating
 them again against the checker's permission-event roster.
-Qualification forwarding is admitted by stage 05's graph producer; lowering
+Qualification forwarding is admitted by Psi 05's graph producer; lowering
 does not repeat that predecessor walk for either owned or borrowed parameters.
 
 [Composed callees](src/unit/attached_unit/composed_control/callable.rs)
@@ -138,7 +138,7 @@ form before returning it. Its
 [bindings](src/expression_preparation/bindings/mod.rs) resolve current
 storage and structural paths. Lowering reads no authored statement or
 expression: a state's declared `let` locals come from
-`CheckFacts::state_locals`, and every other value from the plan rows stage 05
+`CheckFacts::state_locals`, and every other value from the plan rows Psi 05
 hands over. [Byte literals](src/expression_preparation/byte_literals.rs)
 catalog a constructor literal's byte predicates against its declared carrier.
 These operations use shared

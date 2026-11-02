@@ -28,7 +28,7 @@ use super::{
     append_exit_reference_releases, append_reference_releases, structural_operands,
 };
 use crate::flow::expressions;
-use crate::places::place_at;
+use crate::published::places::place_at;
 use checked_trees::{CheckedUnitCallPlan, CheckedUnitStructuralReturnPlan as ReturnPlan};
 
 /// A planned body's final state, with the inputs completion reads.

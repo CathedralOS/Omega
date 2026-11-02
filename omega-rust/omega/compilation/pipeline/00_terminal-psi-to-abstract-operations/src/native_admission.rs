@@ -36,7 +36,7 @@ pub struct NativeAdmissionRequest<'request, 'execution> {
     pub behavior_exclusions: &'request effects::BehaviorExclusions,
 }
 
-/// Complete stage-00 native input. No physical work or publication has occurred.
+/// Complete Omega 00 native input. No physical work or publication has occurred.
 pub struct AdmittedNativeRealization<'execution> {
     pub input: VerifiedNativeArtifactInput,
     pub providers: AdmittedNativeProviders<'execution>,

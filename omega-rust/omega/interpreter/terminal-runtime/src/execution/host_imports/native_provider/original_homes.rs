@@ -93,6 +93,7 @@ pub(in super::super) struct NativeContext {
     pub(super) sponsor: Rc<RefCell<Sponsor>>,
     homes: Rc<RefCell<BTreeMap<(u64, u64), OriginalHome>>>,
     available: bool,
+    services: crate::execution::TerminalNativeServiceDelegation,
 }
 struct OriginalHome {
     root: TerminalOriginalStorageRoot,
@@ -142,9 +143,13 @@ impl TerminalScalarBacking for Resident {
 }
 
 impl NativeContext {
-    pub fn new(command: Option<Command>) -> Self {
+    pub fn new(
+        command: Option<Command>,
+        services: crate::execution::TerminalNativeServiceDelegation,
+    ) -> Self {
         Self {
             available: command.is_some(),
+            services,
             sponsor: Rc::new(RefCell::new(Sponsor {
                 command,
                 process: None,
@@ -155,6 +160,9 @@ impl NativeContext {
     }
     pub fn available(&self) -> bool {
         self.available
+    }
+    pub fn services(&self) -> crate::execution::TerminalNativeServiceDelegation {
+        self.services
     }
     pub fn finish(&self) -> Result<(), TerminalEffectRejection> {
         self.sponsor.borrow_mut().finish()
