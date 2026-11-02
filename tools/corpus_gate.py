@@ -127,6 +127,11 @@ commit, so two sessions never build one base twice. It answers "what did I move"
 the checked-in golden disagrees with this checkout over another lane's
 in-flight work, and editing this tree cannot leak into the base.
 
+Past 40 fixtures a compare runs on the hosted pilot instead, both sides at
+once, and builds nothing here (`remote_compare.py`); `--local` overrides:
+
+    python3 tools/corpus_gate.py --compare origin/main --remote --filter calls/
+
 `--filter` (or `OMEGA_CORPUS_FIXTURE_FILTER` directly) matches comma-separated
 trimmed substrings against `tier/group/name` and diffs only the fixtures that
 ran, against the same golden. `--shard k/N` (or `OMEGA_CORPUS_SHARD`)
@@ -1737,6 +1742,9 @@ def list_pinned_regressions(golden: Path) -> int:
 # on 2026-11-02 agent comparisons of 114 native fixtures and 630-fixture
 # witness sets each held one of the host's two build slots for over half an hour.
 SELECTION_BUDGET = 200
+# A local compare runs its selection twice after a 6-12 minute base build;
+# past this size the hosted pilot runs it for free (`--remote`).
+LOCAL_COMPARE_BUDGET = 40
 CORPUS_TIERS = ("pass", "fail", "run")
 
 
@@ -1760,15 +1768,42 @@ def default_jobs() -> int:
     return jobs
 
 
-def selection_size(filter_text, shard_text) -> int:
-    """Count the fixture directories a filter and shard select, before any build.
+def remote_comparison(options, revision, target, usage_error) -> int:
+    """`--compare --remote`: both sides measured on the hosted pilot."""
+    import remote_compare
+    local_only = [flag for flag, value in (
+        ("--runner", options.runner), ("--baseline-runner", options.baseline_runner),
+        ("--shard", options.shard or os.environ.get("OMEGA_CORPUS_SHARD", "").strip()),
+        ("--interpret without --native", options.interpret and not options.native),
+        ("--checked-interpreter", options.checked_interpreter),
+        ("--migration-roster", options.migration_roster), ("--jev", options.jev),
+        ("--write-moves", options.write_moves), ("--bisect", options.bisect),
+        ("--local", options.local)) if value]
+    if local_only:
+        print("corpus_gate: --remote dispatches exact fixtures to the pilot; it "
+              "cannot combine with " + ", ".join(local_only), file=sys.stderr)
+        return usage_error
+    filter_text = options.filter or os.environ.get(FILTER_VARIABLE, "")
+    try:
+        return remote_compare.compare(options, revision, target or "linux_x86_64",
+                                      not options.native, filter_text, options.remote)
+    except remote_compare.RemoteUsage as error:
+        print(str(error), file=sys.stderr)
+        return usage_error
+    except remote_compare.RemoteFailure as error:
+        print(f"corpus_gate: {error}", file=sys.stderr)
+        write_verdict(options, verdict_document(
+            options, "remote", target, "infrastructure_failed", 4, [], [], [],
+            str(error)))
+        return 4
 
-    Fragments match `tier/group/name` the way the runner's filter does. A
-    `k/N` shard is counted as an even 1/N of the filtered set, which is what
-    its hash slice approximates."""
+
+def selected_fixtures(filter_text) -> list:
+    """The fixture IDs a filter selects, matching `tier/group/name` the way the
+    runner's filter does."""
     fragments = [part.strip() for part in filter_text.split(",") if part.strip()]
     corpus = ROOT / "tests" / "omega"
-    count = 0
+    names = []
     for tier in CORPUS_TIERS:
         tier_directory = corpus / tier
         if not tier_directory.is_dir():
@@ -1781,7 +1816,16 @@ def selection_size(filter_text, shard_text) -> int:
                     continue
                 name = f"{tier}/{group.name}/{fixture.name}"
                 if not fragments or any(fragment in name for fragment in fragments):
-                    count += 1
+                    names.append(name)
+    return sorted(names)
+
+
+def selection_size(filter_text, shard_text) -> int:
+    """Count the fixture directories a filter and shard select, before any build.
+
+    A `k/N` shard is counted as an even 1/N of the filtered set, which is what
+    its hash slice approximates."""
+    count = len(selected_fixtures(filter_text))
     shard = shard_text.strip()
     if shard:
         try:
@@ -1845,6 +1889,15 @@ def main() -> int:
                              "shared by every worktree; exits 1 "
                              "when any fixture loses an outcome, expected "
                              "fragment or execution fact")
+    parser.add_argument("--remote", nargs="?", const="", metavar="work/NAME",
+                        help="with --compare, run both sides on the hosted "
+                             "Compiler queue pilot instead of this machine: "
+                             "push HEAD to its existing work branch (or the "
+                             "one named), dispatch the base and the head with "
+                             "the same exact fixtures, and diff their rows")
+    parser.add_argument("--local", action="store_true",
+                        help=f"run a --compare over {LOCAL_COMPARE_BUDGET} "
+                             "fixtures on this machine instead of --remote")
     parser.add_argument("--filter",
                         help="comma-separated fixture fragments — run and diff "
                              "only matching fixtures (sets "
@@ -2009,6 +2062,10 @@ def main() -> int:
         # Rows are shared by every worktree; a native leg names its target.
         compare_leg = f"{leg}-{target}" if target else leg
 
+    if options.remote is not None and not options.compare:
+        print("corpus_gate: --remote runs a --compare on hosted CI; name the base "
+              "with --compare REVISION")
+        return usage_error
     if options.sweep:
         os.environ["OMEGA_CORPUS_SWEEP"] = "1"
     selected = selection_size(
@@ -2021,6 +2078,14 @@ def main() -> int:
               "witnesses'). Name the fixtures the change can move with --filter, "
               "or pass --sweep for a sweep the user started or a scheduled job.",
               file=sys.stderr)
+        return usage_error
+    if options.remote is not None:
+        return remote_comparison(options, compare_revision, target, usage_error)
+    if compare_revision is not None and selected > LOCAL_COMPARE_BUDGET and not options.local:
+        print(f"corpus_gate: this compare runs {selected} fixtures twice; past "
+              f"{LOCAL_COMPARE_BUDGET} it runs on hosted CI with --remote, which "
+              "costs this machine nothing (AGENTS.md, 'Validate with witnesses'). "
+              "Pass --local to run it here anyway.", file=sys.stderr)
         return usage_error
     if not os.environ.get("OMEGA_CORPUS_JOBS", "").strip():
         os.environ["OMEGA_CORPUS_JOBS"] = str(default_jobs())

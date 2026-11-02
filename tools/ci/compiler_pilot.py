@@ -345,11 +345,20 @@ def execute(output, summary, *, positives=POSITIVES, negatives=NEGATIVES, checki
         validate_report(json.loads(report_path.read_text(encoding="utf-8")), fixtures,
                         both=both, revision=revision, target=summary["target"])
 
+    refused = None
     if positives or checking_only or negatives:
         checking = tuple(dict.fromkeys(positives + checking_only + negatives))
-        stage("checking and rejection controls", lambda: corpus("checking", checking))
+        try:
+            stage("checking and rejection controls", lambda: corpus("checking", checking))
+        except ValueError as error:
+            # The run stays red, but a remote base comparison
+            # (`corpus_gate.py --compare --remote`) still needs the
+            # native/Terminal rows of a base whose checking oracles fail.
+            refused = error
     if positives:
         stage("native and Terminal execution", lambda: corpus("both", positives, both=True))
+    if refused is not None:
+        raise refused
     if cli_fixtures:
         def ordinary_cli():
             rows = []
