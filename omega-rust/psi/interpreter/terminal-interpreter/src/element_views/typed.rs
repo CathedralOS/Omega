@@ -5,7 +5,7 @@
 //! the stored source carrier. Descriptor copies retain the original allocation
 //! and activation home; only the selected scalar crosses the bit mapping.
 
-use super::{ElementView, ElementViewBacking, ElementViewHome};
+use super::{CollectionStorage, ElementView, ElementViewBacking, ElementViewHome};
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::values::{TerminalScalarValue, TerminalStructuralValue};
@@ -104,7 +104,9 @@ impl TerminalExecution<'_> {
             source.access,
         )
         .ok_or_else(malformed)?;
-        let (collection, home) = self.element_collection_storage(source)?;
+        let CollectionStorage {
+            collection, home, ..
+        } = self.element_collection_storage(source)?;
         Ok(TypedElementView {
             collection,
             home,
