@@ -1,7 +1,9 @@
 # Generic selected invocation crash contracts
 
-Owning requirement: **CRASH-CONTRACT**, generic selected-use joins and exact
-invocation-entry operands through public package review and execution.
+Owning requirements: **CRASH-CONTRACT**, generic selected-use joins and exact
+invocation-entry operands through public package review and execution; and
+**BUILD-OWNED-TARGET-SELECTION**, carrying that same invocation through an
+explicitly selected target implementation without changing its public contract.
 
 Fact: a generic selected Reader<Zero>::read call preserves the entry i32 >= 0
 fact to discharge its authored value < Zero Trap route.
@@ -78,9 +80,21 @@ in qualification evidence rather than inferred from folder presence.
 
 ## Build-owned target-body migration
 
-The `target_body` place still spells the retired target prefix. Its family
-member is generic over an implementation map, and a boundary requirement's
-signature does not admit an evidence binder, so the place cannot yet move to
-named implementations selected by Build rows without changing the fact. The
-owner decision is
-[OWNER_QUESTIONS.md question 6](../../../../OWNER_QUESTIONS.md#6-may-a-boundary-requirements-own-signature-bind-a-generic-evidence-parameter).
+The `target_body` place calls the public `SelectedForward::forward` requirement.
+Its evidence binder remains caller-selected: `safe<Provider<Zero>>` supplies the
+`Reader<Zero>` map, while four explicit Build rows select ordinary forwarding
+implementations for the four hosted targets. Each body forwards the exact input
+to that map. The requirement retains `crashes Trap value < Zero` and explicit
+empty service reach; the public helper publishes `invokes SelectedForward`.
+The reject twin changes only Reader's `< Limit` to `<= Limit`, leaving an
+uncovered route even though the concrete provider returns normally.
+
+This uses the requirement-binder support already landed with
+`selected_value_application`; it adds no compiler rule or compatibility path.
+[Provider selection](../../../../wiki/spec/build/provider_selection.md#build-owned-target-selection),
+[explicit evidence selection](../../../../wiki/spec/language/conformances.md#declaration-and-selection),
+and [boundary crash contracts](../../../../wiki/spec/terminal-psi/boundary_calls.md#boundary-crash-contracts)
+govern the preserved selection and call obligations. The existing
+[owner question 6](../../../../OWNER_QUESTIONS.md#6-may-a-boundary-requirements-own-signature-bind-a-generic-evidence-parameter)
+remains unchanged; this migration does not answer or close it. Other target-prefix
+migration and the remaining CRASH-CONTRACT acceptance remain open.
