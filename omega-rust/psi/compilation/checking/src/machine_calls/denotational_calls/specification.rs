@@ -76,6 +76,7 @@ pub(crate) fn validate_specification_calls(
             }
         }
     }
+    let content = crate::value_custody::content_conservation::content_conservation_inputs(program);
     let mut requests = Vec::new();
     let mut visited = std::collections::HashSet::new();
     while let Some((caller, expression)) = pending.pop() {
@@ -89,6 +90,12 @@ pub(crate) fn validate_specification_calls(
         let ExpressionNode::Call(call) = node else {
             continue;
         };
+        // Content projections retain the exact owner/place/version judgment
+        // of their normalized conservation equation. Neither a matching name
+        // nor a reference parameter supplies this formation receipt.
+        if content.forms_projection_call(caller, expression) {
+            continue;
+        }
         // Exact roster membership defers this closed value invocation to the
         // evaluator's ordinary admission under selected provider custody. It
         // grants no denotation to arbitrary runtime or symbolic calls.
