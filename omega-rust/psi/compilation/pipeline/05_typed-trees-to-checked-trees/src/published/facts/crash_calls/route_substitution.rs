@@ -1237,7 +1237,7 @@ pub(crate) fn refine_published_crash_routes(
                 .collect::<Vec<_>>()
         };
         eprintln!(
-            "CRASH_REQUIREMENT_TRACE caller={:?} target={:?} raw={:?} buckets={buckets:?} applied={:?}",
+            "corpus_runner: CRASH_REQUIREMENT_TRACE caller={:?} target={:?} raw={:?} buckets={buckets:?} applied={:?}",
             state_flow.machine_symbol,
             target_state_symbol,
             describe(contracts),

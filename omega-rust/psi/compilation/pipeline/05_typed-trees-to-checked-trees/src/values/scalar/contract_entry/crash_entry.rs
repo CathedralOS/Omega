@@ -304,9 +304,11 @@ type LogicalMatchBinding = validation::LogicalMatchBinding<FieldPath>;
 /// One comparison operand, resolved once: its carrier selects the comparison
 /// family and the same resolution lowers it.
 enum ComparisonOperand {
-    FloatLiteral {
+    Constant {
         value: CheckedScalarExpression,
         reference: TypeReferenceHandle,
+        integer: bool,
+        ieee: bool,
     },
     /// A subject read; `static_subject` is present when the read needs no
     /// runtime selector, the only read form IEEE comparisons admit.
@@ -323,19 +325,25 @@ enum ComparisonOperand {
 
 impl ComparisonOperand {
     fn is_ieee(&self) -> bool {
-        matches!(self, ComparisonOperand::FloatLiteral { .. })
+        matches!(self, ComparisonOperand::Constant { ieee: true, .. })
             || matches!(self, ComparisonOperand::Subject { ieee: true, .. })
     }
 
     fn is_integer(&self) -> bool {
         matches!(self, ComparisonOperand::IntegerLiteral)
+            || matches!(self, ComparisonOperand::Constant { integer: true, .. })
             || matches!(self, ComparisonOperand::Subject { integer: true, .. })
     }
 
     /// The IEEE operand this resolution supplies.
     fn ieee_operand(self) -> Option<(CheckedScalarExpression, TypeReferenceHandle)> {
         match self {
-            ComparisonOperand::FloatLiteral { value, reference } => Some((value, reference)),
+            ComparisonOperand::Constant {
+                value,
+                reference,
+                ieee: true,
+                ..
+            } => Some((value, reference)),
             ComparisonOperand::Subject {
                 static_subject: Some(_),
                 ieee: true,
@@ -552,6 +560,23 @@ impl<'program> Reader<'program> {
         {
             return None;
         }
+        // Use the completed declaration value and its declared type. Reading
+        // an initializer here would bypass its evaluation and admission owner.
+        if let Some(constant) = validation::completed_integer_constant(self.program, expression) {
+            let reference = constant.type_reference?;
+            let (primitive, atom) = self.primitive(reference, depth + 1)??;
+            if constant.primitive != Some(primitive) || !fixed_integer_atom(atom) {
+                return None;
+            }
+            return Some(ComparisonOperand::Constant {
+                value: CheckedScalarExpression::IntegerLiteral {
+                    literal: validation::land_integer_value(&constant.value, primitive)?,
+                },
+                reference,
+                integer: true,
+                ieee: false,
+            });
+        }
         match self.program.expression_table.expression(expression) {
             ExpressionNode::Match(_) => self.logical_match_operand(expression, depth + 1),
             ExpressionNode::Float(literal) => {
@@ -564,7 +589,12 @@ impl<'program> Reader<'program> {
                 let value = CheckedScalarExpression::IeeeFloatLiteral {
                     value: typed_trees::expression::ieee_float_value(literal, literal.landing()?),
                 };
-                Some(ComparisonOperand::FloatLiteral { value, reference })
+                Some(ComparisonOperand::Constant {
+                    value,
+                    reference,
+                    integer: false,
+                    ieee: true,
+                })
             }
             ExpressionNode::Integer(_) => Some(ComparisonOperand::IntegerLiteral),
             ExpressionNode::Name(_)
@@ -610,6 +640,12 @@ impl<'program> Reader<'program> {
         for (position, operand) in operands.into_iter().enumerate() {
             match operand {
                 ComparisonOperand::Subject {
+                    value,
+                    reference,
+                    integer: true,
+                    ..
+                }
+                | ComparisonOperand::Constant {
                     value,
                     reference,
                     integer: true,

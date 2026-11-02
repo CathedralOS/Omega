@@ -28,7 +28,7 @@ use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 /// declared carrier. This validates encoding/fit, not initializer equality;
 /// initializer evaluation and source admission remain with their owners.
 /// No pending observation or arbitrary initializer traversal supplies a value.
-pub(crate) fn completed_integer_constant(
+pub fn completed_integer_constant(
     program: &dyn CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<typed_trees::closed_numeric::ClosedIntegerValue> {
