@@ -106,22 +106,7 @@ pub(super) fn parse_transition_guard_node<'tokens, 'source>(
         };
         let equality = match exprs_of(syntax_trees).expression(right) {
             ExpressionNode::Name(_) => {
-                let capture = exprs(syntax_trees).insert_transition_subject(left);
-                bindings.push(DestructureBindings {
-                    subject: left,
-                    fields: Vec::new(),
-                    pattern: Some(syntax_trees::statement::TransitionPattern {
-                        subject: left,
-                        capture,
-                        is_structural: false,
-                        pattern: syntax_trees::expression::TableDestructurePattern {
-                            head: right,
-                            has_rest: true,
-                            ..Default::default()
-                        },
-                    }),
-                    proof_selectors: Vec::new(),
-                });
+                retain_named_pattern(syntax_trees, left, right, &mut bindings);
                 continue;
             }
             // A condition-shaped pattern already evaluates to a decision:
@@ -253,8 +238,10 @@ fn parse_tuple_destructure_pattern_arm<'tokens, 'source>(
             return Err(rest.error_here("expected tuple transition pattern component"));
         }
         if let Some(pattern) = pattern {
-            let constraint = pattern_constraint(syntax_trees, subject, pattern);
-            combined = join_guard_conjunction(syntax_trees, combined, constraint);
+            let constraint = pattern_constraint(syntax_trees, subject, pattern, &mut all_bindings);
+            if constraint.is_valid() {
+                combined = join_guard_conjunction(syntax_trees, combined, constraint);
+            }
         }
     }
 
@@ -343,27 +330,50 @@ fn split_tuple_pattern_components<'tokens, 'source>(
     Err(input.error_here("expected `)` to close tuple transition pattern"))
 }
 
+/// A named value may resolve to a case, constant or lexical binding. Only
+/// declaration selection can distinguish them, independently on every axis.
+fn retain_named_pattern(
+    syntax_trees: &mut SyntaxTrees,
+    subject: ExpressionHandle,
+    head: ExpressionHandle,
+    bindings: &mut Vec<DestructureBindings>,
+) {
+    let capture = exprs(syntax_trees).insert_transition_subject(subject);
+    bindings.push(DestructureBindings {
+        subject,
+        fields: Vec::new(),
+        pattern: Some(syntax_trees::statement::TransitionPattern {
+            subject,
+            capture,
+            is_structural: false,
+            pattern: syntax_trees::expression::TableDestructurePattern {
+                head,
+                has_rest: true,
+                ..Default::default()
+            },
+        }),
+        proof_selectors: Vec::new(),
+    });
+}
+
 fn pattern_constraint(
     syntax_trees: &mut SyntaxTrees,
     subject: ExpressionHandle,
     pattern: ExpressionHandle,
+    bindings: &mut Vec<DestructureBindings>,
 ) -> ExpressionHandle {
-    match exprs_of(syntax_trees).expression(pattern).clone() {
-        ExpressionNode::Name(path)
-            if exprs_of(syntax_trees).identifier_path_members(path).len() == 2 =>
-        {
-            exprs(syntax_trees).insert(ExpressionNode::Membership(TableMembershipExpression {
-                value: subject,
-                domain: path,
-            }))
-        }
-        _ => syntax_trees
-            .expressions
-            .insert(ExpressionNode::Binary(TableBinaryExpression {
-                left: subject,
-                operator: BinaryOperator::Equal,
-                right: pattern,
-            })),
+    if matches!(
+        exprs_of(syntax_trees).expression(pattern),
+        ExpressionNode::Name(_)
+    ) {
+        retain_named_pattern(syntax_trees, subject, pattern, bindings);
+        ExpressionHandle::invalid()
+    } else {
+        exprs(syntax_trees).insert(ExpressionNode::Binary(TableBinaryExpression {
+            left: subject,
+            operator: BinaryOperator::Equal,
+            right: pattern,
+        }))
     }
 }
 
