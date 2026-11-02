@@ -438,6 +438,16 @@ mod tests {
             encode_aarch64_selected_table_call_form(&record, alternative, &views, &accesses)
                 .is_err()
         );
+        let calling_conventions::ValueLocation::Register { register, .. } =
+            &mut record.call.binding.boundary_entry_plan.call.parameters[0].locations[0]
+        else {
+            panic!("register argument");
+        };
+        *register = calling_conventions::MachineRegister::Aarch64X(16);
+        assert!(
+            encode_aarch64_selected_table_call_form(&record, alternative, &views, &accesses)
+                .is_err()
+        );
     }
 
     /// These records carry physical call inputs only; source ownership and

@@ -44,6 +44,24 @@ fn array_module() -> TerminalModule {
 }
 
 #[test]
+fn finite_storage_depth_is_not_a_new_foreign_dependency_limit() {
+    let mut module = array_module();
+    for value in 3..=131 {
+        module.structural_types.push(declaration(
+            value,
+            StructuralTypeShape::FixedArray {
+                element: identity(value - 1),
+                length: ArrayExtent::Literal(1),
+            },
+        ));
+    }
+    assert_eq!(
+        foreign_storage_extent_dependencies(&module, [identity(131)], "macos_arm64").unwrap(),
+        [ScalarApplicationId::new(1).unwrap()]
+    );
+}
+
+#[test]
 fn selected_opaque_carrier_owes_its_actual_array_extent() {
     use language_semantics::opaque_representations::*;
     let mut module = array_module();

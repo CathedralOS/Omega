@@ -110,7 +110,7 @@ pub fn foreign_storage_extent_dependencies(
         if closed.contains(&subject) {
             return Ok(());
         }
-        if active.len() >= 128 || active.contains(&subject) {
+        if active.contains(&subject) {
             return Err("recursive by-value Terminal data has no finite boundary shape".into());
         }
         let declaration = module
