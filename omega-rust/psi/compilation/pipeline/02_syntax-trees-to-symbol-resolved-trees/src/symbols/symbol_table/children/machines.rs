@@ -2,7 +2,9 @@ use symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::{SymbolHandle, SymbolKind, SymbolTableAppender, SymbolTableBuilder};
 
 use super::insert_machine_type_parameter_children;
-use crate::symbols::symbol_table::names::{parameter_seeds, symbol_seed, type_parameter_seeds};
+use crate::symbols::symbol_table::names::{
+    evidence_requirement_seed, parameter_seeds, symbol_seed, type_parameter_seeds,
+};
 
 pub(in crate::symbols::symbol_table) fn insert_machine_symbol_children(
     builder: &mut impl SymbolTableAppender,
@@ -64,9 +66,9 @@ pub(in crate::symbols::symbol_table) fn insert_machine_symbol_children(
             );
             builder.insert_children(
                 binder_symbol,
-                requirements.into_iter().map(|requirement| {
-                    symbol_seed(SymbolKind::State, &requirement.name, has_sources)
-                }),
+                requirements
+                    .into_iter()
+                    .map(|requirement| evidence_requirement_seed(&requirement.name)),
             );
         }
     }

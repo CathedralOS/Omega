@@ -1,7 +1,9 @@
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::{SymbolHandle, SymbolKind, SymbolTableAppender, SymbolTableBuilder};
 
-use crate::symbols::symbol_table::names::{parameter_seeds, symbol_seed};
+use crate::symbols::symbol_table::names::{
+    evidence_requirement_seed, parameter_seeds, symbol_seed,
+};
 use symbol_resolved_trees::data::TypeParameterKind;
 use symbol_resolved_trees::trait_definition::TraitDefinition;
 
@@ -69,9 +71,9 @@ pub(in crate::symbols::symbol_table) fn insert_trait_symbol_children(
             );
             builder.insert_children(
                 parameter_symbol,
-                requirements.into_iter().map(|requirement| {
-                    symbol_seed(SymbolKind::State, &requirement.name, has_sources)
-                }),
+                requirements
+                    .into_iter()
+                    .map(|requirement| evidence_requirement_seed(&requirement.name)),
             );
         }
     }
