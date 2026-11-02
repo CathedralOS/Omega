@@ -1058,9 +1058,12 @@ fail/facts/nested_machine_declared_repeated_reads_local rejected 95844ms expecte
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_declared_repeated_reads_match_join rejected 93775ms expected @7280b73089bb
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-fail/facts/nested_machine_declared_repeated_reads_other_machine timeout 120003ms @7280b73089bb
-fail/facts/nested_machine_declared_repeated_reads_other_state timeout 120003ms @7280b73089bb
-fail/facts/nested_machine_declared_repeated_reads_parameter timeout 120004ms @7280b73089bb
+fail/facts/nested_machine_declared_repeated_reads_other_machine rejected 19266ms expected @8b2ce6e240b5
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_declared_repeated_reads_other_state rejected 25140ms expected @8b2ce6e240b5
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_declared_repeated_reads_parameter rejected 18460ms expected @8b2ce6e240b5
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_declared_repeated_reads_self_selected rejected 80421ms expected @7280b73089bb
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_declared_repeated_reads_target_body rejected 56110ms expected @7280b73089bb
@@ -8176,12 +8179,12 @@ pass/facts/nested_machine_declared_repeated_reads_call_result checked 79027ms ch
 pass/facts/nested_machine_declared_repeated_reads_const_name checked 92910ms check-target:macos_arm64 @7280b73089bb
 pass/facts/nested_machine_declared_repeated_reads_distinct_slots checked 87122ms check-target:macos_arm64 @7280b73089bb
 pass/facts/nested_machine_declared_repeated_reads_field checked 79480ms check-target:macos_arm64 @7280b73089bb
-pass/facts/nested_machine_declared_repeated_reads_local timeout 120003ms @7280b73089bb
-pass/facts/nested_machine_declared_repeated_reads_match_join timeout 120007ms @7280b73089bb
-pass/facts/nested_machine_declared_repeated_reads_other_machine timeout 120005ms @7280b73089bb
+pass/facts/nested_machine_declared_repeated_reads_local checked 30107ms check-target:macos_arm64 @8b2ce6e240b5
+pass/facts/nested_machine_declared_repeated_reads_match_join checked 25616ms check-target:macos_arm64 @8b2ce6e240b5
+pass/facts/nested_machine_declared_repeated_reads_other_machine checked 22490ms check-target:macos_arm64 @8b2ce6e240b5
 pass/facts/nested_machine_declared_repeated_reads_other_state checked 78759ms check-target:macos_arm64 @7280b73089bb
 pass/facts/nested_machine_declared_repeated_reads_parameter checked 102161ms check-target:macos_arm64 @7280b73089bb
-pass/facts/nested_machine_declared_repeated_reads_self_selected timeout 120004ms @7280b73089bb
+pass/facts/nested_machine_declared_repeated_reads_self_selected checked 24942ms check-target:macos_arm64 @8b2ce6e240b5
 pass/facts/nested_machine_declared_repeated_reads_target_body checked 114852ms check-target:macos_arm64 @7280b73089bb
 pass/facts/nested_machine_declared_selector_computed_selector built 15500ms exit:0 interpreter-exit:0 interpreter:agrees @b3e852cfac94
 pass/facts/nested_machine_declared_selector_public_call built 16921ms exit:0 interpreter-exit:0 interpreter:agrees @b3e852cfac94

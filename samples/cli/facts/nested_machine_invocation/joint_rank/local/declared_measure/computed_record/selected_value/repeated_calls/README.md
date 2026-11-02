@@ -82,6 +82,13 @@ falsifiers. Corpus mirrors are named
 `facts/nested_machine_declared_repeated_reads_*` and retain explicit native and
 Terminal exit-0 oracles plus fact-sensitive rejection fragments.
 
+The focused checking batch observes 25 checked positives and 25 intended
+refusals. The canonical golden records 23 new rows and updates only the older
+distinct-context refusal's reason. Eleven new execution rows record native and
+Terminal exit 0. Seven recording timeouts at four workers were recovered at one
+worker under the same 120-second fixture cap; every scoped golden row now has
+its intended completed outcome.
+
 Copied fixed-array writes with an unchanged sibling-cell equality remain a
 separate source-checking gap: the exploratory copy/update composition fails its
 next-call requirement on both the baseline and candidate. The distinct-slot
