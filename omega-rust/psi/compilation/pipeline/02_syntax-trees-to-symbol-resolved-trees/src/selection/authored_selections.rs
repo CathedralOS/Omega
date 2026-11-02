@@ -1185,6 +1185,31 @@ fn collect_expression_subtree(
     }
 }
 
+/// Package names direct lookup to a dependency; they need no declaration
+/// symbols of their own. Recognize only the complete loader-certified prefix.
+/// Real modules and members after it still supply their ordinary selections.
+fn package_qualifier_member_count(
+    program: &SymbolResolvedTrees,
+    members: &[DiagnosticName],
+    reference: SourceSpan,
+) -> usize {
+    let mut prefix = String::new();
+    let mut package_members = 0;
+    for (offset, member) in members.iter().enumerate() {
+        if offset != 0 {
+            prefix.push_str("::");
+        }
+        prefix.push_str(member.as_str());
+        if program
+            .symbols
+            .is_source_package_qualifier(reference, &prefix)
+        {
+            package_members = offset + 1;
+        }
+    }
+    package_members
+}
+
 fn expression_candidates(
     program: &SymbolResolvedTrees,
     expression: ExpressionHandle,
@@ -1332,17 +1357,26 @@ fn expression_candidates(
                     .map_err(|message| Diagnostic::error(message).with_source_span(reference))?;
             }
             let symbols = expressions.name_path_member_symbols(path.member_symbols);
+            let package_members = if path.head_symbol.is_valid() || members.len() < 2 {
+                0
+            } else {
+                // A generated wrapper may have no source location. The name's
+                // own tokens identify the file whose imports authorize it.
+                package_qualifier_member_count(
+                    program,
+                    members,
+                    path_span(members, expression_span),
+                )
+            };
             for (offset, member) in members.iter().enumerate() {
                 let symbol = symbols
                     .get(offset)
                     .copied()
                     .unwrap_or_else(SymbolHandle::invalid);
-                // A bare unresolved root is a lexical value place (parameter
-                // or local), not a declaration selection. Resolved lexical
-                // binders are excluded for the same reason. Later segments
-                // remain authored field/case/declaration selections and may
-                // still require checked contextual resolution.
-                if (offset == 0 && !symbol.is_valid())
+                // Local bindings and package addresses do not select
+                // declarations. Keep real module, field and case selections,
+                // including suffixes that still need contextual resolution.
+                if ((offset == 0 || offset < package_members) && !symbol.is_valid())
                     || (symbol.is_valid() && !is_selectable_declaration_symbol(program, symbol))
                 {
                     continue;
