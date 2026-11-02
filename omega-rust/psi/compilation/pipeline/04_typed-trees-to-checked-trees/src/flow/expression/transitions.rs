@@ -165,7 +165,7 @@ impl Execution<'_, '_, '_> {
             contexts,
             constraints,
         );
-        self.install_call_stores(completed.stores);
+        self.install_call_stores(completed.call, completed.stores);
         self.context.active_completed_copies = previous_copies;
     }
 }

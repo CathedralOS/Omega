@@ -129,7 +129,78 @@ fn project_operational_rows(
     (suspensions, blocking)
 }
 
+/// The storage history of every checked body, built before validation's
+/// machine loop from validation-independent inputs, so that checking
+/// judgments read one history. It is the flow fixed point with no interval,
+/// cast, assignment or projection decisions; on the corpus witnesses its
+/// stores, writes and joins equal the later complete build's. A program whose
+/// pre-flow facts fail has no graph, and its judgments keep their own reads.
+pub(crate) fn build_storage_graph(
+    program_context: &::validation::CheckingContext<'_>,
+    proof_plan: &ProofPlan<'_>,
+    content: checked_trees::ContentProjectionFacts,
+    operational: OperationalPlan,
+    service_reach_inference: flow_effects::ServiceReachInferencePlan,
+) -> Option<checked_trees::FlowFacts> {
+    match build_facts(
+        program_context,
+        proof_plan,
+        content,
+        &[],
+        operational,
+        service_reach_inference,
+        validation::ProgramValidationFacts::default(),
+        &[],
+        &crate::flow::StateMutationSummaryCache::default(),
+        FactScope::StorageGraph,
+    ) {
+        Ok(BuiltFacts::StorageGraph(flow)) => Some(flow),
+        _ => None,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn build_check_facts(
+    program_context: &::validation::CheckingContext<'_>,
+    proof_plan: &ProofPlan<'_>,
+    content: checked_trees::ContentProjectionFacts,
+    integer_assignments: &[proof::checker::CheckedIntegerAssignment],
+    operational: OperationalPlan,
+    service_reach_inference: flow_effects::ServiceReachInferencePlan,
+    validation_facts: validation::ProgramValidationFacts,
+    expression_intervals: &[validation::ExpressionInterval],
+    mutation_summaries: &crate::flow::StateMutationSummaryCache,
+) -> Result<(CheckFacts, validation::PreparedEffectPlans), Vec<diagnostics::Diagnostic>> {
+    match build_facts(
+        program_context,
+        proof_plan,
+        content,
+        integer_assignments,
+        operational,
+        service_reach_inference,
+        validation_facts,
+        expression_intervals,
+        mutation_summaries,
+        FactScope::Complete,
+    )? {
+        BuiltFacts::Complete(facts, plans) => Ok((facts, plans)),
+        BuiltFacts::StorageGraph(_) => unreachable!("the complete scope builds every fact"),
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum FactScope {
+    StorageGraph,
+    Complete,
+}
+
+enum BuiltFacts {
+    StorageGraph(checked_trees::FlowFacts),
+    Complete(CheckFacts, validation::PreparedEffectPlans),
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_facts(
     program_context: &::validation::CheckingContext<'_>,
     proof_plan: &ProofPlan<'_>,
     content: checked_trees::ContentProjectionFacts,
@@ -139,7 +210,8 @@ pub(crate) fn build_check_facts(
     mut validation_facts: validation::ProgramValidationFacts,
     expression_intervals: &[validation::ExpressionInterval],
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
-) -> Result<(CheckFacts, validation::PreparedEffectPlans), Vec<diagnostics::Diagnostic>> {
+    scope: FactScope,
+) -> Result<BuiltFacts, Vec<diagnostics::Diagnostic>> {
     // One resolver serves this immutable fact-construction window, including
     // stored-reference loans, flow classification, terminal ranking projections,
     // termination progress proofs, mutation frames, and crash-route refinement.
@@ -320,6 +392,9 @@ pub(crate) fn build_check_facts(
     }
     drop(flow_loop_guard);
     phase_profile::checkpoint("after flow fixed point", "05.d.3.b.flow_fixed_point");
+    if scope == FactScope::StorageGraph {
+        return Ok(BuiltFacts::StorageGraph(prepared.flow));
+    }
     phase_profile::checkpoint(
         "flow fixed-point iterations",
         "05.d.3.b.flow_fixed_point.outer_iterations",
@@ -588,7 +663,7 @@ pub(crate) fn build_check_facts(
 
     let mut stored_integer_writes = arena::Arena::new();
     stored_integer_writes.insert_many(validation_facts.stored_integer_writes);
-    Ok((
+    Ok(BuiltFacts::Complete(
         CheckFacts {
             quotient_formations: validation_facts.quotient_formations,
             stored_integer_writes,

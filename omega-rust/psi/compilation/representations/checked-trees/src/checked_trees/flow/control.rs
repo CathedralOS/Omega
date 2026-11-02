@@ -30,6 +30,9 @@ pub struct FlowCallFact {
     /// Exact storage after every operand completes and before the call runs.
     /// Borrowed observations use this cut, never an earlier actual's pointee.
     pub invocation_storage: arena::Handle<super::FlowStorageSnapshot>,
+    /// Storage after the call's own normal-return writes. Guarantees about
+    /// post-call storage hold at this cut until a later write retires them.
+    pub completed_storage: arena::Handle<super::FlowStorageSnapshot>,
     /// Actuals in authored evaluation order, captured at their own completion.
     pub operands: HandleSpan<super::FlowOperandFact>,
     /// Exact expression occurrence captured by the semantic call traversal.

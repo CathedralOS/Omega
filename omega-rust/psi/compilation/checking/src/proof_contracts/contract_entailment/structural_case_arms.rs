@@ -783,7 +783,11 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
                 citation_preserves_values = complete && writes.is_empty();
                 if path
                     .judge
-                    .observe_storage_effects(state, complete.then_some(writes.as_slice()))
+                    .observe_storage_effects(
+                        state,
+                        complete.then_some(writes.as_slice()),
+                        path.judge.statement_storage_version(state, statement_index),
+                    )
                     .is_none()
                 {
                     return valid;
@@ -904,10 +908,14 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
                         let mut environment = path.environment.clone();
                         environment.retain(|(name, _)| name != local.name.as_str());
                         if let Some(value) = value {
+                            let version =
+                                outcome_judge.statement_storage_version(state, statement_index);
                             outcome_judge.observe_completed_binding(
                                 local.symbol,
                                 local.type_reference,
                                 value.clone(),
+                                local.initial_value,
+                                version,
                             );
                             environment.push((local.name.as_str().to_owned(), value));
                         }
@@ -1489,7 +1497,12 @@ fn recognize_structural_state_leaves_from<'a>(
                     }
                 }
                 citation_preserves_values = complete && writes.is_empty();
-                judge.observe_storage_effects(state, complete.then_some(writes.as_slice()))?;
+                let version = judge.statement_storage_version(state, statement_index);
+                judge.observe_storage_effects(
+                    state,
+                    complete.then_some(writes.as_slice()),
+                    version,
+                )?;
             }
             if (!visitors.is_empty() || judge.has_runtime_body_values())
                 && citation_preserves_values
@@ -1658,10 +1671,14 @@ fn recognize_structural_state_leaves_from<'a>(
                         let mut environment = environment.clone();
                         environment.retain(|(name, _)| name != local.name.as_str());
                         if let Some(value) = value {
+                            let version =
+                                outcome_judge.statement_storage_version(state, statement_index);
                             outcome_judge.observe_completed_binding(
                                 local.symbol,
                                 local.type_reference,
                                 value.clone(),
+                                local.initial_value,
+                                version,
                             );
                             environment.push((local.name.as_str().to_owned(), value));
                         }

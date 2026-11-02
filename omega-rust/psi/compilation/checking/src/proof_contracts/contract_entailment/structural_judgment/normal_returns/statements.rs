@@ -143,7 +143,8 @@ impl<'program> StructuralJudge<'program> {
                     .extend(guarantees.content);
                 post_storage = captured.post_storage;
             }
-            judge.observe_storage_effects(scope.1, writes.complete_paths())?;
+            let version = judge.statement_storage_version(scope.1, statement_index);
+            judge.observe_storage_effects(scope.1, writes.complete_paths(), version)?;
             for storage in post_storage {
                 judge.install_post_call_storage(scope.1, storage);
             }

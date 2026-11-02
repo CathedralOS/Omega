@@ -197,6 +197,7 @@ pub(super) fn build_call_flow_fact<'plans>(
         statement_index: borrow_call.statement_index,
         call_ordinal: borrow_call.call_ordinal,
         invocation_storage: Default::default(),
+        completed_storage: Default::default(),
         authored_expression: Default::default(),
         authored_site: Default::default(),
         authored_target: Default::default(),

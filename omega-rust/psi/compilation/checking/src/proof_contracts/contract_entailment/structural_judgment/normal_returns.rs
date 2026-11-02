@@ -905,7 +905,12 @@ impl<'program> StructuralJudge<'program> {
                 if advance {
                     *successors_available &= path
                         .judge
-                        .observe_storage_effects(scope.1, frame.complete_paths())
+                        .observe_storage_effects(
+                            scope.1,
+                            frame.complete_paths(),
+                            path.judge
+                                .statement_node_storage_version(scope.1, statement),
+                        )
                         .is_some();
                 }
             }
@@ -2326,7 +2331,8 @@ impl<'program> StructuralJudge<'program> {
     ) -> Option<()> {
         let post_storage =
             self.capture_normal_call(expression, actuals, environment, scope, writes);
-        self.observe_storage_effects(scope.1, writes.complete_paths())?;
+        let version = self.call_storage_version(scope.1, expression);
+        self.observe_storage_effects(scope.1, writes.complete_paths(), version)?;
         for storage in post_storage.into_iter().flatten() {
             self.install_post_call_storage(scope.1, storage);
         }

@@ -595,7 +595,6 @@ impl<'program> StructuralJudge<'program> {
             address(&*self.normal_memberships),
             address(&*self.normal_content_guarantees),
             address(&*self.invalidated_storage),
-            address(&*self.storage_exposures),
             address(&*self.stored_values),
             address(&*self.normal_guarantees),
             address(&*self.captured_result_equations),
@@ -645,7 +644,6 @@ impl<'program> StructuralJudge<'program> {
                 &other.normal_content_guarantees,
             )
             && Arc::ptr_eq(&self.invalidated_storage, &other.invalidated_storage)
-            && Arc::ptr_eq(&self.storage_exposures, &other.storage_exposures)
             && Arc::ptr_eq(&self.stored_values, &other.stored_values)
             && self.capture_sequence == other.capture_sequence
             && self.storage_write_sequence == other.storage_write_sequence

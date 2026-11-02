@@ -115,6 +115,12 @@ pub(in crate::flow) fn call_mutation_writes(
     state_mutation_summaries: &StateMutationSummaryCache,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CallMutationWrite>> {
+    // A callable that carries proof-only values cannot run, so its invocation
+    // is fact-only: it emits no runtime call or work and writes no caller
+    // storage, whatever its signature's ceiling would admit.
+    if validation::invocation_is_fact_only(program, borrow_call.target_symbol) {
+        return Some(Vec::new());
+    }
     let site = find_call_site(
         program,
         caller_machine_symbol,
