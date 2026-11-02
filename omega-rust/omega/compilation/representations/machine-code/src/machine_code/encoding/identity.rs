@@ -66,7 +66,7 @@ fn encode_encoding_row(
 ) {
     hasher.raw(&row.instruction.0.to_le_bytes());
     selected_instructions::encode_machine_alternative_key_identity(hasher, row.alternative);
-    match row.address {
+    match row.address.as_deref() {
         None => hasher.byte(0),
         Some(address) => {
             use physical_instructions::PhysicalAddressOperation as Address;
@@ -201,7 +201,7 @@ fn encode_encoding_row(
         SelectedFormEncodingState::UnresolvedInternalMachineCall { fixup } => {
             hasher.byte(2);
             encode_row_contents(hasher, bytes, encoded.footprint(row.footprint));
-            encode_internal_fixup(hasher, *fixup);
+            encode_internal_fixup(hasher, **fixup);
         }
         SelectedFormEncodingState::UnresolvedNormalizedForeignCall { fixup } => {
             hasher.byte(3);

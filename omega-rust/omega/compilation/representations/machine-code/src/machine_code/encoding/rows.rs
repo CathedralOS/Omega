@@ -7,6 +7,12 @@
 //! immutable payload, including their operand/effect vectors, while every
 //! row keeps a distinct slot. Cloning shares those payloads; mutating a
 //! proposed row detaches only that slot before independent replay.
+//!
+//! Every ordinary row also contains a state and disposition, even when it
+//! has no fixup or rewrite. Their large variant payloads and the optional
+//! address live out of line: reserving a row table alone would still make
+//! every ordinary instruction pay those union maxima. Ownership, value
+//! equality, cloning and canonical content encoding remain unchanged.
 
 use crate::SelectedFormInternalMachineFixup;
 use register_model::{RegisterUnitId, RegisterViewId};
@@ -56,6 +62,15 @@ pub struct SelectedFormEncodedRowStore {
 impl SelectedFormEncodedRowStore {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Reserve only the known row slots. The content index and byte image
+    /// still grow from the actual produced evidence, not an estimated bound.
+    pub fn with_row_capacity(row_count: usize) -> Self {
+        Self {
+            bytes: Vec::new(),
+            footprints: super::footprints::SharedFootprints::with_row_capacity(row_count),
+        }
     }
 
     /// Append one row's bytes and decoded footprint, returning the span and
@@ -149,18 +164,18 @@ pub enum SelectedFormEncodingState {
         reason: DeferredControlEncodingReason,
     },
     UnresolvedInternalMachineCall {
-        fixup: SelectedFormInternalMachineFixup,
+        fixup: Box<SelectedFormInternalMachineFixup>,
     },
     /// Normalized foreign call whose import field stays unresolved until
     /// object construction binds it to the declared import symbol. The fixup
     /// names the selected roster row, never a raw foreign coordinate.
     UnresolvedNormalizedForeignCall {
-        fixup: crate::SelectedFormNormalizedForeignCallFixup,
+        fixup: Box<crate::SelectedFormNormalizedForeignCallFixup>,
     },
     /// Image-relative address whose field stays unresolved until its exact
     /// referent is placed. The reference describes identity, not RAM authority.
     UnresolvedImageAddress {
-        fixup: crate::SelectedFormImageAddressFixup,
+        fixup: Box<crate::SelectedFormImageAddressFixup>,
     },
 }
 
@@ -175,7 +190,7 @@ pub enum SelectedFormMachineDisposition {
     },
     Aarch64FusedBranchNonZeroToCbnzV1 {
         compare: SelectedInstructionId,
-        source_read: physical_instructions::QualifiedPhysicalRead,
+        source_read: Box<physical_instructions::QualifiedPhysicalRead>,
     },
     Aarch64ElidedSameViewCopyI64V1 {
         consumer: SelectedInstructionId,
@@ -188,13 +203,24 @@ pub struct SelectedFormEncodingRow {
     pub alternative: MachineAlternativeKey,
     pub machine_disposition: SelectedFormMachineDisposition,
     pub state: SelectedFormEncodingState,
-    pub address: Option<ResolvedPhysicalAddress>,
+    // Most rows need neither a resolved address nor one of the large fixup
+    // or rewrite payloads above. Keep those owned values out of the common
+    // row stride; ordinary rows must not pay every rare variant's maximum.
+    // Boxes preserve value cloning/equality and independent proposal mutation.
+    pub address: Option<Box<ResolvedPhysicalAddress>>,
     /// Instruction bytes in the encoding's byte image. Empty exactly when
     /// the state defers this row's encoding to resolved layout.
     pub code: SelectedFormEncodedByteSpan,
     /// Decoded footprint in the encoding's footprint table. Absent exactly
     /// when the state defers this row's encoding to resolved layout.
     pub footprint: SelectedFormDecodedFootprintHandle,
+}
+
+impl SelectedFormEncodingRow {
+    /// Copy the complete optional address without cloning its storage owner.
+    pub fn address(&self) -> Option<ResolvedPhysicalAddress> {
+        self.address.as_deref().copied()
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

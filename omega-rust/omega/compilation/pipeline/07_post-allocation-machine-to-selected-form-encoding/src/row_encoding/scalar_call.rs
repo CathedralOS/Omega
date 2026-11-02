@@ -137,6 +137,8 @@ pub(super) fn encode(
         machine,
         &effects,
         bytes,
-        SelectedFormEncodingState::UnresolvedInternalMachineCall { fixup },
+        SelectedFormEncodingState::UnresolvedInternalMachineCall {
+            fixup: Box::new(fixup),
+        },
     )
 }

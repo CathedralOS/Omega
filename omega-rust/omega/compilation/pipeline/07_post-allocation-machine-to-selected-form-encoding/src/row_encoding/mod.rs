@@ -209,7 +209,7 @@ pub(super) fn encode_row(
         alternative,
         machine_disposition: SelectedFormMachineDisposition::RetainedV1,
         state: draft.state,
-        address,
+        address: address.map(Box::new),
         code,
         footprint,
     })
@@ -238,10 +238,10 @@ fn image_address(
         physical,
     )?
     .retagged(SelectedFormEncodingState::UnresolvedImageAddress {
-        fixup: SelectedFormImageAddressFixup {
+        fixup: Box::new(SelectedFormImageAddressFixup {
             reference,
             fields: image_address_fields(target.architecture),
-        },
+        }),
     })
 }
 

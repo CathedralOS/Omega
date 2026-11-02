@@ -28,7 +28,7 @@ pub(super) fn validate<S: ValidatedSelectedAnalysis>(
                 machine_function,
                 frame,
                 machine_instruction,
-                candidate.address,
+                candidate.address(),
             )?;
             row::validate(
                 target,

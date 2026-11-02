@@ -23,6 +23,13 @@ pub(super) struct SharedFootprints {
 }
 
 impl SharedFootprints {
+    pub(super) fn with_row_capacity(row_count: usize) -> Self {
+        Self {
+            rows: Vec::with_capacity(row_count),
+            interned: HashMap::new(),
+        }
+    }
+
     pub(super) fn intern(&mut self, footprint: SelectedFormDecodedFootprint) -> usize {
         let digest = footprint_bucket(&footprint);
         self.intern_in_bucket(footprint, digest)
