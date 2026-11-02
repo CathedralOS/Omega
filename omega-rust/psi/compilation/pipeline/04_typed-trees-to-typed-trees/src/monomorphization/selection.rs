@@ -396,21 +396,28 @@ pub(super) fn collect_call_selections(
         }
     }
 
-    // Retained constant initializers are source recipes, not executable sites.
+    // Retained constant initializers and materialization origins are source
+    // recipes, not unowned executable sites.
     // Rewriting their detached calls would erase the original application tuple
     // needed by independent constant replay. A private evaluation probe activates
     // its recipe in an executable body, which the scans above still specialize.
-    let mut initializer_recipes = Vec::new();
+    let mut source_recipes = Vec::new();
     for declaration in program.const_declarations() {
         if declaration.authored_initializer.is_valid() {
             collect_expression_tree(
                 program,
                 declaration.authored_initializer,
-                &mut initializer_recipes,
+                &mut source_recipes,
             );
         }
     }
-    let initializer_recipes: HashSet<ExpressionHandle> = initializer_recipes.into_iter().collect();
+    for (expression, _) in expressions_of(program).iter_expressions() {
+        let authored = expressions_of(program).materialization_source(expression);
+        if authored.is_valid() {
+            collect_expression_tree(program, authored, &mut source_recipes);
+        }
+    }
+    let source_recipes: HashSet<ExpressionHandle> = source_recipes.into_iter().collect();
 
     // Calls outside executable states have no caller argument context, but explicit
     // static-machine arguments still determine a complete tuple through the
@@ -419,7 +426,7 @@ pub(super) fn collect_call_selections(
     for (handle, expression) in expressions_of(program).iter_expressions() {
         if covered_expressions.contains(&handle)
             || contract_expressions.contains(&handle)
-            || initializer_recipes.contains(&handle)
+            || source_recipes.contains(&handle)
         {
             continue;
         }
