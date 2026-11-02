@@ -7,13 +7,13 @@ machine main() reaches MachineControl crashes Trap {
 
 linux_x86_64 machine restore() reaches MachineControl crashes Trap {
     let mut saved: u64 = 0;
-    asm where clobbers rax, rflags, r10, r15 {
+    asm clobbers rax, rflags, r10, r15 {
         entry:
             mov eax, 1;
             sub eax, 1;
             pushfq saved;
     }
-    asm where clobbers r10, r15 {
+    asm clobbers r10, r15 {
         entry:
             popfq 0;
         observed requires (saved & 64u64) == 64u64:
@@ -29,13 +29,13 @@ linux_x86_64 machine restore() reaches MachineControl crashes Trap {
 
 windows_x86_64 machine restore() reaches MachineControl crashes Trap {
     let mut saved: u64 = 0;
-    asm where clobbers rax, rflags, r10, r15 {
+    asm clobbers rax, rflags, r10, r15 {
         entry:
             mov eax, 1;
             sub eax, 1;
             pushfq saved;
     }
-    asm where clobbers r10, r15 {
+    asm clobbers r10, r15 {
         entry:
             popfq 0;
         observed requires (saved & 64u64) == 64u64:
@@ -51,13 +51,13 @@ windows_x86_64 machine restore() reaches MachineControl crashes Trap {
 
 macos_x86_64 machine restore() reaches MachineControl crashes Trap {
     let mut saved: u64 = 0;
-    asm where clobbers rax, rflags, r10, r15 {
+    asm clobbers rax, rflags, r10, r15 {
         entry:
             mov eax, 1;
             sub eax, 1;
             pushfq saved;
     }
-    asm where clobbers r10, r15 {
+    asm clobbers r10, r15 {
         entry:
             popfq 0;
         observed requires (saved & 64u64) == 64u64:

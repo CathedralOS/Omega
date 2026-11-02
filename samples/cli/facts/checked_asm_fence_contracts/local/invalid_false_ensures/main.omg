@@ -31,7 +31,7 @@ X86Ordered satisfies SelectedOrdered {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires input == 37 ensures result == 37
     {
         SelectedBodyCheck::require_tag(17u64);
-        asm where clobbers none {
+        asm clobbers none {
         entry requires input == 37 ensures input == 38:
             lfence;
             sfence;
@@ -46,7 +46,7 @@ ArmOrdered satisfies SelectedOrdered {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires input == 37 ensures result == 37
     {
         SelectedBodyCheck::require_tag(29u64);
-        asm where clobbers none {
+        asm clobbers none {
         entry requires input == 37 ensures input == 38:
             dmb ld;
             dmb st;

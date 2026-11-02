@@ -2,7 +2,7 @@
 // Subtraction establishes ZF; a structured snapshot carries that bit to a label.
 machine main() crashes Trap {
  let mut snapshot: u64 = 0;
- asm where clobbers rax, r10, r15 {
+ asm clobbers rax, r10, r15 {
  entry:
   mov eax, 1;
   sub eax, 1;

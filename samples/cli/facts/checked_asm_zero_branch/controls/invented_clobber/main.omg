@@ -3,7 +3,7 @@
 machine main() crashes Trap {
  let seed: u32 = 2;
  let mut output: u32 = 99;
- asm where clobbers rax, rflags, rbx {
+ asm clobbers rax, rflags, rbx {
  entry:
   mov eax, seed;
   jmp loop;

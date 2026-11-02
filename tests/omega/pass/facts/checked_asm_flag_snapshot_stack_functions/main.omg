@@ -8,7 +8,7 @@ machine ordinary() -> u64 {
 
 machine flags() crashes Trap {
     let mut snapshot: u64 = 0;
-    asm where clobbers r10, r15 {
+    asm clobbers r10, r15 {
         pushfq snapshot;
     }
     transition (snapshot & 2u64) == 2u64 { true -> done() false -> bad() }

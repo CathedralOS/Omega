@@ -31,7 +31,7 @@ X86Compare satisfies SelectedCompare {
     {
         SelectedBodyCheck::require_tag(17u64);
         let mut output: u32 = 0;
-        asm where clobbers rax, rflags {
+        asm clobbers rax, rflags {
         entry:
             mov eax, seed;
             cmp eax, eax;
@@ -54,7 +54,7 @@ ArmCompare satisfies SelectedCompare {
     {
         SelectedBodyCheck::require_tag(29u64);
         let mut output: u32 = 0;
-        asm where clobbers x0, nzcv {
+        asm clobbers x0, nzcv {
         entry:
             mov w0, seed;
             cmp w0, w0;

@@ -2,7 +2,7 @@
 // Checked fence sequences retain their catalog target, ordering and exact empty clobber set while carrying input 37 to a result requiring 37.
 
 linux_x86_64 machine ordered(input: u32) -> u32 requires input == 37 ensures result == 37 {
-    asm where clobbers none {
+    asm clobbers none {
     entry requires input == 37 ensures input == 37:
         lfence;
         sfence;
@@ -12,7 +12,7 @@ linux_x86_64 machine ordered(input: u32) -> u32 requires input == 37 ensures res
 }
 
 windows_x86_64 machine ordered(input: u32) -> u32 requires input == 37 ensures result == 37 {
-    asm where clobbers none {
+    asm clobbers none {
     entry requires input == 37 ensures input == 37:
         lfence;
         sfence;
@@ -22,7 +22,7 @@ windows_x86_64 machine ordered(input: u32) -> u32 requires input == 37 ensures r
 }
 
 linux_arm64 machine ordered(input: u32) -> u32 requires input == 37 ensures result == 37 {
-    asm where clobbers none {
+    asm clobbers none {
     entry requires input == 37 ensures input == 37:
         dmb;
         dmb st;
@@ -32,7 +32,7 @@ linux_arm64 machine ordered(input: u32) -> u32 requires input == 37 ensures resu
 }
 
 macos_arm64 machine ordered(input: u32) -> u32 requires input == 37 ensures result == 37 {
-    asm where clobbers none {
+    asm clobbers none {
     entry requires input == 37 ensures input == 37:
         dmb ld;
         dmb st;

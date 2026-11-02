@@ -5,13 +5,13 @@ const FLAG_BIT: u64 = 64u64;
 
 machine main() reaches MachineControl crashes Trap {
     let mut saved: u64 = 0;
-    asm where clobbers rax, rflags, r10, r15 {
+    asm clobbers rax, rflags, r10, r15 {
         entry:
             mov eax, 1;
             sub eax, 1;
             pushfq saved;
     }
-    asm where clobbers r10, r15 {
+    asm clobbers r10, r15 {
         entry:
             popfq 0;
         observed requires (saved & FLAG_BIT) == FLAG_BIT:

@@ -15,7 +15,7 @@ ensures model_specific_written(2059, 0)
 {
     let index: u32 = 2059;
     let value: u64 = 0;
-    asm where ensures model_specific_written(2059, 0) { wrmsr index, value }
+    asm ensures model_specific_written(2059, 0) { wrmsr index, value }
 }
 machine main() reaches MachineControl {
     let token: Token = Token { identity: 7 };

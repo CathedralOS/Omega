@@ -7,7 +7,7 @@ machine change(main: &mut Main) -> u16 {
     0
 }
 machine Main::main(main: &mut Main) reaches PortIo requires main.ready {
-    asm where
+    asm
         requires main.ready
         clobbers rax, rdx, r10, r15
         ensures main.ready

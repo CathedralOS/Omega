@@ -9,7 +9,7 @@ data Main {
 }
 
 machine Main::main(main: &mut Main) reaches PortIo {
-    asm where clobbers rax, rdx, r10, r15 {
+    asm clobbers rax, rdx, r10, r15 {
         in main.byte, 0x3F8
     }
 }

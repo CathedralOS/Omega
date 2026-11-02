@@ -4,7 +4,7 @@ use omega::language::core::assembly;
 
 data Main { port: u16; status: u8; }
 machine Main::main(main: &mut Main) reaches PortIo {
-    asm where clobbers rax, rdx, r10 {
+    asm clobbers rax, rdx, r10 {
         out main.port, main.status
     }
 }
