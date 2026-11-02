@@ -984,8 +984,8 @@ defines the complete product bar.
   `omega-rust/psi/compilation/checking/src/value_custody/expression_types/{match_dispatch,result_type}.rs`,
   checked value continuations, Terminal production, and
   `omega-rust/omega/packages/review-evidence/src/capture/contracts/expressions/projection/`.
-  - Carry affine custody through branch-local calls/receivers, effectful
-    subjects, heterogeneous residual custody, and claim-bearing body plans.
+  - Carry affine custody through branch-local receivers and claim-bearing
+    body plans.
   - Extend borrowed joins in
     `omega-rust/omega/compilation/representations/abstract-operations/src/abstract_operations/control_flow/address_joins.rs`
     and `omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/current_ownership/address_joins.rs`

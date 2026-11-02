@@ -10,6 +10,8 @@
 # context: {"incoming_observations_from": "e8e2fe90b14b2a7bad0e714ba635161d80c9f585", "integration_base": "2e9f231f798bffee7a2bd46857d02adb79de70b6", "measurement": "Historical three-way integration, not a new whole-corpus run. Keep incoming-main observations changed since 66fc7ac3c97, otherwise retain qualified ccdb99ca2214 observations. Also preserve the two additional incoming-main rows from e8e2fe90b14b; no compiler rebase or new full run.", "recorded_source": "ccdb99ca2214b93c0e2535a31cb34a3e2167d9dd", "schema": "omega-corpus-context-v1"}
 fail/borrows/independent_invocation_reference_result_escapes rejected 1619ms expected @c0424312ea2a+wt
 	machine `Code::reply` returns a view borrowing the local `bytes`, which does not outlive the call; return a view of storage that outlives the invocation instead
+fail/borrows/match_effectful_subject_fresh_overlap_rejected rejected 13145ms expected @5445b5af611f+wt
+	statement 2 creates local borrow `slot` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 3 and it is released at state exit)
 fail/boundary/requirement_case_precondition_unproved rejected 13880ms expected @57a69f8b8ad1
 	cannot prove requires contract for call fill from main: chosen == constructor:78:package:0f4fb3c3aaa826e755e2f71895ab48a8976b5b928cf24c7833be8a4f629a45dd::Slot12:name:Present (needs fact `chosen == Slot::Present` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/build/activation_borrowed_field_replacement_refused rejected 361ms expected @3a020eca642a
@@ -909,6 +911,25 @@ fail/facts/machine_tuple_dispatch_through_target_body_rejected rejected 1465ms e
 	cannot prove requires contract for call hold from run_body: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call hold from run_body: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call hold from run_body: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/match_effectful_subject_custody_through_call_result_rejected rejected 11747ms expected @5445b5af611f+wt
+	cannot use `slot.mark` in machine `exercise` state `entry` (statement 3) after `slot` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `slot` first
+fail/facts/match_effectful_subject_custody_through_const_name_rejected rejected 6209ms expected @5445b5af611f+wt
+	cannot use `slot.mark` in machine `exercise` state `entry` (statement 3) after `slot` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `slot` first
+fail/facts/match_effectful_subject_custody_through_field_rejected rejected 9311ms expected @5445b5af611f+wt
+	cannot use `pair.slot.mark` in machine `exercise` state `entry` (statement 2) after `pair.slot` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `pair.slot` first
+fail/facts/match_effectful_subject_custody_through_local_rejected rejected 9435ms expected @5445b5af611f+wt
+	cannot use `slot.mark` in machine `exercise` state `entry` (statement 3) after `slot` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `slot` first
+fail/facts/match_effectful_subject_custody_through_match_join_rejected rejected 9262ms expected @5445b5af611f+wt
+	cannot use `slot.mark` in machine `exercise` state `entry` (statement 3) after `slot` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `slot` first
+fail/facts/match_effectful_subject_custody_through_other_machine_rejected rejected 11704ms expected @5445b5af611f+wt
+	cannot use `slot.mark` in machine `apply` state `entry` (statement 1) after `slot` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `slot` first
+fail/facts/match_effectful_subject_custody_through_other_state_rejected rejected 7107ms expected @5445b5af611f+wt
+	cannot use `slot.mark` in machine `pick` state `entry` (statement 1) after `slot` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `slot` first
+fail/facts/match_effectful_subject_custody_through_parameter_rejected rejected 6791ms expected @5445b5af611f+wt
+	cannot use `slot.mark` in machine `apply` state `entry` (statement 1) after `slot` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `slot` first
+fail/facts/match_effectful_subject_custody_through_target_body_rejected rejected 6048ms expected @5445b5af611f+wt
+	cannot use `slot.mark` in machine `X86Apply::exercise` state `exercise` (statement 4) after `slot` was transferred or consumed at statement 3: it holds no value; read what is needed before the transfer or assign a whole value to `slot` first
+	cannot use `slot.mark` in machine `ArmApply::exercise` state `exercise` (statement 4) after `slot` was transferred or consumed at statement 3: it holds no value; read what is needed before the transfer or assign a whole value to `slot` first
 fail/facts/match_runtime_view_extent_through_call_result_rejected rejected 619ms expected @fc74098f66b9+wt
 	exact arithmetic in machine `store` state `entry` local `last` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/match_runtime_view_extent_through_const_name_rejected rejected 2357ms expected @fc74098f66b9+wt
@@ -7417,6 +7438,15 @@ pass/facts/match_computed_root_through_target_body_exit rejected 3120ms check-ta
 	cannot prove requires contract for call compute from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call compute from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call compute from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+pass/facts/match_effectful_subject_custody_through_call_result_exit checked 32201ms check-target:macos_arm64 @5445b5af611f+wt
+pass/facts/match_effectful_subject_custody_through_const_name_exit checked 32046ms check-target:macos_arm64 @5445b5af611f+wt
+pass/facts/match_effectful_subject_custody_through_field_exit checked 17653ms check-target:macos_arm64 @5445b5af611f+wt
+pass/facts/match_effectful_subject_custody_through_local_exit checked 37698ms check-target:macos_arm64 @5445b5af611f+wt
+pass/facts/match_effectful_subject_custody_through_match_join_exit checked 27090ms check-target:macos_arm64 @5445b5af611f+wt
+pass/facts/match_effectful_subject_custody_through_other_machine_exit checked 26952ms check-target:macos_arm64 @5445b5af611f+wt
+pass/facts/match_effectful_subject_custody_through_other_state_exit checked 27395ms check-target:macos_arm64 @5445b5af611f+wt
+pass/facts/match_effectful_subject_custody_through_parameter_exit checked 27235ms check-target:macos_arm64 @5445b5af611f+wt
+pass/facts/match_effectful_subject_custody_through_target_body_exit checked 22962ms check-target:macos_arm64 @5445b5af611f+wt
 pass/facts/match_join_multi_variant_bound_through_call_result_exit checked 3106ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/match_join_multi_variant_bound_through_const_name_exit checked 3884ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/match_join_multi_variant_bound_through_field_exit checked 3499ms check-target:macos_arm64 @ccdb99ca2214
