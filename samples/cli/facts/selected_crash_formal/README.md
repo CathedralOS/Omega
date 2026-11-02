@@ -77,6 +77,12 @@ weakens only the second caller's input requirement; allowing zero is insufficien
 to rule out a crash below one. This is an additional check of call separation,
 not another fact row.
 
+[private_forwarding](probes/private_forwarding/main.omg) checks the same public
+condition through a private helper after its implementation is chosen. Its
+[invalid twin](probes/private_forwarding/invalid/main.omg) removes the caller's
+nonnegative-input requirement. The harmless implementation must not make that
+broader promise pass.
+
 ## Baseline and remaining scope
 
 At `d6cf554fd1cbf20551983d29bae26f5cf3b81664`, the local, nested call-result

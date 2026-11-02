@@ -316,12 +316,25 @@ pub(super) fn attach_checked_crash_calls(
                         ) else {
                             continue;
                         };
-                        let Some((target_machine_symbol, target_state_symbol)) =
-                            private_summaries::selected_invocation_target(
-                                program,
-                                call_site,
-                                call_flow.target_symbol,
+                        let public_target = summary_graph
+                            .requirement_contracts
+                            .for_call(
+                                state_flow.machine_symbol,
+                                state_flow.state_symbol,
+                                call_flow.statement_index,
+                                call_flow.call_ordinal,
                             )
+                            .map(|selected| {
+                                (selected.capsule.target_machine(), selected.capsule.target_state())
+                            });
+                        let Some((target_machine_symbol, target_state_symbol)) = public_target
+                            .or_else(|| {
+                                private_summaries::selected_invocation_target(
+                                    program,
+                                    call_site,
+                                    call_flow.target_symbol,
+                                )
+                            })
                         else {
                             continue;
                         };

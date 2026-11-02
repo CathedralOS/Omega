@@ -109,6 +109,9 @@ jobs:
           OMEGA_COMPILER_PILOT_CHECKING_ONLY: ${{ inputs.checking_only }}
           OMEGA_TRACE_CRASH_REQUIREMENTS: '1'
         run: python tools/ci/compiler_pilot.py
+      - name: Check retained requirement ownership
+        if: always() && github.event_name == 'workflow_dispatch'
+        run: python tools/build_slot.py -- cargo test --locked -p typed-trees-to-checked-trees --lib requirement_contracts::tests
       - name: Report actual producer and fixture observations
         if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
         run: python -c "from pathlib import Path; root = Path('build/compiler-pilot'); [print(name + '\n' + (root / name).read_text(encoding='utf-8')) for name in ('summary.json', 'checking.json', 'both.json', 'samples.json', 'cli.json') if (root / name).is_file()]"

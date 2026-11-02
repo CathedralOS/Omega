@@ -30,13 +30,38 @@ impl<'proof> RequirementCrashContracts<'proof> {
     pub(super) fn prepare(
         program: &dyn validation::CheckingInput,
         proof: &'proof ProofFacts,
+        flow: &checked_trees::FlowFacts,
         operators: &checked_trees::CheckedOperatorFacts,
         content_conservation: &[validation::ContentConservationSourcePlan],
     ) -> Result<Self, Vec<Diagnostic>> {
-        let mut rows = proof
-            .call_contract_signatures
-            .iter()
-            .map(|(_, source)| {
+        let mut applications = Vec::new();
+        for (_, call) in proof.contract_calls.iter() {
+            if !call.signature.is_valid() {
+                continue;
+            }
+            if !proof.call_contract_signatures.is_valid(call.signature) {
+                return Err(vec![Diagnostic::error(
+                    "a requirement call lost its retained public signature",
+                )]);
+            }
+            let source = proof.call_contract_signatures.get(call.signature);
+            if source.caller_machine_symbol != call.caller_machine_symbol
+                || source.caller_state_symbol != call.caller_state_symbol
+                || source.statement_index != call.statement_index
+                || source.call_ordinal != call.call_ordinal
+            {
+                return Err(vec![Diagnostic::error(
+                    "a requirement call retained another call's public signature",
+                )]);
+            }
+            applications.push(call.signature);
+        }
+        applications.sort_unstable_by_key(|handle| (handle.arena_index(), handle.generation()));
+        applications.dedup();
+        let mut rows = applications
+            .into_iter()
+            .map(|application| {
+                let source = proof.call_contract_signatures.get(application);
                 let capsule = super::super::crash_plan_facts::build_signature_crash_capsule(
                     program,
                     source.declaring_trait,
@@ -58,7 +83,41 @@ impl<'proof> RequirementCrashContracts<'proof> {
                 "a source call retained conflicting public requirement contracts",
             )]);
         }
-        Ok(Self { rows })
+        let prepared = Self { rows };
+        for (_, state) in flow.control.states.iter() {
+            for call in flow.control.calls.span_or_empty(state.calls) {
+                let Some(site) = validation::find_call_site(
+                    program,
+                    state.machine_symbol,
+                    state.state_symbol,
+                    call.statement_index,
+                    call.call_ordinal,
+                ) else {
+                    continue;
+                };
+                let is_requirement = site.static_requirement_dispatch().is_some()
+                    || validation::selected_requirement_signature(
+                        program,
+                        site.target_symbol(program),
+                    )
+                    .is_some();
+                if is_requirement
+                    && prepared
+                        .for_call(
+                            state.machine_symbol,
+                            state.state_symbol,
+                            call.statement_index,
+                            call.call_ordinal,
+                        )
+                        .is_none()
+                {
+                    return Err(vec![Diagnostic::error(
+                        "a source requirement call has no retained public contract",
+                    )]);
+                }
+            }
+        }
+        Ok(prepared)
     }
 
     pub(super) fn for_call(
@@ -91,4 +150,51 @@ fn call_location(
         statement,
         call,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use checked_trees::{CheckedOperatorFacts, ContractCallFact, FlowFacts};
+
+    fn rejection(proof: &ProofFacts) -> String {
+        let program = typed_trees::TypedTrees::default();
+        let flow = FlowFacts::default();
+        let operators = CheckedOperatorFacts::default();
+        match RequirementCrashContracts::prepare(&program, proof, &flow, &operators, &[]) {
+            Err(mut diagnostics) => diagnostics.remove(0).message,
+            Ok(_) => panic!("an invalid call signature must not produce a crash contract"),
+        }
+    }
+
+    #[test]
+    fn missing_retained_signature_rejects() {
+        let mut unrelated = ProofFacts::default();
+        let missing = unrelated
+            .call_contract_signatures
+            .append(Default::default());
+        let mut proof = ProofFacts::default();
+        proof.contract_calls.append(ContractCallFact {
+            signature: missing,
+            ..Default::default()
+        });
+        assert!(rejection(&proof).contains("lost its retained public signature"));
+    }
+
+    #[test]
+    fn another_call_signature_rejects() {
+        let mut proof = ProofFacts::default();
+        let signature = proof
+            .call_contract_signatures
+            .append(CallContractSignature {
+                statement_index: 1,
+                ..Default::default()
+            });
+        proof.contract_calls.append(ContractCallFact {
+            statement_index: 0,
+            signature,
+            ..Default::default()
+        });
+        assert!(rejection(&proof).contains("another call's public signature"));
+    }
 }

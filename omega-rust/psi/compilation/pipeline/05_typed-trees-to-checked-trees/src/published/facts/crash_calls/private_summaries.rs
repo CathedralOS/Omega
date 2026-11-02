@@ -69,8 +69,15 @@ pub(crate) fn prepare_crash_summary_graph<'proof>(
     content_conservation: &[ContentConservationSourcePlan],
 ) -> Result<PreparedCrashSummaryGraph<'proof>, Vec<Diagnostic>> {
     let requirement_contracts =
-        RequirementCrashContracts::prepare(program, proof, operators, content_conservation)?;
-    let nodes = prepare_summary_nodes(program, operators, flow, crash_capsules, plans);
+        RequirementCrashContracts::prepare(program, proof, flow, operators, content_conservation)?;
+    let nodes = prepare_summary_nodes(
+        program,
+        operators,
+        flow,
+        crash_capsules,
+        plans,
+        &requirement_contracts,
+    );
     let incomplete = program
         .machines()
         .iter()
@@ -89,6 +96,7 @@ pub(crate) fn prepare_crash_summary_graph<'proof>(
                     plans,
                     &nodes,
                     &members,
+                    &requirement_contracts,
                 )
                 .unwrap_or_else(|| {
                     "incomplete or unresolved member invocation dependencies".to_owned()
@@ -141,6 +149,7 @@ fn unviable_member_dependency(
     plans: &[MachineContractPlan],
     nodes: &[SummaryNode],
     members: &[SymbolHandle],
+    requirement_contracts: &RequirementCrashContracts<'_>,
 ) -> Option<String> {
     let named_uses_by_expression = build_named_operator_use_map(operators);
     let viable = |machine: SymbolHandle| nodes.iter().any(|node| node.machine == machine);
@@ -151,7 +160,9 @@ fn unviable_member_dependency(
             return None;
         }
         let member_name = program.symbols.display_path(*member, "::");
-        let sites = match machine_invocation_sites(program, &named_uses_by_expression, flow, plan) {
+        let sites = match machine_invocation_sites(
+            program, &named_uses_by_expression, flow, plan, requirement_contracts,
+        ) {
             Ok(sites) => sites,
             Err(reason) => return Some(format!("retained member `{member_name}` {reason}")),
         };
@@ -187,6 +198,7 @@ fn prepare_summary_nodes(
     flow: &FlowFacts,
     crash_capsules: &[CrashContractCapsule],
     plans: &[MachineContractPlan],
+    requirement_contracts: &RequirementCrashContracts<'_>,
 ) -> Vec<SummaryNode> {
     let named_uses_by_expression = build_named_operator_use_map(operators);
     let mut nodes = checking_thread_pool().install(|| {
@@ -218,6 +230,7 @@ fn prepare_summary_nodes(
                         &named_uses_by_expression,
                         flow,
                         target,
+                        requirement_contracts,
                     )
                     .ok()?,
                 })
@@ -614,6 +627,7 @@ fn machine_invocation_sites(
     named_uses_by_expression: &NamedOperatorUseMap<'_>,
     flow: &FlowFacts,
     plan: &MachineContractPlan,
+    requirement_contracts: &RequirementCrashContracts<'_>,
 ) -> Result<Vec<SummaryInvocationSite>, String> {
     let mut sites = Vec::new();
     for state in flow.control.machine_states(plan.machine) {
@@ -704,8 +718,22 @@ fn machine_invocation_sites(
                 }
                 continue;
             }
-            let (target_machine, target_state) =
-                selected_invocation_target(program, site, call.target_symbol).ok_or_else(|| {
+            let public_target = requirement_contracts
+                .for_call(
+                    state.machine_symbol,
+                    state.state_symbol,
+                    call.statement_index,
+                    call.call_ordinal,
+                )
+                .map(|selected| {
+                    (
+                        selected.capsule.target_machine(),
+                        selected.capsule.target_state(),
+                    )
+                });
+            let (target_machine, target_state) = public_target
+                .or_else(|| selected_invocation_target(program, site, call.target_symbol))
+                .ok_or_else(|| {
                     format!(
                         "calls `{}`, which selects no declaration",
                         spelled_callee(program, site)
