@@ -163,8 +163,8 @@ retired-syntax deletions to completion.
     contract (exact actuals/snapshots, live facts and write invalidation,
     result/Unit postconditions, effects/markers, loans, invariant/hole
     restoration, cleanup, linear custody, and joint SCC measures using
-    declaration calls needing exclusive-loan or affine input custody or declaration-local
-    selectors, other remaining declared body forms, nonscalar orders beyond fixed-integer
+    declaration calls needing exclusive-loan or affine input custody or repeated selector
+    occurrences, other remaining declared body forms, nonscalar orders beyond fixed-integer
     lexicographic products, or dependent distances with computed endpoints
     without ambient parent entry facts).
   - Update Terminal production, codecs/checking, both interpreters, native
