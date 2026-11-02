@@ -461,6 +461,7 @@ pub(super) fn invocation_tuples<'p>(
     let mut tuples = Vec::new();
     let mut add = |owner,
                    target,
+                   nominal_binder,
                    receiver: &dyn Fn() -> Option<AppliedTraitScope<'p>>,
                    application: TypeReferenceHandle,
                    dispatch: Option<&typed_trees::typed_trees::StaticRequirementDispatch>,
@@ -483,6 +484,12 @@ pub(super) fn invocation_tuples<'p>(
                 .trait_scope
                 .scope(program)
                 .map(|scope| (template, scope))
+        } else if let Some(source) =
+            invocation_binding_views::nominal_source(program, owner, nominal_binder, target)?
+        {
+            // Only the public demand is derived. Keep this occurrence's
+            // executable target and original nominal admission unchanged.
+            Some(source)
         } else {
             source_scope(program, owner, target, receiver, application)?
         };
@@ -513,6 +520,7 @@ pub(super) fn invocation_tuples<'p>(
                     add(
                         machine.symbol,
                         call.target_symbol,
+                        call.static_machine_parameter,
                         &|| {
                             validation::qualified_trait_scope(
                                 program,
@@ -546,6 +554,7 @@ pub(super) fn invocation_tuples<'p>(
                         add(
                             machine.symbol,
                             call.target_symbol,
+                            call.static_machine_parameter,
                             &|| {
                                 if call.receiver.is_valid() {
                                     validation::qualified_trait_scope(
