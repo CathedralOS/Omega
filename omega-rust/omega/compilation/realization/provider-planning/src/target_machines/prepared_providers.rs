@@ -9,6 +9,7 @@
 use super::{AuthoredTargetProviders, TargetProviderPreparationRequest};
 use crate::calling_policy_plans::BoundaryCallingPlanRealization;
 use crate::evaluated_via_bindings::EvaluatedViaBindingTable;
+use crate::provider_planning::provider_rows::CapturedProviderRows;
 use crate::provider_settlement::assumed_bindings::PreparedAssumedBindings;
 use crate::{
     DerivedProviderPlan, ProviderPlanProvenance, ProviderSchemaDeclaration, ProviderSelection,
@@ -50,10 +51,20 @@ pub struct PreparedProductProviders {
     planning_target: Option<target::TargetProfile>,
     assumptions: PreparedAssumedBindings,
     bindings: EvaluatedViaBindingTable,
-    candidates: Vec<CallingCandidate>,
+    candidates: Vec<ProductCandidate>,
     native_start: usize,
     choices: Result<SourceChoices, Vec<Diagnostic>>,
     publication: SourcePublication,
+}
+
+struct ProductCandidate {
+    calling: CallingCandidate,
+    rows: CapturedProviderRows,
+}
+
+pub(crate) struct SettledProductCandidate {
+    pub source: DerivedProviderPlan,
+    pub rows: CapturedProviderRows,
 }
 
 struct CallingCandidate {
@@ -137,7 +148,7 @@ impl SourceProposal {
         calling: &[BoundaryCallingPlanRealization],
     ) -> Result<PreparedTargetChoices, Vec<Diagnostic>> {
         let candidates = attach_candidates(self.candidates, calling)?;
-        attach_choices(self.choices, &candidates).map(SourceChoices::without_correspondence)
+        attach_choices(self.choices, candidates.iter()).map(SourceChoices::without_correspondence)
     }
 }
 
@@ -220,7 +231,7 @@ impl ProviderPublicationCatalog {
 pub(crate) struct SettledProductProviders {
     pub assumptions: PreparedAssumedBindings,
     pub bindings: EvaluatedViaBindingTable,
-    pub candidates: Vec<DerivedProviderPlan>,
+    pub candidates: Vec<SettledProductCandidate>,
     pub native_start: usize,
     pub choices: Result<SourceChoices, Vec<Diagnostic>>,
     pub publication: ProviderPublicationCatalog,
@@ -238,20 +249,32 @@ impl PreparedProductProviders {
                 "provider preparation belongs to another Product program or planning target",
             )]);
         }
-        let candidates = attach_candidates(self.candidates, calling)?;
+        let candidates = self
+            .candidates
+            .into_iter()
+            .map(|candidate| {
+                Ok(SettledProductCandidate {
+                    source: candidate.calling.attach(calling)?,
+                    rows: candidate.rows,
+                })
+            })
+            .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
         // Validate once, with the final complete Calling applications. Neutral
         // formation cannot discharge ABI uniqueness or commitment obligations.
         for candidate in &candidates[self.native_start..] {
-            let errors = candidate.plan.validate_candidate_against_schema();
+            let errors = candidate.source.plan.validate_candidate_against_schema();
             if !errors.is_empty() {
                 return Err(vec![Diagnostic::error(format!(
                     "incomplete native Build provider `{}`: {}",
-                    candidate.plan.name,
+                    candidate.source.plan.name,
                     errors.join("; "),
                 ))]);
             }
         }
-        let choices = attach_choices(self.choices, &candidates);
+        let choices = attach_choices(
+            self.choices,
+            candidates.iter().map(|candidate| &candidate.source),
+        );
         let publication = ProviderPublicationCatalog {
             base_targets: self.publication.base_targets,
             deployed: self.publication.deployed,
@@ -287,9 +310,9 @@ fn attach_candidates(
         .collect()
 }
 
-fn attach_choices(
+fn attach_choices<'candidate>(
     choices: Result<SourceChoices, Vec<Diagnostic>>,
-    candidates: &[DerivedProviderPlan],
+    candidates: impl ExactSizeIterator<Item = &'candidate DerivedProviderPlan>,
 ) -> Result<SourceChoices, Vec<Diagnostic>> {
     let mut choices = choices?;
     if choices.candidates.len() != candidates.len() {
@@ -418,8 +441,18 @@ impl ProductProviderPreparation<'_> {
             .into_candidates()
             .into_iter()
             .chain(native)
-            .map(|derived| CallingCandidate::capture(self.services, derived))
-            .collect::<Result<Vec<_>, _>>()?;
+            .map(|derived| {
+                let rows = CapturedProviderRows::capture(
+                    &derived,
+                    self.services,
+                    self.exact_toolchain_sources,
+                );
+                Ok(ProductCandidate {
+                    calling: CallingCandidate::capture(self.services, derived)?,
+                    rows,
+                })
+            })
+            .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
         Ok(PreparedProductProviders {
             owner: Arc::downgrade(self.checked),
             planning_target,

@@ -35,7 +35,6 @@ use crate::SelectedProviderReviewProvenance;
 use crate::calling_policy_plans::BoundaryCallingPlanRealization;
 use crate::evaluated_via_bindings::EvaluatedViaBindingTable;
 use crate::provider_planning::trait_name_text;
-use checked_trees::typed_trees::TypedTrees;
 use checked_trees::typed_trees::service_declarations::ServiceCatalog;
 use diagnostics::Diagnostic;
 use effects::SelectedProviderPlanFacts;
@@ -217,7 +216,7 @@ pub struct SettledTargetMachineDeclarations {
 /// and review provenance move into checking and selected execution; the
 /// settlement stays provider-planning custody beside the checked program.
 pub struct CheckedProviderSelection {
-    pub settlement: ProviderSettlement<crate::UnpreparedProviderRows>,
+    pub settlement: ProviderSettlement<crate::DeferredProviderRows>,
     pub selected_provider_plan_facts: SelectedProviderPlanFacts,
     pub selected_provider_provenance: Vec<SelectedProviderReviewProvenance>,
 }
@@ -275,14 +274,10 @@ pub struct ProviderSettlement<Rows = crate::PreparedProviderRows> {
         Vec<std::sync::Arc<component_description::VerifiedComponent>>,
 }
 
-impl ProviderSettlement<crate::UnpreparedProviderRows> {
-    /// Close declaration facts against the finalized source snapshot, after
-    /// target constant/layout closure and before source-free leaf completion.
-    pub fn prepare_row_declarations(
-        self,
-        typed: &TypedTrees,
-        exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
-    ) -> Result<ProviderSettlement, Vec<Diagnostic>> {
+impl ProviderSettlement<crate::DeferredProviderRows> {
+    /// Consume captured declaration refusals after entry formation and before
+    /// leaf completion, preserving the original error order without source.
+    pub fn finish_row_declarations(self) -> Result<ProviderSettlement, Vec<Diagnostic>> {
         let Self {
             calling_program,
             selected_provider_publication,
@@ -303,7 +298,7 @@ impl ProviderSettlement<crate::UnpreparedProviderRows> {
         for candidate in provider_candidates {
             prepared.push(
                 candidate
-                    .prepare_row_declarations(typed, exact_toolchain_sources)
+                    .finish_row_declarations()
                     .map_err(|diagnostic| vec![diagnostic])?,
             );
         }
@@ -404,8 +399,11 @@ pub fn settle_checked_providers(
         &boundary_calling_plan_realizations,
     )?;
     let evaluated_via_bindings = prepared.bindings;
-    let derived_provider_plans = prepared.candidates;
-    let native_build_plans = derived_provider_plans[prepared.native_start..].to_vec();
+    let product_candidates = prepared.candidates;
+    let native_build_plans = product_candidates[prepared.native_start..]
+        .iter()
+        .map(|candidate| candidate.source.clone())
+        .collect();
     let provider_publication = prepared.publication;
     let independent_components = independent_components::verify_independent_components(
         package_inputs,
@@ -453,10 +451,12 @@ pub fn settle_checked_providers(
         native_target: provider_selection_target,
         boundary_calling_plan_realizations: &boundary_calling_plan_realizations,
     };
-    let mut provider_candidates = derived_provider_plans
+    let mut provider_candidates = product_candidates
         .into_iter()
-        .map(|source| {
-            crate::provider_planning::provider_rows::prepare(source, services, &direct_context)
+        .map(|candidate| {
+            candidate
+                .rows
+                .attach_physical_rows(candidate.source, &direct_context)
         })
         .collect::<Result<Vec<_>, _>>()?;
     // The canonical `FilesystemHost` slot admits no authored conformance or

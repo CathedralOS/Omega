@@ -64,8 +64,8 @@ pub use intrinsic_requirements::{
 };
 pub use provider_planning::extract_native_external_binding_rows;
 pub use provider_planning::provider_rows::{
-    DirectBoundaryInput, DirectBoundaryMechanism, DirectBoundarySource, PreparedProviderRows,
-    ProviderPlanCandidate, ProviderRowDeclarations, UnpreparedProviderRows,
+    DeferredProviderRows, DirectBoundaryInput, DirectBoundaryMechanism, DirectBoundarySource,
+    PreparedProviderRows, ProviderPlanCandidate, ProviderRowDeclarations,
 };
 pub use provider_planning::{
     CompilerIntrinsicExecutionIdentity, CompilerNumericType, CompilerPrimitiveFloatBinaryOperation,
