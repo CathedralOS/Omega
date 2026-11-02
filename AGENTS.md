@@ -50,8 +50,8 @@ the time goes and remove the cause rather than waiting on it or working around i
 ## Explain the change
 
 Use an inverted pyramid in PR descriptions, commit bodies, progress/final
-reports, explanatory documentation and comments. Start with one or two sentences
-that let someone unfamiliar with the subsystem picture the problem and the
+reports, task notes, explanatory documentation and comments. Start with one or
+two sentences that let someone unfamiliar with the subsystem picture the problem and the
 result. Name what the program or developer needs to do, what went wrong, and
 what changes. For an internal repair, explain its effect on a program or the
 development workflow before describing the compiler's bookkeeping.
