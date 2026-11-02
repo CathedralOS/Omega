@@ -8,17 +8,40 @@ authored numeric exit on both engines with unchanged input bytes.
 import hashlib
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import re
 import shutil
 import subprocess
 import time
 
 from sample_native_gate import DECISION, fixture_oracles, oracle
+from sample_projects import project_at
+
+
+def relative_project(root, selector):
+    path = PurePosixPath(selector)
+    if (path.as_posix() != selector or "\\" in selector
+            or any(part in (".", "..") for part in path.parts)):
+        raise ValueError(f"ordinary CLI project is not a normalized path: {selector}")
+    if len(path.parts) >= 3 and path.parts[0] == "pass":
+        relative = Path("tests/omega") / selector
+    elif len(path.parts) >= 3 and path.parts[:2] == ("samples", "cli"):
+        relative = Path(selector)
+    else:
+        raise ValueError("ordinary CLI projects must be exact pass/... or samples/cli/... paths")
+    project = root.resolve() / relative
+    if project.resolve() != project or not (project / "build.omg").is_file():
+        raise ValueError(f"ordinary CLI project lacks its own tracked directory/build: {selector}")
+    if path.parts[0] == "samples":
+        declared = project_at(project, root)
+        if declared.role not in ("program", "example", "library-consumer") or declared.entry != project / "main.omg":
+            raise ValueError("ordinary CLI samples require a normal program with main.omg entry")
+    return relative
 
 
 def expected_exit(root, fixture, target):
-    project = root / "tests" / "omega" / fixture
+    relative = relative_project(root, fixture)
+    project = root / relative
     if not (project / "build.omg").is_file():
         raise ValueError(f"ordinary CLI fixture has no build.omg: {fixture}")
     oracles = fixture_oracles(project, target)
@@ -28,6 +51,10 @@ def expected_exit(root, fixture, target):
     if extra or any(project.glob("entry_ram*")) or oracle(project)[1] is not None:
         raise ValueError("ordinary CLI exit fixtures cannot omit authored stream/inspection oracles")
     inspection_machines(project)
+    if not oracles["exit"] and relative.parts[:2] == ("samples", "cli"):
+        declared_exit, _ = oracle(project)
+        if declared_exit is not None:
+            return declared_exit
     if not oracles["exit"]:
         raise ValueError(f"ordinary CLI fixture has no {target} numeric exit oracle: {fixture}")
     text = Path(oracles["exit"]).read_text(encoding="utf-8").strip()
@@ -70,10 +97,12 @@ def observe(root, producer, fixture, output):
     expected = expected_exit(root, fixture, producer.target)
     output.mkdir(parents=True, exist_ok=False)
     workspace = output / "workspace"
-    relative_project = Path("tests/omega") / fixture
+    relative = relative_project(root, fixture)
     paths = subprocess.check_output(
-        ["git", "ls-files", "source/library", relative_project.as_posix()],
+        ["git", "ls-files", "source/library", relative.as_posix()],
         cwd=root, text=True).splitlines()
+    if not {(relative / "main.omg").as_posix(), (relative / "build.omg").as_posix()}.issubset(paths):
+        raise ValueError("ordinary CLI project entry and build must retain tracked source custody")
     inputs = {}
     for relative in paths:
         source, copied = root / relative, workspace / relative
@@ -85,7 +114,7 @@ def observe(root, producer, fixture, output):
     record = dict(fixture=fixture, target=producer.target, producer=producer.record(),
                   expected_exit=expected, passed=False, inputs=inputs, stages=[])
     env = dict(os.environ, OMEGA_LIBRARY_ROOT=str(workspace / "source/library"))
-    project = workspace / relative_project
+    project = workspace / relative
 
     def verify():
         producer.verify()

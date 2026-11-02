@@ -16,6 +16,46 @@ import compiler_retained_foreign as retained
 
 
 class CompilerPilotTests(unittest.TestCase):
+    def test_ordinary_cli_uses_exact_product_sample_and_its_authored_exit(self):
+        sample = "samples/cli/systems/journal"
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.sample_root(root, sample, sample + "/nested")
+            project = root / sample
+            (project / "main.omg").write_text("// Expected exit: 7.\nmachine main() {}")
+            with patch.object(pilot, "ROOT", root):
+                self.assertEqual(pilot.select_cli_fixtures(sample), (sample,))
+                self.assertEqual(pilot.ordinary_cli_fixture.expected_exit(root, sample, "windows_x86_64"), 7)
+                self.assertEqual(pilot.ordinary_cli_fixture.relative_project(root, sample), Path(sample))
+                for invalid in (sample + "/../journal", sample + "," + sample,
+                                "/" + sample, sample.replace("/", "\\")):
+                    with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                        pilot.select_cli_fixtures(invalid)
+
+    def test_ordinary_cli_product_samples_refuse_nonruntime_roles_and_extra_oracles(self):
+        sample = "samples/cli/systems/journal"
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.sample_root(root, sample)
+            project = root / sample
+            with patch.object(pilot, "ROOT", root):
+                for role in ("intended-invalid", "library", "check-only"):
+                    (project / "sample.json").write_text(json.dumps({"role": role}))
+                    with self.subTest(role=role), self.assertRaises(ValueError):
+                        pilot.select_cli_fixtures(sample)
+                (project / "other.omg").write_text("machine other() {}")
+                (project / "sample.json").write_text(json.dumps({"entry": "other.omg"}))
+                with self.assertRaises(ValueError):
+                    pilot.select_cli_fixtures(sample)
+                (project / "sample.json").unlink()
+                (project / "expected_stdout.txt").write_text("must be checked")
+                with self.assertRaises(ValueError):
+                    pilot.select_cli_fixtures(sample)
+                (project / "expected_stdout.txt").unlink()
+                (project / "main.omg").write_text("machine main() {}")
+                with self.assertRaises(ValueError):
+                    pilot.select_cli_fixtures(sample)
+
     def test_checking_only_retains_exact_roster_without_execution_defaults(self):
         positive, negative = "pass/copy/value", "fail/copy/value"
         with tempfile.TemporaryDirectory() as temporary:
