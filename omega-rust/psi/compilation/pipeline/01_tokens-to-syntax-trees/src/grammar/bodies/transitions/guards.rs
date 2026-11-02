@@ -5,7 +5,7 @@ use crate::tokens::token_cursor::{Input, ParseResult, parse_path_handle_span};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, MatchFieldAction, TableBinaryExpression,
-    TableMemberExpression, UnaryOperator,
+    UnaryOperator,
 };
 use syntax_trees::identifier::Identifier;
 use syntax_trees::statement::TableOutcomeProofSelector;
@@ -98,44 +98,15 @@ pub(super) fn parse_transition_guard_node<'tokens, 'source>(
             },
         })
         .collect();
-    let mut combined = ExpressionHandle::invalid();
     let mut bindings = Vec::new();
     for (left, right) in subject.iter().copied().zip(patterns) {
         let Some(right) = right else {
             continue;
         };
-        let equality = match exprs_of(syntax_trees).expression(right) {
-            ExpressionNode::Name(_) => {
-                retain_named_pattern(syntax_trees, left, right, &mut bindings);
-                continue;
-            }
-            // A condition-shaped pattern already evaluates to a decision:
-            // `transition text.len { text.len == 0 -> .. }` guards by the
-            // authored comparison rather than comparing the subject against
-            // a boolean (`subject == bool` cannot type). Value patterns keep
-            // their subject-equality desugar.
-            _ if arm_pattern_is_condition(syntax_trees, right) => right,
-            _ => syntax_trees
-                .expressions
-                .insert(ExpressionNode::Binary(TableBinaryExpression {
-                    left,
-                    operator: BinaryOperator::Equal,
-                    right,
-                })),
-        };
-        combined = join_guard_conjunction(syntax_trees, combined, equality);
+        retain_value_pattern(syntax_trees, left, right, &mut bindings);
     }
 
-    Ok((
-        if combined.is_valid() {
-            TransitionGuardNode::When(combined)
-        } else {
-            TransitionGuardNode::Always
-        },
-        bindings,
-        bool_tuple,
-        rest,
-    ))
+    Ok((TransitionGuardNode::Always, bindings, bool_tuple, rest))
 }
 
 /// Whether an arm's parsed pattern already evaluates to a decision -- a
@@ -238,10 +209,7 @@ fn parse_tuple_destructure_pattern_arm<'tokens, 'source>(
             return Err(rest.error_here("expected tuple transition pattern component"));
         }
         if let Some(pattern) = pattern {
-            let constraint = pattern_constraint(syntax_trees, subject, pattern, &mut all_bindings);
-            if constraint.is_valid() {
-                combined = join_guard_conjunction(syntax_trees, combined, constraint);
-            }
+            retain_value_pattern(syntax_trees, subject, pattern, &mut all_bindings);
         }
     }
 
@@ -332,13 +300,28 @@ fn split_tuple_pattern_components<'tokens, 'source>(
 
 /// A named value may resolve to a case, constant or lexical binding. Only
 /// declaration selection can distinguish them, independently on every axis.
-fn retain_named_pattern(
+fn retain_value_pattern(
     syntax_trees: &mut SyntaxTrees,
     subject: ExpressionHandle,
-    head: ExpressionHandle,
+    value: ExpressionHandle,
     bindings: &mut Vec<DestructureBindings>,
 ) {
     let capture = exprs(syntax_trees).insert_transition_subject(subject);
+    let (head, guard) = if matches!(
+        exprs_of(syntax_trees).expression(value),
+        ExpressionNode::Name(_)
+    ) {
+        (value, ExpressionHandle::invalid())
+    } else if arm_pattern_is_condition(syntax_trees, value) {
+        (ExpressionHandle::invalid(), value)
+    } else {
+        let equality = exprs(syntax_trees).insert(ExpressionNode::Binary(TableBinaryExpression {
+            left: subject,
+            operator: BinaryOperator::Equal,
+            right: value,
+        }));
+        (ExpressionHandle::invalid(), equality)
+    };
     bindings.push(DestructureBindings {
         subject,
         fields: Vec::new(),
@@ -348,33 +331,13 @@ fn retain_named_pattern(
             is_structural: false,
             pattern: syntax_trees::expression::TableDestructurePattern {
                 head,
+                guard,
                 has_rest: true,
                 ..Default::default()
             },
         }),
         proof_selectors: Vec::new(),
     });
-}
-
-fn pattern_constraint(
-    syntax_trees: &mut SyntaxTrees,
-    subject: ExpressionHandle,
-    pattern: ExpressionHandle,
-    bindings: &mut Vec<DestructureBindings>,
-) -> ExpressionHandle {
-    if matches!(
-        exprs_of(syntax_trees).expression(pattern),
-        ExpressionNode::Name(_)
-    ) {
-        retain_named_pattern(syntax_trees, subject, pattern, bindings);
-        ExpressionHandle::invalid()
-    } else {
-        exprs(syntax_trees).insert(ExpressionNode::Binary(TableBinaryExpression {
-            left: subject,
-            operator: BinaryOperator::Equal,
-            right: pattern,
-        }))
-    }
 }
 
 fn join_guard_conjunction(
@@ -531,14 +494,6 @@ fn parse_destructure_pattern_arm<'tokens, 'source>(
             (field.member.clone(), binding)
         })
         .collect::<Vec<_>>();
-    let matched_fields = parsed_fields
-        .fields
-        .iter()
-        .filter_map(|field| match field.action {
-            MatchFieldAction::Equal(value) => Some((field.member.clone(), value)),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
     let has_rest = parsed_fields.has_rest;
     let proof_selectors = parsed_fields.proof_selectors;
     let head = exprs(syntax_trees).insert(ExpressionNode::Name(path));
@@ -568,25 +523,6 @@ fn parse_destructure_pattern_arm<'tokens, 'source>(
     // Head classification belongs to declaration selection. Record and case
     // patterns retain the same source shape regardless of path length.
     let mut combined = ExpressionHandle::invalid();
-    // A value-bearing field pattern is ordinary equality over an attenuated
-    // field projection.  Keeping it as a real guard means the existing proof
-    // and flow machinery establishes `subject.field == expected` inside the
-    // arm; no pattern-only fact channel exists.
-    for (member, expected) in matched_fields {
-        let projected = exprs(syntax_trees).insert(ExpressionNode::Member(TableMemberExpression {
-            receiver: saved,
-            access_source_span: Default::default(),
-            member,
-            case_variant: None,
-        }));
-        let equality = exprs(syntax_trees).insert(ExpressionNode::Binary(TableBinaryExpression {
-            left: projected,
-            operator: BinaryOperator::Equal,
-            right: expected,
-        }));
-        combined = join_guard_conjunction(syntax_trees, combined, equality);
-    }
-
     if let Some(guard_input) = guard_input {
         let (guard, rest) =
             parse_expression_handle_without_struct_literals(syntax_trees, guard_input)?;
@@ -597,11 +533,7 @@ fn parse_destructure_pattern_arm<'tokens, 'source>(
         combined = join_guard_conjunction(syntax_trees, combined, guard);
     }
 
-    let guard = if combined.is_valid() {
-        TransitionGuardNode::When(combined)
-    } else {
-        TransitionGuardNode::Always
-    };
+    let guard = TransitionGuardNode::Always;
     Ok(Some((
         guard,
         DestructureBindings {
@@ -612,6 +544,7 @@ fn parse_destructure_pattern_arm<'tokens, 'source>(
                 capture,
                 is_structural: true,
                 pattern: syntax_trees::expression::TableDestructurePattern {
+                    application_type: Default::default(),
                     head,
                     fields: exprs(syntax_trees).insert_match_fields(parsed_fields.fields),
                     has_rest,

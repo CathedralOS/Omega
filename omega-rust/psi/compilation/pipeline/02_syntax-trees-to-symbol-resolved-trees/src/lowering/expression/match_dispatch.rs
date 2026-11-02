@@ -115,6 +115,18 @@ pub(crate) fn lower_destructure_pattern(
     syntax_capture: Handle<syntax::MatchSubjectCapture>,
     capture: Handle<symbol_resolved_trees::expression::MatchSubjectCapture>,
 ) -> Result<MatchPattern, Diagnostic> {
+    let application_type = if pattern.application_type.is_valid() {
+        let reference = crate::lowering::type_reference::lower_type_reference_handle(
+            lowerer,
+            syntax_trees,
+            pattern.application_type,
+        )?;
+        lowerer
+            .declaration_child_type_references()
+            .append(reference)
+    } else {
+        Default::default()
+    };
     let head = lower_expression_into_table(lowerer, syntax_trees, pattern.head)?;
     let mut fields = Vec::new();
     for field in syntax_trees.expressions.match_fields(pattern.fields) {
@@ -190,6 +202,7 @@ pub(crate) fn lower_destructure_pattern(
     }
     let fields = expression_table(lowerer).insert_match_fields(fields);
     Ok(MatchPattern::Destructure(TableDestructurePattern {
+        application_type,
         head,
         fields,
         has_rest: pattern.has_rest,

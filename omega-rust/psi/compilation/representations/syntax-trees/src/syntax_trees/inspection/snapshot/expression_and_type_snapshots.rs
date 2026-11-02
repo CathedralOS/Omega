@@ -125,6 +125,8 @@ pub enum MatchPatternSnapshot {
         value: Box<ExpressionSnapshot>,
     },
     Destructure {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        application_type: Option<Box<TypeReferenceSnapshot>>,
         head: Box<ExpressionSnapshot>,
         fields: Vec<MatchFieldSnapshot>,
         has_rest: bool,
@@ -235,6 +237,8 @@ pub enum ExpressionSnapshot {
         end_inclusive: bool,
     },
     StructLiteral {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        application_type: Option<Box<TypeReferenceSnapshot>>,
         constructor_name: IdentifierSnapshot,
         fields: Vec<StructLiteralFieldSnapshot>,
     },
@@ -517,6 +521,12 @@ pub(crate) fn snapshot_expression_handle(
             end_inclusive: range.end_inclusive,
         },
         ExpressionNode::StructLiteral(value) => ExpressionSnapshot::StructLiteral {
+            application_type: value.application_type.is_valid().then(|| {
+                Box::new(snapshot_type_reference_handle(
+                    syntax_trees,
+                    value.application_type,
+                ))
+            }),
             constructor_name: snapshot_identifier(syntax_trees, &value.constructor_name),
             fields: syntax_trees
                 .expressions
@@ -691,6 +701,12 @@ pub(super) fn snapshot_match_pattern(
             value: Box::new(snapshot_expression_handle(syntax_trees, value)),
         },
         MatchPattern::Destructure(pattern) => MatchPatternSnapshot::Destructure {
+            application_type: pattern.application_type.is_valid().then(|| {
+                Box::new(snapshot_type_reference_handle(
+                    syntax_trees,
+                    pattern.application_type,
+                ))
+            }),
             head: Box::new(snapshot_expression_handle(syntax_trees, pattern.head)),
             fields: syntax_trees
                 .expressions

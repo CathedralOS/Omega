@@ -1324,6 +1324,41 @@ impl<'base> ConstantSelection<'base> {
             &[kind],
             name.source_span(),
         )?;
+        self.lookup_path_for_selected(syntax, name, selected, kind)
+    }
+
+    pub(super) fn data_lookup_path_for_declaration(
+        &self,
+        syntax: &SyntaxTrees,
+        declaration: &Identifier,
+        requester: &Identifier,
+    ) -> Option<String> {
+        let mut candidates =
+            self.symbols
+                .symbols()
+                .nodes()
+                .iter()
+                .filter_map(|(handle, symbol)| {
+                    (symbol.kind == SymbolKind::Data
+                        && self.symbols.symbol_source_span(handle)
+                            == Some(declaration.source_span())
+                        && self.symbols.name(handle) == declaration.as_str(syntax))
+                    .then_some(handle)
+                });
+        let selected = candidates.next()?;
+        if candidates.next().is_some() {
+            return None;
+        }
+        self.lookup_path_for_selected(syntax, requester, selected, SymbolKind::Data)
+    }
+
+    fn lookup_path_for_selected(
+        &self,
+        syntax: &SyntaxTrees,
+        name: &Identifier,
+        selected: symbols::SymbolHandle,
+        kind: SymbolKind,
+    ) -> Option<String> {
         let path = self.symbols.display_path(selected, "::");
         let declaration = self.symbols.symbol_source_span(selected)?;
         let selects = |path: &str| {
@@ -1367,7 +1402,7 @@ impl<'base> ConstantSelection<'base> {
         // import can expose this exact carrier without making any qualified
         // spelling valid. Preserve that authored lookup only after trying the
         // qualified paths; declaration/argument custody still owns identity.
-        Some(name.as_str(syntax).to_owned())
+        selects(name.as_str(syntax)).then(|| name.as_str(syntax).to_owned())
     }
 
     /// Return exact declaration custody, not a handle from the header table.

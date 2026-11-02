@@ -144,6 +144,7 @@ fn expression_table_copies_table_payloads_without_tree_roundtrip() {
         },
     ]);
     let root = source.insert(ExpressionNode::StructLiteral(TableStructLiteral {
+        application_type: Default::default(),
         type_name: DiagnosticName::generated("Room"),
         type_symbol: SymbolHandle::from_arena_index(5),
         case_name: None,
@@ -548,6 +549,7 @@ fn insert_every_node_kind(table: &mut ExpressionTable) -> super::ExpressionHandl
         },
     ]);
     let literal = table.insert(ExpressionNode::StructLiteral(TableStructLiteral {
+        application_type: Default::default(),
         type_name: DiagnosticName::generated("Room"),
         type_symbol: SymbolHandle::from_arena_index(11),
         case_name: Some(DiagnosticName::generated("Open")),

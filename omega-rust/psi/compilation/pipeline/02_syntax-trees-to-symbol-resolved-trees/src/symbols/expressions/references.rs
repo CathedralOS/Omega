@@ -503,6 +503,7 @@ pub(in crate::symbols) fn normalize_qualified_case_value(
     let owner_name = &name[..name.len() - case.len() - 2];
     *expression_table.expression_mut(expression) =
         ExpressionNode::StructLiteral(TableStructLiteral {
+            application_type: Default::default(),
             type_name: DiagnosticName::new(owner_name, source_span),
             type_symbol: owner,
             case_name: Some(case_name),

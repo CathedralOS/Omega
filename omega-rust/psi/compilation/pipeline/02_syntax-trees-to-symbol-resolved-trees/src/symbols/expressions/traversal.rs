@@ -154,6 +154,9 @@ impl ExpressionSymbolContext<'_, '_> {
     /// Reassigns one type reference with this context's symbol table, machine
     /// scope, parameters, state symbol, and child arenas — every walk's call.
     fn reassign_type_reference(&mut self, type_reference: arena::Handle<TypeReference>) {
+        if !type_reference.is_valid() {
+            return;
+        }
         crate::symbols::type_references::reassign_type_reference_symbols_and_values(
             self.symbols,
             self.machine,
@@ -213,6 +216,7 @@ impl ExpressionSymbolContext<'_, '_> {
                         .match_arm_mut(dispatch.arms.handle_at(offset))
                         .pattern = arm.pattern;
                     if let MatchPattern::Destructure(pattern) = arm.pattern {
+                        self.reassign_type_reference(pattern.application_type);
                         let head = self
                             .expression_table
                             .name_path_node(pattern.head)
@@ -364,6 +368,7 @@ impl ExpressionSymbolContext<'_, '_> {
                 );
             }
             ExpressionNode::StructLiteral(struct_literal) => {
+                self.reassign_type_reference(struct_literal.application_type);
                 let count = struct_literal.fields.count();
                 for offset in 0..count {
                     let field = &self.expression_table.struct_fields(struct_literal.fields)
@@ -492,6 +497,7 @@ impl ExpressionSymbolContext<'_, '_> {
             }
         } else {
             TableDestructurePattern {
+                application_type: Default::default(),
                 head,
                 fields: HandleSpan::empty(),
                 has_rest: true,

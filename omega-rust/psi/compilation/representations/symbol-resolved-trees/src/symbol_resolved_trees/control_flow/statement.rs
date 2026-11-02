@@ -214,6 +214,9 @@ deref_to_storage!(Call => CallStorage);
 
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct Transition {
+    /// Original final predicate, before ordered pattern elaboration. Retain it
+    /// so repeated symbol assignment never executes an arm predicate twice.
+    pub source_guard: Option<TransitionGuard>,
     pub patterns: Box<[TransitionPattern]>,
     pub target: TransitionTarget,
     pub continuation: Option<TransitionTarget>,
@@ -1063,6 +1066,7 @@ mod tests {
         let mut source_statement_path_members = Arena::new();
         let path = source_statement_path_members.insert_many([DiagnosticName::generated("next")]);
         let statement = Statement::Transition(Transition {
+            source_guard: None,
             patterns: Default::default(),
             target: TransitionTarget::Named(NamedTransitionTarget {
                 receiver_symbol: Default::default(),

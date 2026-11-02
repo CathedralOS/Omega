@@ -50,6 +50,13 @@ impl StatementTable {
         self.transition_patterns.span_or_empty(patterns)
     }
 
+    pub fn transition_pattern_mut(
+        &mut self,
+        handle: Handle<TransitionPattern>,
+    ) -> &mut TransitionPattern {
+        self.transition_patterns.get_mut(handle)
+    }
+
     pub fn new() -> Self {
         Self::new_with_generation(1)
     }

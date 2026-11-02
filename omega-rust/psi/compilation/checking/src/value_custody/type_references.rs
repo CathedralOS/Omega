@@ -133,6 +133,12 @@ pub(crate) enum TypeReferenceOwner<'program> {
         data: &'program str,
         generic_depth: usize,
     },
+    Expression {
+        machine: &'program typed_trees::machine::Machine,
+        current_state: Option<&'program typed_trees::state::State>,
+        value_environment: &'program crate::proof_contracts::arithmetic_domains::ValueEnvironment,
+        generic_depth: usize,
+    },
     StateLocalData {
         machine: &'program typed_trees::machine::Machine,
         current_state: Option<&'program typed_trees::state::State>,
@@ -186,6 +192,9 @@ impl TypeReferenceOwner<'_> {
                 ..
             } | Self::StateParameter {
                 owner: StateSignatureOwner::Machine(_),
+                generic_depth: 0,
+                ..
+            } | Self::Expression {
                 generic_depth: 0,
                 ..
             } | Self::StateLocalData {
@@ -245,6 +254,17 @@ impl TypeReferenceOwner<'_> {
             } => Self::MachineOwnedData {
                 machine,
                 data,
+                generic_depth: generic_depth + 1,
+            },
+            Self::Expression {
+                machine,
+                current_state,
+                value_environment,
+                generic_depth,
+            } => Self::Expression {
+                machine,
+                current_state,
+                value_environment,
                 generic_depth: generic_depth + 1,
             },
             Self::StateLocalData {
@@ -380,6 +400,19 @@ impl fmt::Display for TypeReferenceOwner<'_> {
                 generic_depth,
             } => {
                 write!(formatter, "machine `{machine}` owned data `{data}`")?;
+                *generic_depth
+            }
+            Self::Expression {
+                machine,
+                current_state,
+                generic_depth,
+                ..
+            } => {
+                write!(formatter, "machine `{}`", machine.name)?;
+                if let Some(state) = current_state {
+                    write!(formatter, " state `{}`", state.name)?;
+                }
+                formatter.write_str(" expression type application")?;
                 *generic_depth
             }
             Self::StateLocalData {
@@ -1175,3 +1208,5 @@ pub(crate) fn type_reference_label(
         "()".to_owned()
     }
 }
+
+pub(crate) use formation::validate_expression_type_application;

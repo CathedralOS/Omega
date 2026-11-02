@@ -488,6 +488,7 @@ pub(crate) fn lower_statement_node(
             }
             lowerer.expression_match_captures.truncate(outer_captures);
             hoisted.push(Statement::Transition(Transition {
+                source_guard: None,
                 patterns: patterns.into_boxed_slice(),
                 target,
                 continuation,

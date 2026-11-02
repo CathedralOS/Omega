@@ -145,6 +145,8 @@ pub enum MatchPatternSnapshot {
         value: Box<ExpressionSnapshot>,
     },
     Destructure {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        application_type: Option<Box<TypeReferenceSnapshot>>,
         head: Box<ExpressionSnapshot>,
         fields: Vec<MatchFieldSnapshot>,
         has_rest: bool,
@@ -254,6 +256,8 @@ pub enum ExpressionSnapshot {
         end_inclusive: bool,
     },
     StructLiteral {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        application_type: Option<Box<TypeReferenceSnapshot>>,
         type_name: String,
         fields: Vec<StructLiteralFieldSnapshot>,
     },
@@ -601,6 +605,12 @@ pub(crate) fn expression_snapshot(
             end_inclusive: range.end_inclusive,
         },
         ExpressionNode::StructLiteral(struct_literal) => ExpressionSnapshot::StructLiteral {
+            application_type: struct_literal.application_type.is_valid().then(|| {
+                Box::new(type_reference_snapshot(
+                    program,
+                    struct_literal.application_type,
+                ))
+            }),
             type_name: struct_literal.type_name.to_string(),
             fields: program
                 .expression_table
@@ -703,6 +713,10 @@ pub(super) fn snapshot_match_pattern(
             value: Box::new(expression_snapshot(program, value)),
         },
         MatchPattern::Destructure(pattern) => MatchPatternSnapshot::Destructure {
+            application_type: pattern
+                .application_type
+                .is_valid()
+                .then(|| Box::new(type_reference_snapshot(program, pattern.application_type))),
             head: Box::new(expression_snapshot(program, pattern.head)),
             fields: program
                 .expression_table

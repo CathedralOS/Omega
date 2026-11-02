@@ -2206,6 +2206,8 @@ pub fn visit_expression(
             visit_expression(program, retained, range.end);
         }
         ExpressionNode::StructLiteral(literal) => {
+            visit_type_reference(program, retained, literal.application_type);
+
             visit_symbol(retained, literal.type_symbol);
             if let Some(case_symbol) = literal.case_symbol {
                 visit_symbol(retained, case_symbol);
@@ -2233,6 +2235,7 @@ fn visit_match_arm(program: &TypedTrees, retained: &mut impl TypedReferences, ar
         visit_expression(program, retained, pattern);
     }
     if let crate::expression::MatchPattern::Destructure(pattern) = arm.pattern {
+        visit_type_reference(program, retained, pattern.application_type);
         for field in program.expression_table.match_fields(pattern.fields) {
             visit_symbol(retained, field.field_symbol);
         }

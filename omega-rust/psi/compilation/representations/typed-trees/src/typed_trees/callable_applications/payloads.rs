@@ -532,6 +532,25 @@ impl CallableApplication {
                         None
                     }
                 }
+                expression::ExpressionNode::StructLiteral(mut literal) => {
+                    literal.application_type =
+                        self.type_reference(program, literal.application_type)?;
+                    Some(expression::ExpressionNode::StructLiteral(literal))
+                }
+                expression::ExpressionNode::Match(dispatch) => {
+                    let arms = program.expression_table.match_arms(dispatch.arms).to_vec();
+                    for (ordinal, mut arm) in arms.into_iter().enumerate() {
+                        if let expression::MatchPattern::Destructure(ref mut pattern) = arm.pattern
+                        {
+                            pattern.application_type =
+                                self.type_reference(program, pattern.application_type)?;
+                        }
+                        *program
+                            .expression_table
+                            .match_arm_mut(dispatch.arms.handle_at(ordinal as u32)) = arm;
+                    }
+                    None
+                }
                 expression::ExpressionNode::Cast(mut cast) => {
                     cast.target_type = self.type_reference(program, cast.target_type)?;
                     cast.result_type = self.type_reference(program, cast.result_type)?;

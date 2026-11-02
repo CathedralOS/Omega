@@ -206,6 +206,7 @@ pub(crate) fn parse_transition_block_handles<'tokens, 'source>(
                 *last,
                 StatementNode::Transition(TableTransition {
                     guard: syntax_trees::statement::TransitionGuardNode::Always,
+                    patterns: HandleSpan::empty(),
                     ..transition
                 }),
             );

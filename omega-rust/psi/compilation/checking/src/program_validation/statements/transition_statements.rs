@@ -17,12 +17,27 @@ pub(super) fn validate(
     let Some(transition) = statement.as_transition() else {
         unreachable!("dispatched transition_statements")
     };
-    let (program, machine, state_name, current_state, _symbols, writable_roots) = scope.reads();
+    let (program, machine, state_name, current_state, symbols, writable_roots) = scope.reads();
     let transition_values = scope.transition_values;
     let value_environment = &mut *outputs.value_environment;
     let arithmetic_decisions = &mut *outputs.arithmetic_decisions;
     let diagnostics = &mut *outputs.diagnostics;
     if let Some(state) = current_state {
+        for retained in program
+            .statement_table
+            .transition_patterns(transition.patterns)
+        {
+            crate::value_custody::type_references::validate_expression_type_application(
+                program,
+                machine,
+                state,
+                retained.pattern.application_type,
+                symbols,
+                value_environment,
+                diagnostics,
+                &mut arithmetic_decisions.integer_range_obligations,
+            );
+        }
         crate::value_custody::expression_types::validate_transition_patterns(
             program,
             machine,

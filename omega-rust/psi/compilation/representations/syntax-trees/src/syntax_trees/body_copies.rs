@@ -678,6 +678,7 @@ impl SyntaxCopy<'_> {
                 .cloned(),
         );
         TableDestructurePattern {
+            application_type: self.copy_type_reference_handle(other, pattern.application_type),
             head,
             fields,
             has_rest: pattern.has_rest,
@@ -821,6 +822,8 @@ impl SyntaxCopy<'_> {
             }),
             ExpressionNode::StructLiteral(struct_literal) => {
                 ExpressionNode::StructLiteral(TableStructLiteral {
+                    application_type: self
+                        .copy_type_reference_handle(other, struct_literal.application_type),
                     constructor_name: struct_literal.constructor_name.clone(),
                     fields: self.copy_struct_field_span(other, struct_literal.fields),
                 })

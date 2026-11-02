@@ -75,6 +75,8 @@ impl ExpressionTableLowerer<'_, '_, '_> {
                 "structural match has no resolved executable predicate",
             ));
         }
+        let application_type =
+            self.lower_application_type(pattern.application_type, pattern.head)?;
         let head = self.lower_value(pattern.head)?;
         let mut fields = Vec::new();
         for field in self.source.match_fields(pattern.fields) {
@@ -146,6 +148,7 @@ impl ExpressionTableLowerer<'_, '_, '_> {
             .collect::<Vec<_>>();
         let proof_selectors = self.target().insert_match_proof_selectors(proof_selectors);
         Ok(typed::expression::TableDestructurePattern {
+            application_type,
             head,
             fields,
             has_rest: pattern.has_rest,

@@ -224,8 +224,26 @@ pub(super) fn assign_statement_symbols(
             use symbol_resolved_trees::expression::{
                 BinaryOperator, ExpressionNode, TableBinaryExpression, TableMembershipExpression,
             };
+            let original_guard = transition
+                .source_guard
+                .clone()
+                .unwrap_or_else(|| transition.guard.clone());
+            if !transition.patterns.is_empty() {
+                transition.source_guard = Some(original_guard.clone());
+            }
             let mut selected_guard = None;
             for retained in &transition.patterns {
+                if retained.pattern.application_type.is_valid() {
+                    crate::symbols::type_references::reassign_type_reference_symbols_and_values(
+                        symbols,
+                        machine,
+                        parameters,
+                        state_symbol,
+                        expression_table,
+                        child_type_references,
+                        retained.pattern.application_type,
+                    );
+                }
                 assign_expr!(retained.subject);
                 assign_expr!(retained.pattern.head);
                 let head = expression_table
@@ -256,7 +274,7 @@ pub(super) fn assign_statement_symbols(
                                 case_symbol: selected,
                             },
                         )))
-                    } else if !retained.is_structural {
+                    } else if !retained.is_structural && retained.pattern.head.is_valid() {
                         Some(expression_table.insert(ExpressionNode::Binary(
                             TableBinaryExpression {
                                 left: retained.subject,
@@ -267,20 +285,27 @@ pub(super) fn assign_statement_symbols(
                     } else {
                         None
                     };
-                if let Some(test) = test {
-                    selected_guard = Some(if let Some(prior) = selected_guard {
-                        expression_table.insert(ExpressionNode::Binary(TableBinaryExpression {
-                            left: prior,
-                            operator: BinaryOperator::And,
-                            right: test,
-                        }))
-                    } else {
-                        test
-                    });
-                }
+                let axis = if let Some(test) = test {
+                    expression_table.insert(ExpressionNode::Binary(TableBinaryExpression {
+                        left: test,
+                        operator: BinaryOperator::And,
+                        right: retained.pattern.condition,
+                    }))
+                } else {
+                    retained.pattern.condition
+                };
+                selected_guard = Some(if let Some(prior) = selected_guard {
+                    expression_table.insert(ExpressionNode::Binary(TableBinaryExpression {
+                        left: prior,
+                        operator: BinaryOperator::And,
+                        right: axis,
+                    }))
+                } else {
+                    axis
+                });
             }
             if let Some(test) = selected_guard {
-                transition.guard = TransitionGuard::When(match transition.guard {
+                transition.guard = TransitionGuard::When(match original_guard {
                     TransitionGuard::Always => test,
                     TransitionGuard::When(predicate) => {
                         expression_table.insert(ExpressionNode::Binary(TableBinaryExpression {

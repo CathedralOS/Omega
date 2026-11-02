@@ -1137,6 +1137,7 @@ mod tests {
 
     fn tree_transition(occurrence: AuthoredDeclarationSelectionOccurrenceId) -> Statement {
         statement::Statement::Transition(statement::Transition {
+            source_guard: None,
             patterns: Default::default(),
             target: named_target(occurrence),
             continuation: Some(named_target(occurrence)),
