@@ -1,8 +1,8 @@
 """Observe an explicitly selected normal-exit fixture through the product CLI.
 
-The corpus remains the owner of private harness/stream/inspection oracles. This
-consumer covers ordinary package review and an authored numeric exit on both
-engines, with the CLI's explicit host environment and unchanged input bytes.
+The corpus owns private harness, stream and inspection-control oracles. This
+consumer covers ordinary package review, plain named inspection/reload, and an
+authored numeric exit on both engines with unchanged input bytes.
 """
 
 import hashlib
@@ -23,16 +23,37 @@ def expected_exit(root, fixture, target):
         raise ValueError(f"ordinary CLI fixture has no build.omg: {fixture}")
     oracles = fixture_oracles(project, target)
     extra = [path.name for path in project.glob("expected_*")
-             if not (path.name == "expected_native_exit.txt"
+             if not (path.name in ("expected_native_exit.txt", "expected_terminal_inspections.txt")
                      or (path.name.startswith("expected_native_exit.") and path.suffix == ".txt"))]
     if extra or any(project.glob("entry_ram*")) or oracle(project)[1] is not None:
         raise ValueError("ordinary CLI exit fixtures cannot omit authored stream/inspection oracles")
+    inspection_machines(project)
     if not oracles["exit"]:
         raise ValueError(f"ordinary CLI fixture has no {target} numeric exit oracle: {fixture}")
     text = Path(oracles["exit"]).read_text(encoding="utf-8").strip()
     if not re.fullmatch(r"-?\d+", text):
         raise ValueError("ordinary CLI fixture requires an authored numeric exit oracle")
     return int(text)
+
+
+def inspection_machines(project):
+    path = project / "expected_terminal_inspections.txt"
+    if not path.is_file():
+        return ()
+    rows = [line.split() for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    if not rows or any(len(row) != 1 for row in rows):
+        raise ValueError("ordinary CLI inspection requires plain machine names; debug/runtime/control oracles remain with the corpus")
+    return tuple(row[0] for row in rows)
+
+
+def validate_inspection(machine, source, reloaded):
+    selected = re.findall(r"^terminal selected_machine=(\S+) entry=", source, re.MULTILINE)
+    identity = re.findall(r"^terminal program_fingerprint=([0-9a-f]{64})$", source, re.MULTILINE)
+    restored = re.findall(r"^terminal program_fingerprint=([0-9a-f]{64})$", reloaded, re.MULTILINE)
+    restored_selection = re.findall(r"^terminal selected_machine=(\S+) entry=", reloaded, re.MULTILINE)
+    if selected != [machine] or restored_selection != ["artifact"] or len(identity) != 1 or restored != identity:
+        raise ValueError("named inspection lost its selected machine or canonical artifact identity")
+    return identity[0]
 
 
 def validate_exits(code, stderr, expected):
@@ -116,6 +137,26 @@ def observe(root, producer, fixture, output):
         if code != 0 or not (project / "omega.lock").is_file():
             raise ValueError(f"ordinary CLI package admission refused ({code})")
         (output / "accepted.omega.lock").write_bytes((project / "omega.lock").read_bytes())
+        record["inspection_machines"] = inspection_machines(project)
+        record["inspections"] = []
+        for index, machine in enumerate(record["inspection_machines"]):
+            artifact = output / "inspections" / f"{index}.oterm"
+            artifact.parent.mkdir(exist_ok=True)
+            stage = f"inspection-{index}-source"
+            code = command(stage, [producer.cli, "inspect-terminal", "--machine", machine,
+                                   "--target", producer.target, "--output", artifact,
+                                   project / "main.omg"], workspace, 600)
+            if code != 0 or not artifact.is_file():
+                raise ValueError(f"authored named inspection refused: {machine} ({code})")
+            reloaded = f"inspection-{index}-reload"
+            code = command(reloaded, [producer.cli, "inspect-terminal", "--artifact", artifact], workspace, 240)
+            if code != 0:
+                raise ValueError(f"named inspection canonical reload refused: {machine} ({code})")
+            identity = validate_inspection(machine,
+                (output / f"{stage}.stdout").read_text(encoding="utf-8"),
+                (output / f"{reloaded}.stdout").read_text(encoding="utf-8"))
+            record["inspections"].append(dict(machine=machine, passed=True, program_fingerprint=identity,
+                                             artifact_sha256=hashlib.sha256(artifact.read_bytes()).hexdigest()))
         runtime = output / "runtime"
         runtime.mkdir()
         code = command("both", [producer.cli, "run", "--both", "--keep", project / "main.omg"],
