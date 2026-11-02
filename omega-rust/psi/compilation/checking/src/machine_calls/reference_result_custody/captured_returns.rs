@@ -703,11 +703,16 @@ impl Captures<'_> {
             if incoming_leaf.crosses_reference {
                 selected = stored_loan_parts(self.program, selected)?.0;
             }
-            path.extend(incoming_leaf.path);
-            if incoming_leaf.crosses_reference {
-                path.push(CheckedReferenceOriginProjection::Exact(
-                    CheckedUnitStructuralPathSegment::Referent,
-                ));
+            // The root loan already presents borrowed backing at executable
+            // ingress. Only a descriptor stored inside that backing contributes
+            // an additional pointer crossing, exactly as for public returns.
+            if selected_incoming.source == crate::borrow_contracts::ViewReturnInputSource::Stored {
+                path.extend(incoming_leaf.path);
+                if incoming_leaf.crosses_reference {
+                    path.push(CheckedReferenceOriginProjection::Exact(
+                        CheckedUnitStructuralPathSegment::Referent,
+                    ));
+                }
             }
             incoming_segments = incoming_path;
         } else {

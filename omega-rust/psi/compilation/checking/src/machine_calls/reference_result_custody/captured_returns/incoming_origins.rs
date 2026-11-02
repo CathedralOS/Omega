@@ -6,9 +6,12 @@
 //! otherwise the first same-typed sibling can mask the actual returning leaf.
 
 use super::{Captures, TypeReferenceHandle, frame_origin_fits_loan};
+use crate::borrow_contracts::ViewReturnInputSource;
+use checked_trees::IncomingReferenceOrigin;
 
 pub(super) struct IncomingLeaf {
     pub(super) carrier: TypeReferenceHandle,
+    pub(super) source: ViewReturnInputSource,
     pub(super) reference: super::super::DeclaredCarrierReference,
     pub(super) segments: Vec<facts::PlaceSegment>,
 }
@@ -40,11 +43,28 @@ impl Captures<'_> {
             return None;
         }
         let parameter = self.program.state_parameter_by_symbol(state, symbol)?;
-        let carrier = super::super::input_carrier_type(self.program, parameter.type_reference)?;
+        let (source, carrier) = match incoming.origin {
+            IncomingReferenceOrigin::ParameterReferent { .. } => (
+                ViewReturnInputSource::Referent,
+                crate::peel_declared_constraints(self.program, parameter.type_reference),
+            ),
+            IncomingReferenceOrigin::Parameter { .. } => (
+                ViewReturnInputSource::Stored,
+                super::super::input_carrier_type(self.program, parameter.type_reference)?,
+            ),
+            IncomingReferenceOrigin::Invocation { .. } | IncomingReferenceOrigin::Output { .. } => {
+                return None;
+            }
+        };
         if carrier != incoming.carrier_type {
             return None;
         }
         let owner = self.facts.borrow.owner_segments.span(incoming.owner_path)?;
+        if source == ViewReturnInputSource::Referent
+            && (crate::reference_shell(self.program, carrier).is_none() || !owner.is_empty())
+        {
+            return None;
+        }
         let reference = super::super::declared_carrier_references(self.program, carrier)?
             .into_iter()
             .find(|reference| {
@@ -63,6 +83,7 @@ impl Captures<'_> {
         )?;
         Some(IncomingLeaf {
             carrier,
+            source,
             reference,
             segments,
         })
