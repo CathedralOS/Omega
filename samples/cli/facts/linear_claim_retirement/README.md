@@ -9,6 +9,16 @@ A linear Token [linear] carries its exact payload across the place and retires t
 
 ## The nine transport places
 
+The [nonreturning-alternative control](controls/nonreturning_alternative/main.omg)
+exercises the same claim through a call whose other arm transfers control to a
+machine that crashes. That edge still transports custody but produces no return
+alternative. The successful return must retain its exact claim through a second
+forwarding call; a crash ceiling alone must not erase that return. The
+[reject twin](controls/nonreturning_alternative/invalid/main.omg) consumes that
+returned claim twice. This is the return-frontier prerequisite exposed by
+`BUMP-ALLOCATOR-CANARY`'s resident initialization/extraction path, not completion
+of that allocator outcome.
+
 | Place | Positive witness | Reject twin | Transport |
 | --- | --- | --- | --- |
 | `root` | [main.omg](main.omg) | — | Direct linear `Token` construction and retirement without intermediate transport. |
