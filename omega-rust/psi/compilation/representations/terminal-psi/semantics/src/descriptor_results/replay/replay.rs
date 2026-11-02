@@ -450,10 +450,9 @@ impl<'a> Replay<'a> {
             // interpretation token. It does not supply a physical address.
             let prefix = state
                 .slots
-                .keys()
-                .filter(|prefix| {
-                    prefix.root == location.root && location.path.starts_with(&prefix.path)
-                })
+                .for_root(location.root)
+                .map(|(prefix, _)| prefix)
+                .filter(|prefix| location.path.starts_with(&prefix.path))
                 .max_by_key(|prefix| prefix.path.len())?;
             let origins = state.slots.get(prefix)?.as_ref()?;
             if origins.iter().all(|origin| {
@@ -473,7 +472,7 @@ impl<'a> Replay<'a> {
         // External pointee origins are that subtree; a vacant child of the
         // pointer temporary does not retire them.
         if !external_pointee
-            && state.slots.iter().any(|(prefix, value)| {
+            && state.slots.for_root(location.root).any(|(prefix, value)| {
                 value.is_none()
                     && prefix.root == location.root
                     && !prefix.path.is_empty()
@@ -731,7 +730,7 @@ impl<'a> Replay<'a> {
             if contents_query.is_some() {
                 continue;
             }
-            for location in before.slots.keys() {
+            for (location, _) in before.slots.for_root(source.root) {
                 if location != source
                     && let Some(target) = location.transported(source, &destination)
                 {
@@ -758,14 +757,22 @@ impl<'a> Replay<'a> {
             case_storage,
         )?;
         if !definitions.is_empty() {
-            for (location, value) in before.slots.iter() {
-                if value.is_some()
-                    && !assigned.contains_key(location)
-                    && definitions
-                        .iter()
-                        .any(|definition| definition.contains(location))
-                {
-                    after.slots_mut().insert(location.clone(), None);
+            // A definition can retire only descendants on its exact root.
+            // The sorted root roster preserves the former complete key order.
+            for root in definitions
+                .iter()
+                .map(|definition| definition.root)
+                .collect::<BTreeSet<_>>()
+            {
+                for (location, value) in before.slots.for_root(root) {
+                    if value.is_some()
+                        && !assigned.contains_key(location)
+                        && definitions
+                            .iter()
+                            .any(|definition| definition.contains(location))
+                    {
+                        after.slots_mut().insert(location.clone(), None);
+                    }
                 }
             }
             for definition in &definitions {
@@ -880,6 +887,7 @@ impl<'a> Replay<'a> {
         let mut arrivals = States::new();
         let mut pending = vec![machine.entry];
         let mut visits = 0usize;
+        let profile = std::env::var_os("OMEGA_PHASE_PROFILE").is_some();
         while let Some(position) = pending.pop() {
             visits += 1;
             // Malformed expanding cyclic projections must not manufacture an
@@ -888,6 +896,16 @@ impl<'a> Replay<'a> {
                 return None;
             }
             let before = states.get(&position)?.clone();
+            if profile && visits % 4096 == 0 {
+                let (facts, classes, members) = before.cases.profile_counts();
+                eprintln!(
+                    "descriptor replay progress machine={identity:?} visits={visits} flow={} cuts={} slots={} contents={} tag_facts={facts} copy_classes={classes} copy_members={members}",
+                    machine.flow.len(),
+                    states.len(),
+                    before.slots.len(),
+                    before.contents.len()
+                );
+            }
             let step = machine.flow.get(&position)?;
             let mut after = self.transfer(
                 machine,

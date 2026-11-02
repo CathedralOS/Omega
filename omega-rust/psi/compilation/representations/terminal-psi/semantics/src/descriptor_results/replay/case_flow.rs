@@ -14,8 +14,34 @@ pub(super) use result::ResultCases;
 
 #[derive(Clone, Default, PartialEq, Eq)]
 pub(super) struct CurrentCases {
-    facts: BTreeMap<DescriptorLocation, BTreeSet<StructuralCaseId>>,
+    facts: Arc<super::origin_maps::OriginMap<DescriptorLocation, BTreeSet<StructuralCaseId>>>,
     copies: values::Copies,
+}
+
+impl CurrentCases {
+    fn insert_fact(&mut self, subject: DescriptorLocation, active: BTreeSet<StructuralCaseId>) {
+        if self.facts.get(&subject) != Some(&active) {
+            Arc::make_mut(&mut self.facts).insert(subject, active);
+        }
+    }
+    fn retain_facts(&mut self, keep: impl Fn(&DescriptorLocation) -> bool) {
+        let removed = self
+            .facts
+            .keys()
+            .filter(|subject| !keep(subject))
+            .cloned()
+            .collect::<Vec<_>>();
+        if !removed.is_empty() {
+            let facts = Arc::make_mut(&mut self.facts);
+            for subject in removed {
+                facts.remove(&subject);
+            }
+        }
+    }
+    pub(super) fn profile_counts(&self) -> (usize, usize, usize) {
+        let (classes, members) = self.copies.counts();
+        (self.facts.len(), classes, members)
+    }
 }
 
 pub(super) fn validate_graph(replay: &Replay<'_>, machine: &DescriptorMachine) -> Option<()> {
@@ -80,9 +106,7 @@ pub(super) fn establish(
         .equivalents(&storage, machine.flow.len().saturating_mul(4096).max(4096))?;
     let cases = Arc::make_mut(&mut state.cases);
     for subject in subjects {
-        cases
-            .facts
-            .insert(subject, BTreeSet::from([predicate.case]));
+        cases.insert_fact(subject, BTreeSet::from([predicate.case]));
     }
     Some(())
 }
@@ -129,7 +153,7 @@ pub(super) fn select(
     }
     let cases = Arc::make_mut(&mut state.cases);
     for subject in subjects {
-        cases.facts.insert(subject, possible.clone());
+        cases.insert_fact(subject, possible.clone());
     }
     Some(true)
 }
@@ -258,7 +282,7 @@ pub(super) fn transport<'locations>(
     }
     let keep = |subject: &DescriptorLocation| survives(storage, writes.as_deref(), subject);
     let mut cases = (*before.cases).clone();
-    cases.facts.retain(|subject, _| keep(subject));
+    cases.retain_facts(keep);
     cases.copies.retain(keep);
     // Assignments read only the pre-operation state. A destination renewed by
     // this step may share the captured value with other new destinations, but
@@ -280,7 +304,7 @@ pub(super) fn transport<'locations>(
         let Some(actual_destination) = actual_destination else {
             continue;
         };
-        for (subject, active) in &before.cases.facts {
+        for (subject, active) in before.cases.facts.iter() {
             if let Some(target) = values::transported_subject(
                 replay,
                 machine,
@@ -319,7 +343,9 @@ pub(super) fn transport<'locations>(
             ));
         }
     }
-    cases.facts.extend(assigned);
+    for (subject, active) in assigned {
+        cases.insert_fact(subject, active);
+    }
     // Capture groups refer only to OLD members. A new destination that reuses
     // an old source name must not bridge this assignment to that old value.
     // Equivalent pre-step closures share their least current member; that
@@ -374,27 +400,32 @@ pub(super) fn retire_query(
                 .collect::<Option<Vec<_>>>()
         });
     let cases = Arc::make_mut(&mut after.cases);
-    cases
-        .facts
-        .retain(|subject, _| survives(storage, writes.as_deref(), subject));
+    cases.retain_facts(|subject| survives(storage, writes.as_deref(), subject));
     cases
         .copies
         .retain(|subject| survives(storage, writes.as_deref(), subject));
 }
 
 pub(super) fn join(left: &CurrentCases, right: &CurrentCases) -> CurrentCases {
-    // Every arrival must retain a tag constraint and a current copy relation.
-    // Missing facts or relationships are unknown, including loop renewal.
+    // Facts must be present on BOTH arrivals; differing known alternatives
+    // union. These tag sets are idempotent, unlike symbolic contents origins.
+    let mut facts = left.facts.clone();
+    for subject in left.facts.keys_in_changed_pages(&right.facts) {
+        match (left.facts.get(&subject), right.facts.get(&subject)) {
+            (Some(previous), Some(arriving)) => {
+                if !arriving.is_subset(previous) {
+                    Arc::make_mut(&mut facts)
+                        .insert(subject, previous.union(arriving).copied().collect());
+                }
+            }
+            (Some(_), None) => {
+                Arc::make_mut(&mut facts).remove(&subject);
+            }
+            _ => {}
+        }
+    }
     CurrentCases {
-        facts: left
-            .facts
-            .iter()
-            .filter_map(|(subject, cases)| {
-                let mut cases = cases.clone();
-                cases.extend(right.facts.get(subject)?);
-                Some((subject.clone(), cases))
-            })
-            .collect(),
+        facts,
         copies: left.copies.meet(&right.copies),
     }
 }

@@ -28,23 +28,25 @@ impl OriginKey for DescriptorContentsQuery {
 // at most one 64-root directory page instead of every root in a large body.
 // Numeric pages preserve PlaceId order; they carry no provenance meaning.
 const ROOT_PAGE_SHIFT: u32 = 6;
-type RootRows<Key> = BTreeMap<PlaceId, Arc<RowPages<Key>>>;
+type RootRows<Key, Element> = BTreeMap<PlaceId, Arc<RowPages<Key, Element>>>;
 fn page(root: PlaceId) -> u64 {
     root.get() >> ROOT_PAGE_SHIFT
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct OriginMap<Key: OriginKey> {
-    pages: BTreeMap<u64, Arc<RootRows<Key>>>,
+pub(super) struct OriginMap<Key: OriginKey, Element: Clone + Eq = Value> {
+    pages: BTreeMap<u64, Arc<RootRows<Key, Element>>>,
+    entries: usize,
 }
-impl<Key: OriginKey> Default for OriginMap<Key> {
+impl<Key: OriginKey, Element: Clone + Eq> Default for OriginMap<Key, Element> {
     fn default() -> Self {
         Self {
             pages: BTreeMap::new(),
+            entries: 0,
         }
     }
 }
-impl<Key: OriginKey> OriginMap<Key> {
+impl<Key: OriginKey, Element: Clone + Eq> OriginMap<Key, Element> {
     /// Every differing raw entry is included. Identical immutable pages can
     /// be skipped; unchanged neighbors in a detached page may also be returned.
     pub(super) fn keys_in_changed_pages(&self, other: &Self) -> BTreeSet<Key> {
@@ -78,10 +80,13 @@ impl<Key: OriginKey> OriginMap<Key> {
         }
         keys
     }
+    pub(super) fn len(&self) -> usize {
+        self.entries
+    }
     pub(super) fn new() -> Self {
         Self::default()
     }
-    pub(super) fn get(&self, key: &Key) -> Option<&Value> {
+    pub(super) fn get(&self, key: &Key) -> Option<&Element> {
         self.pages
             .get(&page(key.root()))?
             .get(&key.root())?
@@ -90,17 +95,34 @@ impl<Key: OriginKey> OriginMap<Key> {
     pub(super) fn contains_key(&self, key: &Key) -> bool {
         self.get(key).is_some()
     }
-    pub(super) fn get_mut(&mut self, key: &Key) -> Option<&mut Value> {
+    pub(super) fn get_mut(&mut self, key: &Key) -> Option<&mut Element> {
         self.get(key)?;
         let roots = Arc::make_mut(self.pages.get_mut(&page(key.root()))?);
         Arc::make_mut(roots.get_mut(&key.root())?).get_mut(key)
     }
-    pub(super) fn insert(&mut self, key: Key, value: Value) -> Option<Value> {
+    pub(super) fn insert(&mut self, key: Key, value: Element) -> Option<Element> {
         let roots = Arc::make_mut(self.pages.entry(page(key.root())).or_default());
         let rows = roots.entry(key.root()).or_default();
-        Arc::make_mut(rows).insert(key, value)
+        let previous = Arc::make_mut(rows).insert(key, value);
+        self.entries += usize::from(previous.is_none());
+        previous
     }
-    pub(super) fn iter(&self) -> impl DoubleEndedIterator<Item = (&Key, &Value)> {
+    pub(super) fn remove(&mut self, key: &Key) -> Option<Element> {
+        self.get(key)?;
+        let group = page(key.root());
+        let roots = Arc::make_mut(self.pages.get_mut(&group)?);
+        let rows = Arc::make_mut(roots.get_mut(&key.root())?);
+        let previous = rows.remove(key);
+        if rows.is_empty() {
+            roots.remove(&key.root());
+        }
+        if roots.is_empty() {
+            self.pages.remove(&group);
+        }
+        self.entries -= usize::from(previous.is_some());
+        previous
+    }
+    pub(super) fn iter(&self) -> impl DoubleEndedIterator<Item = (&Key, &Element)> {
         self.pages
             .values()
             .flat_map(|roots| roots.values())
@@ -111,7 +133,7 @@ impl<Key: OriginKey> OriginMap<Key> {
     pub(super) fn for_root(
         &self,
         root: PlaceId,
-    ) -> impl DoubleEndedIterator<Item = (&Key, &Value)> {
+    ) -> impl DoubleEndedIterator<Item = (&Key, &Element)> {
         self.pages
             .get(&page(root))
             .and_then(|roots| roots.get(&root))
@@ -124,7 +146,8 @@ impl<Key: OriginKey> OriginMap<Key> {
             .flat_map(|roots| roots.values())
             .flat_map(|rows| rows.keys())
     }
-    pub(super) fn retain(&mut self, mut keep: impl FnMut(&Key, &Value) -> bool) {
+    pub(super) fn retain(&mut self, mut keep: impl FnMut(&Key, &Element) -> bool) {
+        let mut removed_entries = 0;
         self.pages.retain(|_, roots| {
             let changes: Vec<_> = roots
                 .iter()
@@ -139,6 +162,7 @@ impl<Key: OriginKey> OriginMap<Key> {
             if !changes.is_empty() {
                 let roots = Arc::make_mut(roots);
                 for (root, removed) in changes {
+                    removed_entries += removed.len();
                     let rows = Arc::make_mut(roots.get_mut(&root).expect("retained root exists"));
                     for key in removed {
                         rows.remove(&key);
@@ -150,15 +174,18 @@ impl<Key: OriginKey> OriginMap<Key> {
             }
             !roots.is_empty()
         });
+        self.entries -= removed_entries;
     }
 }
-impl<Key: OriginKey, const N: usize> From<[(Key, Value); N]> for OriginMap<Key> {
-    fn from(rows: [(Key, Value); N]) -> Self {
+impl<Key: OriginKey, Element: Clone + Eq, const N: usize> From<[(Key, Element); N]>
+    for OriginMap<Key, Element>
+{
+    fn from(rows: [(Key, Element); N]) -> Self {
         rows.into_iter().collect()
     }
 }
-impl<Key: OriginKey> FromIterator<(Key, Value)> for OriginMap<Key> {
-    fn from_iter<T: IntoIterator<Item = (Key, Value)>>(rows: T) -> Self {
+impl<Key: OriginKey, Element: Clone + Eq> FromIterator<(Key, Element)> for OriginMap<Key, Element> {
+    fn from_iter<T: IntoIterator<Item = (Key, Element)>>(rows: T) -> Self {
         let mut map = Self::new();
         for (key, value) in rows {
             map.insert(key, value);
@@ -167,13 +194,13 @@ impl<Key: OriginKey> FromIterator<(Key, Value)> for OriginMap<Key> {
     }
 }
 
-pub(super) struct IntoIter<Key: OriginKey> {
-    pages: std::collections::btree_map::IntoValues<u64, Arc<RootRows<Key>>>,
-    roots: Option<std::collections::btree_map::IntoValues<PlaceId, Arc<RowPages<Key>>>>,
-    current: Option<row_pages::IntoIter<Key>>,
+pub(super) struct IntoIter<Key: OriginKey, Element: Clone + Eq> {
+    pages: std::collections::btree_map::IntoValues<u64, Arc<RootRows<Key, Element>>>,
+    roots: Option<std::collections::btree_map::IntoValues<PlaceId, Arc<RowPages<Key, Element>>>>,
+    current: Option<row_pages::IntoIter<Key, Element>>,
 }
-impl<Key: OriginKey> Iterator for IntoIter<Key> {
-    type Item = (Key, Value);
+impl<Key: OriginKey, Element: Clone + Eq> Iterator for IntoIter<Key, Element> {
+    type Item = (Key, Element);
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             if let Some(next) = self.current.as_mut().and_then(Iterator::next) {
@@ -190,9 +217,9 @@ impl<Key: OriginKey> Iterator for IntoIter<Key> {
         }
     }
 }
-impl<Key: OriginKey> IntoIterator for OriginMap<Key> {
-    type Item = (Key, Value);
-    type IntoIter = IntoIter<Key>;
+impl<Key: OriginKey, Element: Clone + Eq> IntoIterator for OriginMap<Key, Element> {
+    type Item = (Key, Element);
+    type IntoIter = IntoIter<Key, Element>;
     fn into_iter(self) -> Self::IntoIter {
         IntoIter {
             pages: self.pages.into_values(),

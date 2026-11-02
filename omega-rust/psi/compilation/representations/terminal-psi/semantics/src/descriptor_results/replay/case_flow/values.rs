@@ -1,36 +1,28 @@
-//! Current value equality is a relation between live storage occurrences, not
-//! an origin label. Replacing either occurrence removes its links. A copied
-//! snapshot keeps its own tag when another member is replaced; re-executing a
-//! producer cannot join its new value to a surviving old snapshot.
+//! Current value equality links live storage occurrences, not origin labels.
+//! Replacing a member retires its links; independent copied snapshots survive.
+//! Immutable rosters and their member index share ordered pages across cuts.
+//! A roster's least member indexes that CURRENT relation; it is not a value
+//! version or producer identity, and retirement recomputes it when necessary.
+use super::super::origin_maps::OriginMap;
 use super::*;
 use crate::descriptor_lifetimes::{DescriptorFlowEdge, DescriptorPathSegment};
 use terminal_psi::StructuralFieldType;
 
-/// Normalized current equivalence classes. Every exact member belongs to one
-/// roster; the derived index is rebuilt from those rosters after a change. Class
-/// positions are analysis scratch, never producer identities or version tokens.
+#[cfg(test)]
+mod tests;
+
+type Members = OriginMap<DescriptorLocation, ()>;
+type Classes = OriginMap<DescriptorLocation, Arc<Members>>;
+type MemberClasses = OriginMap<DescriptorLocation, DescriptorLocation>;
 #[derive(Clone, Default, PartialEq, Eq)]
 pub(super) struct Copies {
-    classes: Vec<BTreeSet<DescriptorLocation>>,
-    member_classes: BTreeMap<DescriptorLocation, usize>,
+    classes: Arc<Classes>,
+    member_classes: Arc<MemberClasses>,
 }
-
 impl Copies {
-    fn normalized(mut classes: Vec<BTreeSet<DescriptorLocation>>) -> Self {
-        classes.retain(|members| members.len() > 1);
-        classes.sort();
-        let mut member_classes = BTreeMap::new();
-        for (index, members) in classes.iter().enumerate() {
-            for member in members {
-                member_classes.insert(member.clone(), index);
-            }
-        }
-        Self {
-            classes,
-            member_classes,
-        }
+    pub(super) fn counts(&self) -> (usize, usize) {
+        (self.classes.len(), self.member_classes.len())
     }
-
     pub(super) fn equivalents(
         &self,
         subject: &DescriptorLocation,
@@ -40,27 +32,24 @@ impl Copies {
         let mut pending = vec![subject.clone()];
         let mut applied = BTreeSet::new();
         while let Some(location) = pending.pop() {
-            // Consult only exact prefixes in the member index. One whole-value
-            // class with N copies is expanded once for this suffix, rather than
-            // rescanning N(N-1)/2 pairs for every reached member.
             for length in 0..=location.path.len() {
                 let prefix = DescriptorLocation {
                     root: location.root,
                     path: location.path[..length].to_vec(),
                 };
-                let Some(index) = self.member_classes.get(&prefix) else {
+                let Some(representative) = self.member_classes.get(&prefix) else {
                     continue;
                 };
                 let suffix = &location.path[length..];
                 if suffix.contains(&DescriptorPathSegment::Referent)
-                    || !applied.insert((*index, suffix.to_vec()))
+                    || !applied.insert((representative.clone(), suffix.to_vec()))
                 {
                     continue;
                 }
                 if applied.len() > limit {
                     return None;
                 }
-                for member in &self.classes[*index] {
+                for member in self.classes.get(representative)?.keys() {
                     let mut target = member.clone();
                     target.path.extend_from_slice(suffix);
                     if found.insert(target.clone()) {
@@ -74,13 +63,9 @@ impl Copies {
         }
         Some(found)
     }
-
-    /// The members were captured from one pre-step value component. Exact
-    /// overlap merges whole rosters, retaining independent survivors when a
-    /// former source is later overwritten. No clique of pair edges is stored.
     pub(super) fn insert_class(
         &mut self,
-        mut members: BTreeSet<DescriptorLocation>,
+        members: BTreeSet<DescriptorLocation>,
         limit: usize,
     ) -> Option<()> {
         if members.len() < 2 {
@@ -88,49 +73,147 @@ impl Copies {
         }
         let affected = members
             .iter()
-            .filter_map(|member| self.member_classes.get(member).copied())
+            .filter_map(|member| self.member_classes.get(member).cloned())
             .collect::<BTreeSet<_>>();
-        let mut classes = Vec::with_capacity(self.classes.len() + 1);
-        for (index, existing) in std::mem::take(&mut self.classes).into_iter().enumerate() {
-            if affected.contains(&index) {
-                members.extend(existing);
-            } else {
-                classes.push(existing);
+        let base = affected
+            .iter()
+            .filter_map(|representative| self.classes.get(representative))
+            .max_by_key(|members| members.len())
+            .cloned();
+        let mut combined = base.unwrap_or_default();
+        for member in members.iter().chain(
+            affected
+                .iter()
+                .filter_map(|representative| self.classes.get(representative))
+                .flat_map(|members| members.keys()),
+        ) {
+            if !combined.contains_key(member) {
+                Arc::make_mut(&mut combined).insert(member.clone(), ());
             }
         }
-        classes.push(members);
-        *self = Self::normalized(classes);
+        let representative = combined.keys().next()?.clone();
+        for old in &affected {
+            if old != &representative {
+                Arc::make_mut(&mut self.classes).remove(old);
+            }
+        }
+        if self
+            .classes
+            .get(&representative)
+            .is_none_or(|old| !Arc::ptr_eq(old, &combined))
+        {
+            Arc::make_mut(&mut self.classes).insert(representative.clone(), combined.clone());
+        }
+        for member in combined.keys() {
+            if self.member_classes.get(member) != Some(&representative) {
+                Arc::make_mut(&mut self.member_classes)
+                    .insert(member.clone(), representative.clone());
+            }
+        }
         (self.member_classes.len() <= limit).then_some(())
     }
-
     pub(super) fn retain(&mut self, keep: impl Fn(&DescriptorLocation) -> bool) {
-        let classes = std::mem::take(&mut self.classes)
-            .into_iter()
-            .map(|mut members| {
-                members.retain(&keep);
-                members
+        let changes = self
+            .classes
+            .iter()
+            .filter_map(|(representative, members)| {
+                let removed = members
+                    .keys()
+                    .filter(|member| !keep(member))
+                    .cloned()
+                    .collect::<Vec<_>>();
+                (!removed.is_empty()).then(|| (representative.clone(), members.clone(), removed))
             })
-            .collect();
-        *self = Self::normalized(classes);
-    }
-
-    pub(super) fn meet(&self, other: &Self) -> Self {
-        // Two members remain equal only when they share a class on BOTH
-        // arrivals. Grouping by the two current indexes intersects partitions
-        // without materializing their pairwise relation. Normalization below
-        // derives the resulting identities solely from the surviving members.
-        let mut groups = BTreeMap::<(usize, usize), BTreeSet<DescriptorLocation>>::new();
-        for (left, members) in self.classes.iter().enumerate() {
-            for member in members {
-                if let Some(right) = other.member_classes.get(member) {
-                    groups
-                        .entry((left, *right))
-                        .or_default()
-                        .insert(member.clone());
+            .collect::<Vec<_>>();
+        for (old, mut members, removed) in changes {
+            for member in removed {
+                Arc::make_mut(&mut members).remove(&member);
+                Arc::make_mut(&mut self.member_classes).remove(&member);
+            }
+            Arc::make_mut(&mut self.classes).remove(&old);
+            if members.len() < 2 {
+                for member in members.keys() {
+                    Arc::make_mut(&mut self.member_classes).remove(member);
+                }
+                continue;
+            }
+            let representative = members.keys().next().unwrap().clone();
+            if representative != old {
+                for member in members.keys() {
+                    Arc::make_mut(&mut self.member_classes)
+                        .insert(member.clone(), representative.clone());
                 }
             }
+            Arc::make_mut(&mut self.classes).insert(representative, members);
         }
-        Self::normalized(groups.into_values().collect())
+    }
+    pub(super) fn meet(&self, other: &Self) -> Self {
+        if self == other {
+            return self.clone();
+        }
+        let mut paired = BTreeMap::<
+            (DescriptorLocation, DescriptorLocation),
+            BTreeSet<DescriptorLocation>,
+        >::new();
+        for (member, left) in self.member_classes.iter() {
+            if let Some(right) = other.member_classes.get(member) {
+                paired
+                    .entry((left.clone(), right.clone()))
+                    .or_default()
+                    .insert(member.clone());
+            }
+        }
+        let groups = paired
+            .into_values()
+            .filter(|members| members.len() > 1)
+            .map(|members| (members.first().unwrap().clone(), members))
+            .collect::<BTreeMap<_, _>>();
+        let mut result = self.clone();
+        Arc::make_mut(&mut result.classes)
+            .retain(|representative, _| groups.contains_key(representative));
+        let mut assignments = BTreeMap::new();
+        for (representative, members) in groups {
+            let existing = self.classes.get(&representative).cloned();
+            let roster = if let Some(existing) =
+                existing.filter(|existing| existing.keys().eq(members.iter()))
+            {
+                existing
+            } else {
+                let mut roster = self
+                    .member_classes
+                    .get(&representative)
+                    .and_then(|old| self.classes.get(old))
+                    .cloned()
+                    .unwrap_or_default();
+                Arc::make_mut(&mut roster).retain(|member, _| members.contains(member));
+                for member in &members {
+                    if !roster.contains_key(member) {
+                        Arc::make_mut(&mut roster).insert(member.clone(), ());
+                    }
+                }
+                roster
+            };
+            if result
+                .classes
+                .get(&representative)
+                .is_none_or(|old| !Arc::ptr_eq(old, &roster))
+            {
+                Arc::make_mut(&mut result.classes).insert(representative.clone(), roster);
+            }
+            assignments.extend(
+                members
+                    .into_iter()
+                    .map(|member| (member, representative.clone())),
+            );
+        }
+        Arc::make_mut(&mut result.member_classes)
+            .retain(|member, _| assignments.contains_key(member));
+        for (member, representative) in assignments {
+            if result.member_classes.get(&member) != Some(&representative) {
+                Arc::make_mut(&mut result.member_classes).insert(member, representative);
+            }
+        }
+        result
     }
 }
 

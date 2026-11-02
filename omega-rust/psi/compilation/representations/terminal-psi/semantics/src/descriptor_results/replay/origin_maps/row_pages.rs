@@ -6,28 +6,27 @@
 //! Page boundaries are storage choices, so equality compares logical entries.
 //! Writers use Arc::make_mut: a shared page identity therefore proves that all
 //! its raw entries are unchanged. This shortcut never normalizes symbolic facts.
-use super::Value;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 const PAGE_ROWS: usize = 64;
 #[derive(Clone, Debug)]
-pub(super) struct RowPages<Key: Ord + Clone> {
-    pages: BTreeMap<Key, Arc<BTreeMap<Key, Value>>>,
+pub(super) struct RowPages<Key: Ord + Clone, Element: Clone + Eq> {
+    pages: BTreeMap<Key, Arc<BTreeMap<Key, Element>>>,
 }
-impl<Key: Ord + Clone> Default for RowPages<Key> {
+impl<Key: Ord + Clone, Element: Clone + Eq> Default for RowPages<Key, Element> {
     fn default() -> Self {
         Self {
             pages: BTreeMap::new(),
         }
     }
 }
-impl<Key: Ord + Clone> PartialEq for RowPages<Key> {
+impl<Key: Ord + Clone, Element: Clone + Eq> PartialEq for RowPages<Key, Element> {
     fn eq(&self, other: &Self) -> bool {
         self.iter().eq(other.iter())
     }
 }
-impl<Key: Ord + Clone> Eq for RowPages<Key> {}
-impl<Key: Ord + Clone> RowPages<Key> {
+impl<Key: Ord + Clone, Element: Clone + Eq> Eq for RowPages<Key, Element> {}
+impl<Key: Ord + Clone, Element: Clone + Eq> RowPages<Key, Element> {
     fn floor(&self, key: &Key) -> Option<Key> {
         self.pages
             .range(..=key)
@@ -56,14 +55,14 @@ impl<Key: Ord + Clone> RowPages<Key> {
         }
         keys
     }
-    pub(super) fn get(&self, key: &Key) -> Option<&Value> {
+    pub(super) fn get(&self, key: &Key) -> Option<&Element> {
         self.pages.range(..=key).next_back()?.1.get(key)
     }
-    pub(super) fn get_mut(&mut self, key: &Key) -> Option<&mut Value> {
+    pub(super) fn get_mut(&mut self, key: &Key) -> Option<&mut Element> {
         let floor = self.floor(key)?;
         Arc::make_mut(self.pages.get_mut(&floor)?).get_mut(key)
     }
-    pub(super) fn insert(&mut self, key: Key, value: Value) -> Option<Value> {
+    pub(super) fn insert(&mut self, key: Key, value: Element) -> Option<Element> {
         let mut floor = self
             .floor(&key)
             .or_else(|| self.pages.first_key_value().map(|(key, _)| key.clone()));
@@ -82,7 +81,7 @@ impl<Key: Ord + Clone> RowPages<Key> {
         }
         previous
     }
-    pub(super) fn remove(&mut self, key: &Key) -> Option<Value> {
+    pub(super) fn remove(&mut self, key: &Key) -> Option<Element> {
         let floor = self.floor(key)?;
         let rows = Arc::make_mut(self.pages.get_mut(&floor)?);
         let previous = rows.remove(key);
@@ -94,19 +93,19 @@ impl<Key: Ord + Clone> RowPages<Key> {
     pub(super) fn is_empty(&self) -> bool {
         self.pages.is_empty()
     }
-    pub(super) fn iter(&self) -> impl DoubleEndedIterator<Item = (&Key, &Value)> {
+    pub(super) fn iter(&self) -> impl DoubleEndedIterator<Item = (&Key, &Element)> {
         self.pages.values().flat_map(|rows| rows.iter())
     }
     pub(super) fn keys(&self) -> impl DoubleEndedIterator<Item = &Key> {
         self.pages.values().flat_map(|rows| rows.keys())
     }
 }
-pub(super) struct IntoIter<Key: Ord + Clone> {
-    pages: std::collections::btree_map::IntoValues<Key, Arc<BTreeMap<Key, Value>>>,
-    current: Option<std::collections::btree_map::IntoIter<Key, Value>>,
+pub(super) struct IntoIter<Key: Ord + Clone, Element: Clone + Eq> {
+    pages: std::collections::btree_map::IntoValues<Key, Arc<BTreeMap<Key, Element>>>,
+    current: Option<std::collections::btree_map::IntoIter<Key, Element>>,
 }
-impl<Key: Ord + Clone> Iterator for IntoIter<Key> {
-    type Item = (Key, Value);
+impl<Key: Ord + Clone, Element: Clone + Eq> Iterator for IntoIter<Key, Element> {
+    type Item = (Key, Element);
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             if let Some(row) = self.current.as_mut().and_then(Iterator::next) {
@@ -118,9 +117,9 @@ impl<Key: Ord + Clone> Iterator for IntoIter<Key> {
         }
     }
 }
-impl<Key: Ord + Clone> IntoIterator for RowPages<Key> {
-    type Item = (Key, Value);
-    type IntoIter = IntoIter<Key>;
+impl<Key: Ord + Clone, Element: Clone + Eq> IntoIterator for RowPages<Key, Element> {
+    type Item = (Key, Element);
+    type IntoIter = IntoIter<Key, Element>;
     fn into_iter(self) -> Self::IntoIter {
         IntoIter {
             pages: self.pages.into_values(),
