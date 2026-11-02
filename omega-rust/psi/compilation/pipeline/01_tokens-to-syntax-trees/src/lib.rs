@@ -3,32 +3,22 @@
 //! Psi-owned parsing of Omega tokens into unresolved source-shaped syntax.
 //!
 //! Start at `parser.rs`: [`parse_sources`] appends an ordered source batch;
-//! [`parse`] owns the per-source grammar route. It walks tokens on an
-//! `input::token_cursor::Input` and hands each top-level item to
-//! `declarations::parse_declaration`, publishing the roots into the caller's
-//! `SyntaxTrees`. [`parse_syntax_trees`] and [`parse_syntax_trees_with_id`]
-//! are the same route with the arena created for you.
+//! [`parse`] owns the per-source grammar route. It walks tokens on a
+//! `tokens::token_cursor::Input` and hands each top-level item to
+//! `grammar::declarations::parse_declaration`, publishing the roots into the
+//! caller's `SyntaxTrees`. [`parse_syntax_trees`] and
+//! [`parse_syntax_trees_with_id`] are the same route with the arena created
+//! for you.
 //!
-//! The grammar modules below are not stages and run in no fixed order: this is
-//! recursive descent, so each one calls the ones nested inside it, for as long
-//! as the source nests. They are listed by that containment, outermost first,
-//! and the list is the real reach direction — `declarations` calls all five
-//! that follow it and `bodies` calls the four after it. Two pairs close back
-//! on each other where the grammar itself does: `contracts` reads a return
-//! type through `parameters` while `parameters` reads signature clauses and
-//! conformance arguments through `contracts`, and `expressions` and
-//! `type_syntax` each bottom out in the other.
-//!
-//! - `declarations` dispatches one top-level item to the form that owns it.
-//! - `bodies` reads a machine or trait-default body.
-//! - `contracts` reads the contract clauses on machines and signatures.
-//! - `parameters` reads parameter lists and return parameters.
-//! - `expressions` reads the precedence grammar.
-//! - `type_syntax` reads one type reference.
-//!
-//! Beneath all of them, `input` owns the token cursor every module reads
-//! through, `handle_spans` the span staging every appending table reaches,
-//! and `diagnostics` owns the failure surface every module reports to.
+//! - `grammar` holds the recursive-descent rules, one module per construct:
+//!   `declarations` dispatches one top-level item to the form that owns it,
+//!   `bodies` reads a machine or trait-default body, `contracts` the contract
+//!   clauses, `parameters` parameter lists and return parameters,
+//!   `expressions` the precedence grammar, `type_syntax` one type reference,
+//!   and `patterns` the field patterns of `match` and `transition`.
+//! - `tokens` owns the cursor every grammar rule reads through.
+//! - `storage` appends parsed nodes into the `SyntaxTrees` arenas.
+//! - `diagnostics` owns the failure surface every rule reports to.
 //!
 //! Meaning belongs to the resolution and typing stages that follow; this stage
 //! only recognizes shape.
@@ -36,20 +26,11 @@
 // The entrance.
 pub mod parser;
 
-// The grammar, outermost form first; each reaches down this list.
-mod bodies;
-mod contracts;
-mod declarations;
-mod expressions;
-mod parameters;
-mod patterns;
-mod type_syntax;
-
-// Beneath the grammar: what every module above reads through and reports to.
+// The grammar, and what it reads through, appends into and reports to.
 mod diagnostics;
-mod handle_spans;
-mod input;
-mod tables;
+mod grammar;
+mod storage;
+mod tokens;
 
 // The entrance, and the two forms that create the arena for the caller.
 pub use parser::{

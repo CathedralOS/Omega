@@ -1,8 +1,8 @@
 pub use crate::diagnostics::parse_error;
 
 use crate::ParseError;
-use crate::declarations::parse_declaration::{ParsedDeclaration, parse_item};
-use crate::input::token_cursor::Input;
+use crate::grammar::declarations::parse_declaration::{ParsedDeclaration, parse_item};
+use crate::tokens::token_cursor::Input;
 use arena::{Arena, ConcurrentPagedArena, Handle, SealedPagedArena};
 use diagnostics::Diagnostic;
 use rayon::prelude::*;

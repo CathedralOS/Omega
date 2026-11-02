@@ -1,4 +1,4 @@
-use crate::input::token_cursor::Input;
+use crate::tokens::token_cursor::Input;
 use source_files_to_tokens::Lexer;
 use syntax_trees::expression::ExpressionNode;
 
@@ -16,8 +16,10 @@ fn constructor_paths_keep_authored_field_evaluation_order_and_full_span() {
         let retained_source = Input::retain_source(&tokens);
         let input = Input::new(source_id, &tokens, &retained_source, &mut trees);
         let (expression, rest) =
-            crate::expressions::parse_expression::parse_expression_handle(&mut trees, input)
-                .expect("qualified constructor");
+            crate::grammar::expressions::parse_expression::parse_expression_handle(
+                &mut trees, input,
+            )
+            .expect("qualified constructor");
         assert!(rest.tokens.is_empty());
         let ExpressionNode::StructLiteral(literal) = trees.expressions.expression(expression)
         else {

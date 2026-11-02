@@ -1,4 +1,4 @@
-use crate::expressions::parse_expression::parse_expression_handle;
+use crate::grammar::expressions::parse_expression::parse_expression_handle;
 use source_files_to_tokens::Lexer;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
@@ -16,8 +16,8 @@ fn nested_aggregates_and_grouped_unary_prefixes_use_the_default_stack() {
         .tokenize()
         .expect("tokenize nested values");
     let mut parsed = syntax_trees::SyntaxTrees::new(source::SourceId::default());
-    let retained_source = crate::input::token_cursor::Input::retain_source(&tokens);
-    let input = crate::input::token_cursor::Input::new(
+    let retained_source = crate::tokens::token_cursor::Input::retain_source(&tokens);
+    let input = crate::tokens::token_cursor::Input::new(
         source::SourceId::default(),
         &tokens,
         &retained_source,
@@ -55,9 +55,9 @@ fn parse_expression(source: &str) -> (SyntaxTrees, ExpressionHandle) {
     let source_id = source::SourceId::default();
     let tokens = Lexer::new(source).tokenize().expect("tokenize expression");
     let mut parsed = SyntaxTrees::new(source_id);
-    let retained_source = crate::input::token_cursor::Input::retain_source(&tokens);
+    let retained_source = crate::tokens::token_cursor::Input::retain_source(&tokens);
     let input =
-        crate::input::token_cursor::Input::new(source_id, &tokens, &retained_source, &mut parsed);
+        crate::tokens::token_cursor::Input::new(source_id, &tokens, &retained_source, &mut parsed);
     let (expression, rest) = parse_expression_handle(&mut parsed, input).expect("parse expression");
     assert!(
         rest.tokens.is_empty(),
