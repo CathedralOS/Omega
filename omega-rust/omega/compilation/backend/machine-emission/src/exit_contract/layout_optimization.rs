@@ -98,7 +98,11 @@ fn validate_layout<S: ValidatedSelectedAnalysis>(
     layout: &ResolvedLayoutOptimization,
 ) -> Result<(), Error> {
     validate_optimized_resolved_selected_form_layout(
-        selected, machine, physical, encoding, baseline,
+        selected.current_program(),
+        machine.machine().plan(),
+        physical,
+        encoding.program(),
+        baseline,
     )
     .map_err(Error::Layout)?;
     validate_resolved_layout_optimization(physical, baseline.program(), layout.selections(), layout)
