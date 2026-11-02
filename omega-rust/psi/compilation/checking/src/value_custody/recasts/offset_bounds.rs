@@ -42,7 +42,7 @@ fn standing_bound(
 /// parameter's `requires`, or its data's `where` facts. A declared type range
 /// is read directly above because it is the tightest and cheapest source;
 /// this covers the invariants that hold at every program point without being
-/// spelled on the type, which is where `data Main where k <= 3` lives now
+/// spelled on the type, which is where `data Main requires k <= 3` lives now
 /// that a data `where` is the canonical spelling for a field relationship.
 fn standing_place_high(
     program: &dyn crate::CheckingInput,
@@ -71,7 +71,7 @@ fn standing_place_low(
 /// An EXACT unsigned place's floor is 0 by its carrier, with no range,
 /// `requires` or `where` needed. The composite walk asks for a floor before it
 /// will multiply or subtract, so without this a `u32` field with a stated
-/// ceiling -- `data Main where k <= 3` -- bounds above and still fails the
+/// ceiling -- `data Main requires k <= 3` -- bounds above and still fails the
 /// nonnegative-operand test that keeps `k * 2` from wrapping below its bound.
 ///
 /// The exactness is the whole of the soundness. A `u32 in Wrapping` place has

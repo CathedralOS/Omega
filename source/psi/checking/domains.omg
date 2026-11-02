@@ -11,7 +11,7 @@ use psi::syntax::syntax;
 use psi::types::types;
 
 // Default domains (wiki/spec/language/dependent_values.md#default-domains-and-zero-initialization).
-// An established value of data whose declaration carries `where` facts
+// An established value of data whose declaration carries `requires` facts
 // satisfies them: a parameter's from entry, a pattern binder's, and an
 // initialized local's. Uninitialized storage (`let mut t: T;`) is no
 // established value and gains nothing. Facts are installed field by field:
@@ -118,7 +118,7 @@ crashes Trap
         let item: DataItem = SyntaxTrees::data_item(syntax, item_handle);
         let parent: u64 in Trapping = checker.fields_parent;
         checker.fields_parent = field.parent;
-        let assumed: bool = Checker::decide_where_facts(checker, syntax, resolution, typing, item.first_clause, item.clause_count, field.handle, false);
+        let assumed: bool = Checker::decide_requires_facts(checker, syntax, resolution, typing, item.first_clause, item.clause_count, field.handle, false);
         checker.fields_parent = parent;
         transition { _ -> saved(checker, syntax, resolution, typing, index, field, item, 0) }
     }
@@ -142,7 +142,7 @@ crashes Trap
         checker.zone = checker.saved[slot];
         let parent: u64 in Trapping = checker.fields_parent;
         checker.fields_parent = field.parent;
-        let assumed: bool = Checker::decide_where_facts(checker, syntax, resolution, typing, item.first_clause, item.clause_count, field.handle, false);
+        let assumed: bool = Checker::decide_requires_facts(checker, syntax, resolution, typing, item.first_clause, item.clause_count, field.handle, false);
         checker.fields_parent = parent;
         checker.saved[slot] = checker.zone;
         checker.zone = checker.stashed;
@@ -198,9 +198,9 @@ crashes Trap
 }
 
 // Assume (or, when `proving`, report whether the facts prove) each typed
-// `where` fact of a clause run that names `field`. An untyped fact naming
+// `requires` fact of a clause run that names `field`. An untyped fact naming
 // it is not proved.
-machine Checker::decide_where_facts(
+machine Checker::decide_requires_facts(
     checker: &mut Checker,
     syntax: &SyntaxTrees,
     resolution: &NameResolution,
@@ -223,7 +223,7 @@ crashes Trap
 
     machine clause(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, end: u64 in Trapping, field: u64 in Trapping, proving: bool) -> bool {
         let clause: Clause = SyntaxTrees::clause(syntax, index);
-        let named: bool = clause.kind == ClauseKind::Where && clause.has_expression;
+        let named: bool = clause.kind == ClauseKind::Requires && clause.has_expression;
         transition named {
             true -> fact(checker, syntax, resolution, typing, index, end, field, proving, clause)
             _ -> next(checker, syntax, resolution, typing, index + 1, end, field, proving)
@@ -371,7 +371,7 @@ crashes Trap
         let cases: bool = Checker::case_facts_name(syntax, resolution, item, field.handle);
         let parent: u64 in Trapping = checker.fields_parent;
         checker.fields_parent = field.parent;
-        let held: bool = Checker::decide_where_facts(checker, syntax, resolution, typing, item.first_clause, item.clause_count, field.handle, true);
+        let held: bool = Checker::decide_requires_facts(checker, syntax, resolution, typing, item.first_clause, item.clause_count, field.handle, true);
         checker.fields_parent = parent;
         held && !cases
     }
@@ -566,7 +566,7 @@ public machine Checker::payload_slot(selected: DataCase, member: MemberTarget) -
 
 // Whether a value of data `item_handle`, of case `data_case` when
 // `has_case`, with the construction fields from `first` (`count` of them)
-// written, establishes its data's `where` facts and its case's own: each
+// written, establishes its data's `requires` facts and its case's own: each
 // fact holds with every field name standing for the value written there,
 // zero for a field left out (wiki/spec/language/dependent_values.md:
 // construction proves the domain; data_and_literals.md#case-constraints:
@@ -714,7 +714,6 @@ crashes Trap
         checker.payload_slot = item.field_count;
         checker.argument_count = total;
         let required: bool = Checker::decide_facts(checker, syntax, resolution, typing, item.first_clause, item.clause_count, ClauseKind::Requires, true);
-        let retired: bool = Checker::decide_facts(checker, syntax, resolution, typing, item.first_clause, item.clause_count, ClauseKind::Where, true);
         let selected_facts: bool = Checker::decide_facts(checker, syntax, resolution, typing, selected.first_clause, selected.clause_count, ClauseKind::Where, true);
         checker.field_values = substituting;
         checker.field_first = field_first;
@@ -722,7 +721,7 @@ crashes Trap
         checker.payload_first = payload_first;
         checker.payload_slot = payload_slot;
         checker.argument_count = arguments;
-        required && retired && selected_facts
+        required && selected_facts
     }
 
     machine unproved() -> bool {

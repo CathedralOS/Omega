@@ -1,0 +1,4 @@
+// The retired default-domain spelling `data Name where ...` has no parse path;
+// the data declaration states its predicate with `requires`.
+data Bounded where value <= 9 { value: u64; }
+machine main() {}

@@ -90,7 +90,7 @@ sources. It does not assemble durable filesystem evidence itself.
 Authored trust grants, component-assumption acceptances, and executed exclusion
 receipts are checked by [realization trust](../realization/trust-model/README.md).
 Build evaluation decodes wire demands; Psi's
-[typed-to-checked stage](../../../psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checking.rs)
+[typed-to-checked stage](../../../psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checking.rs)
 checks their meaning before publishing checked trees. Package review reconstructs grants through
 the same trust owner without calling the Build evaluator.
 

@@ -14,8 +14,8 @@ typed-trees = { path = "../representations/typed-trees" }
 syntax-trees-to-symbol-resolved-trees = { path = "../pipeline/02_syntax-trees-to-symbol-resolved-trees" }
 symbol-resolved-trees-to-typed-trees = { path = "../pipeline/03_symbol-resolved-trees-to-typed-trees" }
 build-time-evaluation = { path = "../compile-time" }
-typed-trees-to-typed-trees = { path = "../pipeline/03b_typed-trees-to-typed-trees" }
-typed-trees-to-checked-trees = { path = "../pipeline/04_typed-trees-to-checked-trees" }
+typed-trees-to-typed-trees = { path = "../pipeline/04_typed-trees-to-typed-trees" }
+typed-trees-to-checked-trees = { path = "../pipeline/05_typed-trees-to-checked-trees" }
 validation = { path = "../checking" }
 representation-selections = { path = "../checking/representation-planning/selections" }
 representation-planning = { path = "../checking/representation-planning" }

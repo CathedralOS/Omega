@@ -109,6 +109,12 @@ impl ComponentPublication {
                     "component native publication requires an exact selected target",
                 )]
             })?;
+        let calling = &self.checked.providers().calling_program;
+        if calling.artifact.view().identity() != produced.artifact.view().identity() {
+            return Err(vec![Diagnostic::error(
+                "component calling catalog differs from the produced Terminal artifact",
+            )]);
+        }
         provider_planning::calling_policy_plans::component_calling_applications(
             self.checked
                 .execution()
@@ -117,7 +123,7 @@ impl ComponentPublication {
                 .services_for(self.checked.execution().provider_source.program())
                 .map_err(|error| vec![error])?,
             target,
-            Some(produced.artifact.as_ref()),
+            calling,
             &providers,
             &self.checked.providers().boundary_calling_plan_realizations,
         )

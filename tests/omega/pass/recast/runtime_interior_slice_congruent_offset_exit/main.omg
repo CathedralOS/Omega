@@ -5,7 +5,7 @@
 // `u16` elements. Mutable projected writes must reach the backing bytes.
 use omega_language_std::console;
 
-data Main where k <= 3 {
+data Main requires k <= 3 {
     bytes: [u8; 8];
     k: u32;
 }

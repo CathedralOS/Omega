@@ -2,7 +2,7 @@
 // Expected rejection: exact arithmetic in machine main state entry local diff may overflow `u64`.
 const LIMIT: u64 = 81u64;
 
-data Counter [copy] where used <= LIMIT {
+data Counter [copy] requires used <= LIMIT {
     used: u64;
     limit: u64;
 }

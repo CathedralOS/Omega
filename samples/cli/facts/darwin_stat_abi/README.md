@@ -17,15 +17,14 @@ alignment must agree with 144/8. Every C checker field has a self-test mutation.
 On Mac the fixture includes the installed SDK's `sys/stat.h`; other hosts use
 an explicit Darwin-format fixture replica and make no native SDK claim.
 
-Local, owned-field, by-value parameter, call-result, match-join and const-name
-transport are qualified on the matching Mac host.
+All nine transport places are qualified on the matching Mac host.
 Each twin changes only the receiving policy to an equal-geometry distinct
 implementation. All four hosted entry bindings remain explicit. Field values
 are established by a mutable C exchange; the compiler cannot substitute stale
 zero initializer facts or assume the foreign checker succeeds.
 
-Psi 00–04 retains the exact public std type, selected child plans and policy
-identity; borrowed inputs retain source backing and copy obligations. Psi 05–07
+Psi 00–05 retains the exact public std type, selected child plans and policy
+identity; borrowed inputs retain source backing and copy obligations. Psi 06–08
 and Omega 00–02 must preserve the complete selected C field geometry and ABI
 pointer lane. Omega 03–09 must emit the stores, copies, projections and foreign
 calls so any wrong offset, signed carrier, omitted timestamp half, wrong branch
@@ -53,8 +52,14 @@ natively. Its Terminal `_futimens` adapter gap predates this migration and remai
 under FILESYSTEM-PLATFORM-SERVICES in [TASKS.md](../../../../TASKS.md); the
 private native sponsor does not grant extra filesystem capability.
 
-The final nested-machine, other-machine and selected-target transports and
-other-host observations remain open; the
+The final nested-machine, other-machine and selected-target programs at source
+`f19844409a95` also passed all six checking controls and all three native/Terminal
+executions at exit 0. They reused the qualified optimized `79f174854e30` runner;
+compiler and program revisions are retained separately, and their complete
+source/library input trees are identical. The selected implementations carry
+distinct markers so the wrong selection traps.
+
+Other-host observations remain open. The
 complete parent also retains conversions and Product parity.
 
 `file_times` checks the same shared two-element C timestamp array

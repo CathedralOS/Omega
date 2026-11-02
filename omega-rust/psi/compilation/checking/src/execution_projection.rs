@@ -98,7 +98,17 @@ pub fn project_build_program(
         &generated_methods,
         Some(static_argument_role),
     );
-    program.product_declaration_frontier = Some(Arc::new(original.typed_program().clone()));
+    // Reprojecting an existing Build view must keep its original Product
+    // owner, not wrap the already-pruned Build roster as a new frontier.
+    // Share that immutable owner rather than cloning another complete graph.
+    let typed = original.typed_program();
+    program.product_declaration_frontier = Some(
+        typed
+            .product_declaration_frontier
+            .as_ref()
+            .map(Arc::clone)
+            .unwrap_or_else(|| Arc::new(typed.clone())),
+    );
     Ok(program)
 }
 

@@ -231,6 +231,11 @@ pub struct FlowStateOutgoingFact {
     /// transfers and valueless completion; reference results retain live
     /// referents captured during evaluation rather than replaying selectors.
     pub returned_value: arena::Handle<super::FlowOperandFact>,
+    /// The control owner proved that this transfer cannot return normally.
+    /// Custody still leaves on this edge, but result/partition consumers must
+    /// not require a returned value. Unknown completion keeps this false;
+    /// an absent capture or a crash ceiling is not evidence of nonreturn.
+    pub cannot_return_normally: bool,
     /// Selected-arm facts before any target operand executes. Copy payloads
     /// are values extracted at this boundary, not late storage rereads.
     pub operand_entry_constraints: HandleSpan<FlowConstraintRef>,

@@ -32,7 +32,7 @@ machine Main::main(main: &mut Main) crashes Trap {
     machine bad() { crash Trap; }
 }
 
-data Buffer4 [copy] where used <= 4 { storage: [u8; 4]; used: u64; }
+data Buffer4 [copy] requires used <= 4 { storage: [u8; 4]; used: u64; }
 machine Buffer4::view(buffer: &Buffer4) -> &[u8] in Utf8 crashes Trap {
     let bytes: &[u8] = &buffer.storage[..buffer.used];
     transition valid_utf8(bytes) {
@@ -48,7 +48,7 @@ machine Buffer4::equal(buffer: &Buffer4, expected: &[u8]) -> bool crashes Trap {
 }
 
 
-data Buffer8 [copy] where used <= 8 { storage: [u8; 8]; used: u64; }
+data Buffer8 [copy] requires used <= 8 { storage: [u8; 8]; used: u64; }
 machine Buffer8::view(buffer: &Buffer8) -> &[u8] in Utf8 crashes Trap {
     let bytes: &[u8] = &buffer.storage[..buffer.used];
     transition valid_utf8(bytes) {

@@ -10,7 +10,7 @@ use omega::language::core::float_operations;
 use omega_language_std::console;
 
 data SignedRecord
-where
+requires
     signed_value >= 0 && signed_value <= 100,
     signed_tag >= 0 && signed_tag <= 2,
     signed_ratio >= 0.0 && signed_ratio <= 1.0,
@@ -22,7 +22,7 @@ where
 }
 
 data UnsignedRecord
-where
+requires
     unsigned_value >= 0 && unsigned_value <= 100,
     unsigned_tag >= 0 && unsigned_tag <= 2,
     unsigned_ratio >= 0.0 && unsigned_ratio <= 1.0,

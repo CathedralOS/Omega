@@ -84,7 +84,7 @@ Measured on macOS arm64 with the factsr1 shared generation producer `gen-9b001b8
   of the operand (`shift < 8` for `i8`). Static verification certificates guarantee in-range shift counts
   (`< 8`). Weakened input intervals in invalid controls cannot establish downstream exact value
   preconditions, rejecting deterministically at check time.
-- **Checked-to-Terminal Psi lowering (`Psi 05-07`):** Target-neutral Terminal Psi (`PSITERM\0`) receives
+- **Checked-to-Terminal Psi lowering (`Psi 06-08`):** Target-neutral Terminal Psi (`PSITERM\0`) receives
   arithmetic right shift operations (`Shr` on signed 8-bit carrier `i8`) with shift-count validity
   certificates and range bounds intact. Erased proof obligations and verified intervals lower without
   loss into executable nodes that execute in the Terminal Psi interpreter (`omega run --both`).

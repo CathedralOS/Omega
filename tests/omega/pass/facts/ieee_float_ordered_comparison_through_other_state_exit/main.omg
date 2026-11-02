@@ -2,7 +2,7 @@
 // Place: other_state. A successor state receives the bounded reading and verifies the downstream window.
 // Expected exit: 0
 
-data Reading [copy] where value >= 1.5 && value <= 2.5 {
+data Reading [copy] requires value >= 1.5 && value <= 2.5 {
     value: f64;
 }
 

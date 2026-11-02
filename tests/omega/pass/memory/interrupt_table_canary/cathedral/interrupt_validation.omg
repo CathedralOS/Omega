@@ -34,7 +34,7 @@ use cathedral::interrupt_table;
 // settlement obligation (`fatal_exception` selects the never-resume
 // contract; the acknowledged-interrupt obligation is the timer member's
 // shape), and the descriptor constants the produced gate bytes must carry.
-public data TableMemberDeclaration where privilege <= 3, ist_slot <= 7, gate_kind <= 15 {
+public data TableMemberDeclaration requires privilege <= 3, ist_slot <= 7, gate_kind <= 15 {
     vector: u64;
     dedicated_stack_class: u16;
     fatal_exception: bool;
@@ -47,7 +47,7 @@ public data TableMemberDeclaration where privilege <= 3, ist_slot <= 7, gate_kin
 // One installed IST binding: the slot a gate may name and the dedicated
 // critical stack class the installed realization provisions for it. The
 // validator joins each member's declared slot through these rows.
-public data IstBinding where slot <= 7 {
+public data IstBinding requires slot <= 7 {
     slot: u8;
     dedicated_class: u16;
 }

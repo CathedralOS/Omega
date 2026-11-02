@@ -205,6 +205,10 @@ pub(crate) fn assign_symbols(
     const_declarations: &[crate::resolution::lowerer::PendingConstDeclaration],
     namespace_declarations: &NamespaceDeclarations,
     generic_origin_frontier: usize,
+    operand_bindings: &[(
+        symbol_resolved_trees::types::OperandLifetimeOwnerHandle,
+        usize,
+    )],
 ) -> Result<(), Vec<Diagnostic>> {
     let mut symbols = build_symbol_table(
         program,
@@ -218,6 +222,7 @@ pub(crate) fn assign_symbols(
     let mut symbols = insert_selected_machine_children(program, symbols, sources, 0, has_sources);
     scope::record_declaration_owners(program, &mut symbols)?;
     program.symbols = symbols;
+    crate::resolution::operand_owners::bind_program(program, operand_bindings)?;
     let symbols = program.symbols.clone();
     let diagnostics = assign_program_symbols(program, &symbols, generic_origin_frontier);
     namespace_declarations.record_import_selections(program)?;
@@ -236,6 +241,10 @@ pub(crate) fn assign_symbols_against_resolved_base(
     const_declarations: &[crate::resolution::lowerer::PendingConstDeclaration],
     namespace_declarations: &NamespaceDeclarations,
     generic_origin_frontier: usize,
+    operand_bindings: &[(
+        symbol_resolved_trees::types::OperandLifetimeOwnerHandle,
+        usize,
+    )],
 ) -> Result<(), Vec<Diagnostic>> {
     symbol_table::extend_symbol_table(
         program,
@@ -251,6 +260,7 @@ pub(crate) fn assign_symbols_against_resolved_base(
     let mut symbols = program.symbols.clone();
     scope::record_declaration_owners(program, &mut symbols)?;
     program.symbols = symbols;
+    crate::resolution::operand_owners::bind_program(program, operand_bindings)?;
     let symbols = program.symbols.clone();
     let diagnostics = assign_program_symbols(program, &symbols, generic_origin_frontier);
     namespace_declarations.record_import_selections(program)?;
@@ -282,6 +292,8 @@ pub(crate) fn assign_constant_expression_symbols(
         prior_statements: &[],
         data_definitions: &program.roots.data_definitions,
         type_aliases: &program.roots.type_aliases,
+        conformances: &program.roots.conformances,
+        operand_owners: &program.tables.types.operand_lifetime_owners,
         data_members: &declarations.data_members,
         data_type_parameters: &declarations.data_type_parameters,
         data_payload_fields: &declarations.data_payload_fields,
@@ -323,6 +335,7 @@ pub(crate) fn assign(lowerer: &mut Lowerer) -> Result<(), Vec<Diagnostic>> {
 /// Allocate and resolve declaration identities before any body-local symbol
 /// batch. Both eager resolution and retained-body completion use this boundary.
 pub(crate) fn assign_declarations(lowerer: &mut Lowerer) -> Result<(), Vec<Diagnostic>> {
+    let operand_bindings = crate::resolution::operand_owners::bindings(lowerer)?;
     let seeded_roots = lowerer.seed.as_ref().map(|seed| seed.roots);
     match seeded_roots {
         None => assign_symbols(
@@ -332,6 +345,7 @@ pub(crate) fn assign_declarations(lowerer: &mut Lowerer) -> Result<(), Vec<Diagn
             &lowerer.pending_const_declarations,
             &lowerer.namespace_declarations,
             lowerer.bound_generic_application_origins,
+            &operand_bindings,
         )?,
         Some(roots) => {
             let sources = lowerer.sources.take().ok_or_else(|| {
@@ -347,10 +361,10 @@ pub(crate) fn assign_declarations(lowerer: &mut Lowerer) -> Result<(), Vec<Diagn
                 &lowerer.pending_const_declarations,
                 &lowerer.namespace_declarations,
                 lowerer.bound_generic_application_origins,
+                &operand_bindings,
             )?;
         }
     }
-    crate::resolution::operand_owners::bind(lowerer)?;
     lowerer.bound_generic_application_origins = lowerer
         .symbol_resolved_trees
         .tables

@@ -105,8 +105,8 @@ pub(crate) fn project_provenance(
     }
 }
 
-pub(crate) fn restore_provenance(
-    projected: SelectionProvenance<SymbolHandle, ProviderSelection>,
+pub(crate) fn restore_provenance<Declaration>(
+    projected: SelectionProvenance<Declaration, ProviderSelection>,
 ) -> crate::ProviderSelectionProvenance {
     match projected {
         SelectionProvenance::BuildOverride(declarations) => {
@@ -145,6 +145,9 @@ pub(crate) fn source_candidate(
         declarations: provider_selection::CandidateDeclarations {
             schema: Ok(source.provenance.schema.symbol()),
             provider: source.provenance.provider_type.map(Ok),
+            selecting_declaration: Err(vec![diagnostics::Diagnostic::error(
+                "canonical selecting declaration has not been prepared",
+            )]),
         },
         native_build,
         owner: source.provenance,

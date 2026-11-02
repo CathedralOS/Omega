@@ -52,7 +52,7 @@ selected-domain qualification rule and the exact claim transport that
   payload constant; it does not pretend a linear claim is a reusable constant.
 - Soundness boundaries: each raw-carrier twin must fail issuance. Separate core
   memory controls retain `Vacant`/`Resident` protections under explicit routes.
-- Psi 05–07: normalized atomic memberships and whole-value custody must survive
+- Psi 06–08: normalized atomic memberships and whole-value custody must survive
   proof erasure and `PSITERM` execution. No borrow-restoration or dynamic-dispatch
   claim is made by this row.
 - Omega 00–02: ordinary hosted Build entry selection, record layout and the

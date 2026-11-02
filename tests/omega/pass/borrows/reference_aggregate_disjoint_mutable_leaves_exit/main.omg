@@ -2,7 +2,7 @@
 // fields in a record literal, and two distinct literal indexes in an array.
 use omega_language_std::console;
 
-data Cell where value >= 0, value <= 100 { stamp: i32; value: i32; }
+data Cell requires value >= 0, value <= 100 { stamp: i32; value: i32; }
 data Pair<'a> { left: &'a mut Cell; right: &'a mut Cell; }
 data Main {
     first: Cell;

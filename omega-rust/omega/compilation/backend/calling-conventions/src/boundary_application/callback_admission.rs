@@ -113,16 +113,14 @@ impl BoundaryCallingApplication {
         let entry = matching
             .next()
             .ok_or("callback root has no native parameter")?;
+        let ordinal = self
+            .call_projection()?
+            .parameter_ordinal(entry.native_ordinal)?
+            .ok_or("dispatch-only formal cannot carry a native callback")?;
         if matching.next().is_some()
             || entry.identity != parameter.parameter
-            || entry.native_ordinal != parameter.native_ordinal
-            || self
-                .plan
-                .plan()
-                .call
-                .parameters
-                .get(entry.native_ordinal as usize)
-                != Some(&parameter.placement)
+            || usize::try_from(parameter.native_ordinal).ok() != Some(ordinal)
+            || self.plan.plan().call.parameters.get(ordinal) != Some(&parameter.placement)
             || parameter.shape != parameter.placement.shape
         {
             return Err("callback root changed its authenticated parameter application".to_owned());

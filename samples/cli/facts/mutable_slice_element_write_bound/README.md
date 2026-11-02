@@ -103,7 +103,7 @@ resumes afterward; this does not close its remaining cleanup acceptance.
 - **Soundness:** Index-2 twins still reject the missing bound. Separate controls
   retain local-escape rejection, shared-to-mutable refusal and all possible
   backing loans. Representation-view controls retain their admitted codecs.
-- **Psi 05–07:** Returned descriptors and their checked region relation survive
+- **Psi 06–08:** Returned descriptors and their checked region relation survive
   canonical Terminal Psi lowering; ordinary Terminal execution must agree with
   each authored native result. This is not checked-tree interpretation.
 - **Omega 00–02:** Hosted entry bindings, record-field geometry and descriptor

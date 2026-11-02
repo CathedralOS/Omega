@@ -44,7 +44,7 @@ not run.
   order, under the one subject.
 - **Composition:** `apply` calls the selected tuple. `hold` reads the result.
 - **Soundness:** a `left` body of `false` leaves `true` unable to satisfy `hold`.
-- **Psi 05–07 through Omega 07–09:** the nine positives agree on this host.
+- **Psi 06–08 through Omega 07–09:** the nine positives agree on this host.
   The other hosted targets are bound and not executed here.
 
 ## Build-owned target-body migration

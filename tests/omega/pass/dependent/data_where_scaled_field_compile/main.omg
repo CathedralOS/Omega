@@ -2,7 +2,7 @@
 // `Coupon` is valid only while `face * 2 <= limit` — the arithmetic
 // operand compares to a sibling field, not a literal.
 data Coupon
-where
+requires
     face * 2 <= limit,
 {
     face: u64;

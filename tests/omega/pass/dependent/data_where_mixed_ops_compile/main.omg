@@ -2,7 +2,7 @@
 // only while `a >= 1`, `a != b`, and `b <= 8` — bounds, disequality, and a
 // cross-field ceiling in one invariant.
 data Gate
-where
+requires
     a >= 1,
     a != b,
     b <= 8,

@@ -24,6 +24,9 @@ pub struct PreparedAbiStorage {
 pub struct PreparedBoundaryAbiSignature {
     pub id: CallingSignatureId,
     pub template: SymbolHandle,
+    /// Original declaration occurrences which contributed this exact key.
+    /// Equal checked Build/Product copies may share its portable storage.
+    pub source_templates: Vec<SymbolHandle>,
     pub requirement_identity: String,
     /// Empty only on a deferred open declaration, never a complete application.
     pub declaring_application: String,
@@ -151,6 +154,139 @@ pub(super) fn prepare(catalog: &mut PreparedBoundarySignatures, typed: &TypedTre
         })();
         boundaries.push((closed.signature.symbol, prepared));
     }
+
+    // A component can export a closed receiver without invoking its methods
+    // or authoring Calling. Use the same checked application roots as service
+    // preparation; do not infer an instance from its eventual native shape.
+    let roots = typed.applied_trait_roots().into_iter().chain(
+        typed
+            .captured_machine_applications
+            .iter()
+            .filter_map(|(_, application)| {
+                application.conformance_application.trait_scope.scope(typed)
+            }),
+    );
+    for root in roots {
+        root.visit(typed, &mut |scope| {
+            if !scope.declaration.is_boundary {
+                return;
+            }
+            for declared in typed.trait_machine_signatures(scope.declaration) {
+                let Some(declaration) = catalog
+                    .declarations()
+                    .find(|row| row.symbol == declared.symbol)
+                else {
+                    continue;
+                };
+                if typed
+                    .state_signature_type_parameters(declared)
+                    .iter()
+                    .any(|parameter| callback_binder(declaration, parameter).is_none())
+                {
+                    // Local actuals only come from checked applications. A
+                    // receiver cannot invent an unused generic argument tuple.
+                    continue;
+                }
+                let Some(outer) = scope
+                    .portable_application_identity(typed)
+                    .and_then(|identity| typed.type_identity_text(identity))
+                    .filter(|identity| !identity.is_empty())
+                else {
+                    continue;
+                };
+                let signature = typed
+                    .applied_callable_signature(scope, declaration.symbol)
+                    .or_else(|| {
+                        (scope.substitutions.is_empty()
+                            && scope.declaration.lifetime_parameters.is_empty())
+                        .then_some(declared)
+                    });
+                let projection = signature
+                    .map(|signature| PreparedAbiStorage {
+                        parameters: typed
+                            .state_signature_parameters(signature)
+                            .iter()
+                            .map(|parameter| parameter.type_reference)
+                            .collect(),
+                        result: signature.return_type,
+                        substitutions: Vec::new(),
+                    })
+                    .ok_or_else(|| "declaration ABI lost its applied logical signature".to_owned());
+                insert(
+                    typed,
+                    &mut rows,
+                    declaration,
+                    outer.to_owned(),
+                    Vec::new(),
+                    projection,
+                );
+            }
+        });
+    }
+
+    // An opaque `satisfies Requirement via binding` leaf inherits its governing
+    // requirement's admitted contract, declaration ABI included
+    // (language/effects.md, "Opaque supplies inherit"). A provider that calls
+    // the leaf directly, rather than the trait member whose invocation edge its
+    // own requirement does not publish, reaches the same exact ABI row. A
+    // target family's synthesized interface is the boundary its callers see;
+    // it takes the one row every member's governing requirement agrees on.
+    let governing_application = |machine: &crate::machine::Machine| {
+        let mut applications = typed
+            .machine_trait_conformances(machine)
+            .iter()
+            .filter_map(|conformance| {
+                crate::machine::resolve_satisfied_declaration(typed, machine, conformance)
+            })
+            .filter_map(|declaration| {
+                boundaries
+                    .iter()
+                    .find(|(symbol, _)| *symbol == declaration.symbol())
+                    .map(|(_, application)| application.clone())
+            });
+        match (applications.next(), applications.next()) {
+            (Some(application), None) => Some(application),
+            _ => None,
+        }
+    };
+    let mut inherited = Vec::new();
+    for machine in typed.machines() {
+        if machine.body_is_present
+            || boundaries
+                .iter()
+                .any(|(symbol, _)| *symbol == machine.symbol)
+        {
+            continue;
+        }
+        let application = if machine.target_family_interface {
+            let members = typed
+                .target_machine_families
+                .iter()
+                .find(|family| family.canonical == machine.symbol)
+                .map_or(&[][..], |family| family.members.as_slice());
+            let mut applications = members
+                .iter()
+                .filter_map(|member| typed.machine_by_symbol(member.machine))
+                .map(governing_application);
+            match applications.next() {
+                Some(Some(first)) if applications.all(|other| other.as_ref() == Some(&first)) => {
+                    Some(first)
+                }
+                _ => None,
+            }
+        } else if matches!(
+            machine.supply_mode,
+            language_semantics::MachineSupplyMode::ExternalRealization { .. }
+        ) {
+            governing_application(machine)
+        } else {
+            None
+        };
+        if let Some(application) = application {
+            inherited.push((machine.symbol, application));
+        }
+    }
+    boundaries.extend(inherited);
 
     let mut applications = Vec::new();
     for (handle, application) in catalog.calling.applications() {
@@ -283,6 +419,9 @@ fn insert(
             && row.declaring_application == declaring_application
             && row.operands == operands
     }) {
+        if !row.source_templates.contains(&declaration.symbol) {
+            row.source_templates.push(declaration.symbol);
+        }
         row.projections.push(projection);
         row.default_eligible |= declaration.default_eligible;
         return id;
@@ -306,6 +445,7 @@ fn insert(
     rows.push(PreparedBoundaryAbiSignature {
         id,
         template: declaration.symbol,
+        source_templates: vec![declaration.symbol],
         requirement_identity: declaration.requirement_identity.clone(),
         declaring_application,
         operands,

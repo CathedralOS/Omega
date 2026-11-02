@@ -1,9 +1,10 @@
 //! Prepare complete selected execution from immutable checked Psi and Build inputs.
 //!
-//! Grants, callbacks, declaration catalogs, selected review and accepted host
-//! bindings close here, before Terminal production borrows the result. None of
-//! this work consumes an artifact. Native demand and receiving permission remain
-//! later joins; a prepared direct-call supply is not permission to execute it.
+//! Canonical Product choice has already recorded provider demand and selected
+//! whole maps. Grants, callbacks, declaration catalogs, selected review and
+//! accepted host bindings close here without making another provider choice.
+//! Receiving permission remains a later join; prepared direct-call supply is
+//! not permission to execute it.
 
 use crate::SelectedExecution;
 use checked_trees::CheckedTrees as CheckedProgram;
@@ -21,6 +22,9 @@ pub struct ProviderBindingRequest<'a> {
     pub boundary_calling_plan_realizations:
         &'a [provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
     pub provider_candidates: &'a [provider_planning::ProviderPlanCandidate],
+    pub boundary_provider_demands: &'a [effects::provider_plan::ProviderPlan],
+    pub provider_declarations: &'a Arc<[backend_plan::TerminalTargetProviderPlan]>,
+    pub terminal_module: &'a terminal_psi::TerminalModule,
     pub selected_provider_plan_facts: effects::SelectedProviderPlanFacts,
     pub root_grants: &'a [String],
     pub selected_provider_provenance: Vec<provider_planning::SelectedProviderReviewProvenance>,
@@ -100,6 +104,7 @@ pub fn prepare_selected_execution(
     );
     let binding = provider_selection::bind_selected_provider_plan_facts(
         provider_selection::BoundaryProviderAdmission {
+            demands: settlement.boundary_provider_demands,
             review: &external_providers.boundary_provider_review(),
             identities: &external_providers.identities,
             external_providers: &external_providers.conformances,
@@ -127,8 +132,11 @@ pub fn prepare_selected_execution(
             .map(|realization| (realization.boundary_trait, realization.requirement_machine)),
     );
     let callback_roots = {
-        let providers =
-            provider_source.callback_providers(&external_providers.callbacks.declarations)?;
+        let providers = provider_source.callback_providers(
+            &external_providers.callbacks.declarations,
+            settlement.provider_declarations,
+            settlement.terminal_module,
+        )?;
         let selected = provider_selection::select_callback_declarations(
             &external_providers.callbacks.declarations,
             &calling_requirements,
@@ -146,8 +154,8 @@ pub fn prepare_selected_execution(
     ));
     let native_provider_sources = provider_planning::prepare_native_provider_sources(
         ProviderPlanningContext::new(&program.typed, source::DependencyScope::Product),
-        settlement.exact_toolchain_sources,
         &settlement.selected_provider_provenance,
+        Arc::clone(settlement.provider_declarations),
     )
     .map(Arc::new);
 

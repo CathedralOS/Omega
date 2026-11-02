@@ -117,7 +117,7 @@ Applicable requirement layers:
   both match paths and explicit target bodies consume the same operation.
 - Soundness: the noncopy twins reject before execution; unavailable bindings and
   unsupported authority refuse. Signed input/field widths remain exact.
-- Psi 05–07: actual fields use ordinary record cells, copies and state arrivals;
+- Psi 06–08: actual fields use ordinary record cells, copies and state arrivals;
   existing sum-case discriminators retain their separate field namespace.
 - Omega 00–02: the exact normalized C application retains ordered formals,
   complete result geometry and validated ABI placements.

@@ -127,6 +127,121 @@ fn calling_policies_share_product_code_across_targets_and_single_target_outputs(
     }
 }
 
+fn assert_calling_review_outlives_source(relative: &str) {
+    use std::sync::Arc;
+
+    let (prepared, substituted, code, wrong_code, source_owner, wrong_owner, expected) = {
+        let fixture = prepare(relative);
+        let package_inputs = fixture.package_inputs;
+        let mut request = CheckedCompileRequest::new(&fixture.root_path, Some("macos_arm64"));
+        request.package_inputs = package_inputs.clone();
+        let checked = omega_build::check_source(&mut CompilationSession::default(), request)
+            .result
+            .expect("source and original calling policies check");
+        let execution = checked.execution();
+        let source = execution.provider_source.program();
+        let target = execution.selected_target_profile.expect("fixture target");
+        let prepare_policy = || {
+            provider_planning::calling_policy_plans::prepare_boundary_calling_plans(
+                source,
+                execution
+                    .provider_source
+                    .inventory()
+                    .services_for(source)
+                    .expect("exact source catalog"),
+                target,
+                &checked.build().config.opaque_representation_selections,
+                package_inputs.as_ref(),
+            )
+            .expect("retain source admission and review correspondence")
+        };
+        let prepared = prepare_policy();
+        let substituted = prepare_policy();
+        let code = Arc::clone(&checked.providers().calling_program);
+        let expected = checked
+            .providers()
+            .boundary_calling_plan_realizations
+            .iter()
+            .map(|application| {
+                application
+                    .native_application()
+                    .expect("original application")
+            })
+            .collect::<Vec<_>>();
+        assert!(
+            !expected.is_empty(),
+            "witness must actually activate policies"
+        );
+
+        // Equal-looking trees in a different real allocation do not own the
+        // admitted invocation. Keep the same artifact so only that join breaks.
+        let other_source = Arc::new((**source).clone());
+        let wrong_owner = Arc::downgrade(&other_source);
+        let wrong_code = provider_planning::calling_policy_plans::CallingProgram {
+            source_owner: wrong_owner.clone(),
+            artifact: Arc::clone(&code.artifact),
+            entries: code.entries.clone(),
+            source_records: Arc::clone(&code.source_records),
+        };
+        (
+            prepared,
+            substituted,
+            code,
+            wrong_code,
+            Arc::downgrade(source),
+            wrong_owner,
+            expected,
+        )
+    };
+    assert!(
+        source_owner.upgrade().is_none(),
+        "prepared activation must not retain checked source"
+    );
+    assert!(
+        wrong_owner.upgrade().is_none(),
+        "the substituted source owner also expired"
+    );
+    assert!(!std::sync::Weak::ptr_eq(&source_owner, &wrong_owner));
+    let rejected = substituted
+        .evaluate(&wrong_code)
+        .expect_err("another owner cannot reuse admission");
+    assert!(
+        rejected.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("different checked source owner")),
+        "{rejected:?}"
+    );
+
+    let actual = prepared
+        .evaluate(&code)
+        .expect("activate and attach review after Source drop")
+        .iter()
+        .map(|application| {
+            application
+                .native_application()
+                .expect("source-free native application")
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        actual, expected,
+        "Source release cannot change the complete native applications"
+    );
+}
+
+#[test]
+fn opaque_policy_review_activates_after_source_drop() {
+    assert_calling_review_outlives_source(
+        "tests/omega/pass/build/terminal_calling_policy_execution/main.omg",
+    );
+}
+
+#[test]
+fn private_callback_policy_review_activates_after_source_drop() {
+    assert_calling_review_outlives_source(
+        "tests/omega/pass/build/terminal_private_callback_calling/main.omg",
+    );
+}
+
 #[test]
 fn late_application_attachment_outlives_source_and_preserves_recovered_attribution() {
     // Descriptions escape this scope without borrowing the checked program.

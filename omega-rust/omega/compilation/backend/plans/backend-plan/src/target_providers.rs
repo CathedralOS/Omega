@@ -397,26 +397,71 @@ fn selected_checked_candidates<'plan, 'terminal>(
     let mut selections = Vec::new();
     for selected in plans {
         let plan = &selected.plan;
-        for row in &plan.rows {
-            let effects::provider_plan::ProviderBinding::CheckedAdapter {
-                machine_identity,
-                machine_package_identity,
-            } = &row.binding
-            else {
-                continue;
-            };
-            let owner = selected
-                .provider_declaration
-                .as_deref()
-                .filter(|owner| !owner.is_empty())
-                .ok_or("checked provider plan has no exact selecting declaration")?;
-            let requirement = plan.identity_text(row.requirement_identity);
-            let realization = plan.identity_text(*machine_identity);
-            let matching = module
-                .provider_candidates
-                .iter()
-                .filter(|candidate| {
-                    module
+        if !plan.rows.iter().any(|row| {
+            matches!(
+                row.binding,
+                effects::provider_plan::ProviderBinding::CheckedAdapter { .. }
+            )
+        }) {
+            continue;
+        }
+        let owner = selected
+            .provider_declaration
+            .as_deref()
+            .filter(|owner| !owner.is_empty())
+            .ok_or("checked provider plan has no exact selecting declaration")?;
+        for projected in selected_provider_candidate_rows(plan, owner, module)? {
+            selections.push(SelectedCheckedCandidate {
+                selected,
+                row: projected.row,
+                owner,
+                candidates: projected
+                    .candidate_positions
+                    .into_iter()
+                    .map(|position| &module.provider_candidates[position])
+                    .collect(),
+            });
+        }
+    }
+    Ok(selections)
+}
+
+/// One original selected requirement and all of its closed realizations in the
+/// supplied immutable module. Positions have meaning only beside that module.
+pub struct SelectedProviderCandidateRow<'plan> {
+    pub row: &'plan effects::provider_plan::ProviderPlanRow,
+    pub candidate_positions: Vec<usize>,
+}
+
+/// Project the same exact association for component verification and native
+/// selection. A template may have many applications; selecting owner, package,
+/// receiver and target stay part of the join even when bodies are shared.
+/// Empty rows remain descriptive absence, never an invented installation.
+pub fn selected_provider_candidate_rows<'plan>(
+    plan: &'plan effects::provider_plan::ProviderPlan,
+    owner: &str,
+    module: &terminal_psi::TerminalModule,
+) -> Result<Vec<SelectedProviderCandidateRow<'plan>>, String> {
+    if owner.is_empty() {
+        return Err("checked provider plan has no exact selecting declaration".into());
+    }
+    let mut selections = Vec::new();
+    for row in &plan.rows {
+        let effects::provider_plan::ProviderBinding::CheckedAdapter {
+            machine_identity,
+            machine_package_identity,
+        } = &row.binding
+        else {
+            continue;
+        };
+        let requirement = plan.identity_text(row.requirement_identity);
+        let realization = plan.identity_text(*machine_identity);
+        let matching = module
+            .provider_candidates
+            .iter()
+            .enumerate()
+            .filter(|(_, candidate)| {
+                module
                         .identities
                         .text(candidate.provider_declaration.identity())
                         == Some(owner)
@@ -429,6 +474,7 @@ fn selected_checked_candidates<'plan, 'terminal>(
                             == Some(requirement)
                         && module.identities.text(candidate.source_candidate_identity)
                             == Some(realization)
+                        && receiving_application_matches(plan, row, module, candidate.receiving_application)
                         // The portable catalog retains every member of the
                         // remaining legacy families. A target-keyed plan joins
                         // only its exact member before checking uniqueness;
@@ -442,41 +488,160 @@ fn selected_checked_candidates<'plan, 'terminal>(
                                     member.target == plan.target && member.callable == callable
                                 })
                         })
-                })
-                .collect::<Vec<_>>();
-            // A template can supply many distinct closed requirements, never
-            // two candidates for the same coordinate under one choosing owner.
-            let mut requirements = matching
-                .iter()
-                .map(|candidate| candidate.requirement_identity)
-                .collect::<Vec<_>>();
-            requirements.sort();
-            if requirements.windows(2).any(|pair| pair[0] == pair[1]) {
-                return Err(format!(
-                    "selected provider requirement `{requirement}` has duplicate canonical realizations: {:?}",
-                    matching
-                        .iter()
-                        .map(|candidate| (
-                            candidate.candidate,
-                            module.identities.text(candidate.candidate_identity),
-                            module
-                                .machine(candidate.candidate)
-                                .and_then(|machine| machine.declaration.as_ref())
-                                .and_then(|declaration| module
-                                    .identities
-                                    .text(declaration.semantic_declaration)),
-                            module.identities.text(candidate.receiving_application),
-                        ))
-                        .collect::<Vec<_>>()
-                ));
+            })
+            .map(|(position, _)| position)
+            .collect::<Vec<_>>();
+        // A template can supply many distinct closed requirements, never
+        // two candidates for the same coordinate under one choosing owner.
+        let mut requirements = matching
+            .iter()
+            .map(|position| module.provider_candidates[*position].requirement_identity)
+            .collect::<Vec<_>>();
+        requirements.sort();
+        if requirements.windows(2).any(|pair| pair[0] == pair[1]) {
+            return Err(format!(
+                "selected provider requirement `{requirement}` has duplicate canonical realizations: {:?}",
+                matching
+                    .iter()
+                    .map(|position| &module.provider_candidates[*position])
+                    .map(|candidate| (
+                        candidate.candidate,
+                        module.identities.text(candidate.candidate_identity),
+                        module
+                            .machine(candidate.candidate)
+                            .and_then(|machine| machine.declaration.as_ref())
+                            .and_then(|declaration| module
+                                .identities
+                                .text(declaration.semantic_declaration)),
+                        module.identities.text(candidate.receiving_application),
+                    ))
+                    .collect::<Vec<_>>()
+            ));
+        }
+        selections.push(SelectedProviderCandidateRow {
+            row,
+            candidate_positions: matching,
+        });
+    }
+    // The obligation roster is issued independently of candidates. Checking
+    // only the candidate list cannot notice one missing uncalled instance.
+    for selected in &selections {
+        let requirement_template = plan.identity_text(selected.row.requirement_identity);
+        let method = plan
+            .schema
+            .declaration
+            .methods
+            .iter()
+            .find(|method| {
+                plan.schema.identity_text(method.requirement_identity) == requirement_template
+            })
+            .ok_or("selected provider row lost its exact requirement declaration")?;
+        for obligations in module
+            .provider_instance_requirements
+            .iter()
+            .filter(|obligations| {
+                obligations.package == method.requirement_owner_package_identity
+                    && module.identities.text(obligations.template) == Some(requirement_template)
+                    && obligations
+                        .selecting_declaration
+                        .as_ref()
+                        .is_none_or(|declaration| {
+                            module.identities.text(declaration.identity()) == Some(owner)
+                                && match selected.row.binding {
+                                    effects::provider_plan::ProviderBinding::CheckedAdapter {
+                                        machine_identity,
+                                        ..
+                                    } => {
+                                        module
+                                            .identities
+                                            .text(obligations.source_candidate_identity)
+                                            == Some(plan.identity_text(machine_identity))
+                                    }
+                                    _ => false,
+                                }
+                        })
+            })
+        {
+            for required in &obligations.required_instances {
+                if !receiving_application_matches(
+                    plan,
+                    selected.row,
+                    module,
+                    required.receiving_application,
+                ) {
+                    continue;
+                }
+                let count = selected
+                    .candidate_positions
+                    .iter()
+                    .filter(|position| {
+                        let candidate = &module.provider_candidates[**position];
+                        candidate.requirement_identity == required.requirement_identity
+                            && (required.candidate_identity.is_absent()
+                                || candidate.candidate_identity == required.candidate_identity)
+                            && candidate.receiving_application == required.receiving_application
+                            && candidate.receiving_region_arguments
+                                == required.receiving_region_arguments
+                    })
+                    .count();
+                if count != 1 {
+                    return Err(format!(
+                        "selected provider plan `{}` resolves retained closed requirement `{}` to {count} canonical provider instances; exactly one must serve it",
+                        plan.name,
+                        module
+                            .identities
+                            .text(required.requirement_identity)
+                            .unwrap_or("<unknown requirement>"),
+                    ));
+                }
             }
-            selections.push(SelectedCheckedCandidate {
-                selected,
-                row,
-                owner,
-                candidates: matching,
-            });
         }
     }
     Ok(selections)
+}
+
+fn receiving_application_matches(
+    plan: &effects::provider_plan::ProviderPlan,
+    row: &effects::provider_plan::ProviderPlanRow,
+    module: &terminal_psi::TerminalModule,
+    receiving_application: terminal_psi::TerminalIdentityIndex,
+) -> bool {
+    let requirement = plan.identity_text(row.requirement_identity);
+    let surface = &plan.schema.declaration;
+    let Some(method) = surface
+        .methods
+        .iter()
+        .find(|method| surface.identity_text(method.requirement_identity) == requirement)
+    else {
+        return false;
+    };
+    let views = || {
+        surface.receiver_applications.iter().filter(|application| {
+            surface.identity_text(application.trait_name) == method.requirement_owner
+                && application.trait_package_identity == method.requirement_owner_package_identity
+                && application
+                    .requirement_identities
+                    .iter()
+                    .any(|identity| surface.identity_text(*identity) == requirement)
+        })
+    };
+    if !surface.receiver_applications.is_empty() && views().next().is_none() {
+        return false;
+    }
+    if receiving_application == terminal_psi::TerminalIdentityIndex::default() {
+        // Non-applied declarations have no closed receiver coordinate. They
+        // cannot supply a parameterized or region-applied receiver selection.
+        return views().all(|application| {
+            application.argument_identities.is_empty()
+                && application.lifetime_argument_identities.is_empty()
+        });
+    }
+    let Some(receiving) = module
+        .identities
+        .text(receiving_application)
+        .filter(|text| !text.is_empty())
+    else {
+        return false;
+    };
+    views().any(|application| surface.identity_text(application.application) == receiving)
 }

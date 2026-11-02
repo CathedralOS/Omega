@@ -1,0 +1,27 @@
+module main;
+
+public const Width: u64 = width();
+public machine width() -> u64 { 8u64 }
+public data Packet { before: u64; bytes: [u8; Width]; after: u64; }
+public boundary trait Inspect<Tag> {
+    machine inspect(value: Packet) -> u64 reaches;
+}
+public Inspector satisfies Inspect<u8> {
+    machine inspect(value: Packet) -> u64 {
+        transition value.bytes.len > 7u64 {
+            true -> inspect_fields(value)
+            _ -> wrong()
+        }
+        machine inspect_fields(value: Packet) -> u64 {
+            transition value.before == 19u64 && value.after == 97u64
+                && value.bytes[0] == 11u8 && value.bytes[7] == 88u8 {
+                true -> correct()
+                _ -> wrong()
+            }
+        }
+        machine correct() -> u64 { 42u64 }
+        machine wrong() -> u64 { 99u64 }
+    }
+}
+// The producer exports Inspect<u8> without any invocation or authored Calling.
+machine component_entry() {}

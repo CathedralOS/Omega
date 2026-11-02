@@ -219,7 +219,9 @@ fn boundary_application(
                         .abi_signatures()
                         .iter()
                         .filter(|declaration| {
-                            declaration.template == edge.requirement_symbol
+                            declaration
+                                .source_templates
+                                .contains(&edge.requirement_symbol)
                                 && declaration.declaring_application == outer
                                 && declaration.operands.is_empty()
                                 && declaration

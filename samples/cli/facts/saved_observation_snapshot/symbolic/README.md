@@ -47,7 +47,7 @@ Matching fixtures are `tests/omega/{pass,fail}/facts/saved_symbolic_observation_
   [write-only reads](controls/unreadable_delivery/invalid/main.omg),
   [wrong scalar types](controls/wrong_primitive_delivery/invalid/main.omg), and
   [wrong reference types](controls/wrong_reference_delivery/invalid/main.omg) reject.
-- **Checked-to-Terminal Psi (`Psi 05–07`):** ordinary calls, primitive receiving
+- **Checked-to-Terminal Psi (`Psi 06–08`):** ordinary calls, primitive receiving
   reads, match joins, explicit loans and nested terminal transfers execute in
   Terminal Psi. This row does not qualify affine cleanup, proof tags, `dyn`
   dispatch or general crash-route completeness.

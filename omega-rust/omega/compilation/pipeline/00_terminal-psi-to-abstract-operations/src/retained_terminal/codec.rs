@@ -21,7 +21,7 @@ use value::{RecordError, RecordLimits, RecordReader, RecordValue, RecordWriter, 
 
 // Provider plans retain complete applications and exact numeric realization declarations.
 // Reject older private records before reading their differently shaped payload.
-const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI09";
+const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI10";
 
 #[cfg(test)]
 mod tests {
@@ -29,12 +29,14 @@ mod tests {
 
     #[test]
     fn retired_entry_field_record_schema_is_rejected() {
-        let mut input =
-            RecordReader::new(b"OMGNTI01", RecordLimits::default()).expect("bounded old schema");
-        let Err(error) = DerivationInputs::read(&mut input) else {
-            panic!("retired record schema accepted");
-        };
-        assert_eq!(error.reason, "foreign native derivation record schema");
+        for bytes in [b"OMGNTI01", b"OMGNTI09"] {
+            let mut input =
+                RecordReader::new(bytes, RecordLimits::default()).expect("bounded old schema");
+            let Err(error) = DerivationInputs::read(&mut input) else {
+                panic!("retired record schema accepted");
+            };
+            assert_eq!(error.reason, "foreign native derivation record schema");
+        }
     }
 }
 

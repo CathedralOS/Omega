@@ -4,7 +4,7 @@ use omega::language::core::layout;
 
 data TestMemory {}
 
-public data Inner [copy] where value == 17 { value: u64; }
+public data Inner [copy] requires value == 17 { value: u64; }
 public data Word { inner: [Inner; 1]; }
 public data WordPlacement {}
 machine WordPlacement::plan(schema: Schema) -> AccessPlan {

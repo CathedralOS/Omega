@@ -71,14 +71,13 @@ pub use provider_planning::{
     CompilerIntrinsicExecutionIdentity, CompilerNumericType, CompilerPrimitiveFloatBinaryOperation,
     CompilerPrimitiveIntegerComparisonOperation, ProviderPlanDerivation, ProviderSchemaDeclaration,
     ProviderSelectionProvenance, SelectedProviderReviewProvenance, derive_satisfies_plans,
-    exact_checked_adapter, prepare_selected_plan_declarations, same_semantic_name,
-    satisfies_plan_name, select_derived_provider_plans, selected_checked_operator_body,
-    selected_provider_plan_facts, selected_requirement_checked_adapter, selected_requirement_plan,
-    selected_use_plan,
+    exact_checked_adapter, prepare_selected_build_time_provider_body,
+    prepare_selected_plan_declarations, same_semantic_name, satisfies_plan_name,
+    select_derived_provider_plans, selected_checked_operator_body, selected_provider_plan_facts,
+    selected_requirement_checked_adapter, selected_requirement_plan, selected_use_plan,
 };
 pub(crate) use provider_planning::{
     DerivedProviderPlan, ProviderPlanProvenance, SelectedTargetMachineOrigin,
-    selected_provider_plan_facts_with_independent_components,
 };
 pub(crate) use provider_planning::{
     extract_native_external_binding_rows, validate_selected_synchronous_invocation_cycles,

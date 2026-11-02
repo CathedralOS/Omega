@@ -479,7 +479,6 @@ pub(super) fn append_named_probe(
         target: None,
         authored_target: None,
         boundary: false,
-        is_top_level_boundary_requirement: false,
         lifetime_parameters: Vec::new(),
         type_parameters: HandleSpan::empty(),
         satisfies: HandleSpan::empty(),

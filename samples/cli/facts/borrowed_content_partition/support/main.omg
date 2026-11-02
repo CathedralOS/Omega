@@ -15,7 +15,7 @@ public machine issue() -> Region in Owned ensures result.length == 48 {
 }
 public machine Region::drop(region: &mut Region) {}
 public data Parts { taken: Region in Owned; rest: Region in Owned; }
-public data Strategy where remaining == tail.length {
+public data Strategy requires remaining == tail.length {
     tail: Region in Owned;
     remaining: u64;
 }

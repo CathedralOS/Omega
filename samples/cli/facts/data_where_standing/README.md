@@ -69,7 +69,7 @@ scalar snapshots evaluated before later argument mutations.
   do not publish a constant identity. [Focused controls](controls/README.md)
   distinguish complete conjunctions and nested projections from missing fields,
   missing members and same-spelled outer constants.
-- **Psi 05–07:** the standing predicate supplies erased proof evidence; the
+- **Psi 06–08:** the standing predicate supplies erased proof evidence; the
   ordinary record, calls, joins and nested transitions retain runtime meaning
   through Terminal Psi. Every positive requires actual Terminal/native agreement.
 - **Omega 00–02:** ordinary four-target entry bindings and the existing record

@@ -45,6 +45,7 @@ pub(super) fn post_store_predicate_holds(
     state: &State,
     statement_index: usize,
     receiver: &crate::CanonicalPlace,
+    receiver_type: typed_trees::types::TypeReferenceHandle,
     preserves_scalar_value: bool,
     place: &TrackedPlace<'_>,
     written_field: SymbolHandle,
@@ -61,8 +62,8 @@ pub(super) fn post_store_predicate_holds(
             state,
             statement_index,
             receiver,
+            receiver_type,
             place.definition,
-            place.active_case,
             predicate,
         );
     }
@@ -268,8 +269,8 @@ pub(super) fn post_store_predicate_holds(
             state,
             statement_index,
             receiver,
+            receiver_type,
             place.definition,
-            place.active_case,
             predicate,
         )
 }

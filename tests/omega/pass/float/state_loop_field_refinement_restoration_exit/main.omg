@@ -1,6 +1,6 @@
 use omega::language::core::float_operations;
 use omega_language_std::console;
-data Main where value >= 0.0 && value <= 1.0 { value: f32; }
+data Main requires value >= 0.0 && value <= 1.0 { value: f32; }
 machine Main::fill(main: &mut Main) {
     transition { _ -> step(main, 0) }
     machine step(main: &mut Main, round: u8) {

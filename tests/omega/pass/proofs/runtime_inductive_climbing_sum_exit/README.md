@@ -17,7 +17,7 @@ machine retains its bounded-distance measure, all three entry requirements and
 its mathematical result guarantee. Subtraction outside `embed` is mathematical
 integer subtraction, including when the index already exceeds the limit.
 
-The stage 05 `ranked_value_guarantees` regression serializes the resulting
+The stage 06 `ranked_value_guarantees` regression serializes the resulting
 Terminal module and proofs, verifies them independently and executes that
 artifact. Changing only the accumulator forwarded on the backedge must reject
 the guarantee evidence while preserving the identical termination question.

@@ -12,7 +12,7 @@ data FieldPlan {
     case Skip;
 }
 data Main
-where
+requires
     0 <= i,
     i <= 3,
 { plans: [FieldPlan; 4]; i: i64; a: i64 in Wrapping; b: i64 in Wrapping; r: i32; }

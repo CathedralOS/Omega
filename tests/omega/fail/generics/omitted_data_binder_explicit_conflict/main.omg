@@ -2,7 +2,7 @@
 // equal the supplied range's endpoint exactly, so a larger explicit capacity
 // is a conflict, not a compatible containing bound.
 data TinyBytes<Length, const Capacity: u64>
-where
+requires
     Length == [u8; Capacity]
 {
     storage: [u8; Capacity];

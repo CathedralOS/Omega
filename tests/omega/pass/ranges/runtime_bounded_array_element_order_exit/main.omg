@@ -1,6 +1,6 @@
 // Expected exit: 0. Scalar homes snapshot each element before the next call,
 // including construction inside a scalar-returning machine.
-data Bounded [copy] where value <= 100 {
+data Bounded [copy] requires value <= 100 {
     value: u64;
 }
 

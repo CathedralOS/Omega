@@ -2,7 +2,7 @@
 // valid only while `value != -1` — negative disequality keeps the
 // error-marker value out of the domain.
 data Reading
-where
+requires
     value != -1,
 {
     value: i64;

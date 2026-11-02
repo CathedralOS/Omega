@@ -52,7 +52,7 @@ terminal-fuel = { path = "../../../../../psi/compilation/representations/termina
 iced-x86 = { version = "1.21", default-features = false, features = ["std", "decoder", "instr_info"] }
 
 [dev-dependencies]
-lowered-psi-to-terminal-psi = { path = "../../../../../psi/compilation/pipeline/07_lowered-psi-to-terminal-psi" }
+lowered-psi-to-terminal-psi = { path = "../../../../../psi/compilation/pipeline/08_lowered-psi-to-terminal-psi" }
 abstract-operations-to-abstract-operations = { path = "../../../pipeline/01_abstract-operations-to-abstract-operations" }
 compiler = { path = "../../../driver" }
 image-emission = { path = ".", features = ["test-support", "installed-artifact"] }
@@ -63,9 +63,9 @@ terminal-psi-to-abstract-operations = { path = "../../../pipeline/00_terminal-ps
 optimization-core = { path = "../../../../foundation/optimization-core", features = ["test-support"] }
 checked-trees = { path = "../../../../../psi/compilation/representations/checked-trees" }
 extents = { path = "../../../../../psi/foundation/extents" }
-checked-trees-to-lowered-psi = { path = "../../../../../psi/compilation/pipeline/05_checked-trees-to-lowered-psi" }
+checked-trees-to-lowered-psi = { path = "../../../../../psi/compilation/pipeline/06_checked-trees-to-lowered-psi" }
 source-files-to-tokens = { path = "../../../../../psi/compilation/pipeline/00_source-files-to-tokens" }
 symbol-resolved-trees-to-typed-trees = { path = "../../../../../psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees" }
 syntax-trees-to-symbol-resolved-trees = { path = "../../../../../psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees" }
 tokens-to-syntax-trees = { path = "../../../../../psi/compilation/pipeline/01_tokens-to-syntax-trees" }
-typed-trees-to-checked-trees = { path = "../../../../../psi/compilation/pipeline/04_typed-trees-to-checked-trees" }
+typed-trees-to-checked-trees = { path = "../../../../../psi/compilation/pipeline/05_typed-trees-to-checked-trees" }

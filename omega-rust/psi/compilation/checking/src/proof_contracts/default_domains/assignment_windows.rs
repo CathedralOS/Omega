@@ -299,6 +299,7 @@ pub(crate) fn handle_assignment<'program>(
 struct FieldStore<'program> {
     destination: crate::CanonicalPlace,
     receiver: crate::CanonicalPlace,
+    receiver_type: typed_trees::types::TypeReferenceHandle,
     definition: &'program typed_trees::data::DataDefinition,
     field: &'program typed_trees::data::DataField,
     preserves_scalar_value: bool,
@@ -344,6 +345,7 @@ fn field_store<'program>(
     Ok(Some(FieldStore {
         destination,
         receiver,
+        receiver_type,
         definition,
         field,
         preserves_scalar_value,
@@ -633,6 +635,7 @@ fn handle_field_store<'program>(
                             state,
                             statement_index,
                             &store.receiver,
+                            store.receiver_type,
                             store.preserves_scalar_value,
                             place,
                             written,

@@ -11,7 +11,7 @@
 
 use omega_language_std::console;
 
-data Main where 0 <= x, x <= 100, 0 <= y, y <= 100 {
+data Main requires 0 <= x, x <= 100, 0 <= y, y <= 100 {
     x: i32;
     y: i32;
 }

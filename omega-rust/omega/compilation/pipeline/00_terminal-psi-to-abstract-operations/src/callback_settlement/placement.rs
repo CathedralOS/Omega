@@ -75,6 +75,9 @@ pub fn settle_native_callback_placements(
             &module.calling_abi_identity(inbound_boundary)?,
             None,
         )?;
+        if inbound.dispatch_only_parameter_count != 0 {
+            return Err("callback inbound entry cannot omit dispatch-only formals".into());
+        }
         // Selection and occurrence custody retain the portable head above;
         // only ABI and telescope formation use its admitted physical member.
         let registrar_boundary =
@@ -147,13 +150,20 @@ fn parameter_application(
     calling: &BoundaryCallingApplication,
     parameter: &BoundaryNativeParameterGeometry,
 ) -> Result<NativeParameterApplication, String> {
-    let placement = usize::try_from(parameter.native_ordinal)
-        .ok()
-        .and_then(|ordinal| calling.plan.plan().call.parameters.get(ordinal))
+    let ordinal = calling
+        .call_projection()?
+        .parameter_ordinal(parameter.native_ordinal)?
+        .ok_or("dispatch-only formal cannot carry a native callback")?;
+    let placement = calling
+        .plan
+        .plan()
+        .call
+        .parameters
+        .get(ordinal)
         .ok_or("callback native parameter has no plan placement")?;
     Ok(NativeParameterApplication {
         parameter: parameter.identity,
-        native_ordinal: parameter.native_ordinal,
+        native_ordinal: u32::try_from(ordinal).map_err(|_| "callback wire ordinal exceeds u32")?,
         shape: placement.shape,
         placement: placement.clone(),
     })

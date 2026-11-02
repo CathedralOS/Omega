@@ -2,7 +2,7 @@
 // main.margin.left)` lends the constrained field — the callee's write
 // then flows back through the invariant's lens at the record boundary.
 data Margin
-where
+requires
     left - right >= 2,
 {
     left: u64;

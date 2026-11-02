@@ -1,5 +1,5 @@
 // One const binder cannot name both the record's capacity and another extent.
-data FixedBuffer<const Capacity: u64> where Capacity >= 1 {
+data FixedBuffer<const Capacity: u64> requires Capacity >= 1 {
     items: [i32; Capacity];
 }
 

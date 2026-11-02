@@ -333,23 +333,7 @@ impl ExpressionSymbolContext<'_, '_> {
                     .declaration_references
                     .contains(&self.expression_table.source_span(expression))
                 {
-                    let declaration = MachineScope {
-                        symbol: SymbolHandle::invalid(),
-                        lexical_requirements: crate::symbols::scope::LexicalRequirements::none(),
-                        attached_machines: self.machine.attached_machines,
-                        resolution_indexes: self.machine.resolution_indexes,
-                        type_parameters: &[],
-                        attached_data_symbol: SymbolHandle::invalid(),
-                        inherited_data_members: None,
-                        owned_data: &[],
-                        prior_statements: &[],
-                        data_definitions: self.machine.data_definitions,
-                        type_aliases: self.machine.type_aliases,
-                        data_members: self.machine.data_members,
-                        data_type_parameters: self.machine.data_type_parameters,
-                        data_payload_fields: self.machine.data_payload_fields,
-                        type_constraints: self.machine.type_constraints,
-                    };
+                    let declaration = self.machine.declaration_scope(SymbolHandle::invalid(), &[]);
                     assign_name_symbol(
                         self.symbols,
                         &declaration,

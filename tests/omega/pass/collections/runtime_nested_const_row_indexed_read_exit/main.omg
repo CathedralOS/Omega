@@ -5,7 +5,7 @@
 // runtime index. Pins BOTH consumers: machine-field target (`main.got = ..`)
 // and frame LET target (`let picked = ..`). grid[1][2]=42, j=2 -> exit 1.
 use omega_language_std::console;
-data Main where 0 <= j, j <= 3 {
+data Main requires 0 <= j, j <= 3 {
     grid: [[i32; 4]; 3];
     j: u64;
     got: i32;

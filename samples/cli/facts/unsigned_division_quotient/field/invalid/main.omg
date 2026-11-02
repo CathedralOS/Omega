@@ -2,7 +2,7 @@
 // Invalid: quotient is 99, so subtracting 100u64 underflows. Place: field.
 // Expected diagnostic: may overflow `u64`
 
-data DivResult where quotient >= 99 && quotient <= 99 {
+data DivResult requires quotient >= 99 && quotient <= 99 {
     quotient: u64;
 }
 

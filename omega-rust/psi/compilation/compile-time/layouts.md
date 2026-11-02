@@ -26,12 +26,15 @@ under `LIBRARY-REPRESENTATION-FAMILIES`, `PREFIX-CASE-IDENTITIES` and
 
 ## Ownership
 
-The access contract uses `AccessPolicy::plan(schema) -> AccessFields`, containing
-`LayoutPlan`, field decisions and required reach. Layout helpers return data;
-the final validator independently checks complete schema coverage and permitted
-operations. Seeding inaccessible decisions deduplicates keys across fragments,
-not obligations across fields. `ACCESS-POLICY-VOCABULARY` owns the coordinated
-core, consumer, internal-identifier and fixture migration in [TASKS.md](../../../../TASKS.md).
+The [domain access contract](../../../../wiki/spec/resources/access.md) uses
+`AccessPolicy::plan(reflect::TypeSchema) -> AccessPlan`: semantic region rules,
+establishment/reader/writer ceilings, observation demands and reach, with no
+embedded layout. Caller authorization defaults to unrestricted by this policy;
+an explicit empty list denies everyone. Establishment joins the result to the
+independent layout and actual backing. `DOMAIN-ACCESS-AUTHORITY` owns the
+core, compiler, source and fixture migration in [TASKS.md](../../../../TASKS.md),
+including removal of the separate view shell and old domain clauses. This note
+does not make a layout field key interchangeable with a reflected member identity.
 
 `layout_plans/` reflects checked schemas, evaluates authored plans and validates
 them. `plan_laid.rs` discovers exact closed representation applications in the

@@ -41,7 +41,7 @@ private arithmetic controls.
   based. Lexical nesting, escaping selections, recursive calls and an unproved
   partial operation supply no independent premises. Existing controls listed
   below retain those boundaries; exclusive borrow authority is unchanged.
-- **Psi 05–07:** normal helper calls, field writes and branch results preserve
+- **Psi 06–08:** normal helper calls, field writes and branch results preserve
   ordinary executable meaning. The predicate contributes erased proof evidence,
   with no new runtime subject, field or authority.
 - **Omega 00–02:** existing `Counter` layout, reference arguments and four hosted

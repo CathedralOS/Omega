@@ -313,7 +313,7 @@ fn checked_operator_choice_consumes_retained_candidates() {
 #[test]
 fn issuer_identities_precede_occurrence_production() {
     let preparation = include_str!(
-        "../../../../psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/semantic/facts.rs"
+        "../../../../psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/semantic/facts.rs"
     );
     assert_in_order(
         preparation,
@@ -438,6 +438,7 @@ fn terminal_calling_activation_uses_only_canonical_geometry() {
     );
 }
 
+
 #[test]
 fn native_telescope_construction_is_shared_by_preparation_and_canonical_replay() {
     let source = include_str!(
@@ -534,32 +535,6 @@ fn service_catalog_consumers_do_not_keep_retired_binding_projection() {
             "classify_exact_bound_service_carrier(",
             "classify_exact_service_parameter_carrier(",
             "service_schema::from_typed",
-        ],
-    );
-}
-
-#[test]
-fn selected_calling_consumes_source_correspondence_without_ast_search() {
-    let calling = include_str!(
-        "../../realization/provider-planning/src/calling_policy_plans/selected_application.rs"
-    );
-    let selection = calling
-        .split("pub(crate) fn selected_source_calling_applications(")
-        .nth(1)
-        .unwrap()
-        .split("/// Materialize this producer")
-        .next()
-        .unwrap();
-    assert_absent(
-        &[selection],
-        "selected calling reopens",
-        &[
-            ".traits()",
-            ".operators()",
-            ".machines()",
-            "trait_machine_signatures(",
-            "service_schema::from_typed",
-            "matching_methods",
         ],
     );
 }
@@ -865,7 +840,7 @@ fn selected_callback_custody_carries_declarations_not_source_symbols() {
         &["checked_trees", "typed_trees", "psi_terminal_production"],
     );
     let declarations = include_str!(
-        "../../../../psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/external_provider_declarations/callbacks.rs"
+        "../../../../psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/external_provider_declarations/callbacks.rs"
     );
     assert!(declarations.contains("checked.callback_declaration(usage)"));
     assert!(declarations.contains("declarations::identity("));

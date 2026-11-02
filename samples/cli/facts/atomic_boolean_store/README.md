@@ -40,7 +40,7 @@ The applicable requirements are:
   target-scoped bodies select the same operation with explicit arguments.
 - Soundness: a shared receiver authorizes the dedicated event without granting
   ordinary writes. Illegal orderings and Boolean arithmetic remain rejected.
-- Psi 05–07: one normalized access event retains ordering and operand identity;
+- Psi 06–08: one normalized access event retains ordering and operand identity;
   the fence remains a separate location-free event. No load/store split occurs.
 - Omega 00–02: exact declared atomic-cell identity supplies the logical type;
   the physical byte mapping supplies width/alignment and ordinary calling homes.

@@ -402,19 +402,6 @@ pub fn resolve_satisfied_declaration<'program>(
         });
     }
 
-    // An explicit non-token top-level requirement is already one exact root-machine
-    // declaration. Symbol resolution selects that declaration; typed
-    // settlement only rejoins the retained symbol to the complete machine and
-    // verifies its supply kind. Authored owner/member spellings remain
-    // diagnostic material and cannot repair a missing or wrong-kind symbol.
-    if let Some(requirement) = program.machines().iter().find(|requirement| {
-        requirement.symbol == conformance.symbol
-            && requirement.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
-            && requirement.spelling.is_none()
-    }) {
-        return Some(SatisfiedDeclaration::TopLevelRequirement(requirement));
-    }
-
     if !program
         .type_reference_handles(conformance.arguments)
         .is_empty()

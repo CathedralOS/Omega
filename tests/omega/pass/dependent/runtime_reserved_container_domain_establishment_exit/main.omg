@@ -2,8 +2,8 @@ domain u64::Positive requires 1 <= self;
 data Token { value: u64 in Positive; }
 data Pair<T> { marker: i32; first: T; second: T; }
 data Holder<T> { value: T; }
-data Coupled<T> where start <= end, { value: T; start: i32; end: i32; }
-data Span where start == end, { start: i32; end: i32; }
+data Coupled<T> requires start <= end, { value: T; start: i32; end: i32; }
+data Span requires start == end, { start: i32; end: i32; }
 
 machine Token::drop(token: &mut Token) requires token.value == 42 { token.value = 1; }
 machine token() -> Token ensures result.value == 42 { Token { value: 42 } }

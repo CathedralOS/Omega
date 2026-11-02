@@ -45,7 +45,7 @@ machine Main::main(main: &mut Main) reaches Console crashes Trap {
 }
 
 // Explicit fixed capacity and live-prefix length; qualification belongs to the checked view.
-data Buffer8 [copy] where used <= 8 { storage: [u8; 8]; used: u64; }
+data Buffer8 [copy] requires used <= 8 { storage: [u8; 8]; used: u64; }
 machine Buffer8::view(buffer: &Buffer8) -> &[u8] in Utf8 crashes Trap {
     let bytes: &[u8] = &buffer.storage[..buffer.used];
     transition valid_utf8(bytes) {
@@ -103,7 +103,7 @@ machine Buffer8::join(left: &[u8], right: &[u8]) -> Buffer8 crashes Trap {
 }
 
 // Explicit fixed capacity and live-prefix length; qualification belongs to the checked view.
-data Buffer16 [copy] where used <= 16 { storage: [u8; 16]; used: u64; }
+data Buffer16 [copy] requires used <= 16 { storage: [u8; 16]; used: u64; }
 machine Buffer16::view(buffer: &Buffer16) -> &[u8] in Utf8 crashes Trap {
     let bytes: &[u8] = &buffer.storage[..buffer.used];
     transition valid_utf8(bytes) {

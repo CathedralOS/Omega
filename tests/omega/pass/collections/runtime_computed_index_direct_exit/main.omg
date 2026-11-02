@@ -12,7 +12,7 @@
 // a6: write arr[wh + wn] over `u64 in Wrapping` operands: the temp keeps the
 //     operands' arithmetic policy, so its store is not a policy conversion
 use omega_language_std::console;
-data Main where 0 <= k, k <= 3 {
+data Main requires 0 <= k, k <= 3 {
     arr: [i32 in Wrapping; 5];
     k: u64;
     acc: i32 in Wrapping;

@@ -1,6 +1,6 @@
 // Counter.value <= 60 makes exact i32 70 + value representable without a per-call bound.
 // Expected exit: 0
-data Counter [copy] where self.value <= 60 { value: i32; }
+data Counter [copy] requires self.value <= 60 { value: i32; }
 machine produce(replacement: i32, select: bool) -> Counter
 requires replacement <= 60
 {

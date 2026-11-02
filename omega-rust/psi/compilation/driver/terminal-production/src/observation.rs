@@ -44,10 +44,10 @@ const OBSERVATION_LABELS: [(&'static str, &'static str, &'static str); 10] = [
         "OptimizedLoweredPsi",
         "CanonicalTerminalArtifact",
     ),
-    ("Stage 03", "SyntaxTrees", "SymbolResolvedTrees"),
-    ("Stage 04", "SymbolResolvedTrees", "TypedTrees"),
-    ("Stage 01", "SourceFiles", "TokenStreams"),
-    ("Stage 02", "TokenStreams", "SyntaxTrees"),
+    ("Stage 02", "SyntaxTrees", "SymbolResolvedTrees"),
+    ("Stage 03", "SymbolResolvedTrees", "TypedTrees"),
+    ("Stage 00", "SourceFiles", "TokenStreams"),
+    ("Stage 01", "TokenStreams", "SyntaxTrees"),
     ("Source ingress", "SourceFiles", "SyntaxTrees"),
 ];
 

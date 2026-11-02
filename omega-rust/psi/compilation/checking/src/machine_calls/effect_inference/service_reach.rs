@@ -148,6 +148,15 @@ pub(crate) fn infer_service_reaches_uncached(
         // its abstract bound. Keep them in both the conservative declaration
         // and its concrete basis, not in inferred body calls: the declaration
         // has no body and the original row still bounds provider selection.
+        for governing in super::opaque_governing_ceilings(program, machine) {
+            let services = program
+                .service_reach_rows
+                .services(governing.service_reach_row);
+            extend_service_set(&mut published, services);
+            if !governing.service_reach_is_installation_bound {
+                extend_service_set(&mut concrete_declared, services);
+            }
+        }
         let mut invoked = DirectServiceReach::default();
         if machine.supply_mode.is_boundary_declaration() {
             extend_machine_invoked_binding_services(program, machine, &mut invoked);

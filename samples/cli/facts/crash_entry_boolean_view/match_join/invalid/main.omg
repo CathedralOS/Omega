@@ -5,7 +5,7 @@ crashes Trap value == false
     transition value == false { true -> bad() false -> (value) }
     machine bad() -> bool { crash Trap; }
 }
-public data Byte where value >= 0 && value <= 1 { value: u8; }
+public data Byte requires value >= 0 && value <= 1 { value: u8; }
 public machine read_flag(byte: &Byte, flag: bool) -> bool
 {
     let view: &bool = &byte.value as &bool;

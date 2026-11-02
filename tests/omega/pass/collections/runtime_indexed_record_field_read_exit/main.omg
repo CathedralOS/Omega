@@ -17,7 +17,7 @@ data Cell {
     hp: i32;
 }
 
-data Main where i <= 3 {
+data Main requires i <= 3 {
     cells: [Cell; 4];
     i: u64;
     scratch: i32;

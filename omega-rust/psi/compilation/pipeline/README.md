@@ -10,17 +10,17 @@ authority.
 
 | Stage | Operation entrance | Output owner |
 | --- | --- | --- |
-| 00 — source loading and lexing | [source_files.rs](00_source-files-to-tokens/src/source_files.rs) | [tokens](../representations/tokens/) |
+| 00 — source loading and lexing | [lex_sources.rs](00_source-files-to-tokens/src/lex_sources.rs) | [tokens](../representations/tokens/) |
 | 01 — parsing | [parser.rs](01_tokens-to-syntax-trees/src/parser.rs) | [syntax trees](../representations/syntax-trees/) |
 | 02 — resolution | [resolution.rs](02_syntax-trees-to-symbol-resolved-trees/src/resolution.rs) | [resolved trees](../representations/symbol-resolved-trees/) |
 | 03 — typing | [lowerer.rs](03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs) | [typed trees](../representations/typed-trees/) |
-| 03b — typed elaboration | [preparation.rs](03b_typed-trees-to-typed-trees/src/preparation.rs) | [frozen typed trees](../representations/typed-trees/) |
-| 04 — checking and evidence | [checking.rs](04_typed-trees-to-checked-trees/src/checking.rs) | [checked trees](../representations/checked-trees/) |
-| 05 — lowering | [machine_lowering.rs](05_checked-trees-to-lowered-psi/src/machine_lowering.rs) | [Lowered Psi](../representations/lowered-psi/) |
-| 06 — selected optimization | [psi_optimization.rs](06_lowered-psi-to-lowered-psi/src/psi_optimization.rs) | the same Lowered Psi representation |
-| 07 — publication | [publish_artifact.rs](07_lowered-psi-to-terminal-psi/src/publish_artifact.rs) | [Terminal Psi and codec](../representations/terminal-psi/) |
+| 04 — typed elaboration | [preparation.rs](04_typed-trees-to-typed-trees/src/preparation.rs) | [frozen typed trees](../representations/typed-trees/) |
+| 05 — checking and evidence | [checking.rs](05_typed-trees-to-checked-trees/src/checking.rs) | [checked trees](../representations/checked-trees/) |
+| 06 — lowering | [machine_lowering.rs](06_checked-trees-to-lowered-psi/src/machine_lowering.rs) | [Lowered Psi](../representations/lowered-psi/) |
+| 07 — selected optimization | [psi_optimization.rs](07_lowered-psi-to-lowered-psi/src/psi_optimization.rs) | the same Lowered Psi representation |
+| 08 — publication | [publish_artifact.rs](08_lowered-psi-to-terminal-psi/src/publish_artifact.rs) | [Terminal Psi and codec](../representations/terminal-psi/) |
 
-Stage 04 constructs the checked program using reusable judgments from
+Stage 05 constructs the checked program using reusable judgments from
 [checking/](../checking/README.md), obligation construction/search from
 [proof/](../proof/src/lib.rs), and independent mathematical admission. Those
 services are not competing typed-to-checked stages.
@@ -36,7 +36,7 @@ It is not a spelling for `transition`. Scalar computation dispatch saves the
 subject once, evaluates patterns in order, and sends only the selected result
 to the ordinary expression continuation. Source replay independently checks the
 exact arm identities and coverage; it cannot treat an arbitrary last arm as a
-default. [Terminal execution tests](05_checked-trees-to-lowered-psi/tests/value_dispatch.rs)
+default. [Terminal execution tests](06_checked-trees-to-lowered-psi/tests/value_dispatch.rs)
 cover overlaps, call-argument composition, subject-once execution and skipped calls.
 
 The [dispatch contract](../../../../wiki/spec/language/patterns.md) is broader than
@@ -188,7 +188,7 @@ protocol is required by the product lexer.
 [Parsing](01_tokens-to-syntax-trees/src/parser.rs) builds arena-backed syntax roots
 and tables, retaining grammar, spans and literal structure without choosing
 symbols, types, effects or proof evidence. The
-[expression parser](01_tokens-to-syntax-trees/src/expressions/parse_expression.rs) uses an
+[expression parser](01_tokens-to-syntax-trees/src/grammar/expressions/parse_expression.rs) uses an
 explicit binary-operator stack and reversed unary prefixes; membership is a
 separate grammar boundary, and postfix scratch is not retained across nested
 primary parsing. Groups, aggregates, arguments and types still recurse. This is
@@ -196,12 +196,12 @@ not a stackless-parser claim; ordinary accepted input must not rely on an
 enlarged host thread stack.
 
 The parser's sibling domains expose grammar ownership directly:
-[declarations](01_tokens-to-syntax-trees/src/declarations/parse_declaration.rs) dispatch root
-forms; [parameters](01_tokens-to-syntax-trees/src/parameters/parse_parameters.rs) own shared
-callable and generic binders; [contracts](01_tokens-to-syntax-trees/src/contracts/parse_contract_clauses.rs)
+[declarations](01_tokens-to-syntax-trees/src/grammar/declarations/parse_declaration.rs) dispatch root
+forms; [parameters](01_tokens-to-syntax-trees/src/grammar/parameters/parse_parameters.rs) own shared
+callable and generic binders; [contracts](01_tokens-to-syntax-trees/src/grammar/contracts/parse_contract_clauses.rs)
 own clauses, facts, and conformance applications;
-[bodies](01_tokens-to-syntax-trees/src/bodies/parse_body.rs) own entries and states;
-[type syntax](01_tokens-to-syntax-trees/src/type_syntax/parse_type.rs) owns type references
+[bodies](01_tokens-to-syntax-trees/src/grammar/bodies/parse_body.rs) own entries and states;
+[type syntax](01_tokens-to-syntax-trees/src/grammar/type_syntax/parse_type.rs) owns type references
 and property grammar. Shared grammar does not live under whichever declaration
 first needed it. Each named entry file performs its work, rather than forwarding
 to another hidden coordinator. Rust-only source registration stays in
@@ -320,7 +320,7 @@ evidence are complete.
 [explicit family contract](../../../../wiki/spec/language/generics.md#finite-specialization-boundary)
 and [dynamic rows](../../../../wiki/spec/terminal-psi/dynamic_dispatch.md#finite-generic-method-families).
 Runtime selection lowers through instantiated selector slots
-(`03b_typed-trees-to-typed-trees/src/monomorphization/dynamic_slots.rs`), but a
+(`04_typed-trees-to-typed-trees/src/monomorphization/dynamic_slots.rs`), but a
 finite-family selector call keeps its requirement target and declines, so tuple
 expansion, runtime family selection, and indexed result custody are all
 unimplemented. Explicit source disjunctions, not
@@ -447,7 +447,7 @@ Scalar result annotations are established in the producing body: ordinary exits
 prove the machine and state result obligations from live exact membership or the
 arithmetic prover, closed indices retain their declaration binders, and routed
 qualifications require authorized provenance
-(`04_typed-trees-to-checked-trees/src/checks/contracts/exits/result_domains.rs`).
+(`05_typed-trees-to-checked-trees/src/checks/contracts/exits/result_domains.rs`).
 Computed Boolean indices use the existing typed index probe. For remaining
 predicate-constrained and module-qualified applications, its family discovery
 must retain exact source selection, and a provisional `false` must not
@@ -842,7 +842,7 @@ that separation. Nested evidence applications retain every non-lifetime slot;
 an expected binder supplies a compatibility target, not omitted arguments.
 Erased arrival/bundle subjects do not acquire runtime storage.
 
-[Authored selections](04_typed-trees-to-checked-trees/authored_selections.md) owns
+[Authored selections](05_typed-trees-to-checked-trees/authored_selections.md) owns
 the shared capture/finalization contract. Capture source statement calls before
 table rebuilding and recursively retain static declaration paths; unresolved
 paths remain explicit late obligations. Partition trait-default copies by exact
@@ -857,5 +857,5 @@ calls/operators and inferred evidence. Public declaration contracts remain
 interface exposure while executable bodies and internal states remain private.
 Lexical locals and source-free synthesis do not receive fictional package owners.
 See [generated continuation](03_symbol-resolved-trees-to-typed-trees/README.md)
-for append-only source execution and [checking](04_typed-trees-to-checked-trees/README.md)
+for append-only source execution and [checking](05_typed-trees-to-checked-trees/README.md)
 for the proof, flow and ownership boundary.

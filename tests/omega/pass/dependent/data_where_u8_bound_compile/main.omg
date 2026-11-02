@@ -2,7 +2,7 @@
 // valid only while `tag >= 10` on a u8 — the bound proves against the
 // field's own width at construction.
 data Tag
-where
+requires
     tag >= 10,
 {
     tag: u8;

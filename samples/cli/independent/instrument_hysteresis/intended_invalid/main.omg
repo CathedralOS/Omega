@@ -1,6 +1,6 @@
 // Complete intended-invalid application: violates its data invariant.
 use omega_language_std::console;
-data BoundedStimulus where value >= 0 && value <= 100 { value: i32; }
+data BoundedStimulus requires value >= 0 && value <= 100 { value: i32; }
 data InvalidInstrument { stimulus: BoundedStimulus; }
 machine InvalidInstrument::run(instrument: &mut InvalidInstrument) reaches Console {
     instrument.stimulus.value = 101;

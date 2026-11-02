@@ -1,7 +1,7 @@
 // A rank endpoint may sum two parameters: `in 0..ceiling + padding`
 // — binary-sum arithmetic endpoint, repinned by the requires band
 // `5 <= ceiling <= 10 && 1 <= padding <= 2`.
-data Countdown where 0 <= remaining, remaining <= 5 { remaining: u64; }
+data Countdown requires 0 <= remaining, remaining <= 5 { remaining: u64; }
 measure Countdown::Remaining(countdown: Countdown) -> u64
 { countdown.remaining }
 machine walk(countdown: Countdown, ceiling: u64, padding: u64) -> u64

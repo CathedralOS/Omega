@@ -1,7 +1,7 @@
 // No equation relates Capacity to the supplied structure, so the omitted
 // binder is underdetermined and needs an explicit argument.
 data Loose<Length, const Capacity: u64>
-where
+requires
     Length == [u8; 256]
 {
     storage: [u8; Capacity];

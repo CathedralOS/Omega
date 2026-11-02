@@ -909,8 +909,9 @@ crashes Trap
 // clause but `where`, a refinement member the operational axes it narrows
 // (`reaches`, `suspends`, `blocks`, `terminates`), a state its arrival
 // `requires` and a domain its predicate `requires`. A data declaration admits
-// `where` and default-domain `requires`. A case admits neither: case-local
-// predicates are written on the data declaration.
+// its default-domain `requires` only; its retired `where` spelling is refused.
+// A case admits neither: case-local predicates are written on the data
+// declaration.
 machine Parser::clause_admitted(owner: ClauseOwner, kind: ClauseKind) -> bool {
     transition owner {
         ClauseOwner::Machine -> machine_clause(kind)
@@ -925,7 +926,6 @@ machine Parser::clause_admitted(owner: ClauseOwner, kind: ClauseKind) -> bool {
 
     machine data_clause(kind: ClauseKind) -> bool {
         transition kind {
-            ClauseKind::Where -> admitted()
             ClauseKind::Requires -> admitted()
             _ -> refused()
         }

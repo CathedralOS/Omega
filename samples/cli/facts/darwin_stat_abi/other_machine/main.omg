@@ -1,0 +1,55 @@
+// The shared Darwin stat representation preserves all SDK fields, signed carriers and its complete 144-byte extent through C exchange and transport.
+// Expected exit: 0
+use omega::language::core::layout;
+use omega::language::core::c_layout;
+use omega::language::core::numeric_conversion;
+use omega_language_std::targets::macos_arm64::filesystem_abi;
+
+public boundary trait StatExchange {
+    machine fill(value: &mut DarwinStat) reaches;
+    machine check(value: &DarwinStat) -> u64 reaches;
+    machine extent() -> u64 reaches;
+    machine alignment() -> u64 reaches;
+}
+OtherPolicy satisfies FixedLayout<DarwinStatRecord> {
+    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates {
+        CAbiPolicy<DarwinStatRecord>::plan(schema, target)
+    }
+}
+machine observe(value: DarwinStat) -> bool reaches StatExchange {
+    value.dev == -2147483647i32 && value.mode == 33188u16 && value.nlink == 3u16 && value.ino == 4294967298u64 && value.uid == 123u32 && value.gid == 456u32 && value.rdev == -123456789i32 && value.atime.seconds == -17i64 && value.atime.nanoseconds == 123456789i64 && value.mtime.seconds == 42i64 && value.mtime.nanoseconds == 987654321i64 && value.ctime.seconds == -9i64 && value.ctime.nanoseconds == 111111111i64 && value.btime.seconds == 77i64 && value.btime.nanoseconds == 222222222i64 && value.size == 8589934593i64 && value.blocks == 123456i64 && value.blksize == 4096i32 && value.flags == 2147483649u32 && value.generation == 2882400001u32 && value.reserved == -314159i32 && value.spare[0] == -4294967297i64 && value.spare[1] == 68719476737i64 && StatExchange::check(&value) == 0u64 && StatExchange::extent() == size_of<DarwinStat>() && StatExchange::alignment() == align_of<DarwinStat>() && size_of<DarwinStat>() == 144u64 && align_of<DarwinStat>() == 8u64 && widen_u32_to_u64(narrow_i32_to_u32_wrapping(value.dev)) == 2147483649u64 && widen_u32_to_u64(narrow_i32_to_u32_wrapping(value.rdev)) == 4171510507u64
+}
+machine inspect(record: DarwinStat) reaches StatExchange crashes Trap {
+    let transported: DarwinStat = record;
+    transition observe(transported) { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+machine main() reaches StatExchange crashes Trap {
+    let mut record: DarwinStat;
+    record.dev = 0i32;
+    record.mode = 0u16;
+    record.nlink = 0u16;
+    record.ino = 0u64;
+    record.uid = 0u32;
+    record.gid = 0u32;
+    record.rdev = 0i32;
+    record.atime.seconds = 0i64;
+    record.atime.nanoseconds = 0i64;
+    record.mtime.seconds = 0i64;
+    record.mtime.nanoseconds = 0i64;
+    record.ctime.seconds = 0i64;
+    record.ctime.nanoseconds = 0i64;
+    record.btime.seconds = 0i64;
+    record.btime.nanoseconds = 0i64;
+    record.size = 0i64;
+    record.blocks = 0i64;
+    record.blksize = 0i32;
+    record.flags = 0u32;
+    record.generation = 0u32;
+    record.reserved = 0i32;
+    record.spare[0] = 0i64;
+    record.spare[1] = 0i64;
+    StatExchange::fill(&mut record);
+    inspect(record);
+}

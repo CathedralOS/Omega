@@ -10,10 +10,10 @@
 //! attaches those retained proposals; it never reopens typed provider selection.
 
 mod behavior_exclusions;
-mod calling_catalog;
+mod calling_program;
 mod product_code;
 mod terminal_artifact;
-pub(crate) use calling_catalog::retain_calling_catalog;
+pub(crate) use calling_program::retain_calling_program;
 
 pub(crate) use terminal_artifact::{
     ProducedTerminalProduct, TerminalProductRequest, TerminalProductUse, TerminalProductionView,

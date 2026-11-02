@@ -106,7 +106,7 @@ Same method, same commands. Deltas against the `37d18e2104` picture:
 
 **New finding**
 
-- `psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/product_pruning/mod.rs` —
+- `psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/product_pruning/mod.rs` —
   `CheckedTreeProductSelectionIdentity([u8; 32])` newtype plus a `Sha256`
   producer inside the transform. Row-1 violation; add to the
   DURABLE-CODEC-RELOCATION leg list (move to `representations/typed-trees` or
@@ -117,7 +117,7 @@ Same method, same commands. Deltas against the `37d18e2104` picture:
 - `01_abstract-operations-to-abstract-operations/.../global_value_numbering/identities/*`
   and `proof_check_elision/scalar_identities.rs` — `*IdentityRule` structs are
   algebraic rule names, not durable content identities; no Sha256 producer.
-- `05_checked-trees-to-lowered-psi/src/proofs/content_conservation.rs` —
+- `06_checked-trees-to-lowered-psi/src/proofs/content_conservation.rs` —
   `LoweredContentIdentityReshuffles` is transform working state (private
   bookkeeping a pipeline crate may own), not a durable identity newtype.
 - `checked-interpreter/src/filesystem_sponsor.rs` `NEXT_ACCOUNT_ID:

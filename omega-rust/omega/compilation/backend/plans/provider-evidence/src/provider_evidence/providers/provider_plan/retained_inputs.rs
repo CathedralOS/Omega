@@ -8,7 +8,9 @@
 
 use sha2::{Digest, Sha256};
 
-use super::digest_encoder::PROVIDER_PLAN_DOMAIN;
+// Pin the layout implemented by this receiver independently of the writer.
+// A future writer schema must be rejected until its receiving grammar exists.
+const PROVIDER_PLAN_DOMAIN: &[u8] = b"omega.provider-plan.sha256.v6\0";
 
 const MAX_BYTES: usize = 8 * 1024 * 1024;
 const MAX_ROWS: usize = 4096;
@@ -412,7 +414,8 @@ mod tests {
                             .iter()
                             .enumerate()
                             .map(|(ordinal, kind)| CallingStaticOperand {
-                                ordinal: ordinal as u32,
+                                // ABI formal ordinals may have gaps; they are not runtime positions.
+                                ordinal: ordinal as u32 * 2 + 1,
                                 kind: *kind,
                                 identity: format!("static-operand-{ordinal}"),
                             })
@@ -652,9 +655,14 @@ mod tests {
                 "truncated application prefix {end}"
             );
         }
-        let mut old_schema = bytes;
-        old_schema[PROVIDER_PLAN_DOMAIN.len() - 2] = b'4';
-        assert!(read(&old_schema).is_err());
+        for version in [b'4', b'5', b'7'] {
+            let mut other_schema = bytes.clone();
+            other_schema[PROVIDER_PLAN_DOMAIN.len() - 2] = version;
+            assert_eq!(
+                read(&other_schema).unwrap_err(),
+                "unknown provider plan input schema"
+            );
+        }
     }
 
     #[test]

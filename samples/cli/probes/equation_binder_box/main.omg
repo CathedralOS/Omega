@@ -16,7 +16,7 @@
 data Mode<const Inner: u32> [copy] { value: u32; }
 
 data Box<Payload [copy], const Count: u32> [copy]
-where Payload == Mode<Count>
+requires Payload == Mode<Count>
 { value: Payload; }
 
 machine capacity<Payload, const Count: u32>() -> u32
