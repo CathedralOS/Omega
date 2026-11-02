@@ -41,7 +41,6 @@ mod runtime_spill;
 use crate::{
     StagedOptimizedActiveResidentRematerializationCustodyReceipt,
     StagedOptimizedPostCopyRegisterHomeCustodyReceipt,
-    StagedOptimizedPostLiteralFoldHomeCustodyReceipt,
     StagedOptimizedPostPreAllocationHomeCustodyReceipt,
     StagedOptimizedPostSelectedLoweringHomeCustodyReceipt,
     StagedOptimizedRegisterHomeCustodyReceipt, ValidatedPostAllocationOptimizationManifest,
@@ -125,7 +124,6 @@ pub enum AllocationEvidence {
     RuntimeSpill(optimization_core::PostAllocationOptimizationManifestIdentity),
     RegisterHomes(StagedOptimizedRegisterHomeCustodyReceipt),
     FixedViewCopies(StagedOptimizedPostCopyRegisterHomeCustodyReceipt),
-    LiteralFolds(StagedOptimizedPostLiteralFoldHomeCustodyReceipt),
     SelectedLowering(StagedOptimizedPostSelectedLoweringHomeCustodyReceipt),
     PreAllocation(StagedOptimizedPostPreAllocationHomeCustodyReceipt),
     ActiveResidentRematerialization(StagedOptimizedActiveResidentRematerializationCustodyReceipt),

@@ -147,8 +147,6 @@ FIREWALL_ALLOWANCES = (
               "Debt: calls build_verified_psi_optimization_unit; VerifiedPsiOptimizationInput"),
     Allowance(stage("02"), stage("00"), f"{STAGE_DEBT} (VerifiedPsiOptimizationInput)"),
     Allowance(stage("02"), stage("01"), f"{STAGE_DEBT} (ValidatedOptimizedAbstractPlan)"),
-    Allowance(stage("05"), stage("04"),
-              f"{STAGE_DEBT} (SelectedProgramRef, ValidatedSelectedAnalysis, allocation legality)"),
 )
 
 

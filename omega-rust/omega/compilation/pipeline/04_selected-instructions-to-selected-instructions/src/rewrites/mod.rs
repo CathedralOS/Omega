@@ -125,8 +125,7 @@ pub(crate) use dead_compare::{
     remove_redundant_compare,
 };
 pub use literal_folds::{
-    OptimizedLiteralFoldCustodyError, StagedOptimizedLiteralFoldCustodyReceipt,
-    StagedOptimizedLiteralFolds, StagedSelectedLoweringOptimizationCustodyReceipt,
+    OptimizedLiteralFoldCustodyError, StagedSelectedLoweringOptimizationCustodyReceipt,
     StagedSelectedLoweringOptimizationRun,
 };
 pub(crate) use literal_folds::{

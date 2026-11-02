@@ -37,14 +37,14 @@ fn completed_run_evidence_routes_through_the_composing_sequences() {
         .nth(1)
         .expect("the stage entrance body");
     let folds_arm = entrance
-        .find("SelectedInstructionOptimizationEvidence::LiteralFolds(run)")
-        .expect("the literal-folds evidence arm");
+        .find("SelectedOptimizationOutput::SelectedLowering(run)")
+        .expect("the selected-lowering output arm");
     let lowering_composition = entrance
         .find("stage_selected_lowering_register_allocation(run)")
         .expect("the selected-lowering composing route");
     let pre_allocation_arm = entrance
-        .find("SelectedInstructionOptimizationEvidence::PreAllocation(run)")
-        .expect("the pre-allocation evidence arm");
+        .find("SelectedOptimizationOutput::PreAllocation(run)")
+        .expect("the pre-allocation output arm");
     let pre_allocation_composition = entrance
         .find("stage_pre_allocation_register_allocation(run)")
         .expect("the pre-allocation composing route");
@@ -116,12 +116,14 @@ fn completed_run_recovery_records_the_run_custody_as_its_prefix() {
         .find("pre_allocation_completion: Some(upstream.identity())")
         .expect("the bound suite completion");
     // Each completed-suite arm binds its completion identity and ordered
-    // ledger from the run's own custody receipt.
+    // ledger from the suite's own ledger.
     assert!(lowering_completion < pre_allocation_completion);
-    assert!(
-        projection.contains("PostAllocationSelectedTransformation::LiteralFold(iteration.fold())")
+    assert_eq!(
+        projection
+            .matches("prefix: upstream.transformations().to_vec()")
+            .count(),
+        2
     );
-    assert!(projection.contains("iteration.transformation().into()"));
 }
 
 #[test]

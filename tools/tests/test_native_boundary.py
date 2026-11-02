@@ -325,10 +325,11 @@ class ForbiddenDependencyTests(unittest.TestCase):
         self.assertEqual(forbidden_dependency_violations(self.metadata), [])
 
     def test_omega_stage_cannot_import_another_stage(self):
-        later = self.package("register-homes", OMEGA_STAGES[5])
-        earlier = self.package("selected-instructions", OMEGA_STAGES[4])
-        self.edge(later, earlier)
+        lowering = self.package("target-operations", OMEGA_STAGES[2])
+        optimizer = self.package("optimized-abstract-operations", OMEGA_STAGES[1])
+        self.edge(lowering, optimizer)
         self.assertEqual(forbidden_dependency_violations(self.metadata), [])
+        later = self.package("register-homes", OMEGA_STAGES[5])
         first = self.package("abstract-operations", OMEGA_STAGES[0])
         self.edge(later, first)
         self.edge(first, later, kind="dev")

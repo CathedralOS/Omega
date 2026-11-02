@@ -31,6 +31,7 @@ use crate::assignment::home_assignment::compute::FunctionHomeReuse;
 use crate::{
     FixedViewCopyPolicy, ValidatedRuntimeSpill, ValidatedRuntimeSplit, ValidatedSelectedAnalysis,
 };
+use crate::{PreAllocationResult, SelectedLoweringResult};
 use crate::{
     RuntimeSpillError, RuntimeSpillSpanPolicy, StagedOptimizedSelectedReanalysis,
     materialize_selected_fixed_occurrences, rematerialize_selected_runtime_value,
@@ -47,9 +48,6 @@ use selected_instruction_analyses::{
 };
 use selected_instructions::{
     FunctionLiveRanges, SelectedInstructionPlan, VirtualRegisterId, VirtualRegisterOrigin,
-};
-use selected_instructions_to_selected_instructions::{
-    StagedPreAllocationOptimizationRun, StagedSelectedLoweringOptimizationRun,
 };
 
 pub(crate) fn assign_source_reusing(
@@ -943,7 +941,7 @@ pub(crate) fn recover_after_active_resident_rematerialization(
 /// current program and rebuilt analyses, the committed fold ledger and the
 /// suite completion stay recorded ahead of every spill step.
 pub(crate) fn recover_after_selected_lowering_with_reuse(
-    run: StagedSelectedLoweringOptimizationRun,
+    run: SelectedLoweringResult,
     home_reuse: FunctionHomeReuse,
 ) -> Result<RuntimeSpillAllocation, RuntimeSpillAllocationError> {
     recover_over(RuntimeSpillSource::SelectedLowering(run), home_reuse)
@@ -955,7 +953,7 @@ pub(crate) fn recover_after_selected_lowering_with_reuse(
 /// transformation ledger and the suite completion stay recorded ahead of
 /// every spill step.
 pub(crate) fn recover_after_pre_allocation_with_reuse(
-    run: StagedPreAllocationOptimizationRun,
+    run: PreAllocationResult,
     home_reuse: FunctionHomeReuse,
 ) -> Result<RuntimeSpillAllocation, RuntimeSpillAllocationError> {
     recover_over(RuntimeSpillSource::PreAllocation(run), home_reuse)
