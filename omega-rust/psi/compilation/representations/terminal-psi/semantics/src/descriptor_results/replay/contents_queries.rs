@@ -2,8 +2,9 @@
 //! Reads and writes share the same exhaustive typed traversal. Incoming contents
 //! stay symbolic until a caller supplies backing; unresolved candidates cannot
 //! be discarded just because another candidate has a usable address.
-use super::replay::{Origin, State, Value};
+use super::replay::{DescriptorReadDepth, Origin, State, Value};
 use super::*;
+use crate::descriptor_lifetimes::descriptor_location;
 
 impl Replay<'_> {
     pub(super) fn read_contents(
@@ -12,11 +13,22 @@ impl Replay<'_> {
         state: &State,
         query: &DescriptorContentsQuery,
     ) -> Value {
+        self.read_contents_with_depth(machine, state, query, &DescriptorReadDepth::default())
+    }
+
+    pub(super) fn read_contents_with_depth(
+        &self,
+        machine: &DescriptorMachine,
+        state: &State,
+        query: &DescriptorContentsQuery,
+        depth: &DescriptorReadDepth,
+    ) -> Value {
+        let _read = depth.enter()?;
         let mut origins = BTreeSet::new();
-        for target in self.contents_targets(machine, state, query)? {
+        for target in self.contents_targets_with_depth(machine, state, query, depth)? {
             match target {
                 DescriptorPayloadTarget::Storage(location) => {
-                    origins.extend(self.read(machine, state, &location)?);
+                    origins.extend(self.read_with_depth(machine, state, &location, depth)?);
                 }
                 DescriptorPayloadTarget::Incoming(query) => {
                     origins.extend(state.incoming_contents(&query)?);
@@ -32,6 +44,17 @@ impl Replay<'_> {
         state: &State,
         query: &DescriptorContentsQuery,
     ) -> Option<BTreeSet<DescriptorPayloadTarget>> {
+        self.contents_targets_with_depth(machine, state, query, &DescriptorReadDepth::default())
+    }
+
+    fn contents_targets_with_depth(
+        &self,
+        machine: &DescriptorMachine,
+        state: &State,
+        query: &DescriptorContentsQuery,
+        depth: &DescriptorReadDepth,
+    ) -> Option<BTreeSet<DescriptorPayloadTarget>> {
+        let _read = depth.enter()?;
         if state.contents_invalidated
             && query
                 .steps
@@ -41,12 +64,18 @@ impl Replay<'_> {
             return None;
         }
         query.validate(self.types, *machine.place_types.get(&query.root)?)?;
+        // This is the current queried carrier, before any pointer identity is
+        // translated into an entry-family namespace. A real invalidation of
+        // an ancestor cannot be bypassed by taking the contents-query route.
+        if state.contents_path_invalidated(query) {
+            return None;
+        }
         self.contents_targets_at(
             machine,
             state,
             &DescriptorLocation::whole(query.root),
             &query.steps,
-            0,
+            depth,
         )
     }
 
@@ -56,14 +85,18 @@ impl Replay<'_> {
         state: &State,
         location: &DescriptorLocation,
         steps: &[DescriptorContentsStep],
-        depth: usize,
+        depth: &DescriptorReadDepth,
     ) -> Option<BTreeSet<DescriptorPayloadTarget>> {
-        if depth >= 128 {
-            return None;
-        }
+        let _read = depth.enter()?;
         let prefix_length = steps
             .iter()
-            .position(|step| matches!(step, DescriptorContentsStep::AnyElement { .. }))
+            .position(|step| {
+                matches!(
+                    step,
+                    DescriptorContentsStep::AnyElement { .. }
+                        | DescriptorContentsStep::Address(DescriptorPathSegment::Referent)
+                )
+            })
             .unwrap_or(steps.len());
         let mut selected = location.clone();
         for step in &steps[..prefix_length] {
@@ -71,6 +104,36 @@ impl Replay<'_> {
                 return None;
             };
             selected.path.push(segment.clone());
+        }
+        if matches!(
+            steps.get(prefix_length),
+            Some(DescriptorContentsStep::Address(
+                DescriptorPathSegment::Referent
+            ))
+        ) {
+            let reference = crate::descriptor_lifetimes::descriptor_location_type(
+                self.types,
+                *machine.place_types.get(&selected.root)?,
+                &selected.path,
+            )?;
+            let StructuralTypeShape::Reference { referent, .. } =
+                find_structural_type(self.types, reference)?.shape
+            else {
+                return None;
+            };
+            let mut targets = BTreeSet::new();
+            for origin in self.read_with_depth(machine, state, &selected, depth)? {
+                targets.extend(self.reference_targets(
+                    machine,
+                    state,
+                    origin,
+                    reference,
+                    referent,
+                    &steps[prefix_length + 1..],
+                    depth,
+                )?);
+            }
+            return Some(targets);
         }
         let Some(DescriptorContentsStep::AnyElement { element }) = steps.get(prefix_length) else {
             return Some(BTreeSet::from([DescriptorPayloadTarget::Storage(
@@ -100,13 +163,8 @@ impl Replay<'_> {
                     child
                         .path
                         .push(DescriptorPathSegment::FixedIndex(element_index));
-                    origins.extend(self.contents_targets_at(
-                        machine,
-                        state,
-                        &child,
-                        suffix,
-                        depth + 1,
-                    )?);
+                    origins
+                        .extend(self.contents_targets_at(machine, state, &child, suffix, depth)?);
                 }
                 Some(origins)
             }
@@ -114,20 +172,167 @@ impl Replay<'_> {
                 element: actual, ..
             } if actual == *element => {
                 let mut origins = BTreeSet::new();
-                for origin in self.read(machine, state, &selected)? {
-                    origins.extend(self.view_element_targets(
-                        machine,
-                        state,
-                        origin,
-                        *element,
-                        suffix,
-                        depth + 1,
-                    )?);
+                for origin in self.read_with_depth(machine, state, &selected, depth)? {
+                    origins.extend(
+                        self.view_element_targets(machine, state, origin, *element, suffix, depth)?,
+                    );
                 }
                 Some(origins)
             }
             _ => None,
         }
+    }
+
+    /// Cross the pointer value actually retained by the prefix. An incoming
+    /// value is an entry identity, never a request to reload its former slot.
+    fn reference_targets(
+        &self,
+        machine: &DescriptorMachine,
+        state: &State,
+        origin: Origin,
+        reference: StructuralTypeId,
+        referent: StructuralTypeId,
+        suffix: &[DescriptorContentsStep],
+        depth: &DescriptorReadDepth,
+    ) -> Option<BTreeSet<DescriptorPayloadTarget>> {
+        let _read = depth.enter()?;
+        let mut incoming = match origin {
+            Origin::Storage(backing) => {
+                if !self.reference_backing_matches(machine, &backing, reference)? {
+                    return None;
+                }
+                return self.contents_targets_at(machine, state, &backing, suffix, depth);
+            }
+            Origin::Incoming(slot) => DescriptorContentsQuery::from_location(&slot),
+            Origin::IncomingContents(query, projection) if projection == Projection::new(&[]) => {
+                query
+            }
+            Origin::Backing(DescriptorCallOrigin::Argument { source, projection })
+                if projection.exact
+                    && !projection.indirect
+                    && projection.window.is_none()
+                    && projection.captured_at.is_none() =>
+            {
+                let root = *machine.place_types.get(&source)?;
+                let backing =
+                    descriptor_location(self.types, source, root, &projection.path, None)?;
+                if !self.reference_backing_matches(machine, &backing, reference)? {
+                    return None;
+                }
+                return self.contents_targets_at(machine, state, &backing, suffix, depth);
+            }
+            _ => return None,
+        };
+        if state.contents_invalidated {
+            return None;
+        }
+        incoming.steps.push(DescriptorContentsStep::Address(
+            DescriptorPathSegment::Referent,
+        ));
+        self.incoming_targets_at(machine, state, incoming, referent, suffix, depth)
+    }
+
+    /// An entry-pointer family has no local carrier address. Walk its current
+    /// stored descriptors one boundary at a time so a replaced intermediate
+    /// pointer is neither reread as its old entry value nor silently omitted.
+    fn incoming_targets_at(
+        &self,
+        machine: &DescriptorMachine,
+        state: &State,
+        mut query: DescriptorContentsQuery,
+        carrier: StructuralTypeId,
+        steps: &[DescriptorContentsStep],
+        depth: &DescriptorReadDepth,
+    ) -> Option<BTreeSet<DescriptorPayloadTarget>> {
+        let _read = depth.enter()?;
+        if state.contents_invalidated {
+            return None;
+        }
+        let length = steps
+            .iter()
+            .position(|step| {
+                matches!(
+                    step,
+                    DescriptorContentsStep::AnyElement { .. }
+                        | DescriptorContentsStep::Address(DescriptorPathSegment::Referent)
+                )
+            })
+            .unwrap_or(steps.len());
+        let mut path = Vec::new();
+        for step in &steps[..length] {
+            let DescriptorContentsStep::Address(segment) = step else {
+                return None;
+            };
+            path.push(segment.clone());
+        }
+        query.steps.extend_from_slice(&steps[..length]);
+        query.validate(self.types, self.parameter(machine, query.root)?.2)?;
+        let Some(boundary) = steps.get(length) else {
+            return Some(BTreeSet::from([DescriptorPayloadTarget::Incoming(query)]));
+        };
+        let selected =
+            crate::descriptor_lifetimes::descriptor_location_type(self.types, carrier, &path)?;
+        let mut targets = BTreeSet::new();
+        match boundary {
+            DescriptorContentsStep::Address(DescriptorPathSegment::Referent) => {
+                let StructuralTypeShape::Reference { referent, .. } =
+                    find_structural_type(self.types, selected)?.shape
+                else {
+                    return None;
+                };
+                for origin in state.incoming_contents(&query)? {
+                    targets.extend(self.reference_targets(
+                        machine,
+                        state,
+                        origin,
+                        selected,
+                        referent,
+                        &steps[length + 1..],
+                        depth,
+                    )?);
+                }
+            }
+            DescriptorContentsStep::AnyElement { element } => {
+                match find_structural_type(self.types, selected)?.shape {
+                    StructuralTypeShape::FixedArray {
+                        element: actual,
+                        length: terminal_psi::ArrayExtent::Literal(count),
+                    } if actual == *element && count <= 4096 => {
+                        for index in 0..count {
+                            let mut child = query.clone();
+                            child.steps.push(DescriptorContentsStep::Address(
+                                DescriptorPathSegment::FixedIndex(index),
+                            ));
+                            targets.extend(self.incoming_targets_at(
+                                machine,
+                                state,
+                                child,
+                                *element,
+                                &steps[length + 1..],
+                                depth,
+                            )?);
+                        }
+                    }
+                    StructuralTypeShape::ElementView {
+                        element: actual, ..
+                    } if actual == *element => {
+                        for origin in state.incoming_contents(&query)? {
+                            targets.extend(self.view_element_targets(
+                                machine,
+                                state,
+                                origin,
+                                *element,
+                                &steps[length + 1..],
+                                depth,
+                            )?);
+                        }
+                    }
+                    _ => return None,
+                }
+            }
+            _ => return None,
+        }
+        Some(targets)
     }
 
     fn view_element_targets(
@@ -137,8 +342,9 @@ impl Replay<'_> {
         origin: Origin,
         element: StructuralTypeId,
         suffix: &[DescriptorContentsStep],
-        depth: usize,
+        depth: &DescriptorReadDepth,
     ) -> Option<BTreeSet<DescriptorPayloadTarget>> {
+        let _read = depth.enter()?;
         let mut steps = vec![DescriptorContentsStep::AnyElement { element }];
         steps.extend_from_slice(suffix);
         let incoming = match origin {
@@ -147,7 +353,7 @@ impl Replay<'_> {
             // storage origin. Follow its typed elements just as for a captured
             // backing argument; the descriptor is not an unknown payload.
             Origin::Storage(location) => {
-                return self.contents_targets_at(machine, state, &location, &steps, depth + 1);
+                return self.contents_targets_at(machine, state, &location, &steps, depth);
             }
             Origin::Incoming(location) => Some(DescriptorContentsQuery::from_location(&location)),
             Origin::IncomingContents(query, projection) if projection == Projection::new(&[]) => {
@@ -184,7 +390,7 @@ impl Replay<'_> {
                         state,
                         &DescriptorLocation::whole(source),
                         &backing.steps,
-                        depth + 1,
+                        depth,
                     );
                 }
             }
@@ -193,12 +399,10 @@ impl Replay<'_> {
             _ => return None,
         };
         let mut incoming = incoming?;
-        incoming.steps.extend(steps);
-        let (_, _, root_type) = self.parameter(machine, incoming.root)?;
-        incoming.validate(self.types, root_type)?;
-        Some(BTreeSet::from([DescriptorPayloadTarget::Incoming(
-            incoming,
-        )]))
+        incoming
+            .steps
+            .push(DescriptorContentsStep::AnyElement { element });
+        self.incoming_targets_at(machine, state, incoming, element, suffix, depth)
     }
 
     /// Payload provenance only. A weak update retains all old alternatives;

@@ -21,6 +21,50 @@ impl<'program> StructuralJudge<'program> {
         let program = self.program;
         let node = expression_table(program).expression(expression);
         let mut judge = self;
+        let descriptor_projection = (|| {
+            let reference =
+                crate::expression_result_type_reference(program, scope.0, scope.1, expression)?;
+            crate::reference_shell(program, reference)?;
+            let (receiver, selector) = match node {
+                ExpressionNode::Member(member) => (member.receiver, None),
+                ExpressionNode::Indexed(indexed)
+                    if program.expression_table.range_node(indexed.index).is_none() =>
+                {
+                    let selector = inputs
+                        .iter()
+                        .find(|(source, _)| *source == indexed.index)?
+                        .1
+                        .observed_value()?
+                        .clone();
+                    (indexed.collection, Some(selector))
+                }
+                _ => return None,
+            };
+            let receiver = inputs
+                .iter()
+                .find(|(source, _)| *source == receiver)?
+                .1
+                .observed_value()?
+                .clone();
+            super::super::super::observed_projections::completed_reference_descriptor(
+                program, &judge, scope.0, scope.1, expression, receiver, selector,
+            )
+        })();
+        let descriptor_completed = descriptor_projection.is_some();
+        let completed_descriptor = if let Some(descriptor) = descriptor_projection {
+            // The event remains opaque. Only its separately retained address
+            // can be rejoined with frame-authorized current referent storage.
+            let value = judge.capture_unknown_value(expression, scope)?;
+            Some(StructuralTerm::ObservedValue {
+                observed_type: crate::expression_result_type_reference(
+                    program, scope.0, scope.1, expression,
+                )?,
+                value: Box::new(value),
+                descriptor: Some(Box::new(descriptor)),
+            })
+        } else {
+            None
+        };
         let completed_field = if let ExpressionNode::Member(member) = node {
             let receiver_type = crate::expression_result_type_reference(
                 program,
@@ -166,11 +210,15 @@ impl<'program> StructuralJudge<'program> {
             // The receiver selected its base before a later operand
             // wrote storage. Reconstructing it from the live place now
             // could silently select a replacement descriptor.
-            match completed_field.filter(|value| value.observation_identity_key().is_some()) {
+            match completed_descriptor
+                .or(completed_field)
+                .filter(|value| value.observation_identity_key().is_some())
+            {
                 Some(value) => value,
                 None => judge.capture_unknown_value(expression, scope)?,
             }
-        } else if let Some(value) = completed_borrow
+        } else if let Some(value) = completed_descriptor
+            .or(completed_borrow)
             .or(completed_measure)
             .or(completed_field)
             .or(completed_cast)
@@ -355,6 +403,7 @@ impl<'program> StructuralJudge<'program> {
         }
         if let ExpressionNode::Indexed(indexed) = node
             && program.expression_table.range_node(indexed.index).is_none()
+            && !descriptor_completed
         {
             let [(_, collection), (_, index)] = inputs else {
                 return None;

@@ -994,7 +994,11 @@ fn loan_sources<'a>(
                     checked_trees::IncomingReferenceOrigin::ParameterReferent { symbol }
                     | checked_trees::IncomingReferenceOrigin::Parameter { symbol } => symbol,
                     checked_trees::IncomingReferenceOrigin::Invocation { .. }
-                    | checked_trees::IncomingReferenceOrigin::Output { .. } => {
+                    | checked_trees::IncomingReferenceOrigin::Output { .. }
+                    | checked_trees::IncomingReferenceOrigin::DescriptorLoad { .. } => {
+                        // These supplied pointers have checked lifetime plans,
+                        // but are not this state's direct parameter referents.
+                        // A loaded child cannot inherit its receiver's lane.
                         return Ok(LoanSource::Foreign);
                     }
                 };

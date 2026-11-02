@@ -319,6 +319,79 @@ pub(super) fn project_index(
     })
 }
 
+/// Describe the address loaded by one completed reference projection. The
+/// complete frame-owned supplier roster authenticates the load, while the
+/// receiver and selector retain their already evaluated identities. This is
+/// descriptor identity only: it must remain masked from referent observations.
+pub(super) fn completed_reference_descriptor(
+    program: &dyn crate::CheckingInput,
+    judge: &super::structural_judgment::StructuralJudge<'_>,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    expression: typed_trees::expression::ExpressionHandle,
+    receiver: StructuralTerm,
+    selector: Option<StructuralTerm>,
+) -> Option<StructuralTerm> {
+    use typed_trees::expression::ExpressionNode;
+
+    let result = crate::expression_result_type_reference(program, machine, state, expression)?;
+    crate::reference_shell(program, result)?;
+    let sources = judge
+        .frame_resolver()?
+        .completed_reference_read_sources(machine, state, expression)?;
+    if sources.is_empty() {
+        return None;
+    }
+    let descriptor = receiver.into_collection_descriptor();
+    descriptor.observation_identity_key()?;
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Member(member) => {
+            let receiver =
+                crate::expression_result_type_reference(program, machine, state, member.receiver)?;
+            let receiver = crate::field_domains::readable_type_reference(program, receiver)?;
+            let field =
+                crate::value_custody::places::applied_data_member_field(program, receiver, member)?;
+            if field.relevance.is_erased()
+                || !crate::declared_carriers_match(program, field.type_reference, result)
+            {
+                return None;
+            }
+            project_field(descriptor, field.name.as_str())
+        }
+        ExpressionNode::Indexed(indexed)
+            if program.expression_table.range_node(indexed.index).is_none()
+                && crate::value_custody::places::place_has_builtin_coordinates(
+                    program,
+                    machine,
+                    Some(state),
+                    expression,
+                ) =>
+        {
+            let receiver = crate::expression_result_type_reference(
+                program,
+                machine,
+                state,
+                indexed.collection,
+            )?;
+            let receiver = crate::field_domains::readable_type_reference(program, receiver)?;
+            let element_type =
+                crate::value_custody::places::collection_element_type_reference(program, receiver)?;
+            if !crate::declared_carriers_match(program, element_type, result) {
+                return None;
+            }
+            let index = selector?;
+            index.observation_identity_key()?;
+            Some(StructuralTerm::IndexedValue {
+                element_type,
+                element_identity: program.normalized_type_identity(element_type),
+                collection: Box::new(descriptor),
+                index: Box::new(index),
+            })
+        }
+        _ => None,
+    }
+}
+
 /// A captured coordinate identifies storage, not permission to observe it.
 /// Fields and elements retain the same readable-reference and origin fences.
 fn readable_projection_crossings(

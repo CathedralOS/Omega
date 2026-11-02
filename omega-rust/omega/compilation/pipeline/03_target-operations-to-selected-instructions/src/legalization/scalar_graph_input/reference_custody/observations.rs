@@ -6,7 +6,6 @@ use super::*;
 use terminal_semantics::descriptor_lifetimes::{
     descriptor_location, descriptor_path, fixed_runtime_index_alternatives,
 };
-use terminal_semantics::descriptor_results::DescriptorSourceOrigin;
 
 pub(super) struct Observed {
     pub(super) root: Root,
@@ -283,39 +282,40 @@ fn observe_following(
         .ok_or(Refusal::UnknownOrigins)?;
     let mut origins = Vec::new();
     for source in sources {
-        let origin = match source {
-            DescriptorSourceOrigin::IncomingSlot(slot) => {
-                let parameter = function
-                    .structural_parameter(slot.root)
-                    .ok_or(Refusal::InvalidIngressStoragePath)?;
-                let slot_path = descriptor_path(types, parameter.structural_type, &slot.path)
-                    .ok_or(Refusal::InvalidIngressStoragePath)?;
-                if parameter.access == StructuralAccess::Owned {
-                    // An owned ingress descriptor has a real resident
-                    // occurrence; its absence cannot become external custody.
-                    // A slot behind that descriptor is external storage, but
-                    // only the authenticated original incoming pointer may
-                    // supply its incoming contents at this observation epoch.
-                    authenticate_indirect_ingress(
-                        function, custody, types, place, path, slot.root, &slot_path,
-                    )
-                    .ok_or(Refusal::OwnedIngressWithoutResident)?;
-                }
-                if leaf_type(types, parameter.structural_type, &slot_path) != Some(carrier) {
-                    return Err(Refusal::IngressCarrierTypeMismatch);
-                }
-                target_operations::TargetReferenceOrigin {
-                    base: target_operations::TargetReferenceOriginBase::IncomingContents {
-                        root: slot.root,
-                        slot: slot_path,
-                    },
-                    path: Vec::new(),
-                    extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
-                }
+        let origin = if let Some(slot) = source.captured_entry_slot() {
+            let parameter = function
+                .structural_parameter(slot.root)
+                .ok_or(Refusal::InvalidIngressStoragePath)?;
+            let slot_path = descriptor_path(types, parameter.structural_type, &slot.path)
+                .ok_or(Refusal::InvalidIngressStoragePath)?;
+            if parameter.access == StructuralAccess::Owned {
+                // An owned ingress descriptor has a real resident
+                // occurrence; its absence cannot become external custody.
+                // A slot behind that descriptor is external storage, but
+                // only the authenticated original incoming pointer may
+                // supply its incoming contents at this observation epoch.
+                authenticate_indirect_ingress(
+                    function, custody, types, place, path, slot.root, &slot_path,
+                )
+                .ok_or(Refusal::OwnedIngressWithoutResident)?;
             }
-            // Exact backing coordinates do not prove absence of a local
-            // parent. Locally formed values require the resident join above.
-            _ => return Err(Refusal::LocalOriginWithoutResident),
+            if leaf_type(types, parameter.structural_type, &slot_path) != Some(carrier) {
+                return Err(Refusal::IngressCarrierTypeMismatch);
+            }
+            target_operations::TargetReferenceOrigin {
+                base: target_operations::TargetReferenceOriginBase::IncomingContents {
+                    root: slot.root,
+                    slot: slot_path,
+                },
+                path: Vec::new(),
+                extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
+            }
+        } else {
+            match source {
+                // Exact backing coordinates do not prove absence of a local
+                // parent. Locally formed values require the resident join above.
+                _ => return Err(Refusal::LocalOriginWithoutResident),
+            }
         };
         origins.push(origin);
     }
