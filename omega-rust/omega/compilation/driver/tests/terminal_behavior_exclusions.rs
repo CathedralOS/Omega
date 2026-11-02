@@ -526,7 +526,7 @@ fn exclusion_tickets_reject_foreign_receivers_and_replay(checked: &compiler::Che
         program.entry().unwrap().structural_parameters[0].structural_type,
         Vec::new(),
     );
-    let host = build_evaluation::terminal_bindings::TerminalBuildBindingHost::new(
+    let host = build_evaluation::host::bindings::TerminalBuildBindingHost::new(
         artifact,
         produced.build_bindings(),
         original.clone(),
