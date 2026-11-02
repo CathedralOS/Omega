@@ -2134,6 +2134,9 @@ fn recognize_structural_state_leaves_from<'a>(
                     // Its separately checked ranking licenses the IH; unfolding
                     // the body again would either loop or assume its result.
                     && !(call_expression.is_some() && path.contains(&target_state.symbol))
+                    && !call_expression.is_some_and(|expression| {
+                        judge.has_runtime_induction(state.symbol, expression, target_state.symbol)
+                    })
                 {
                     if !visitors.is_empty()
                         && visitors.iter().all(|observer| {

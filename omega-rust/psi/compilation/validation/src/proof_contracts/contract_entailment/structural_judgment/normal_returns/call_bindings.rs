@@ -54,7 +54,8 @@ impl<'program> StructuralJudge<'program> {
                 }
                 _ => return None,
             },
-        ) {
+        ) && !self.has_runtime_induction(scope.1.symbol, expression, owner_symbol(&owner))
+        {
             return None;
         }
         let leading_operands = owner_leading_operands(&owner);
