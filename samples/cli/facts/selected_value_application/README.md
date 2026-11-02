@@ -7,20 +7,24 @@ independent Value and explicit evidence telescopes compose without treating
 realized Value arguments as extra public formals, losing their exact subjects,
 replacing a caller's evidence with a Build provider, or dropping returned facts.
 
-The Build-selection migration is under execution validation. All nine places
-select ordinary providers through Build, retaining their explicit implementation
-evidence. Producer `8697cb6e141` executes eight places with native and Terminal
-exit 0. Producer `157d5fc5e2b` checks those eight and all nine fact-sensitive reject
-twins; the field positive still loses the returned equality needed by exact
-subtraction. That remaining proof transport failure keeps this row open.
+Optimized producer `a3f86a99de08` executes all nine places with native and
+Terminal exit 0 on Linux x86-64. The matching corpus pins also execute in both
+engines, all nine input-only twins reject for their intended obligations, and
+the existing inferred-index statement-call preservation program executes with
+its authored Terminal exit oracle. Five unused-wrapper controls retain carrier, requirement
+and Value-to-Const admission even without executable instantiation.
 
-The nominal callable, explicitly disambiguated member and public-evidence probes
+Nominal callable, explicitly disambiguated member and public-evidence probes
 execute with native and Terminal exit 0 under `157d5fc5e2b` on Linux x86-64.
-The public-evidence package's exact bound also survives checked policy projection
-and canonical encode/recover/reencode under producer `3cd963a412e`. Full fixture
-execution and preservation of inferred descriptor argument capture remain pending.
-Historical producer identities retain their own observations; they do not claim
-execution by a later candidate.
+The public-evidence package's exact bound survives checked policy projection
+and canonical encode/recover/reencode under producer `3cd963a412e`. Historical
+`8697cb6e141` observations cover eight places and the evidence-composition probes
+on macOS ARM64. These observations retain their original producer identities.
+
+The field place exposed repeated preparation rebuilding a runtime binding after
+its operand had already been appended. Rejoining that existing operand through
+the closed signature's exact binder roster preserves the public returned
+fact without replaying storage or changing the authored program.
 
 Fact: A selected member preserves runtime index 9 below bound 10, so exact
 10 - right yields 1, while returning the second Cell and closed left 7.
@@ -94,7 +98,7 @@ The additional producers stay in this fact folder:
 - [Header observation order](probes/header_observation_order/main.omg) reads
   runtime index 9 before a later ordinary argument changes its storage to 3.
   The returned right field must retain 9, and its invalid twin changes only
-  the initial index to 11. Producer `8697cb6e141` records native and Terminal
+  the initial index to 11. Producer `a3f86a99de08` records native and Terminal
   exit 0 and the intended reject diagnostic.
 - [Wrong argument](probes/wrong_evidence_argument/main.omg) and
   [wrong nominal trait](probes/wrong_evidence_trait/main.omg) controls retain
