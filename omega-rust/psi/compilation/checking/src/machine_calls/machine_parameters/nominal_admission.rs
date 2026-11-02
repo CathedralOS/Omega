@@ -4,6 +4,7 @@ use crate::frozen_program::expression_table;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::data::{MachineParameterContract, TypeParameter};
+use typed_trees::trait_definition::AppliedTraitScope;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct AdmittedNominalSelection {
@@ -110,9 +111,7 @@ pub(super) fn validate_nominal_machine_selection(
     let mut operand_mismatch = None::<String>;
     let mut arguments_match = |actual: &[typed_trees::types::TypeReferenceHandle],
                                actual_owner: SymbolHandle,
-                               actual_scope: Option<
-        &typed_trees::trait_definition::AppliedTraitScope<'_>,
-    >,
+                               actual_scope: Option<&AppliedTraitScope<'_>>,
                                bindings: &mut Vec<TypeBinding>| {
         if actual.len() != required_arguments.len() {
             return false;

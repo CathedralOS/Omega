@@ -5,6 +5,45 @@ use crate::{TypedTrees, data, domain, signature};
 use arena::{Handle, HandleSpan};
 
 impl TypedTrees {
+    /// Authored ordinary formals in a public application. Realized Value
+    /// binders have their own exact suffix in a closed signature; they are
+    /// executable parameters without becoming new authored ordinary formals.
+    pub fn applied_signature_authored_parameters<'program>(
+        &'program self,
+        declared: &signature::StateSignature,
+        applied: &'program signature::StateSignature,
+    ) -> Option<&'program [signature::StateParameter]> {
+        let count = self.state_signature_parameters(declared).len();
+        let parameters = self.state_signature_parameters(applied);
+        if count == parameters.len() {
+            return Some(parameters);
+        }
+        let closed = self.closed_requirement_application(applied.symbol)?;
+        if closed.template != declared.symbol {
+            return None;
+        }
+        let runtime = closed
+            .local_arguments
+            .iter()
+            .zip(closed.invocation_contract_parameters)
+            .filter_map(|(argument, binder)| {
+                matches!(
+                    argument,
+                    super::RequirementLocalArgument::RuntimeValue { .. }
+                )
+                .then_some(binder.symbol)
+            });
+        if !parameters
+            .get(count..)?
+            .iter()
+            .map(|parameter| parameter.symbol)
+            .eq(runtime)
+        {
+            return None;
+        }
+        parameters.get(..count)
+    }
+
     /// Callable application preserves telescope positions while freshening
     /// unsupplied local binders. Rejoin by those positions, never by spelling:
     /// the caller's actual can have the same name as an unrelated local.
@@ -27,10 +66,7 @@ impl TypedTrees {
             return Some(applied_types[position].symbol);
         }
         let declared_values = self.state_signature_parameters(declared);
-        let applied_values = self.state_signature_parameters(applied);
-        if declared_values.len() != applied_values.len() {
-            return None;
-        }
+        let applied_values = self.applied_signature_authored_parameters(declared, applied)?;
         declared_values
             .iter()
             .position(|candidate| candidate.symbol == parameter)

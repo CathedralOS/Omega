@@ -43,7 +43,7 @@ fn selected_requirement_preserves_runtime_index_and_explicit_evidence() {
         ),
         (
             "samples/cli/facts/selected_value_application/probes/unused_evidence/invalid_provider_bound",
-            Some("does not refine requirement"),
+            Some("expected a complete `Choose` implementation"),
         ),
         (
             "samples/cli/facts/selected_value_application/probes/wrong_evidence_argument",

@@ -107,7 +107,13 @@ pub fn selected_call_arguments<'program>(
         .ok_or("argument correspondence requires a retained selected application")?;
     let (_, applied) = requirement_contract_signature(program, caller, site)
         .ok_or("selected call has no admitted public application")?;
-    let logical = program.state_signature_parameters(applied);
+    let (_, declared) = program
+        .trait_machine_signature(dispatch.requirement)
+        .filter(|(owner, _)| owner.symbol == dispatch.declaring_trait)
+        .ok_or("selected call has no exact authored requirement")?;
+    let logical = program
+        .applied_signature_authored_parameters(declared, applied)
+        .ok_or("selected call lost its exact authored public formal projection")?;
     let state = program
         .state_by_symbol(site.target_symbol(program))
         .ok_or("selected call has no executable entry")?;
@@ -144,10 +150,6 @@ pub fn selected_call_arguments<'program>(
         .state_by_symbol(dispatch.realization_state)
         .ok_or("selected call has no authored realization entry")?;
     let source_parameters = program.state_parameters(source);
-    let (_, declared) = program
-        .trait_machine_signature(dispatch.requirement)
-        .filter(|(owner, _)| owner.symbol == dispatch.declaring_trait)
-        .ok_or("selected call has no exact authored requirement")?;
     let declared_parameters = program.state_signature_parameters(declared);
     if source_parameters.len() != declared_parameters.len()
         || logical.len() != declared_parameters.len()

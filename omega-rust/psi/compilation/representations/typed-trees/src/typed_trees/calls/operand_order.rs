@@ -141,6 +141,9 @@ impl TypedTrees {
         }
         explicit.extend((0..count).filter(|position| !runtime_positions.contains(position)));
         explicit.extend(inferred);
+        if explicit.iter().copied().eq(0..count) {
+            return Ok(natural());
+        }
         Ok(CallArgumentEvaluationOrder {
             positions: explicit,
             position: 0,

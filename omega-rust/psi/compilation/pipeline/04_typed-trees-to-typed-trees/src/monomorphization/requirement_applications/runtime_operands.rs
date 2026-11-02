@@ -10,20 +10,21 @@ pub(super) fn realize(
     program: &mut TypedTrees,
     invocation: &super::calls::PreparedInvocation,
 ) -> Result<(), Vec<Diagnostic>> {
-    let (target, count) = match invocation.site {
+    let (target, arguments) = match invocation.site {
         super::super::CallSite::Expression(expression) => {
             let Some(call) = expressions_of(program).call_node(expression) else {
                 return Ok(());
             };
-            (call.target_symbol, call.arguments.len() as usize)
+            (call.target_symbol, call.arguments)
         }
         super::super::CallSite::Statement(statement) => {
             let Some(call) = program.statement_table.statement(statement).as_call() else {
                 return Ok(());
             };
-            (call.target_symbol, call.arguments.len() as usize)
+            (call.target_symbol, call.arguments)
         }
     };
+    let count = arguments.len() as usize;
     let Some(application) = program.closed_requirement_application(target) else {
         return Ok(());
     };
@@ -61,30 +62,27 @@ pub(super) fn realize(
     }
     match invocation.site {
         super::super::CallSite::Expression(expression) => {
-            let snapshot = expressions_of(program).call_node(expression).unwrap();
             let mut arguments = expressions_of(program)
-                .expression_handles(snapshot.arguments)
+                .expression_handles(arguments)
                 .to_vec();
             arguments.extend(operands);
             let arguments = expressions_of_mut(program).insert_expression_handles(arguments);
             let ExpressionNode::Call(call) = expressions_of_mut(program).expression_mut(expression)
             else {
-                unreachable!()
+                return Err(super::super::failed(
+                    "runtime requirement projection lost its expression call",
+                ));
             };
             call.arguments = arguments;
         }
         super::super::CallSite::Statement(statement) => {
-            let arguments = program
-                .statement_table
-                .statement(statement)
-                .as_call()
-                .unwrap()
-                .arguments;
             let arguments = super::super::body_rewriting::insert_arguments_with_subjects(
                 program, arguments, &operands,
             );
             let StatementNode::Call(call) = program.statement_table.statement_mut(statement) else {
-                unreachable!()
+                return Err(super::super::failed(
+                    "runtime requirement projection lost its statement call",
+                ));
             };
             call.arguments = arguments;
         }

@@ -498,6 +498,12 @@ pub(super) fn invocation_tuples<'p>(
         Ok(())
     };
     for machine in program.machines() {
+        // Universal bodies retain logical invocation contracts. Their static
+        // environment is not an executable demand; capture and ordinary
+        // specialization produce the concrete bodies that own those demands.
+        if program.callable_body_has_open_parameters(machine) {
+            continue;
+        }
         for state in program.machine_states(machine) {
             for (position, statement) in program
                 .statement_table
@@ -614,6 +620,9 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
     let mut statement_updates = Vec::new();
     let mut statement_dispatch_updates = Vec::new();
     for machine in program.machines() {
+        if program.callable_body_has_open_parameters(machine) {
+            continue;
+        }
         for state in program.machine_states(machine) {
             for (position, statement) in program
                 .statement_table
