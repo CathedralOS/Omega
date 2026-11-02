@@ -115,7 +115,9 @@ pub(crate) mod scoped_arithmetic;
 mod self_induction;
 pub(crate) mod specification_calls;
 pub(crate) mod static_applications;
-pub(crate) use captured_predicates::captured_data_predicate_holds;
+pub(crate) use captured_predicates::{
+    captured_data_predicate_holds, completed_data_predicate_holds,
+};
 pub(crate) mod strict_arithmetic;
 mod structural_case_arms;
 pub(crate) mod structural_judgment;

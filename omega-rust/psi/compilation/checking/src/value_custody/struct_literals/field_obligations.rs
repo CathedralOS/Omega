@@ -113,6 +113,16 @@ pub(super) fn enforce_construction_field_obligations(
                 continue;
             }
         }
+        crate::value_custody::recasts::pending_views::report_consumption(
+            program,
+            machine,
+            state,
+            statement_index,
+            field.value,
+            field_type,
+            &slot_context,
+            diagnostics,
+        );
         // Construction stores the operand's delivered type just like a local
         // or assignment. Its complete application cannot be replaced by the
         // field's destination, even when both policies choose equal geometry.

@@ -557,9 +557,10 @@ impl TerminalExecution<'_> {
             Some(loan)
         } else {
             if storage.is_none() && byte_owner_loan.is_none() && collection_loan.is_none() {
-                let (backing, tip) = self
-                    .resolve_live_view_projection(source.place, &source.path, source.access)
+                let projected = self
+                    .resolve_live_storage_projection(source.place, &source.path, source.access)
                     .map_err(|error| error.in_reference_formation("resolve source view"))?;
+                let (backing, tip) = (projected.value, projected.view_tip);
                 if let Some(AggregateViewTip::Aggregate {
                     view,
                     backing: actual,
@@ -571,6 +572,14 @@ impl TerminalExecution<'_> {
                     // Reborrowing an ingress re-view keeps the supplying
                     // declaration, just as crossing a stored descriptor does.
                     aggregate_view = Some(view);
+                    collection_loan = projected
+                        .array_loan
+                        .map(|loan| -> Result<_, TerminalInterpretError> {
+                            let attenuated =
+                                loan.subslice(0, loan.len(), access).ok_or_else(malformed)?;
+                            Ok((backing.clone(), attenuated))
+                        })
+                        .transpose()?;
                     region_referent = Some(backing);
                 }
             }

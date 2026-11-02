@@ -635,6 +635,19 @@ pub(crate) fn validate_call_arguments(
 
         let slot_context = format!("argument `{}` for state `{argument_scope}`", parameter.name);
 
+        if let Some(state) = current_state {
+            crate::value_custody::recasts::pending_views::report_consumption(
+                program,
+                current_machine,
+                state,
+                prior_statements.len(),
+                *argument,
+                parameter.type_reference,
+                &slot_context,
+                diagnostics,
+            );
+        }
+
         if !type_matches(*argument, parameter.type_reference) {
             let expected_type =
                 program.display_type_reference_with_constraints(parameter.type_reference);

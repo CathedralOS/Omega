@@ -596,9 +596,11 @@ fail/facts/dynamic_trait_input_arithmetic_through_parameter_weakened_input rejec
 	cannot prove requires contract for call dyn WeightedCombine::combine from probe: a >= 60 && a <= 60 (needs fact `left >= 60 && left <= 60` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/dynamic_trait_input_arithmetic_through_target_body_weakened_input rejected 7602ms expected @297562733b94
 	cannot prove requires contract for call dyn WeightedCombine::combine from probe: a >= 60 && a <= 60 (needs fact `left >= 60 && left <= 60` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/fixed_layout_byte_roundtrip_through_local_missing_validation_rejected rejected 1416ms expected @70ba9ee572b42c4d7f6ffe7d3051217e0906221c
+	construction of `Decoded` field `value`: unestablished recast target `Payload`; prove its predicate over current storage before consuming a valid value
 fail/facts/fixed_region_byte_roundtrip_through_local_overlap_rejected rejected 4491ms expected @ee194ea71d07
 	statement 4 mutates `destination[2]` while local borrow `output` is still active (borrowed at statement 3; its last use is at statement 5)
-fail/facts/fixed_region_byte_roundtrip_through_local_short_region_rejected rejected 2324ms expected @ee194ea71d07
+fail/facts/fixed_region_byte_roundtrip_through_local_short_region_rejected rejected 763ms expected @70ba9ee572b42c4d7f6ffe7d3051217e0906221c
 	machine `main` state `entry`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `[u8; 40]` are not representation-compatible
 fail/facts/foreign_retained_shared_borrow_borrowed_slot_swap rejected 2053ms expected @13c1304502d6
 	statement 13 mutates `first_buffer.value` while local borrow `state` is still active (borrowed at statement 7; its last use is at statement 14)
@@ -2184,6 +2186,12 @@ fail/providers/selected_parent_and_descendant_overlap rejected 1846ms expected @
 	selected whole provider maps `<selected target>::ParentMap::satisfies::Parent` and `<selected target>::ChildMap::satisfies::Child` supply the same exact receiver application; inherited rows cannot be mixed across choosing owners
 fail/providers/table_leaf_without_dispatch_borrow rejected 3589ms expected @bad39459725b+wt
 	selected provider plan `<selected target>::satisfies::Measure` is not fully covering: external leaf for `Measure::length` uses a table field, but its first parameter is not a readable borrow of a data declaration
+fail/recast/pending_layout_view_call_requires_establishment rejected 1431ms expected @70ba9ee572b42c4d7f6ffe7d3051217e0906221c
+	argument `value` for state `consume::entry`: unestablished recast target `Payload`; prove its predicate over current storage before consuming a valid value
+fail/recast/pending_layout_view_mutable_escape_preserves_source_padding rejected 1337ms expected @70ba9ee572b42c4d7f6ffe7d3051217e0906221c
+	construction of `Decoded` field `value`: mutable recast target escape has no complete source-storage handback; target padding is not initialized field storage
+fail/recast/u64_open_upper_bound_is_not_signed_ceiling rejected 559ms expected @70ba9ee572b42c4d7f6ffe7d3051217e0906221c
+	machine `Main::main` state `main`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `Narrow` are not representation-compatible
 fail/termination/declared_measure_hidden_overflow_rejected rejected 721ms expected @4518281b90b2+wt
 	terminating machine walk_flat: cannot prove rank range `0..=10` for the rank produced by the selected view
 	terminating machine walk: cannot prove rank range `0..=limit` for the rank produced by the selected view
@@ -6578,6 +6586,8 @@ pass/facts/fixed_layout_bit_observation_through_other_machine_exit checked 2956m
 pass/facts/fixed_layout_bit_observation_through_other_state_exit checked 2909ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
 pass/facts/fixed_layout_bit_observation_through_parameter_exit checked 2871ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
 pass/facts/fixed_layout_bit_observation_through_target_body_exit checked 3026ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
+pass/facts/fixed_layout_byte_roundtrip_rejected_payload_exit checked 4947ms check-target:macos_arm64 @70ba9ee572b42c4d7f6ffe7d3051217e0906221c
+pass/facts/fixed_layout_byte_roundtrip_through_local_exit checked 4946ms check-target:macos_arm64 @70ba9ee572b42c4d7f6ffe7d3051217e0906221c
 pass/facts/fixed_layout_storage_through_call_result_exit checked 2891ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
 pass/facts/fixed_layout_storage_through_const_name_exit checked 3053ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
 pass/facts/fixed_layout_storage_through_field_exit checked 2977ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
@@ -16250,7 +16260,7 @@ fail/calls/nested_machine_private_descendant rejected 949ms expected @ccdb99ca22
 	qualified call `hidden` has no resolved callable declaration
 fail/calls/nested_machine_runtime_capture rejected 1858ms expected @ccdb99ca2214
 	machine `read` state `entry` uses `value`, which is not a declared local, parameter, field, or type in this state (check the spelling)
-fail/calls/nested_range_call_out_of_bounds rejected 2658ms expected @ccdb99ca2214
+fail/calls/nested_range_call_out_of_bounds rejected 1918ms expected @70ba9ee572b42c4d7f6ffe7d3051217e0906221c
 	cannot prove subslice range end bound `..4` is within slice length 3
 fail/calls/nested_static_implementation_wrong_carrier rejected 1090ms expected @02eca83b1303
 	argument `value` for state `read` expects `&Value`, got `named value`
@@ -33528,7 +33538,7 @@ fail/recast/recast_mut_range_bit_sets_differ rejected 1062ms expected @911f6617b
 	machine `Main::main` state `main`: mutable aggregate aliases require identical layout geometry and leaf fact implication in BOTH directions; the source and target `ShiftedUnsigned` are not representation-compatible
 fail/recast/recast_mut_record_fact_fenced rejected 1126ms expected @ccdb99ca2214
 	machine `Main::main` state `main`: byte-region recast target `Facted` must be recursively fact-free; unchecked bytes cannot establish constrained fields, bool, or record invariants; mutable views require fact implication in BOTH directions
-fail/recast/recast_mut_record_where_bounds_differ rejected 1047ms expected @911f6617ba9e
+fail/recast/recast_mut_record_where_bounds_differ rejected 613ms expected @70ba9ee572b42c4d7f6ffe7d3051217e0906221c
 	machine `Main::main` state `main`: mutable aggregate aliases require identical layout geometry and leaf fact implication in BOTH directions; the source and target `Wide` are not representation-compatible
 fail/recast/recast_mut_record_where_write_out_of_range rejected 1021ms expected @911f6617ba9e
 	machine `Main::main` state `main` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling

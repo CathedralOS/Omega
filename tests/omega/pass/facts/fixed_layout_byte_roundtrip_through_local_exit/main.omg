@@ -1,0 +1,67 @@
+// Fact: A byte roundtrip through an explicit fixed layout lends a decoded view only after its payload bound is established, preserving every field and neighboring storage.
+// Expected exit: 0
+use omega::language::core::layout;
+use omega::language::core::option;
+
+data Payload [copy] requires self.second >= 42u64 {
+    first: u8;
+    second: u64;
+    last: u16;
+}
+Spread satisfies FixedLayout<Payload> {
+    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates {
+        let mut entries: [FieldEntry; 64];
+        entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };
+        entries[1] = FieldEntry { key: schema.fields[1].key, representation: FieldPlan::At { offset: 16 } };
+        entries[2] = FieldEntry { key: schema.fields[2].key, representation: FieldPlan::At { offset: 32 } };
+        LayoutPlan { entries: entries, entry_count: 3, size_fixed: 40, size_is_dynamic: false, align: 8 }
+    }
+}
+data Decoded<'backing> { value: &'backing LayoutStorage<Payload, Spread>; }
+
+machine initialize(backing: &mut [u64; 7]) {
+    let view: &mut LayoutStorage<Payload, Spread> = &mut backing[1..6] as &mut LayoutStorage<Payload, Spread>;
+    view.first = 23u8;
+    view.second = 42u64;
+    view.last = 9u16;
+}
+machine copy_bytes(source: &[u8; 40], destination: &mut [u8; 40]) {
+    destination = source;
+}
+machine decode<'backing>(backing: &'backing mut [u64; 7]) -> Optional<Decoded<'backing>> {
+    let view: &'backing mut LayoutStorage<Payload, Spread> = &mut backing[1..6] as &mut LayoutStorage<Payload, Spread>;
+    // The scalar field itself admits every bit pattern. Its comparison must
+    // establish the whole payload predicate before a valid view can escape.
+    transition view.second >= 42u64 {
+        true -> Optional::Some { value: Decoded { value: &view } }
+        false -> Optional::None
+    }
+}
+machine consume(value: &LayoutStorage<Payload, Spread>) -> u64 {
+    let difference: u64 = value.second - 42u64;
+    transition value.first == 23u8 && value.last == 9u16 && difference == 0u64 {
+        true -> 1u64
+        false -> 0u64
+    }
+}
+machine main() crashes Trap {
+    // Every word, including both padding regions, is initialized. Only the
+    // five interior words belong to the representation footprint.
+    let mut source: [u64; 7] = [17u64, 0u64, 0u64, 0u64, 0u64, 0u64, 53u64];
+    let mut destination: [u64; 7] = [29u64, 0u64, 0u64, 0u64, 0u64, 0u64, 71u64];
+    initialize(&mut source);
+    let bytes: &[u8; 40] = &source[1..6] as &[u8; 40];
+    let output: &mut [u8; 40] = &mut destination[1..6] as &mut [u8; 40];
+    copy_bytes(bytes, output);
+    let saved: Optional<Decoded> = decode(&mut destination);
+    let observed: u64 = match saved {
+        Optional::Some { value as decoded } -> consume(decoded.value)
+        Optional::None -> 0u64
+    };
+    transition observed == 1u64 && source[0] == 17u64 && source[6] == 53u64 && destination[0] == 29u64 && destination[6] == 71u64 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

@@ -1284,6 +1284,7 @@ impl StructuralJudge<'_> {
         &self,
         place: &CanonicalPlace,
         definition: &typed_trees::data::DataDefinition,
+        mut field_place: impl FnMut(symbols::SymbolHandle) -> Option<CanonicalPlace>,
     ) -> Option<super::StructuralTerm> {
         self.requires_value_preservation().then_some(())?;
         let coordinate = self.capture_storage_place(place.clone())?;
@@ -1323,14 +1324,9 @@ impl StructuralJudge<'_> {
             definition,
             variant,
             |field| {
-                let mut field_place = place.clone();
-                crate::value_custody::places::push_field_place_segments(
-                    self.program,
-                    &mut field_place.segments,
-                    field.symbol,
-                );
+                let selected = field_place(field.symbol)?;
                 let value = self.captured_place_projection(
-                    &field_place,
+                    &selected,
                     language_semantics::content::ContentPlaceVersion::Current,
                 );
                 if super::super::struct_trace() {
