@@ -1393,16 +1393,11 @@ bound strictly ordered.
 | 7 | Reference | referent structural type id + structural access |
 | 8 | ElementView | element structural type id |
 | 9 | retired | former Fused-only carrier; reject |
-| 11 | BindingCarrier | no encoded payload; logical nonconstructible binding, no storage authorization |
+| 11 | retired | former routed `Binding<R>` carrier; reject |
 
-The binding marker retains logical custody independently of provider selection.
-It is not an empty record: record construction, zero initialization, and byte
-observation cannot establish or inspect a binding. Existing values transfer or
-borrow under their exact occurrence and requirement identity. This declaration
-does not authorize payload erasure. Realization must establish each supplied
-root and select its storage; the current native entry implementation supports
-Fused establishment only. Independent storage cannot inherit that zero-payload
-layout. Tag 9 is retired rather than reinterpreted as this weaker declaration.
+Tags 9 and 11 are retired: a decoder rejects them rather than reinterpreting
+them. Checking rejects a boundary trait in every runtime value position, so no
+structural declaration carries a supplied provider.
 
 <!-- byte-sequence-carrier-tags -->
 

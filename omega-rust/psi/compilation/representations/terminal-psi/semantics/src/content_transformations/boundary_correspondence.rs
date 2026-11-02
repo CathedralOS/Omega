@@ -471,8 +471,7 @@ fn owned_addresses(
             }
             StructuralTypeShape::Reference { .. }
             | StructuralTypeShape::ByteSequence(_)
-            | StructuralTypeShape::ElementView { .. }
-            | StructuralTypeShape::BindingCarrier => {
+            | StructuralTypeShape::ElementView { .. } => {
                 return Err("boundary backing is not a closed owned storage shape");
             }
         }

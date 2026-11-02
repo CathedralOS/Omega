@@ -746,7 +746,6 @@ fn case_field_store(
     ) || value_plan.multiplicity != Multiplicity::Unrestricted
         || !value_plan.qualifications.is_empty()
         || !value_plan.projected_qualifications.is_empty()
-        || value_plan.binding_carrier.is_some()
     {
         return None;
     }

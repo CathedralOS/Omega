@@ -3,13 +3,13 @@
 # tools/check_native_boundary.py, a type or visibility, or a test that runs code.
 # Written by `python tools/check_rules.py --update-source-reads`.
 26 omega-rust/omega/compilation/build/src/build_boundary.rs
-5 omega-rust/omega/interpreter/terminal-runtime/src/runtime_boundary.rs
-82 omega-rust/omega/compilation/driver/src/product_boundary.rs
+81 omega-rust/omega/compilation/driver/src/product_boundary.rs
 4 omega-rust/omega/compilation/native-production/src/pipeline_boundary.rs
 1 omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/terminal_decode_once.rs
 1 omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/output/retained/tests.rs
 7 omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/register_allocation/route_tests.rs
 1 omega-rust/omega/compilation/realization/provider-planning/src/source_guards.rs
+5 omega-rust/omega/interpreter/terminal-runtime/src/runtime_boundary.rs
 8 omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/immutable_checking_input.rs
 3 omega-rust/psi/foundation/access-plans/src/tests/plan_validation.rs
 1 omega-rust/psi/interpreter/terminal-interpreter/src/embedding/instance/storage_observation.rs

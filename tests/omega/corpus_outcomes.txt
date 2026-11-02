@@ -2382,8 +2382,18 @@ fail/providers/implicit_method_unused_const_count rejected 468ms expected @33b18
 	static method application requires its complete invocation telescope for `UnusedCount::read` (found 0, expected 1)
 fail/providers/native_generic_binding_wrong_requirement rejected 1394ms expected @959aa53558d2
 	no provider is selected for boundary requirement `CText::length`, which the program entry reaches on target `windows_x86_64`
+fail/providers/provider_receiver_applied_trait_rejected rejected 418ms expected @777723466586+wt
+	data `Holder` field `identity` uses boundary trait `Identity` as a value type; call a `Identity` requirement directly, or carry an ordinary handle, session, or `dyn` value for runtime multiplicity
 fail/providers/selected_parent_and_descendant_overlap rejected 1846ms expected @002791b61f14
 	selected whole provider maps `<selected target>::ParentMap::satisfies::Parent` and `<selected target>::ChildMap::satisfies::Child` supply the same exact receiver application; inherited rows cannot be mixed across choosing owners
+fail/providers/provider_receiver_field_rejected rejected 1203ms expected @5d5ae6099032+wt
+	data `Holder` field `counter` uses boundary trait `Counter` as a value type; call a `Counter` requirement directly, or carry an ordinary handle, session, or `dyn` value for runtime multiplicity
+fail/providers/provider_receiver_generic_argument_rejected rejected 1188ms expected @5d5ae6099032+wt
+	data `Holder` field `envelope` generic argument uses boundary trait `Counter` as a value type; call a `Counter` requirement directly, or carry an ordinary handle, session, or `dyn` value for runtime multiplicity
+fail/providers/provider_receiver_parameter_rejected rejected 1222ms expected @5d5ae6099032+wt
+	machine `main` state `entry` parameter `counter` uses boundary trait `Counter` as a value type; call a `Counter` requirement directly, or carry an ordinary handle, session, or `dyn` value for runtime multiplicity
+fail/providers/provider_receiver_requirement_signature_rejected rejected 1222ms expected @5d5ae6099032+wt
+	trait `Use` state `apply` parameter `counter` uses boundary trait `Counter` as a value type; call a `Counter` requirement directly, or carry an ordinary handle, session, or `dyn` value for runtime multiplicity
 fail/providers/table_leaf_without_dispatch_borrow rejected 3589ms expected @bad39459725b+wt
 	selected provider plan `<selected target>::satisfies::Measure` is not fully covering: external leaf for `Measure::length` uses a table field, but its first parameter is not a readable borrow of a data declaration
 fail/recast/pending_layout_view_call_requires_establishment rejected 1431ms expected @70ba9ee572b42c4d7f6ffe7d3051217e0906221c
@@ -16559,11 +16569,14 @@ fail/calls/result_overload_terminal_arm_unmatched_result rejected 1655ms expecte
 fail/calls/resultless_return_contract rejected 2044ms expected @ccdb99ca2214
 	machine `WrongReturn::call` state `call` does not satisfy trait `Initializer` machine `call`: expected return `()`, got `u64`
 	machine `WrongReturn::call` state `call` does not satisfy trait `Initializer` machine `call`: conformance borrow contract: callable type does not preserve its region identity
-fail/calls/retired_core_binding_field rejected 674ms expected @ccdb99ca2214
+fail/calls/retired_core_binding_field rejected 1222ms expected @5d5ae6099032+wt
+	data `Legacy` field `slot` generic argument uses boundary trait `Service` as a value type; call a `Service` requirement directly, or carry an ordinary handle, session, or `dyn` value for runtime multiplicity
 	data `Legacy` field `slot` references unknown generic type `Binding`
-fail/calls/retired_core_binding_local rejected 600ms expected @ccdb99ca2214
+fail/calls/retired_core_binding_local rejected 1223ms expected @5d5ae6099032+wt
+	machine `invalid` state `entry` local data `slot` generic argument uses boundary trait `Service` as a value type; call a `Service` requirement directly, or carry an ordinary handle, session, or `dyn` value for runtime multiplicity
 	machine `invalid` state `entry` local data `slot` references unknown generic type `Binding`
-fail/calls/retired_core_binding_parameter rejected 810ms expected @ccdb99ca2214
+fail/calls/retired_core_binding_parameter rejected 1222ms expected @5d5ae6099032+wt
+	machine `invalid` state `entry` parameter `slot` generic argument uses boundary trait `Service` as a value type; call a `Service` requirement directly, or carry an ordinary handle, session, or `dyn` value for runtime multiplicity
 	machine `invalid` state `entry` parameter `slot` references unknown generic type `Binding`
 fail/calls/returned_nested_record_written_field_rejected rejected 438ms expected @1e127a84987a
 	exact arithmetic in machine `observe` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).

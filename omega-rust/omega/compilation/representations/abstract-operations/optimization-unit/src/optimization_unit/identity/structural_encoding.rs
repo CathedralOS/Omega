@@ -479,7 +479,6 @@ pub(super) fn encode_structural_type(
     bytes.u8(u8::from(declaration.descriptor_cleanup));
     bytes.u8(u8::from(declaration.copyable));
     match &declaration.shape {
-        StructuralTypeShape::BindingCarrier => bytes.u8(11),
         StructuralTypeShape::Reference { referent, access } => {
             bytes.u8(7);
             bytes.id(*referent);

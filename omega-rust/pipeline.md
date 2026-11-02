@@ -1240,11 +1240,11 @@ applications explicitly; package review joins the exact schema commitment to
 the retained realization. Callback materialization consumes only canonical
 Terminal uses and completed calling applications, without reopening source.
 
-Logical `Binding<R>` shapes and occurrence receipts are Psi data, independent
-of selected composition mode. Provider settlement does not mutate typed trees
-to authorize erasure. Omega joins the entry's exact carrier/requirement to its
-selected provider and establishes runtime custody; a logical Binding marker
-never grants zero-sized storage or authority. Native entry storage currently
+Boundary requirement applications and occurrence receipts are Psi data,
+independent of selected composition mode; source has no provider value or
+receiver to carry them. Provider settlement does not mutate typed trees to
+authorize erasure. Omega joins the entry's exact requirement to its selected
+provider and establishes runtime custody. Native entry storage currently
 supports Fused establishment and rejects other modes.
 
 Physical data-layout queries remain symbolic during shared Product checking.
