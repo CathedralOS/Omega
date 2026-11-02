@@ -157,12 +157,25 @@ pub struct CallWriteOrigins {
     pub references: Option<Vec<LocalWriteOrigin>>,
 }
 
+/// Opaque referent backing of a completed boundary/requirement call's
+/// returned reference leaf. `call` identifies the producing invocation
+/// occurrence; `referent` is the declared referee supplying write geometry.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct InvocationResultHome {
+    pub call: typed_trees::expression::ExpressionHandle,
+    pub referent: typed_trees::types::TypeReferenceHandle,
+}
+
 /// Proven referent of a local reference leaf. Coarse observer paths stay
 /// coarse; exact structured coordinates are composed and checked independently.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LocalWriteSource {
     /// An explicitly performed output, not a declaration-relative address.
     pub invocation_output: Option<facts::InvocationOutputIdentity>,
+    /// An explicitly completed result's opaque referent, not a
+    /// declaration-relative address. Writes beneath it use the declared
+    /// referee's geometry; the caller cannot name its physical backing.
+    pub invocation_result: Option<InvocationResultHome>,
     /// Literal-produced image backing cannot alias writable declaration storage.
     /// This category survives projection independently of coordinate precision;
     /// an absent declaration root alone never establishes static backing.
@@ -206,6 +219,12 @@ impl LocalWriteSource {
     pub(super) fn frame_origin(&self) -> FramePlaceOrigin {
         let mut source = if let Some(identity) = self.invocation_output {
             super::place_paths::FrameSourcePlace::invocation_output(identity, self.segments.clone())
+        } else if let Some(home) = self.invocation_result {
+            super::place_paths::FrameSourcePlace::invocation_result(
+                home.call,
+                home.referent,
+                self.segments.clone(),
+            )
         } else if self.is_image_storage {
             super::place_paths::FrameSourcePlace::image_storage()
         } else {
@@ -215,8 +234,10 @@ impl LocalWriteSource {
         source.root = self.root;
         source.segments = self.segments.clone();
         source.representation = self.representation.clone();
-        source.builtin_coordinates =
-            self.root.is_valid() || self.is_image_storage || self.invocation_output.is_some();
+        source.builtin_coordinates = self.root.is_valid()
+            || self.is_image_storage
+            || self.invocation_output.is_some()
+            || self.invocation_result.is_some();
         FramePlaceOrigin {
             path: self.path.clone(),
             precision: if self.collection_coarse {
@@ -229,8 +250,9 @@ impl LocalWriteSource {
     }
 
     pub(crate) fn write_path(&self, program: &dyn CheckingInput) -> Option<String> {
-        // Performed output permissions are not physical write coordinates.
-        if self.invocation_output.is_some() {
+        // Performed output permissions and opaque result referents are not
+        // physical write coordinates.
+        if self.invocation_output.is_some() || self.invocation_result.is_some() {
             return None;
         }
         Some(super::place_paths::project_write_path(
@@ -244,7 +266,9 @@ impl LocalWriteSource {
     /// Text paths are only display/footprint payload; they never select fields.
     pub fn substitute_storage(&self, program: &dyn CheckingInput, relative: &Self) -> Option<Self> {
         if self.invocation_output.is_some()
+            || self.invocation_result.is_some()
             || relative.invocation_output.is_some()
+            || relative.invocation_result.is_some()
             || !self.root.is_valid()
             || !relative.root.is_valid()
         {
@@ -261,6 +285,7 @@ impl LocalWriteSource {
         let source = coordinate(self).append_relative(program, &coordinate(relative));
         Some(Self {
             invocation_output: self.invocation_output,
+            invocation_result: self.invocation_result,
             is_image_storage: self.is_image_storage,
             recasts: source.recasts,
             root: source.root,
@@ -277,6 +302,9 @@ impl From<FramePlaceOrigin> for LocalWriteSource {
     fn from(origin: FramePlaceOrigin) -> Self {
         Self {
             invocation_output: origin.source.output_identity(),
+            invocation_result: origin.source.result_home().map(|(call, referent)| {
+                InvocationResultHome { call, referent }
+            }),
             is_image_storage: origin.source.is_static(),
             recasts: origin.source.recasts,
             representation: origin.source.representation,
@@ -435,6 +463,7 @@ pub(super) fn assignment_storage_origins(
         return Some(AssignmentStorageOrigins {
             destinations: vec![LocalWriteSource {
                 invocation_output: None,
+                invocation_result: None,
                 is_image_storage: false,
                 recasts: Vec::new(),
                 representation: None,
@@ -469,6 +498,7 @@ pub(super) fn assignment_storage_origins(
         return Some(AssignmentStorageOrigins {
             destinations: vec![LocalWriteSource {
                 invocation_output: None,
+                invocation_result: None,
                 is_image_storage: source.is_static(),
                 recasts: source.recasts,
                 representation: source.representation,

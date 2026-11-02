@@ -27,7 +27,12 @@ impl CallFrameResolver<'_> {
         symbol: SymbolHandle,
         indices: &[Option<usize>],
     ) -> Option<Vec<ReferenceResultTransport>> {
-        let state = self.program.state_by_symbol(symbol)?;
+        let Some(state) = self.program.state_by_symbol(symbol) else {
+            // A trait requirement member owns no stored machine state and no
+            // invocation parameter context: its signature-only transport is
+            // an opaque invocation referent independent of the actuals.
+            return self.reference_result_transports(symbol);
+        };
         if self.program.state_parameters(state).len() != indices.len() {
             return None;
         }
@@ -78,7 +83,17 @@ impl CallFrameResolver<'_> {
         symbol: SymbolHandle,
         inference: &mut FrameInference,
     ) -> Option<Vec<ReferenceResultTransport>> {
-        let state = self.program.state_by_symbol(symbol)?;
+        let Some(state) = self.program.state_by_symbol(symbol) else {
+            // A trait requirement member owns no stored machine state: its
+            // signature is the complete relation. An exclusive result is the
+            // completed invocation's own opaque referent — the same
+            // provenance call-site routes mint — carried as a transport leaf
+            // whose call identity the caller reassigns.
+            let (_, signature) = crate::selected_requirement_signature(self.program, symbol)?;
+            let referent =
+                exclusive_transport_referent(self.program, signature.return_type)?;
+            return Some(vec![invocation_result_transport(referent)]);
+        };
         let machine = self.program.machine_holding_state(symbol)?;
         let relation = super::super::result_origins::state_result_origins(
             self.program,
@@ -88,7 +103,17 @@ impl CallFrameResolver<'_> {
             &self.tables.symbols,
             inference,
             true,
-        )?;
+        );
+        let Some(relation) = relation else {
+            // A signature-only callee (`satisfies via` binding or opaque
+            // boundary) exports no body relation. Its declared exclusive
+            // result is the completed invocation's own opaque referent.
+            if machine.body_is_present {
+                return None;
+            }
+            let referent = exclusive_transport_referent(self.program, state.return_type)?;
+            return Some(vec![invocation_result_transport(referent)]);
+        };
         let mut transports = Vec::new();
         for leaf in relation.references {
             // This is a union of normal routes. A move on one route
@@ -107,6 +132,9 @@ impl CallFrameResolver<'_> {
                 result_path: moved.local_segments,
                 source: LocalWriteSource {
                     invocation_output: moved.source.output_identity(),
+                    invocation_result: moved.source.result_home().map(|(call, referent)| {
+                        super::super::caller_aliases::InvocationResultHome { call, referent }
+                    }),
                     is_image_storage: moved.source.is_static(),
                     recasts: moved.source.recasts,
                     representation: moved.source.representation,
@@ -128,4 +156,56 @@ impl CallFrameResolver<'_> {
         }
         Some(transports)
     }
+}
+
+/// The declared referee behind a signature-only callee's exclusive result —
+/// `None` when the return is not an exclusive reference at all. This is the
+/// same referent `exclusive_result_referent` selects on the call-site route;
+/// the transport boundary has no call type bindings, so it reads the declared
+/// head directly.
+fn exclusive_transport_referent(
+    program: &dyn crate::CheckingInput,
+    return_type: typed_trees::types::TypeReferenceHandle,
+) -> Option<typed_trees::types::TypeReferenceHandle> {
+    let result_type = typed_trees::operator::unconstrained_type_reference(
+        program.typed_program(),
+        return_type,
+    )?;
+    let typed_trees::types::TypeReferenceNode::Reference {
+        access, referee, ..
+    } = program.type_reference_table.type_reference(result_type)
+    else {
+        return None;
+    };
+    if !access.is_exclusive() {
+        return None;
+    }
+    typed_trees::operator::unconstrained_type_reference(program.typed_program(), *referee)
+}
+
+/// The opaque invocation-owned referent a signature-only callee's exclusive
+/// result names. `call` stays invalid at this state/signature-keyed level:
+/// every call-site instantiation rebases the producing expression.
+fn invocation_result_transport(
+    referent: typed_trees::types::TypeReferenceHandle,
+) -> ReferenceResultTransport {
+    ReferenceResultTransport::Reference(ReferenceResultLeafOrigin {
+        result_path: Vec::new(),
+        source: LocalWriteSource {
+            invocation_output: None,
+            invocation_result: Some(
+                super::super::caller_aliases::InvocationResultHome {
+                    call: typed_trees::expression::ExpressionHandle::invalid(),
+                    referent,
+                },
+            ),
+            is_image_storage: false,
+            recasts: Vec::new(),
+            representation: None,
+            path: String::new(),
+            collection_coarse: false,
+            root: SymbolHandle::invalid(),
+            segments: Vec::new(),
+        },
+    })
 }

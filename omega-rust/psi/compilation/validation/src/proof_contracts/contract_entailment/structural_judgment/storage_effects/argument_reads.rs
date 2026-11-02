@@ -45,9 +45,13 @@ impl StructuralJudge<'_> {
         let mut selected = None;
         for source in &subject.sources {
             // The current-cell ledger is declaration-relative. Performed
-            // outputs and image backing retain other namespaces; neither may
-            // be relabelled as a same-symbol declaration observation.
-            if source.invocation_output.is_some() || source.is_image_storage {
+            // outputs, opaque result referents, and image backing retain
+            // other namespaces; none may be relabelled as a same-symbol
+            // declaration observation.
+            if source.invocation_output.is_some()
+                || source.invocation_result.is_some()
+                || source.is_image_storage
+            {
                 return Err(
                     "the arriving rank source has no declaration-relative current-cell namespace",
                 );

@@ -89,6 +89,7 @@ impl Captures<'_> {
                 place.segments.extend_from_slice(path);
                 let origin = crate::LocalWriteSource {
                     invocation_output: None,
+        invocation_result: None,
                     is_image_storage: false,
                     recasts: Vec::new(),
                     representation: None,
@@ -171,6 +172,7 @@ impl Captures<'_> {
             let root = referent.root.as_symbol()?;
             let origin = crate::LocalWriteSource {
                 invocation_output: None,
+        invocation_result: None,
                 is_image_storage: false,
                 recasts: Vec::new(),
                 representation: None,

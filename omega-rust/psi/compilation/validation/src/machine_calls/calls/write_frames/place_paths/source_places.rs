@@ -23,6 +23,16 @@ pub(in crate::machine_calls::calls::write_frames) enum FrameSourceKind {
     /// Its absent declaration root prevents legacy geometry readers from
     /// interpreting the output descriptor's home as its opaque backing.
     InvocationOutput(facts::InvocationOutputIdentity),
+    /// Opaque referent backing of a completed invocation's returned reference
+    /// leaf. `call` identifies the producing invocation occurrence; `referent`
+    /// is the declared referee supplying write geometry. Its absent
+    /// declaration root prevents legacy geometry readers from interpreting the
+    /// descriptor's home as its opaque backing, and unequal calls never share
+    /// a proven namespace.
+    InvocationResult {
+        call: ExpressionHandle,
+        referent: typed_trees::types::TypeReferenceHandle,
+    },
 }
 
 /// The exact operation that introduced a reference interpretation.
@@ -101,12 +111,48 @@ impl FrameSourcePlace {
         }
     }
 
+    pub(in crate::machine_calls::calls::write_frames) fn invocation_result(
+        call: ExpressionHandle,
+        referent: typed_trees::types::TypeReferenceHandle,
+        segments: Vec<PlaceSegment>,
+    ) -> Self {
+        Self {
+            kind: FrameSourceKind::InvocationResult { call, referent },
+            segments,
+            builtin_coordinates: true,
+            ..Self::default()
+        }
+    }
+
     pub(in crate::machine_calls::calls::write_frames) fn output_identity(
         &self,
     ) -> Option<facts::InvocationOutputIdentity> {
         match self.kind {
             FrameSourceKind::InvocationOutput(identity) => Some(identity),
             _ => None,
+        }
+    }
+
+    /// The completed result's producing invocation and declared referent,
+    /// when this source names opaque result backing.
+    pub(in crate::machine_calls::calls::write_frames) fn result_home(
+        &self,
+    ) -> Option<(ExpressionHandle, typed_trees::types::TypeReferenceHandle)> {
+        match self.kind {
+            FrameSourceKind::InvocationResult { call, referent } => Some((call, referent)),
+            _ => None,
+        }
+    }
+
+    /// A callee's result relation keys an opaque referent by the call inside
+    /// that body. Instantiated at a call site, the caller-visible producing
+    /// invocation is the call the caller made; rebase the identity only.
+    pub(in crate::machine_calls::calls::write_frames) fn rebase_invocation_home(
+        &mut self,
+        expression: ExpressionHandle,
+    ) {
+        if let FrameSourceKind::InvocationResult { call, .. } = &mut self.kind {
+            *call = expression;
         }
     }
 
@@ -234,7 +280,11 @@ impl FrameSourcePlace {
         &self,
         segments: &[PlaceSegment],
     ) -> Self {
-        if !self.root.is_valid() && !self.is_static() && self.output_identity().is_none() {
+        if !self.root.is_valid()
+            && !self.is_static()
+            && self.output_identity().is_none()
+            && self.result_home().is_none()
+        {
             return Self::default();
         }
         let mut projected = self.clone();
@@ -263,7 +313,11 @@ impl FrameSourcePlace {
         whole_expression: ExpressionHandle,
         base_expression: ExpressionHandle,
     ) -> Self {
-        if !self.root.is_valid() && !self.is_static() && self.output_identity().is_none() {
+        if !self.root.is_valid()
+            && !self.is_static()
+            && self.output_identity().is_none()
+            && self.result_home().is_none()
+        {
             return Self::default();
         }
         let Some(whole) = source_coordinates(program, whole_expression) else {
@@ -321,7 +375,10 @@ impl FrameSourcePlace {
         relative: &Self,
         map_selector: impl Fn(PlaceSegment) -> PlaceSegment + Copy,
     ) -> Self {
-        if (!self.root.is_valid() && !self.is_static() && self.output_identity().is_none())
+        if (!self.root.is_valid()
+                && !self.is_static()
+                && self.output_identity().is_none()
+                && self.result_home().is_none())
             || !relative.root.is_valid()
         {
             return Self::default();

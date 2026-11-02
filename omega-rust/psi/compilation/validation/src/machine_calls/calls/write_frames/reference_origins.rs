@@ -279,6 +279,7 @@ pub(super) fn exclusive_reference_origins(
         ExpressionNode::Call(call) => transparent_call_result_origins(
             program,
             call,
+            argument,
             symbols,
             inference,
             |callee_machine, parameter, result_place, actual, inference| {

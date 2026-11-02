@@ -37,6 +37,7 @@ mod tests {
         let mut storage = AssignmentStorageOrigins {
             destinations: vec![LocalWriteSource {
                 invocation_output: None,
+                invocation_result: None,
                 is_image_storage: false,
                 recasts: Vec::new(),
                 representation: None,

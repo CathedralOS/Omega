@@ -31,6 +31,24 @@ pub(super) struct FramePlaceOrigin {
     pub(super) source: FrameSourcePlace,
 }
 
+impl FramePlaceOrigin {
+    /// A callee-body call identity becomes the caller's producing invocation
+    /// at a call boundary: rebase the source identity and the path spelling
+    /// together so consumers never compare a stale home.
+    pub(super) fn rebase_invocation_home(&mut self, expression: ExpressionHandle) {
+        if self.source.result_home().is_none() {
+            return;
+        }
+        self.source.rebase_invocation_home(expression);
+        let (_, suffix) = split_place_root(&self.path);
+        self.path = format!(
+            "invocation result @{}:{}{suffix}",
+            expression.arena_index(),
+            expression.generation()
+        );
+    }
+}
+
 /// Two conditional arms keep a single origin only when they agree on path,
 /// precision, and structural source; a divergent arm must fail closed rather
 /// than select one side of the case analysis.
