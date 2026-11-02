@@ -109,7 +109,18 @@ A boundary call forwards every authored argument; only the later local trait
 call consumes its separate selector. The [wrong-trait control](controls/wrong_trait/main.omg)
 keeps a genuine attempt to call an unrelated trait invalid. This fixes the
 existing call rules rather than changing the selector or public result bound.
-Fresh repair observations are still pending.
+
+Repair revision `dbde2a0eb0ce5a77198bc4ee3f26d5253cf4a56c` passes the complete
+focused selection on [Linux x86-64](https://github.com/CathedralOS/Omega/actions/runs/41538946198)
+and [macOS ARM64](https://github.com/CathedralOS/Omega/actions/runs/41538950836).
+On each host, source checking accepts twenty programs and rejects all twenty-one
+controls for their intended reasons. All eighteen fact fixtures execute with
+native and Terminal exit 0. The two existing dynamic-call regression fixtures
+also agree between engines: one exits 0 and the other exits 70 as authored.
+All thirty-nine sample projects meet their oracles: twenty execute successfully
+and nineteen reject as intended. The eighteen weaker-bound twins reject at the
+exact-arithmetic obligation on the subtraction; the unrelated-trait control
+rejects because its selector does not inherit the called trait.
 
 The migration selection comprises 36 corpus fixtures and all 38 original sample
 projects: both roots, eighteen positive places and eighteen reject twins.
@@ -119,7 +130,10 @@ sample Main/Build pair is copied to its corresponding fixture under
 `tests/omega/{pass,fail}/facts/dyn_dispatch_selector_payload_bound_through_*`
 or `dyn_dispatch_payload_alias_through_*`. Reject diagnostics and raw execution
 records retain their actual producer revision and host in the claim evidence.
-Other-host execution is unverified until recorded.
+Both producers use verified optimization level 1. Owned Source and combined
+execution records name the measured repair revision; later documentation,
+explanatory comments and record updates do not claim a new execution.
+Windows x86-64 and Linux ARM64 execution remain unverified.
 
 This migration does not close either parent task. Remaining source families,
 provider admission and layout/callback requirements stay on the target-selection

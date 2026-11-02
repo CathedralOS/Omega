@@ -36,9 +36,13 @@ refused the local subtraction after losing the public predicate. The earlier
 repair's Linux observations and existing fixture goldens remain historical;
 they do not validate these changed programs. The current focused run covers all
 nineteen projects in this production alongside the nineteen parent projects.
-Fresh migration results are pending in the parent claim's retained evidence.
+Repair revision `dbde2a0eb0ce5a77198bc4ee3f26d5253cf4a56c` passes all nineteen
+projects here on Linux x86-64 and macOS ARM64: ten positives execute successfully
+and nine controls reject at exact arithmetic. All nine pinned positive places
+exit 0 in both native and Terminal execution. The [parent validation record](../README.md#validation-and-remaining-scope)
+links the hosted runs and describes their complete focused selection.
 
 Matching fixture pairs remain under
 `tests/omega/{pass,fail}/facts/dyn_dispatch_payload_alias_through_*`.
-Broader operational contracts, product parity and other-host execution remain
-separate parent acceptance.
+Broader operational contracts, product parity, Windows x86-64 execution and
+Linux ARM64 execution remain separate parent acceptance.

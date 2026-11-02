@@ -8,9 +8,9 @@
 //! argument, and only the operands after it are matched against the
 //! requirement's parameters
 //! ([dynamic dispatch](../../../../../../wiki/spec/terminal-psi/dynamic_dispatch.md)).
-//! A requirement that a dynamic caller cannot reach (a boundary requirement,
-//! open requirement-local generics, a private contract identity or an
-//! unfittable envelope) rejects here, at the call that would need it.
+//! Boundary requirements use their ordinary call route, even when an argument
+//! carries a dynamic selector. Local requirements with open generics, private
+//! contract identities or an unfittable envelope reject at the selector call.
 
 use super::{
     Diagnostic, ExpressionHandle, ExpressionNode, Machine, State, TypeReferenceHandle,
