@@ -48,6 +48,8 @@ pub struct ProofCallableHeader {
     pub source_target: Option<String>,
     pub product_eligible: bool,
     pub supplies_checked_body: bool,
+    /// Remaining declaration binders, not invocation arity or emitted-body presence.
+    pub type_parameter_count: usize,
     pub compiler_evaluation:
         Result<semantic_vocabulary::compiler_evaluation::CompilerEvaluationDeclaration, String>,
     /// Checker-normalized realized calls, including explicit abstract edges.
@@ -71,6 +73,7 @@ impl Default for ProofCallableHeader {
             source_target: None,
             product_eligible: false,
             supplies_checked_body: false,
+            type_parameter_count: 0,
             compiler_evaluation: Err("checked compiler-evaluation facts are absent".into()),
             synchronous_invocations: Err("checked synchronous invocation facts are absent".into()),
         }

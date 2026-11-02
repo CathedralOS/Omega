@@ -181,9 +181,8 @@ impl ProducedTerminalProduct {
 struct PreparedTerminalProduct<'a> {
     position: usize,
     request: TerminalProductRequest<'a>,
-    selected_machine: symbols::SymbolHandle,
     signature_identity: Option<[u8; 32]>,
-    physical_adapter: symbols::SymbolHandle,
+    physical_adapter: Option<&'a terminal_psi::PreparedNominalRoot>,
     policy: Option<TerminalBehaviorExclusions<'a>>,
     provider_publication: provider_planning::target_machines::PreparedTargetProviderPublication,
 }
@@ -201,15 +200,13 @@ impl<'a> PreparedTerminalProduct<'a> {
             return Ok(Self {
                 position,
                 request,
-                selected_machine: Default::default(),
                 signature_identity: None,
-                physical_adapter: Default::default(),
+                physical_adapter: None,
                 policy: None,
                 provider_publication,
             });
         }
         let entry = admit_terminal_production(view.entry, view.provenance, view.native_components)?;
-        let selected_machine = entry.machine_symbol();
         let signature_identity = entry.source_signature().identity().bytes();
         let policy = TerminalBehaviorExclusions::new(
             view.build.config.behavior_exclusions.as_slice(),
@@ -219,13 +216,12 @@ impl<'a> PreparedTerminalProduct<'a> {
         );
         // Firmware starts in the selected adapter, not the semantic continuation.
         // Admit its behavior and callbacks while retaining the semantic receipt.
-        let physical_adapter = entry.physical_adapter().unwrap_or_default();
+        let physical_adapter = entry.physical_adapter();
         let provider_publication =
             prepare_target_provider_publication(view, request.use_kind, requested_scopes)?;
         Ok(Self {
             position,
             request,
-            selected_machine,
             signature_identity: Some(signature_identity),
             physical_adapter,
             policy,
@@ -244,13 +240,30 @@ impl<'a> PreparedTerminalProduct<'a> {
             && self.request.selections.project_psi() == other.request.selections.project_psi()
     }
 
-    fn prepare_application(
-        &self,
-        observer: &mut impl psi_compiler::PsiCompilationObserver,
-    ) -> TerminalApplicationCustody<'a> {
+    fn prepare_application(&self) -> TerminalApplicationCustody<'a> {
+        let entry = self
+            .request
+            .view
+            .entry
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "application has no selected entry declaration",
+                )]
+            })
+            .and_then(|entry| {
+                let signature = entry.source_signature();
+                terminal_psi::PreparedNominalRoot::new(
+                    signature.declaration(),
+                    signature.machine_name(),
+                    None,
+                )
+                .map_err(|reason| {
+                    psi_compiler::TerminalArtifactProductionError::EntryReceipt(reason.into())
+                        .diagnostics()
+                })
+            });
         TerminalApplicationCustody::prepare(
-            self.request.view.program,
-            psi_compiler::TerminalMachineSelection::Symbol(self.selected_machine),
+            entry,
             self.signature_identity,
             self.policy
                 .as_ref()
@@ -258,8 +271,6 @@ impl<'a> PreparedTerminalProduct<'a> {
                     callbacks: Some(self.request.view.callbacks),
                     physical_adapter: self.physical_adapter,
                 }),
-            self.request.view.sources.exact_toolchain_sources(),
-            observer,
         )
     }
 }
@@ -337,13 +348,10 @@ pub(crate) fn produce_retained_terminal_artifacts(
         for mut cohort in cohorts {
             let mut timings = std::mem::take(cohort[0].request.view.timings);
             timings.add_completed(TERMINAL_PRODUCTION_STAGE, 0);
-            let applications = {
-                let mut observer = PsiStageTimings::new(&mut timings);
-                cohort
-                    .iter()
-                    .map(|application| application.prepare_application(&mut observer))
-                    .collect::<Vec<_>>()
-            };
+            let applications = cohort
+                .iter()
+                .map(PreparedTerminalProduct::prepare_application)
+                .collect::<Vec<_>>();
             let started = std::time::Instant::now();
             let produced = produce_shared_terminal(&cohort, &mut timings);
             let elapsed = started.elapsed().as_micros();
