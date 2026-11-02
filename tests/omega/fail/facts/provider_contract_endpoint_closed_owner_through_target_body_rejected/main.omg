@@ -46,7 +46,7 @@ X86Transfer satisfies SelectedTransfer {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires input <= limit() ensures result <= limit()
     {
         SelectedBodyCheck::require_tag(17u64);
-     input 
+     input
     }
 }
 
@@ -55,7 +55,7 @@ ArmTransfer satisfies SelectedTransfer {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires input <= limit() ensures result <= limit()
     {
         SelectedBodyCheck::require_tag(29u64);
-     input 
+     input
     }
 }
 
