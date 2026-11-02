@@ -60,6 +60,8 @@ pub(super) fn type_witnesses(fixture: &mut Fixture) -> Vec<Witness> {
     witnesses.push(witness("builtin", fixture.u64_type, &[]));
     let payload = fixture.named("Payload");
     witnesses.push(witness("nominal", payload, &[1]));
+    let case_view = fixture.type_node(TypeReferenceNode::CaseView { subject: payload });
+    witnesses.push(witness("case view of the exact subject", case_view, &[1]));
     let source = fixture.named("Source");
     witnesses.push(witness("toolchain nominal", source, &[]));
     for access in [
@@ -130,6 +132,12 @@ pub(super) fn type_witnesses(fixture: &mut Fixture) -> Vec<Witness> {
 
     let limit = fixture.named("LIMIT");
     let applied = fixture.generic("Container", vec![record, five, limit]);
+    let case_view = fixture.type_node(TypeReferenceNode::CaseView { subject: applied });
+    witnesses.push(witness(
+        "case view of a generic subject",
+        case_view,
+        &[1, 2],
+    ));
     witnesses.push(witness(
         "generic with type and const operands",
         applied,
@@ -499,6 +507,7 @@ pub(super) fn expression_witnesses(fixture: &mut Fixture) -> Vec<Witness> {
     add(fixture, "indexed", indexed, &[2]);
     let receiver = fixture.name("LIMIT");
     let member = fixture.expression(ExpressionNode::Member(TableMemberExpression {
+        selector: language_core::DataComponentSelector::Named,
         receiver,
         member_symbol: SymbolHandle::invalid(),
         member: Identifier::generated("tag"),
@@ -630,16 +639,19 @@ pub(super) fn expression_witnesses(fixture: &mut Fixture) -> Vec<Witness> {
     );
     let fields = fixture.program.expression_table.insert_match_fields([
         TableMatchField {
+            selector: language_core::DataComponentSelector::Named,
             member: Identifier::generated("left"),
             field_symbol: left,
             action: MatchFieldAction::Bind(Identifier::generated("bound")),
         },
         TableMatchField {
+            selector: language_core::DataComponentSelector::Named,
             member: Identifier::generated("right"),
             field_symbol: right,
             action: MatchFieldAction::Equal(wanted),
         },
         TableMatchField {
+            selector: language_core::DataComponentSelector::Named,
             member: Identifier::generated("spare"),
             field_symbol: spare,
             action: MatchFieldAction::Waive,

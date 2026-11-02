@@ -122,6 +122,8 @@ vocabulary! {
         WriteOnlyReference = "ref-write",
         /// `slice(<type>)`
         Slice = "slice",
+        /// `case-view(<type>)`: the case-only view of its exact subject.
+        CaseView = "case-view",
         /// `array(<type>,<length>)`
         Array = "array",
         /// `constrained(<type>,<constraint>*)`

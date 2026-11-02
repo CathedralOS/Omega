@@ -39,7 +39,7 @@ pub(super) fn type_identity(
                 Ok(())
             })
         }
-        TypeForm::Slice => compound(reader, visitor, type_identity),
+        TypeForm::Slice | TypeForm::CaseView => compound(reader, visitor, type_identity),
         TypeForm::Array => compound(reader, visitor, |reader, visitor| {
             type_identity(reader, visitor)?;
             reader.expect(b',')?;

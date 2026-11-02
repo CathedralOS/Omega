@@ -32,6 +32,7 @@ node_kinds!(TypeKind, type_kind for TypeReferenceNode {
     Constrained => TypeReferenceNode::Constrained { .. },
     FixedArray => TypeReferenceNode::FixedArray { .. },
     Slice => TypeReferenceNode::Slice { .. },
+    CaseView => TypeReferenceNode::CaseView { .. },
     Generic => TypeReferenceNode::Generic { .. },
     ConstExpression => TypeReferenceNode::ConstExpression(_),
     DynamicTrait => TypeReferenceNode::DynamicTrait { .. },
