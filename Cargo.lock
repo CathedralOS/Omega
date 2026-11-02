@@ -1607,6 +1607,7 @@ dependencies = [
  "numerics",
  "optimization-core",
  "package-compilation",
+ "proof",
  "provider-planning",
  "psi-terminal-production",
  "representation-planning",
