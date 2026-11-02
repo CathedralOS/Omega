@@ -246,5 +246,6 @@ helper actions before executing them.
 
 At the stopping condition stop refilling, request safe checkpoints and drain
 reports. Preserve dirty/unpublished work and remaining acceptance; release owned
-claims and remove only verified-landed worktrees. Report outcome closure
-and observed behavior, not helper-test, commit or occupied-slot counts.
+claims and remove only verified-landed worktrees. User-facing reports follow
+[Explain the change](../../../AGENTS.md#explain-the-change), leading with observed
+behavior and outcome closure, followed by supporting checks and coordination details.

@@ -296,7 +296,8 @@ landed or been abandoned. Keep dirty unpublished work. Remove only a clean
 worktree whose head matches the merged PR source and whose published commit is
 in fetched main; squash publication does not preserve source-head ancestry.
 
-Report the requested count, the launched count, each linked session, the base
-SHA, the parent capability, requirement removed, remaining acceptance, sample,
-and observed result. A written skill and a session count
-are not a compiler improvement.
+User-facing reports follow [Explain the change](../../../AGENTS.md#explain-the-change).
+Lead with the sample's observed result, its significance and remaining acceptance.
+Then give the parent capability and requirement removed, supporting evidence,
+requested/launched counts, linked sessions and base SHA. A written skill and a
+session count are not a compiler improvement.
