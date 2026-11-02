@@ -17,7 +17,6 @@ mod descriptor_sources;
 mod incoming_origins;
 mod invocation_returns;
 mod presence;
-mod trace;
 
 use super::{
     StoredCarrierSource, is_mutable_structural_parameter, loan_owner_path, loan_place_segments,
@@ -51,11 +50,7 @@ pub fn call_sources(
     facts: &CheckFacts,
     target: SymbolHandle,
 ) -> Option<Vec<CheckedReturnedReferencePlan>> {
-    let result = Captures { program, facts }.target_sources(target, &mut Vec::new());
-    if result.is_none() && std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
-        trace::return_sources(program, facts, target);
-    }
-    result
+    Captures { program, facts }.target_sources(target, &mut Vec::new())
 }
 
 /// A terminal call has no expression-local holder. Its normal-return capture
@@ -708,16 +703,11 @@ impl Captures<'_> {
             if incoming_leaf.crosses_reference {
                 selected = stored_loan_parts(self.program, selected)?.0;
             }
-            // The root loan already presents borrowed backing at executable
-            // ingress. Only a descriptor stored inside that backing contributes
-            // an additional pointer crossing, exactly as for public returns.
-            if selected_incoming.source == crate::borrow_contracts::ViewReturnInputSource::Stored {
-                path.extend(incoming_leaf.path);
-                if incoming_leaf.crosses_reference {
-                    path.push(CheckedReferenceOriginProjection::Exact(
-                        CheckedUnitStructuralPathSegment::Referent,
-                    ));
-                }
+            path.extend(incoming_leaf.path);
+            if incoming_leaf.crosses_reference {
+                path.push(CheckedReferenceOriginProjection::Exact(
+                    CheckedUnitStructuralPathSegment::Referent,
+                ));
             }
             incoming_segments = incoming_path;
         } else {
@@ -1085,9 +1075,18 @@ impl Captures<'_> {
             } else {
                 crate::reference_view_storage(self.program, selected, recast.target_type)?
             };
+            // Formation publishes the selected storage declaration. Routing
+            // qualifications remain on its checked reference and contract;
+            // storage joins use the same complete identity as registration,
+            // retaining scalar receiving restrictions and nested reference shape.
+            let backing_identity =
+                crate::stored_structural_type_identity(self.program, backing_type, &[], &[]);
+            let selected_identity =
+                crate::stored_structural_type_identity(self.program, selected, &[], &[]);
             if formations.next().is_some()
-                || self.program.normalized_type_identity(backing_type)
-                    != self.program.normalized_type_identity(selected)
+                || !backing_identity.is_valid()
+                || !selected_identity.is_valid()
+                || backing_identity != selected_identity
                 || storage != expected_storage
                 || self.program.normalized_type_identity(
                     crate::reference_shell(self.program, formation.type_reference)?.referee,
