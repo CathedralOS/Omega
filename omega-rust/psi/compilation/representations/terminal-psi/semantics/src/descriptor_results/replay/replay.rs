@@ -1032,6 +1032,7 @@ impl<'a> Replay<'a> {
                         .install(self, machine, &mut after, result)?;
                 }
             }
+            after.share_unchanged_slots(&before);
             // Membership-only edge reads observe the completed operation,
             // including descriptor/call effects. Keep only requested edge
             // snapshots; ordinary custody queries remain pre-operation.
@@ -1063,7 +1064,8 @@ impl<'a> Replay<'a> {
                         continue;
                     }
                 }
-                let carried = self.transfer_edge(machine, &selected, edge, &case_storage)?;
+                let mut carried = self.transfer_edge(machine, &selected, edge, &case_storage)?;
+                carried.share_unchanged_slots(&selected);
                 match states.get_mut(&edge.target) {
                     None => {
                         states.insert(edge.target, carried);
@@ -1669,6 +1671,22 @@ fn merge_state(existing: &mut State, incoming: &State) -> bool {
 }
 
 impl State {
+    /// Execute all writes first, including retirement and call effects. A
+    /// definition may clear a slot before its origin is installed again. If
+    /// the complete raw slot result is unchanged, reuse its original storage.
+    /// Contents families, invalidation and case facts remain independently
+    /// computed; equality of slots never normalizes their symbolic joins.
+    fn share_unchanged_slots(&mut self, before: &Self) {
+        if !Arc::ptr_eq(&self.slots, &before.slots)
+            && self
+                .slots
+                .keys_in_changed_pages(&before.slots)
+                .iter()
+                .all(|key| self.slots.get(key) == before.slots.get(key))
+        {
+            self.slots = before.slots.clone();
+        }
+    }
     pub(super) fn slots_mut(&mut self) -> &mut Slots {
         Arc::make_mut(&mut self.slots)
     }
@@ -1717,6 +1735,45 @@ mod snapshot_tests {
 
     fn location(number: u64) -> DescriptorLocation {
         DescriptorLocation::whole(PlaceId::new(number).unwrap())
+    }
+
+    #[test]
+    fn net_slot_rewrites_share_storage_without_erasing_contents_or_presence() {
+        let slot = location(1);
+        let original = Some(BTreeSet::from([Origin::Storage(location(2))]));
+        let mut before = State::default();
+        before.slots_mut().insert(slot.clone(), original.clone());
+        let mut after = before.clone();
+        after.slots_mut().insert(slot.clone(), None);
+        after.slots_mut().insert(slot.clone(), original.clone());
+        let query = DescriptorContentsQuery {
+            root: slot.root,
+            steps: Vec::new(),
+        };
+        after.contents_mut().insert(query.clone(), None);
+        after.contents_invalidated = true;
+        assert!(!Arc::ptr_eq(&before.slots, &after.slots));
+        after.share_unchanged_slots(&before);
+        assert!(Arc::ptr_eq(&before.slots, &after.slots));
+        assert!(after.contents_invalidated);
+        assert_eq!(after.contents.get(&query), Some(&None));
+        assert_eq!(before.contents.get(&query), None);
+        assert!(!before.contents_invalidated);
+        let missing = location(3);
+        let mut fenced = before.clone();
+        fenced.slots_mut().insert(missing.clone(), None);
+        fenced.share_unchanged_slots(&before);
+        assert!(!Arc::ptr_eq(&fenced.slots, &before.slots));
+        assert_eq!(before.slots.get(&missing), None);
+        assert_eq!(fenced.slots.get(&missing), Some(&None));
+        let mut changed = before.clone();
+        changed.slots_mut().insert(
+            slot.clone(),
+            Some(BTreeSet::from([Origin::Storage(location(4))])),
+        );
+        changed.share_unchanged_slots(&before);
+        assert!(!Arc::ptr_eq(&changed.slots, &before.slots));
+        assert_eq!(before.slots.get(&slot), Some(&original));
     }
 
     #[test]
