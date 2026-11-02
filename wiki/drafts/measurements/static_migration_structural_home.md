@@ -241,7 +241,7 @@ selected ProgramEntry establishment rejoins 0 Terminal attachment identities; ex
 `selected-dispatch` reads `attachment_type_identity` off
 `checked.facts.flow.terminal_unit_effects`, for both `machines` and
 `composed_machines`. That identity is produced in
-`04_typed-trees-to-checked-trees/src/execution/terminal_unit/`, keyed on the
+`05_typed-trees-to-checked-trees/src/execution/terminal_unit/`, keyed on the
 machine's attachment, and threaded through `providers.rs` at three call sites.
 A free entry has no attachment, so the fact is absent and no amount of work in
 Omega can supply it.
@@ -730,7 +730,7 @@ Applied to all 434 canary entries and 122 sample entries: **no**
 that batch. The shape is admitted by checking. It fails one stage later, at
 lowering, with the entry's unit plan omitted at
 `state graph: provider attachment requirements`
-(`04_typed-trees-to-checked-trees/src/execution/terminal_unit/state_graph/mod.rs:616`).
+(`05_typed-trees-to-checked-trees/src/execution/terminal_unit/state_graph/mod.rs:616`).
 405 of 427 canary fixtures and 116 of 122 sample packages move there.
 
 So the remaining customer-side population is bounded by state-graph custody

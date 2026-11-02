@@ -437,16 +437,14 @@ pub(crate) fn checked_call_target_candidate<'program>(
         reject("the selected entry has preconditions", diagnostics);
         return None;
     }
-    let proof_only = crate::proof_only_classification(program);
     if program.state_parameters(state).iter().any(|parameter| {
-        crate::proof_contracts::quotients::type_has_forbidden_denotational_content(
+        crate::proof_contracts::carrier_contents::type_has_forbidden_value_observation_content(
             program,
-            &proof_only,
             parameter.type_reference,
         )
     }) {
         reject(
-            "runtime arguments are not copy-only and custody-free",
+            "runtime arguments contain borrowed, opaque, linear or routed custody",
             diagnostics,
         );
         return None;

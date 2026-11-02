@@ -3,7 +3,7 @@
 const Count: u64 = 99;
 data Selection<const Limit: u64> [copy] { value: u64; capacity: u64; }
 machine selected<Length [copy], Count: u64, const Capacity: u64>(items: Length, prior: Selection<Count>) -> Selection<Count>
-where Length == [u8; Capacity]
+requires Length == [u8; Capacity]
 { let result: Selection<Count> = Selection { value: Count, capacity: Capacity }; result }
 machine consume(value: Selection<7>) -> Selection<7> { value }
 machine main() crashes Trap {

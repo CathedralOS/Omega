@@ -16,5 +16,6 @@ function-identity = { path = "../../../../foundation/function-identity" }
 semantic-vocabulary = { path = "../../../../../psi/foundation/semantic-vocabulary" }
 terminal-codec = { path = "../../../../../psi/compilation/representations/terminal-psi/codec" }
 terminal-installation = { path = "../../../../../psi/compilation/checking/terminal-installation" }
-effects = { path = "../provider-evidence" }
+effects = { path = "../effects" }
 optimization-core = { path = "../../../../foundation/optimization-core" }
+target = { path = "../../target" }

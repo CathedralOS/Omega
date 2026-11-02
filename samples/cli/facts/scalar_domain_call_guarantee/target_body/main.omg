@@ -9,12 +9,41 @@ Actual satisfies Query {
     }
 }
 
-macos_arm64 machine target_read(input: i64) -> i64 ensures result >= FLOOR { Query::read(input) }
-linux_arm64 machine target_read(input: i64) -> i64 ensures result >= FLOOR { Query::read(input) }
-linux_x86_64 machine target_read(input: i64) -> i64 ensures result >= FLOOR { Query::read(input) }
-windows_x86_64 machine target_read(input: i64) -> i64 ensures result >= FLOOR { Query::read(input) }
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
+}
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+boundary trait SelectedTargetRead {
+    machine target_read(input: i64) -> i64 ensures result >= FLOOR reaches SelectedBodyCheck invokes SelectedBodyCheck invokes Query crashes Trap;
+}
+X86TargetRead satisfies SelectedTargetRead {
+    machine target_read(input: i64) -> i64 ensures result >= FLOOR reaches SelectedBodyCheck invokes SelectedBodyCheck invokes Query crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);     Query::read(input)
+    }
+}
+ArmTargetRead satisfies SelectedTargetRead {
+    machine target_read(input: i64) -> i64 ensures result >= FLOOR reaches SelectedBodyCheck invokes SelectedBodyCheck invokes Query crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);     Query::read(input)
+    }
+}
+
 machine issue(input: i64) -> i64 in Nonnegative {
-    let value: i64 = target_read(input);
+    let value: i64 = SelectedTargetRead::target_read(input);
     value
 }
 
@@ -23,4 +52,12 @@ machine main() crashes Trap {
     transition value == 17 { true -> done() _ -> wrong() }
     machine done() {}
     machine wrong() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

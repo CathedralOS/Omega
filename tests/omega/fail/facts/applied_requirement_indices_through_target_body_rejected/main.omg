@@ -24,34 +24,46 @@ Provider satisfies Identity<Word> {
     ensures result in Tagged<Word>
     { value }
 }
-linux_x86_64 machine forward<Value, Alt>(value: Payload in Tagged<Value>) -> Payload in Tagged<Value>
-reaches Identity
-{
-    let result: Payload in Tagged<Value> = Identity<Value>::identity(value);
-    Identity<Value>::identity(result)
+boundary trait Forwarding {
+    machine forward<Value, Alt>(value: Payload in Tagged<Value>) -> Payload in Tagged<Value>
+    reaches Identity;
 }
-linux_arm64 machine forward<Value, Alt>(value: Payload in Tagged<Value>) -> Payload in Tagged<Value>
-reaches Identity
-{
-    let result: Payload in Tagged<Value> = Identity<Value>::identity(value);
-    Identity<Value>::identity(result)
+LinuxX86Forwarding satisfies Forwarding {
+    machine forward<Value, Alt>(value: Payload in Tagged<Value>) -> Payload in Tagged<Value>
+    reaches Identity
+    {
+        let result: Payload in Tagged<Value> = Identity<Value>::identity(value);
+        Identity<Value>::identity(result)
+    }
 }
-macos_arm64 machine forward<Value, Alt>(value: Payload in Tagged<Value>) -> Payload in Tagged<Value>
-reaches Identity
-{
-    let result: Payload in Tagged<Value> = Identity<Value>::identity(value);
-    Identity<Value>::identity(result)
+LinuxArmForwarding satisfies Forwarding {
+    machine forward<Value, Alt>(value: Payload in Tagged<Value>) -> Payload in Tagged<Value>
+    reaches Identity
+    {
+        let result: Payload in Tagged<Value> = Identity<Value>::identity(value);
+        Identity<Value>::identity(result)
+    }
 }
-windows_x86_64 machine forward<Value, Alt>(value: Payload in Tagged<Value>) -> Payload in Tagged<Value>
-reaches Identity
-{
-    let result: Payload in Tagged<Alt> = Identity<Value>::identity(value);
-    Identity<Value>::identity(result)
+MacosForwarding satisfies Forwarding {
+    machine forward<Value, Alt>(value: Payload in Tagged<Value>) -> Payload in Tagged<Value>
+    reaches Identity
+    {
+        let result: Payload in Tagged<Value> = Identity<Value>::identity(value);
+        Identity<Value>::identity(result)
+    }
+}
+WindowsForwarding satisfies Forwarding {
+    machine forward<Value, Alt>(value: Payload in Tagged<Value>) -> Payload in Tagged<Value>
+    reaches Identity
+    {
+        let result: Payload in Tagged<Alt> = Identity<Value>::identity(value);
+        Identity<Value>::identity(result)
+    }
 }
 machine field<Value>(holder: Holder<Value>) -> Payload in Tagged<Value>
-reaches Identity
+reaches Identity, Forwarding
 {
-    forward<Value, Other>(holder.value)
+    Forwarding::forward<Value, Other>(holder.value)
 }
 machine forward_pair<Outer, Inner>(value: Payload in Pair<Outer, Inner>) -> Payload in Pair<Outer, Inner>
 reaches Identity
@@ -66,7 +78,7 @@ reaches Identity
         Identity<Value>::stated(value)
     }
 }
-machine main() reaches Identity crashes Trap {
+machine main() reaches Identity, Forwarding crashes Trap {
     let value: Payload in Tagged<Word> = Payload { value: 29 };
     let holder: Holder<Word> = Holder { value: value };
     let result: Payload in Tagged<Word> = field<Word>(holder);

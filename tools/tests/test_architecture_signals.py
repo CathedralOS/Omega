@@ -16,10 +16,10 @@ from architecture_signals import (
 )
 
 CRATES = {
-    "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees": "psi:04",
+    "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees": "psi:05",
     "omega-rust/psi/compilation/checking": "validation",
 }
-STAGE_04 = "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src"
+STAGE_05 = "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src"
 CHECKING = "omega-rust/psi/compilation/checking/src"
 
 
@@ -34,8 +34,8 @@ def log(*commits):
 
 class ModuleKeyTests(unittest.TestCase):
     def test_rust_paths_name_crate_and_top_module(self):
-        self.assertEqual(module_key(f"{STAGE_04}/checks/contracts/exits.rs", CRATES),
-                         "psi:04::checks")
+        self.assertEqual(module_key(f"{STAGE_05}/checks/contracts/exits.rs", CRATES),
+                         "psi:05::checks")
         self.assertEqual(module_key(f"{CHECKING}/proof_contracts.rs", CRATES),
                          "validation::proof_contracts")
 
@@ -52,31 +52,31 @@ class ModuleKeyTests(unittest.TestCase):
 
 class HistoryTests(unittest.TestCase):
     def commits(self):
-        both = [f"{STAGE_04}/checks/a.rs", f"{CHECKING}/proof_contracts/b.rs"]
+        both = [f"{STAGE_05}/checks/a.rs", f"{CHECKING}/proof_contracts/b.rs"]
         mass = [f"omega-rust/x{index}/src/m.rs" for index in range(20)]
         return parse_history(log(
             ("2026-10-20", "psi: preserve saved values across calls", both),
             ("2026-10-21", "psi: retain loan facts through joins", both),
             ("2026-10-22", "psi: delete exit routes that never decide", both),
-            ("2026-10-23", "psi: keyword-free rename", [f"{STAGE_04}/checks/a.rs"]),
+            ("2026-10-23", "psi: keyword-free rename", [f"{STAGE_05}/checks/a.rs"]),
             ("2026-10-24", "repo: migrate every crate", mass + both),
         ), CRATES)
 
     def test_co_change_counts_cross_crate_pairs_and_skips_mass_migrations(self):
         pairs, singles, skipped = co_change(self.commits(), max_modules=15)
         self.assertEqual(skipped, 1)
-        self.assertEqual(pairs[("psi:04::checks", "validation::proof_contracts")], 3)
-        self.assertEqual(singles["psi:04::checks"], 4)
+        self.assertEqual(pairs[("psi:05::checks", "validation::proof_contracts")], 3)
+        self.assertEqual(singles["psi:05::checks"], 4)
 
     def test_same_crate_modules_are_not_a_pair(self):
         commits = parse_history(log(("2026-10-20", "psi: x", [
-            f"{STAGE_04}/checks/a.rs", f"{STAGE_04}/flow/b.rs"])), CRATES)
+            f"{STAGE_05}/checks/a.rs", f"{STAGE_05}/flow/b.rs"])), CRATES)
         pairs, _, _ = co_change(commits, 15)
         self.assertEqual(pairs, {})
 
     def test_repair_verbs_anywhere_in_the_subject(self):
         rows = {row[4]: row for row in repair_hot_spots(self.commits())}
-        repairs, total, _, recent, _ = rows["psi:04::checks"]
+        repairs, total, _, recent, _ = rows["psi:05::checks"]
         # preserve, retain, plus the mass migration's subject has no verb;
         # "keyword" is not "keep".
         self.assertEqual((repairs, total, recent), (2, 5, 2))
@@ -105,9 +105,9 @@ class CloneTests(unittest.TestCase):
         unrelated = erased_tokens("struct Grid { width: u16, cells: [u8; 64] }\n"
                                    "impl Grid { const SIZE: usize = 64; }" * 3)
         return {
-            ("psi:04::checks", "checks/custody.rs"): shingles(first, sample=1),
+            ("psi:05::checks", "checks/custody.rs"): shingles(first, sample=1),
             ("validation::value_custody", "value_custody/custody.rs"): shingles(second, sample=1),
-            ("psi:04::flow", "flow/custody.rs"): shingles(second, sample=1),
+            ("psi:05::flow", "flow/custody.rs"): shingles(second, sample=1),
             ("omega:03::other", "other/math.rs"): shingles(unrelated, sample=1),
         }
 
@@ -119,9 +119,9 @@ class CloneTests(unittest.TestCase):
     def test_renamed_reimplementations_pair_across_crates_only(self):
         rows = clone_pairs(self.files(), max_sharing=4)
         pairs = {(left[0], right[0]) for _, _, left, right in rows}
-        self.assertIn(("psi:04::checks", "validation::value_custody"), pairs)
-        self.assertIn(("psi:04::flow", "validation::value_custody"), pairs)
-        self.assertNotIn(("psi:04::checks", "psi:04::flow"), pairs)
+        self.assertIn(("psi:05::checks", "validation::value_custody"), pairs)
+        self.assertIn(("psi:05::flow", "validation::value_custody"), pairs)
+        self.assertNotIn(("psi:05::checks", "psi:05::flow"), pairs)
         self.assertFalse(any("omega:03::other" in pair for pair in pairs))
         self.assertGreater(rows[0][1], 0.9)
 
@@ -129,8 +129,8 @@ class CloneTests(unittest.TestCase):
         rows = clone_pairs(self.files(), max_sharing=4)
         mass = module_clone_mass(rows)
         self.assertEqual({row[2:] for row in mass},
-                         {("psi:04::checks", "validation::value_custody"),
-                          ("psi:04::flow", "validation::value_custody")})
+                         {("psi:05::checks", "validation::value_custody"),
+                          ("psi:05::flow", "validation::value_custody")})
         families = same_name_families(rows)
         self.assertEqual(families[0][1], "custody")
         self.assertEqual(len(families[0][2]), 3)
@@ -138,9 +138,9 @@ class CloneTests(unittest.TestCase):
     def test_shingles_shared_by_many_files_carry_no_signal(self):
         files = self.files()
         for index in range(5):
-            files[(f"crate{index}::m", "m.rs")] = files[("psi:04::checks", "checks/custody.rs")]
+            files[(f"crate{index}::m", "m.rs")] = files[("psi:05::checks", "checks/custody.rs")]
         pairs = {(left[0], right[0]) for _, _, left, right in clone_pairs(files, max_sharing=4)}
-        self.assertNotIn(("psi:04::checks", "validation::value_custody"), pairs)
+        self.assertNotIn(("psi:05::checks", "validation::value_custody"), pairs)
 
 
 PIPELINE_MD = """
@@ -148,8 +148,8 @@ PIPELINE_MD = """
 
 | Input → output | Owner |
 | --- | --- |
-| Typed → checked trees | [typed-trees-to-checked-trees](psi/compilation/pipeline/04_typed-trees-to-checked-trees/README.md) |
-| Checked trees → lowered Psi | [checked-trees-to-lowered-psi](psi/compilation/pipeline/05_checked-trees-to-lowered-psi/README.md) |
+| Typed → checked trees | [typed-trees-to-checked-trees](psi/compilation/pipeline/05_typed-trees-to-checked-trees/README.md) |
+| Checked trees → lowered Psi | [checked-trees-to-lowered-psi](psi/compilation/pipeline/06_checked-trees-to-lowered-psi/README.md) |
 | Resolved program → machine bytes | [machine-emission](omega/compilation/backend/machine-emission/README.md) |
 
 ## Next section
@@ -168,19 +168,19 @@ class CrateMapTests(unittest.TestCase):
     def mapping(self):
         root = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, root)
-        stage = "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi"
+        stage = "omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi"
         (root / stage / "src").mkdir(parents=True)
         (root / stage / "src" / "lib.rs").write_text(
             "#![forbid(unsafe_code)]\n\n//! Checked trees to Lowered Psi. More.\n//!\n//! Body.\n")
         metadata = {"packages": [
             package(root, "typed-trees-to-checked-trees",
-                    "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees",
+                    "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees",
                     ["typed-trees", "checked-trees"]),
             package(root, "checked-trees-to-lowered-psi", stage,
                     ["checked-trees", "lowered-psi", "typed-trees",
                      "typed-trees-to-checked-trees"]),
             package(root, "lowered-psi-to-terminal-psi",
-                    "omega-rust/psi/compilation/pipeline/07_lowered-psi-to-terminal-psi",
+                    "omega-rust/psi/compilation/pipeline/08_lowered-psi-to-terminal-psi",
                     ["lowered-psi", "terminal-psi"]),
             package(root, "typed-trees", "omega-rust/psi/compilation/representations/typed-trees"),
             package(root, "checked-trees",
@@ -211,7 +211,7 @@ class CrateMapTests(unittest.TestCase):
         stage = {row["crate"]: row for row in self.mapping()["stages"]}[
             "checked-trees-to-lowered-psi"]
         self.assertEqual((stage["label"], stage["input"], stage["output"]),
-                         ("psi:05", "checked-trees", "lowered-psi"))
+                         ("psi:06", "checked-trees", "lowered-psi"))
         self.assertEqual(stage["other_representations"], ["typed-trees"])
         self.assertEqual(stage["pipeline_dependencies"], ["typed-trees-to-checked-trees"])
         self.assertEqual(stage["header"], "Checked trees to Lowered Psi.")

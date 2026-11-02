@@ -3,8 +3,12 @@
 //! Start at `terminal_interpreter.rs`: it owns the raw start entry — obtain
 //! canonical program storage, construct the execution, bind its inputs — for a
 //! caller that drives the loop itself. External bytes decode once; retained
-//! artifacts are borrowed.
-//! `execution.rs` is the engine that entry drives: the live state and the
+//! artifacts are borrowed. The folders are the four roles around that entry:
+//! `embedding` (the surface a host builds on), `engine` (the loop and what it
+//! dispatches), `storage` (what the loop mutates) and `boundary` (what crosses
+//! between an execution and its host).
+//!
+//! `engine::execution` is the engine that entry drives: the live state and the
 //! interpreter loop. Execution retains immutable code and resumable live
 //! custody; fuel exhaustion is not a semantic program outcome.
 //! `runtime_rows` owns live-cell reservations for frame values/descriptors and
@@ -39,106 +43,81 @@
 //! `effects` (what it hands to the host and how host results bind), `values`,
 //! `results` and `errors` (what crosses the boundary).
 
-mod activation_storage;
-mod adapters;
-mod atomic_operations;
-mod byte_sequences;
-mod calls;
-mod capabilities;
-mod content_transformations;
-mod custody;
-mod effects;
-mod memory_ordering;
-pub use memory_ordering::TerminalMemoryOrderingEnvironment;
-mod element_views;
-mod entry_results;
-mod errors;
-mod execution;
-mod instance;
-mod primitive_storage;
-mod program;
-mod provider_storage;
-mod record;
-mod reference;
-mod result_custody;
-mod results;
-pub use entry_results::TerminalEntryResultRequest;
-mod runtime_indexes;
-mod runtime_rows;
-mod scalar_array;
-mod scalar_operations;
-mod scalar_storage;
-mod storage_addresses;
-mod structural_identities;
-mod structural_inputs;
-mod structural_operations;
-mod structural_storage;
+mod boundary;
+mod embedding;
+mod engine;
+mod storage;
 mod terminal_interpreter;
-mod terminators;
-mod values;
 
-pub use adapters::{
-    TerminalAdapterError, TerminalImportAdapter, TerminalImportSignature,
-    TerminalImportStructuralParameter, TerminalScalarImport, TerminalUnitImport,
-};
-pub use byte_sequences::read::TerminalByteRead;
-pub use capabilities::{
-    TerminalExecutionRequirements, TerminalExternalCompletionDemand, TerminalUnsupportedCapability,
-};
-pub use effects::byte_buffers::TerminalBoundaryByteBuffer;
-pub use effects::original_storage::{
+pub use boundary::entry_results::TerminalEntryResultRequest;
+pub use boundary::memory_ordering::TerminalMemoryOrderingEnvironment;
+
+pub use boundary::effects::byte_buffers::TerminalBoundaryByteBuffer;
+pub use boundary::effects::original_storage::{
     TerminalOriginalReferenceValue, TerminalOriginalScalarBackings, TerminalOriginalScalarValue,
     TerminalOriginalStorageLoan, TerminalOriginalStorageRequest, TerminalOriginalStorageRoot,
 };
-pub use effects::results::{TerminalByteSequenceValue, TerminalEffectResult};
-pub use effects::scalar_loans::TerminalBoundaryScalarBuffer;
-pub use effects::storage_inputs::{
+pub use boundary::effects::results::{TerminalByteSequenceValue, TerminalEffectResult};
+pub use boundary::effects::scalar_loans::TerminalBoundaryScalarBuffer;
+pub use boundary::effects::storage_inputs::{
     TerminalBoundaryByteViewBuffer, TerminalBoundaryReferenceSelection,
     TerminalBoundaryStorageBuffer, TerminalBoundaryStructuralBuffer,
 };
-pub use effects::{
+pub use boundary::effects::{
     AdmittedAssumedBinding, AdmittedTargetLayouts, AdmittedTargetMachineSelections,
     AssumedBindingSelection, ProviderInstallationSelection, TerminalCallStorageRequirements,
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalRuntimeSupplies,
     TerminalRuntimeSupplyRequest, TerminalX86FlagsEnvironment, admit_target_layouts,
     admit_target_machine_selections,
 };
-pub use errors::{
+pub use boundary::errors::{
     AssumedBindingRejection, ProviderInstallationError, TerminalArtifactInterpretError,
     TerminalInterpretError,
 };
-pub use execution::TerminalExecution;
-pub use instance::{
-    TerminalBindingRejection, TerminalComponentBinding, TerminalInstance,
-    TerminalInstanceCloseError, TerminalInstanceError, TerminalProcessExitAdmission,
-    TerminalStorageObservationError, TerminalStorageObservationValue,
-};
-pub use program::{
-    TerminalInstantiation, TerminalProgram, TerminalProgramEntry, TerminalScalarApplicationRequest,
-};
-pub use provider_storage::{
-    TerminalProviderStorageInput, TerminalProviderStorageRejection, TerminalReturnedProviderStorage,
-};
-pub use results::{
+pub use boundary::results::{
     TerminalCrash, TerminalCrashSite, TerminalEffectWait, TerminalExecutionResult,
     TerminalExecutionStatus, TerminalExternalCompletion, TerminalScalarCaseResult,
     TerminalStructuralResult,
 };
-pub use scalar_array::{TerminalScalarArrayResult, TerminalScalarArrayValue};
-pub use scalar_operations::float_result_policy;
-pub use scalar_storage::TerminalScalarBacking;
-pub use structural_inputs::access_views::TerminalAccessViewEstablishment;
-pub use structural_inputs::byte_arrays::TerminalStructuralByteArrayValue;
-pub use structural_inputs::contents::TerminalStructuralContents;
-pub use structural_inputs::scalar_fields::TerminalStructuralScalarFieldValue;
-pub use structural_inputs::{TerminalEstablishedErasedField, TerminalStructuralInputs};
-pub use structural_storage::contents::{TerminalBoundaryStorageValue, TerminalStorageContents};
+pub use boundary::structural_inputs::access_views::TerminalAccessViewEstablishment;
+pub use boundary::structural_inputs::byte_arrays::TerminalStructuralByteArrayValue;
+pub use boundary::structural_inputs::contents::TerminalStructuralContents;
+pub use boundary::structural_inputs::scalar_fields::TerminalStructuralScalarFieldValue;
+pub use boundary::structural_inputs::{TerminalEstablishedErasedField, TerminalStructuralInputs};
+pub use boundary::values::{
+    TerminalScalarAggregateValue, TerminalScalarValue, TerminalStructuralBooleanFieldValue,
+    TerminalStructuralPrimitiveValue, TerminalStructuralValue,
+};
+pub use embedding::adapters::{
+    TerminalAdapterError, TerminalImportAdapter, TerminalImportSignature,
+    TerminalImportStructuralParameter, TerminalScalarImport, TerminalUnitImport,
+};
+pub use embedding::instance::{
+    TerminalBindingRejection, TerminalComponentBinding, TerminalInstance,
+    TerminalInstanceCloseError, TerminalInstanceError, TerminalProcessExitAdmission,
+    TerminalStorageObservationError, TerminalStorageObservationValue,
+};
+pub use embedding::program::{
+    TerminalInstantiation, TerminalProgram, TerminalProgramEntry, TerminalScalarApplicationRequest,
+};
+pub use engine::capabilities::{
+    TerminalExecutionRequirements, TerminalExternalCompletionDemand, TerminalUnsupportedCapability,
+};
+pub use engine::execution::TerminalExecution;
+pub use engine::scalar_operations::float_result_policy;
+pub use storage::byte_sequences::read::TerminalByteRead;
+pub use storage::provider_storage::{
+    TerminalProviderBacking, TerminalProviderStorageInput, TerminalProviderStorageRejection,
+    TerminalProviderStorageRequest, TerminalProviderStorageResolver, TerminalProviderStorageSupply,
+    TerminalReturnedProviderStorage,
+};
+pub use storage::scalar_array::{TerminalScalarArrayResult, TerminalScalarArrayValue};
+pub use storage::scalar_storage::TerminalScalarBacking;
+pub use storage::structural_storage::contents::{
+    TerminalBoundaryStorageValue, TerminalStorageContents,
+};
 pub use terminal_installation::{
     AdmittedProviderSelections, admit_provider_installation,
     admit_provider_installation_from_artifact,
     admit_provider_installation_with_assumed_bindings_from_artifact,
-};
-pub use values::{
-    TerminalScalarAggregateValue, TerminalScalarValue, TerminalStructuralBooleanFieldValue,
-    TerminalStructuralPrimitiveValue, TerminalStructuralValue,
 };

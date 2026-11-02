@@ -44,7 +44,9 @@ pub(super) use constructors::{
     case_value_term, constructor_literal_term, is_case_observation, zero_constructor_operands,
     zero_value_structural_term,
 };
-pub(super) use equality::{has_identity_equality_meaning, identity_equality_terms};
+pub(super) use equality::{
+    data_identity_operand_references, has_identity_equality_meaning, identity_equality_terms,
+};
 pub(super) use scalar_operands::{
     completed_owned_carrier, scalar_operand_is_observed, scalar_operand_meaning,
     term_is_unobserved_descriptor,
@@ -418,6 +420,36 @@ pub(super) fn structural_call_target(
     caller: symbols::SymbolHandle,
     call: &typed_trees::expression::TableCallExpression,
 ) -> symbols::SymbolHandle {
+    // An abstract map's child is the invoked operation's identity. Its public
+    // signature describes the contract but is shared by other independently
+    // selected maps, so it cannot replace this symbolic application head.
+    if call.static_requirement_dispatch.is_none()
+        && let Some(receiver) = expression_table(program).name_path_node(call.receiver)
+        && receiver.symbol.is_valid()
+        && program.symbols.get(receiver.symbol).kind == symbols::SymbolKind::ConformanceParameter
+        && program
+            .evidence_bound_requirement(
+                program.symbols.get(receiver.symbol).parent,
+                receiver.symbol,
+                call.target_symbol,
+            )
+            .ok()
+            .flatten()
+            .is_some()
+    {
+        let original = if call.authored_machine_application.is_valid() {
+            expression_table(program)
+                .static_machine_application(call.authored_machine_application)
+                .registration_operation
+        } else {
+            symbols::SymbolHandle::invalid()
+        };
+        for target in [call.target_symbol, original] {
+            if target.is_valid() && program.symbols.get(target).parent == receiver.symbol {
+                return target;
+            }
+        }
+    }
     super::specification_calls::selected_call_contract(program, caller, call)
         .map(|owner| super::specification_calls::owner_symbol(&owner))
         .unwrap_or(call.target_symbol)
@@ -1015,7 +1047,7 @@ fn static_call_receiver_for_target(
     program.call_has_no_runtime_receiver_for_target(&selected)
 }
 
-fn structural_call_target_in_frame(
+pub(super) fn structural_call_target_in_frame(
     program: &dyn crate::CheckingInput,
     call: &typed_trees::expression::TableCallExpression,
     frame: Option<(
@@ -1023,6 +1055,21 @@ fn structural_call_target_in_frame(
         &[typed_trees::signature::StateParameter],
     )>,
 ) -> symbols::SymbolHandle {
+    let target = structural_call_target(
+        program,
+        frame.map_or(symbols::SymbolHandle::invalid(), |(owner, _)| owner),
+        call,
+    );
+    // A parameter telescope may refine the public signature, but cannot merge
+    // two independently supplied symbolic operations into that shared owner.
+    if target.is_valid()
+        && let Some(receiver) = expression_table(program).name_path_node(call.receiver)
+        && receiver.symbol.is_valid()
+        && program.symbols.get(receiver.symbol).kind == symbols::SymbolKind::ConformanceParameter
+        && program.symbols.get(target).parent == receiver.symbol
+    {
+        return target;
+    }
     frame
         .and_then(|(owner, parameters)| {
             super::specification_calls::selected_call_contract_for_parameters(
@@ -1030,13 +1077,7 @@ fn structural_call_target_in_frame(
             )
         })
         .map(|owner| super::specification_calls::owner_symbol(&owner))
-        .unwrap_or_else(|| {
-            structural_call_target(
-                program,
-                frame.map_or(symbols::SymbolHandle::invalid(), |(owner, _)| owner),
-                call,
-            )
-        })
+        .unwrap_or(target)
 }
 
 fn call_projection_field_symbol(

@@ -19,31 +19,11 @@ use semantic_vocabulary::PackageKeyIdentity;
 use std::sync::Arc;
 use symbols::SymbolHandle;
 
-mod calling_owners;
-
-/// Exact source correspondence and its deferred calling-owner obligation.
-/// Ordinary inherited traits may occur in a service surface without becoming
-/// boundary calling owners. Merely preparing that surface must not reject it.
+/// Exact Source correspondence. Physical calling eligibility and declaration
+/// ABI requests cross the portable boundary in the canonical calling census.
+#[derive(Default)]
 pub struct PreparedServiceRequirement {
     pub source: ServiceRequirementSource,
-    calling_eligibility: Result<(), Diagnostic>,
-    pub default_abis: Result<Vec<semantic_vocabulary::CallingAbiIdentity>, Diagnostic>,
-}
-
-impl Default for PreparedServiceRequirement {
-    fn default() -> Self {
-        Self {
-            source: ServiceRequirementSource::default(),
-            calling_eligibility: Ok(()),
-            default_abis: Ok(Vec::new()),
-        }
-    }
-}
-
-impl PreparedServiceRequirement {
-    pub fn require_calling_owner(&self) -> Result<(), Diagnostic> {
-        self.calling_eligibility.clone()
-    }
 }
 
 /// Lookup coordinates are issued by source preparation, never reconstructed
@@ -457,58 +437,12 @@ impl PreparedServiceCatalog {
         if let Some(projected) = projected {
             record.correspondence = projected.validate_correspondence();
             record.argument_owner = projected.argument_owner;
-            record.requirements =
-                self.requirements
-                    .insert_many(projected.requirements.into_iter().enumerate().map(
-                        |(ordinal, source)| {
-                            let calling_eligibility = if matches!(
-                                projected.schema,
-                                ProviderSchemaDeclaration::BoundaryTrait(_)
-                            ) {
-                                projected
-                                    .declaration
-                                    .methods
-                                    .get(ordinal)
-                                    .ok_or_else(|| {
-                                        Diagnostic::error(
-                                            "service calling row lost its ordered correspondence",
-                                        )
-                                    })
-                                    .and_then(|method| {
-                                        calling_owners::prepare(
-                                            context,
-                                            &projected.declaration,
-                                            method,
-                                            source,
-                                        )
-                                    })
-                            } else {
-                                Ok(())
-                            };
-                            PreparedServiceRequirement {
-                                source,
-                                calling_eligibility,
-                                default_abis: projected
-                                    .declaration
-                                    .methods
-                                    .get(ordinal)
-                                    .ok_or_else(|| {
-                                        Diagnostic::error(
-                                            "default ABI request lost its ordered requirement",
-                                        )
-                                    })
-                                    .and_then(|method| {
-                                        self.signatures
-                                            .default_abis(
-                                                source,
-                                                &projected.declaration,
-                                                method.requirement_identity,
-                                            )
-                                            .map_err(Diagnostic::error)
-                                    }),
-                            }
-                        },
-                    ));
+            record.requirements = self.requirements.insert_many(
+                projected
+                    .requirements
+                    .into_iter()
+                    .map(|source| PreparedServiceRequirement { source }),
+            );
             record.declaration = Some(projected.declaration);
         }
         self.records.insert(record);

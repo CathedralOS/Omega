@@ -143,13 +143,13 @@ class EncodingRoute(unittest.TestCase):
 class ParseTimings(unittest.TestCase):
     def test_parses_stage_table_and_total(self):
         output = (
-            "     123.456 ms  Stage 01: SourceFiles -> TokenStreams\n"
-            "      45.000 ms  Stage 05: TypedTrees -> CheckedTrees\n"
+            "     123.456 ms  Psi 00: SourceFiles -> TokenStreams\n"
+            "      45.000 ms  Psi 05: TypedTrees -> CheckedTrees\n"
             "     999.000 ms  total elapsed\n"
         )
         stages, total, measurements = METRICS.parse_timings(output)
         self.assertEqual(
-            stages["Stage 05: TypedTrees -> CheckedTrees"], 45.0)
+            stages["Psi 05: TypedTrees -> CheckedTrees"], 45.0)
         self.assertEqual(total, 999.0)
         self.assertEqual(measurements, [])
 

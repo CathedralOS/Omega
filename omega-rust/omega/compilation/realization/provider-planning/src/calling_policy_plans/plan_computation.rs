@@ -5,12 +5,11 @@
 use crate::calling_policy_plans::boundary_signatures::BoundaryOpaqueMovementGeometry;
 use crate::calling_policy_plans::callback_bindings::validate_retained_callback_binders;
 use crate::calling_policy_plans::{BoundaryCallingPlanRealization, MaterializedBoundarySignature};
-use build_time_evaluation::BuildTimeProgram;
 use calling_conventions::ValidatedBoundaryEntryPlan;
 use calling_conventions::callback_nominal_report_fingerprint;
 use calling_conventions::{CallingPolicy, evaluate_ordinary_boundary_entry_plan};
 use diagnostics::Diagnostic;
-use representation_planning::OpaqueRepresentationSelection;
+use representation_selections::OpaqueRepresentationSelection;
 use std::sync::{Arc, Weak};
 
 pub(crate) fn evaluate_default_calling_applications(
@@ -86,15 +85,21 @@ pub(crate) fn evaluate_default_calling_applications(
     }
     Ok(applications)
 }
-/// Prepare Source invocation admission and exact review coordinates only.
-/// Canonical publication owns declaration storage; target activation reads it.
+/// Prepare exact Source request/review coordinates and canonical helper choices.
+/// Shared inert Terminal publication precedes invocation-scoped helper choice.
+/// Canonical invocation admission runs before any target activation, including
+/// when the source owner has already been dropped.
 pub fn prepare_boundary_calling_plans(
     checked: &Arc<checked_trees::CheckedTrees>,
     services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'_>,
     target_profile: target::TargetProfile,
     opaque_representation_selections: &[OpaqueRepresentationSelection],
     package_inputs: Option<&package_compilation::PackageCompilationInputs>,
+    provider_inputs: super::CallingPolicyProviderInputs<'_>,
+    code: &super::CallingProgram,
 ) -> Result<PreparedBoundaryCallingPlans, Vec<Diagnostic>> {
+    code.require_owner(&Arc::downgrade(checked))
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
     if !std::ptr::eq(&*checked.typed, services.context().typed)
         || services.context().scope != source::DependencyScope::Product
     {
@@ -155,9 +160,13 @@ pub fn prepare_boundary_calling_plans(
                         argument_owner: instance.argument_owner,
                         requirement_machine: declaration.symbol,
                         policy_machine: policy_machine.name.as_str().to_owned(),
-                        policy_symbol: policy_machine.symbol,
                         relationship_span: request.span,
-                        admission: Ok(()),
+                        requester: match typed.symbols.source_file(request.span) {
+                            Some(file) if file.origin == source::SourceOrigin::Toolchain => semantic_vocabulary::compiler_evaluation::DeclarationCustody::Toolchain,
+                            Some(file) => file.package_identity.map(semantic_vocabulary::compiler_evaluation::DeclarationCustody::Package)
+                                .unwrap_or(semantic_vocabulary::compiler_evaluation::DeclarationCustody::UnownedUser),
+                            None => semantic_vocabulary::compiler_evaluation::DeclarationCustody::Missing,
+                        },
                         review: super::signature_review::PreparedCallingReview::prepare(
                             declaration,
                             Arc::clone(opaque_reviews.get_or_insert_with(|| {
@@ -172,55 +181,49 @@ pub fn prepare_boundary_calling_plans(
             }
         }
     }
+    let mut provider_declarations = Vec::new();
     if !pending.is_empty() {
-        // Source admission remains independent of geometry and policy results.
-        // Its exact selected-body map must agree with the canonical activation.
-        let machine_bodies = typed
-            .target_machine_families
+        let roots = pending
             .iter()
-            .filter_map(|family| {
-                typed
-                    .target_family_member(family.canonical, target_profile.target_name())
-                    .map(|body| build_time_evaluation::SelectedBuildTimeMachineBody {
-                        family: family.canonical,
-                        body: body.symbol,
+            .map(|policy| {
+                policy
+                    .canonical_instance(code)
+                    .and_then(|instance| instance.policy_declaration.clone())
+                    .map_err(|reason| {
+                        vec![Diagnostic::error(reason).with_source_span(policy.relationship_span)]
                     })
             })
-            .collect::<Vec<_>>();
-        let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(
-            typed,
-            package_inputs.map(|inputs| {
-                std::sync::Arc::new(inputs.clone())
-                    as std::sync::Arc<dyn build_time_evaluation::BuildTimeSelectionAuthority>
-            }),
-        )
-        .with_selected_machine_bodies(typed, &machine_bodies)
-        .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        for policy in &mut pending {
-            policy.admission = admission
-                .admitted_program_machine_closure_symbols(
-                    BuildTimeProgram::Checked(checked),
-                    policy.policy_symbol,
-                    build_time_evaluation::BuildTimeInvocationCustody::Source(
-                        policy.relationship_span,
-                    ),
-                )
-                .map(|_closure| ());
-        }
+            .collect::<Result<Vec<_>, _>>()?;
+        let providers = super::selected_providers::prepare(
+            services,
+            target_profile,
+            &roots,
+            &provider_inputs,
+            code,
+        )?;
+        provider_declarations = providers.declarations;
     }
     Ok(PreparedBoundaryCallingPlans {
         source_owner: Arc::downgrade(checked),
         pending,
         target: target_profile,
+        providers: provider_declarations,
+        authority: package_inputs.map(|inputs| {
+            Arc::new(inputs.clone())
+                as Arc<dyn semantic_vocabulary::compiler_evaluation::DeclarationSelectionAuthority>
+        }),
     })
 }
 
-/// Source admission and review addresses are complete before activation. This
+/// Source request and review addresses are complete before activation. This
 /// recipe keeps no checked trees alive and can run after their owner is dropped.
 pub struct PreparedBoundaryCallingPlans {
     source_owner: Weak<checked_trees::CheckedTrees>,
     pending: Vec<PreparedCallingPolicy>,
     target: target::TargetProfile,
+    providers: Vec<backend_plan::TerminalTargetProviderPlan>,
+    authority:
+        Option<Arc<dyn semantic_vocabulary::compiler_evaluation::DeclarationSelectionAuthority>>,
 }
 
 struct PreparedCallingPolicy {
@@ -233,10 +236,44 @@ struct PreparedCallingPolicy {
     argument_owner: symbols::SymbolHandle,
     requirement_machine: symbols::SymbolHandle,
     policy_machine: String,
-    policy_symbol: symbols::SymbolHandle,
     relationship_span: source::SourceSpan,
-    admission: Result<(), String>,
+    requester: semantic_vocabulary::compiler_evaluation::DeclarationCustody,
     review: Result<super::signature_review::PreparedCallingReview, String>,
+}
+
+impl PreparedCallingPolicy {
+    fn canonical_instance<'code>(
+        &self,
+        code: &'code super::CallingProgram,
+    ) -> Result<&'code terminal_psi::CallingPolicyInstance, String> {
+        let module = code.artifact.semantic_module();
+        let request = module
+            .calling_policy_requests
+            .get(self.request_ordinal)
+            .ok_or("calling policy lost its exact canonical request")?;
+        let owner = *request.declaration.as_ref().map_err(Clone::clone)?;
+        let request_owner = self.request_owner.as_ref().map_err(Clone::clone)?;
+        if module.identities.text(owner) != Some(request_owner.as_str()) {
+            return Err("calling policy request differs from its original source owner".into());
+        }
+        let instance = request
+            .instances
+            .as_ref()
+            .map_err(|reasons| reasons.join("; "))?
+            .get(self.instance_ordinal)
+            .ok_or("calling policy lost its exact canonical instance")?;
+        if !instance
+            .signatures
+            .as_ref()
+            .map_err(Clone::clone)?
+            .contains(&self.signature)
+        {
+            return Err(
+                "calling policy instance does not contain its exact declaration ABI".into(),
+            );
+        }
+        Ok(instance)
+    }
 }
 
 impl PreparedBoundaryCallingPlans {
@@ -249,56 +286,18 @@ impl PreparedBoundaryCallingPlans {
             let diagnostic = |reason: String| {
                 vec![Diagnostic::error(reason).with_source_span(policy.relationship_span)]
             };
-            policy.admission.map_err(&diagnostic)?;
             code.require_owner(&self.source_owner)
                 .map_err(&diagnostic)?;
             let module = code.artifact.semantic_module();
-            let request = module
-                .calling_policy_requests
-                .get(policy.request_ordinal)
-                .ok_or_else(|| {
-                    diagnostic("calling policy lost its exact canonical request".into())
-                })?;
-            let owner = *request
-                .declaration
-                .as_ref()
-                .map_err(|reason| diagnostic(reason.clone()))?;
-            let request_owner = policy
-                .request_owner
-                .as_ref()
-                .map_err(|reason| diagnostic(reason.clone()))?;
-            if module.identities.text(owner) != Some(request_owner.as_str()) {
-                return Err(diagnostic(
-                    "calling policy request differs from its original source owner".into(),
-                ));
-            }
-            let instance = request
-                .instances
-                .as_ref()
-                .map_err(|reasons| diagnostic(reasons.join("; ")))?
-                .get(policy.instance_ordinal)
-                .ok_or_else(|| {
-                    diagnostic("calling policy lost its exact canonical instance".into())
-                })?;
-            let applications = instance
-                .signatures
-                .as_ref()
-                .map_err(|reason| diagnostic(reason.clone()))?;
-            if !applications.contains(&policy.signature) {
-                return Err(diagnostic(
-                    "calling policy instance does not contain its exact declaration ABI".into(),
-                ));
-            }
-            let callable = *instance
-                .policy
-                .as_ref()
-                .map_err(|reason| diagnostic(reason.clone()))?;
+            let instance = policy.canonical_instance(code).map_err(&diagnostic)?;
             let (canonical, validated) = code
                 .evaluate(
-                    policy.policy_symbol,
-                    callable,
+                    instance,
                     self.target,
                     policy.signature,
+                    &self.providers,
+                    policy.requester,
+                    self.authority.as_deref(),
                 )
                 .map_err(&diagnostic)?;
             let callback_context_closed = !canonical.policy.callbacks.binders.is_empty()
@@ -314,6 +313,14 @@ impl PreparedBoundaryCallingPlans {
                 boundary_plan_application_identity(&signature, &validated).map_err(&diagnostic)?;
             evaluated.push(BoundaryCallingPlanRealization {
                 declaration: policy.signature,
+                calling_owner_application: module
+                    .identities
+                    .text(instance.declaring_application)
+                    .filter(|identity| !identity.is_empty())
+                    .ok_or_else(|| {
+                        diagnostic("calling instance lost its complete owner application".into())
+                    })?
+                    .to_owned(),
                 boundary_trait: policy.boundary_trait,
                 boundary_arguments: policy.boundary_arguments,
                 argument_owner: policy.argument_owner,

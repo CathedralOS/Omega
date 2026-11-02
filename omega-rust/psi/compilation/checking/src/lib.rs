@@ -12,6 +12,7 @@
 //! granting a checked judgment; compile-time evaluation and checking share it.
 
 pub use declarations::traits::conformance_applications;
+pub mod compiler_evaluation;
 pub mod execution_projection;
 pub mod product_entries;
 pub mod product_queries;
@@ -77,7 +78,7 @@ pub use machine_calls::calls::{
 };
 pub use machine_calls::fact_only_citations::{
     fact_only_theorem, is_fact_only_citation, is_fact_only_citation_call,
-    validate_runtime_proof_citations,
+    is_fact_only_requirement_citation, validate_runtime_proof_citations,
 };
 pub use machine_calls::static_machine_call_contracts::{
     static_machine_call_binding_bytes, static_machine_parameter_contract_bytes,
@@ -246,7 +247,8 @@ pub use value_custody::places::{
 };
 
 pub use proof_contracts::bound_expression_meaning::{
-    applied_case_membership_variant, exact_case_reference_owner, exact_domain_subject_type,
+    applied_case_membership_variant, applied_declaration_case_membership_variant,
+    exact_case_reference_owner, exact_domain_subject_type,
     has_builtin_binary_expression_meaning, has_builtin_bound_expression_meaning,
     has_builtin_decomposed_guard_meaning, has_builtin_domain_decomposed_guard_meaning,
     has_builtin_or_sealed_float_comparison_meaning, has_exact_case_membership_meaning,
@@ -269,7 +271,7 @@ pub use value_custody::intrinsic_boundaries::validate_boundary_completion_declar
 
 pub use crate::declarations::declaration_visibility::validate_declaration_visibility;
 pub use crate::declarations::selection_authority::{
-    DeclarationSelectionAuthority, RecordedDeclarationAuthority,
+    DeclarationSelectionAuthority, RecordedDeclarationAuthority, checked_selection_requirements,
     validate_authored_declaration_selections,
 };
 pub use crate::machine_calls::call_cycles::{
@@ -279,10 +281,10 @@ pub use crate::machine_calls::call_cycles::{
     ValidatedProofRecursiveComponent, ValidatedProofRecursiveEdge, ValidatedProofRecursiveMember,
     ValidatedProofRecursiveTransitionLane, ValidatedRuntimeIntegerRank,
     ValidatedRuntimeNaturalComponent, ValidatedRuntimeNaturalEdge, ValidatedRuntimeNaturalState,
-    activation_target_state_index, internal_state_index, machine_call_dependency_symbols,
-    prepare_runtime_rank_components, rank_relevance, retain_runtime_rank_component,
-    retained_internal_rank_nonincrease, retained_runtime_natural_components,
-    retained_runtime_recursive_components,
+    activation_target_state_index, infer_checked_proof_recursive_machines, internal_state_index,
+    machine_call_dependency_symbols, prepare_runtime_rank_components, rank_relevance,
+    retain_runtime_rank_component, retained_internal_rank_nonincrease,
+    retained_runtime_natural_components, retained_runtime_recursive_components,
 };
 pub use crate::machine_calls::calls::{
     AssignmentStorageOrigins, AssignmentWriteTarget, CallFrameResolver, CallWriteOrigins,
@@ -302,7 +304,8 @@ pub use crate::machine_calls::denotational_calls::{
 pub use crate::machine_calls::fact_call_projections::has_checked_denotational_call_identity;
 pub use crate::proof_contracts::slice_ranking::slice_tail_strictly_decreases;
 pub use crate::value_custody::cleanup::{
-    nominal_cleanup_machine_for_type, nominal_cleanup_owner, validate_reserved_cleanup_selections,
+    nominal_cleanup_machine_for_type, nominal_cleanup_owner, nominal_cleanup_target,
+    validate_reserved_cleanup_selections,
 };
 pub use crate::value_custody::content_conservation::{
     ContentBoundaryBodyRequirement, ContentConservationSourcePlan,
@@ -344,10 +347,10 @@ pub use declarations::traits::{
     revalidate_named_implementation, revalidate_top_level_requirement_realization,
 };
 pub use machine_calls::effect_inference::{
-    boundary_signature_service_reach, declared_machine_invocations, declared_signature_invocations,
+    declared_machine_invocations, declared_signature_invocations,
     fixed_installation_boundary_service_reach, has_self_forwarded_boundary_parameter,
     infer_operational_may, infer_operational_may_for_dependencies, infer_service_reaches,
-    infer_synchronous_invocations, invocation_target_label,
+    infer_synchronous_invocations, invocation_target_label, trait_signature_service_reach,
 };
 pub use machine_calls::effects::{
     AsmAuthorityAdmission, validate_asm_discharge, validate_behavior_plan,
@@ -387,7 +390,7 @@ pub use proof_contracts::properties::{
     DeclaredPropertyRequirement, OpaqueDataPropertyReceipt, OpaqueDataPropertyReceiptKind,
     TypeCarryRequirements, declared_property_requirements, effective_data_carry_policy,
     effective_type_carry_policy, effective_type_carry_requirements,
-    type_satisfies_declared_property,
+    substituted_type_satisfies_copy, type_satisfies_declared_property,
 };
 pub use proof_contracts::proposition_entailment::select_named_evidence_implementation;
 pub use proof_contracts::quotients::{

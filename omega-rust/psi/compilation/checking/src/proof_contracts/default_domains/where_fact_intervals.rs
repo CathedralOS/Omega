@@ -1,8 +1,8 @@
-//! Default-domain interval guarantees and logical consequences.
+//! Complete default-domain interval contracts.
 //!
-//! Occurrence-independent reads use only the complete interval-only store
-//! contract. A consequence of a mixed predicate is useful only when its caller
-//! independently knows that predicate holds for the value being considered.
+//! Occurrence-independent reads and stores use an envelope only when it
+//! accounts for every declared conjunct. Coupled parent restoration uses
+//! captured current storage and the complete predicate instead.
 
 use crate::frozen_program::expression_table;
 use typed_trees::data::DataMember;
@@ -13,144 +13,7 @@ use typed_trees::machine::Machine;
 use typed_trees::state::State;
 
 use super::place_queries::data_definition_for_expression;
-use super::symbolic_values::integer_literal_value;
 use crate::proof_contracts::arithmetic_domains::{BigIntInterval, Interval};
-
-/// Necessary interval consequences of an established data predicate. These
-/// are not standing read hypotheses: a restoration window may falsify the
-/// predicate while leaving ordinary scalar contents readable.
-fn field_fact_interval(
-    program: &dyn crate::CheckingInput,
-    definition: &DataDefinition,
-    field: &str,
-) -> Option<Interval> {
-    if definition.where_facts.is_empty() {
-        return None;
-    }
-    let field_symbol = program
-        .data_members(definition)
-        .iter()
-        .filter_map(|member| member.as_field())
-        .find(|candidate| candidate.name.as_str() == field)?
-        .symbol;
-    if let Some((_, low, high)) = data_where_field_intervals(program, definition)
-        .into_iter()
-        .flatten()
-        .find(|(symbol, _, _)| {
-            program.data_members(definition).iter().any(|member| {
-                member.as_field().is_some_and(|candidate| {
-                    candidate.symbol == *symbol && candidate.name.as_str() == field
-                })
-            })
-        })
-    {
-        return Some(Interval { low, high });
-    }
-
-    let mut interval = Interval {
-        low: None,
-        high: None,
-    };
-    let mut refined = false;
-    // A fact spelled `a && b` states both conjuncts, exactly as `a, b` does.
-    let mut conjuncts = program
-        .proof_facts
-        .span_or_empty(definition.where_facts)
-        .iter()
-        .filter_map(|fact| match fact {
-            typed_trees::domain::ProofFact::Expression(expression) => Some(*expression),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    while let Some(fact_expression) = conjuncts.pop() {
-        let Some(binary) = expression_table(program).binary_node(fact_expression) else {
-            continue;
-        };
-        if binary.operator == BinaryOperator::And {
-            conjuncts.extend([binary.left, binary.right]);
-            continue;
-        }
-        // R2 rung 3 slice 10 -- PRODUCT hypotheses (`count * stride <= len`,
-        // ch12's canonical shape): when OUR field is one FACTOR of a
-        // product bounded above, the field's upper bound is
-        // bound.high / co-factor.low (floor) -- SOUND iff the co-factor's
-        // lower bound is >= 1 (from its declared range or a sibling
-        // literal fact) and the field's primitive is UNSIGNED (>= 0).
-        if matches!(
-            binary.operator,
-            BinaryOperator::LessOrEqual | BinaryOperator::Less
-        ) && let ExpressionNode::Binary(product) =
-            expression_table(program).expression(binary.left)
-            && matches!(product.operator, BinaryOperator::Multiply)
-        {
-            let factor = if side_selects_field(program, product.left, field_symbol) {
-                Some(product.right)
-            } else if side_selects_field(program, product.right, field_symbol) {
-                Some(product.left)
-            } else {
-                None
-            };
-            if let Some(factor) = factor
-                && field_is_unsigned(program, definition, field_symbol)
-                && let Some(factor_low) = factor_lower_bound(program, definition, factor)
-                && factor_low >= 1
-                && let Some(bound) = bound_source_interval(program, definition, binary.right)
-                && let Some(mut bound_high) = bound.high
-            {
-                if matches!(binary.operator, BinaryOperator::Less) {
-                    bound_high = bound_high.saturating_sub(1);
-                }
-                let high = bound_high.div_euclid(factor_low);
-                interval.high = Some(interval.high.map_or(high, |current| current.min(high)));
-                refined = true;
-                continue;
-            }
-        }
-        let (field_side_left, other) = if side_selects_field(program, binary.left, field_symbol) {
-            (true, binary.right)
-        } else if side_selects_field(program, binary.right, field_symbol) {
-            (false, binary.left)
-        } else {
-            continue;
-        };
-        let Some(other_interval) = bound_source_interval(program, definition, other) else {
-            continue;
-        };
-        let operator = if field_side_left {
-            binary.operator
-        } else {
-            binary.operator.mirrored()
-        };
-        match operator {
-            BinaryOperator::LessOrEqual => {
-                if let Some(high) = other_interval.high {
-                    interval.high = Some(interval.high.map_or(high, |current| current.min(high)));
-                    refined = true;
-                }
-            }
-            BinaryOperator::Less => {
-                if let Some(high) = other_interval.high.and_then(|high| high.checked_sub(1)) {
-                    interval.high = Some(interval.high.map_or(high, |current| current.min(high)));
-                    refined = true;
-                }
-            }
-            BinaryOperator::GreaterOrEqual => {
-                if let Some(low) = other_interval.low {
-                    interval.low = Some(interval.low.map_or(low, |current| current.max(low)));
-                    refined = true;
-                }
-            }
-            BinaryOperator::Greater => {
-                if let Some(low) = other_interval.low.and_then(|low| low.checked_add(1)) {
-                    interval.low = Some(interval.low.map_or(low, |current| current.max(low)));
-                    refined = true;
-                }
-            }
-            _ => {}
-        }
-    }
-    refined.then_some(interval)
-}
 
 /// The per-field intervals a data declaration's `where` facts state when
 /// every conjunct either compares an own field with an integer literal or
@@ -192,10 +55,10 @@ pub fn case_where_field_intervals(
 /// `where` facts is a literal false witness (the `0` an instance's refuted
 /// `T == i32` leaves behind in generic synthesis, or an authored `where
 /// false`). Typing's exhaustiveness count excludes such a case
-/// (`exhaustiveness::variant_is_impossible` in stage 03), so a dispatch may
+/// (`exhaustiveness::variant_is_impossible` in Psi 03), so a dispatch may
 /// omit it without a `_` arm. Every later roster of the instance's cases —
 /// the checked structural shape, the closed-sum terminator, the permission
-/// schedule's run coverage, stage 05's computed-case bindings — applies this
+/// schedule's run coverage, Psi 06's computed-case bindings — applies this
 /// same rule, or one of them would demand an arm, a tag or a successor for
 /// a value that cannot exist. Facts that need evaluation are not
 /// contradictions and keep the case.
@@ -554,16 +417,6 @@ fn field_literal_bounds(
     Some(bounds)
 }
 
-/// The interval a data declaration's literal `where` conjuncts state on `field`,
-/// independent of whether the declaration also carries relational conjuncts.
-pub(crate) fn field_literal_where_interval(
-    program: &dyn crate::CheckingInput,
-    definition: &DataDefinition,
-    field: &str,
-) -> Option<Interval> {
-    field_fact_interval(program, definition, field)
-}
-
 /// The interval a store to `target` must land in when the target is a field
 /// (or an immutable local exclusive loan of a field) of data whose facts are
 /// all interval-only: every store re-proves its own field's interval, which is
@@ -606,6 +459,14 @@ pub(crate) fn stored_field_where_interval(
         }
     }
     let member = expression_table(program).member_node(target)?;
+    if crate::value_custody::recasts::pending_views::withholds_default_predicate(
+        program,
+        machine,
+        state,
+        member.receiver,
+    ) {
+        return None;
+    }
     let definition =
         data_definition_for_expression(program, machine, Some(state), member.receiver)?;
     let field = program
@@ -630,117 +491,4 @@ fn side_selects_field(
         && expression_table(program)
             .name_path_node(expression)
             .is_some_and(|path| path.symbol == field)
-}
-
-/// The bound-supplying side's SOUND interval: a literal is itself; a
-/// co-field name reads its DECLARED range (or full type width) from the
-/// data definition's own members.
-fn bound_source_interval(
-    program: &dyn crate::CheckingInput,
-    definition: &DataDefinition,
-    expression: ExpressionHandle,
-) -> Option<Interval> {
-    match expression_table(program).expression(expression) {
-        ExpressionNode::Integer(value) => {
-            let literal = value
-                .decimal_value_i128()
-                .and_then(|value| i64::try_from(value).ok())?;
-            Some(Interval {
-                low: Some(literal),
-                high: Some(literal),
-            })
-        }
-        ExpressionNode::Name(path) => {
-            let field = program
-                .data_members(definition)
-                .iter()
-                .filter_map(|member| member.as_field())
-                .find(|field| field.symbol.is_valid() && field.symbol == path.symbol)?;
-            crate::proof_contracts::arithmetic_domains::range_constraint_interval(
-                program,
-                field.type_reference,
-            )
-        }
-        _ => None,
-    }
-}
-
-/// Slice 10: is the definition's named field an UNSIGNED primitive (its
-/// values are >= 0 -- the product-division soundness guard)?
-fn field_is_unsigned(
-    program: &dyn crate::CheckingInput,
-    definition: &DataDefinition,
-    field: symbols::SymbolHandle,
-) -> bool {
-    program
-        .data_members(definition)
-        .iter()
-        .find_map(|member| match member {
-            DataMember::Field(data_field)
-                if data_field.symbol.is_valid() && data_field.symbol == field =>
-            {
-                program.primitive_type_reference(data_field.type_reference)
-            }
-            _ => None,
-        })
-        .is_some_and(|primitive| {
-            matches!(
-                primitive,
-                typed_trees::unsigned_integer_primitive_pattern!()
-            )
-        })
-}
-
-/// Slice 10: a co-factor's LOWER bound -- its declared range, or a sibling
-/// literal fact (`stride >= 40` / `40 <= stride`), single level.
-fn factor_lower_bound(
-    program: &dyn crate::CheckingInput,
-    definition: &DataDefinition,
-    factor: ExpressionHandle,
-) -> Option<i64> {
-    let path = expression_table(program).name_path_node(factor)?;
-    let factor_symbol = program
-        .data_members(definition)
-        .iter()
-        .filter_map(|member| member.as_field())
-        .find(|field| field.symbol.is_valid() && field.symbol == path.symbol)?
-        .symbol;
-    if let Some(interval) = bound_source_interval(program, definition, factor)
-        && let Some(low) = interval.low
-    {
-        return Some(low);
-    }
-    for fact in program.proof_facts.span_or_empty(definition.where_facts) {
-        let Some(expression) = fact.as_expression() else {
-            continue;
-        };
-        let Some(binary) = expression_table(program).binary_node(*expression) else {
-            continue;
-        };
-        let bound = match binary.operator {
-            BinaryOperator::GreaterOrEqual
-                if side_selects_field(program, binary.left, factor_symbol) =>
-            {
-                integer_literal_value(program, binary.right).map(|value| value as i64)
-            }
-            BinaryOperator::Greater if side_selects_field(program, binary.left, factor_symbol) => {
-                integer_literal_value(program, binary.right)
-                    .map(|value| (value as i64).saturating_add(1))
-            }
-            BinaryOperator::LessOrEqual
-                if side_selects_field(program, binary.right, factor_symbol) =>
-            {
-                integer_literal_value(program, binary.left).map(|value| value as i64)
-            }
-            BinaryOperator::Less if side_selects_field(program, binary.right, factor_symbol) => {
-                integer_literal_value(program, binary.left)
-                    .map(|value| (value as i64).saturating_add(1))
-            }
-            _ => None,
-        };
-        if let Some(bound) = bound {
-            return Some(bound);
-        }
-    }
-    None
 }

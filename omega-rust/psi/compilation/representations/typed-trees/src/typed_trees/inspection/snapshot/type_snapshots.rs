@@ -101,6 +101,7 @@ pub struct OpenIndexOperationSnapshot {
     pub algebra_alias: Option<String>,
     pub commutativity_licensed: bool,
     pub associativity_licensed: bool,
+    pub distributes_over: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -276,6 +277,7 @@ pub(crate) fn type_reference_snapshot(
                             algebra_alias: operation.algebra_alias.clone(),
                             commutativity_licensed: operation.commutativity_licensed,
                             associativity_licensed: operation.associativity_licensed,
+                            distributes_over: operation.distributes_over.clone(),
                         })
                         .collect(),
                 }),

@@ -264,13 +264,12 @@ fn execute_policy(
     signature: &provider_planning::calling_policy_plans::CallingPolicySignature,
     application: &calling_conventions::BoundaryCallingApplication,
 ) -> Result<(), String> {
+    use build_evaluation::evaluate_terminal_calling_policy;
     use evaluation_accounting::{
         BuildEvaluationSponsor, BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity,
         TerminalStorageScheduleIdentity,
     };
-    use provider_planning::calling_policy_plans::{
-        TerminalCallingPolicyInvocation, evaluate_terminal_calling_policy,
-    };
+    use provider_planning::calling_policy_plans::TerminalCallingPolicyInvocation;
     use terminal_psi::TargetMachineCallable;
     let module = artifact.semantic_module();
     // This selector is authored inspection data, not production policy lookup.
@@ -334,12 +333,25 @@ fn execute_policy(
     let account = sponsor
         .begin_invocation(measurement, 1_000_000)
         .map_err(|error| error.to_string())?;
+    let admission = provider_planning::calling_policy_plans::admit_terminal_calling_policy(
+        artifact,
+        module
+            .scalar_applications
+            .proof_scope
+            .callable_declaration(entry)
+            .ok_or("callback inspection policy lost its checked declaration")?,
+        target,
+        &[],
+        semantic_vocabulary::compiler_evaluation::DeclarationCustody::Missing,
+        None,
+    )?;
     let (plan, fuel) = evaluate_terminal_calling_policy(TerminalCallingPolicyInvocation {
         artifact,
         entry,
         target,
         signature,
         account,
+        admission,
     })?;
     if plan != application.plan || fuel.total_units() == 0 {
         return Err(

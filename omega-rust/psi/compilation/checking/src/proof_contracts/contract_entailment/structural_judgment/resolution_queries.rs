@@ -10,6 +10,7 @@
 //! enclosing query. Changed immutable inputs or dependency observers decline
 //! memoization; no partial read set can authorize reuse.
 
+use super::resolution_inputs::{InputOwner, ResolutionInputs};
 use super::{StructuralJudge, StructuralJudgment, StructuralTerm};
 use std::collections::HashMap;
 use std::hash::{DefaultHasher, Hash, Hasher};
@@ -64,7 +65,9 @@ struct CompletedResolution<'program> {
     fingerprint: u64,
     kind: StructuralQueryKind,
     term: StructuralTerm,
-    context: StructuralJudge<'program>,
+    inputs: ResolutionInputs<'program>,
+    specification_terms: bool,
+    returned_field_trace: Option<InputOwner<'program>>,
     reads: Vec<ApplicationRead>,
     depth: usize,
     resolution_depth: usize,
@@ -160,9 +163,10 @@ impl<'program> CompletedResolutions<'program> {
                 entry.kind == kind
                     && entry.depth == depth
                     && entry.resolution_depth == judge.application_resolution_depth()
-                    && entry.context.specification_terms == judge.specification_terms
-                    && entry.context.same_returned_field_trace(judge)
-                    && entry.context.same_resolution_inputs(judge)
+                    && entry.specification_terms == judge.specification_terms
+                    && entry.returned_field_trace
+                        == judge.returned_field_trace.as_ref().map(InputOwner::new)
+                    && entry.inputs.same_inputs(&judge.resolution_inputs())
                     && entry.term.same_resolution_payload(term)
                     && entry.reads.iter().all(|read| {
                         judge.application_is_active_in_mode(
@@ -295,11 +299,11 @@ impl<'program> StructuralJudge<'program> {
             }
             phase_profile::count(
                 match kind {
-                    StructuralQueryKind::Resolution => "05.resolution.completed.hit",
+                    StructuralQueryKind::Resolution => "psi.05.resolution.completed.hit",
                     StructuralQueryKind::IntegerProjection => {
-                        "05.resolution.integer_projection.hit"
+                        "psi.05.resolution.integer_projection.hit"
                     }
-                    StructuralQueryKind::Predicate => "05.resolution.predicate.hit",
+                    StructuralQueryKind::Predicate => "psi.05.resolution.predicate.hit",
                 },
                 1,
             );
@@ -307,9 +311,9 @@ impl<'program> StructuralJudge<'program> {
         }
         phase_profile::count(
             match kind {
-                StructuralQueryKind::Resolution => "05.resolution.completed.miss",
-                StructuralQueryKind::IntegerProjection => "05.resolution.integer_projection.miss",
-                StructuralQueryKind::Predicate => "05.resolution.predicate.miss",
+                StructuralQueryKind::Resolution => "psi.05.resolution.completed.miss",
+                StructuralQueryKind::IntegerProjection => "psi.05.resolution.integer_projection.miss",
+                StructuralQueryKind::Predicate => "psi.05.resolution.predicate.miss",
             },
             1,
         );
@@ -331,13 +335,15 @@ impl<'program> StructuralJudge<'program> {
             .ok()
             .and_then(|reads| reads.clone());
         if let Some(reads) = reads {
-            phase_profile::count("05.resolution.dependencies.retained", reads.len() as u64);
+            phase_profile::count("psi.05.resolution.dependencies.retained", reads.len() as u64);
             if let Ok(mut cache) = cache.lock() {
                 cache.insert(CompletedResolution {
                     fingerprint,
                     kind,
                     term: input,
-                    context,
+                    inputs: self.resolution_inputs(),
+                    specification_terms: self.specification_terms,
+                    returned_field_trace: self.returned_field_trace.as_ref().map(InputOwner::new),
                     reads,
                     depth,
                     resolution_depth: self.application_resolution_depth(),
@@ -345,7 +351,7 @@ impl<'program> StructuralJudge<'program> {
                 });
             }
         } else {
-            phase_profile::count("05.resolution.dependencies.unavailable", 1);
+            phase_profile::count("psi.05.resolution.dependencies.unavailable", 1);
         }
         value
     }
@@ -662,44 +668,6 @@ impl<'program> StructuralJudge<'program> {
             && Arc::ptr_eq(&self.case_facts, &other.case_facts)
             && Arc::ptr_eq(&self.case_substitutions, &other.case_substitutions)
             && self.hypotheses_contradictory == other.hypotheses_contradictory
-    }
-
-    /// A traversal may reuse only the same immutable proof/storage inputs and
-    /// the same dynamic resolution observers. This is stricter than resolver
-    /// membership, whose query records independently replay their reads.
-    pub(in crate::proof_contracts::contract_entailment) fn same_traversal_inputs(
-        &self,
-        other: &Self,
-    ) -> bool {
-        fn same_owner<T>(left: &Option<Arc<T>>, right: &Option<Arc<T>>) -> bool {
-            match (left, right) {
-                (None, None) => true,
-                (Some(left), Some(right)) => Arc::ptr_eq(left, right),
-                _ => false,
-            }
-        }
-        self.same_resolution_inputs(other)
-            && self.specification_terms == other.specification_terms
-            && self.same_returned_field_trace(other)
-            && same_owner(&self.active_application, &other.active_application)
-            && same_owner(
-                &self.resolution_observations,
-                &other.resolution_observations,
-            )
-            && self.ring_licenses.len() == other.ring_licenses.len()
-            && self
-                .ring_licenses
-                .iter()
-                .zip(&other.ring_licenses)
-                .all(|(left, right)| left.add_machine == right.add_machine)
-            && self.semiring_licenses.len() == other.semiring_licenses.len()
-            && self
-                .semiring_licenses
-                .iter()
-                .zip(&other.semiring_licenses)
-                .all(|(left, right)| {
-                    left.add_machine == right.add_machine && left.mul_machine == right.mul_machine
-                })
     }
 }
 

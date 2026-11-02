@@ -118,11 +118,16 @@ impl Captures<'_> {
         target: SymbolHandle,
         active: &mut Vec<SymbolHandle>,
     ) -> Option<Vec<CheckedReturnedReferencePlan>> {
-        if let Some(slot) = self.program.dynamic_slot_by_symbol(target) {
+        if !crate::call_target_has_checked_body_contract(self.program, target) {
+            // An abstract invocation owns its public lifetime relation. Its
+            // result descriptor is present even though there is no private
+            // return graph to inspect. The same declared frontier serves
+            // direct requirements, static callbacks and dynamic slots; it
+            // neither chooses a provider nor invents a concrete backing.
             return super::declared_returns::returned_sources(
                 self.program,
-                &slot.parameters,
-                slot.return_type,
+                crate::call_target_parameters(self.program, target)?,
+                crate::call_target_return_type(self.program, target)?,
             )
             .ok();
         }
@@ -136,6 +141,16 @@ impl Captures<'_> {
     ) -> Option<Vec<CheckedReturnedReferencePlan>> {
         if active.contains(&state.symbol) || active.len() >= super::MAX_REFERENCE_ORIGIN_DEPTH {
             return None;
+        }
+        if !crate::normal_completion_possible(self.program, state)? {
+            // A machine proved never to complete normally publishes no result,
+            // so it owes no returned reference origins. Its own state graph and
+            // every caller capture read this same empty roster; a caller arm
+            // that forwards completion here contributes no descriptors. The
+            // proof follows completion through nested and other machines, so
+            // the declaration owner of a crash-only destination does not
+            // matter. Potentially returning machines keep the full capture.
+            return Some(Vec::new());
         }
         active.push(state.symbol);
         let result = self.normal_returns(state, active, None);
@@ -183,9 +198,17 @@ impl Captures<'_> {
                 StatementNode::Expression(expression)
                     if statement_index + 1 == statements.len() =>
                 {
+                    if !crate::expression_normal_completion_possible(self.program, *expression)? {
+                        continue;
+                    }
                     let target = Default::default();
-                    let call =
-                        self.ordinary_return_call(state, statement_index, target, *expression)?;
+                    let call = self.ordinary_return_call(
+                        state,
+                        statement_index,
+                        target,
+                        *expression,
+                        loans,
+                    )?;
                     sites.push((target, Some(*expression), call));
                 }
                 StatementNode::Transition(transition) => {
@@ -198,11 +221,25 @@ impl Captures<'_> {
                         }
                         match self.program.statement_table.transition_target(target) {
                             TransitionTargetNode::Value(expression) => {
+                                // A terminal call proved never to complete
+                                // normally (into a nested or other machine
+                                // that only crashes) yields no result. Its
+                                // call-site loan would otherwise publish an
+                                // invocation-owned origin for a value that is
+                                // never produced. Potentially returning calls
+                                // keep their full capture obligation.
+                                if !crate::expression_normal_completion_possible(
+                                    self.program,
+                                    *expression,
+                                )? {
+                                    continue;
+                                }
                                 let call = self.ordinary_return_call(
                                     state,
                                     statement_index,
                                     target,
                                     *expression,
+                                    loans,
                                 )?;
                                 sites.push((target, Some(*expression), call));
                             }
@@ -318,14 +355,16 @@ impl Captures<'_> {
         completed.then_some(output)
     }
 
-    /// Whole ordinary results use the callee's complete body relation. Abstract
-    /// requirements retain the existing captured-expression contract owner.
+    /// Input-relative ordinary results use the callee's finite body relation.
+    /// Already formed independent permissions use the common captured-loan
+    /// projection, as do abstract invocations and constructors.
     fn ordinary_return_call(
         &self,
         state: &State,
         statement_index: usize,
         target: typed_trees::statement::TransitionTargetHandle,
         expression: ExpressionHandle,
+        loans: &[checked_trees::BorrowReturnedLoanFact],
     ) -> Option<Option<&checked_trees::FlowCallFact>> {
         let Some(call) = expression_table(self.program).call_node(expression) else {
             return Some(None);
@@ -339,8 +378,35 @@ impl Captures<'_> {
         {
             return Some(None);
         }
-        self.return_call(state, statement_index, target, expression)
-            .map(Some)
+        let occurrence = self.return_call(state, statement_index, target, expression)?;
+        let mut supplied = false;
+        let independent = loans.iter().filter(|loan| {
+            loan.lineage != checked_trees::BorrowLoanLineage::LifetimeDependency
+                && loan.statement_index == statement_index
+                && loan.transition_target == target
+        }).all(|loan| {
+            supplied = true;
+            loan.root == facts::PlaceRoot::Expression(expression)
+                && self.facts.borrow.incoming_references.is_valid(loan.incoming_reference)
+                && matches!(self.facts.borrow.incoming_references.get(loan.incoming_reference),
+                    checked_trees::IncomingReferenceIdentity {
+                        state_symbol,
+                        origin: checked_trees::IncomingReferenceOrigin::Invocation {
+                            expression: actual,
+                            target: actual_target,
+                        }, ..
+                    } if *state_symbol == state.symbol && *actual == expression
+                        && crate::call_target_entry_symbol(self.program, *actual_target) == occurrence.target_symbol)
+        });
+        // Formation has already established these exact independent descriptor
+        // permissions. Consume the same returned-loan roster as a constructor
+        // or abstract call; no input substitution or private backing is owed.
+        // Every other relation keeps the finite ordinary-call/SCC transport.
+        if supplied && independent {
+            Some(None)
+        } else {
+            Some(Some(occurrence))
+        }
     }
 
     fn return_call(
@@ -592,7 +658,7 @@ impl Captures<'_> {
             if let IncomingReferenceOrigin::Invocation { expression, target } = incoming.origin {
                 if incoming.state_symbol != state.symbol
                     || loan.root != facts::PlaceRoot::Expression(expression)
-                    || !matches!(expression_table(self.program).expression(expression), typed_trees::expression::ExpressionNode::Call(call) if call.target_symbol == target)
+                    || !matches!(expression_table(self.program).expression(expression), typed_trees::expression::ExpressionNode::Call(call) if crate::call_target_symbol(self.program, call) == target)
                 {
                     return None;
                 }
@@ -600,8 +666,26 @@ impl Captures<'_> {
                 if !reference_access_can_supply(shell.access.into(), leaf.source.access) {
                     return None;
                 }
+                let references =
+                    super::declared_carrier_references(self.program, incoming.carrier_type)?;
+                let [reference] = references.as_slice() else {
+                    return None;
+                };
+                if !reference.path.is_empty() {
+                    return None;
+                }
+                let (selected, prefix) = if reference.crosses_reference {
+                    (
+                        shell.referee,
+                        vec![CheckedReferenceOriginProjection::Exact(
+                            CheckedUnitStructuralPathSegment::Referent,
+                        )],
+                    )
+                } else {
+                    (incoming.carrier_type, Vec::new())
+                };
                 let (suffix, endpoint, extent) =
-                    super::reference_origin_path(self.program, shell.referee, segments)?;
+                    super::reference_origin_path(self.program, selected, segments)?;
                 let identity = self.program.normalized_type_identity(endpoint);
                 if identity != leaf.source.type_identity {
                     return None;
@@ -611,11 +695,7 @@ impl Captures<'_> {
                         carrier_type: self.program.normalized_type_identity(incoming.carrier_type),
                     },
                     entry_reference_hops: 0,
-                    path: std::iter::once(CheckedReferenceOriginProjection::Exact(
-                        CheckedUnitStructuralPathSegment::Referent,
-                    ))
-                    .chain(suffix)
-                    .collect(),
+                    path: prefix.into_iter().chain(suffix).collect(),
                     extent,
                     type_identity: identity,
                     access: leaf.source.access,
@@ -1021,9 +1101,18 @@ impl Captures<'_> {
             } else {
                 crate::reference_view_storage(self.program, selected, recast.target_type)?
             };
+            // Formation publishes the selected storage declaration. Routing
+            // qualifications remain on its checked reference and contract;
+            // storage joins use the same complete identity as registration,
+            // retaining scalar receiving restrictions and nested reference shape.
+            let backing_identity =
+                crate::stored_structural_type_identity(self.program, backing_type, &[], &[]);
+            let selected_identity =
+                crate::stored_structural_type_identity(self.program, selected, &[], &[]);
             if formations.next().is_some()
-                || self.program.normalized_type_identity(backing_type)
-                    != self.program.normalized_type_identity(selected)
+                || !backing_identity.is_valid()
+                || !selected_identity.is_valid()
+                || backing_identity != selected_identity
                 || storage != expected_storage
                 || self.program.normalized_type_identity(
                     crate::reference_shell(self.program, formation.type_reference)?.referee,

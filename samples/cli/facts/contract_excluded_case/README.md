@@ -93,14 +93,14 @@ Its twin replaces the branch condition with `true`, so no equation reaches the
   that admits both alternatives excludes nothing, and listing the wrong arm
   (`Boolean` under `T == i32`) leaves `Integer` owed; the last two were run as
   probes, not pinned.
-- **Checked-to-Terminal Psi lowering (`Psi 05–07`):** each specialization lowers
+- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** each specialization lowers
   a closed `Value<i32>` or `Value<bool>` whose refuted case is already absent
   from the sum; the omitted arm adds no roster entry.
 - **Runtime falsifier:** `main()` observes four distinct results through two
   extractors, so a mis-selected arm or payload traps; flipping one expected
   value makes the program trap.
 - **Open:** a `transition` over the same subject still owes the excluded case.
-  Its coverage pass (`exhaustiveness.rs` in stage 03) runs on resolved trees,
+  Its coverage pass (`exhaustiveness.rs` in Psi 03) runs on resolved trees,
   before any proof judgment exists, so it cannot see the contract
   (`match over Value does not cover Value::Boolean`). A dispatch inside a branch
   that a specialization makes unreachable keeps its refuted arm and is refused.

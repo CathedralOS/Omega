@@ -436,6 +436,7 @@ fn scan_expression(
             // A borrowed empty-field view shares the ordinary construction
             // obligations without inserting a synthetic authored expression.
             let literal = TableStructLiteral {
+                application_type: Default::default(),
                 type_name: owner.name.clone(),
                 type_symbol: owner.symbol,
                 case_name: Some(variant.name.clone()),

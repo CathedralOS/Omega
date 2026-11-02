@@ -142,8 +142,7 @@ fn validate_carrier(
         }
     };
     match &declaration.shape {
-        S::BindingCarrier
-        | S::Reference { .. }
+        S::Reference { .. }
         | S::ElementView { .. }
         | S::ByteSequence(
             ByteSequenceCarrier::BorrowedView { .. } | ByteSequenceCarrier::BoundedView { .. },

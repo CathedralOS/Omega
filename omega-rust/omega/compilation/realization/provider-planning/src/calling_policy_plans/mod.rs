@@ -5,10 +5,12 @@
 //! behind the closed normalized-plan validator.
 //!
 //! `boundary_signatures.rs` associates geometry with Source review coordinates.
-//! `plan_computation.rs` prepares authored admission and publishes default or
-//! authored plans from canonical storage. `calling_program.rs` owns the
-//! exact source-entry association and finite invocation accounting;
-//! `terminal_execution.rs` runs the canonical code without source,
+//! `plan_computation.rs` retains request/review correspondence and publishes
+//! plans from canonical storage. `selected_providers.rs` applies the one
+//! canonical invocation-scoped provider choice. `calling_program.rs` owns
+//! finite invocation accounting and carries Build evaluation's executor.
+//! `policy_invocation.rs` forms its source-free, single-use admitted request;
+//! terminal-installation checks the canonical declaration and call closure.
 //! `policy_signature.rs` encodes canonical ABI input and validates the result,
 //! `terminal_signature.rs` constructs that input from the canonical catalog;
 //! Psi's service catalog retains the exact named map and inherited signatures,
@@ -26,18 +28,25 @@ mod calling_program;
 mod native_parameters;
 mod opaque_representations;
 mod plan_computation;
+mod policy_invocation;
 mod policy_signature;
 mod scalar_completion;
 mod selected_application;
+mod selected_providers;
 mod signature_review;
-mod terminal_execution;
 mod terminal_signature;
-mod terminal_values;
+pub use build_time_decoding::decode_boundary_plan_result;
 pub use calling_program::CallingProgram;
+pub use policy_invocation::{
+    CallingPolicyEvaluator, TerminalCallingPolicyAdmission, TerminalCallingPolicyInvocation,
+    admit_terminal_calling_policy,
+};
 pub use policy_signature::CallingPolicySignature;
+pub use policy_signature::{encode_calling_policy_signature, validate_calling_policy_result};
+pub use scalar_completion::{CallingScalarScope, complete_calling_scalar_inputs};
 pub use selected_application::component_calling_applications;
-pub(crate) use selected_application::selected_source_calling_applications;
-pub use terminal_execution::{TerminalCallingPolicyInvocation, evaluate_terminal_calling_policy};
+pub(crate) use selected_application::selected_calling_applications;
+pub use selected_providers::CallingPolicyProviderInputs;
 pub use terminal_signature::{CanonicalCallingSignature, CanonicalOpaqueUse};
 
 pub use boundary_signatures::{

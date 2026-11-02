@@ -1,4 +1,4 @@
-use numerics::arrays::shape_layout_contract;
+use omega::language::core::matrix_layout;
 use omega_language_std::console;
 data Main { }
 machine equals(backing: &[i32], layout: &Layout2, row: u64, column: u64, expected: i32) -> bool {

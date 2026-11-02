@@ -483,13 +483,34 @@ impl CallableApplication {
                     expression::ExpressionNode::Name(path);
             }
         }
-        program
-            .expression_table
-            .remap_symbols_in(copied, &self.symbols);
+        let mut symbols = self.symbols.clone();
+        for handle in &rows {
+            if let expression::ExpressionNode::Name(path) =
+                program.expression_table.expression(*handle)
+            {
+                let binder = path.head_symbol;
+                if binder.is_valid()
+                    && program.symbols.get(binder).kind == symbols::SymbolKind::ConformanceParameter
+                    && !symbols.iter().any(|(source, _)| *source == binder)
+                {
+                    symbols.extend(self.namespace_symbols(program, binder)?);
+                }
+            }
+        }
+        program.expression_table.remap_symbols_in(copied, &symbols);
         for handle in rows {
             let node = program.expression_table.expression(handle).clone();
             let applied = match node {
                 expression::ExpressionNode::Name(path) => {
+                    // The namespace prepass applies its complete member map.
+                    // An open identity substitution remains a namespace too;
+                    // it must not enter the const/value expression channel.
+                    if path.head_symbol.is_valid()
+                        && program.symbols.get(path.head_symbol).kind
+                            == symbols::SymbolKind::ConformanceParameter
+                    {
+                        continue;
+                    }
                     if self
                         .static_arguments
                         .iter()
@@ -531,6 +552,22 @@ impl CallableApplication {
                     } else {
                         None
                     }
+                }
+                expression::ExpressionNode::StructLiteral(mut literal) if literal.application_type.is_valid() => {
+                    literal.application_type =
+                        self.type_reference(program, literal.application_type)?;
+                    Some(expression::ExpressionNode::StructLiteral(literal))
+                }
+                expression::ExpressionNode::Match(mut dispatch) if program.expression_table.match_arms(dispatch.arms).iter().any(|arm|
+                    matches!(arm.pattern, expression::MatchPattern::Destructure(pattern) if pattern.application_type.is_valid())) => {
+                    let mut arms = program.expression_table.match_arms(dispatch.arms).to_vec();
+                    for arm in &mut arms {
+                        if let expression::MatchPattern::Destructure(ref mut pattern) = arm.pattern {
+                            pattern.application_type = self.type_reference(program, pattern.application_type)?;
+                        }
+                    }
+                    dispatch.arms = program.expression_table.insert_match_arms(arms);
+                    Some(expression::ExpressionNode::Match(dispatch))
                 }
                 expression::ExpressionNode::Cast(mut cast) => {
                     cast.target_type = self.type_reference(program, cast.target_type)?;

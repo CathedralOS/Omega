@@ -3,7 +3,6 @@
 //! Provider binding produces this immutable result. Terminal production borrows
 //! it; native admission still joins actual demand and receiving permissions.
 
-use crate::program_entry_service_requirements;
 use diagnostics::Diagnostic;
 use package_compilation::AcceptedSemanticBindingRole;
 use std::sync::Arc;
@@ -57,7 +56,21 @@ impl SelectedExecution {
         let Some(entry) = self.selected_program_entry.as_ref() else {
             return Vec::new();
         };
-        program_entry_service_requirements(self.provider_source.program(), entry.machine_symbol())
+        let reaches = &self.provider_source.program().facts.service_reaches;
+        let Some(reach) = reaches.for_machine(entry.machine_symbol()) else {
+            return Vec::new();
+        };
+        let published = match reach.interface {
+            language_semantics::ServiceReachInterface::PublishedCeiling(row) => Some(row),
+            language_semantics::ServiceReachInterface::InternalInferred => None,
+        };
+        published
+            .into_iter()
+            .chain([reach.inferred_transitive, reach.concrete_transitive])
+            .flat_map(|row| reaches.rows.services(row))
+            .filter_map(|&service| reaches.services.definition(service))
+            .map(|definition| definition.symbol)
+            .collect()
     }
 
     pub fn resolved_semantic_binding(

@@ -234,6 +234,9 @@ pub struct ProviderSettlement<Rows = crate::PreparedProviderRows> {
     pub selected_provider_publication:
         std::sync::Arc<provider_selection::SelectedTargetProviderPublication>,
     pub boundary_provider_demands: Vec<ProviderPlan>,
+    /// Complete execution declarations, including compiler-settled leaf plans.
+    /// Callback projection and native handoff share this same closed roster.
+    pub provider_declarations: std::sync::Arc<[backend_plan::TerminalTargetProviderPlan]>,
     /// Original authored candidates and their defaults, before native Build
     /// supplies and compiler-minted plans enter the execution inventory.
     pub(crate) authored_providers: std::sync::Arc<crate::target_machines::AuthoredTargetProviders>,
@@ -285,6 +288,7 @@ impl ProviderSettlement<crate::UnpreparedProviderRows> {
             calling_program,
             selected_provider_publication,
             boundary_provider_demands,
+            provider_declarations,
             authored_providers,
             planning_target_profile,
             boundary_calling_plan_realizations,
@@ -308,6 +312,7 @@ impl ProviderSettlement<crate::UnpreparedProviderRows> {
             calling_program,
             selected_provider_publication,
             boundary_provider_demands,
+            provider_declarations,
             authored_providers,
             planning_target_profile,
             boundary_calling_plan_realizations,
@@ -386,8 +391,7 @@ pub fn settle_checked_providers(
     accepted_component_assumptions: &std::collections::BTreeSet<[u8; 32]>,
     boundary_calling_plan_realizations: Vec<BoundaryCallingPlanRealization>,
     calling_program: std::sync::Arc<crate::calling_policy_plans::CallingProgram>,
-    opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
-    synchronous_invocations: &checked_trees::SynchronousInvocationFacts,
+    opaque_representation_selections: &[representation_selections::OpaqueRepresentationSelection],
 ) -> Result<CheckedProviderSelection, Vec<Diagnostic>> {
     if !std::ptr::eq(services.context().typed, &*checked.typed)
         || services.context().scope != source::DependencyScope::Product
@@ -465,7 +469,13 @@ pub fn settle_checked_providers(
         facts: mut selected_provider_plan_facts,
         demanded_plans: boundary_provider_demands,
         choices,
-    } = prepared.select(artifact, canonical_roots.as_deref(), &assumptions)?;
+        invoked_declarations: _,
+    } = prepared.select(
+        artifact,
+        provider_selection::ProviderApplicationDemand::Product(canonical_roots.as_deref()),
+        &assumptions,
+    )?;
+    let mut provider_declarations = canonical_selection.plans.clone();
     let selected_provider_plans = choices
         .into_iter()
         .map(
@@ -510,15 +520,14 @@ pub fn settle_checked_providers(
         target_name,
         &selected_semantic_plans,
     )?;
-    // Cycle review only walks authored `invokes` edges and requires every
-    // schema method to bind a plan row. The toolchain-settled plan covers
+    // The cycle rule reads every closed checked instance, including uncalled ones,
+    // and requires every schema method to bind a plan row. The toolchain plan covers
     // only its honestly realizable leaves and its syscall rows can never
     // invoke, so it joins after the authored-plan cycle check, before the
     // external-binding extraction that binds its syscall numbers.
-    crate::validate_selected_synchronous_invocation_cycles(
-        typed,
-        synchronous_invocations,
-        &selected_semantic_plans,
+    backend_plan::synchronous_invocations::validate_declared_synchronous_invocation_cycles(
+        &provider_declarations,
+        artifact.module(),
     )?;
     let external_binding_rows = crate::extract_native_external_binding_rows(
         target_name,
@@ -586,6 +595,14 @@ pub fn settle_checked_providers(
                 selected_by: crate::ProviderSelectionProvenance::UniqueCoveringCandidate,
                 row_compiler_intrinsic_executions: Vec::new(),
                 row_external_completion_leaves: vec![Vec::new(); minted.plan.rows.len()],
+            },
+        );
+        provider_declarations.insert(
+            index,
+            backend_plan::TerminalTargetProviderPlan {
+                plan: minted.plan.clone(),
+                provider_declaration: None,
+                row_numeric_realizations: vec![None; minted.plan.rows.len()],
             },
         );
         // The trust report replays every selected plan against exactly one
@@ -740,12 +757,11 @@ pub fn settle_checked_providers(
             .map_err(|reason| vec![Diagnostic::error(reason)])?
             == crate::CompositionMode::Independent
         {
-            component_providers.push(selected);
+            component_providers.push(&selected.plan);
         }
     }
     let component_calling_applications =
         crate::calling_policy_plans::component_calling_applications(
-            services,
             planning_target.unwrap_or_else(target::TargetProfile::host),
             &calling_program,
             &component_providers,
@@ -763,6 +779,7 @@ pub fn settle_checked_providers(
             calling_program,
             selected_provider_publication,
             boundary_provider_demands,
+            provider_declarations: provider_declarations.into(),
             authored_providers,
             planning_target_profile: planning_target,
             boundary_calling_plan_realizations,

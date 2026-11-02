@@ -28,7 +28,7 @@ Every positive runs the seven-step and empty paths (counter 3→10→10), then r
 - Identity and lifetime: shared descriptors retain their original guard storage and normal caller lifetime. Scalar endpoint observations do not grant access to the guard referent.
 - Composition: every private participant transports the same complete record and measure. Every full cycle strictly descends; both active and empty paths complete normally.
 - Soundness: the source property checker, exact owned-prefix checks, selected pure/total call admission and ordinary structural argument planner remain authoritative. Nonprogress twins and exclusive-descriptor and mutation-through-shared-referent controls challenge those boundaries.
-- Psi 05–07: the existing declaration-call receipt and ordinary structural argument plan carry the complete Copy value and short shared call window into Terminal Psi. No synthetic statement occurrence or special interpreter is added.
+- Psi 06–08: the existing declaration-call receipt and ordinary structural argument plan carry the complete Copy value and short shared call window into Terminal Psi. No synthetic statement occurrence or special interpreter is added.
 - Omega 00–02: all four hosted ProgramEntry bindings remain authored. The ordinary named implementation in target_body is selected through Build. Existing record layouts and calling plans retain the guard descriptor.
 - Omega 03–06: the guard dereference and record canary challenge clobbered homes and lost live backing. This is no new portable WCSU claim.
 - Omega 07–09: acceptance is actual Linux x86-64 native/Terminal agreement for every positive, plus the intended static refusals. Other-host execution remains unmeasured.
@@ -42,3 +42,5 @@ The final optimized producer (`ce59279abc987cccb9f471f5dae80ad0de73e44e054b8cefb
 The two composition probes lend the same record twice and copy a plain owned child from a record that retains a shared descriptor. The latter confirms that owned-argument disposal follows the selected operand, rather than its containing record. Source Copy permission never authorizes forgetting the lifetime obligation of a materialized descriptor carrier.
 
  The parent remains open for noncopy/exclusive input custody, declaration-local selectors, other ranking forms, remaining invocation obligations, source migration and the Omega-written producer.
+
+The [exclusive-child production](exclusive_child/README.md) carries the same fact through conditional call operands while retaining an exclusive child. Its source and runtime controls distinguish alternative arms from simultaneously held sibling arguments.

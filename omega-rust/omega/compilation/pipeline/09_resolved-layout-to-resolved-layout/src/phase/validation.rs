@@ -1,26 +1,18 @@
 //! Independent phase-selection, baseline, rewrite, and current-program replay.
 use super::{
     OptimizationPhaseSelections, ResolvedLayoutOptimization, ResolvedLayoutOptimizationError,
-    StagedOptimizedPostAllocationMachinePlan, StagedOptimizedResolvedSelectedFormLayout,
-    StagedOptimizedSelectedFormEncoding, ValidatedPhysicalRegisterModel, ValidatedSelectedAnalysis,
-    validate_optimized_resolved_selected_form_layout, x86_rel8_selected,
+    ResolvedMachineLayout, ValidatedPhysicalRegisterModel, x86_rel8_selected,
 };
 use crate::validate_optimized_x86_branch_relaxation;
 
-#[allow(clippy::too_many_arguments)]
-pub fn validate_resolved_layout_optimization<S: ValidatedSelectedAnalysis>(
-    selected: &S,
-    machine: &StagedOptimizedPostAllocationMachinePlan,
+/// The baseline layout is its own owner's to admit: a reader replaying both
+/// calls the resolved-layout validator on `baseline` before this one.
+pub fn validate_resolved_layout_optimization(
     physical: &ValidatedPhysicalRegisterModel,
-    encoding: &StagedOptimizedSelectedFormEncoding,
-    baseline: &StagedOptimizedResolvedSelectedFormLayout,
+    baseline: &ResolvedMachineLayout,
     selections: &OptimizationPhaseSelections,
     artifact: &ResolvedLayoutOptimization,
 ) -> Result<(), ResolvedLayoutOptimizationError> {
-    validate_optimized_resolved_selected_form_layout(
-        selected, machine, physical, encoding, baseline,
-    )
-    .map_err(ResolvedLayoutOptimizationError::Baseline)?;
     if &artifact.selections != selections {
         return Err(ResolvedLayoutOptimizationError::SelectionMismatch);
     }
@@ -28,14 +20,12 @@ pub fn validate_resolved_layout_optimization<S: ValidatedSelectedAnalysis>(
         .map_err(ResolvedLayoutOptimizationError::Catalog)?;
     match (enabled, artifact.relaxation.as_ref()) {
         (false, None) => {
-            if artifact.layout() != baseline.program() {
+            if artifact.layout() != baseline {
                 return Err(ResolvedLayoutOptimizationError::CurrentProgramMismatch);
             }
         }
         (true, Some(relaxation)) => {
-            validate_optimized_x86_branch_relaxation(
-                selected, machine, physical, encoding, baseline, relaxation,
-            )
+            validate_optimized_x86_branch_relaxation(physical, baseline, relaxation)
             .map_err(ResolvedLayoutOptimizationError::Relaxation)?;
             if artifact.budget != relaxation.budget() || artifact.layout() != relaxation.layout() {
                 return Err(ResolvedLayoutOptimizationError::CurrentProgramMismatch);

@@ -1,1 +1,2 @@
-cannot prove ensures contract for exit from Small::get
+machine `Small::get` ensures contract proof fact `result == 5`
+disproved by constant arithmetic

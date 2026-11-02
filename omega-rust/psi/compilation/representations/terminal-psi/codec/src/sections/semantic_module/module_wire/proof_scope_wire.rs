@@ -3,6 +3,7 @@
 
 use super::super::machine_declaration_wire;
 use super::super::wire::{Reader, Writer, decode_counted};
+use super::super::wire_fields::{Field, ProviderPackage};
 use super::super::{CodecError, MAX_PROPOSITION_DEPTH};
 use super::boundary_application_wire::{decode_requirement, encode_requirement};
 use arena::{Arena, HandleSpan};
@@ -11,8 +12,8 @@ use semantic_vocabulary::proof_applications::{
     ProofCallMachine, ProofDeclarationDependencies, ProofStaticBinding,
 };
 use terminal_psi::{
-    ProofApplicationScope, ProofCallableAssociation, ProofDeclarationId, ProofScopeDeclaration,
-    TerminalIdentityIndex,
+    ProofApplicationScope, ProofCallableAssociation, ProofCallableHeader, ProofDeclarationId,
+    ProofScopeDeclaration, TerminalIdentityIndex,
 };
 
 fn references(
@@ -81,6 +82,81 @@ pub(super) fn encode(writer: &mut Writer, scope: &ProofApplicationScope) -> Resu
                 writer.u8(4);
                 encode_requirement(writer, requirement)?;
             }
+        }
+    }
+    writer.len("proof scope callable headers", scope.callable_headers.len())?;
+    for (_, header) in scope.callable_headers.iter() {
+        writer.u32(header.declaration.0);
+        writer.boolean(header.callable.is_ok());
+        match &header.callable {
+            Ok(callable) => writer.u32(callable.0),
+            Err(reason) => writer.string("unavailable callable header", reason)?,
+        }
+        ProviderPackage::write(writer, &header.package)?;
+        target(writer, &header.source_target)?;
+        writer.boolean(header.product_eligible);
+        writer.boolean(header.supplies_checked_body);
+        writer.boolean(header.compiler_evaluation.is_ok());
+        match &header.compiler_evaluation {
+            Ok(facts) => {
+                writer.string("compiler-evaluation display name", &facts.name)?;
+                match facts.custody {
+                    semantic_vocabulary::compiler_evaluation::DeclarationCustody::Package(
+                        package,
+                    ) => {
+                        writer.u8(1);
+                        ProviderPackage::write(writer, &Some(package))?;
+                    }
+                    semantic_vocabulary::compiler_evaluation::DeclarationCustody::Toolchain => {
+                        writer.u8(2)
+                    }
+                    semantic_vocabulary::compiler_evaluation::DeclarationCustody::UnownedUser => {
+                        writer.u8(3)
+                    }
+                    semantic_vocabulary::compiler_evaluation::DeclarationCustody::Missing => {
+                        writer.u8(4)
+                    }
+                }
+                writer.len("compiler-evaluation services", facts.effects.services.len())?;
+                for service in &facts.effects.services {
+                    writer.string("compiler-evaluation service", service)?;
+                }
+                writer.boolean(facts.effects.may_suspend);
+                writer.boolean(facts.effects.may_block);
+                writer.boolean(facts.local_terminates);
+                writer.boolean(facts.entry_requires);
+                target(writer, &facts.linear_carrier)?;
+                target(writer, &facts.static_application)?;
+                writer.boolean(facts.selections.is_ok());
+                match &facts.selections {
+                    Ok(requests) => {
+                        writer.len("compiler-evaluation authority requests", requests.len())?;
+                        for request in requests {
+                            ProviderPackage::write(writer, &Some(request.requester))?;
+                            ProviderPackage::write(writer, &Some(request.owner))?;
+                        }
+                    }
+                    Err(reason) => {
+                        writer.string("uncovered compiler-evaluation selections", reason)?
+                    }
+                }
+            }
+            Err(reason) => writer.string("unavailable compiler-evaluation facts", reason)?,
+        }
+        writer.boolean(header.synchronous_invocations.is_ok());
+        match &header.synchronous_invocations {
+            Ok(targets) => {
+                writer.len("declared synchronous targets", targets.len())?;
+                for target in targets {
+                    writer.u32(target.declaration.0);
+                    ProviderPackage::write(writer, &target.package)?;
+                    writer.boolean(target.application.is_some());
+                    if let Some(application) = target.application {
+                        writer.u32(application.0);
+                    }
+                }
+            }
+            Err(reason) => writer.string("unavailable synchronous invocation facts", reason)?,
         }
     }
     writer.len("proof scope callables", scope.callables.len())?;
@@ -159,6 +235,31 @@ pub(super) fn encode(writer: &mut Writer, scope: &ProofApplicationScope) -> Resu
         }
         references(writer, &graph.cleanup, row.cleanup)?;
     }
+    writer.len(
+        "checked recursive components",
+        scope.recursive_components.len(),
+    )?;
+    writer.len(
+        "pending compiler-evaluation conditions",
+        scope.pending_evaluation_conditions.len(),
+    )?;
+    for (_, owner) in scope.pending_evaluation_conditions.iter() {
+        writer.u32(owner.0);
+    }
+    for (_, component) in scope.recursive_components.iter() {
+        references(writer, &scope.recursive_members, component.members)?;
+        let calls = scope.recursive_calls.span(component.calls).ok_or(
+            CodecError::MalformedStructuralFoundation(
+                "checked recursive component lost its call span",
+            ),
+        )?;
+        writer.len("checked recursive calls", calls.len())?;
+        for call in calls {
+            writer.u32(call.caller.0);
+            writer.u32(call.call_ordinal);
+            writer.u32(call.callee.0);
+        }
+    }
     Ok(())
 }
 
@@ -217,6 +318,88 @@ pub(super) fn decode(reader: &mut Reader<'_>) -> Result<ProofApplicationScope, C
             tag => return Err(CodecError::InvalidTag("ProofScopeDeclaration", tag)),
         };
         result.declarations.insert(declaration);
+    }
+    for _ in 0..reader.count()? {
+        let declaration = ProofDeclarationId(reader.u32()?);
+        let callable = if reader.boolean()? {
+            Ok(TerminalIdentityIndex(reader.u32()?))
+        } else {
+            Err(reader.string("unavailable callable header")?)
+        };
+        let package = ProviderPackage::read(reader)?;
+        let source_target = read_target(reader)?;
+        let product_eligible = reader.boolean()?;
+        let supplies_checked_body = reader.boolean()?;
+        let compiler_evaluation = if reader.boolean()? {
+            let name = reader.string("compiler-evaluation display name")?;
+            let custody = match reader.u8()? {
+                1 => semantic_vocabulary::compiler_evaluation::DeclarationCustody::Package(
+                    ProviderPackage::read(reader)?.ok_or(
+                        CodecError::MalformedStructuralFoundation(
+                            "compiler-evaluation package custody is absent",
+                        ),
+                    )?,
+                ),
+                2 => semantic_vocabulary::compiler_evaluation::DeclarationCustody::Toolchain,
+                3 => semantic_vocabulary::compiler_evaluation::DeclarationCustody::UnownedUser,
+                4 => semantic_vocabulary::compiler_evaluation::DeclarationCustody::Missing,
+                tag => return Err(CodecError::InvalidTag("compiler-evaluation custody", tag)),
+            };
+            Ok(
+                semantic_vocabulary::compiler_evaluation::CompilerEvaluationDeclaration {
+                    name,
+                    custody,
+                    effects: semantic_vocabulary::compiler_evaluation::CompilerEvaluationEffects {
+                        services: decode_counted(reader, |reader| {
+                            reader.string("compiler-evaluation service")
+                        })?,
+                        may_suspend: reader.boolean()?,
+                        may_block: reader.boolean()?,
+                    },
+                    local_terminates: reader.boolean()?,
+                    entry_requires: reader.boolean()?,
+                    linear_carrier: read_target(reader)?,
+                    static_application: read_target(reader)?,
+                    selections: if reader.boolean()? {
+                        Ok(decode_counted(reader, |reader| {
+                            Ok(semantic_vocabulary::compiler_evaluation::DeclarationAuthorityRequest {
+                        requester: ProviderPackage::read(reader)?.ok_or(CodecError::MalformedStructuralFoundation("compiler-evaluation requester is absent"))?,
+                        owner: ProviderPackage::read(reader)?.ok_or(CodecError::MalformedStructuralFoundation("compiler-evaluation owner is absent"))?,
+                    })
+                        })?)
+                    } else {
+                        Err(reader.string("uncovered compiler-evaluation selections")?)
+                    },
+                },
+            )
+        } else {
+            Err(reader.string("unavailable compiler-evaluation facts")?)
+        };
+        let synchronous_invocations = if reader.boolean()? {
+            Ok(decode_counted(reader, |reader| {
+                Ok(terminal_psi::DeclaredSynchronousBoundaryTarget {
+                    declaration: TerminalIdentityIndex(reader.u32()?),
+                    package: ProviderPackage::read(reader)?,
+                    application: if reader.boolean()? {
+                        Some(TerminalIdentityIndex(reader.u32()?))
+                    } else {
+                        None
+                    },
+                })
+            })?)
+        } else {
+            Err(reader.string("unavailable synchronous invocation facts")?)
+        };
+        result.callable_headers.insert(ProofCallableHeader {
+            declaration,
+            callable,
+            package,
+            source_target,
+            product_eligible,
+            supplies_checked_body,
+            compiler_evaluation,
+            synchronous_invocations,
+        });
     }
     for _ in 0..reader.count()? {
         result.callables.insert(ProofCallableAssociation::Callable {
@@ -293,6 +476,26 @@ pub(super) fn decode(reader: &mut Reader<'_>) -> Result<ProofApplicationScope, C
             calls,
             cleanup,
         });
+    }
+    let component_count = reader.count()?;
+    for _ in 0..reader.count()? {
+        result
+            .pending_evaluation_conditions
+            .insert(ProofDeclarationId(reader.u32()?));
+    }
+    for _ in 0..component_count {
+        let members = read_references(reader, &mut result.recursive_members)?;
+        let calls = decode_counted(reader, |reader| {
+            Ok(terminal_psi::ProofCheckedRecursiveCall {
+                caller: ProofDeclarationId(reader.u32()?),
+                call_ordinal: reader.u32()?,
+                callee: ProofDeclarationId(reader.u32()?),
+            })
+        })?;
+        let calls = result.recursive_calls.insert_many(calls);
+        result
+            .recursive_components
+            .insert(terminal_psi::ProofCheckedRecursiveComponent { members, calls });
     }
     Ok(result)
 }

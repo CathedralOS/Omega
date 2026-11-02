@@ -55,7 +55,7 @@ Requirement evidence:
   independently established bounds. No enclosing lexical contract or recursive
   conclusion is donated to operand formation. Private cyclic inference remains
   conservative; this row establishes no new recursion eligibility.
-- **Psi 05–07:** the retained scalar operation, branch tags and zero fallbacks
+- **Psi 06–08:** the retained scalar operation, branch tags and zero fallbacks
   execute through canonical Terminal Psi; the authored main traps on incorrect
   results. These programs introduce no proof-only carrier or cleanup action.
 - **Omega 00–02:** authored Build companions bind all four hosted targets;

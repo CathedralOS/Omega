@@ -1,6 +1,6 @@
 // Expected exit: 0
 // Declaration order differs from stable tags; signed MIN keeps all 64 bits.
-use omega_language_std::wire;
+use omega::language::core::wire;
 use omega::language::core::reflect;
 data Packet { #2 bottom: i64; #0 delta: i32; #1 flag: bool; }
 machine fields(value: &Packet, context: &mut EncodeContext) {

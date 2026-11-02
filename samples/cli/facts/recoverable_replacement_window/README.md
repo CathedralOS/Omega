@@ -39,7 +39,7 @@ The target-body variant checks the same repair body for all four hosted targets.
 4. **Soundness:** the missing-repair twins cannot use returned ownership as proof
    that absent storage is established. Loan exclusion, exact type, linear
    disposal and caller debt remain independent obligations.
-5. **Psi 05–07:** extraction and establishing store retain exact opening/result
+5. **Psi 06–08:** extraction and establishing store retain exact opening/result
    coordinates into Terminal Psi. The caller's home is used directly; no staged
    caller copy or rollback is introduced.
 6. **Omega 00–02:** ordinary Build entry bindings and structural call/return plans
@@ -77,6 +77,25 @@ checkpoints are retained in `build/slot11-evidence/`.
 
 No execution on the other bound hosts, or physical suspension/cancellation
 acceptance, is claimed by these Linux observations.
+
+## Whole-value death after a payload move
+
+At base `c79bb826816316f24b4276e20804420685b2e32a` all nine positives and
+`tests/omega/pass/ownership/runtime_borrowed_match_repeated_repair_exit` were
+refused before execution on every target: `selected whole-owner cleanup has a
+partially transferred occurrence`. The `alias = match first { ... }` arms move
+the selected case's only payload, so the subject `first` reaches its candidate
+death with a payload hole. Continuation selection treated any hole as
+unsupported partial cleanup, although that case had no residual left to
+dispose. The minimal shape is
+`tests/omega/pass/ownership/runtime_match_expression_moves_selected_payload_exit`.
+
+Selection now skips a whole-value death exactly when the type-directed residual
+of the selected case (and common fields) is empty, as for an absent value. A
+remaining residual, a whole extraction, or a parent nominal hook still refuses.
+On macOS arm64 the nine positives and the repeated-repair fixture now observe
+native 0 and Terminal 0, and the nine twins still reject for `holder.token`.
+Windows x86-64 and Linux hosts were not run for this repair.
 
 ## Historical helper-call baseline and validation
 

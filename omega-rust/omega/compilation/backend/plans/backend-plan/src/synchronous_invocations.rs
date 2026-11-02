@@ -6,6 +6,72 @@
 
 use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow};
 
+/// Authoring-cycle policy over the checked declaration product. Plans come
+/// from the compiler's derivation/selection path; Build chooses declarations,
+/// never these rows. Do not repeat their Source conformance/lifetime derivation.
+/// Untrusted review and receiving executable admission remain independent.
+pub fn validate_declared_synchronous_invocation_cycles(
+    selected_plans: &[crate::TerminalTargetProviderPlan],
+    module: &terminal_psi::TerminalModule,
+) -> Result<(), Vec<diagnostics::Diagnostic>> {
+    let rows = crate::selected_checked_invocation_rows(selected_plans, module)
+        .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])?;
+    validate_selected_synchronous_invocation_cycles(
+        selected_plans.iter().map(|selected| &selected.plan),
+        |plan, row| {
+            let failure = |reason: String| diagnostics::Diagnostic::error(reason);
+            let selected = rows
+                .iter()
+                .find(|selected| {
+                    std::ptr::eq(selected.plan, plan) && std::ptr::eq(selected.row, row)
+                })
+                .ok_or_else(|| {
+                    failure("checked invocation row lost its canonical selection".into())
+                })?;
+            let targets = selected
+                .headers
+                .iter()
+                .map(|header| header.synchronous_invocations.as_ref())
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|reason| failure(reason.clone()))?;
+            targets
+                .into_iter()
+                .flatten()
+                .map(|target| {
+                    let declaration = module
+                        .identities
+                        .text(target.declaration)
+                        .filter(|text| !text.is_empty())
+                        .ok_or_else(|| {
+                            failure("checked invocation target lost its boundary identity".into())
+                        })?;
+                    let application = target
+                        .application
+                        .map(|identity| {
+                            module
+                                .identities
+                                .text(identity)
+                                .filter(|text| !text.is_empty())
+                                .map(str::to_owned)
+                                .ok_or_else(|| {
+                                    failure(
+                                        "checked invocation target lost its exact application"
+                                            .into(),
+                                    )
+                                })
+                        })
+                        .transpose()?;
+                    Ok(SynchronousBoundaryTarget::Application {
+                        declaration: declaration.to_owned(),
+                        package: target.package,
+                        application,
+                    })
+                })
+                .collect()
+        },
+    )
+}
+
 /// A complete checked application, or an explicitly abstract external ceiling.
 /// Declaration names are canonical package-qualified export coordinates here,
 /// not source spelling used to rediscover a call.

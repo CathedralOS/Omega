@@ -46,8 +46,8 @@ positive; NaN unorderedness is not this sentence, it belongs to
 `identity`'s return, `match_join` joins two arms that agree, `const_name` uses
 `public const NEGATIVE_ZERO: f32 = -0.0`, `other_state` moves the value through
 a successor machine that restates the requirement, `other_machine` forwards
-through a second machine, and `target_body` repeats the forwarding machine for
-each of the four targets. `main` passes `-0.0` in every place and asserts
+through a second machine, and `target_body` calls the Build-selected
+`SelectedForward::forward`. `main` passes `-0.0` in every place and asserts
 `observed == 0.0`.
 
 Pinned corpus fixtures are `pass/facts/crash_entry_signed_zero_through_<place>_exit`
@@ -67,6 +67,10 @@ local with `1.0`, which makes `value != 0.0` live, so the route stays uncovered
 (`call from `read_zero` to `maybe_nonzero` at statement 2 call 0`).
 
 
+## Selected target body
+
+`target_body` selects its `forward` through Build. `SelectedForward` is a boundary trait whose one member publishes the same conditional `crashes Trap` route as the callee; `X86Forward` and `ArmForward` satisfy it, and `build.omg` picks one per target with `Build::select_provider`. The public reader therefore publishes `reaches SelectedForward invokes SelectedForward`, and the caller discharges the selected member's route from the entry fact without a crash ceiling of its own. Each entry first calls `SelectedBodyCheck::require_tag` with its target's tag, so a wrong selection traps in both engines: selecting `ArmBodyCheck` for `windows_x86_64` gave native exit `-1073741795` and `interp crash: Trap`. The reject twins differ from the positive only in the entry requirement and reject at the selected `forward` call.
+
 ## Requirements and Evidence
 
 - **Establishment:** the entry's `requires value == -0.0` (or
@@ -79,7 +83,7 @@ local with `1.0`, which makes `value != 0.0` live, so the route stays uncovered
   equality, read at the guard. Each carrier transports that one record — the
   local copy, the field read, the parameter itself, the `identity` result, the
   agreeing match arms, the named const, the successor machine's parameter and the
-  forwarding/target-qualified machines — and nothing writes that storage
+  forwarding machine and the Build-selected `forward` — and nothing writes that storage
   between entry and guard.
 - **Composition:** every place copies the one fact sentence; the consuming
   operation is `maybe_nonzero`'s guard and `main`'s `observed == 0.0`. The nine
@@ -89,14 +93,14 @@ local with `1.0`, which makes `value != 0.0` live, so the route stays uncovered
   bit-identical compare would keep `-0.0 != 0.0` live and lose the positive; an
   entry proved equal to `1.0` keeps the route and rejects. Proof-only terms
   cannot authorize executable guards.
-- **Checked-to-Terminal Psi lowering (`Psi 05–07`):** the recorded equality
+- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** the recorded equality
   lowers into the crash guard's float predicate, the crash entry and its
   uncovered route lower unchanged, and `omega run --both` executes the same
   program in the Terminal Psi interpreter and natively with agreement
   (`interpreter exit: 0`, `native exit 0`).
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):**
   each place binds `ProgramEntry` for the four hosted targets; `target_body`
-  carries a target-qualified `forward` machine per target; the `f32` entry
+  selects `X86Forward` or `ArmForward` per target with `Build::select_provider`; the `f32` entry
   scalar, the `f32` const carrier and the `Packet { value, marker }` field
   placement come from the layout plan.
 - **Instruction selection, register homes, and activation frame realization

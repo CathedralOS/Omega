@@ -333,7 +333,6 @@ fn shape(
         .get(&structural_type)
         .ok_or(InvalidStructuralShape)?;
     let result = match &declaration.shape {
-        StructuralTypeShape::BindingCarrier => ValueShape::integer(0, 1),
         // Independently reconstruct the address payload, including nested
         // record leaves. Pointer bits carry no ownership authority.
         StructuralTypeShape::Reference { referent, .. } => ValueShape::integer(

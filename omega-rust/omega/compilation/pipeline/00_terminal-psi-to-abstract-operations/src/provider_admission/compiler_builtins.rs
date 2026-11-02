@@ -7,7 +7,7 @@
 //! minimum, maximum, negation, square root, NaN/infinity classification,
 //! two-rounding multiply-then-add,
 //! conversion into a float format and Exact or Saturating conversion to an integer settle as
-//! `NearestIeeeFloatArithmetic`, which stage 02 realizes inline as one IEEE
+//! `NearestIeeeFloatArithmetic`, which Omega 02 realizes inline as one IEEE
 //! semantic operation (not necessarily one machine instruction): admission
 //! requires the boundary's exact
 //! signature for that operation and format (`(format, format) -> format`,

@@ -8,7 +8,7 @@ use diagnostics::Diagnostic;
 use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow};
 use language_semantics::callback_declarations::CallbackRegistrationDeclaration;
 
-/// The exact selected plan/row and its independently prepared source-body fact.
+/// The exact selected plan/row and its independently prepared checked-body fact.
 /// The body result is consumed only for a checked-adapter binding.
 pub struct SelectedCallbackRow<'plan> {
     pub plan: &'plan ProviderPlan,
@@ -16,7 +16,7 @@ pub struct SelectedCallbackRow<'plan> {
     pub checked_adapter_body: Result<bool, String>,
 }
 
-/// Source preparation has completed the whole selected instance projection.
+/// Preparation has completed the whole selected instance projection.
 /// Evidence borrows only the original immutable plans, never source trees.
 /// The projected selection owns its closure metadata; its plan values remain
 /// equal to the originals that supplied each exact checked-body declaration.
@@ -26,6 +26,43 @@ pub struct CallbackProviderDeclarations<'plan> {
 }
 
 impl<'plan> CallbackProviderDeclarations<'plan> {
+    /// Classify original selected rows from retained declaration headers.
+    /// Exact adapter conformance is a prerequisite owned by provider settlement;
+    /// this does not replace it or demand a concrete executable signature.
+    pub fn prepare(
+        selected: &'plan effects::SelectedProviderPlanFacts,
+        declarations: &terminal_psi::CallbackDeclarationRoster,
+        provider_declarations: &[backend_plan::TerminalTargetProviderPlan],
+        module: &terminal_psi::TerminalModule,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        if declarations.uses.is_empty() {
+            return Ok(Self::unused());
+        }
+        let instances = backend_plan::close_checked_provider_specializations(
+            selected.clone(),
+            provider_declarations,
+            module,
+        )
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        let mut checked_adapters = Vec::new();
+        for plan in selected.plans() {
+            for row in &plan.rows {
+                if !matches!(row.binding, ProviderBinding::CheckedAdapter { .. }) {
+                    continue;
+                }
+                checked_adapters.push(SelectedCallbackRow {
+                    plan,
+                    row,
+                    checked_adapter_body: backend_plan::selected_checked_adapter_header(
+                        plan, row, module,
+                    )
+                    .map(|header| header.supplies_checked_body),
+                });
+            }
+        }
+        Ok(Self::prepared(instances, checked_adapters))
+    }
+
     /// No nominal uses means no instance preparation is required.
     pub fn unused() -> Self {
         Self {

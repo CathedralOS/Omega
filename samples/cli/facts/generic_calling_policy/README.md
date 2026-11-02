@@ -1,15 +1,21 @@
 # Generic calling-policy capture
 
-Owning task: **NAMED-IMPLEMENTATION-CONFORMANCE-MIGRATION** in
-[TASKS.md](../../../../TASKS.md). The requirement is exact generic named-policy
-selection, inline member closure and ordinary target-specific helper composition.
+Owning task: **BUILD-OWNED-TARGET-SELECTION** in
+[TASKS.md](../../../../TASKS.md). Preserve exact generic named-policy selection,
+inline member closure and target-dependent calling geometry while moving helper
+selection to explicit Build rows. **PROVIDER-SELECTION-AFTER-TERMINAL** owns
+the subsequent migration of those choices onto the canonical Terminal catalog.
+Earlier conformance-migration evidence below retains its original source and
+producer identities.
 
 **Fact: GenericPolicy<Box<u64>, 8> places all eight bytes of boundary result 42 before the same value is observed.**
 
 The selected implementation captures the nested type `Box<u64>` and const
-`PolicyWidth = 8` in its inline `plan`. That plan calls the ordinary
-`value_plan` target family. Each body supplies its matching convention, result
-register, initial regime and shadow space to `scalar_plan`. The boundary call
+`PolicyWidth = 8` in its inline `plan`. That plan calls the explicit
+`ValuePlan::plan` requirement. Build selects `SysVValuePlan`,
+`MicrosoftValuePlan` or `AapcsValuePlan` for each hosted target. Each ordinary
+implementation supplies its matching convention, result register, initial
+regime and shadow space to the unchanged `scalar_plan`. The boundary call
 `LocalEntry::value()` returns 42; each place observes that same value and exits
 0. The observation checks runtime behavior. It does not establish the static
 placement fact: compatible complete byte coverage is checked on the evaluated
@@ -50,7 +56,7 @@ recorded separately.
 - [Named conformances](../../../../wiki/spec/language/conformances.md#declaration-and-selection): independent explicit implementation telescopes and inline members, with exact package-scoped identities.
 - [Calling-plan authorship](../../../../wiki/spec/build/calling_plans.md#authorship-and-evaluation): deterministic admitted plan evaluation; an ordinary helper may construct the plan, and each closed policy application has its own contract.
 - [Plan validation](../../../../wiki/spec/build/calling_plans.md#validation): every result byte is placed once and compatibly; registers, regime, shadow space and target applicability remain compiler obligations.
-- [Target families](../../../../wiki/spec/language/machines.md#target-scoped-families): every body is checked and published; realization selects the matching body without narrowing source checking.
+- [Build-owned target selection](../../../../wiki/spec/build/provider_selection.md#build-owned-target-selection): explicit target-keyed Build rows select ordinary named implementations; every implementation remains source checked.
 - [Loan resources](../../../../wiki/spec/terminal-psi/loans.md): shape or logical facts cannot invent reference custody or extend access.
 
 ## Requirements and evidence
@@ -67,23 +73,23 @@ recorded separately.
    its literal-issued image backing and substitute every invocation-relative
    lifetime debt. Unknown origins and whole moved subtrees still require their
    complete captured source relations.
-3. **Composition.** The selected inline plan composes through an ordinary target
-   family and a scalar-plan helper. Boundary result 42 then crosses each row
+3. **Composition.** The selected inline plan composes through an explicit
+   requirement, its Build-selected ordinary implementation and a scalar-plan helper. Boundary result 42 then crosses each row
    place before the same runtime observation. Twins retain that source shape
    and consuming operation, changing only the policy input width.
-4. **Soundness boundaries.** Exact family membership is checked before consuming
-   an Omega-selected body. Admission still checks all reached bodies for
+4. **Soundness boundaries.** Exact requirement, implementation and checked-body
+   identities must agree before consuming a Build-selected body. Admission still checks all reached bodies for
    termination, linear carriers, service reach, suspension/blocking and authored
    declaration authority. Selection does not turn an external or deferred body
    into executable code. Width-4 result placement must fail independently.
-5. **Psi 05–07.** Terminal Psi retains the target-neutral boundary demand and
+5. **Psi 06–08.** Terminal Psi retains the target-neutral boundary demand and
    checked runtime bodies. Evaluated target policy data remains a separate
-   realization input. All closed runtime family bodies still undergo ordinary
+   realization input. All closed runtime implementation bodies still undergo ordinary
    lowering; build-time use does not hide their carrier/custody gaps. `--both`
    is the execution oracle for the resulting Terminal program.
 6. **Omega 00–02.** The named application is joined to its exact inline plan;
-   Omega chooses target bodies and passes exact family/body handles to shared
-   target-neutral admission and evaluation. System V AMD64, Microsoft x64 and
+   Build supplies explicit target-keyed selections; Omega passes exact
+   requirement/body handles to shared target-neutral admission and evaluation. System V AMD64, Microsoft x64 and
    AAPCS64 policy data supplies compatible u64 result placements. Build entry
    and provider rows remain independent checked inputs.
 7. **Omega 03–06.** Realization must preserve the boundary result through each
@@ -94,7 +100,161 @@ recorded separately.
    Terminal execution at exit 0. The native row tests final emitted behavior;
    it does not claim unmeasured instruction encodings or cross-host execution.
 
-## Baselines and current frontier
+## Canonical invocation admission
+
+Psi retains each declaration's checked compiler-evaluation facts independently
+of executable-signature availability: effects, local termination, linear/static
+closure, entry premises and normalized package-selection requests. Calling
+admits the exact target/provider/static-binder closure over the shared Terminal
+artifact before evaluating ABI scalars or the policy. Recurrent edges require
+the retained complete-component proof at the same body/call coordinates;
+successful execution and fuel are not termination evidence. Package obligations
+are rechecked against live authority, including predicates with no persisted
+comparison scope. Decoding alone grants no authority.
+
+The [ranked helper](controls/ranked_helper/main.omg) is a smaller rung inside
+this fact, pinned as `generic_calling_policy/ranked_helper_exit`. Its selected
+helper computes the same Width-8 placement through mutually recursive ordinary
+machines. Both branches have distinct runtime results, checked by `Main`.
+The [invalid twin](controls/ranked_helper/invalid/main.omg), pinned as
+`generic_calling_policy/ranked_helper_unproved`, removes only their ranking
+clauses and must reject for missing ordinary recursive termination. The original
+unranked nested helper and entry-premise controls remain independent falsifiers.
+The nine placement witnesses and Width-4 twins remain unchanged.
+
+Checked-in corpus rows retain the actual producer identities of the placement
+row, recursive proof twin and no-return controls. Source-discard/reload tests
+also exercise live custom authority with no exported scope, shared-target
+artifact/native-byte equality and target-failure isolation. The retained runtime
+assumption witness refuses compiler execution through its assumed link but
+admits its independent checked supplier. These matching-host results do not
+close the parent Source-free target-planning outcome or qualify foreign-host
+execution.
+
+## Historical canonical helper-selection evidence
+
+Exact optimized producer `002791b61f14404bcf6ce65e5376131ca16e1efe` selects
+Calling helpers through the same canonical provider fixed point as Product,
+using the policy invocation's exact roots. Calling metadata and unrelated
+Product choices do not create executable demand. A selected child map can
+supply an inherited parent requirement; merely having an unused child map
+does not demand it. Selecting competing parent and child maps still rejects.
+That producer's Source adapter rejoined the chosen exact checked bodies for
+the original Psi build-time admission before execution.
+
+The frozen candidate records 13 native/Terminal exit-0 agreements and 16
+intended rejections on macOS arm64, including the complete nine-place row and
+its Width-4 twins, own-policy and inherited helpers, unused descendants,
+missing selections and explicit helper rejection. Four additional positive
+check routes complete. The existing two-target integration test passes in
+74.18 seconds: source checking and Terminal publication each occur once, both
+targets share the artifact, and each target's bytes equal its single-target
+output. This test does not establish target-failure isolation or every stage's
+invocation count.
+
+The public [inherited helper](controls/inherited_helper/main.omg) and
+[unused descendant](controls/unused_descendant/main.omg) each pass the sample
+gate's `omega run --both`; their Width-4 twins reject for incomplete byte
+coverage. Initial package review costs 171 and 154 seconds respectively,
+versus 19 and 18 seconds compiling/running. These are actual public leaf
+observations, not qualification of the root's private source-graph encoding.
+The corpus runner SHA-256 is
+`47916d538d30dd04d63afa04f9531264892993d7788e1298ac8dddd3613ac777`;
+the public CLI SHA-256 is
+`1ab96d4c182ed1f3c60c5116875df26ce2538b84165b744ab43684c447798542`.
+Raw records remain in the active claim's `build/calling-helper-choice-r3-*`
+files; checked-in corpus rows retain the actual producer revision.
+
+At that checkpoint, Source invocation admission, request enumeration and checked
+target-body correspondence still prevented full Source-free target planning.
+Those historical observations do not qualify later admission changes or
+foreign-host execution.
+
+## Canonical physical ABI association
+
+Physical ABI row association now uses the canonical declaration census, exact
+inherited receiver application and Calling root independently of the member's
+declaring application. The [shared-parent control](controls/shared_parent_roots/main.omg)
+retains two evaluated policies for the same full member ABI with different
+roots and plans; only the selected root may supply its component application.
+Its [Width-4 twin](controls/shared_parent_roots/invalid/main.omg) still requires
+complete result-byte coverage. The [ordinary-parent control](controls/ordinary_parent_owner/main.omg)
+runs its checked implementation fused while a physical component request must
+refuse the ordinary declaring owner. Logical contract retention and exact
+ancestor correspondence grant neither nominal service reach nor physical ABI
+eligibility. The existing Source-discard tests exercise both retained and
+normally decoded artifacts with no Source companions for this ABI join.
+
+Source request enumeration, checked target-body correspondence and the other
+source-reading provider consumers still prevent
+full Source-free target planning. This component does not close that parent
+outcome or qualify foreign-host execution. Current scoped producer identities
+and observations remain in the implementation commit and active claim records.
+
+## Retained Build-selection evidence
+
+The canonical row and its pins use ordinary implementations and explicit
+Build selections. The exact optimized `6416b0fdfbe3cd7db319e5c4803f64d3254160cd`
+producer checks all nine positives, rejects every Width-4 twin at byte-coverage
+validation, and runs all nine pins at native/Terminal exit 0 on macOS arm64.
+The field checks both neighboring values and the match checks both selected
+arms. A joint-recursion preservation control also checks and runs 0/0; its
+initial stale package-acceptance refusal was refreshed through normal review
+and is excluded from compiler-failure evidence.
+
+The selected unranked helper now rejects for the actual recursive call-cycle
+obligation. Local state acyclicity no longer stands in for a complete call
+ranking. The source checker owns the whole demanded SCC and independently
+retains proof-recursion rules. Borrowing its existing immutable query context
+reduced the same 52 component queries from 145.45 seconds to 2.96 seconds; the
+full normal-preparation refusal fell from 205.31 to 52.08 seconds with identical
+Main, Build, expected diagnostic and SDK inputs.
+
+The five exact selection controls retain an explicit helper rejection reason,
+refuse missing policy and nested provider choices, accept a helper whose callee
+has the same policy as metadata without an executable cycle, and reject an
+unselected implementation's stronger precondition. Changing the selected
+result from 42 to 43 while retaining the 42 observer produces native SIGTRAP
+and Terminal Trap; changing the observer to 43 restores 0/0. Six focused
+termination/default-ABI controls pass. The 17 earlier generic-policy controls
+retain their outcomes; the negative unsigned Width literal still rejects for
+`u64(-1)` not fitting `u64`, with its obsolete diagnostic wrapper removed.
+
+Six public preparations/runs from exact producer `9f23a5b` and four unchanged
+public observations from `e67b77c` retain those actual producer identities.
+The current selected-helper public preparation also runs 0/0 at `6416b0f`.
+All nine positive and nine negative sample/pin Main files match exactly.
+Positive Build files also match; negative Build files differ only in the
+relative path to the bundled standard library.
+These observations establish matching-host behavior, not foreign execution.
+
+The later actual Main reconciliation retains owned source-free calling review,
+canonical request/instance identities, Terminal provider-demand settlement,
+and the same selected helper plans for ABI completion and policy activation.
+The `6416b0f` root completes normal preparation and acceptance for all four
+hosted targets, checks each selected target, and runs at native/Terminal 0/0
+on macOS arm64. Final source review accepts the actual Main reconciliation.
+[Hosted integration run 41364118419](https://github.com/CathedralOS/Omega/actions/runs/41364118419)
+uses exact optimized producer `a24f907e6cfeddf177a8d14ed9c8571fc4eed523`
+on macOS arm64: all ten positives check, all ten invalid controls reject for
+their intended obligations, and all nine pins plus the joint-recursion control
+run at native/Terminal 0/0. Raw records retain that source and producer identity;
+the later pipeline renumbering and opaque-component loan changes use scoped
+consumer applicability, rather than a claim that this run executed the final
+publication source. These consumers create no opaque component loans, so the
+added guest-write checks observe an empty lender table. Historical observations
+retain their actual producer identities.
+The parent migration remains open for other facts, library/product sources,
+and retirement of target-family parsing and runtime paths.
+
+Package review still cannot retain its private source graph within the 512 MiB
+encoding limit. The limit and admission checks remain intact; that independent
+workflow limitation is not reported as repaired here.
+
+## Historical target-family evidence
+
+The observations below apply to the earlier target-family sources. They do not
+qualify the current Build-selection migration.
 
 Original Linux-only baseline: producer `591336bdc9e0b38268cbfa63b17aabb92a5d2389`,
 Linux x86-64, verified opt-level 1. The original root runs with native exit 0

@@ -2,7 +2,7 @@
 machine main() crashes Trap {
  let mut snapshot: u64 = 0;
  let mut preserved: u32 = 99;
- asm where clobbers rax, rflags, r10, r15 {
+ asm clobbers rax, rflags, r10, r15 {
  entry:
   mov eax, 0;
   cmp eax, 1;

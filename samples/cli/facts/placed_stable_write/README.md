@@ -11,6 +11,12 @@ Externally installed entry lending and its retirement remain separate acceptance
 of that task, exercised by `installed_entry_storage` and the source-access customer.
 
 This is a prerequisite of BUMP-ALLOCATOR-CANARY, not allocator completion.
+The [live linear owner control](controls/live_linear_owner/main.omg) keeps an
+owned linear value across field reads and writes, then explicitly retires it.
+Its ingress claim is not a completion receipt for those borrowed operations.
+The [reject twin](controls/live_linear_owner/invalid/main.omg) removes only the
+field's write permission. Both the written value and untouched companion are
+observed; the retained owner's payload is checked after the access operations.
 Each program starts with initialized ordinary RAM, obtains an exclusive qualified
 view, and writes 29 through its field accessor while a second, disjoint qualified
 view is held by the same invocation. The original RAM must contain 29 and
@@ -44,7 +50,7 @@ are bound; actual execution evidence currently covers macOS ARM64 only.
 - Soundness: every twin removes write permission. Additional fixtures under
   `tests/omega/{pass,fail}/layouts/placed_primitive_*` cover wrong value/accessor
   types, shared mutation, generic forwarding, static callbacks and private issuance.
-- Psi 05–07: the selected catalog target becomes the existing placed boundary
+- Psi 06–08: the selected catalog target becomes the existing placed boundary
   operation. Loan transport and retirement survive lowering into Terminal Psi;
   both-engine execution must agree on the original-storage result.
 - Omega 00–02: the exact plan and actual backing determine provider admission,

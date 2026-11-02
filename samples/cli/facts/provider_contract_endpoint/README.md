@@ -56,7 +56,7 @@ identify that the captured input 7 exceeds the selected closed endpoint 6.
 
 - **Establishment:** the exact selected ordinary checked provider computes the
   endpoint. Call admission records the captured input's relation to that recipe;
-  neither the requirement nor an `asm where`-style goal establishes itself.
+  neither the requirement nor an `asm requires` goal establishes itself.
 - **Identity and lifetime:** the integer comparison names an immutable captured
   scalar. The recipe retains its exact call expression and selected target/
   provider receipt; another target's scalar is not interchangeable evidence.
@@ -67,7 +67,7 @@ identify that the captured input 7 exceeds the selected closed endpoint 6.
   reach and observation freedom under the selected provider. Unclosed or false
   recipe relations refuse before Terminal production. Symbolic mathematics and
   runtime-dependent calls retain their ordinary checking route.
-- **Psi 05–07:** contract comparisons remain proof facts, integer root folds
+- **Psi 06–08:** contract comparisons remain proof facts, integer root folds
   retain their producing dependencies, and the checked result reaches canonical
   Terminal Psi. Actual interpreter/native agreement is required for each place.
 - **Omega 00–02:** all four hosted `ProgramEntry` bindings and the exact provider

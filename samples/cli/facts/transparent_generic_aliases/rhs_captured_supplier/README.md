@@ -34,6 +34,53 @@ Earlier source failures and one cheap Rust-check API failure remain false in
 the raw evidence; no native result is claimed for them. Logs/JSON, frozen
 source and bundles remain outside scratch at
 `/Users/zcanann/Omega-build/alias-rhs-captured-supplier-20261101/`.
-This one default-member place does not complete other mixed/open RHS contexts,
-RHS calls/qualified value names, Product/Build transport, nine-place rows,
-other hosts or the Omega-written producer.
+The local place above and the [generic field](field/README.md) and
+[incoming parameter](parameter/README.md) places are qualified. The two latter
+places passed at source `7ecc47f1c723` in run 41364458750 without rerunning
+the local place. Generated-origin replay now compares transparent alias
+expansions and exact expression-backed array children; independent alias
+formation and all origin tuple checks remain in place.
+
+The [call result](call_result/README.md) and [match join](match_join/README.md)
+places then passed at source `a1964f50142c` in run 41366197763. Both join arms
+execute; no Rust changes or reruns of the earlier places were needed.
+
+The [const name](const_name/README.md), [nested machine](other_state/README.md),
+[other imported machine](other_machine/README.md) and [selected target body](target_body/README.md)
+then passed at source `df2704cb8b18` in run 41372301825. The selected-target
+requirement keeps the ordinary source-owned header admission: current
+nongeneric trait/member parameter and result roots now join the same const
+formation/evaluation intake as machine headers. Open static telescopes stay
+templates. No evaluator, receiving-owner fallback or identity exception is added.
+
+All nine places now have Linux x86-64 native/Terminal exit-0 agreement and
+sole-change rejection twins, with canonical mirrors. Each retains its actual
+measured source rather than claiming a whole-row rerun:
+
+| Places | Actual source | Passing run |
+| --- | --- | --- |
+| Local (root) | `24d35f3b86c4` | [41360110833](https://github.com/CathedralOS/Omega/actions/runs/41360110833) |
+| Field, parameter | `7ecc47f1c723` | [41364458750](https://github.com/CathedralOS/Omega/actions/runs/41364458750) |
+| Call result, match join | `a1964f50142c` | [41366197763](https://github.com/CathedralOS/Omega/actions/runs/41366197763) |
+| Const name, nested machine, other machine, selected target | `df2704cb8b18` | [41372301825](https://github.com/CathedralOS/Omega/actions/runs/41372301825) |
+
+The final four-place run authenticated CLI SHA-256
+`aae958895b82e7d03439d28a6b4f777d39e1e3a0dca94fe6c2b2167858e231ec`,
+runner `40e20c40b8b2c516ec4a07bb2865be3b9c88c3fdae9a7599c37440efbf0e97bf`,
+opt1 under pinned Rust `a69a63265`. Preparation took 335.741s,
+authentication 1.589s, checking 22.220s, canonical execution 15.436s and
+samples 45.432s. Checking rows keep their reported default check target;
+actual execution was Linux x86-64. The earlier five places were excluded.
+
+The first remaining-place run 41369376743 retains the source omission of the
+boundary's mandatory empty reach ceiling. After that spelling correction,
+41371289235 exposed the original public header's unformed `3+1` extent versus
+literal 4. Both remain false with no native execution. The corrected bound,
+operation, maps and exact Selected4 discriminator stayed unchanged through the
+source-owned intake repair. Reports, logs, frozen sources and bundles are in
+`/Users/zcanann/Omega-build/alias-supplier-remaining-20261101/`.
+
+This closes this captured-supplier fact row in the Rust reference producer.
+Mixed/open RHS contexts, RHS calls/qualified value names, alias capture in the
+Product/Build static-operand graph, other hosts and the Omega-written producer
+remain separate open work.

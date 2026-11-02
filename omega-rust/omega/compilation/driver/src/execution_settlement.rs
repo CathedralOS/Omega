@@ -281,7 +281,6 @@ impl SelectedProductTarget {
         // A source-only stop owes selected-instance coverage without native
         // realization. Executable products obtain it from Terminal instead.
         let execution = &self.custody.execution;
-        execution.provider_source.project_instances()?;
         match terminal {
             Some(module) => check_terminal_task_activations(
                 module,
@@ -419,6 +418,8 @@ fn select_checked_providers(
             boundary_calling_plan_realizations: &providers.boundary_calling_plan_realizations,
             provider_candidates: &providers.provider_candidates,
             boundary_provider_demands: &providers.boundary_provider_demands,
+            provider_declarations: &providers.provider_declarations,
+            terminal_module: providers.calling_program.artifact.semantic_module(),
             selected_provider_plan_facts,
             selected_provider_provenance,
             root_grants: &root_grants,
@@ -442,20 +443,29 @@ fn prepare_target_provider_selection(
     timings: &mut CompileTimings,
 ) -> Result<provider_planning::CheckedProviderSelection, Vec<Diagnostic>> {
     let build_config = &source.computed_build_config.config;
+    let settled_target_machines = provider_planning::target_machines::settle_provider_defaults(
+        one_refusal(source.provider_inventory.origins_for(&source.program))?,
+        &source.provider_defaults,
+        selected_target_profile.unwrap_or_else(target::TargetProfile::host),
+    );
+    let code = crate::terminal::retain_calling_program(source, timings)?;
     let calling = provider_planning::calling_policy_plans::prepare_boundary_calling_plans(
         &source.program,
         one_refusal(source.provider_inventory.services_for(&source.program))?,
         selected_target_profile.unwrap_or_else(target::TargetProfile::host),
         &build_config.opaque_representation_selections,
         package_inputs,
+        provider_planning::calling_policy_plans::CallingPolicyProviderInputs {
+            body_declarations: one_refusal(
+                source.provider_inventory.direct_calls_for(&source.program),
+            )?,
+            defaults: &settled_target_machines.provider_defaults,
+            requested: &build_config.provider_selections,
+            exact_toolchain_sources: source.sources.exact_toolchain_sources(),
+        },
+        &code,
     )?;
-    let code = crate::terminal::retain_calling_program(source, timings)?;
     let boundary_calling_plan_realizations = calling.evaluate(&code)?;
-    let settled_target_machines = provider_planning::target_machines::settle_provider_defaults(
-        one_refusal(source.provider_inventory.origins_for(&source.program))?,
-        &source.provider_defaults,
-        selected_target_profile.unwrap_or_else(target::TargetProfile::host),
-    );
     let deployment = build_config.provider_deployment()?;
     provider_planning::settle_checked_providers(
         &source.program,
@@ -473,7 +483,6 @@ fn prepare_target_provider_selection(
         boundary_calling_plan_realizations,
         code,
         &build_config.opaque_representation_selections,
-        &source.program.facts.synchronous_invocations,
     )
 }
 

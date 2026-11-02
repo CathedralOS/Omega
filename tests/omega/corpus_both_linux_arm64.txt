@@ -9835,7 +9835,7 @@ pass/providers/applied_header_dependent_const_carrier_exit rejected 811ms interp
 	const parameter `Count` of `Parent` requires an integer literal argument
 pass/providers/applied_requirement_calls_exit built 2052ms interpreter-exit:0 @6e42425cd720
 pass/providers/applied_requirement_computed_const_exit rejected 856ms interpreter:unchecked @6e42425cd720
-	cannot prove declared where facts for static application of requirement `Service::echo` under its complete applied telescope
+	cannot prove declared requires facts for static application of requirement `Service::echo` under its complete applied telescope
 pass/providers/applied_routed_index_forwarding_exit built 5364ms exit:0 interpreter-exit:0 interpreter:agrees terminal-inspections:match @6e42425cd720
 pass/providers/applied_type_index_forwarding_exit rejected 288ms interpreter:unchecked @6e42425cd720
 	provider choice must supply the declaration's complete static application
@@ -10318,7 +10318,7 @@ pass/slices/runtime_borrowed_noncopy_array_argument_exit built 1936ms exit:0 int
 pass/slices/runtime_bounded_fixed_array_subslice_arg_exit built 7772ms exit:3 interpreter-exit:3 interpreter:agrees @6e42425cd720
 pass/slices/runtime_byte_view_guarded_state_contract_exit built 7633ms exit:70 interpreter-exit:70 interpreter:agrees @6e42425cd720
 pass/slices/runtime_call_endpoint_argument_exit rejected 7941ms interpreter:unchecked @6e42425cd720
-	terminal-artifact production failed: Lowering(ConflictingStructuralValueHome { root: Expression(Handle { arena_index: 18188, generation: 1 }), established: StructuralArgument { place: PlaceId(101), path: [], access: Owned }, established_type: StructuralTypeId(26), requested: StructuralArgument { place: PlaceId(104), path: [], access: Owned }, requested_type: StructuralTypeId(26), producer_file: "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit/argument_evaluation.rs", producer_line: 1865 })
+	terminal-artifact production failed: Lowering(ConflictingStructuralValueHome { root: Expression(Handle { arena_index: 18188, generation: 1 }), established: StructuralArgument { place: PlaceId(101), path: [], access: Owned }, established_type: StructuralTypeId(26), requested: StructuralArgument { place: PlaceId(104), path: [], access: Owned }, requested_type: StructuralTypeId(26), producer_file: "omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/argument_evaluation.rs", producer_line: 1865 })
 pass/slices/runtime_call_endpoint_field_transition_exit built 7586ms exit:70 interpreter-exit:70 interpreter:agrees @6e42425cd720
 pass/slices/runtime_call_endpoint_order_exit built 7737ms exit:70 interpreter-exit:70 interpreter:agrees @6e42425cd720
 pass/slices/runtime_call_endpoint_view_exit built 7748ms exit:70 interpreter-exit:70 interpreter:agrees @6e42425cd720
@@ -10345,7 +10345,7 @@ pass/slices/runtime_helper_stored_view_return_exit rejected 1586ms interpreter:u
 pass/slices/runtime_imported_range_views_exit built 2287ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/slices/runtime_imported_slice_provider_composition_exit built 2306ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/slices/runtime_inclusive_call_endpoint_order_exit rejected 7883ms interpreter:unchecked @6e42425cd720
-	terminal-artifact production failed: Lowering(ConflictingStructuralValueHome { root: Expression(Handle { arena_index: 18206, generation: 1 }), established: StructuralArgument { place: PlaceId(101), path: [], access: Owned }, established_type: StructuralTypeId(30), requested: StructuralArgument { place: PlaceId(106), path: [], access: Owned }, requested_type: StructuralTypeId(30), producer_file: "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit/argument_evaluation.rs", producer_line: 1865 })
+	terminal-artifact production failed: Lowering(ConflictingStructuralValueHome { root: Expression(Handle { arena_index: 18206, generation: 1 }), established: StructuralArgument { place: PlaceId(101), path: [], access: Owned }, established_type: StructuralTypeId(30), requested: StructuralArgument { place: PlaceId(106), path: [], access: Owned }, requested_type: StructuralTypeId(30), producer_file: "omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/argument_evaluation.rs", producer_line: 1865 })
 pass/slices/runtime_inclusive_call_endpoint_view_exit built 8031ms exit:70 interpreter-exit:70 interpreter:agrees @6e42425cd720
 pass/slices/runtime_indexed_descriptor_replacement_call_exit built 2043ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/slices/runtime_indexed_record_field_range_exit built 2106ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
@@ -10947,13 +10947,13 @@ pass/traits/default_row_same_spelled_supplier_region_exit built 2168ms exit:0 in
 pass/traits/default_row_shadowed_captured_operand checked 1615ms @6e42425cd720
 pass/traits/default_row_shadowed_captured_operand_exit built 2281ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/traits/dyn_finite_family rejected 680ms @6e42425cd720
-	cannot prove declared where facts for static application of requirement `Shape::code` under its complete applied telescope
-	cannot prove declared where facts for static application of requirement `Shape::code` under its complete applied telescope
+	cannot prove declared requires facts for static application of requirement `Shape::code` under its complete applied telescope
+	cannot prove declared requires facts for static application of requirement `Shape::code` under its complete applied telescope
 	retained requirement tuple lost its exact source call application: call `code` in `Main::run` binds declaration Handle { arena_index: 1469, generation: 1 }, but its retained targets are [(Handle { arena_index: 1469, generation: 1 }, Handle { arena_index: 0, generation: 0 })]
 	retained requirement tuple lost its exact source call application: call `code` in `Main::run` binds declaration Handle { arena_index: 1469, generation: 1 }, but its retained targets are [(Handle { arena_index: 1469, generation: 1 }, Handle { arena_index: 0, generation: 0 })]
 pass/traits/dyn_finite_family_dispatch rejected 391ms @6e42425cd720
-	cannot prove declared where facts for static application of requirement `Shape::code` under its complete applied telescope
-	cannot prove declared where facts for static application of requirement `Shape::code` under its complete applied telescope
+	cannot prove declared requires facts for static application of requirement `Shape::code` under its complete applied telescope
+	cannot prove declared requires facts for static application of requirement `Shape::code` under its complete applied telescope
 	retained requirement tuple lost its exact source call application: call `code` in `Main::run` binds declaration Handle { arena_index: 908, generation: 1 }, but its retained targets are [(Handle { arena_index: 908, generation: 1 }, Handle { arena_index: 0, generation: 0 })]
 	retained requirement tuple lost its exact source call application: call `code` in `Main::run` binds declaration Handle { arena_index: 908, generation: 1 }, but its retained targets are [(Handle { arena_index: 908, generation: 1 }, Handle { arena_index: 0, generation: 0 })]
 pass/traits/equatable_implementation_selection_exit built 8121ms exit:70 interpreter-exit:70 interpreter:agrees @6e42425cd720
@@ -10996,12 +10996,12 @@ pass/traits/runtime_dyn_byte_result_candidates built 2159ms exit:0 interpreter-e
 pass/traits/runtime_dyn_byte_subview_join built 2114ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/traits/runtime_dyn_data_argument_counts_exit built 7919ms exit:70 interpreter-exit:70 interpreter:agrees @6e42425cd720
 pass/traits/runtime_dyn_family_nested_result rejected 5662ms interpreter:unchecked @6e42425cd720
-	cannot prove declared where facts for static application of requirement `Shape::code` under its complete applied telescope
-	cannot prove declared where facts for static application of requirement `Shape::code` under its complete applied telescope
+	cannot prove declared requires facts for static application of requirement `Shape::code` under its complete applied telescope
+	cannot prove declared requires facts for static application of requirement `Shape::code` under its complete applied telescope
 	retained requirement tuple lost its exact source call application: call `code` in `scan` binds declaration Handle { arena_index: 19499, generation: 1 }, but its retained targets are [(Handle { arena_index: 19499, generation: 1 }, Handle { arena_index: 0, generation: 0 })]
 	retained requirement tuple lost its exact source call application: call `code` in `nested_read` binds declaration Handle { arena_index: 19499, generation: 1 }, but its retained targets are [(Handle { arena_index: 19499, generation: 1 }, Handle { arena_index: 0, generation: 0 })]
 pass/traits/runtime_dyn_family_scalar_continuation rejected 617ms interpreter:unchecked @6e42425cd720
-	cannot prove declared where facts for static application of requirement `Shape::code` under its complete applied telescope
+	cannot prove declared requires facts for static application of requirement `Shape::code` under its complete applied telescope
 	retained requirement tuple lost its exact source call application: call `code` in `compare` binds declaration Handle { arena_index: 1470, generation: 1 }, but its retained targets are [(Handle { arena_index: 1470, generation: 1 }, Handle { arena_index: 0, generation: 0 })]
 pass/traits/runtime_dyn_field_assignment_establishment_exit built 2093ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/traits/runtime_dyn_guarded_result_exit built 2642ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
@@ -11041,18 +11041,18 @@ pass/traits/runtime_exact_requirement_edge_exit built 7852ms exit:1 interpreter-
 pass/traits/runtime_explicit_implementation_arguments_exit built 2466ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/traits/runtime_explicit_implementation_requirement_call_exit built 8421ms exit:70 interpreter-exit:70 interpreter:agrees @6e42425cd720
 pass/traits/runtime_finite_family_affine_result_exit rejected 5264ms interpreter:unchecked @6e42425cd720
-	cannot prove declared where facts for static application of requirement `Shape::code` under its complete applied telescope
+	cannot prove declared requires facts for static application of requirement `Shape::code` under its complete applied telescope
 	retained requirement tuple lost its exact source call application: call `code` in `scan` binds declaration Handle { arena_index: 1986, generation: 1 }, but its retained targets are [(Handle { arena_index: 1986, generation: 1 }, Handle { arena_index: 0, generation: 0 })]
 pass/traits/runtime_finite_family_correlated_case_result_exit rejected 5804ms interpreter:unchecked @6e42425cd720
-	cannot prove declared where facts for static application of requirement `Shape::code` under its complete applied telescope
+	cannot prove declared requires facts for static application of requirement `Shape::code` under its complete applied telescope
 	retained requirement tuple lost its exact source call application: call `code` in `scan` binds declaration Handle { arena_index: 19501, generation: 1 }, but its retained targets are [(Handle { arena_index: 19501, generation: 1 }, Handle { arena_index: 0, generation: 0 })]
 pass/traits/runtime_finite_family_owned_result_exit rejected 5238ms interpreter:unchecked @6e42425cd720
-	cannot prove declared where facts for static application of requirement `Shape::code` under its complete applied telescope
+	cannot prove declared requires facts for static application of requirement `Shape::code` under its complete applied telescope
 	retained requirement tuple lost its exact source call application: call `code` in `scan` binds declaration Handle { arena_index: 1990, generation: 1 }, but its retained targets are [(Handle { arena_index: 1990, generation: 1 }, Handle { arena_index: 0, generation: 0 })]
 pass/traits/runtime_finite_family_owned_state_result_exit rejected 5127ms interpreter:unchecked @6e42425cd720
 	requirement `Shape::code` is absent from `dyn Shape`: the requirement has requirement-local generic parameters outside one finite family
 pass/traits/runtime_finite_family_structural_result_exit rejected 5707ms interpreter:unchecked @6e42425cd720
-	cannot prove declared where facts for static application of requirement `Shape::code` under its complete applied telescope
+	cannot prove declared requires facts for static application of requirement `Shape::code` under its complete applied telescope
 	retained requirement tuple lost its exact source call application: call `code` in `scan` binds declaration Handle { arena_index: 19496, generation: 1 }, but its retained targets are [(Handle { arena_index: 19496, generation: 1 }, Handle { arena_index: 0, generation: 0 })]
 pass/traits/runtime_generic_exact_application_exit built 2001ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/traits/runtime_inherited_trait_default_exit built 7965ms exit:70 interpreter-exit:70 interpreter:agrees @6e42425cd720
@@ -11182,7 +11182,7 @@ run/calls/named_transition_suffixed_float_arguments_exit built 4253ms exit:0 int
 run/calls/named_transition_zero_argument_guard_exit built 4173ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 run/calls/nested_case_terminal_process_exit built 8104ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 run/calls/nested_range_call_operands rejected 1982ms interpreter:unchecked @6e42425cd720
-	terminal-artifact production failed: Lowering(ConflictingStructuralValueHome { root: Expression(Handle { arena_index: 6435, generation: 1 }), established: StructuralArgument { place: PlaceId(24), path: [], access: Owned }, established_type: StructuralTypeId(12), requested: StructuralArgument { place: PlaceId(29), path: [], access: Owned }, requested_type: StructuralTypeId(12), producer_file: "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit/argument_evaluation.rs", producer_line: 1865 })
+	terminal-artifact production failed: Lowering(ConflictingStructuralValueHome { root: Expression(Handle { arena_index: 6435, generation: 1 }), established: StructuralArgument { place: PlaceId(24), path: [], access: Owned }, established_type: StructuralTypeId(12), requested: StructuralArgument { place: PlaceId(29), path: [], access: Owned }, requested_type: StructuralTypeId(12), producer_file: "omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/argument_evaluation.rs", producer_line: 1865 })
 run/calls/nested_static_implementation_context built 2121ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 run/calls/nested_static_implementation_shadow built 2460ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 run/calls/ordered_literal_call_operands built 2044ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
@@ -11318,13 +11318,13 @@ run/domains/zero_case_default_domain built 2236ms exit:0 interpreter-exit:0 inte
 run/domains/zero_case_default_payload built 1944ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 run/domains/zero_field_call_formation_exit built 2012ms interpreter-exit:0 @6e42425cd720
 run/dyn_finite_family_correlated rejected 5837ms interpreter:unchecked @6e42425cd720
-	cannot prove declared where facts for static application of requirement `Shape::code` under its complete applied telescope
+	cannot prove declared requires facts for static application of requirement `Shape::code` under its complete applied telescope
 	retained requirement tuple lost its exact source call application: call `code` in `scan` binds declaration Handle { arena_index: 19491, generation: 1 }, but its retained targets are [(Handle { arena_index: 19491, generation: 1 }, Handle { arena_index: 0, generation: 0 })]
 run/dyn_finite_family_owned_carrier rejected 5123ms interpreter:unchecked @6e42425cd720
-	cannot prove declared where facts for static application of requirement `Shape::code` under its complete applied telescope
+	cannot prove declared requires facts for static application of requirement `Shape::code` under its complete applied telescope
 	retained requirement tuple lost its exact source call application: call `code` in `scan` binds declaration Handle { arena_index: 1992, generation: 1 }, but its retained targets are [(Handle { arena_index: 1992, generation: 1 }, Handle { arena_index: 0, generation: 0 })]
 run/dyn_finite_family_runtime_dispatch rejected 5997ms interpreter:unchecked @6e42425cd720
-	cannot prove declared where facts for static application of requirement `Shape::code` under its complete applied telescope
+	cannot prove declared requires facts for static application of requirement `Shape::code` under its complete applied telescope
 	retained requirement tuple lost its exact source call application: call `code` in `scan` binds declaration Handle { arena_index: 19491, generation: 1 }, but its retained targets are [(Handle { arena_index: 19491, generation: 1 }, Handle { arena_index: 0, generation: 0 })]
 run/facts/double_indexed_rmw_through_call_result_traps built 2271ms exit:signal signal:5 interpreter:trapped @6e42425cd720
 run/facts/double_indexed_rmw_through_const_name_traps built 2012ms exit:signal signal:5 interpreter:trapped @6e42425cd720
@@ -11458,7 +11458,7 @@ run/slices/computed_record_window built 4579ms exit:0 interpreter-exit:0 interpr
 run/slices/disjoint_local_state_windows built 7699ms exit:12 interpreter-exit:12 interpreter:agrees @6e42425cd720
 run/slices/edge_window_owned_backing built 2014ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 run/slices/folded_window_endpoint_effects rejected 1987ms interpreter:unchecked @6e42425cd720
-	terminal-artifact production failed: Lowering(ConflictingStructuralValueHome { root: Expression(Handle { arena_index: 6544, generation: 1 }), established: StructuralArgument { place: PlaceId(44), path: [], access: Owned }, established_type: StructuralTypeId(10), requested: StructuralArgument { place: PlaceId(49), path: [], access: Owned }, requested_type: StructuralTypeId(10), producer_file: "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit/argument_evaluation.rs", producer_line: 1865 })
+	terminal-artifact production failed: Lowering(ConflictingStructuralValueHome { root: Expression(Handle { arena_index: 6544, generation: 1 }), established: StructuralArgument { place: PlaceId(44), path: [], access: Owned }, established_type: StructuralTypeId(10), requested: StructuralArgument { place: PlaceId(49), path: [], access: Owned }, requested_type: StructuralTypeId(10), producer_file: "omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/argument_evaluation.rs", producer_line: 1865 })
 run/slices/matched_computed_window_end built 2047ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 run/slices/matched_record_window_lower_bound built 2129ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 run/slices/mutable_window_call_argument built 1945ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720

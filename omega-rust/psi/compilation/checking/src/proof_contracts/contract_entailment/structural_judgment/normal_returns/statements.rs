@@ -68,6 +68,12 @@ impl<'program> StructuralJudge<'program> {
         let arguments = crate::call_site_argument_expressions(program, &site);
         let application =
             AppliedProofBindings::for_call_site(program, scope.0.symbol, &owner, site);
+        let erased_citation =
+            crate::machine_calls::fact_only_citations::is_fact_only_requirement_citation(
+                program,
+                scope.0.symbol,
+                call,
+            );
         let statement = scope.1.statement_nodes.handles().nth(statement_index)?;
         if !matches!(program.statement_table.statements(scope.1.statement_nodes).get(statement_index), Some(StatementNode::Call(selected)) if std::ptr::eq(selected, call))
         {
@@ -99,7 +105,15 @@ impl<'program> StructuralJudge<'program> {
             }
             let actuals = entry.observed_arguments()?;
             let mut judge = entry.judge;
-            let writes = judge.frame_resolver()?.may_write_frame(scope.0, call);
+            let writes = if erased_citation {
+                // The same checked citation is erased by execution planning.
+                // It has no physical invocation whose unknown frame could
+                // retire its logical subjects. Public premises still discharge
+                // below before any guarantee enters the caller's facts.
+                NormalizedWriteFrame::complete(Vec::new())
+            } else {
+                judge.frame_resolver()?.may_write_frame(scope.0, call)
+            };
             let mut post_storage = Vec::new();
             if call.evidence_arguments.is_empty()
                 && let Some(application) = &application

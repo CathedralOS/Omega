@@ -3,7 +3,7 @@
 //! These projections supply existing stage inputs; they do not lower code,
 //! produce callback bodies, execute native proposal production, or assemble a
 //! report — `CompileReportSettlement` owns report construction.
-//! Omega stage 00 joins the recorded occurrences to provider selection.
+//! Omega 00 joins the recorded occurrences to provider selection.
 
 use super::CheckedCompilation;
 use diagnostics::Diagnostic;
@@ -37,7 +37,7 @@ impl CheckedCompilation {
 
     /// Borrow the exact checked selections for a produced Terminal occurrence
     /// roster. Supplied callbacks remain candidates, not admitted native code;
-    /// stage 00 must check their cardinality, identities and source associations.
+    /// Omega 00 must check their cardinality, identities and source associations.
     /// Provider identities were closed by checked-provider binding, before
     /// Terminal production; this projection never reopens typed declarations.
     pub fn terminal_native_proposal_request<'input>(
@@ -57,7 +57,7 @@ impl CheckedCompilation {
             )]);
         }
         let selected_provider_provenance = execution.selected_provider_provenance.iter()
-            .zip(&native_sources.declarations)
+            .zip(native_sources.declarations.iter())
             .map(|(retained, declarations)| {
                 if retained.plan != declarations.plan {
                     return Err(vec![Diagnostic::error(

@@ -71,7 +71,7 @@ const DECLARED_SLOT_COUNT: u64 = 4 * 2;
 machine declared_slot_count() -> u64 { DECLARED_SLOT_COUNT }
 
 machine capacity<Storage, const Capacity: u64>() -> u64
-where Storage == [u8; Capacity]
+requires Storage == [u8; Capacity]
 { Capacity }
 
 machine recovered_capacity() -> u64 { capacity<[u8; 8]>() }
@@ -86,7 +86,7 @@ machine Buffer::length<const Capacity: u64>(buffer: &Buffer<Capacity>) -> u64 {
 }
 
 machine synthesized_capacity<const Capacity: u64, Storage>() -> u64
-where Storage == Buffer<Capacity>
+requires Storage == Buffer<Capacity>
 { Capacity }
 
 // Settlement creates a concrete data instance before Product bodies complete.

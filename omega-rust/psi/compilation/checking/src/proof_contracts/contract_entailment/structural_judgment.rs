@@ -33,10 +33,13 @@ mod invocation_entry;
 mod licenses;
 mod mathematical_predicates;
 pub(super) mod normal_returns;
+mod resolution_inputs;
 mod resolution_queries;
 mod returned_fields;
 pub(super) mod selected_contracts;
 mod storage_effects;
+mod traversal_inputs;
+pub(in crate::proof_contracts::contract_entailment) use traversal_inputs::StructuralTraversalInputs;
 mod value_correspondence;
 mod value_predicates;
 
@@ -74,20 +77,6 @@ pub(super) fn specification_application_candidate(
         .machine_states(machine)
         .first()
         .ok_or("the selected machine has no entry state")?;
-    let proof_only = crate::proof_only_classification(program);
-    if crate::proof_contracts::quotients::type_has_forbidden_denotational_content(
-        program,
-        &proof_only,
-        state.return_type,
-    ) || program.state_parameters(state).iter().any(|parameter| {
-        crate::proof_contracts::quotients::type_has_forbidden_denotational_content(
-            program,
-            &proof_only,
-            parameter.type_reference,
-        )
-    }) {
-        return Err("the application carries forbidden denotational content");
-    }
     let plans = crate::machine_calls::calls::operand_call_plans(program, frames);
     crate::machine_calls::denotational_calls::checked_value_call_candidate(
         program, machine, state, &plans.0, &plans.1,
@@ -1101,13 +1090,6 @@ impl<'program> StructuralJudge<'program> {
         requires: &[ExpressionHandle],
         resolve_applications: bool,
     ) -> Self {
-        let mut entry_facts = requires.to_vec();
-        if let Some(machine) = program.machine(owner) {
-            entry_facts.extend_from_slice(
-                expression_table(program).expression_handles(machine.declared_type_predicates),
-            );
-        }
-        let requires = entry_facts.as_slice();
         let licenses = crate::frozen_program::frozen_memo(
             program,
             |memos| &memos.license_candidates,
@@ -1386,8 +1368,21 @@ impl<'program> StructuralJudge<'program> {
             if !self.is_case_membership(fact, binary) {
                 return;
             }
+            let reference = if self.runtime_body_values {
+                self.runtime_declaration_scope()
+                    .and_then(|(machine, state)| {
+                        crate::proof_contracts::bound_expression_meaning::operand_type(
+                            program,
+                            machine,
+                            Some(state),
+                            binary.left,
+                        )
+                    })
+            } else {
+                self.declaration_expression_type(binary.left)
+            };
             let Some((definition, variant)) =
-                super::structural_terms::case_classifier(program, binary.right)
+                cases::applied_case_classifier(program, binary.right, reference)
             else {
                 return;
             };
@@ -2511,11 +2506,40 @@ impl<'program> StructuralJudge<'program> {
         if !self.specification_terms {
             return false;
         }
+        let closed = crate::machine_calls::denotational_calls::selected_requirement_authored_body(
+            self.program,
+            lexical_owner,
+            call,
+        );
+        if closed.is_none()
+            && let Some(super::specification_calls::SelectedCallContract::Signature(signature)) =
+                super::specification_calls::selected_call_contract(
+                    self.program,
+                    lexical_owner,
+                    call,
+                )
+            && crate::machine_calls::denotational_calls::signature_has_closed_value_contract(
+                self.program,
+                signature,
+            )
+        {
+            // An abstract logical application consumes its exact public
+            // effect/progress promise. It gains no body or result equation.
+            return true;
+        }
+        let target = closed.map_or_else(
+            || super::structural_terms::structural_call_target(self.program, lexical_owner, call),
+            |(_, entry)| entry.symbol,
+        );
         let candidate = specification_application_candidate(
             self.program,
             self.machine_symbol,
-            super::structural_terms::structural_call_target(self.program, lexical_owner, call),
-            &call.machine_arguments,
+            target,
+            if closed.is_some() {
+                &[]
+            } else {
+                &call.machine_arguments
+            },
             self.frame_resolver(),
         );
         if super::struct_trace()
@@ -3221,9 +3245,11 @@ impl<'program> StructuralJudge<'program> {
             if !self.is_case_membership(fact, binary) {
                 return StructuralJudgment::Unknown;
             }
-            let Some((definition, variant)) =
-                super::structural_terms::case_classifier(program, binary.right)
-            else {
+            let Some((definition, variant)) = cases::applied_case_classifier(
+                program,
+                binary.right,
+                self.declaration_expression_type(binary.left),
+            ) else {
                 return StructuralJudgment::Unknown;
             };
             let Some(subject) = self.declaration_term(binary.left) else {
@@ -3539,11 +3565,14 @@ impl<'program> StructuralJudge<'program> {
         declared.iter().all(|field_name| {
             fields.iter().any(|(field, value)| {
                 field == field_name
-                    && matches!(
-                        self.resolve(value.clone()),
-                        StructuralTerm::Opaque(opaque)
-                            if opaque == format!("{name}.{field_name}")
-                    )
+                    && match self.resolve(value.clone()) {
+                        StructuralTerm::Opaque(opaque) => opaque == format!("{name}.{field_name}"),
+                        StructuralTerm::Projection { subject, path } => {
+                            matches!(*subject, StructuralTerm::Variable(root) if root == *name)
+                                && path == *field_name
+                        }
+                        _ => false,
+                    }
             })
         })
     }

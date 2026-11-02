@@ -122,7 +122,7 @@ Apply [requirements and evidence](../../../AGENTS.md#requirements-and-evidence):
 each sample fact README lists how its nine places and reject twins prove out
 the eight end-to-end specification requirement layers—**establishment**,
 **identity and lifetime**, **composition**, **soundness boundaries**,
-**checked-to-Terminal Psi lowering (`Psi 05–07`)** (proof-term erasure, affine
+**checked-to-Terminal Psi lowering (`Psi 06–08`)** (proof-term erasure, affine
 cleanup actions, borrow restoration windows, `dyn` selector vs. data lanes,
 strongly connected ranking/control edges, boundary demands, and `PSITERM\0`
 interpreter execution), **provider settlement, layout geometry, and ABI calling
@@ -143,9 +143,9 @@ consuming operation itself: never re-establish the fact in the caller after the
 construct completes using a post-hoc equality guard (`transition x == 100`), and
 verify via `git diff` that `<place>/main.omg` vs. `<place>/invalid/main.omg`
 differ only in the construct's own value, domain, or contract. Just as
-`<place>/invalid/main.omg` is the static falsifier for `Psi 01–04`, `main()` in
+`<place>/invalid/main.omg` is the static falsifier for `Psi 01–05`, `main()` in
 `<place>/main.omg` must be a runtime falsifier that traps (`crash Trap`) if
-`Psi 05–07` or `Omega 00–09` mis-lowers the construct: exercise both matching
+`Psi 06–08` or `Omega 00–09` mis-lowers the construct: exercise both matching
 and fallback paths with distinct runtime outcomes (never testing only a
 boundary value where both arms evaluate to the same number), make affine
 cleanup (`DiscardRoot`, `DiscardResidual`, `InvokeNominal`, `RetireHome`) or

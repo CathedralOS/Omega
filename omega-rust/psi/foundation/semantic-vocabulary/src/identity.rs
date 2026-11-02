@@ -243,6 +243,15 @@ semantic_id!(
     "Nominal coordinate of one declaration ABI application, independently of callback selection."
 );
 
+/// The declaration which may own a physical calling ABI. An ordinary trait
+/// inherited by a boundary trait does not thereby become a boundary owner.
+/// This classification supplies no provider, invocation or execution authority.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+pub enum CallingDeclarationOwner {
+    BoundaryTrait,
+    TopLevelRequirement,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum CallingOperandKind {
     Type,

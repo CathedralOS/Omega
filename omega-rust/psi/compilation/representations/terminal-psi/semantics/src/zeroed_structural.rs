@@ -90,20 +90,10 @@ pub struct EstablishedErasedStructuralField {
     pub carrier_type_identity: TerminalIdentityIndex,
 }
 
-fn established_field_identity<'types>(
-    declarations: &[&'types StructuralTypeDeclaration],
-    field: &'types StructuralFieldDeclaration,
-) -> Option<TerminalIdentityIndex> {
+fn established_field_identity(field: &StructuralFieldDeclaration) -> Option<TerminalIdentityIndex> {
     match &field.field_type {
         StructuralFieldType::Erased { type_identity } if !type_identity.is_absent() => {
             Some(*type_identity)
-        }
-        StructuralFieldType::Structural(child) if !field.relevance.is_erased() => {
-            let declaration = declarations
-                .iter()
-                .find(|declaration| declaration.id == *child)?;
-            matches!(declaration.shape, StructuralTypeShape::BindingCarrier)
-                .then_some(declaration.identity)
         }
         _ => None,
     }
@@ -248,8 +238,7 @@ fn zeroed_declaration_graph(
             // leaves. The materialization walk below independently requires
             // exact supplied custody for every such occurrence and consumes
             // each establishment once; no field is established here.
-            if allow_established_fields && established_field_identity(declarations, field).is_some()
-            {
+            if allow_established_fields && established_field_identity(field).is_some() {
                 continue;
             }
             if field.relevance.is_erased() || !accepts_field(field) {
@@ -338,7 +327,7 @@ pub fn zeroed_structural_leaves_with_established_erased_fields<'types>(
         }
         if let terminal_psi::record_or_mixed_shape_pattern!(fields) = &declaration.shape {
             for field in fields {
-                if let Some(carrier) = established_field_identity(&declarations, field) {
+                if let Some(carrier) = established_field_identity(field) {
                     let mut field_path = path
                         .iter()
                         .map(|segment| match segment {
@@ -383,9 +372,6 @@ pub fn zeroed_structural_leaves_with_established_erased_fields<'types>(
             }
         }
         match &declaration.shape {
-            // No payload does not mean no validity: a selected binding must be
-            // established by the entry/transfer route, never by all-zero bytes.
-            StructuralTypeShape::BindingCarrier => return None,
             StructuralTypeShape::PrimitiveScalar(scalar_type) => {
                 leaves.push(ZeroedStructuralLeaf::ArrayScalar {
                     path,

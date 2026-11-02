@@ -134,8 +134,17 @@ fn item_copy_preserves_shared_body_subject_and_isolates_instances() {
     let fact = source
         .items
         .append_proof_fact(crate::item::ProofFact::Expression(membership));
+    let contract = source
+        .items
+        .append_capability_contract(crate::item::CapabilityContract {
+            kind: crate::item::CapabilityContractKind::Requires,
+            keyword_source_span: None,
+            binding: None,
+            facts: HandleSpan::from_parts(fact, 1),
+            token_count: 0,
+        });
     let mut machine = single_state_machine(state);
-    machine.where_facts = HandleSpan::from_parts(fact, 1);
+    machine.contracts = HandleSpan::from_parts(contract, 1);
     let item = Item::Machine(machine);
     let mut destination = SyntaxTrees::new(Default::default());
     let first = destination.copy_item_from(&source, &item);
@@ -152,7 +161,7 @@ fn item_copy_preserves_shared_body_subject_and_isolates_instances() {
             panic!("copied assignment");
         };
         let crate::item::ProofFact::Expression(fact) =
-            destination.items.proof_fact(machine.where_facts.start())
+            &destination.items.requirement_facts(machine.contracts)[0]
         else {
             panic!("copied expression fact");
         };
@@ -217,7 +226,6 @@ fn single_state_machine(state: arena::Handle<StateHandle>) -> Machine {
         name: Identifier::generated("main"),
         generic_data_template: Default::default(),
         default_body_trait: Default::default(),
-        where_facts: HandleSpan::empty(),
         attached_data: None,
         spelling: None,
         is_public: false,
@@ -1064,7 +1072,6 @@ fn syntax_trees_extend_from_preserves_root_payload_handles() {
         name: Identifier::generated("main"),
         generic_data_template: Default::default(),
         default_body_trait: Default::default(),
-        where_facts: HandleSpan::empty(),
         attached_data: None,
         spelling: None,
         is_public: true,
@@ -1153,7 +1160,6 @@ fn syntax_signature_copy_preserves_operational_keyword_sources() {
         contracts: HandleSpan::empty(),
         default_body: HandleSpan::empty(),
         terminates_guarantee: false,
-        where_facts: HandleSpan::empty(),
     });
 
     let mut copied_trees = SyntaxTrees::new(Default::default());
@@ -1448,4 +1454,50 @@ fn constant_destination_debt_is_remapped_without_settling_or_refreshing_stale_in
         .expect("stale debt cannot vanish");
     assert_eq!(pending, stale);
     assert_ne!(pending.initializer, copied.value);
+}
+
+#[test]
+fn copying_const_result_preserves_distinct_computation_and_materialized_value() {
+    let mut source = SyntaxTrees::new(Default::default());
+    let authored = source.expressions.insert(ExpressionNode::Boolean(true));
+    let materialized = source.expressions.insert(ExpressionNode::Boolean(false));
+    let argument = source
+        .type_references
+        .insert_named(Identifier::generated("result"));
+    source.type_references.retain_const_argument_normalization(
+        argument,
+        Default::default(),
+        String::new(),
+        [],
+        [],
+    );
+    source
+        .type_references
+        .retain_const_argument_expression(argument, authored);
+    source
+        .type_references
+        .retain_const_argument_materialized_expression(argument, materialized);
+    let mut copied = SyntaxTrees::new(Default::default());
+    for _ in 0..8 {
+        copied.expressions.insert(ExpressionNode::Boolean(true));
+    }
+    let argument = copied.copy_type_reference_handle(&source, argument);
+    let normalization = copied
+        .type_references
+        .const_argument_normalization(argument)
+        .unwrap();
+    assert_ne!(normalization.authored_expression, authored);
+    assert_ne!(normalization.materialized_expression, materialized);
+    assert!(matches!(
+        copied
+            .expressions
+            .expression(normalization.authored_expression),
+        ExpressionNode::Boolean(true)
+    ));
+    assert!(matches!(
+        copied
+            .expressions
+            .expression(normalization.materialized_expression),
+        ExpressionNode::Boolean(false)
+    ));
 }

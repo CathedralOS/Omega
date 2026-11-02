@@ -66,6 +66,25 @@ pub(crate) struct ContentDeclarationFormation<'inputs> {
 }
 
 impl ContentConservationInputs {
+    /// A normalized conservation equation already formed this exact projection
+    /// and borrowed subject. It is not an ordinary replayable value call. The
+    /// proof traversal retains a machine owner for state contracts; the plan
+    /// joins that owner to its actual callable and source expression.
+    pub(crate) fn forms_projection_call(
+        &self,
+        owner: SymbolHandle,
+        call: ExpressionHandle,
+    ) -> bool {
+        self.formations.iter().any(|(_, formation)| {
+            formation.call == call
+                && self.plans.iter().chain(&self.checking_plans).any(|plan| {
+                    plan.plan.callable == formation.callable
+                        && plan.source_expression == formation.source_expression
+                        && (plan.plan.callable == owner || plan.plan.owner == owner)
+                })
+        })
+    }
+
     pub(crate) fn declaration_formation(
         &self,
         callable: SymbolHandle,

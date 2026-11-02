@@ -165,7 +165,7 @@ base read 46 fixtures with 0 structural moves.
    host presentation agreement. The mixed-format control fails closed at
    checking, so the route cannot silently absorb an operand outside its
    declared format.
-5. **Checked-to-Terminal Psi lowering (`Psi 05–07`):** The declared comparison
+5. **Checked-to-Terminal Psi lowering (`Psi 06–08`):** The declared comparison
    lowers without loss to target-neutral Terminal Psi (`PSITERM\0`) as
    `IeeeFloatCompare { comparison: Equal }` in every place, proof-only float
    meaning terms are erased, and the Terminal Psi interpreter executes every
@@ -210,3 +210,57 @@ oracle are unchanged. The entry wrapper and each implementation check a tag
 Linux x86-64 native and Terminal Psi agreement for the positive and source
 rejection for the twin; the other hosted targets keep their authored rows,
 unexecuted here.
+
+## Token-machine identity regression (TERMINAL-BUILD-SEED)
+
+At fixed base `bc2c778d57d90b75587d484a6a882ad2cecac9a4`, the optimized
+producer refuses the existing local place with `Terminal boundary application
+has no unique exact selected row`. The same refusal occurs with an explicit
+`float_operations` import, and blocks the parent's unchanged
+`tests/omega/pass/float/named_provider_directed_divide_exit/main.omg` customer.
+
+Checking and Terminal retain the callable identity of the token-bearing
+`Float::equal` machine. The shared provider-schema identity helper instead
+invented a legacy `operator::...` slot for that machine's token view. Provider
+demand discovery also followed ordinary calls while omitting the canonical
+application attached to the comparison operation. The repair consumes that
+roster within the existing target-reachable body closure and reuses the existing
+machine callable identity; exact overload, package, target,
+row execution, and contract checks remain on their ordinary paths. The existing
+nine-place positives, mixed-format refusals, and runtime trap twins cover this
+same mechanism; no duplicate comparison row is needed. The original customer
+covers imported f32/f64 arithmetic, directed modes, subsequent ordinary division,
+and its exit-70 oracle without changing the program.
+
+This repair addresses the named customer's comparison prerequisite. The parent
+Build scheduler, host-operation, and snapshot-output acceptance remains separate.
+
+Before integration, Linux x86-64 verification used the optimized producer (SHA-256
+`74ccf33874a71df448199e134414d1bc6b0b0e0c278a7a9b22825eb3f72e10d1`):
+all nine comparison positives exit 0 in both engines, and all nine runtime
+counterfactuals trap with agreement. All format twins reject. Nine neighboring
+boundary-provider positives and a selected integer-comparison control also run
+in both engines. The original package-aware directed-division customer exits
+70 in both engines after normal compiler-bound lock refresh; its source and
+oracle are unchanged. Those historical observations cover Linux only.
+
+The active [nonnumeric contract control](controls/nonnumeric_contract/main.omg)
+invokes an ordinary boundary predicate over f64. Its boolean supplies no IEEE
+upper-bound law, so forwarding the operand into `bounded` must reject the
+unproved precondition. It is pinned in
+[`float_comparison_route_nonnumeric_contract_rejected`](../../../../tests/omega/fail/facts/float_comparison_route_nonnumeric_contract_rejected/main.omg).
+
+The integrated selector preserves Product and Invocation scopes separately.
+Matching-host verification at `46a8d4e7c64e2738a34b7bdee0a6e64ea5c18cb6`
+then runs the unchanged named directed-division customer through normal CLI
+update, pending-row review/resume, and `run --both --keep`. Each pilot freezes
+its tracked inputs and authenticates an opt-level-1 producer.
+
+| Native host | Native exit | Terminal exit | Source-bound receipt |
+| --- | --- | --- | --- |
+| Linux x86-64 | 70 | 70 | [pilot](https://github.com/CathedralOS/Omega/actions/runs/41388358019) |
+| Windows x86-64 | 70 | 70 | [pilot](https://github.com/CathedralOS/Omega/actions/runs/41388372372) |
+| macOS ARM64 | 70 | 70 | [pilot](https://github.com/CathedralOS/Omega/actions/runs/41388403769) |
+
+These observations discharge the parent's named-customer acceptance; its
+remaining Build scheduler, loan-carrier, and snapshot requirements stay open.

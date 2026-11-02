@@ -54,7 +54,7 @@ Requirement evidence:
 - **Soundness boundaries:** the omitted parameter, nonexistent module, hidden
   body coordinate and runtime namespace shadow all reject. Static qualification
   grants no runtime receiver or new declaration-selection authority.
-- **Psi 05–07:** explicit call inputs, selected branch tags and returned nonce
+- **Psi 06–08:** explicit call inputs, selected branch tags and returned nonce
   survive Terminal Psi execution. These programs add no proof-only carrier,
   mutable loan, recursive eligibility or cleanup mechanism.
 - **Omega 00–02:** Build companions bind all four hosted targets. Host execution

@@ -45,15 +45,15 @@ each language construct:
 | const name | [const_name/main.omg](const_name/main.omg) | [const_name/invalid/main.omg](const_name/invalid/main.omg) | named payload constants |
 | a nested machine | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | state-local owned backing |
 | another machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | forwarded machine parameters |
-| another target body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | four hosted source bodies |
+| another target body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | ordinary `apply` implementations selected by target-keyed Build rows |
 
 Twins keep the match, the selected arm and the write through the exclusive
 view, then replace the selected source (`chosen`, or `pair.chosen` for
 `field`) while the view is still live and before the successor read. Checking
 rejects each twin with one diagnostic —
 ``statement N mutates `chosen` while local borrow `selected` is still active``
-(with `pair.chosen` for `field`; `target_body` reports it once per hosted body,
-4 diagnostics) — exit 1, never a caller guard. `git diff` of each positive
+(with `pair.chosen` for `field`; `target_body` reports it once per implementation,
+2 diagnostics) — exit 1, never a caller guard. `git diff` of each positive
 against its twin shows only that one mutation statement.
 
 The matching corpus pairs are
@@ -105,7 +105,7 @@ natively with Terminal Psi agreement. Canonical authority:
   loan of the arm-local view, and `visits == 1` pins once-only effectful
   subject evaluation at both engines. No erased mathematics is substituted
   for the executable element write.
-- **Checked-to-Terminal Psi lowering (`Psi 05–07`):** stage 05 records the
+- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Psi 06 records the
   selected descriptor on the match join: an exclusive element view transfers
   it owned onto the join parameter and the successor reads that carrier,
   while shared views and mutable byte views keep joining under their loan;
@@ -194,3 +194,31 @@ customers — stay with the owning item, as do Windows/Linux native rows, which
 record on their own hosts' goldens. This row claims no foreign native
 execution; `linux_arm64`/`linux_x86_64`/`windows_x86_64` bindings are source
 checked and realized, not executed here.
+
+## Build-owned target-body migration
+
+The `target_body` place and its twin carry no source target prefix.
+`BUILD-OWNED-TARGET-SELECTION` replaces the prefixed `apply` family with
+ordinary named implementations (`X86Apply`, `ArmApply`) of a boundary-trait
+requirement `SelectedApply`, selected by explicit target-keyed Build rows. The
+operation, inputs, contracts and exit oracle are unchanged; the requirement
+publishes the same `requires` clauses the bodies declared. The entry wrapper and
+each implementation check a tag (17 for x86-64, 29 for AArch64), so a wrong
+Build row traps. The tag call is the body's first statement, so the twin's
+borrow diagnostic names statements one later than the prefixed bodies did.
+
+Base `4f87c9e08b1` refused the migrated positive at Terminal lowering:
+`SelectedApply::apply has no executable body ... (boundary requirement: scalar
+precondition representation)`. A requirement signature's own case-membership
+precondition (`chosen in Slot::Present`) had no lowering: the case test rejoined
+its scope through a machine state with the same parameters, and a requirement
+has none. It now also lowers in the declaration's own telescope, as a tag
+observation of the parameter referent
+(`tests/omega/pass/boundary/requirement_case_precondition_exit`; its twin
+`tests/omega/fail/boundary/requirement_case_precondition_unproved` passes the
+payload-free case and still rejects at the caller). Observed on macOS x86-64:
+the migrated positive exits 0 under `omega run --both` (native and Terminal Psi
+agree) and its twin rejects for the live loan. The other hosted targets keep
+their authored rows, unexecuted here.
+
+The `other_state` place is red on base and here alike (`machine pick ... cannot prove selected case for payload access`): the nested `pick` machine declares no case precondition of its own. The corpus golden pins it as a regression; it is outside this migration.

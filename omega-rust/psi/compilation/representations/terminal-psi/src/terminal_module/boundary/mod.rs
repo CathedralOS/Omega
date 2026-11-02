@@ -7,6 +7,7 @@ mod external_providers;
 pub use external_providers::{
     ExternalProviderConformance, ExternalProviderOwner, ExternalRequirementSchema,
 };
+mod non_observation;
 mod numeric_intrinsics;
 pub use numeric_intrinsics::validate_numeric_intrinsic_signature;
 mod dynamic_dispatch;
@@ -39,8 +40,8 @@ pub use dynamic_dispatch::{
     TerminalDynamicStructuralFormal, TerminalDynamicTable,
 };
 pub use providers::{
-    ProviderCandidateConformance, ProviderParameterRefinement, ProviderRefinement,
-    ProviderSignature, ProviderSignatureParameter,
+    ProviderCandidateConformance, ProviderInstanceRequirements, ProviderParameterRefinement,
+    ProviderRefinement, ProviderSignature, ProviderSignatureParameter, RequiredProviderInstance,
 };
 pub use reach_applications::{
     ClosedReachApplication, ClosedReachArgument, ClosedReachCall, ClosedReachCallApplication,

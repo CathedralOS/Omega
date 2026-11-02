@@ -124,6 +124,28 @@ Selection validates
 before building; empty, unscored or check-only positives cannot pass. The
 artifact includes `samples.json` beside the corpus reports.
 
+For a named existing pass fixture whose oracle is a numeric exit, the optional
+`cli_fixtures` input builds only the optimized CLI and checks source through
+ordinary CLI update/review/resume followed by `run --both --keep`; it does not
+repeat that package check in the corpus runner. It freezes
+tracked fixture/library inputs and requires explicit native and Terminal exit
+markers. It preserves raw logs for both review phases; managed acceptance is
+ordinary pending-row decisions, not a copied lock. Stream, inspection and RAM
+oracles are refused before building rather than silently omitted. For example:
+
+```sh
+gh workflow run compiler-pilot.yml --ref work/NAME \
+  -f native_host=linux_x86_64 \
+  -f cli_fixtures=pass/filesystem/write_all_full_device_exit
+```
+
+This replaces the default smoke when used alone and produces `cli.json` plus
+per-project observations/logs. Review phases have a 600-second allowance based
+on measured single-project Std admission; runtime has a 240-second cap. It
+changes neither corpus defaults nor the corpus's absent filesystem delegation.
+A single project can still spend minutes in real admission: retain those phase
+timings and report that workflow cost, without adding a sweep or another build.
+
 Select `linux_arm64`, `windows_x86_64` or `macos_arm64` for a separate
 matching-host run. Linux ARM64 uses `ubuntu-24.04-arm`; macOS ARM64 uses
 `macos-15`, matching the existing post-merge runners. These execute on the native
@@ -252,7 +274,7 @@ what it hid.
   A `match` witness that tests only the boundary input where the matched arm and
   the `_` fallback evaluate to the same number (for example, `Cell { value: 73 }`
   against `Cell::Ready -> cell.value, _ -> 73`, then `selected - 73 == 0`) exits
-  0 even if `Psi 05–07` or `Omega 00–09` inverts the branch or always takes `_`.
+  0 even if `Psi 06–08` or `Omega 00–09` inverts the branch or always takes `_`.
   Likewise, a `Resource::drop` witness that mutates only `resource.valid = 0` on
   the dying local or drops a plain scalar struct exits 0 even if the backend
   never emits the cleanup call. Fact witnesses must exercise both matching and
@@ -373,7 +395,7 @@ current versus historical observations, and known limitations. Review the
 by those consumers, including the semantic premise behind a rewrite, exact
 subjects/actuals, effects/lifetime, formation and authority. For every fact
 witness under `samples/cli/facts/`, check the runtime counterfactual alongside
-the static reject twin: if `Psi 05–07` or `Omega 00–09` inverted the branch,
+the static reject twin: if `Psi 06–08` or `Omega 00–09` inverted the branch,
 took the wildcard arm, omitted the cleanup action, or miscalculated the slot
 offset, would `main()` trap? A witness whose branches yield the same result on
 the only tested input or whose cleanup mutates only a dying temporary fails
@@ -461,7 +483,10 @@ trigger: only the user starts it, never an agent. Agents filter to the
 fixtures their change can move, named by fact or behavior, and count the
 selection before running it. A whole domain is a sweep: `facts/` selects
 nearly 14,000 fixtures and `fail/` about 11,000. See
-[validate with witnesses](../AGENTS.md#commands).
+[validate with witnesses](../AGENTS.md#commands). The gate counts the
+selection's fixture directories before any build and refuses more than 200
+(unfiltered runs included) unless `--sweep` or `OMEGA_CORPUS_SWEEP=1` says the
+user, the full baseline, `native_watch.py` or CI's cohort run started it.
 
 `--runner PATH` may reuse an immutable compiler built in another checkout.
 The gate supplies `OMEGA_CORPUS_ROOT` so fixture sources, oracles and discovery

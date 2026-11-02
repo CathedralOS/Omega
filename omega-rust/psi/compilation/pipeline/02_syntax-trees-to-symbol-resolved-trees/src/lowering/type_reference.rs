@@ -80,6 +80,7 @@ fn lower_type_reference_contents(
             lowerer.constant_selection.as_ref(),
         )?;
     }
+    let mut materialization_source = symbol_resolved_trees::expression::ExpressionHandle::invalid();
     if let Some(normalization) =
         syntax_type_references(&syntax_trees).const_argument_normalization(type_reference)
     {
@@ -89,17 +90,27 @@ fn lower_type_reference_contents(
             normalization,
         )?;
         crate::constant::validate_normalized_expression(syntax_trees, normalization)?;
+        let derived = lowerer
+            .derived_const_argument_expressions
+            .contains(&normalization.authored_expression);
         if normalization.authored_expression.is_valid()
-            && !lowerer
-                .derived_const_argument_expressions
-                .contains(&normalization.authored_expression)
+            && (!derived || normalization.materialized_expression.is_valid())
         {
+            let exposure = derived.then(|| lowerer.current_authored_expression_exposure.take());
             let expression = lower_expression_into_table(
                 lowerer,
                 syntax_trees,
                 normalization.authored_expression,
-            )?;
+            );
+            if let Some(exposure) = exposure {
+                lowerer.current_authored_expression_exposure = exposure;
+            }
+            let expression = expression?;
+            // One lowered computation supplies both symbol/selection
+            // finalization and materialization provenance. A second detached
+            // copy would never receive the original call's bound target.
             lowerer.pending_const_argument_expressions.push(expression);
+            materialization_source = expression;
         }
         for origin in
             syntax_type_references(&syntax_trees).const_argument_origins(normalization.selections)
@@ -182,7 +193,44 @@ fn lower_type_reference_contents(
                 })?;
         }
     }
-    let lowered = lower_type_reference_node(lowerer, syntax_trees, type_reference)?;
+    let lowered = if let Some(normalization) = syntax_trees
+        .type_references
+        .const_argument_normalization(type_reference)
+        .filter(|normalization| normalization.materialized_expression.is_valid())
+    {
+        // All receiving positions consume the same checked value. Keep the
+        // source computation as nonexecuting provenance, so data arguments,
+        // machine operands and initializer replay share one custody route.
+        let exposure = lowerer.current_authored_expression_exposure.take();
+        let value = lower_expression_into_table(
+            lowerer,
+            syntax_trees,
+            normalization.materialized_expression,
+        );
+        lowerer.current_authored_expression_exposure = exposure;
+        let value = value?;
+        // Declaration-owned type arguments have no executable body walk to
+        // bind their constructor and fields. Finalize both sides through the
+        // ordinary constant-expression symbol owner.
+        lowerer.pending_const_argument_expressions.push(value);
+        lowerer
+            .symbol_resolved_trees
+            .tables
+            .bodies
+            .expressions
+            .retain_materialization_source(value, materialization_source);
+        let mut lowered = TypeReference::ConstExpression(
+            symbol_resolved_trees::types::ConstExpressionTypeReference::new(value),
+        );
+        let input = syntax_type_references(syntax_trees)
+            .supplied_operand_owner(type_reference)
+            .map_err(Diagnostic::error)?;
+        let owner = crate::resolution::operand_owners::retain(lowerer, input);
+        lowered.retain_supplied_operand_owner(owner);
+        lowered
+    } else {
+        lower_type_reference_node(lowerer, syntax_trees, type_reference)?
+    };
     let origin = syntax_type_references(&syntax_trees).generic_application_origin(type_reference);
     if origin.is_valid() {
         let application = lower_generic_application_origin(lowerer, syntax_trees, origin)?;

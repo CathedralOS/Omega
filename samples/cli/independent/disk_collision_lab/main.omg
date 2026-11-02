@@ -1,4 +1,4 @@
-use omega_language_std::math;
+use omega::language::core::math;
 
 // Expected exit: 2 (closed stdin).
 // Expected output contains: invalid input: one digit 0..9 and LF required

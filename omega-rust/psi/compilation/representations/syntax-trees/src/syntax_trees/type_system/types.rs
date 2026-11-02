@@ -141,6 +141,9 @@ pub struct ConstArgumentNormalization {
     /// Exact authored structural expression before it becomes an atom. This
     /// carries constructor selections, independently of named-constant origins.
     pub authored_expression: ExpressionHandle,
+    /// Literal value produced by checked evaluation, kept separately from the
+    /// authored computation and replayed under the exact receiving carrier.
+    pub materialized_expression: ExpressionHandle,
     pub reference: source::SourceSpan,
     pub canonical_result_encoding: String,
     pub selections: HandleSpan<ConstArgumentOrigin>,
@@ -444,6 +447,7 @@ impl TypeReferenceTable {
                 argument,
                 normalization: ConstArgumentNormalization {
                     authored_expression: ExpressionHandle::invalid(),
+                    materialized_expression: ExpressionHandle::invalid(),
                     reference,
                     canonical_result_encoding,
                     selections,
@@ -468,6 +472,24 @@ impl TypeReferenceTable {
             .normalization;
         assert!(!normalization.authored_expression.is_valid());
         normalization.authored_expression = expression;
+    }
+
+    pub fn retain_const_argument_materialized_expression(
+        &mut self,
+        argument: TypeReferenceHandle,
+        expression: ExpressionHandle,
+    ) {
+        let handle = self
+            .const_argument_normalizations
+            .iter()
+            .find_map(|(handle, retained)| (retained.argument == argument).then_some(handle))
+            .expect("materialized value belongs to a retained normalization");
+        let normalization = &mut self
+            .const_argument_normalizations
+            .get_mut(handle)
+            .normalization;
+        assert!(!normalization.materialized_expression.is_valid());
+        normalization.materialized_expression = expression;
     }
 
     pub fn const_argument_builtin_operators(
@@ -716,6 +738,46 @@ impl TypeReferenceTable {
         let fresh = self.insert(self.type_reference(source).clone());
         self.replace_type_occurrence(fresh, source);
         fresh
+    }
+
+    /// Re-use one complete inferred alias application at another authored
+    /// head. Only the head's occurrence changes: every argument and supplying
+    /// coordinate remains the original operand, and formation is still owed.
+    pub fn alias_use_at(
+        &mut self,
+        source: TypeReferenceHandle,
+        declaration: source::SourceSpan,
+        head: Identifier,
+    ) -> Option<TypeReferenceHandle> {
+        let mut applications = self
+            .type_alias_applications(source)
+            .filter(|row| row.declaration == declaration)
+            .cloned();
+        let original = applications.next()?;
+        if applications.next().is_some() {
+            return None;
+        }
+        drop(applications);
+        let application = self.fresh_type_occurrence(original.application);
+        let mut node = self.type_reference(application).clone();
+        match &mut node {
+            TypeReferenceNode::Named(name) => *name = head,
+            TypeReferenceNode::Generic { base_name, .. } => *base_name = head,
+            _ => return None,
+        }
+        self.replace_type_reference(application, node);
+        let instance = self.fresh_type_occurrence(source);
+        let row = self
+            .type_alias_applications
+            .iter()
+            .find_map(|(handle, row)| {
+                (row.instance == instance
+                    && row.declaration == declaration
+                    && row.application == original.application)
+                    .then_some(handle)
+            })?;
+        self.type_alias_applications.get_mut(row).application = application;
+        Some(instance)
     }
 
     /// Replace an occurrence by an already prepared occurrence in this same

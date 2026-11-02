@@ -52,7 +52,7 @@ Requirements and limits:
   provider, where `value - 100` consumes the retained fact directly.
 - Soundness: numeric predicate rows cannot replace the independent domain
   identity. Provider selection cannot weaken the requirement or mint an input.
-- Psi 05–07: retain ordered scalar-domain admission rows and the complete
+- Psi 06–08: retain ordered scalar-domain admission rows and the complete
   operand type through statement and nested calls. Terminal artifacts retain
   those rows without adding a runtime tag or replaying source proof.
 - Omega 00–02: select the checked `Actual` provider with an unchanged

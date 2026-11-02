@@ -127,7 +127,7 @@ are established as follows:
   guest field projection. Physical ABI copies do not duplicate semantic
   ownership. Cleanup-sensitive carriers reject before execution. No erased
   mathematics or termination assumption is introduced.
-- **Checked-to-Terminal Psi (`Psi 05–07`):** canonical Terminal execution preserves
+- **Checked-to-Terminal Psi (`Psi 06–08`):** canonical Terminal execution preserves
   opaque identities across these transports and record transactions. Public
   `omega run --both` uses the admitted runtime provisions, not an injected corpus
   handler or a second source checker. No borrow-restoration, proof-tag, `dyn`,

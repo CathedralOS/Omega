@@ -113,6 +113,10 @@ pub struct ExpressionTable {
     /// their stable handles when a compilation projects a closed body roster.
     expression_roots: Arena<ExpressionHandle>,
     source_spans: Vec<SourceSpan>,
+    /// Original checked computation of a materialized static value. This
+    /// provenance edge preserves invocation custody without executing it again.
+    materialization_sources: Vec<ExpressionHandle>,
+
     /// Complete constructed value types derived from this occurrence's
     /// selected declaration and completed children after call binding. Zero
     /// means unresolved; a projected element cannot supply an aggregate type.
@@ -465,6 +469,7 @@ impl ExpressionTable {
             build_selection_requests: Arena::default(),
             expression_roots: Arena::with_capacity(capacity.expressions),
             source_spans: Vec::with_capacity(capacity.expressions),
+            materialization_sources: Vec::new(),
             constructed_value_types: Arena::default(),
             constructed_value_type_handles: Vec::new(),
             construction_required_types: Arena::default(),
@@ -497,6 +502,7 @@ impl ExpressionTable {
         self.build_selection_requests.reset_retain_capacity();
         self.expression_roots.reset_retain_capacity();
         self.source_spans.clear();
+        self.materialization_sources.clear();
         self.constructed_value_types.reset_retain_capacity();
         self.constructed_value_type_handles.clear();
         self.construction_required_types.reset_retain_capacity();
@@ -738,6 +744,8 @@ impl ExpressionTable {
         }
         self.expression_roots.insert(handle);
         self.source_spans.push(SourceSpan::default());
+        self.materialization_sources
+            .push(ExpressionHandle::invalid());
         self.authored_selection_occurrences
             .push(HandleSpan::empty());
         self.executable_domain_tests.push(HandleSpan::empty());
@@ -747,6 +755,23 @@ impl ExpressionTable {
             self.authored_selection_occurrences.len() - 1
         );
         handle
+    }
+
+    pub fn materialization_source(&self, handle: ExpressionHandle) -> ExpressionHandle {
+        self.materialization_sources
+            .get(source_span_index(handle))
+            .copied()
+            .unwrap_or_default()
+    }
+
+    pub fn retain_materialization_source(
+        &mut self,
+        value: ExpressionHandle,
+        authored: ExpressionHandle,
+    ) {
+        assert!(value.is_valid() && authored.is_valid() && value != authored);
+        assert!(!self.materialization_source(value).is_valid());
+        self.materialization_sources[source_span_index(value)] = authored;
     }
 
     pub fn source_span(&self, handle: ExpressionHandle) -> SourceSpan {
@@ -1816,6 +1841,8 @@ impl TableNamePath {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TableStructLiteral {
+    /// Exact inferred source type use, including transparent-alias formation.
+    pub application_type: crate::types::TypeReferenceHandle,
     pub type_name: Identifier,
     pub type_symbol: SymbolHandle,
     /// `Some` when the literal constructs a CASE of `type_name`
@@ -2218,6 +2245,8 @@ pub enum MatchPattern {
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TableDestructurePattern {
+    /// Exact inferred source type use, including transparent-alias formation.
+    pub application_type: crate::types::TypeReferenceHandle,
     pub head: ExpressionHandle,
     pub fields: HandleSpan<TableMatchField>,
     pub has_rest: bool,

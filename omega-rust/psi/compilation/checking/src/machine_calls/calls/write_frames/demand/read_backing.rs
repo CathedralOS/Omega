@@ -79,6 +79,24 @@ impl CallFrameResolver<'_> {
         sources
     }
 
+    /// Track possible recast phases on the exact completed operand. Precision
+    /// sufficient to read pointee contents is independently required by the
+    /// storage-read APIs; it cannot erase a coarse descriptor's obligations.
+    pub(crate) fn completed_reference_interpretation_sources(
+        &self,
+        machine: &Machine,
+        state: &State,
+        expression: ExpressionHandle,
+    ) -> Result<Vec<super::super::LocalWriteSource>, &'static str> {
+        let (owner, completed) = self
+            .completed_read_value(machine, expression)
+            .ok_or("reference operand has no complete ordered capture")?;
+        if owner != state.symbol {
+            return Err("reference capture belongs to a different state");
+        }
+        completed.interpretation_sources(self.program)
+    }
+
     fn completed_read_value(
         &self,
         machine: &Machine,

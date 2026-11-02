@@ -476,6 +476,22 @@ impl ScanContext<'_> {
         match expression_table(program).expression(expression) {
             ExpressionNode::SavedSubject(_) => {}
             ExpressionNode::Match(dispatch) => {
+                for arm in expression_table(program).match_arms(dispatch.arms) {
+                    if let typed_trees::expression::MatchPattern::Destructure(pattern) = arm.pattern
+                    {
+                        crate::value_custody::type_references::validate_expression_type_application(
+                            program,
+                            self.machine,
+                            self.state,
+                            pattern.application_type,
+                            self.symbols,
+                            value_environment,
+                            self.diagnostics,
+                            self.formation_obligations,
+                        );
+                    }
+                }
+
                 crate::value_custody::expression_types::validate_match_dispatch(
                     program,
                     machine,
@@ -749,6 +765,16 @@ impl ScanContext<'_> {
                 }
             }
             ExpressionNode::StructLiteral(literal) => {
+                crate::value_custody::type_references::validate_expression_type_application(
+                    program,
+                    self.machine,
+                    self.state,
+                    literal.application_type,
+                    self.symbols,
+                    value_environment,
+                    self.diagnostics,
+                    self.formation_obligations,
+                );
                 let fields = literal.fields;
                 for field in expression_table(program).struct_fields(fields) {
                     self.scan(field.value, value_environment, executes);

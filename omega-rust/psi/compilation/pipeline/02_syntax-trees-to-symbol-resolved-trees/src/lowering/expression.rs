@@ -28,7 +28,7 @@ use syntax::types::TypeReferenceNode;
 use syntax_trees as syntax;
 use syntax_trees::SyntaxTrees;
 
-mod match_dispatch;
+pub(crate) mod match_dispatch;
 
 pub(crate) fn lower_expression_into_table(
     lowerer: &mut Lowerer,
@@ -157,7 +157,7 @@ fn lower_nonbinary_expression_node_into_table(
             match_dispatch::lower_match(lowerer, syntax_trees, *dispatch)
         }
         syntax::expression::ExpressionNode::SavedSubject(saved) => {
-            match_dispatch::lower_saved_subject(lowerer, *saved)
+            match_dispatch::lower_saved_subject(lowerer, syntax_trees, *saved)
         }
         syntax::expression::ExpressionNode::ArrayLiteral(values) => {
             let span = expression_table(lowerer).reserve_expression_handles(values.count());
@@ -354,6 +354,7 @@ fn lower_nonbinary_expression_node_into_table(
             }
             Ok(expression_table(lowerer).insert(ExpressionNode::Membership(
                 TableMembershipExpression {
+                    is_pattern: false,
                     value,
                     domain,
                     domain_symbol: SymbolHandle::invalid(),
@@ -446,6 +447,19 @@ fn lower_nonbinary_expression_node_into_table(
             Ok(expression_table(lowerer).insert(ExpressionNode::ZeroValue(type_reference)))
         }
         syntax::expression::ExpressionNode::StructLiteral(struct_literal) => {
+            let application_type = if struct_literal.application_type.is_valid() {
+                let reference = lower_type_reference_handle(
+                    lowerer,
+                    syntax_trees,
+                    struct_literal.application_type,
+                )?;
+                lowerer
+                    .declaration_child_type_references()
+                    .append(reference)
+            } else {
+                Default::default()
+            };
+
             let fields =
                 expression_table(lowerer).reserve_struct_fields(struct_literal.fields.count());
             for (offset, field) in syntax_expressions(&syntax_trees)
@@ -471,6 +485,7 @@ fn lower_nonbinary_expression_node_into_table(
             Ok(
                 expression_table(lowerer).insert(ExpressionNode::StructLiteral(
                     TableStructLiteral {
+                        application_type,
                         type_name: lower_name(syntax_trees, &struct_literal.constructor_name),
                         type_symbol: SymbolHandle::invalid(),
                         case_name: None,

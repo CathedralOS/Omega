@@ -88,7 +88,6 @@ fn owned_shape<'a>(
                 access: Some(terminal_psi::StructuralAccess::SharedBorrow),
             }) => shared_byte_slots,
             StructuralTypeShape::ByteSequence(_) => false,
-            StructuralTypeShape::BindingCarrier => false,
             StructuralTypeShape::ElementView { .. } => false,
             StructuralTypeShape::Reference { .. } => false,
             StructuralTypeShape::Record { fields, .. } => fields.iter().all(&mut field_is_owned),

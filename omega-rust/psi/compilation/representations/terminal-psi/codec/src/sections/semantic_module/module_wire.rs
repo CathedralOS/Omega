@@ -113,6 +113,7 @@ wire_record! {
         unoptimized_behavior: List<unoptimized_behavior_wire::Behavior>,
         external_providers: List<ExternalProvider>,
         provider_candidates: List<ProviderCandidate>,
+        provider_instance_requirements: List<super::provider_candidate_wire::InstanceRequirements>,
         dynamic_dispatch: dynamic_dispatch_wire::Catalog,
         float_meaning_projections: List<float_meaning_wire::Projection>,
         float_meaning_equalities: List<float_meaning_wire::Equality>,

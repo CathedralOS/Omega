@@ -10,7 +10,7 @@ test-support = ["dep:mutation-matrix", "mutation-matrix/test-support"]
 
 [dependencies]
 mutation-matrix = { path = "../../../psi/foundation/mutation-matrix", optional = true }
-optimization = { path = "../../../psi/foundation/optimization-selections" }
+optimization = { path = "../../../psi/foundation/optimization" }
 sha2 = "0.10.9"
 
 [dev-dependencies]

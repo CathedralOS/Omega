@@ -133,6 +133,10 @@ descriptor/index fact into the helper that consumes it.
 rank through unranked private helper declarations, with preserving edges,
 every-cycle strict descent and explicit borrowed backing across all nine places.
 
+[Suspending terminal cycles](suspending_cycle/README.md) run sibling and
+ancestor terminal cycles whose every edge acknowledges `suspend`, across all
+nine places, with missing-marker twins.
+
 ## Build-owned target-body migration
 
 The `target_body` place and its twin carry no source target prefix.

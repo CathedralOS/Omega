@@ -19,7 +19,9 @@ pub mod proof_application_scope;
 pub mod scalar_applications;
 pub mod scalar_conditions;
 pub use proof_application_scope::{
-    ProofApplicationScope, ProofCallableAssociation, ProofDeclarationId, ProofScopeDeclaration,
+    DeclaredSynchronousBoundaryTarget, ProofApplicationScope, ProofCallableAssociation,
+    ProofCallableHeader, ProofCheckedRecursiveCall, ProofCheckedRecursiveComponent,
+    ProofDeclarationId, ProofScopeDeclaration,
 };
 pub use scalar_applications::{
     ArrayExtent, LayoutMeasurement, ScalarApplication, ScalarApplications,
@@ -163,6 +165,9 @@ pub struct TerminalModule {
     /// retained Unit boundary requirement. This is a semantic catalog, not a
     /// selection: installation policy remains outside terminal-Psi identity.
     pub provider_candidates: Vec<ProviderCandidateConformance>,
+    /// Independent source-issued completeness obligations, not a census
+    /// reconstructed from whichever candidates happened to be emitted.
+    pub provider_instance_requirements: Vec<ProviderInstanceRequirements>,
     pub boundary_application_candidates: Vec<crate::BoundaryApplicationCandidate>,
     /// Checked callback applications joined to their emitted registrar operations.
     pub callback_applications: Vec<crate::TerminalCallbackApplication>,
@@ -381,6 +386,7 @@ impl TerminalModule {
             unoptimized_behavior: Vec::new(),
             external_providers: Vec::new(),
             provider_candidates: Vec::new(),
+            provider_instance_requirements: Vec::new(),
             boundary_application_candidates: Vec::new(),
             callback_applications: Vec::new(),
             dynamic_dispatch: TerminalDynamicDispatchCatalog::default(),

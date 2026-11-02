@@ -138,6 +138,22 @@ pub(crate) fn admit_native_providers<'request>(
                     target_operations::NormalizedForeignCallMechanism::Component { .. })
         );
         let module = input.context().module();
+        let opaque_foreign = matches!(
+            &settlement.realization,
+            target_operations::BoundarySettlementRealization::NormalizedForeignCall(_)
+        ) && !checked_component;
+        if let Some(boundary) = module.boundary_machine(settlement.boundary)
+            && opaque_foreign
+            && boundary.requires_checked_non_observation(|id| module.structural_type(id))
+        {
+            return Err(vec![Diagnostic::error(format!(
+                "opaque native provider for `{}` requires an admitted write-only non-observation judgment bound to its exact selected implementation and receipt",
+                module
+                    .identities
+                    .text(boundary.identity)
+                    .unwrap_or_default(),
+            ))]);
+        }
         if let Some(boundary) = module.boundary_machine(settlement.boundary)
             && boundary.requires_checked_result(&module.structural_domains)
             && !checked_component

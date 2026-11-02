@@ -15,7 +15,7 @@ Every place carries the same construct and operation: one `match` on a single ev
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | the initial and unselected payload values are named constants |
 | a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine `pick` takes the loan and consumes it |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `forward` relays the loan to `apply` on a separate machine |
-| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | four target-scoped `apply` bodies (`linux_x86_64`, `linux_arm64`, `macos_arm64`, `windows_x86_64`) take the loan |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each target's Build row selects an ordinary `apply` implementation that takes the loan |
 
 ## Execution
 
@@ -54,7 +54,7 @@ Each place has an `invalid/` twin that breaks only the exclusive-loan obligation
 | const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | ``statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)`` |
 | a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | ``statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3)`` |
 | another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | ``statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)`` |
-| another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | ``statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)`` (four diagnostics, one per target body) |
+| another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | ``statement 2 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)`` (two diagnostics, one per implementation) |
 
 ## Pinned Fixtures
 
@@ -103,7 +103,7 @@ target legalization failed: SourceCustodyMismatch { machine: Some(MachineId(1)),
 The check leg accepted the same fixture (`checked`, `check-target:macos_arm64`)
 and the CLI built and ran it (`omega run --both` native exit 0, `omega --target
 macos_arm64` publishes), so the refusal was a legalization precision gap in
-stage 03, not a language rule. A probe matrix isolated the shape: a successor
+Omega 03, not a language rule. A probe matrix isolated the shape: a successor
 state passing one of its own reference parameters as a machine-call argument.
 The same call from a machine function builds, and states holding references
 without such a call build. The revealed site was
@@ -127,7 +127,7 @@ still refuses.
 2. **Identity and lifetime:** the loan's storage identity is the selected payload field itself; the unselected payload is a disjoint field and is never written. The loan ends at its last use (`observed`), before the transition consumes the result. The reject twins pin the rule at the point of violation: using the source while the loan is live is refused (`mutates \`chosen\` while local borrow \`selected\` is still active`) — in every place, including through a call (`parameter`, `call_result`, `other_machine`) and inside a state (`other_state`).
 3. **Composition:** the same fact composes without loss across all nine canonical places (local, field, parameter, call result, match join, const name, a nested machine, another machine, another target body) into the consuming write + read. `git diff <place>/main.omg <place>/invalid/main.omg` shows only the loan-violating statement (plus the twin's header comment).
 4. **Soundness boundaries:** all nine twins fail closed during checked compilation (exit 1) with the per-place diagnostic pinned above; the corpus gate records all nine as `rejected` with their expected fragment satisfied.
-5. **Checked-to-Terminal Psi lowering (`Psi 05–07`):** the scalar-subject match lowers to typed branches whose join carries the loan; the match arm selection executes only the selected arm; the Terminal Psi interpreter executes the same program (`interp exit: 0`) and agrees with native execution.
+5. **Checked-to-Terminal Psi lowering (`Psi 06–08`):** the scalar-subject match lowers to typed branches whose join carries the loan; the match arm selection executes only the selected arm; the Terminal Psi interpreter executes the same program (`interp exit: 0`) and agrees with native execution.
 6. **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** `Slot` is a tagged case payload (discriminant + `i64` payload) with `size_of`/`align_of` geometry; `ProgramEntry` settles for all four hosted targets; the `&mut` lanes cross calls in the `parameter`, `call_result`, `other_machine` and `target_body` places with register/stack placement under the calling plan.
 7. **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** comparison/branch selection on the boolean subject, the store through the loan, and the reload; disjoint activation frames for `choose`/`apply`/`forward`; `visits` is mutated through a reference across call boundaries. Native execution agrees with Terminal Psi (`omega run --both` exit 0).
 8. **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** direct PE/ELF/Mach-O emission produces functioning executables for the realized host target; the native golden records nine `built ... exit:0` rows on `macos_arm64`, and the check leg records the portability verdict (`check-target:macos_arm64`) for the same nine fixtures.
@@ -136,3 +136,31 @@ still refuses.
 
 - A runtime observation of the unselected payload (clause 3 of the fact sentence) would strengthen the oracle beyond the current selected-payload and once-only checks.
 - Native execution rows for the non-host targets (`windows_x86_64`, `linux_x86_64`, `linux_arm64`) come from their own hosts' native goldens; this row records the `macos_arm64` host.
+
+## Build-owned target-body migration
+
+The `target_body` place and its twin carry no source target prefix.
+`BUILD-OWNED-TARGET-SELECTION` replaces the prefixed `apply` family with
+ordinary named implementations (`X86Apply`, `ArmApply`) of a boundary-trait
+requirement `SelectedApply`, selected by explicit target-keyed Build rows. The
+operation, inputs, contracts and exit oracle are unchanged; the requirement
+publishes the same `requires` clauses the bodies declared. The entry wrapper and
+each implementation check a tag (17 for x86-64, 29 for AArch64), so a wrong
+Build row traps. The tag call is the body's first statement, so the twin's
+borrow diagnostic names statements one later than the prefixed bodies did.
+
+Base `4f87c9e08b1` refused the migrated positive at Terminal lowering:
+`SelectedApply::apply has no executable body ... (boundary requirement: scalar
+precondition representation)`. A requirement signature's own case-membership
+precondition (`chosen in Slot::Present`) had no lowering: the case test rejoined
+its scope through a machine state with the same parameters, and a requirement
+has none. It now also lowers in the declaration's own telescope, as a tag
+observation of the parameter referent
+(`tests/omega/pass/boundary/requirement_case_precondition_exit`; its twin
+`tests/omega/fail/boundary/requirement_case_precondition_unproved` passes the
+payload-free case and still rejects at the caller). Observed on macOS x86-64:
+the migrated positive exits 0 under `omega run --both` (native and Terminal Psi
+agree) and its twin rejects for the live loan. The other hosted targets keep
+their authored rows, unexecuted here.
+
+The `other_state` place is red on base and here alike (`machine pick ... cannot prove selected case for payload access`): the nested `pick` machine declares no case precondition of its own. The corpus golden pins it as a regression; it is outside this migration.

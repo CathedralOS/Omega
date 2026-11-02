@@ -2,7 +2,7 @@
 // Comparing a register with itself establishes ZF without changing its value; both label edges preserve the original register.
 machine main() crashes Trap {
     let mut output: u32 = 0;
-    asm where clobbers x28, nzcv {
+    asm clobbers x28, nzcv {
     entry:
         mov w28, 37;
         cmp w28, w28;

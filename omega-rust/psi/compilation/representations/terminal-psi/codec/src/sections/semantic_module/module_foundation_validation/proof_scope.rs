@@ -1,6 +1,7 @@
 //! Structural ingress checks for retained proof scope. These do not establish
 //! any proof condition or authorize a declaration's execution.
 
+use super::super::wire::require_increasing;
 use crate::codec_error::{CodecError, malformed};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
@@ -74,7 +75,132 @@ pub(super) fn validate(
             }
         }
     }
+    require_increasing(
+        scope
+            .callable_headers
+            .iter()
+            .map(|(_, header)| header.declaration),
+        "proof callable headers by declaration",
+    )?;
+    for (_, header) in scope.callable_headers.iter() {
+        declaration(header.declaration)?;
+        if let Err(reason) = &header.compiler_evaluation
+            && reason.is_empty()
+        {
+            return malformed("unavailable compiler-evaluation facts have no reason");
+        }
+        if let Ok(facts) = &header.compiler_evaluation {
+            if facts.name.is_empty() {
+                return malformed("compiler-evaluation display name is absent");
+            }
+            if let semantic_vocabulary::compiler_evaluation::DeclarationCustody::Package(package) =
+                facts.custody
+                && header.package != Some(package)
+            {
+                return malformed(
+                    "compiler-evaluation custody differs from its exact callable header",
+                );
+            }
+            if let Err(reason) = &facts.selections
+                && reason.is_empty()
+            {
+                return malformed("uncovered compiler-evaluation selections have no reason");
+            }
+        }
+        match &header.callable {
+            Ok(callable) => {
+                text(*callable)?;
+                if let Some(ProofScopeDeclaration::Callable(description)) =
+                    scope.declaration(header.declaration)
+                    && description.callable != *callable
+                {
+                    return malformed("callable header differs from its full declaration");
+                }
+            }
+            Err(reason) if reason.is_empty() => {
+                return malformed("unavailable callable header has no reason");
+            }
+            Err(_) => {}
+        }
+        if header.source_target.as_ref().is_some_and(String::is_empty) {
+            return malformed("callable header has an empty source target");
+        }
+        match &header.synchronous_invocations {
+            Ok(targets) => {
+                for target in targets {
+                    text(target.declaration)?;
+                    if let Some(application) = target.application {
+                        text(application)?;
+                    }
+                }
+            }
+            Err(reason) if reason.is_empty() => {
+                return malformed("unavailable synchronous invocation facts have no reason");
+            }
+            Err(_) => {}
+        }
+    }
     let mut bound_declarations = BTreeSet::new();
+    let mut recursive_bodies = BTreeSet::new();
+    for (_, owner) in scope.pending_evaluation_conditions.iter() {
+        if owner.0 != 0 {
+            declaration(*owner)?;
+        }
+    }
+    for (_, component) in scope.recursive_components.iter() {
+        let members = scope.recursive_members.span(component.members).ok_or(
+            CodecError::MalformedStructuralFoundation(
+                "checked recursive component lost its members",
+            ),
+        )?;
+        if members.is_empty() {
+            return malformed("checked recursive component has no members");
+        }
+        for member in members {
+            declaration(*member)?;
+            if !recursive_bodies.insert(*member) {
+                return malformed("checked recursive body belongs to competing components");
+            }
+        }
+        let calls = scope.recursive_calls.span(component.calls).ok_or(
+            CodecError::MalformedStructuralFoundation("checked recursive component lost its calls"),
+        )?;
+        for call in calls {
+            if !members.contains(&call.caller) || !members.contains(&call.callee) {
+                return malformed("checked recursive call leaves its component");
+            }
+            let machine = scope
+                .calls
+                .machines
+                .iter()
+                .find_map(|(_, row)| (row.machine == call.caller).then_some(row))
+                .ok_or(CodecError::MalformedStructuralFoundation(
+                    "checked recursive caller has no call summary",
+                ))?;
+            let edges = scope.calls.calls.span(machine.calls).ok_or(
+                CodecError::MalformedStructuralFoundation(
+                    "checked recursive caller lost its calls",
+                ),
+            )?;
+            let edge = edges.get(call.call_ordinal as usize).ok_or(
+                CodecError::MalformedStructuralFoundation(
+                    "checked recursive call ordinal is absent",
+                ),
+            )?;
+            let callee = scope.plan.machines.iter().find_map(|(_, row)| {
+                (row.machine == edge.callee
+                    || scope
+                        .plan
+                        .symbols
+                        .span_or_empty(row.states)
+                        .contains(&edge.callee))
+                .then_some(row.machine)
+            });
+            if callee != Some(call.callee) {
+                return malformed("checked recursive call differs from its exact body edge");
+            }
+        }
+    }
     let mut callables = BTreeSet::new();
     for (_, row) in scope.callables.iter() {
         let terminal_psi::ProofCallableAssociation::Callable {

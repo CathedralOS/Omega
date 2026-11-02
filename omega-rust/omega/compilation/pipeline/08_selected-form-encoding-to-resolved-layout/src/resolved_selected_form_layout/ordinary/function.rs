@@ -29,7 +29,8 @@ pub(in super::super) fn layout(
     for block in ordered {
         let block_offset = layout.block_offsets[&block.id];
         let mut instruction_offset = block_offset;
-        let mut instructions = Vec::new();
+        // Layout changes bytes and offsets, never this complete row roster.
+        let mut instructions = Vec::with_capacity(block.instructions.len() + 1);
         for instruction in plan::instructions(block) {
             let pre = pre_rows
                 .get(&instruction.id)

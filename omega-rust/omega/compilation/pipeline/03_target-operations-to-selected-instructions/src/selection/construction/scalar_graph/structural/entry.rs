@@ -261,30 +261,24 @@ fn retain_owned_home(
         .position(|(stored, _)| *stored == place)
     {
         let incoming = builder.transport.pointers.remove(position).1;
-        let mut offset = 0u32;
-        while offset < shape.byte_size {
-            let width = (shape.byte_size - offset).min(8);
-            let value = transport_register(builder, place, offset)?;
-            let (incoming, displacement) = super::displaced_memory_pointer(
-                builder,
+        super::byte_copy::copy(
+            builder,
+            selected_instructions::SelectedMemoryAccessOrigin::Block(source.entry_block),
+            Default::default(),
+            super::byte_copy::CopyEnd {
                 place,
-                incoming,
-                offset,
-                width,
-                Default::default(),
-            )?;
-            super::super::structural_case::memory(
-                builder,
-                source.entry_block,
+                pointer: incoming,
+                byte_offset: 0,
+                elements: &[],
+            },
+            super::byte_copy::CopyEnd {
                 place,
-                offset,
-                width,
-                selected_instructions::SelectedMemoryAccessRole::ReadPlace,
-            )?;
-            super::super::aggregate_memory::load(builder, incoming, value, displacement, width)?;
-            store_home_range(builder, source, place, pointer, offset, width, value)?;
-            offset = offset.checked_add(width).ok_or_else(invalid)?;
-        }
+                pointer,
+                byte_offset: 0,
+                elements: &[],
+            },
+            shape.byte_size,
+        )?;
         builder.transport.pointers.push((place, pointer));
         return Ok(());
     }

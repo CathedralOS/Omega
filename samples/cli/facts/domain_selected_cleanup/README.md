@@ -85,10 +85,9 @@ engines, with their code-6 twins rejecting on `Label` membership. It checks the
 original const recipe before substituting a canonical value into the private
 applied theory. The overflow control rejects the exact out-of-carrier value
 `u64(18446744073709551616)`; normalization does not erase that obligation.
-Historical affected-library Clippy passed with warnings. Enclosing generic telescopes,
-general erased-interface transport, product-producer parity, source retirement,
-and the whole item's required applications/corpus/host results remain open.
-No TASKS acceptance has been subtracted. The full migration item remains open.
+Historical affected-library Clippy passed with warnings. Product-producer parity,
+source retirement, and the whole item's required applications/corpus/host results
+remain open. The full migration item remains open.
 
 Immutable producers, source manifests, exact commands and raw logs live in this
 worktree's ignored `build/slot3-evidence/`. Durable private source checkpoints
@@ -104,10 +103,52 @@ parent migration's broader acceptance:
 | Identity and lifetime | The explicit `'storage` binds the original exclusive Counter backing; cleanup writes that backing once. |
 | Composition | The same fact and operation survive all nine linked places and pinned pass/fail fixtures. |
 | Soundness boundaries | Exact cleanup owner custody, receiver type/access, prerequisites, and finite normal completion remain checked; conflict, authority and invalid-hook controls remain. |
-| Psi 05–07 | Ordinary cleanup actions retain the selected machine and captured receiver through Terminal production and interpretation. |
+| Psi 06–08 | Ordinary cleanup actions retain the selected machine and captured receiver through Terminal production and interpretation. |
 | Omega 00–02 | Package review retains independent callable binders; ordinary provider, layout and calling-plan production consumes the result. |
 | Omega 03–06 | Native execution observes the cleanup store and invocation count through ordinary instruction, register and frame realization; this is not a stack-boundary stress test. |
 | Omega 07–09 and emission | Emitted PE and ELF programs execute and agree with Terminal Psi on their matching x86-64 hosts; other hosted execution remains open. |
+
+## Enclosing generic telescopes and erased interfaces
+
+Two productions carry the same sentence through generic code whose closed
+carrier no source annotation names.
+[`enclosing_generic_telescope`](enclosing_generic_telescope/main.omg) passes an
+inferred `Keeper { ..., payload: 9u64 }` to `hold<T>`, whose nested `consume`
+names the enclosing `T`. [`erased_interface`](erased_interface/main.omg) passes a
+`Keeper in Held` owner, where `Held` selects `release_keeper`, to an empty
+`forward<T>(value: T)`. The caller's observer traps unless the original Counter
+holds value 7 and invocation count 1.
+
+The fixed baseline `2f167b2a7955de53232307ffef64b6433c79b680` (optimized shared
+producer, Linux x86-64) rejected both positives at executable lowering. The
+telescope gave "cleanup hook has no executable selection" in
+`consume$specialized$…::entry`: specialization closed `Keeper<u64>` without an
+authored application, so the data application view kept the declaration's
+selection, which was still open over `T`. The erased interface gave "state graph: state
+signature: contract shape unadmitted" in `forward$specialized$…::entry`: the
+instance parameter carried `Held` by substitution, but no state contract
+restated that membership. An authored annotation (`let keeper: Keeper<u64>`)
+or an authored constrained formal avoided both failures.
+
+The repair closes the declaration's cleanup selection once per carrier identity
+that inference or specialization produces. It then restates each domain that
+substitution adds to a specialized formal, as stage 03 does for an authored
+constrained formal. With that candidate, both positives run at native exit 0 and
+Terminal interpreter exit 0 on Linux x86-64.
+
+| Production | Reject twin | Rejection |
+| --- | --- | --- |
+| enclosing generic telescope | [nested `consume` drops its code requirement](enclosing_generic_telescope/invalid/main.omg) | cleanup requires at the specialized `consume` edge |
+| erased interface | [`Held` drops `requires self.code == 7`](erased_interface/invalid/main.omg) | cleanup requires at the specialized `forward` edge |
+
+[`controls/missing_inherited_obligation`](controls/missing_inherited_obligation/main.omg)
+lets `Label` inherit `Held`'s cleanup selection while `Held` states no code
+requirement. It rejects on the missing `keeper.code == 7` clause at `consume`'s
+disposal edge. The baseline already rejects it that way, so this control pins
+existing behavior and needed no compiler change. A data default-domain owner passed
+through an erased `T` without any carried fact still rejects on the hook's
+requirement in a local probe on the candidate; no fixture pins that probe. That
+is the rule, not a gap: an erased formal carries no field facts.
 
 ## Build-owned target-body migration
 

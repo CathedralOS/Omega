@@ -24,9 +24,13 @@ All positive projects select the source provider and bind `ProgramEntry` for the
 2. **Identity and lifetime.** The precondition observes the same live request field at invocation. It grants no post-call preservation through `&mut Request`; a focused stale post-call consumer rejects.
 3. **Composition.** The request reaches the boundary through a local, record field, helper parameter, returned record, match join, named zero, successor state, forwarding machine or target body. The consumer supplies no new guard proving the field zero.
 4. **Soundness.** Boundary signature selection remains exact; argument effects and mutable writes remain visible. Focused changed-before-call and effectful-argument controls reject at acquire, and post-call stale-field use rejects at its later consumer.
-5. **Checked-to-Terminal Psi (Psi 05–07).** The precondition is checked before invocation; Terminal executes the selected source provider's real mutation and return.
+5. **Checked-to-Terminal Psi (Psi 06–08).** The precondition is checked before invocation; Terminal executes the selected source provider's real mutation and return.
 6. **Provider, layout and ABI (Omega 00–02).** `Build::select_provider<Io, Actual>` supplies the ordinary checked provider, and the mutable record uses its actual reference lane.
 7. **Instructions, registers and activations (Omega 03–06).** Native execution invokes that provider and consumes its returned status in each transport variation.
 8. **Encoding and emission (Omega 07–09).** Every positive native image exits zero, agreeing with Terminal Psi.
 
 The row qualifies one general origin-frame repair required by ordinary parser admission. It does not replace the remaining R5 may-write matrices or parser convergence gate.
+
+## Build-owned target-body migration
+
+The `target_body` place and its twins carry no source target prefix. `BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected by explicit target-keyed Build rows. The operation, inputs, contracts and exit oracle are unchanged. The entry wrapper and each implementation check a tag (17 for x86-64, 29 for AArch64), so a wrong Build row traps. The requirement and its implementations publish `invokes Io` for the boundary call their bodies make. Observed on macOS x86-64 with optimized producers for base 4f87c9e08b1 and for the #1378 head: the migrated positive exits 0 under `omega run --both` (native and Terminal Psi agree) and every twin and control in the place still rejects with its authored fragment. No compiler change was needed. The other hosted targets keep their authored rows, unexecuted here.

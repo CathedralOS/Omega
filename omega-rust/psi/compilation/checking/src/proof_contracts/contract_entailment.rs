@@ -103,6 +103,9 @@ pub(crate) mod law_conformance;
 pub(crate) mod numeric_observations;
 mod observed_projections;
 pub use declaration_projections::declaration_projection_cases_hold;
+mod call_handbacks;
+mod captured_predicates;
+pub(crate) use call_handbacks::validate_scalar_loan_handbacks;
 mod operand_fits;
 mod proof_edges;
 pub(crate) mod proof_integer;
@@ -114,8 +117,9 @@ pub(crate) mod scoped_arithmetic;
 mod self_induction;
 pub(crate) mod specification_calls;
 pub(crate) mod static_applications;
-mod stored_predicates;
-pub(crate) use stored_predicates::stored_data_predicate_holds;
+pub(crate) use captured_predicates::{
+    CapturedPredicatePoint, captured_data_predicate_holds, completed_data_predicate_holds,
+};
 pub(crate) mod strict_arithmetic;
 mod structural_case_arms;
 pub(crate) mod structural_judgment;

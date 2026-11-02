@@ -1064,6 +1064,18 @@ impl<'program, 'selection> Collector<'program, 'selection> {
         if !table.expression_is_valid(expression) {
             return Err("constant initializer dependency has a stale expression".to_owned());
         }
+        let authored = table.materialization_source(expression);
+        if authored.is_valid() {
+            // A completed static operand keeps its original computation in
+            // both source readiness and typed custody. Materialization erases
+            // execution demand, never the initializer's authored dependency.
+            self.expressions.push(authored);
+            if self.initializer_expressions.contains(&expression)
+                && !self.initializer_expressions.contains(&authored)
+            {
+                self.initializer_expressions.push(authored);
+            }
+        }
         if matches!(
             table.expression(expression),
             ExpressionNode::Binary(_) | ExpressionNode::Unary(_)
@@ -1296,12 +1308,6 @@ impl<'program, 'selection> Collector<'program, 'selection> {
             );
         }
         self.type_parameters(machine.type_parameters)?;
-        self.expressions.extend(
-            body_expressions(&program)
-                .expression_handles(machine.declared_type_predicates)
-                .iter()
-                .copied(),
-        );
         for equation in resolved_declarations(&program)
             .declared_type_equations
             .span_or_empty(machine.declared_type_equations)

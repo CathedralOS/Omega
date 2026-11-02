@@ -988,44 +988,51 @@ impl<'base> ConstantSelection<'base> {
         let selected_name = self.symbols.name(selected);
         let parameters = |forest: &SyntaxTrees| {
             let mut declarations = forest.root_items().filter_map(|item| {
-                let (kind, declaration, parameters) = match item {
-                    Item::Data(data) => (SymbolKind::Data, &data.name, data.type_parameters),
+                let (kind, declaration, parameters, evidence_count) = match item {
+                    Item::Data(data) => (SymbolKind::Data, &data.name, data.type_parameters, 0),
                     Item::TypeAlias(alias) => {
-                        (SymbolKind::TypeAlias, &alias.name, alias.type_parameters)
+                        (SymbolKind::TypeAlias, &alias.name, alias.type_parameters, 0)
                     }
-                    Item::Machine(machine) => {
-                        (SymbolKind::Machine, &machine.name, machine.type_parameters)
-                    }
+                    Item::Machine(machine) => (
+                        SymbolKind::Machine,
+                        &machine.name,
+                        machine.type_parameters,
+                        machine.conformance_bounds.len(),
+                    ),
                     Item::Conformance(conformance) => (
                         SymbolKind::Conformance,
                         conformance.alias.as_ref()?,
                         conformance.type_parameters,
+                        0,
                     ),
                     _ => return None,
                 };
                 (kind == selected_kind
                     && declaration.source_span() == reference
                     && declaration.as_str(forest) == selected_name)
-                    .then_some(parameters)
+                    .then_some((parameters, evidence_count))
             });
-            let Some(parameters) = declarations.next() else {
+            let Some((parameters, evidence_count)) = declarations.next() else {
                 return Ok(None);
             };
             if declarations.next().is_some() {
                 return Err(());
             }
-            Ok(Some(
-                syntax_items(&forest)
-                    .type_parameters(parameters)
-                    .iter()
-                    .map(|parameter| match parameter.kind {
-                        syntax_trees::item::TypeParameterKind::Const { type_reference } => {
-                            Some(type_reference)
-                        }
-                        _ => None,
-                    })
-                    .collect::<Vec<_>>(),
-            ))
+            let mut carriers = syntax_items(forest)
+                .type_parameters(parameters)
+                .iter()
+                .map(|parameter| match parameter.kind {
+                    syntax_trees::item::TypeParameterKind::Const { type_reference } => {
+                        Some(type_reference)
+                    }
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            // Evidence occupies the authored suffix of the same application.
+            // It has no value carrier, but omitting its slots makes an exact
+            // mixed telescope look incomplete and hides every const operand.
+            carriers.resize(carriers.len() + evidence_count, None);
+            Ok(Some(carriers))
         };
         if let Some(parameters) = parameters(syntax).ok()? {
             return Some(parameters);
@@ -1197,6 +1204,19 @@ impl<'base> ConstantSelection<'base> {
     /// Bare Names retain value-prefix precedence before specialization changes
     /// their lookup metadata. The shared resolver distinguishes absence from
     /// unique or ambiguous constants; braces remain ordinary constructors.
+    pub(super) fn constructor_prefix_is_value(
+        &self,
+        syntax: &SyntaxTrees,
+        name: &Identifier,
+    ) -> bool {
+        crate::symbols::constructor_prefix_is_value(
+            &self.symbols,
+            name.as_str(syntax),
+            name.source_span(),
+        )
+        .unwrap_or(true)
+    }
+
     pub(crate) fn qualified_payload_free_case<'syntax>(
         &self,
         syntax: &'syntax SyntaxTrees,
@@ -1317,6 +1337,33 @@ impl<'base> ConstantSelection<'base> {
             &[kind],
             name.source_span(),
         )?;
+        self.lookup_path_for_selected(syntax, name, selected, kind)
+    }
+
+    pub(super) fn data_lookup_path_for_declaration(
+        &self,
+        syntax: &SyntaxTrees,
+        declaration: &Identifier,
+        requester: &Identifier,
+    ) -> Option<String> {
+        let selected = self.symbols.find_top_level_by_name_and_kinds_from_source(
+            declaration.as_str(syntax),
+            &[SymbolKind::Data],
+            declaration.source_span(),
+        )?;
+        if self.symbols.symbol_source_span(selected) != Some(declaration.source_span()) {
+            return None;
+        }
+        self.lookup_path_for_selected(syntax, requester, selected, SymbolKind::Data)
+    }
+
+    fn lookup_path_for_selected(
+        &self,
+        syntax: &SyntaxTrees,
+        name: &Identifier,
+        selected: symbols::SymbolHandle,
+        kind: SymbolKind,
+    ) -> Option<String> {
         let path = self.symbols.display_path(selected, "::");
         let declaration = self.symbols.symbol_source_span(selected)?;
         let selects = |path: &str| {
@@ -1360,7 +1407,7 @@ impl<'base> ConstantSelection<'base> {
         // import can expose this exact carrier without making any qualified
         // spelling valid. Preserve that authored lookup only after trying the
         // qualified paths; declaration/argument custody still owns identity.
-        Some(name.as_str(syntax).to_owned())
+        selects(name.as_str(syntax)).then(|| name.as_str(syntax).to_owned())
     }
 
     /// Return exact declaration custody, not a handle from the header table.

@@ -4,7 +4,7 @@
 //! requests join caller consent before execution. The result retains the source
 //! commitment and requested authority beside the evaluated configuration.
 
-use crate::completed_pure_build::CompletedPureBuildInputs;
+use crate::activation::completed_pure_build::CompletedPureBuildInputs;
 use crate::{BuildConfig, ComputedBuildConfig, PreparedBuildExecution, PureBuildCompilation};
 use artifacts::compile_timings::CompileTimings;
 use compilation_products::CompileFailure;

@@ -6,22 +6,33 @@
 //! A declaration is a ceiling, not a body contribution. Keep the complete
 //! derived body row beside the published contract: callers consume an authored
 //! ceiling (including its slack), or the inferred row when the clause is absent.
-//! Universal body checks always use pinned requirement ceilings, never a selected
-//! implementation's smaller body.
+//! A dispatch whose selector is unknown, such as a dynamic parameter, uses the
+//! requirement's pinned ceiling. A dispatch whose selector the operational
+//! fixed point resolved under a known selector context contributes the
+//! selected realizations' published rows instead: the selector retains the
+//! selected conformance's exact envelope. Each known context of a private
+//! checked machine is summarized as one more instance of its body; a machine
+//! whose published contract stands for its body reads its declaration entry
+//! under every selection, as the operational summary does.
 
-use arena::HandleSpan;
+use arena::{Handle, HandleSpan};
 use language_semantics::{ServiceReachId, ServiceReachInterface};
 use symbols::SymbolHandle;
 use typed_trees::declaration_index::CallTargetIndex;
 
 use flow_effects::{
     CallServiceReachInference, InstallationReachRequirement, MachineServiceReachInference,
-    OperationalPlan, ServiceReachInferencePlan, StateServiceReachInference,
+    OperationalPlan, SelectedCallContext, SelectedCallContexts, ServiceReachInferencePlan,
+    StateServiceReachInference,
 };
 
 #[derive(Debug, Clone)]
 struct MachineReachWork {
     symbol: SymbolHandle,
+    /// The selector context this entry summarizes. A machine's declaration
+    /// entry uses its unknown-input context; a known selector context is a
+    /// further instance of the same body.
+    context: Handle<SelectedCallContext>,
     family_members: Vec<FamilyMemberReach>,
     published: Vec<ServiceReachId>,
     checked_body: bool,
@@ -50,6 +61,9 @@ struct FamilyMemberReach {
 #[derive(Debug, Clone)]
 struct MachineReachCall {
     target: SymbolHandle,
+    /// Contexts that replace `target` when the operational fixed point
+    /// resolved this call under the entry's selector context.
+    selected: Option<Vec<Handle<SelectedCallContext>>>,
     direct: DirectServiceReach,
     bindings: HandleSpan<flow_effects::StaticMachineCallBinding>,
     cleanup: CleanupContribution,
@@ -104,166 +118,22 @@ pub(crate) fn infer_service_reaches_uncached(
     program: &dyn crate::CheckingInput,
     operational: &OperationalPlan,
 ) -> ServiceReachInferencePlan {
+    let contexts = &operational.selected_call_contexts;
+    let mut declaration_contexts = symbols::SymbolKeyMap::default();
+    for (handle, context) in contexts.contexts.iter() {
+        if context.unknown {
+            declaration_contexts
+                .entry(context.machine)
+                .or_insert(handle);
+        }
+    }
     let mut work = Vec::new();
     for machine in program.machines() {
-        let family_members = super::family_interface_members(program, machine)
-            .iter()
-            .map(|member| FamilyMemberReach {
-                machine: member.machine,
-                parameters: program
-                    .machine_by_symbol(member.machine)
-                    .map(|member| {
-                        program
-                            .machine_type_parameters(member)
-                            .iter()
-                            .zip(program.machine_type_parameters(machine))
-                            .map(|(member, interface)| (member.symbol, interface.symbol))
-                            .collect()
-                    })
-                    .unwrap_or_default(),
-            })
-            .collect::<Vec<_>>();
-        let checked_body =
-            machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody;
-        let authored_ceiling = program
-            .authored_service_reach_rows_for(machine.symbol)
-            .next()
-            .is_some();
-        let mut published = if family_members.is_empty() {
-            program
-                .service_reach_rows
-                .services(machine.service_reach_row)
-                .to_vec()
-        } else {
-            // The prototype's row has no authority over other target bodies.
-            // The complete member union supplies this interface below.
-            Vec::new()
-        };
-        let mut concrete_declared = if machine.service_reach_is_installation_bound {
-            Vec::new()
-        } else {
-            published.clone()
-        };
-        // A top-level boundary's authored invocations survive replacement of
-        // its abstract bound. Keep them in both the conservative declaration
-        // and its concrete basis, not in inferred body calls: the declaration
-        // has no body and the original row still bounds provider selection.
-        for governing in super::opaque_governing_ceilings(program, machine) {
-            let services = program
-                .service_reach_rows
-                .services(governing.service_reach_row);
-            extend_service_set(&mut published, services);
-            if !governing.service_reach_is_installation_bound {
-                extend_service_set(&mut concrete_declared, services);
-            }
-        }
-        let mut invoked = DirectServiceReach::default();
-        if machine.supply_mode.is_boundary_declaration() {
-            extend_machine_invoked_binding_services(program, machine, &mut invoked);
-            extend_service_set(&mut published, &invoked.services);
-            extend_service_set(&mut concrete_declared, &invoked.concrete_services);
-        }
-        let mut calls = Vec::new();
-        let mut direct = Vec::new();
-        let mut concrete_direct = Vec::new();
-        let mut dependency_direct = DependencyWork {
-            concrete: published.clone(),
-            ..Default::default()
-        };
-        if let Some(summary) =
-            with_operational_index(operational, |index| index.get(&machine.symbol).copied())
-                .map(|index| &operational.machines()[index])
-        {
-            for state in operational.states.span_or_empty(summary.states) {
-                for call in operational.calls.span_or_empty(state.calls) {
-                    let call_reach = direct_service_reach_for_operational_call(program, call);
-                    extend_service_set(&mut direct, &call_reach.services);
-                    extend_service_set(&mut concrete_direct, &call_reach.concrete_services);
-                    if checked_body
-                        && !call.static_machine_parameter.is_valid()
-                        && is_nominal_parameter(program, call.target_state_symbol)
-                    {
-                        extend_parameter_set(
-                            &mut dependency_direct.parameters,
-                            &[call.target_state_symbol],
-                        );
-                    } else if checked_body {
-                        extend_service_set(&mut dependency_direct.concrete, &call_reach.services);
-                    }
-                    calls.push(MachineReachCall {
-                        target: call.target_machine_symbol,
-                        direct: call_reach,
-                        bindings: call.static_machine_bindings,
-                        cleanup: if call.static_machine_parameter.is_valid()
-                            || is_nominal_parameter(program, call.target_state_symbol)
-                        {
-                            CleanupContribution::Callback
-                        } else {
-                            CleanupContribution::Ordinary
-                        },
-                    });
-                }
-            }
-        }
-        for (_, dependency) in operational
-            .cleanup_dependencies
-            .iter()
-            .filter(|(_, dependency)| dependency.caller_machine == machine.symbol)
-        {
-            // Internal ownership-edge calls propagate the target's checked
-            // closure; they do not manufacture a direct boundary invocation.
-            calls.push(MachineReachCall {
-                target: dependency.target_machine,
-                direct: DirectServiceReach::default(),
-                bindings: HandleSpan::empty(),
-                cleanup: CleanupContribution::SelectedCleanup,
-            });
-        }
-        work.push(MachineReachWork {
-            symbol: machine.symbol,
-            uses_published: family_members.is_empty()
-                && (machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
-                    || machine.is_public
-                    || authored_ceiling
-                    || !program
-                        .service_reach_rows
-                        .services(machine.service_reach_row)
-                        .is_empty()),
-            family_members,
-            published: published.clone(),
-            checked_body,
-            authored_ceiling,
-            concrete_declared: concrete_declared.clone(),
-            direct: direct.clone(),
-            transitive: direct,
-            concrete_direct: concrete_direct.clone(),
-            concrete_transitive: concrete_direct,
-            concrete_effective: concrete_declared,
-            unresolved_installation_reaches: machine
-                .service_reach_is_installation_bound
-                .then_some(InstallationReachRequirement {
-                    requirement: machine.symbol,
-                    upper_bound: machine.service_reach_row,
-                })
-                .into_iter()
-                .chain(invoked.unresolved_installation_reaches)
-                .chain(
-                    calls.iter().flat_map(|call| {
-                        call.direct.unresolved_installation_reaches.iter().copied()
-                    }),
-                )
-                .collect(),
-            cleanup_contribution: Vec::new(),
-            dependency: dependency_direct.clone(),
-            dependency_direct,
-            calls,
-        });
-        normalize_installation_reaches(
-            &mut work
-                .last_mut()
-                .expect("machine work")
-                .unresolved_installation_reaches,
-        );
+        let context = declaration_contexts
+            .get(&machine.symbol)
+            .copied()
+            .unwrap_or_else(Handle::invalid);
+        work.push(machine_reach_work(program, operational, machine, context));
     }
 
     let work_index = work
@@ -271,6 +141,48 @@ pub(crate) fn infer_service_reaches_uncached(
         .enumerate()
         .map(|(index, machine)| (machine.symbol, index))
         .collect::<symbols::SymbolKeyMap<_, _>>();
+    // Every known selector context reached by the operational fixed point is
+    // one more instance of its machine's body. Only declaration entries are
+    // published; context entries feed the calls that reach them.
+    let mut context_work = vec![None; contexts.contexts.len() + 1];
+    for (index, machine) in work.iter().enumerate() {
+        if machine.context.is_valid() {
+            set_context_work(&mut context_work, machine.context, index);
+        }
+    }
+    for (handle, context) in contexts.contexts.iter() {
+        if context.unknown
+            || context.published
+            || context_work_index(&context_work, handle).is_some()
+        {
+            continue;
+        }
+        let Some(machine) = work_index
+            .get(&context.machine)
+            .map(|index| &program.machines()[*index])
+        else {
+            continue;
+        };
+        set_context_work(&mut context_work, handle, work.len());
+        work.push(machine_reach_work(program, operational, machine, handle));
+    }
+    let call_targets = |call: &MachineReachCall| -> Vec<usize> {
+        match &call.selected {
+            // A context without its own entry (a published machine) reads its
+            // machine's declaration entry.
+            Some(selected) => selected
+                .iter()
+                .filter_map(|context| {
+                    context_work_index(&context_work, *context).or_else(|| {
+                        work_index
+                            .get(&contexts.contexts.get(*context).machine)
+                            .copied()
+                    })
+                })
+                .collect(),
+            None => work_index.get(&call.target).copied().into_iter().collect(),
+        }
+    };
     loop {
         let previous = work
             .iter()
@@ -320,7 +232,7 @@ pub(crate) fn infer_service_reaches_uncached(
             for call in &work[machine_index].calls {
                 extend_service_set(&mut transitive, &call.direct.services);
                 extend_service_set(&mut concrete_transitive, &call.direct.concrete_services);
-                if let Some(target) = work_index.get(&call.target).map(|index| &work[*index]) {
+                for target in call_targets(call).into_iter().map(|index| &work[index]) {
                     if work[machine_index].checked_body {
                         substitute_dependency(
                             program,
@@ -408,6 +320,11 @@ pub(crate) fn infer_service_reaches_uncached(
         let Some(machine_work) = work_index.get(&machine.symbol).map(|index| &work[*index]) else {
             continue;
         };
+        let machine_calls = work_index
+            .get(&machine.symbol)
+            .map(|index| &work[*index].calls)
+            .map_or(&[][..], Vec::as_slice);
+        let mut machine_call = machine_calls.iter();
         let mut states = HandleSpan::empty();
         if let Some(machine_summary) =
             with_operational_index(operational, |index| index.get(&machine.symbol).copied())
@@ -421,14 +338,15 @@ pub(crate) fn infer_service_reaches_uncached(
                 let mut state_concrete_transitive = Vec::new();
                 let mut state_unresolved = Vec::new();
                 for call_summary in operational.calls.span_or_empty(state_summary.calls) {
-                    let call_direct =
-                        direct_service_reach_for_operational_call(program, call_summary);
+                    // Declaration entries list operational calls first, in order.
+                    let call_work = machine_call.next().expect("operational call work");
+                    let call_direct = call_work.direct.clone();
                     let mut call_transitive = call_direct.services.clone();
                     let mut call_concrete_transitive = call_direct.concrete_services.clone();
                     let mut call_unresolved = call_direct.unresolved_installation_reaches;
-                    if let Some(target) = work_index
-                        .get(&call_summary.target_machine_symbol)
-                        .map(|index| &work[*index])
+                    for target in call_targets(call_work)
+                        .into_iter()
+                        .map(|index| &work[index])
                     {
                         extend_service_set(&mut call_transitive, effective_services(target));
                         extend_service_set(
@@ -550,6 +468,221 @@ pub(crate) fn infer_service_reaches_uncached(
         );
     }
     plan
+}
+/// One summary entry for `machine` under `context`. An invalid context is a
+/// machine the operational plan does not summarize under any selector input.
+fn machine_reach_work(
+    program: &dyn crate::CheckingInput,
+    operational: &OperationalPlan,
+    machine: &typed_trees::machine::Machine,
+    context: Handle<SelectedCallContext>,
+) -> MachineReachWork {
+    let contexts = &operational.selected_call_contexts;
+    let family_members = super::family_interface_members(program, machine)
+        .iter()
+        .map(|member| FamilyMemberReach {
+            machine: member.machine,
+            parameters: program
+                .machine_by_symbol(member.machine)
+                .map(|member| {
+                    program
+                        .machine_type_parameters(member)
+                        .iter()
+                        .zip(program.machine_type_parameters(machine))
+                        .map(|(member, interface)| (member.symbol, interface.symbol))
+                        .collect()
+                })
+                .unwrap_or_default(),
+        })
+        .collect::<Vec<_>>();
+    let checked_body = machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody;
+    let authored_ceiling = program
+        .authored_service_reach_rows_for(machine.symbol)
+        .next()
+        .is_some();
+    let mut published = if family_members.is_empty() {
+        program
+            .service_reach_rows
+            .services(machine.service_reach_row)
+            .to_vec()
+    } else {
+        // The prototype's row has no authority over other target bodies.
+        // The complete member union supplies this interface below.
+        Vec::new()
+    };
+    let mut concrete_declared = if machine.service_reach_is_installation_bound {
+        Vec::new()
+    } else {
+        published.clone()
+    };
+    // A top-level boundary's authored invocations survive replacement of
+    // its abstract bound. Keep them in both the conservative declaration
+    // and its concrete basis, not in inferred body calls: the declaration
+    // has no body and the original row still bounds provider selection.
+    for governing in super::opaque_governing_ceilings(program, machine) {
+        let services = program
+            .service_reach_rows
+            .services(governing.service_reach_row);
+        extend_service_set(&mut published, services);
+        if !governing.service_reach_is_installation_bound {
+            extend_service_set(&mut concrete_declared, services);
+        }
+    }
+    let mut invoked = DirectServiceReach::default();
+    if machine.supply_mode.is_boundary_declaration() {
+        extend_machine_invoked_binding_services(program, machine, &mut invoked);
+        extend_service_set(&mut published, &invoked.services);
+        extend_service_set(&mut concrete_declared, &invoked.concrete_services);
+    }
+    let mut calls = Vec::new();
+    let mut direct = Vec::new();
+    let mut concrete_direct = Vec::new();
+    let mut dependency_direct = DependencyWork {
+        concrete: published.clone(),
+        ..Default::default()
+    };
+    if let Some(summary) =
+        with_operational_index(operational, |index| index.get(&machine.symbol).copied())
+            .map(|index| &operational.machines()[index])
+    {
+        for state in operational.states.span_or_empty(summary.states) {
+            for call in operational.calls.span_or_empty(state.calls) {
+                let resolved = contexts.call(
+                    context,
+                    state.symbol,
+                    call.statement_index,
+                    call.call_ordinal,
+                    call.target_state_symbol,
+                );
+                let selected_dispatch = resolved.is_some_and(|call| call.selected_dispatch);
+                // A resolved dispatch no longer invokes the requirement's
+                // published row; its realizations contribute through `selected`.
+                let call_reach = if selected_dispatch {
+                    DirectServiceReach::default()
+                } else {
+                    direct_service_reach_for_operational_call(program, call)
+                };
+                extend_service_set(&mut direct, &call_reach.services);
+                extend_service_set(&mut concrete_direct, &call_reach.concrete_services);
+                if checked_body
+                    && !selected_dispatch
+                    && !call.static_machine_parameter.is_valid()
+                    && is_nominal_parameter(program, call.target_state_symbol)
+                {
+                    extend_parameter_set(
+                        &mut dependency_direct.parameters,
+                        &[call.target_state_symbol],
+                    );
+                } else if checked_body && !selected_dispatch {
+                    extend_service_set(&mut dependency_direct.concrete, &call_reach.services);
+                }
+                calls.push(MachineReachCall {
+                    target: call.target_machine_symbol,
+                    selected: resolved.map(|call| selected_targets(contexts, call)),
+                    direct: call_reach,
+                    bindings: call.static_machine_bindings,
+                    cleanup: if call.static_machine_parameter.is_valid()
+                        || is_nominal_parameter(program, call.target_state_symbol)
+                    {
+                        CleanupContribution::Callback
+                    } else {
+                        CleanupContribution::Ordinary
+                    },
+                });
+            }
+        }
+    }
+    for (_, dependency) in operational
+        .cleanup_dependencies
+        .iter()
+        .filter(|(_, dependency)| dependency.caller_machine == machine.symbol)
+    {
+        // Internal ownership-edge calls propagate the target's checked
+        // closure; they do not manufacture a direct boundary invocation.
+        calls.push(MachineReachCall {
+            target: dependency.target_machine,
+            selected: None,
+            direct: DirectServiceReach::default(),
+            bindings: HandleSpan::empty(),
+            cleanup: CleanupContribution::SelectedCleanup,
+        });
+    }
+    let mut work = MachineReachWork {
+        symbol: machine.symbol,
+        context,
+        uses_published: family_members.is_empty()
+            && (machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
+                || machine.is_public
+                || authored_ceiling
+                || !program
+                    .service_reach_rows
+                    .services(machine.service_reach_row)
+                    .is_empty()),
+        family_members,
+        published: published.clone(),
+        checked_body,
+        authored_ceiling,
+        concrete_declared: concrete_declared.clone(),
+        direct: direct.clone(),
+        transitive: direct,
+        concrete_direct: concrete_direct.clone(),
+        concrete_transitive: concrete_direct,
+        concrete_effective: concrete_declared,
+        unresolved_installation_reaches: machine
+            .service_reach_is_installation_bound
+            .then_some(InstallationReachRequirement {
+                requirement: machine.symbol,
+                upper_bound: machine.service_reach_row,
+            })
+            .into_iter()
+            .chain(invoked.unresolved_installation_reaches)
+            .chain(
+                calls
+                    .iter()
+                    .flat_map(|call| call.direct.unresolved_installation_reaches.iter().copied()),
+            )
+            .collect(),
+        cleanup_contribution: Vec::new(),
+        dependency: dependency_direct.clone(),
+        dependency_direct,
+        calls,
+    };
+    normalize_installation_reaches(&mut work.unresolved_installation_reaches);
+    work
+}
+
+fn selected_targets(
+    contexts: &SelectedCallContexts,
+    call: &flow_effects::SelectedContextCall,
+) -> Vec<Handle<SelectedCallContext>> {
+    contexts
+        .targets
+        .span_or_empty(call.targets)
+        .iter()
+        .map(|target| target.context)
+        .collect()
+}
+
+fn set_context_work(
+    context_work: &mut Vec<Option<usize>>,
+    context: Handle<SelectedCallContext>,
+    work: usize,
+) {
+    let slot = context.arena_index() as usize;
+    if context_work.len() <= slot {
+        context_work.resize(slot + 1, None);
+    }
+    context_work[slot] = Some(work);
+}
+
+fn context_work_index(
+    context_work: &[Option<usize>],
+    context: Handle<SelectedCallContext>,
+) -> Option<usize> {
+    context_work
+        .get(context.arena_index() as usize)
+        .copied()
+        .flatten()
 }
 
 fn effective_services(machine: &MachineReachWork) -> &[ServiceReachId] {
@@ -719,7 +852,6 @@ pub fn fixed_installation_boundary_service_reach(
     let trait_requirements = program
         .traits()
         .iter()
-        .filter(|owner| owner.is_boundary)
         .flat_map(|owner| program.trait_machine_instances(owner))
         .filter(|signature| signature.symbol == target)
         .map(|signature| signature.service_reach_is_installation_bound);
@@ -759,14 +891,13 @@ pub fn fixed_installation_boundary_service_reach(
 /// Project an exact trait requirement's declared ceiling, including nominal
 /// service and synchronous invocation contributions, without inventing a call.
 /// Publication needs the same contract for called and uncalled coordinates.
-pub fn boundary_signature_service_reach(
+pub fn trait_signature_service_reach(
     program: &dyn crate::CheckingInput,
     signature: SymbolHandle,
 ) -> Option<Vec<ServiceReachId>> {
     let mut declarations = program
         .traits()
         .iter()
-        .filter(|owner| owner.is_boundary)
         .flat_map(|owner| program.trait_machine_instances(owner))
         .filter(|declaration| declaration.symbol == signature);
     let signature = declarations.next()?;

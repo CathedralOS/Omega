@@ -4076,6 +4076,7 @@ pass/memory/interrupt_table_canary rejected 4037ms regressed-from:checked @6c75d
 pass/memory/runtime_large_entry_record_field_exit built 1425ms exit:70 @3ce19b649c88+wt
 pass/memory/runtime_large_frame_console_byte_homes_exit built 1251ms exit:70 stdout:match @3ce19b649c88+wt
 pass/memory/runtime_large_local_record_exit built 1251ms exit:70 @3ce19b649c88+wt
+pass/memory/runtime_large_structural_copy_exit built 2617ms exit:0 interpreter-exit:0 interpreter:agrees @4b1bca34060d
 pass/memory/secondary_processor_canary rejected 3553ms regressed-from:built @6c75d91f0312
 	selected whole provider maps `<selected target>::SecondSecondaryProcessorConformance::satisfies::SecondSecondaryProcessorRoot` and `<selected target>::FirstSecondaryProcessorConformance::satisfies::FirstSecondaryProcessorRoot` supply the same exact receiver application; inherited rows cannot be mixed across choosing owners
 pass/memory/weak_vacant_qualifier_satisfied checked 158ms

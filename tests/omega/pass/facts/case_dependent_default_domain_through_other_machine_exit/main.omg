@@ -42,9 +42,24 @@ machine pick_named<T>(value: NamedValue in Typed<T>) -> T {
     }
 }
 machine width(span: Interval<32>) -> u64 {
-    match span {
+    let mut current: Interval<32> = span;
+    match current {
         Interval::Empty -> 77
-        Interval::Range { lo, hi } -> width_range(lo, hi)
+        Interval::Range { .. } -> restored_width(&mut current)
+    }
+}
+machine restored_width(span: &mut Interval<32>) -> u64
+    requires span in Interval::Range
+{
+    let previous_lo: u64 = span.lo;
+    let previous_hi: u64 = span.hi;
+    span.hi = 0;
+    let intermediate: u64 = span.hi;
+    span.hi = previous_hi;
+    let result: u64 = width_range(span.lo, span.hi);
+    match intermediate == 0 && span.lo == previous_lo {
+        true -> result
+        false -> 78
     }
 }
 machine width_named(span: NamedInterval in Ordered<32>) -> u64 {

@@ -1,11 +1,11 @@
 use omega_language_std::console;
 use omega::language::core::float_operations;
-use numerics::complex::complex_carrier_ops::Complex;
-use numerics::complex::complex_carrier_ops::ComplexF64;
-use numerics::complex::complex_carrier_ops::ComplexMagnitude;
-use numerics::numeric::numeric_accuracy_policy::AccuracyComparison;
-use numerics::numeric::numeric_accuracy_policy::ReferenceAdditiveTolerance64;
-use numerics::numeric::numeric_accuracy_policy::compare_reference_additive_f64;
+use omega::language::core::complex::Complex;
+use omega::language::core::complex::ComplexF64;
+use omega::language::core::complex::ComplexMagnitude;
+use omega::language::core::float_accuracy::AccuracyComparison;
+use omega::language::core::float_accuracy::ReferenceAdditiveTolerance64;
+use omega::language::core::float_accuracy::compare_reference_additive_f64;
 // Complex power S = V * conjugate(I), with borrowed immutable V and I.
 data Main {
     voltage: Complex<f64>;

@@ -52,7 +52,6 @@ macro_rules! copied_state_signature {
             contracts: $self.copy_capability_contract_span($other, $signature.contracts),
             default_body: $self.copy_statement_handle_span($other, $signature.default_body),
             terminates_guarantee: $signature.terminates_guarantee,
-            where_facts: $self.copy_domain_fact_span($other, $signature.where_facts),
         }
     }};
 }
@@ -290,26 +289,41 @@ impl SyntaxCopy<'_> {
                 is_mutable: local_data.is_mutable,
                 relevance: local_data.relevance,
             }),
-            StatementNode::Transition(transition) => StatementNode::Transition(TableTransition {
-                target: self.copy_transition_target(other, transition.target),
-                continuation: self.copy_transition_target(other, transition.continuation),
-                guard: match transition.guard {
-                    TransitionGuardNode::Always => TransitionGuardNode::Always,
-                    TransitionGuardNode::When(expression) => {
-                        TransitionGuardNode::When(self.copy_expression_handle(other, expression))
-                    }
-                },
-                proof_selectors: self.statements.insert_outcome_proof_selectors(
-                    other
-                        .statements
-                        .outcome_proof_selectors(transition.proof_selectors)
-                        .iter()
-                        .cloned(),
-                ),
-                exit: transition.exit,
-                ends_dispatch: transition.ends_dispatch,
-                source_span: transition.source_span,
-            }),
+            StatementNode::Transition(transition) => {
+                let patterns = other
+                    .statements
+                    .transition_patterns(transition.patterns)
+                    .iter()
+                    .map(|source| crate::statement::TransitionPattern {
+                        is_structural: source.is_structural,
+                        subject: self.copy_expression_handle(other, source.subject),
+                        capture: self.copy_match_subject(other, source.capture),
+                        pattern: self.copy_destructure_pattern(other, source.pattern),
+                    })
+                    .collect::<Vec<_>>();
+                let patterns = self.statements.insert_transition_patterns(patterns);
+                StatementNode::Transition(TableTransition {
+                    patterns,
+                    target: self.copy_transition_target(other, transition.target),
+                    continuation: self.copy_transition_target(other, transition.continuation),
+                    guard: match transition.guard {
+                        TransitionGuardNode::Always => TransitionGuardNode::Always,
+                        TransitionGuardNode::When(expression) => TransitionGuardNode::When(
+                            self.copy_expression_handle(other, expression),
+                        ),
+                    },
+                    proof_selectors: self.statements.insert_outcome_proof_selectors(
+                        other
+                            .statements
+                            .outcome_proof_selectors(transition.proof_selectors)
+                            .iter()
+                            .cloned(),
+                    ),
+                    exit: transition.exit,
+                    ends_dispatch: transition.ends_dispatch,
+                    source_span: transition.source_span,
+                })
+            }
         }
     }
 
@@ -524,6 +538,14 @@ impl SyntaxCopy<'_> {
             self.type_references
                 .retain_const_argument_expression(copied, expression);
         }
+        if let Some(normalization) = other.type_references.const_argument_normalization(handle)
+            && normalization.materialized_expression.is_valid()
+        {
+            let expression =
+                self.copy_expression_handle(other, normalization.materialized_expression);
+            self.type_references
+                .retain_const_argument_materialized_expression(copied, expression);
+        }
         if origin.is_valid() {
             let application = self.copy_type_reference_handle(other, origin);
             self.type_references
@@ -607,7 +629,14 @@ impl SyntaxCopy<'_> {
         }
         let subject =
             self.copy_expression_handle(other, other.expressions.match_subject(capture).subject);
-        let copied = self.expressions.insert_match_subject(subject);
+        let copied = match other.expressions.match_subject(capture).purpose {
+            crate::expression::SubjectCapturePurpose::Match => {
+                self.expressions.insert_match_subject(subject)
+            }
+            crate::expression::SubjectCapturePurpose::Transition => {
+                self.expressions.insert_transition_subject(subject)
+            }
+        };
         if self.match_subject_copies.len() <= position {
             self.match_subject_copies
                 .resize(position + 1, (Handle::invalid(), Handle::invalid()));
@@ -648,6 +677,7 @@ impl SyntaxCopy<'_> {
                 .cloned(),
         );
         TableDestructurePattern {
+            application_type: self.copy_type_reference_handle(other, pattern.application_type),
             head,
             fields,
             has_rest: pattern.has_rest,
@@ -791,6 +821,8 @@ impl SyntaxCopy<'_> {
             }),
             ExpressionNode::StructLiteral(struct_literal) => {
                 ExpressionNode::StructLiteral(TableStructLiteral {
+                    application_type: self
+                        .copy_type_reference_handle(other, struct_literal.application_type),
                     constructor_name: struct_literal.constructor_name.clone(),
                     fields: self.copy_struct_field_span(other, struct_literal.fields),
                 })

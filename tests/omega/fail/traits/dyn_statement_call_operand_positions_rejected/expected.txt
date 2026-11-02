@@ -1,0 +1,2 @@
+cannot prove requires contract for call dyn PairCheck::check
+7 == 100 && 100 == 7

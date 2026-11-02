@@ -16,7 +16,7 @@ layout = { path = "../../compilation/backend/layout" }
 representation-planning = { path = "../../../psi/compilation/checking/representation-planning" }
 selected-dispatch = { path = "../../compilation/realization/selected-dispatch" }
 psi-terminal-production = { path = "../../../psi/compilation/driver/terminal-production" }
-effects = { path = "../../compilation/backend/plans/provider-evidence" }
+effects = { path = "../../compilation/backend/plans/effects" }
 terminal-psi = { path = "../../../psi/compilation/representations/terminal-psi" }
 target = { path = "../../compilation/backend/target" }
 trust-model = { path = "../../compilation/realization/trust-model" }
@@ -32,6 +32,6 @@ numerics = { path = "../../../psi/foundation/numerics" }
 source = { path = "../../../psi/foundation/source" }
 symbols = { path = "../../../psi/foundation/symbols" }
 typed-trees = { path = "../../../psi/compilation/representations/typed-trees" }
-typed-trees-to-checked-trees = { path = "../../../psi/compilation/pipeline/04_typed-trees-to-checked-trees" }
+typed-trees-to-checked-trees = { path = "../../../psi/compilation/pipeline/05_typed-trees-to-checked-trees" }
 validation = { path = "../../../psi/compilation/checking" }
 

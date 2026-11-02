@@ -13,7 +13,9 @@ use register_model::ValidatedPhysicalRegisterModel;
 use resolved_layout_to_resolved_layout::{
     ResolvedLayoutOptimization, validate_resolved_layout_optimization,
 };
-use selected_form_encoding_to_resolved_layout::StagedOptimizedResolvedSelectedFormLayout;
+use selected_form_encoding_to_resolved_layout::{
+    StagedOptimizedResolvedSelectedFormLayout, validate_optimized_resolved_selected_form_layout,
+};
 use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
 /// Validate the layout phase, then construct and independently check the exit
@@ -95,16 +97,16 @@ fn validate_layout<S: ValidatedSelectedAnalysis>(
     baseline: &StagedOptimizedResolvedSelectedFormLayout,
     layout: &ResolvedLayoutOptimization,
 ) -> Result<(), Error> {
-    validate_resolved_layout_optimization(
-        selected,
-        machine,
+    validate_optimized_resolved_selected_form_layout(
+        selected.current_program(),
+        machine.machine().plan(),
         physical,
-        encoding,
+        encoding.program(),
         baseline,
-        layout.selections(),
-        layout,
     )
-    .map_err(Error::LayoutOptimization)
+    .map_err(Error::Layout)?;
+    validate_resolved_layout_optimization(physical, baseline.program(), layout.selections(), layout)
+        .map_err(Error::LayoutOptimization)
 }
 
 fn layout_custody(layout: &ResolvedLayoutOptimization) -> WholeFunctionExitLayoutCustody {

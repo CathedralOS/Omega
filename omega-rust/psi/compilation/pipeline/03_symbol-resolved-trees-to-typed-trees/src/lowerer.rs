@@ -72,7 +72,7 @@ use crate::signatures::lexical_context::captured_arguments;
 use crate::tables::resolved_expressions;
 use crate::type_reference::domain_constraints::normalize_domain_constraints;
 use crate::type_reference::{
-    lower_type_reference_into_table, normalize_const_argument_carriers, validate_range_arguments,
+    lower_type_reference_into_table, normalize_const_argument_carriers, validate_computed_arguments,
 };
 use diagnostics::Diagnostic;
 use symbol_resolved_trees::SymbolResolvedTrees;
@@ -361,6 +361,9 @@ pub(crate) fn close_typed_cohort(
 ) -> Result<(), Diagnostic> {
     settle_satisfied_declarations_from(&mut lowerer.typed_trees, cohort.typed_machines)?;
     normalize_machine_progress_premises(&mut lowerer.typed_trees, cohort.typed_machines)?;
+    // Source call custody precedes every logical signature copy. A copied
+    // qualifier cannot reconstruct its original declaration telescope.
+    lowerer.typed_trees.retain_static_argument_contexts();
     lowerer
         .typed_trees
         .instantiate_nominal_machine_parameter_contracts()
@@ -398,7 +401,7 @@ pub(crate) fn close_typed_cohort(
         && cohort.operators == lowerer.source_trees.operators.len()
         && cohort.data_definitions == lowerer.source_trees.data_definitions.len())
     {
-        validate_range_arguments(lowerer.source_trees, &lowerer.typed_trees)?;
+        validate_computed_arguments(lowerer.source_trees, &lowerer.typed_trees)?;
     }
     finalize_provider_default_calls(&mut lowerer.typed_trees)?;
     target_machine_families::append(
@@ -690,6 +693,7 @@ fn rebuild_fresh_typed_trees(typed: TypedTrees, source: &SymbolResolvedTrees) ->
         // Applied domain theories are derived after authored typing, alongside
         // specialization; the fresh source entrance regenerates them later.
         applied_domain_applications: _,
+        applied_data_cleanup_selections: _,
         external_bindings,
         plan_laid_layouts: _,
         plan_laid_target_layouts: _,

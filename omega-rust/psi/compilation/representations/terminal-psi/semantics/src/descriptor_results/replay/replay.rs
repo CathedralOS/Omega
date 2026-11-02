@@ -199,9 +199,6 @@ impl<'a> Replay<'a> {
             }
         };
         loop {
-            if current.path.is_empty() {
-                return Some(StorageResolution::Unique(current));
-            }
             // Value transport copies an ordinary carrier into its receiving
             // home. Only a pointer-bearing root's stored origins name backing
             // outside that home; a record join does not alias its predecessors.
@@ -213,6 +210,13 @@ impl<'a> Replay<'a> {
                 | DescriptorDefinition::Arrival { access } => *access != StructuralAccess::Owned,
                 DescriptorDefinition::Local | DescriptorDefinition::Literal => false,
             };
+            // A whole borrowed formal already denotes its pointee; it needs
+            // no authored Referent suffix. Resolve its captured edge binding
+            // before stopping at an empty path. Owned carriers still name
+            // their own home, including a reference descriptor's own bytes.
+            if current.path.is_empty() && !borrowed {
+                return Some(StorageResolution::Unique(current));
+            }
             let aliases_backing = borrowed
                 || matches!(
                     find_structural_type(self.types, root_type)?.shape,

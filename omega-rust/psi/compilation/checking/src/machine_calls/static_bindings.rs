@@ -292,26 +292,10 @@ pub fn validate_static_machine_bindings(
             .filter(|specialization| program.machine_by_symbol(specialization.instance).is_some())
             .map(|specialization| specialization.binding_application),
     );
-    applications.extend(program.data_definitions().iter().filter_map(|data| {
-        data.cleanup_selection
-            .map(|selection| selection.application)
-    }));
-    applications.extend(program.domain_definitions().iter().filter_map(|domain| {
-        domain
-            .cleanup_selection
-            .map(|selection| selection.application)
-    }));
     applications.extend(
         program
-            .applied_domain_applications
-            .iter()
-            .filter(|application| program.domain_definition(application.declaration).is_some())
-            .filter_map(|application| {
-                application
-                    .theory
-                    .cleanup_selection
-                    .map(|selection| selection.application)
-            }),
+            .cleanup_selections()
+            .map(|selection| selection.application),
     );
     applications.retain(|handle| handle.is_valid());
     applications.sort_unstable_by_key(|handle| (handle.arena_index(), handle.generation()));
@@ -373,7 +357,7 @@ pub fn validate_static_machine_bindings(
                 .iter()
                 .filter(|(source, _, _)| *source == handle)
             {
-                // Stage 04 retargets a selector call to its instantiated slot.
+                // Psi 05 retargets a selector call to its instantiated slot.
                 // That slot is this occurrence's exact applied requirement and
                 // names the declaration the authored tuple was written
                 // against, so the tuple is judged against that declaration --

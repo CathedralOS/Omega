@@ -22,7 +22,7 @@ Windows x86-64 measured 2026-10-21 at `ba1d8505b883b1e956ad907068da2a34e8967bae`
 | Const name | [const_name/main.omg](const_name/main.omg) | [const_name/invalid/main.omg](const_name/invalid/main.omg) | `SEVEN` names the entry equality |
 | Nested machine | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | Arrival state reads the same path |
 | Other machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | `forward` keeps the zero-crash route |
-| Target body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | Target-qualified `forward` keeps the route |
+| Target body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | Build-selected `forward` keeps the route |
 
 Each reject twin deletes only `requires packet.leaf.bits == 7` (or `== SEVEN`) and must reject with an uncovered Trap crash route.
 
@@ -32,13 +32,17 @@ This change also records the family's check-leg golden rows: the 18 existing fix
 
 Known precision difference, shared with the view rows: a statement that reads a writable local as argument 0 and lends the same local `&mut` as argument 1 is admitted here (`maybe_zero(observed, &mut observed)` exits 0 natively and in Terminal Psi) while the three view routes refuse it at the call's own statement. Named arguments evaluate left to right ([expressions](../../../../wiki/spec/language/expressions.md#evaluation-schedule)), so the read precedes the lend; the admission is sound and is not produced by the shared local carrier rule. The same note sits in `crash_entry_boolean_view`'s README.
 
+## Selected target body
+
+`target_body` selects its `forward` through Build. `SelectedForward` is a boundary trait whose one member publishes the same conditional `crashes Trap` route as the callee; `X86Forward` and `ArmForward` satisfy it, and `build.omg` picks one per target with `Build::select_provider`. The public reader therefore publishes `reaches SelectedForward invokes SelectedForward`, and the caller discharges the selected member's route from the entry fact without a crash ceiling of its own. Each entry first calls `SelectedBodyCheck::require_tag` with its target's tag, so a wrong selection traps in both engines: selecting `ArmBodyCheck` for `windows_x86_64` gave native exit `-1073741795` and `interp crash: Trap`. The reject twins differ from the positive only in the entry requirement and reject at the selected `forward` call.
+
 ## Requirements and Evidence
 
 - **Establishment:** `requires packet.leaf.bits == 7` (or `== SEVEN`) establishes the nested entry value before `maybe_zero` consumes it. The twin omits only that path equality.
 - **Identity and lifetime:** the operand stays the entry field `leaf.bits`, two steps under `packet`, and a caller crash ceiling is not added on `read_bits`.
 - **Composition:** the same path equality is carried through a local, the field operand, a parameter, a call result, a match join, a const name, a nested machine, another machine, and another target body.
 - **Soundness boundaries:** deleting the path equality leaves the Trap route uncovered. The witness does not use a proof-only binding as an executable guard.
-- **Checked-to-Terminal Psi lowering (`Psi 05–07`):** the nested read and guarded call lower to Terminal Psi and execute with exit 0 under `omega run --both`.
+- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** the nested read and guarded call lower to Terminal Psi and execute with exit 0 under `omega run --both`.
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** `Build::bind` settles `ProgramEntry` for the four hosted targets. `Packet` and `Leaf` are ordinary records.
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** the nested `u64` read, comparison, and call select native instructions inside the program entry.
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** the native image exits 0 in agreement with Terminal Psi.

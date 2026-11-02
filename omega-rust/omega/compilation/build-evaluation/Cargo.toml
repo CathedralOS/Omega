@@ -7,6 +7,7 @@ version.workspace = true
 
 [dependencies]
 backend-plan = { path = "../backend/plans/backend-plan" }
+calling-conventions = { path = "../backend/calling-conventions" }
 terminal-interpreter = { path = "../../../psi/interpreter/terminal-interpreter" }
 terminal-installation = { path = "../../../psi/compilation/checking/terminal-installation" }
 terminal-fuel = { path = "../../../psi/compilation/representations/terminal-psi/fuel" }
@@ -21,7 +22,7 @@ arena = { path = "../../../psi/foundation/arena" }
 language-core = { path = "../../../psi/foundation/language-core" }
 validation = { path = "../../../psi/compilation/checking" }
 build-output = { path = "../../packages/build-output" }
-effects = { path = "../backend/plans/provider-evidence" }
+effects = { path = "../backend/plans/effects" }
 optimization-core = { path = "../../foundation/optimization-core" }
 package-compilation = { path = "../../packages/compilation-inputs" }
 provider-planning = { path = "../realization/provider-planning" }
@@ -30,7 +31,7 @@ representation-planning = { path = "../../../psi/compilation/checking/representa
 target = { path = "../backend/target" }
 runtime-abi = { path = "../backend/runtime/runtime-abi" }
 trust-model = { path = "../realization/trust-model" }
-build-time-evaluation = { path = "../../../psi/compilation/compile-time" }
+build-time-evaluation = { path = "../../../psi/compilation/build-time-evaluation" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
 language-semantics = { path = "../../../psi/foundation/language-semantics" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
@@ -39,4 +40,5 @@ layout-plans = { path = "../../../psi/foundation/layout-plans" }
 source = { path = "../../../psi/foundation/source" }
 symbols = { path = "../../../psi/foundation/symbols" }
 typed-trees = { path = "../../../psi/compilation/representations/typed-trees" }
+checked-trees = { path = "../../../psi/compilation/representations/checked-trees" }
 build-declarations = { path = "../../packages/build-declarations" }

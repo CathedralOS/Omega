@@ -149,6 +149,8 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 #[path = "support/artifact_capture.rs"]
 mod artifact_capture;
+#[path = "support/checked_interpreter_dispatch/mod.rs"]
+mod checked_interpreter_dispatch;
 #[path = "support/entry_inputs.rs"]
 mod entry_inputs;
 #[path = "support/fixture_package_inputs.rs"]
@@ -798,7 +800,7 @@ fn interpret_checked_fixture(
         );
     };
     let dispatch =
-        match selected_dispatch::prepare_checked_interpreter_dispatch(checked.execution()) {
+        match checked_interpreter_dispatch::prepare_checked_interpreter_dispatch(checked.execution()) {
             Ok(dispatch) => dispatch,
             Err(errors) => {
                 return terminal_execution::Observation {

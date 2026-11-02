@@ -228,6 +228,12 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             .attach_authored_selection_occurrences(lowered, authored_selection_occurrences);
         self.lowered_expressions
             .push((expression, self.fact_position, lowered));
+        let authored = self.source.materialization_source(expression);
+        if authored.is_valid() {
+            let authored = self.lower_value(authored)?;
+            self.target()
+                .retain_materialization_source(lowered, authored);
+        }
         Ok(lowered)
     }
 
@@ -765,6 +771,9 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                     )))
             }
             resolved::expression::ExpressionNode::StructLiteral(struct_literal) => {
+                let application_type =
+                    self.lower_application_type(struct_literal.application_type, expression)?;
+
                 self.retain_data_type_reference(struct_literal.type_symbol);
                 let omitted = self.nullary_erased_initializers(struct_literal);
                 let mut fields = self.lower_struct_literal_field_span(struct_literal.fields)?;
@@ -783,6 +792,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                     .target()
                     .insert(typed::expression::ExpressionNode::StructLiteral(
                         typed::expression::TableStructLiteral {
+                            application_type,
                             type_name: lower_name(&struct_literal.type_name),
                             type_symbol: struct_literal.type_symbol,
                             case_name: struct_literal.case_name.as_ref().map(lower_name),
@@ -1376,6 +1386,24 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             ))
     }
 
+    pub(super) fn lower_application_type(
+        &mut self,
+        application: arena::Handle<resolved::types::TypeReference>,
+        source_expression: resolved::expression::ExpressionHandle,
+    ) -> Result<typed::types::TypeReferenceHandle, Diagnostic> {
+        if !application.is_valid() {
+            return Ok(Default::default());
+        }
+        let program = self.program.ok_or_else(|| {
+            Diagnostic::error("constructor application has no declaration context")
+        })?;
+        lower_type_reference_into_trees_with_exposure(
+            program, self.target_trees, program.child_type_reference(application),
+            self.source.authored_expression_exposure(source_expression).unwrap_or(
+                language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation),
+        )
+    }
+
     fn lower_membership_expression(
         &mut self,
         membership: &resolved::expression::TableMembershipExpression,
@@ -1407,6 +1435,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             membership.domain,
             membership.case_type_symbol,
             membership.case_symbol,
+            membership.is_pattern,
         ) {
             return Ok(lowered);
         }

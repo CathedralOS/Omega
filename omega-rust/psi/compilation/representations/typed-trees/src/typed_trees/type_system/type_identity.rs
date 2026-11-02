@@ -19,11 +19,14 @@
 
 mod callable_identity;
 mod constraint_identity;
+mod coordinates;
 mod derived_declarations;
 mod identity_context;
 mod lifetime_parameters;
 mod normalized_identities;
 mod open_index_identity;
+#[cfg(test)]
+mod package_policy_reading_tests;
 mod result_dispatch_terms;
 mod static_operand_identity;
 mod storage_identity;
@@ -65,12 +68,14 @@ fn program_intern_type_identity(program: &TypedTrees, identity: String) -> TypeI
 }
 use crate::typed_trees::type_system::type_identity::constraint_identity::atom;
 use crate::typed_trees::type_system::type_identity::constraint_identity::compound;
+use crate::typed_trees::type_system::type_identity::coordinates::CoordinateTag;
 use crate::typed_trees::type_system::type_identity::identity_context::SubstitutionSemantics;
 use crate::typed_trees::type_system::type_identity::identity_context::TypeIdentityContext;
 pub use crate::typed_trees::type_system::type_identity::identity_context::TypeIdentityQualification;
 use crate::typed_trees::type_system::type_identity::identity_context::normalize_type_reference;
 use crate::typed_trees::type_system::type_identity::result_dispatch_terms::collect_result_dispatch_terms;
 use crate::types::TypeReferenceHandle;
+use language_semantics::type_identity::vocabulary::{Label, TypeForm};
 use std::cell::Cell;
 use symbols::SymbolHandle;
 
@@ -374,17 +379,49 @@ pub(crate) fn local_trait_application_identity(
             .collect::<Option<Vec<_>>>()
     };
     let identity = compound(
-        "local-trait-application",
+        CoordinateTag::LocalTraitApplication,
         [
             atom(
-                "declaration",
+                CoordinateTag::Declaration,
                 &format!("{}:{}", declaration.arena_index(), declaration.generation()),
             ),
-            compound("arguments", render(arguments)?),
-            compound("lifetimes", render(lifetimes)?),
+            compound(CoordinateTag::Arguments, render(arguments)?),
+            compound(CoordinateTag::Lifetimes, render(lifetimes)?),
         ],
     );
     Some(program_intern_type_identity(program, identity))
+}
+
+/// Local derived callable-view key. Refinement promises belong to their
+/// complete source applications, independently of the base's nominal and
+/// portable identity. This key owns a checking view, never a selection or ABI
+/// commitment. Keeping the base key prevents sibling application paths from
+/// collapsing merely because they share a refinement head.
+pub(crate) fn local_trait_contract_identity(
+    program: &TypedTrees,
+    base: NormalizedTypeIdentity,
+    refinements: &[NormalizedTypeIdentity],
+) -> Option<NormalizedTypeIdentity> {
+    if refinements.is_empty() {
+        return Some(base);
+    }
+    let mut refinements = refinements.to_vec();
+    refinements.sort();
+    refinements.dedup();
+    let refinements = refinements
+        .iter()
+        .map(|identity| program.type_identity_text(*identity))
+        .collect::<Option<Vec<_>>>()?;
+    Some(program_intern_type_identity(
+        program,
+        compound(
+            CoordinateTag::LocalTraitContract,
+            [
+                program.type_identity_text(base)?,
+                compound(CoordinateTag::Refinements, refinements),
+            ],
+        ),
+    ))
 }
 
 /// Portable counterpart of the local application key. Package-owned nominal
@@ -413,11 +450,11 @@ pub(crate) fn portable_trait_application_identity(
     Some(program_intern_type_identity(
         program,
         compound(
-            "trait-application",
+            CoordinateTag::TraitApplication,
             [
-                atom("declaration", &coordinate),
-                compound("arguments", render(arguments)?),
-                compound("lifetimes", render(lifetimes)?),
+                atom(CoordinateTag::Declaration, &coordinate),
+                compound(CoordinateTag::Arguments, render(arguments)?),
+                compound(CoordinateTag::Lifetimes, render(lifetimes)?),
             ],
         ),
     ))
@@ -1107,12 +1144,12 @@ impl TypedTrees {
         Some(program_intern_type_identity(
             self,
             compound(
-                "named",
+                TypeForm::Named,
                 [identity_context::normalize_const_or_nominal_name(
                     self,
                     symbol,
                     "",
-                    "name",
+                    Label::Name,
                     &TypeIdentityContext::default(),
                 )],
             ),
@@ -1498,10 +1535,13 @@ impl TypedTrees {
                 // Carry the parent's complete stable identity, including its
                 // telescope and result dispatch, never a source/arena ordinal.
                 compound(
-                    "nested-machine",
+                    CoordinateTag::NestedMachine,
                     [
-                        atom("owner", &self.machine_callable_identity_text(owner)?),
-                        atom("name", machine.name.as_str()),
+                        atom(
+                            CoordinateTag::Owner,
+                            &self.machine_callable_identity_text(owner)?,
+                        ),
+                        atom(CoordinateTag::Name, machine.name.as_str()),
                     ],
                 )
             } else if module.is_valid() {
@@ -1615,12 +1655,12 @@ impl TypedTrees {
                 .map(|identity| self.type_identity_text(*identity).unwrap_or_default())
                 .collect::<Vec<_>>();
             identity.parameters = compound(
-                "closed-requirement",
+                CoordinateTag::ClosedRequirement,
                 [
-                    atom("template", &template_identity),
-                    atom("trait-application", &outer),
-                    compound("local-arguments", local),
-                    atom("parameters", &identity.parameters),
+                    atom(CoordinateTag::Template, &template_identity),
+                    atom(CoordinateTag::TraitApplication, &outer),
+                    compound(CoordinateTag::LocalArguments, local),
+                    atom(CoordinateTag::Parameters, &identity.parameters),
                 ],
             );
         }
@@ -1673,10 +1713,16 @@ impl TypedTrees {
             .iter()
             .map(|parameter| {
                 compound(
-                    "parameter",
+                    CoordinateTag::Parameter,
                     [
-                        atom("mutable", if parameter.is_mutable { "yes" } else { "no" }),
-                        atom("const", if parameter.is_const { "yes" } else { "no" }),
+                        atom(
+                            CoordinateTag::Mutable,
+                            if parameter.is_mutable { "yes" } else { "no" },
+                        ),
+                        atom(
+                            CoordinateTag::Const,
+                            if parameter.is_const { "yes" } else { "no" },
+                        ),
                         self.type_identity_request_text(TypeIdentityRequest {
                             binders: &binders,
                             ..TypeIdentityRequest::ordinary(parameter.type_reference)

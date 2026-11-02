@@ -243,25 +243,20 @@ pub(crate) fn handle_assignment<'program>(
     };
     let definite = origins.destinations.len() == 1;
     for origin in origins.destinations {
-        let (destination, preserves_scalar_value) = if let Some(scalar) =
-            origin.scalar_storage_coordinate(program, state)
-        {
-            (scalar.place, definite && scalar.preserves_scalar_value)
-        } else if origin.recasts.is_empty()
-            && origin.representation.is_none()
-            && origin.root.is_valid()
-        {
-            (
-                crate::CanonicalPlace {
-                    root: facts::PlaceRoot::Symbol(origin.root),
-                    segments: origin.segments,
-                },
-                definite,
-            )
-        } else {
-            diagnostics.push(Diagnostic::error("cannot establish assignment invariants: source storage interpretation is unavailable"));
-            continue;
+        let coordinate = match origin.storage_coordinate(program, state) {
+            Ok(coordinate) => coordinate,
+            Err(reason) => {
+                diagnostics.push(Diagnostic::error(format!(
+                    "cannot establish assignment invariants: source storage interpretation is unavailable: {reason} (machine `{}` state `{}` statement {statement_index}, source `{}`, path {:?}, view {:?})",
+                    machine.name, state.name, program.symbols.name(origin.root), origin.segments,
+                    origin.representation.as_ref().map(|(reference, path)|
+                        (program.display_type_reference(*reference), path)),
+                )));
+                continue;
+            }
         };
+        let destination = coordinate.place;
+        let preserves_scalar_value = definite && coordinate.preserves_scalar_value;
         let store = match field_store(
             program,
             state,
@@ -299,6 +294,7 @@ pub(crate) fn handle_assignment<'program>(
 struct FieldStore<'program> {
     destination: crate::CanonicalPlace,
     receiver: crate::CanonicalPlace,
+    receiver_type: typed_trees::types::TypeReferenceHandle,
     definition: &'program typed_trees::data::DataDefinition,
     field: &'program typed_trees::data::DataField,
     preserves_scalar_value: bool,
@@ -344,6 +340,7 @@ fn field_store<'program>(
     Ok(Some(FieldStore {
         destination,
         receiver,
+        receiver_type,
         definition,
         field,
         preserves_scalar_value,
@@ -633,6 +630,7 @@ fn handle_field_store<'program>(
                             state,
                             statement_index,
                             &store.receiver,
+                            store.receiver_type,
                             store.preserves_scalar_value,
                             place,
                             written,

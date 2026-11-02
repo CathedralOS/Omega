@@ -42,14 +42,8 @@ pub(super) fn complete_arguments(
     let original_equations = type_equations::classify_type_equations(
         syntax,
         &all_parameters,
-        syntax.items.proof_facts(declaration.where_facts),
+        &syntax.items.requirement_facts(declaration.contracts),
     );
-    if original_equations.len() != declaration.where_facts.count() as usize {
-        return Err(Diagnostic::error(
-            "machine where clause requires a structural type equation or a named conformance bound",
-        )
-        .with_source_span(target.source_span()));
-    }
     if supplied.len() > all_parameters.len() {
         return Err(Diagnostic::error(
             "machine equation application supplies too many static arguments",
@@ -138,7 +132,7 @@ pub(super) fn complete_arguments(
     let equations = type_equations::classify_type_equations(
         syntax,
         &parameters,
-        syntax.items.proof_facts(declaration.where_facts),
+        &syntax.items.requirement_facts(declaration.contracts),
     );
     let parameter_names = parameters
         .iter()

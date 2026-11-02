@@ -44,7 +44,7 @@ impl CheckedCallOrigin {
             || plan
                 .bindings
                 .span(application.bindings)
-                .is_none_or(|bindings| bindings.is_empty() && application.owned_copy.is_none())
+                .is_none_or(|bindings| bindings.is_empty() && application.owned_input.is_none())
             || plan
                 .application_calls
                 .span(application.application.calls)
@@ -57,7 +57,7 @@ impl CheckedCallOrigin {
         {
             return Err("declaration call changed its owning body, state or complete input roster");
         }
-        if let Some(input) = application.owned_copy {
+        if let Some(input) = application.owned_input {
             if !input.formal.is_valid()
                 || !input.actual_type.is_valid()
                 || !plan.coordinates.is_valid(input.actual)
