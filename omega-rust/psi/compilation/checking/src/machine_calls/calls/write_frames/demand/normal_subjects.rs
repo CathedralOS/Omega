@@ -232,11 +232,6 @@ impl<'program> CallFrameResolver<'program> {
                         )?;
                         let root_type =
                             reference_subjects::carrier_storage_type(program, root_type)?;
-                        reference_subjects::validate_owned_projection(
-                            program,
-                            root_type,
-                            &source.segments,
-                        )?;
                         let reference = if let Some(expected) =
                             program.primitive_type_reference(shell.referee)
                         {
@@ -250,17 +245,29 @@ impl<'program> CallFrameResolver<'program> {
                             {
                                 return None;
                             }
-                            match &source.representation {
+                            // The captured origin may name an incoming reference
+                            // leaf, rather than an inline scalar field. The
+                            // scalar owner validates that complete read geometry;
+                            // an owned-only projection would discard the leaf
+                            // before the invocation can observe its referent.
+                            // This selects its carrier, not access or contents.
+                            let reference = match &source.representation {
                                 Some((carrier, path)) => {
-                                    stored_origins::projected_type(program, *carrier, path)?
+                                    stored_origins::projected_storage_type(program, *carrier, path)?
                                 }
-                                None => stored_origins::projected_type(
+                                None => stored_origins::projected_storage_type(
                                     program,
                                     root_type,
                                     &source.segments,
                                 )?,
-                            }
+                            };
+                            crate::value_custody::places::assignment_value_type(program, reference)
                         } else {
+                            reference_subjects::validate_owned_projection(
+                                program,
+                                root_type,
+                                &source.segments,
+                            )?;
                             declaration_preserving_views(program, root_type, source)?;
                             stored_origins::projected_type(program, root_type, &source.segments)?
                         };
