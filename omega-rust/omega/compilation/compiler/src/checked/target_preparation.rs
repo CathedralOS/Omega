@@ -11,6 +11,8 @@ use package_compilation::PackageCompilationInputs;
 use provider_planning::target_machines::{PreparedProductProviders, ProductProviderPreparation};
 
 pub(crate) struct PreparedProductTarget {
+    pub(crate) runtime_policy:
+        std::sync::Arc<package_evidence::permission_acceptance::PreparedRuntimePolicy>,
     pub(crate) profile: Option<target::TargetProfile>,
     pub(crate) package_inputs: Option<PackageCompilationInputs>,
     pub(crate) declarations: Result<PreparedTargetDeclarations, Vec<Diagnostic>>,
@@ -167,7 +169,11 @@ impl PreparedProductTarget {
         let direct_calls = source
             .provider_inventory
             .retained_direct_calls_for(&source.program);
+        let runtime_policy = std::sync::Arc::new(
+            package_evidence::permission_acceptance::PreparedRuntimePolicy::capture(source),
+        );
         Ok(Self {
+            runtime_policy,
             binding_declarations,
             direct_calls,
             profile,

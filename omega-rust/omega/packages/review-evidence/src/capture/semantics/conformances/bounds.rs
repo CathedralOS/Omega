@@ -1,5 +1,5 @@
 use super::argument_type_reference;
-use crate::capture::PackageReviewInput;
+use crate::capture::SourceDeclarationInput;
 use crate::capture::semantics::declarations::nominal_identity;
 use crate::capture::semantics::types::signature_type_identity;
 use crate::record::PackageReviewConformanceBound;
@@ -8,7 +8,7 @@ use symbols::SymbolHandle;
 use validation::CheckingProjection;
 
 pub(crate) fn project_conformance_bounds(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     bounds: &[typed_trees::machine::GenericConformanceBound],
     binders: &[(SymbolHandle, String)],
     lifetime_binders: &[typed_trees::name::Identifier],
@@ -87,7 +87,7 @@ pub(crate) fn project_conformance_bounds(
             };
             trait_arguments.push(signature_type_identity(
                 compilation, &instantiated,
-                compilation.custody.sources().exact_toolchain_sources(),
+                compilation.exact_toolchain_sources,
                 reference, binders, lifetime_binders, &[], &[], const_argument,
                 language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
             )?);

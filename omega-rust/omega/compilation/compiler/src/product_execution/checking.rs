@@ -66,10 +66,11 @@ impl CheckingCompilation {
                 ),
             });
         }
+        let runtime_policy = std::sync::Arc::clone(&self.realization.runtime_policy);
         let checked = self.realization.into_checked_compilation();
         let accounting = checked.source_completion_accounting().clone();
         let report = (|| {
-            admit_permissions(&checked, self.permissions.as_ref(), false)?;
+            admit_permissions(&checked, &runtime_policy, self.permissions.as_ref(), false)?;
             checked
                 .admit_trust()
                 .map_err(CompilationProductError::TrustAdmission)?;

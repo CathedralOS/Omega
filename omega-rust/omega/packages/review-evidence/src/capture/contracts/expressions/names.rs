@@ -3,7 +3,7 @@ use super::members::{
     data_subject_binder_position, is_data_subject_field_expression,
     project_contract_member_expression,
 };
-use crate::capture::PackageReviewInput;
+use crate::capture::SourceDeclarationInput;
 use crate::capture::contracts::facts::ContractProjectionContext;
 use crate::capture::semantics::declarations::nominal_identity;
 use crate::record::PackageReviewContractExpression;
@@ -11,7 +11,7 @@ use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
 pub(crate) fn contract_parameter_field_symbol(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     parameter: &typed_trees::signature::StateParameter,
     field_name: &str,
 ) -> Option<SymbolHandle> {
@@ -41,7 +41,7 @@ pub(crate) fn contract_parameter_field_symbol(
 }
 
 pub(crate) fn project_contract_name_expression(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     context: &ContractProjectionContext<'_>,
     binders: &[(SymbolHandle, String)],
     expression: typed_trees::expression::ExpressionHandle,

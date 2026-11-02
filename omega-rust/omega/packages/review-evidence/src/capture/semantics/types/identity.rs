@@ -1,6 +1,6 @@
 use super::lifetimes::review_lifetime_topology_with_substitutions;
 use super::validation::{missing_exact_toolchain_type_owner, validate_package_type_identity_input};
-use crate::capture::PackageReviewInput;
+use crate::capture::SourceDeclarationInput;
 use crate::capture::semantics::encoding::framed_identity;
 use crate::record::PackageReviewTypeIdentity;
 use diagnostics::Diagnostic;
@@ -8,7 +8,7 @@ use symbols::SymbolHandle;
 use typed_trees::type_identity::ExactOwnerTypeIdentityRequest;
 
 pub(crate) fn review_type_identity_with_binders(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     type_reference: typed_trees::types::TypeReferenceHandle,
     binders: &[(SymbolHandle, String)],
 ) -> Result<PackageReviewTypeIdentity, Vec<Diagnostic>> {
@@ -16,7 +16,7 @@ pub(crate) fn review_type_identity_with_binders(
 }
 
 pub(crate) fn review_type_identity_with_binders_and_substitutions(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     type_reference: typed_trees::types::TypeReferenceHandle,
     binders: &[(SymbolHandle, String)],
     substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
@@ -32,7 +32,7 @@ pub(crate) fn review_type_identity_with_binders_and_substitutions(
             type_reference,
             binders,
             substitutions,
-            exact_toolchain_sources: compilation.custody.sources().exact_toolchain_sources(),
+            exact_toolchain_sources: compilation.exact_toolchain_sources,
         })
         .ok_or_else(missing_exact_toolchain_type_owner)?;
     Ok(PackageReviewTypeIdentity {
@@ -50,7 +50,7 @@ pub(crate) fn review_type_identity_with_binders_and_substitutions(
 /// not, because changing which input owns an output loan changes the callable
 /// contract without changing layout or monomorphization.
 pub(crate) fn review_signature_type_identity_with_binders(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     type_reference: typed_trees::types::TypeReferenceHandle,
     binders: &[(SymbolHandle, String)],
     lifetime_binders: &[typed_trees::name::Identifier],
@@ -66,7 +66,7 @@ pub(crate) fn review_signature_type_identity_with_binders(
 }
 
 pub(crate) fn review_signature_type_identity_with_binders_and_substitutions_and_lifetimes(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     type_reference: typed_trees::types::TypeReferenceHandle,
     binders: &[(SymbolHandle, String)],
     lifetime_binders: &[typed_trees::name::Identifier],
@@ -76,7 +76,7 @@ pub(crate) fn review_signature_type_identity_with_binders_and_substitutions_and_
     signature_type_identity(
         compilation,
         compilation.checking_input,
-        compilation.custody.sources().exact_toolchain_sources(),
+        compilation.exact_toolchain_sources,
         type_reference,
         binders,
         lifetime_binders,
@@ -94,7 +94,7 @@ pub(crate) fn review_signature_type_identity_with_binders_and_substitutions_and_
 /// A const-argument root is permitted only after the caller establishes its
 /// exact declared const telescope slot.
 pub(crate) fn signature_type_identity(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     program: &dyn ::validation::CheckingInput,
     exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
     type_reference: typed_trees::types::TypeReferenceHandle,

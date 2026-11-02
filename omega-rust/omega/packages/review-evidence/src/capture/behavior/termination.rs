@@ -1,14 +1,14 @@
 use super::super::semantics::declarations::{
     nominal_identity, premise_projections, premise_subject, progress_profile,
 };
-use crate::capture::PackageReviewInput;
+use crate::capture::SourceDeclarationInput;
 use crate::record::{PackageReviewProgressPremise, PackageReviewTermination};
 use diagnostics::Diagnostic;
 use language_semantics::TerminationGuarantee;
 use typed_trees::signature::StateSignature;
 
 pub(crate) fn project_trait_requirement_termination(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     requirement: &StateSignature,
 ) -> Result<PackageReviewTermination, Vec<Diagnostic>> {
     project_public_signature_termination(
@@ -19,7 +19,7 @@ pub(crate) fn project_trait_requirement_termination(
 }
 
 pub(crate) fn project_machine_parameter_termination(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     signature: &StateSignature,
     declaration_path: &str,
 ) -> Result<PackageReviewTermination, Vec<Diagnostic>> {
@@ -35,7 +35,7 @@ pub(crate) fn project_machine_parameter_termination(
 /// public API can carry. Both public signature kinds reach review evidence
 /// through this one projection, so their certification cannot drift.
 fn project_public_signature_termination(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     signature: &StateSignature,
     subject: &str,
 ) -> Result<PackageReviewTermination, Vec<Diagnostic>> {

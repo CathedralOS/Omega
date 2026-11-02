@@ -1,5 +1,5 @@
 use crate::capture::EvidenceOption;
-use crate::capture::PackageReviewInput;
+use crate::capture::SourceDeclarationInput;
 use crate::capture::api::operators::project_operator_coordinate;
 use crate::capture::contracts::facts::ContractProjectionContext;
 use crate::record::{
@@ -13,7 +13,7 @@ use typed_trees::expression::UnaryOperator;
 use typed_trees::operator::declaration_by_symbol;
 
 pub(crate) fn exact_checked_contract_operator_meaning(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     context: &ContractProjectionContext<'_>,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Result<PackageReviewContractOperatorMeaning, Vec<Diagnostic>> {
@@ -64,7 +64,7 @@ pub(crate) fn exact_checked_contract_operator_meaning(
 /// A projection can clone expression handles, but its selection occurrences
 /// must still join the unchanged compiler custody. This query issues no grant.
 pub(in crate::capture) fn exact_checked_operator_selection(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     program: &dyn validation::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
     expected_exposure: Option<AuthoredDeclarationSelectionExposure>,
@@ -79,7 +79,7 @@ pub(in crate::capture) fn exact_checked_operator_selection(
 }
 
 pub(in crate::capture) fn exact_checked_expression_selection(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     program: &dyn validation::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
     kind: language_semantics::declaration_selection::AuthoredDeclarationSelectionKind,
@@ -105,12 +105,12 @@ pub(in crate::capture) fn exact_checked_expression_selection(
         ))]);
     };
     if !compilation
-        .custody
+        .original_program
         .typed
         .expression_table
         .expression_is_valid(expression)
         || !compilation
-            .custody
+            .original_program
             .typed
             .expression_table
             .authored_selection_occurrences(expression)
@@ -121,7 +121,7 @@ pub(in crate::capture) fn exact_checked_expression_selection(
         )]);
     }
     if compilation
-        .custody
+        .original_program
         .authored_declaration_selections()
         .get(selection.occurrence_id())
         != Some(*selection)

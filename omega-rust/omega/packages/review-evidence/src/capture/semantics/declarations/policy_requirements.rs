@@ -2,7 +2,7 @@
 
 use super::{provider_requirement_identity, provider_requirement_schema};
 use crate::capture::EvidenceOption;
-use crate::capture::PackageReviewInput;
+use crate::capture::SourceDeclarationInput;
 use crate::capture::api::operators::project_operator_coordinate;
 use crate::record::PackageReviewNominalIdentity;
 use diagnostics::Diagnostic;
@@ -10,7 +10,7 @@ use provider_planning::ProviderSchemaDeclaration;
 use symbols::SymbolHandle;
 
 pub(crate) fn policy_provider_requirement_identity(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     schema: ProviderSchemaDeclaration,
     requirement: SymbolHandle,
 ) -> Result<PackageReviewNominalIdentity, Vec<Diagnostic>> {

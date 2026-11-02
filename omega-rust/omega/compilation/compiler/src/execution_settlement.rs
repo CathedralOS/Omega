@@ -49,6 +49,7 @@ pub(crate) struct SelectedProviderCustody {
 /// validate task demands directly; executable products use their artifact's
 /// demands in native proposal construction instead.
 pub(crate) struct SelectedProductTarget {
+    pub(crate) runtime_policy: Arc<package_evidence::permission_acceptance::PreparedRuntimePolicy>,
     pub(crate) custody: SelectedProviderCustody,
     pub(crate) retained_checks: RetainedCompilationChecks,
     pub(crate) independent_components:
@@ -60,6 +61,7 @@ impl SelectedProductTarget {
         source: &CheckedProductSource,
         prepared: PreparedProductTarget,
     ) -> Result<Self, Vec<Diagnostic>> {
+        let runtime_policy = Arc::clone(&prepared.runtime_policy);
         let custody = select_product_providers(source, prepared)?;
         // Direct source consumers do not attach a package session's products.
         // Unprepared Independent demands must not look like a complete empty set.
@@ -77,6 +79,7 @@ impl SelectedProductTarget {
             }
         }
         Ok(Self {
+            runtime_policy,
             custody,
             retained_checks: source.retained_checks.clone(),
             independent_components,
@@ -434,6 +437,7 @@ fn select_product_providers(
     prepared: PreparedProductTarget,
 ) -> Result<SelectedProviderCustody, Vec<Diagnostic>> {
     let PreparedProductTarget {
+        runtime_policy: _,
         profile: selected_target_profile,
         package_inputs,
         declarations,

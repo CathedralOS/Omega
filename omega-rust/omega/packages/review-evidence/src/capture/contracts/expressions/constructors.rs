@@ -1,4 +1,4 @@
-use crate::capture::PackageReviewInput;
+use crate::capture::SourceDeclarationInput;
 use crate::capture::contracts::facts::{ContractProjectionContext, reviewed_package};
 use crate::capture::semantics::declarations::{nominal_identity, reviewed_package_owns};
 use crate::record::{PackageReviewConstructorField, PackageReviewContractExpression};
@@ -6,7 +6,7 @@ use diagnostics::Diagnostic;
 use typed_trees::expression::ExpressionHandle;
 
 pub(crate) fn project_contract_constructor_expression(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     context: &ContractProjectionContext<'_>,
     literal: &typed_trees::expression::TableStructLiteral,
     child: &impl Fn(ExpressionHandle) -> Result<PackageReviewContractExpression, Vec<Diagnostic>>,
