@@ -51,6 +51,7 @@ fn conformance_and_value_binders_keep_distinct_admission() {
             matches!(
                 syntax,
                 GenericParameterSyntax::TraitRequirements
+                    | GenericParameterSyntax::RequirementSignature
                     | GenericParameterSyntax::MachineDeclaration
                     | GenericParameterSyntax::DataDeclaration
             )
@@ -59,7 +60,9 @@ fn conformance_and_value_binders_keep_distinct_admission() {
             assert_eq!(parameters.conformance_bounds.len(), 1);
             if matches!(
                 syntax,
-                GenericParameterSyntax::TraitRequirements | GenericParameterSyntax::DataDeclaration
+                GenericParameterSyntax::TraitRequirements
+                    | GenericParameterSyntax::RequirementSignature
+                    | GenericParameterSyntax::DataDeclaration
             ) {
                 assert!(matches!(
                     trees.items.type_parameters(parameters.type_parameters)[0].kind,

@@ -196,6 +196,8 @@ pub struct StateSignatureSnapshot {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub lifetime_parameters: Vec<String>,
     pub type_parameters: Vec<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub conformance_bounds: Vec<GenericConformanceBoundSnapshot>,
     pub is_default: bool,
     pub parameters: Vec<StateParameterSnapshot>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -502,6 +504,11 @@ fn state_signature_snapshot(
             .state_signature_type_parameters(signature)
             .iter()
             .map(|parameter| parameter.name.to_string())
+            .collect(),
+        conformance_bounds: signature
+            .conformance_bounds
+            .iter()
+            .map(|bound| conformance_bound_snapshot(program, bound))
             .collect(),
         is_default: signature.is_default,
         parameters: program

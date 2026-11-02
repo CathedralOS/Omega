@@ -539,6 +539,7 @@ fn parse_trait_machine_signature<'tokens, 'source>(
             name,
             lifetime_parameters: generic_parameters.lifetime_parameters,
             type_parameters: generic_parameters.type_parameters,
+            conformance_bounds: generic_parameters.conformance_bounds,
             parameters,
             native_callback_parameters,
             return_type,

@@ -34,6 +34,8 @@ pub(super) fn assign_type_alias_symbols(program: &mut SymbolResolvedTrees, symbo
             state_parameters,
             child_type_references: references,
             type_constraints: constraints,
+            trait_proposition_slots: &trait_proposition_slots,
+            trait_machine_identity_slots: &trait_machine_identity_slots,
         }
         .resolve_type_parameter_kind_symbols(
             alias.type_parameters,

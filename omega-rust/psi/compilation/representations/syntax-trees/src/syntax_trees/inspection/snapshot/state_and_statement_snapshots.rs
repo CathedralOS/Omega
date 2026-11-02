@@ -11,11 +11,12 @@ use crate::syntax_trees::inspection::snapshot::expression_and_type_snapshots::{
     snapshot_item_identifier_path, snapshot_static_argument, snapshot_type_reference_handle,
 };
 use crate::syntax_trees::inspection::snapshot::item_snapshots::{
-    snapshot_capability_contract, snapshot_capability_contracts, snapshot_type_parameters,
+    snapshot_capability_contract, snapshot_capability_contracts,
+    snapshot_generic_conformance_bound, snapshot_type_parameters,
 };
 use crate::syntax_trees::inspection::snapshot::{
-    CapabilityContractSnapshot, ExpressionSnapshot, IdentifierSnapshot, StaticArgumentSnapshot,
-    TypeParameterSnapshot, TypeReferenceSnapshot,
+    CapabilityContractSnapshot, ExpressionSnapshot, GenericConformanceBoundSnapshot,
+    IdentifierSnapshot, StaticArgumentSnapshot, TypeParameterSnapshot, TypeReferenceSnapshot,
 };
 use arena::HandleSpan;
 use serde::Serialize;
@@ -37,6 +38,8 @@ pub struct StateSignatureSnapshot {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub lifetime_parameters: Vec<IdentifierSnapshot>,
     pub type_parameters: Vec<TypeParameterSnapshot>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub conformance_bounds: Vec<GenericConformanceBoundSnapshot>,
     pub is_default: bool,
     pub parameters: Vec<StateParameterSnapshot>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -197,6 +200,11 @@ macro_rules! state_signature_snapshot {
                 &$signature.lifetime_parameters,
             ),
             type_parameters: snapshot_type_parameters($syntax_trees, $signature.type_parameters),
+            conformance_bounds: $signature
+                .conformance_bounds
+                .iter()
+                .map(|bound| snapshot_generic_conformance_bound($syntax_trees, bound))
+                .collect(),
             is_default: $signature.is_default,
             parameters: snapshot_state_parameters($syntax_trees, $signature.parameters),
             native_callback_parameters: $signature

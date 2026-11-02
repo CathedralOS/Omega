@@ -1,7 +1,7 @@
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::{SymbolHandle, SymbolKind, SymbolTableAppender, SymbolTableBuilder};
 
-use crate::symbols::symbol_table::names::{parameter_seeds, symbol_seed};
+use crate::symbols::symbol_table::names::symbol_seed;
 use symbol_resolved_trees::data::TypeParameterKind;
 use symbol_resolved_trees::trait_definition::TraitDefinition;
 
@@ -35,17 +35,14 @@ pub(in crate::symbols::symbol_table) fn insert_trait_symbol_children(
     );
 
     let mut trait_children = SymbolTableBuilder::child_handles(trait_children);
-    for parameter in program.trait_type_parameters(trait_definition) {
-        let parameter_symbol = trait_children.next();
-        if let (Some(parameter_symbol), TypeParameterKind::Proposition { contract }) =
-            (parameter_symbol, &parameter.kind)
-        {
-            builder.insert_children(
-                parameter_symbol,
-                parameter_seeds(program.state_parameters(contract.parameters), has_sources),
-            );
-        }
-    }
+    super::insert_generic_parameter_children(
+        builder,
+        program,
+        program.trait_type_parameters(trait_definition),
+        &trait_definition.conformance_bounds,
+        &mut trait_children,
+        has_sources,
+    );
 
     for (machine_symbol, machine) in trait_children.zip(
         program

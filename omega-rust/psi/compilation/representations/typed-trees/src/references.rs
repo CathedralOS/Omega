@@ -1960,6 +1960,13 @@ pub fn visit_signature(
     retained.enter_lexical_scope(signature.symbol);
     visit_constant_evaluation_entries(program, retained, signature.symbol);
     visit_type_parameters(program, retained, signature.type_parameters);
+    for bound in &signature.conformance_bounds {
+        visit_symbol(retained, bound.binder);
+        visit_symbol(retained, bound.trait_symbol);
+        for argument in &bound.arguments {
+            visit_type_reference(program, retained, *argument);
+        }
+    }
     visit_proof_facts(program, retained, signature.where_facts);
     for parameter in program
         .tables

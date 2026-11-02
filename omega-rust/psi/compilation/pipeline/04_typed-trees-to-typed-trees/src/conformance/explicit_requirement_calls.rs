@@ -78,7 +78,7 @@ pub(crate) fn route_explicit_requirement_calls(
                     (
                         signature.symbol,
                         definition.symbol,
-                        signature.type_parameters.len(),
+                        program.state_signature_type_parameters(signature),
                     )
                 })
         })
@@ -97,20 +97,29 @@ pub(crate) fn route_explicit_requirement_calls(
                        target,
                        qualifier,
                        arguments: &[StaticMachineArgument]| {
-        let Some((requirement, declaring_trait, invocation_arity)) = requirements
+        let Some((requirement, declaring_trait, invocation_parameters)) = requirements
             .iter()
             .find(|(requirement, _, _)| *requirement == target)
         else {
             return;
         };
         let qualified = program.conformance_by_symbol(qualifier).is_some();
-        let has_selection_operand = arguments
-            .iter()
-            .any(|argument| argument.names_implementation(&program.symbols));
+        let invocation_arity = invocation_parameters.len();
+        // Evidence is also an ordinary member operand. Its declared slot owns
+        // that role; only an implementation outside that telescope selects the
+        // whole map. A qualifier always owns its map separately.
+        let has_selection_operand = arguments.last().is_some_and(|argument| {
+            argument.names_implementation(&program.symbols)
+                && invocation_parameters
+                    .get(arguments.len() - 1)
+                    .is_none_or(|parameter| {
+                        parameter.kind != typed_trees::data::TypeParameterKind::Implementation
+                    })
+        });
         // A qualifier owns the map telescope separately. Without one, only a
         // final implementation operand can extend the member's static list;
         // omitted method operands still go through ordinary inference.
-        if (qualified || !has_selection_operand) && arguments.len() > *invocation_arity {
+        if (qualified || !has_selection_operand) && arguments.len() > invocation_arity {
             let source_span = match occurrence.site {
                 RequirementCallSite::Expression(handle) => {
                     expressions_of(program).source_span(handle)
@@ -603,10 +612,7 @@ impl ExplicitApplication<'_> {
         let program = &*self.program;
         let binder = self.implementation.symbol;
         let Some(bound) = program
-            .machines()
-            .iter()
-            .flat_map(|machine| machine.conformance_bounds.iter())
-            .find(|bound| bound.binder == binder)
+            .callable_conformance_bound(self.lexical_owner, binder)
             .cloned()
         else {
             return Err(format!(

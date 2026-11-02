@@ -152,6 +152,11 @@ pub(crate) fn instantiate_requirement_applications(
                         open |= program.symbols.get(argument.symbol).kind
                             == symbols::SymbolKind::MachineParameter;
                     }
+                    TypeParameterKind::Implementation => {
+                        open |= argument.symbol.is_valid()
+                            && program.symbols.get(argument.symbol).kind
+                                == symbols::SymbolKind::ConformanceParameter;
+                    }
                     _ => {}
                 }
             }
@@ -293,6 +298,9 @@ pub(crate) fn invocation_bindings(
                     }
                     TypeParameterKind::Machine { .. } => {
                         StaticMachineBindingValue::Machine(argument.clone())
+                    }
+                    TypeParameterKind::Implementation => {
+                        StaticMachineBindingValue::Conformance(argument.clone())
                     }
                     _ => {
                         return Err(vec![Diagnostic::error(

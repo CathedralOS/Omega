@@ -149,6 +149,7 @@ pub(crate) fn blank_state_signature() -> syntax_trees::item::StateSignature {
         spelling: None,
         lifetime_parameters: Vec::new(),
         type_parameters: HandleSpan::empty(),
+        conformance_bounds: Vec::new(),
         is_default: false,
         parameters: HandleSpan::empty(),
         native_callback_parameters: Vec::new(),

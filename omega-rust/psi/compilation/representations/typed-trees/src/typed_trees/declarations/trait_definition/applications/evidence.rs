@@ -16,6 +16,56 @@ pub struct GenericBoundRequirement<'program> {
 }
 
 impl TypedTrees {
+    /// The exact evidence contracts owned by a callable declaration. A closed
+    /// requirement retains these contracts beside its erased executable arity.
+    pub fn callable_conformance_bounds(
+        &self,
+        owner: SymbolHandle,
+    ) -> Option<&[crate::machine::GenericConformanceBound]> {
+        if let Some(application) = self.closed_requirement_application(owner) {
+            return Some(&application.signature.conformance_bounds);
+        }
+        if let Some(machine) = self.machine_by_symbol(owner) {
+            return Some(&machine.conformance_bounds);
+        }
+        if let Some((_, signature)) = self.trait_machine_signature(owner) {
+            return Some(&signature.conformance_bounds);
+        }
+        self.retained_static_machine_contract(owner)
+            .map(|contract| contract.signature().conformance_bounds.as_slice())
+    }
+
+    /// Prefer the invocation's retained lexical application. Its enclosing
+    /// declaration is an exact fallback owner, never an ambient map search.
+    pub fn callable_conformance_bound(
+        &self,
+        owner: SymbolHandle,
+        binder: SymbolHandle,
+    ) -> Option<&crate::machine::GenericConformanceBound> {
+        if !binder.is_valid()
+            || self.symbols.get(binder).kind != symbols::SymbolKind::ConformanceParameter
+        {
+            return None;
+        }
+        if let Some(bound) = self
+            .callable_conformance_bounds(owner)
+            .and_then(|bounds| bounds.iter().find(|bound| bound.binder == binder))
+        {
+            return Some(bound);
+        }
+        let parent = self.symbols.get(binder).parent;
+        self.callable_conformance_bounds(parent)
+            .or_else(|| {
+                self.trait_definition_by_symbol(parent)
+                    .map(|declaration| declaration.conformance_bounds.as_slice())
+            })
+            .or_else(|| {
+                self.unique_data_definition_by_symbol(parent)
+                    .map(|declaration| declaration.conformance_bounds.as_slice())
+            })
+            .and_then(|bounds| bounds.iter().find(|bound| bound.binder == binder))
+    }
+
     pub fn conformance_target_requirement<'program>(
         &'program self,
         machine: &'program Machine,

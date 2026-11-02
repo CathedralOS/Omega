@@ -56,6 +56,7 @@ pub(crate) fn lower_trait_definition(
                 spelling: clause_signature.spelling,
                 lifetime_parameters: &clause_signature.lifetime_parameters,
                 type_parameters: clause_signature.type_parameters,
+                conformance_bounds: &clause_signature.conformance_bounds,
                 parameters: clause_signature.parameters,
                 native_callback_parameters: &clause_signature.native_callback_parameters,
                 return_type_handle: clause_signature.return_type,

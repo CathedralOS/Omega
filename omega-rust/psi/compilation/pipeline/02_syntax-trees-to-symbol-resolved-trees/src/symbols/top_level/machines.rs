@@ -205,7 +205,9 @@ pub(super) fn assign_machine_symbols(
             state_parameters,
             child_type_references,
             type_constraints,
-        }
+        trait_proposition_slots: &trait_proposition_slots,
+trait_machine_identity_slots: &trait_machine_identity_slots,
+}
         .resolve_type_parameter_kind_symbols(
             machine.type_parameters,
             &local_type_parameters,

@@ -172,6 +172,14 @@ impl CallableApplication {
                 applied_parameters.push(parameter);
             }
             applied.type_parameters = program.data_type_parameters.insert_many(applied_parameters);
+            for bound in &mut applied.conformance_bounds {
+                bound.binder = self.symbol(bound.binder);
+                bound.arguments = bound
+                    .arguments
+                    .iter()
+                    .map(|argument| self.type_reference(program, *argument))
+                    .collect::<Result<Vec<_>, _>>()?;
+            }
             applied.parameters = self.parameters(program, &parameters)?;
             applied.return_type = self.type_reference(program, declared.return_type)?;
             applied.contracts = HandleSpan::empty();

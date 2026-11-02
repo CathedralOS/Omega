@@ -19,6 +19,10 @@ pub(crate) fn lower_state_signature(
         spelling: signature.spelling,
         lifetime_parameters: lower_names(&signature.lifetime_parameters),
         type_parameters: Default::default(),
+        conformance_bounds: crate::signatures::evidence::lower_conformance_bounds(
+            lowerer,
+            &signature.conformance_bounds,
+        )?,
         is_default: signature.is_default,
         parameters: Default::default(),
         native_callback_parameters: signature

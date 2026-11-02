@@ -328,6 +328,7 @@ pub(crate) fn lower_type_parameters(
 spelling: contract.spelling,
 lifetime_parameters: &contract.lifetime_parameters,
 type_parameters: contract.type_parameters,
+conformance_bounds: &contract.conformance_bounds,
 parameters: contract.parameters,
 native_callback_parameters: &contract.native_callback_parameters,
 return_type_handle: contract.return_type,

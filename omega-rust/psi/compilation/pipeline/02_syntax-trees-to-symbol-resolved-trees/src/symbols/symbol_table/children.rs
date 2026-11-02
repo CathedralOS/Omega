@@ -20,6 +20,7 @@
 
 mod builtin;
 mod data;
+mod evidence;
 mod machines;
 mod mathematical;
 mod operators;
@@ -58,28 +59,55 @@ pub(super) fn insert_measure_symbol_children(
 /// generic parameters precede its value parameters, mirroring ordinary
 /// machine symbol layout. Nested machine parameters recursively own their
 /// own signature children.
-/// Every declaration's type-parameter walk ends the same way: each
-/// Machine-kind parameter's structural contract grows its own children.
-fn insert_machine_type_parameter_children(
+/// Every declaration's generic parameters own their nested callable,
+/// proposition or explicit evidence namespace through this same walk.
+fn insert_generic_parameter_children(
     builder: &mut impl SymbolTableAppender,
     program: &SymbolResolvedTrees,
     parameters: &[symbol_resolved_trees::data::TypeParameter],
+    bounds: &[symbol_resolved_trees::machine::GenericConformanceBound],
     children: &mut impl Iterator<Item = SymbolHandle>,
     has_sources: bool,
 ) {
     for parameter in parameters {
-        let parameter_symbol = children.next();
-        if let (Some(parameter_symbol), TypeParameterKind::Machine { contract }) =
-            (parameter_symbol, &parameter.kind)
-            && let Some(contract) = contract.structural()
-        {
-            insert_machine_parameter_signature_children(
-                builder,
-                program,
-                parameter_symbol,
-                contract,
-                has_sources,
-            );
+        let Some(parameter_symbol) = children.next() else {
+            break;
+        };
+        match &parameter.kind {
+            TypeParameterKind::Machine { contract } => {
+                if let Some(contract) = contract.structural() {
+                    insert_machine_parameter_signature_children(
+                        builder,
+                        program,
+                        parameter_symbol,
+                        contract,
+                        has_sources,
+                    );
+                }
+            }
+            TypeParameterKind::Implementation => {
+                if let Some(bound) = bounds
+                    .iter()
+                    .find(|bound| bound.binder_name == parameter.name)
+                {
+                    let sources = builder.source_map();
+                    evidence::insert_evidence_children(
+                        builder,
+                        program,
+                        parameter_symbol,
+                        bound,
+                        has_sources,
+                        sources.as_deref(),
+                    );
+                }
+            }
+            TypeParameterKind::Proposition { contract } => {
+                builder.insert_children(
+                    parameter_symbol,
+                    parameter_seeds(program.state_parameters(contract.parameters), has_sources),
+                );
+            }
+            _ => {}
         }
     }
 }
@@ -105,10 +133,11 @@ fn insert_machine_parameter_signature_children(
     );
 
     let mut children = SymbolTableBuilder::child_handles(children);
-    insert_machine_type_parameter_children(
+    insert_generic_parameter_children(
         builder,
         program,
         program.data_type_parameters(signature.type_parameters),
+        &signature.conformance_bounds,
         &mut children,
         has_sources,
     );

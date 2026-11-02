@@ -71,6 +71,8 @@ pub struct StateSignature {
     pub spelling: Option<language_core::OperatorSpelling>,
     pub lifetime_parameters: Vec<Identifier>,
     pub type_parameters: HandleSpan<crate::data::TypeParameter>,
+    /// Callable-owned contracts for erased implementation operands.
+    pub conformance_bounds: Vec<crate::machine::GenericConformanceBound>,
     pub is_default: bool,
     pub parameters: HandleSpan<StateParameter>,
     /// Native-only callback entries are separate from runtime parameters so
@@ -107,6 +109,7 @@ impl Default for StateSignature {
             spelling: None,
             lifetime_parameters: Vec::new(),
             type_parameters: HandleSpan::empty(),
+            conformance_bounds: Vec::new(),
             is_default: false,
             parameters: HandleSpan::empty(),
             native_callback_parameters: Vec::new(),
