@@ -579,6 +579,32 @@ fail/facts/double_indexed_rmw_through_parameter_unproved_inner_bound rejected 27
 	machine `main` state `entry` value call to `rmw` violates required fact `j <= 3`: the instantiated fact is structurally false (`4 <= 3`)
 fail/facts/double_indexed_rmw_through_target_body_unproved_inner_bound rejected 7084ms expected @f9df9c1404e3
 	cannot prove requires contract for call rmw from main: 4 <= 3 (needs fact `j <= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/dyn_returned_view_membership_through_call_result_rejected rejected 6060ms expected @29381ea34733+wt
+	cannot prove requires contract for call classify from main: Payload.dyn Payload::window(chosen_first, accent, word) in [u8]::Utf8 in state `entry`
+	cannot prove requires contract for call classify from main: Payload.dyn Payload::window(chosen_second, accent, word) in [u8]::Utf8 in state `entry`
+fail/facts/dyn_returned_view_membership_through_const_name_rejected rejected 9984ms expected @29381ea34733+wt
+	cannot prove requires contract for call classify from main: Payload.dyn Payload::window(chosen_first, accent, word) in [u8]::Utf8 in state `entry`
+	cannot prove requires contract for call classify from main: Payload.dyn Payload::window(chosen_second, accent, word) in [u8]::Utf8 in state `entry`
+fail/facts/dyn_returned_view_membership_through_field_rejected rejected 13689ms expected @29381ea34733+wt
+	cannot prove requires contract for call classify from main: Payload.dyn Payload::window(chosen_first, accent, word) in [u8]::Utf8 in state `entry`
+	cannot prove requires contract for call classify from main: Payload.dyn Payload::window(chosen_second, accent, word) in [u8]::Utf8 in state `entry`
+fail/facts/dyn_returned_view_membership_through_local_rejected rejected 7628ms expected @29381ea34733+wt
+	cannot prove requires contract for call classify from main: Payload.dyn Payload::window(chosen_first, accent, word) in [u8]::Utf8 in state `entry`
+	cannot prove requires contract for call classify from main: Payload.dyn Payload::window(chosen_second, accent, word) in [u8]::Utf8 in state `entry`
+fail/facts/dyn_returned_view_membership_through_match_join_rejected rejected 8029ms expected @29381ea34733+wt
+	cannot prove requires contract for call classify from main: Payload.dyn Payload::window(chosen_first, accent, word) in [u8]::Utf8 in state `entry`
+	cannot prove requires contract for call classify from main: Payload.dyn Payload::window(chosen_second, accent, word) in [u8]::Utf8 in state `entry`
+fail/facts/dyn_returned_view_membership_through_other_machine_rejected rejected 9752ms expected @29381ea34733+wt
+	cannot prove requires contract for call classify from main: Payload.dyn Payload::window(chosen_first, accent, word) in [u8]::Utf8 in state `entry`
+	cannot prove requires contract for call classify from main: Payload.dyn Payload::window(chosen_second, accent, word) in [u8]::Utf8 in state `entry`
+fail/facts/dyn_returned_view_membership_through_other_state_rejected rejected 8149ms expected @29381ea34733+wt
+	cannot prove requires contract for call classify from main: Payload.dyn Payload::window(chosen_first, accent, word) in [u8]::Utf8 in state `entry`
+	cannot prove requires contract for call classify from main: Payload.dyn Payload::window(chosen_second, accent, word) in [u8]::Utf8 in state `entry`
+fail/facts/dyn_returned_view_membership_through_parameter_rejected rejected 8149ms expected @29381ea34733+wt
+	cannot prove requires contract for call classify from main: Payload.dyn Payload::window(chosen_first, accent, word) in [u8]::Utf8 in state `entry`
+	cannot prove requires contract for call classify from main: Payload.dyn Payload::window(chosen_second, accent, word) in [u8]::Utf8 in state `entry`
+fail/facts/dyn_returned_view_membership_through_target_body_rejected rejected 5106ms expected @29381ea34733+wt
+	cannot prove initializer of `bytes` in Selected::read is in domain `[u8]::Utf8`; an annotation cannot establish routed qualification
 fail/facts/dynamic_float_input_alias_through_call_result_weakened_input rejected 5468ms expected @da76dcbec7ab
 	cannot prove requires contract for call dyn Fraction::get from probe: public_interval(input, 0.0, 0.5) (needs fact `public_interval(input, 0.0, 0.5)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/dynamic_float_input_alias_through_const_name_weakened_input rejected 5685ms expected @da76dcbec7ab
@@ -6627,6 +6653,15 @@ pass/facts/dyn_dispatch_selector_payload_bound_through_other_machine_exit checke
 pass/facts/dyn_dispatch_selector_payload_bound_through_other_state_exit checked 3841ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/dyn_dispatch_selector_payload_bound_through_parameter_exit checked 4351ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/dyn_dispatch_selector_payload_bound_through_target_body_exit checked 3606ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/dyn_returned_view_membership_through_call_result_exit checked 16817ms check-target:macos_arm64 @29381ea34733+wt
+pass/facts/dyn_returned_view_membership_through_const_name_exit checked 16733ms check-target:macos_arm64 @29381ea34733+wt
+pass/facts/dyn_returned_view_membership_through_field_exit checked 16732ms check-target:macos_arm64 @29381ea34733+wt
+pass/facts/dyn_returned_view_membership_through_local_exit checked 19879ms check-target:macos_arm64 @29381ea34733+wt
+pass/facts/dyn_returned_view_membership_through_match_join_exit checked 12091ms check-target:macos_arm64 @29381ea34733+wt
+pass/facts/dyn_returned_view_membership_through_other_machine_exit checked 16742ms check-target:macos_arm64 @29381ea34733+wt
+pass/facts/dyn_returned_view_membership_through_other_state_exit checked 19907ms check-target:macos_arm64 @29381ea34733+wt
+pass/facts/dyn_returned_view_membership_through_parameter_exit checked 19834ms check-target:macos_arm64 @29381ea34733+wt
+pass/facts/dyn_returned_view_membership_through_target_body_exit checked 19906ms check-target:macos_arm64 @29381ea34733+wt
 pass/facts/dynamic_float_alias_through_call_result_exit checked 6579ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/dynamic_float_alias_through_const_name_exit checked 6311ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/dynamic_float_alias_through_field_exit checked 7146ms check-target:macos_arm64 @ccdb99ca2214

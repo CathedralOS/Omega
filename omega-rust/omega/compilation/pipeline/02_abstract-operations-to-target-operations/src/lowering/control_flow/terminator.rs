@@ -437,12 +437,18 @@ pub(super) fn lower_terminator(
                 // Descriptor storage is not backing ownership. Every established
                 // view uses the same value-result ABI, including a literal whose
                 // octets live in the image rather than an operation-result home.
+                // Psi proved the declared result memberships at this return,
+                // as for the literal-view arm and owned homes below. A source's
+                // own roster is not that proof: a local alias carries its
+                // occurrence memberships plus the checker's decisions, and a
+                // field projection carries none at the root. Neither changes
+                // the two-word value, so the carrier is chosen by type and
+                // multiplicity alone.
                 let source_type = live
                     .structural_homes
                     .get(source)
                     .filter(|home| {
                         home.multiplicity() == result.multiplicity
-                            && home.qualifications() == result.qualifications
                             && terminal_semantics::view_descriptor_projected_qualifications(
                                 structural_types.values().copied(),
                                 home.structural_type(),
@@ -486,7 +492,6 @@ pub(super) fn lower_terminator(
                                             && parameter.access == StructuralAccess::MutableBorrow
                                             && parameter.multiplicity
                                                 == StructuralMultiplicity::Unrestricted)
-                                    && parameter.qualifications == result.qualifications
                                     && terminal_semantics::view_descriptor_projected_qualifications(
                                         structural_types.values().copied(),
                                         parameter.structural_type,
