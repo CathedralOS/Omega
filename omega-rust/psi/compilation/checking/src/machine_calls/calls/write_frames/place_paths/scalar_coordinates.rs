@@ -63,7 +63,7 @@ impl LocalWriteSource {
         let (mut carrier, mut path) = match &self.representation {
             Some((carrier, path)) => (*carrier, path.clone()),
             None => (
-                crate::state_root_type(program, state, root)?,
+                source_root_type(program, state, root)?,
                 self.segments.clone(),
             ),
         };
@@ -85,7 +85,7 @@ impl LocalWriteSource {
             let (previous_carrier, mut previous_path) = match &recast.representation {
                 Some((carrier, path)) => (*carrier, path.clone()),
                 None => (
-                    crate::state_root_type(program, state, recast.root)?,
+                    source_root_type(program, state, recast.root)?,
                     recast.segments.clone(),
                 ),
             };
@@ -145,6 +145,18 @@ impl LocalWriteSource {
         // keep case selectors and freeze runtime indices themselves.
         Some(coordinate)
     }
+}
+
+/// A captured call frame can retain a root owned by its caller. That exact
+/// declaration supplies the carrier; the receiving state's parameters cannot
+/// reinterpret it. This imports no caller valuation, premise or access.
+fn source_root_type(
+    program: &dyn crate::CheckingInput,
+    state: &State,
+    root: symbols::SymbolHandle,
+) -> Option<TypeReferenceHandle> {
+    crate::state_root_type(program, state, root)
+        .or_else(|| crate::value_custody::places::declaration_type_reference(program, root))
 }
 
 fn scalar_primitive(

@@ -115,7 +115,7 @@ mod self_induction;
 pub(crate) mod specification_calls;
 pub(crate) mod static_applications;
 mod stored_predicates;
-pub(crate) use stored_predicates::stored_data_predicate_holds;
+pub(crate) use stored_predicates::{completed_data_predicate_holds, stored_data_predicate_holds};
 pub(crate) mod strict_arithmetic;
 mod structural_case_arms;
 pub(crate) mod structural_judgment;

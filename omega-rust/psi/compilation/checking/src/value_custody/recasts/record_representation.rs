@@ -16,6 +16,9 @@ struct RepresentationBudget {
     depth: usize,
     work: usize,
     lifetime_shell_depth: usize,
+    /// Only this exact record's default predicate is awaiting establishment.
+    /// Field restrictions and nested records' predicates remain enforced.
+    pending_predicate_owner: Option<SymbolIdentity>,
 }
 
 impl RepresentationBudget {
@@ -263,7 +266,10 @@ pub fn recast_scalar_layout(
     let root = program
         .type_reference_table
         .unconstrained_type_reference(root);
-    let representation = type_representation(program, root)?;
+    let representation = match pending_record_fields(program, root) {
+        Some((_, fields)) => fields,
+        None => type_representation(program, root)?,
+    };
     let mut leaves = Vec::new();
     leaves.try_reserve_exact(representation.leaves.len()).ok()?;
     for leaf in &representation.leaves {
@@ -435,7 +441,7 @@ fn normalized_scalar_projection(
     root: TypeReferenceHandle,
     path: &[RepresentationSegment],
 ) -> Option<RecastScalarProjection> {
-    let representation = type_representation(program, root)?;
+    let representation = field_geometry_representation(program, root)?;
     let leaf = representation
         .leaves
         .iter()
@@ -526,7 +532,7 @@ pub fn recast_scalar_source_leaf(
 ) -> Option<RecastRecordSourceLeaf> {
     scalar_source_leaf(
         &type_representation(program, source)?,
-        &type_representation(program, target)?,
+        &field_geometry_representation(program, target)?,
         target_path,
     )
 }
@@ -543,7 +549,7 @@ pub(crate) fn recast_scalar_source_leaf_in_array_region(
 ) -> Option<RecastRecordSourceLeaf> {
     scalar_source_leaf(
         &array_region_representation(program, source, start, end)?,
-        &type_representation(program, target)?,
+        &field_geometry_representation(program, target)?,
         target_path,
     )
 }
@@ -653,6 +659,91 @@ pub(super) fn type_representation(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
 ) -> Option<MutableRecordRepresentation> {
+    normalized_representation(program, type_reference, None)
+}
+
+/// The independently declared fields of one pending, resource-free record.
+/// This is not a representation of valid T values: its original declaration
+/// retains every default predicate for the separate establishment judgment.
+pub(super) fn pending_record_fields<'program>(
+    program: &'program dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> Option<(
+    &'program typed_trees::data::DataDefinition,
+    MutableRecordRepresentation,
+)> {
+    let definition = pending_record_definition(program, reference)?;
+    let owner = (definition.symbol, definition.generic_instance);
+    Some((
+        definition,
+        normalized_representation(program, reference, Some(owner))?,
+    ))
+}
+
+/// Semantic obligation selection precedes geometry. A target-dependent plan
+/// cannot make its declaration predicate disappear at an unguarded consumer.
+pub(super) fn pending_record_definition(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> Option<&typed_trees::data::DataDefinition> {
+    let reference = crate::value_custody::places::assignment_value_type(program, reference);
+    if matches!(
+        program.type_reference_table.type_reference(reference),
+        TypeReferenceNode::Constrained { .. }
+    ) {
+        return None;
+    }
+    let semantic = program
+        .layout_storage_arguments(reference)
+        .map_or(reference, |storage| storage.semantic_type);
+    let definition = program.closed_data_field_definition(semantic)?;
+    (!definition.where_facts.is_empty()
+        && program.type_multiplicity(semantic) == language_semantics::Multiplicity::Unrestricted
+        && program
+            .proof_facts
+            .span_or_empty(definition.where_facts)
+            .iter()
+            .all(|fact| fact.as_expression().is_some()))
+    .then_some(definition)
+}
+
+/// Geometry never asserts that the enclosing record predicate holds.
+fn field_geometry_representation(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+) -> Option<MutableRecordRepresentation> {
+    pending_record_fields(program, reference)
+        .map(|(_, fields)| fields)
+        .or_else(|| type_representation(program, reference))
+}
+
+/// An initialized unrestricted source can retain its complete occupied storage
+/// while independent field stores establish a copy record's root predicate.
+/// This is not bidirectional T/S value equivalence. Whole-view replacement and
+/// escaping write authority still owe preservation of the source's padding.
+pub(super) fn source_supports_pending_fields(
+    program: &dyn crate::CheckingInput,
+    source: &MutableRecordRepresentation,
+    fields: &MutableRecordRepresentation,
+) -> bool {
+    compatible_backing_geometry(source, fields)
+        && source.leaves.iter().all(leaf_accepts_all_bits)
+        && initialized_storage::InitializedStorageBits::prepare(source)
+            .is_some_and(|coverage| coverage.covers_entire_extent())
+        && representation_values_imply(program, source, fields)
+        && !fields.permits_shared_mutation()
+}
+
+pub(super) fn fields_cover_source_extent(fields: &MutableRecordRepresentation) -> bool {
+    initialized_storage::InitializedStorageBits::prepare(fields)
+        .is_some_and(|coverage| coverage.covers_entire_extent())
+}
+
+fn normalized_representation(
+    program: &dyn crate::CheckingInput,
+    type_reference: TypeReferenceHandle,
+    pending_predicate_owner: Option<SymbolIdentity>,
+) -> Option<MutableRecordRepresentation> {
     // A re-view of an incoming reference describes its referent. This root
     // dereference does not expose permission carriers nested in record fields.
     let type_reference =
@@ -663,6 +754,7 @@ pub(super) fn type_representation(
         depth: 0,
         work: 0,
         lifetime_shell_depth: 0,
+        pending_predicate_owner,
     };
     let phantom_lifetime_shell =
         crate::value_custody::recasts::record_eligibility::direct_phantom_lifetime_record_symbol(
@@ -822,12 +914,17 @@ fn mutable_record_representation_inner_body(
         Some(plan) => program.closed_data_field_definition(plan.semantic_type)?,
         None => data,
     };
-    let Some(where_bounds) =
+    let predicate_pending = budget.pending_predicate_owner
+        == Some((semantic_data.symbol, semantic_data.generic_instance));
+    let where_bounds = if predicate_pending {
+        Some(Vec::new())
+    } else {
         crate::proof_contracts::default_domains::data_where_field_representation_bounds(
             program,
             semantic_data,
         )
-    else {
+    };
+    let Some(where_bounds) = where_bounds else {
         visiting.remove(&symbol_identity);
         return None;
     };
@@ -835,7 +932,7 @@ fn mutable_record_representation_inner_body(
     // view of already established storage needs once interval-only bounds
     // narrow every leaf they mention. Without such bounds the gate's source is
     // not represented here, so it stays fenced.
-    if semantic_data.zero_gated && where_bounds.is_empty() {
+    if semantic_data.zero_gated && where_bounds.is_empty() && !predicate_pending {
         visiting.remove(&symbol_identity);
         return None;
     }

@@ -39,9 +39,13 @@
 //!   runtime borrow). A runtime interior byte offset cannot establish
 //!   multi-byte element tiling until its congruence is proved; an exact
 //!   offset can.
-//! - **Refused absolutely:** targets that would ESTABLISH a fact the bytes
-//!   don't prove (`bool`'s 0/1, text encodings) -- establishing facts is a
-//!   MINT's job (fallible, case-returning), never a recast's.
+//! - **Initial establishment:** an exclusive view over fully initialized,
+//!   unrestricted source storage may expose independently valid copy-record
+//!   fields before its root predicate is established. A valid T consumption
+//!   proves that predicate on current contents; the annotation supplies no
+//!   premise. Shared views and invalid individual fields remain strict.
+//!   Original occupied padding is not target field initialization, so whole
+//!   replacement and escaping write authority retain source-handback debts.
 //!
 //! The companion rule closes the accidental-pun hole this judgment would
 //! otherwise be bypassed by: a reference-typed let whose initializer is a
@@ -59,6 +63,7 @@
 
 mod literal_indexed_footprints;
 mod offset_bounds;
+pub(crate) mod pending_views;
 mod qualification_views;
 mod raw_byte_region;
 mod recast_judgments;
@@ -368,6 +373,15 @@ pub(crate) fn validate_recasts(
                         }
                     }
                 }
+
+                pending_views::validate_operand_consumptions(
+                    program,
+                    machine,
+                    state,
+                    statement_index,
+                    statement,
+                    diagnostics,
+                );
 
                 // The recast contract judges representation compatibility,
                 // not source position (§5b): a recast nested in an ordinary
