@@ -29,13 +29,12 @@ disposable copy of `samples/cli/basics/print_number` with its relative std
 dependency preserved. An unchanged bound pass reports `settled_checks=0`;
 the operation still checks Build and Product. This is a macOS observation command,
 not a cross-host execution claim or a separate review mode.
-Without an authored Build entry, it returns default settings and the retained
-source commitment without checking, specializing or capturing an execution
-snapshot. This shortcut is migration debt: the retained contract requires
-compiler-supplied ordinary Build source through the same one-entry evaluation,
-dependency join, and freeze route. Final product checking still admits all
-ordinary declarations.
-For actual Build entries, semantic checking is mandatory even without package
+Without a physical `build.omg`, source assembly supplies an ordinary in-memory
+Build entry. It follows the same checking, Terminal activation, dependency join
+and freeze route, retaining the admitted source role and owner without inventing
+a named declaration or selecting an executable entry. An authored Build file
+must supply its own entry and project declaration.
+For every selected Build entry, semantic checking is mandatory even without package
 inputs; package declaration authority adds to that floor. Execution consumes the
 checker-transformed program and its operator facts, with no separate
 specialization pass after checking. Provider derivation and replay use the
@@ -43,10 +42,9 @@ explicit Build dependency context and admitted execution profile. Selected
 comparison facts follow their exact declaration provenance into the same
 pure/granted interpreter; runtime adapter dispatch and service grants do not.
 Missing comparison execution custody rejects before Build effects.
-The preliminary check still covers the whole provisional program:
-removing that duplicate product work requires a sound Build-helper projection
-and a separately frozen authored-selection frontier. The interpreter's general
-checked-fact dispatch is also unfinished.
+The preliminary check covers the selected Build source and its helpers;
+Product roots remain deferred until the activation returns and its requested
+sources join.
 [Compilation products](../products/src/evaluated_build.rs)
 owns the retained `BuildConfig` and `ComputedBuildConfig` data contracts, re-exported
 here for callers. Evaluation produces those records; consumers need not import
