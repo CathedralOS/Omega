@@ -17,4 +17,15 @@ pass/facts/checked_asm_countdown_through_other_machine_exit built 3516ms exit:0 
 pass/facts/checked_asm_countdown_through_other_state_exit built 3477ms exit:0 @fa165e504cfa
 pass/facts/checked_asm_countdown_through_parameter_exit built 3475ms exit:0 @fa165e504cfa
 pass/facts/checked_asm_countdown_through_target_body_exit built 3543ms exit:0 @fa165e504cfa
+pass/facts/nested_machine_suspending_cycle_borrowed_backing_exit built 35264ms exit:0 @cc22150d70ee+wt
+pass/facts/nested_machine_suspending_cycle_call_result_exit built 24992ms exit:0 @cc22150d70ee+wt
+pass/facts/nested_machine_suspending_cycle_const_name_exit built 32503ms exit:0 @cc22150d70ee+wt
+pass/facts/nested_machine_suspending_cycle_field_exit built 32960ms exit:0 @cc22150d70ee+wt
+pass/facts/nested_machine_suspending_cycle_guarded_boundary_arm_exit built 23924ms exit:0 @cc22150d70ee+wt
+pass/facts/nested_machine_suspending_cycle_local_exit built 33905ms exit:0 @cc22150d70ee+wt
+pass/facts/nested_machine_suspending_cycle_match_join_exit built 33435ms exit:0 @cc22150d70ee+wt
+pass/facts/nested_machine_suspending_cycle_other_machine_exit built 34365ms exit:0 @cc22150d70ee+wt
+pass/facts/nested_machine_suspending_cycle_other_state_exit built 30270ms exit:0 @cc22150d70ee+wt
+pass/facts/nested_machine_suspending_cycle_parameter_exit built 34832ms exit:0 @cc22150d70ee+wt
+pass/facts/nested_machine_suspending_cycle_target_body_exit built 30970ms exit:0 @cc22150d70ee+wt
 pass/memory/bump_allocator_canary built 10969ms @208d6107f46d+wt
