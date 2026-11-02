@@ -62,6 +62,19 @@ shared-view descriptor assignment inside an ordinary helper. Its product
 selects a different cell through the rebound view and checks both referents
 and their neighbors. Existing counterfeit-local controls remain unchanged.
 
+The original match and constant places also write settings through their
+borrowed carriers. Descriptor replacement captures its storage home before the
+RHS, loading ancestor pointers without following the descriptor being replaced.
+The [descriptor-write composition](compositions/descriptor_write/main.omg)
+checks the original lender's identifier length after the helper returns, so a
+write confined to a snapshot selects the crashing entry. The
+[reference-forwarding](compositions/reference_forward/main.omg) and
+[generic-forwarding](compositions/generic_forward/main.omg) compositions retain
+that same oracle through another helper. Their readonly twins still refuse
+mutable access. Returned-path validation preserves the exact caller type
+application; reference fields beside the path do not relocate its outer address,
+and an interior descriptor load still requires its captured provenance.
+
 ## Requirements and evidence
 
 - **Establishment:** only the admitted Build entry receives the activation.
