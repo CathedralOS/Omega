@@ -175,6 +175,35 @@ jobs:
           assert hashlib.sha256(cli.read_bytes()).hexdigest() == producer['cli_profile']['sha256']
           assert all(row['passed'] for row in rows), 'strict native/Terminal or rejection observation failed'
           PYTHON
+      - name: Retain unused Value formation controls
+        if: always() && github.event_name == 'workflow_dispatch' && inputs.fixtures != '' && steps.compiler-check.outcome == 'success'
+        run: |
+          python - <<'PYTHON'
+          import json, subprocess, sys
+          from pathlib import Path
+          from tools.ci.compiler_pilot import ROOT, validate_report
+          from tools import qualification
+          directory = ROOT / 'build/compiler-pilot'
+          producer = json.loads((directory / 'summary.json').read_text())['producer']
+          fixtures = [
+              'pass/generics/unused_selected_value_carrier',
+              'pass/generics/unused_selected_value_proved_where',
+              'fail/generics/unused_selected_value_wrong_carrier',
+              'fail/generics/unused_selected_value_unproved_where',
+              'fail/generics/unused_selected_value_is_not_const',
+          ]
+          paths = ['Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml', 'omega-rust', 'source/library', *['tests/omega/' + fixture for fixture in fixtures]]
+          inputs = qualification.source_inputs(ROOT, producer['revision'], paths)
+          report = directory / 'unused-value-formation.json'
+          command = [sys.executable, 'tools/corpus_gate.py', '--runner', producer['runner'], '--filter', ','.join(fixtures), '--json', str(report)]
+          result = subprocess.run(command, cwd=ROOT, stdin=subprocess.DEVNULL, capture_output=True)
+          (directory / 'unused-value-formation.stdout').write_bytes(result.stdout)
+          (directory / 'unused-value-formation.stderr').write_bytes(result.stderr)
+          assert result.returncode in (0, 1), result.stderr.decode(errors='replace')
+          validate_report(json.loads(report.read_text()), fixtures, both=False, revision=producer['revision'], target=producer['target'])
+          assert qualification.source_inputs(ROOT, producer['revision'], paths) == inputs
+          (directory / 'unused-value-formation-inputs.json').write_text(json.dumps(inputs, indent=2) + '\n')
+          PYTHON
       - name: Report actual producer and fixture observations
         if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
         run: python -c "from pathlib import Path; root = Path('build/compiler-pilot'); [print(name + '\n' + (root / name).read_text(encoding='utf-8')) for name in ('summary.json', 'checking.json', 'both.json', 'samples.json', 'cli.json') if (root / name).is_file()]"
