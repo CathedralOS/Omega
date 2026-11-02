@@ -114,6 +114,11 @@ def contract_returned_value(contract: int) -> tuple[int, int, int]:
     return (19, contract, 0)
 
 
+def type_operand(kind: int, handle: int) -> tuple[int, int, int]:
+    """An erased type use, distinct from a contract result and data subject."""
+    return (21, kind, handle)
+
+
 def domain_subject(handle: int) -> tuple[int, int, int]:
     """A domain's subject binder in its predicates."""
     return (16, handle, 0)
@@ -1000,6 +1005,20 @@ def main() -> None:
         b"requires machine F(item: u8) -> u8 ensures result == item;\n{ x }",
         (builtin("u64"), builtin("u64"), builtin("u8"), builtin("u8")),
         (contract_returned_value(0), parameter(1), NOT_A_NAME, parameter(0)),
+    )
+    accepted(
+        program,
+        "type-operands-have-a-distinct-value-binding-kind",
+        b"machine f<T>(value: T) -> T requires T == i32 { value }",
+        (generic(0), generic(0)),
+        (type_operand(GENERIC, 0), type_operand(BUILTIN, builtin("i32")[1]), NOT_A_NAME, parameter(0)),
+    )
+    rejected(
+        program,
+        "type-operand-does-not-invent-an-unknown-declaration",
+        b"machine f<T>(value: T) -> T requires T == Unbound { value }",
+        UNKNOWN_NAME,
+        b"Unbound",
     )
     accepted(
         program,
