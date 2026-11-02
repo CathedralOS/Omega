@@ -521,6 +521,7 @@ pub(crate) fn build_check_facts(
         || {
             build_contract_plans(
                 program,
+                &proof,
                 &service_reaches,
                 &synchronous_invocations,
                 &suspensions,

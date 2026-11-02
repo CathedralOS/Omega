@@ -399,6 +399,7 @@ pub use proof_contracts::quotients::{
     ValidatedQuotientOperation, admit_checked_quotient_requests,
     checked_quotient_relation_identity, validate_quotient_formations,
 };
+pub use value_custody::constants::completed_integer_constant;
 pub use value_custody::expression_types::argument_matches_type_reference_handle as checked_argument_matches_type_reference;
 pub use value_custody::expression_types::bounded_byte_buffer_capacity;
 pub use value_custody::expression_types::match_subject_primitive_type;

@@ -105,6 +105,7 @@ fn publish_family_crash_envelopes(
 /// prover therefore cannot change an exported contract ID (acceptance 8).
 pub(crate) fn build_contract_plans(
     program: &dyn ::validation::CheckingInput,
+    proof: &checked_trees::ProofFacts,
     service_reaches: &checked_trees::ServiceReachFacts,
     synchronous_invocations: &checked_trees::SynchronousInvocationFacts,
     suspensions: &checked_trees::SuspensionFacts,
@@ -340,10 +341,12 @@ pub(crate) fn build_contract_plans(
         || {
             crash_calls::prepare_crash_summary_graph(
                 program,
+                proof,
                 operators,
                 flow,
                 &crash_capsules,
                 &machines,
+                &content_conservation,
             )
         },
     )?;

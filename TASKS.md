@@ -329,9 +329,7 @@ retired-syntax deletions to completion.
     ownership, reach, and public contracts through one checked Terminal artifact
     and Build companion to both engines without target-specific source rewriting.
   - Carry the facts that still refuse behind a selected implementation: opaque
-    write-only boundaries requiring an admitted claim for the selected implementation,
-    and evidence binders in requirement signatures (`selected_crash_formal`:
-    the requirement grammar admits none). Their
+    write-only boundaries requiring an admitted claim for the selected implementation. Their
     `target_body` places keep the retired prefix until then. A requirement
     publishes `invokes` for each boundary trait its implementations invoke, and
     a public caller with an explicit ceiling names the requirement; migrated

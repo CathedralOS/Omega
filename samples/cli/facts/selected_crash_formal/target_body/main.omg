@@ -7,21 +7,35 @@ public trait Reader<const Limit: i32> {
 Provider<const Bound: i32> satisfies Reader<Bound> {
     machine read(value: i32) -> i32 { value }
 }
-windows_x86_64 machine forward<Implementation satisfies Reader<Zero>>(value: i32) -> i32
-crashes Trap value < Zero
-{ Implementation::read(value) }
-linux_x86_64 machine forward<Implementation satisfies Reader<Zero>>(value: i32) -> i32
-crashes Trap value < Zero
-{ Implementation::read(value) }
-macos_arm64 machine forward<Implementation satisfies Reader<Zero>>(value: i32) -> i32
-crashes Trap value < Zero
-{ Implementation::read(value) }
-linux_arm64 machine forward<Implementation satisfies Reader<Zero>>(value: i32) -> i32
-crashes Trap value < Zero
-{ Implementation::read(value) }
+public boundary trait SelectedForward {
+    machine forward<Implementation satisfies Reader<Zero>>(value: i32) -> i32
+    reaches
+    crashes Trap value < Zero;
+}
+WindowsForward satisfies SelectedForward {
+    machine forward<Implementation satisfies Reader<Zero>>(value: i32) -> i32
+    crashes Trap value < Zero
+    { Implementation::read(value) }
+}
+LinuxX86Forward satisfies SelectedForward {
+    machine forward<Implementation satisfies Reader<Zero>>(value: i32) -> i32
+    crashes Trap value < Zero
+    { Implementation::read(value) }
+}
+MacosForward satisfies SelectedForward {
+    machine forward<Implementation satisfies Reader<Zero>>(value: i32) -> i32
+    crashes Trap value < Zero
+    { Implementation::read(value) }
+}
+LinuxArmForward satisfies SelectedForward {
+    machine forward<Implementation satisfies Reader<Zero>>(value: i32) -> i32
+    crashes Trap value < Zero
+    { Implementation::read(value) }
+}
 public machine safe<Implementation satisfies Reader<Zero>>(value: i32) -> i32
+invokes SelectedForward
 requires value >= 0
-{ forward<Implementation>(value) }
+{ SelectedForward::forward<Implementation>(value) }
 machine main() crashes Trap {
     let input: i32 = 7;
     let observed: i32 = safe<Provider<Zero>>(input);

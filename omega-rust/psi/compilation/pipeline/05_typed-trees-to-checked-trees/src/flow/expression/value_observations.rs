@@ -21,6 +21,33 @@ pub(super) enum OwnedValueObservation {
     },
 }
 
+impl OwnedValueObservation {
+    /// Keep what both completed values establish. Different integer values
+    /// still establish the range containing both; other observations must agree.
+    pub(super) fn common_consequence(&self, other: &Self) -> Option<Self> {
+        if self == other {
+            return Some(self.clone());
+        }
+        let left = self.integer_bounds()?;
+        let right = other.integer_bounds()?;
+        Some(Self::IntegerBounds(facts::IntegerRange {
+            minimum: left.minimum.min(right.minimum),
+            maximum: left.maximum.max(right.maximum),
+        }))
+    }
+
+    fn integer_bounds(&self) -> Option<facts::IntegerRange> {
+        match self {
+            Self::Scalar(ScalarValue::Integer(value)) => Some(facts::IntegerRange {
+                minimum: value.clone(),
+                maximum: value.clone(),
+            }),
+            Self::IntegerBounds(bounds) => Some(bounds.clone()),
+            _ => None,
+        }
+    }
+}
+
 impl Execution<'_, '_, '_> {
     /// A value read from storage has its own classifier even after an affine
     /// move retires that home. Publish before recording reference-leaf owners;
@@ -272,8 +299,8 @@ impl Execution<'_, '_, '_> {
         }
     }
 
-    /// Snapshot only the completed owned value's observations. Match joins
-    /// intersect these same snapshots; no arm or initializer is replayed.
+    /// Snapshot only the completed owned value's observations. Match joins keep
+    /// their common consequences; no arm or initializer is replayed.
     pub(super) fn captured_owned_value_observations(
         &mut self,
         destination: &[PlaceSegment],

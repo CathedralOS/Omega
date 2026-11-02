@@ -1,6 +1,8 @@
-//! Private body and target-family crash summaries share one fixed point.
-//! Family membership is a summary dependency, never an executable call site.
+//! Find crashes that can propagate through private calls and target-body groups.
+//! Repeat until callees no longer change their callers' possible crashes.
+//! Group membership determines which summaries must be considered together.
 
+use super::requirement_contracts::RequirementCrashContracts;
 use crate::flow::expressions;
 use crate::published::facts::crash_calls::route_substitution::{
     call_argument_substitution, refine_published_crash_routes,
@@ -44,12 +46,13 @@ use validation::checking_thread_pool;
 use validation::contract_structure::is_true_crash_route;
 use validation::find_call_site;
 
-pub(crate) struct PreparedCrashSummaryGraph {
+pub(crate) struct PreparedCrashSummaryGraph<'proof> {
     nodes: Vec<SummaryNode>,
     family_potential_causes: Vec<(SymbolHandle, Vec<CrashCause>)>,
+    pub(super) requirement_contracts: RequirementCrashContracts<'proof>,
 }
 
-impl PreparedCrashSummaryGraph {
+impl PreparedCrashSummaryGraph<'_> {
     pub(crate) fn family_potential_crash_causes(&self) -> &[(SymbolHandle, Vec<CrashCause>)] {
         &self.family_potential_causes
     }
@@ -57,14 +60,25 @@ impl PreparedCrashSummaryGraph {
 
 /// Prepare one viable dependency graph for public potential causes and later
 /// invocation refinement. Public causes never consume call-site proof pruning.
-pub(crate) fn prepare_crash_summary_graph(
+pub(crate) fn prepare_crash_summary_graph<'proof>(
     program: &dyn ::validation::CheckingInput,
+    proof: &'proof checked_trees::ProofFacts,
     operators: &CheckedOperatorFacts,
     flow: &FlowFacts,
     crash_capsules: &[CrashContractCapsule],
     plans: &[MachineContractPlan],
-) -> Result<PreparedCrashSummaryGraph, Vec<Diagnostic>> {
-    let nodes = prepare_summary_nodes(program, operators, flow, crash_capsules, plans);
+    content_conservation: &[ContentConservationSourcePlan],
+) -> Result<PreparedCrashSummaryGraph<'proof>, Vec<Diagnostic>> {
+    let requirement_contracts =
+        RequirementCrashContracts::prepare(program, proof, flow, operators, content_conservation)?;
+    let nodes = prepare_summary_nodes(
+        program,
+        operators,
+        flow,
+        crash_capsules,
+        plans,
+        &requirement_contracts,
+    );
     let incomplete = program
         .machines()
         .iter()
@@ -83,6 +97,7 @@ pub(crate) fn prepare_crash_summary_graph(
                     plans,
                     &nodes,
                     &members,
+                    &requirement_contracts,
                 )
                 .unwrap_or_else(|| {
                     "incomplete or unresolved member invocation dependencies".to_owned()
@@ -102,6 +117,7 @@ pub(crate) fn prepare_crash_summary_graph(
     Ok(PreparedCrashSummaryGraph {
         nodes,
         family_potential_causes,
+        requirement_contracts,
     })
 }
 
@@ -134,6 +150,7 @@ fn unviable_member_dependency(
     plans: &[MachineContractPlan],
     nodes: &[SummaryNode],
     members: &[SymbolHandle],
+    requirement_contracts: &RequirementCrashContracts<'_>,
 ) -> Option<String> {
     let named_uses_by_expression = build_named_operator_use_map(operators);
     let viable = |machine: SymbolHandle| nodes.iter().any(|node| node.machine == machine);
@@ -144,7 +161,9 @@ fn unviable_member_dependency(
             return None;
         }
         let member_name = program.symbols.display_path(*member, "::");
-        let sites = match machine_invocation_sites(program, &named_uses_by_expression, flow, plan) {
+        let sites = match machine_invocation_sites(
+            program, &named_uses_by_expression, flow, plan, requirement_contracts,
+        ) {
             Ok(sites) => sites,
             Err(reason) => return Some(format!("retained member `{member_name}` {reason}")),
         };
@@ -180,6 +199,7 @@ fn prepare_summary_nodes(
     flow: &FlowFacts,
     crash_capsules: &[CrashContractCapsule],
     plans: &[MachineContractPlan],
+    requirement_contracts: &RequirementCrashContracts<'_>,
 ) -> Vec<SummaryNode> {
     let named_uses_by_expression = build_named_operator_use_map(operators);
     let mut nodes = checking_thread_pool().install(|| {
@@ -211,6 +231,7 @@ fn prepare_summary_nodes(
                         &named_uses_by_expression,
                         flow,
                         target,
+                        requirement_contracts,
                     )
                     .ok()?,
                 })
@@ -278,15 +299,9 @@ pub(crate) fn infer_private_body_summaries(
     content_conservation: &[ContentConservationSourcePlan],
     crash_capsules: &[CrashContractCapsule],
     plans: &[MachineContractPlan],
-    prepared: Option<&PreparedCrashSummaryGraph>,
+    prepared: &PreparedCrashSummaryGraph<'_>,
 ) -> Vec<(SymbolHandle, Vec<SummaryCrashBucket>)> {
-    let owned_nodes;
-    let nodes = if let Some(graph) = prepared {
-        &graph.nodes
-    } else {
-        owned_nodes = prepare_summary_nodes(program, operators, flow, crash_capsules, plans);
-        &owned_nodes
-    };
+    let nodes = &prepared.nodes;
     let mut plan_indices = SymbolKeyMap::<SymbolHandle, usize>::default();
     for (index, plan) in plans.iter().enumerate() {
         plan_indices.entry(plan.machine).or_insert(index);
@@ -427,19 +442,32 @@ pub(crate) fn infer_private_body_summaries(
                             );
                         }
                     } else {
-                        let capsule = capsule_by_target
-                            .get(&(invocation.target_machine, invocation.target_state))
-                            .copied()
-                            .expect("the viability pass retained only pinned requirement targets");
+                        let selected = prepared.requirement_contracts.for_call(
+                            node.machine,
+                            invocation.caller_state,
+                            invocation.statement_index,
+                            invocation.call_ordinal,
+                        );
+                        let (capsule, signature) = if let Some(selected) = selected {
+                            (&selected.capsule, &selected.source.signature)
+                        } else {
+                            let capsule = capsule_by_target
+                                .get(&(invocation.target_machine, invocation.target_state))
+                                .copied()
+                                .expect(
+                                    "the viability pass retained only pinned requirement targets",
+                                );
+                            let signature = requirement_signature(
+                                program,
+                                invocation.target_machine,
+                                invocation.target_state,
+                            )
+                            .expect("a pinned requirement capsule has its typed signature");
+                            (capsule, signature)
+                        };
                         if capsule.published_buckets().is_empty() {
                             continue;
                         }
-                        let signature = requirement_signature(
-                            program,
-                            invocation.target_machine,
-                            invocation.target_state,
-                        )
-                        .expect("a pinned requirement capsule has its typed signature");
                         let target_parameters = program.state_signature_parameters(signature);
                         let target_parameter_names = declared_parameter_names(target_parameters);
                         published_dependencies.extend(
@@ -600,6 +628,7 @@ fn machine_invocation_sites(
     named_uses_by_expression: &NamedOperatorUseMap<'_>,
     flow: &FlowFacts,
     plan: &MachineContractPlan,
+    requirement_contracts: &RequirementCrashContracts<'_>,
 ) -> Result<Vec<SummaryInvocationSite>, String> {
     let mut sites = Vec::new();
     for state in flow.control.machine_states(plan.machine) {
@@ -690,8 +719,22 @@ fn machine_invocation_sites(
                 }
                 continue;
             }
-            let (target_machine, target_state) =
-                selected_invocation_target(program, site, call.target_symbol).ok_or_else(|| {
+            let public_target = requirement_contracts
+                .for_call(
+                    state.machine_symbol,
+                    state.state_symbol,
+                    call.statement_index,
+                    call.call_ordinal,
+                )
+                .map(|selected| {
+                    (
+                        selected.capsule.target_machine(),
+                        selected.capsule.target_state(),
+                    )
+                });
+            let (target_machine, target_state) = public_target
+                .or_else(|| selected_invocation_target(program, site, call.target_symbol))
+                .ok_or_else(|| {
                     format!(
                         "calls `{}`, which selects no declaration",
                         spelled_callee(program, site)
