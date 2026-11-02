@@ -31,7 +31,7 @@ Task activation instead consumes
 portable demands in the source-free native proposal join. The compiler supplies inputs and
 consumes the result; it does not implement these decisions.
 Callback roots use [source preparation](../provider-planning/src/provider_instances.rs)
-followed by [source-free selection](../provider-selection/src/callback_roots.rs).
+followed by [source-free selection](../provider-selection/src/bodies/callback_roots.rs).
 Psi freezes the complete final nominal-use roster once in its existing prepared
 declaration product, including dormant/symbolic uses, exact requirement and body
 declarations, separate published/actual/refinement contracts and entry-resource
