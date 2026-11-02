@@ -14348,6 +14348,7 @@ pass/termination/runtime_float_requirement_integer_rank_exit rejected 5507ms che
 	machine call cycle: `narrow` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 	machine call cycle: `countdown` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 pass/termination/runtime_joint_rank_computed_copy_exit checked 3999ms check-target:macos_arm64 @ccdb99ca2214
+pass/termination/runtime_measure_input_requirement_exit checked 5290ms check-target:macos_arm64 @d159e82b5a61
 pass/termination/runtime_named_state_remainder_endpoint_exit checked 12126ms check-target:macos_arm64 @ccdb99ca2214
 pass/termination/runtime_nested_borrowed_rank_carrier_exit incomplete 3901ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	`walk::step` has no executable body: this compiler does not lower a transition of it yet (state loan parents: incomplete captured storage dependencies); in state `walk::step::entry`, statement 1
@@ -35026,8 +35027,8 @@ fail/termination/computed_result_rank_missing_precondition rejected 1823ms expec
 fail/termination/computed_result_rank_nondecreasing rejected 1955ms expected @ccdb99ca2214
 	terminating machine countdown: cannot prove strict rank decrease on a recurrent arrival: the transition from `countdown` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
 	machine call cycle: `countdown` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-fail/termination/constrained_measure_parameter_domain rejected 1815ms expected @ccdb99ca2214
-	cannot prove the `terminates by` ranking for machine walk
+fail/termination/constrained_measure_parameter_domain rejected 4396ms expected @d159e82b5a61
+	terminating machine walk: cannot prove rank range `0..=5` for the rank produced by the selected view
 	machine call cycle: `walk` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/termination/custom_ranking_order_unknown rejected 850ms unexpected @ccdb99ca2214
 	terminal call `weaken` does not select a declared machine entry or callable requirement

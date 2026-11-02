@@ -1481,6 +1481,7 @@ pass/recast/runtime_restricted_field_loans_exit built 8806ms exit:0 interpreter-
 pass/reflection/schema_query_scalar_const built 24141ms exit:0 interpreter-exit:0 interpreter:agrees @63af67b94f91
 pass/termination/nested_machine_computed_distance_indexed_upper_exit built 6632ms exit:0 interpreter-exit:0 interpreter:agrees @6c0b29931314
 pass/termination/nested_machine_computed_distance_narrow_inputs_exit built 2880ms exit:0 interpreter-exit:0 interpreter:agrees @6c0b29931314
+pass/termination/runtime_measure_input_requirement_exit built 5858ms exit:0 interpreter-exit:0 interpreter:agrees @d159e82b5a61
 pass/termination/runtime_rank_range_state_call_exit built 4584ms exit:70 interpreter-exit:70 interpreter:agrees @15a66acf6a30
 pass/text/byte_content_store_continuation_exit built 4488ms exit:70 interpreter-exit:70 interpreter:agrees @90c334a2c095
 pass/text/owned_record_byte_field_read_exit built 4513ms exit:70 interpreter-exit:70 interpreter:agrees @90c334a2c095
@@ -4548,7 +4549,7 @@ pass/memory/runtime_indexed_resident_exchange_exit built 9247ms exit:0 interpret
 pass/memory/runtime_selected_resident_exchange_exit built 9265ms exit:0 interpreter-exit:0 interpreter:agrees @226fbdd49549+wt
 pass/modules/packaged_structured_const_declared_carrier_exit built 1369ms exit:0 interpreter-exit:0 interpreter:agrees @9ac99b4eaa48
 pass/modules/packaged_structured_const_generic_composition_exit built 1393ms exit:0 interpreter-exit:0 interpreter:agrees @9ac99b4eaa48
-pass/modules/runtime_nominal_constant_lexical_ownership_exit built 3880ms exit:0 interpreter-exit:0 interpreter:agrees @e178570a8179+wt
+pass/modules/runtime_nominal_constant_lexical_ownership_exit built 5860ms exit:0 interpreter-exit:0 interpreter:agrees @d159e82b5a61
 pass/modules/same_name_requirement_calls_exit built 6768ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @292c990572a9+wt
 pass/modules/same_name_service_callback_exit built 5517ms exit:0 interpreter-exit:0 interpreter:agrees @292c990572a9+wt
 pass/operators/crash_routes built 640ms exit:0 interpreter-exit:0 interpreter:agrees @5ed90973d982+wt
