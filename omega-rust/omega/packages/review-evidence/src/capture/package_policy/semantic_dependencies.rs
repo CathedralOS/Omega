@@ -142,6 +142,11 @@ fn nominal_declarations(
     while let Some(visit) = pending.pop() {
         match visit {
             Visit::Symbol(symbol) => {
+                // Builtin/non-nominal type operands have no declaration symbol,
+                // exactly as in the checked dependency collector.
+                if !symbol.is_valid() {
+                    continue;
+                }
                 if !compilation.typed.symbols.symbols().nodes().is_valid(symbol)
                     || !compilation
                         .custody
