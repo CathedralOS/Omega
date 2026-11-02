@@ -44,8 +44,9 @@ impl TerminalOriginalStorageRoot {
     }
 }
 
-/// Only initialized cells inside the invocation's exposed range are supplied.
-/// Unexposed sibling bytes confer no permission and cannot be fabricated.
+/// `values` supplies only initialized cells inside the invocation's exposed
+/// range. `allocation_contents` may preserve other initialized cells in the
+/// same physical allocation, but supplies no returned backing for them.
 #[derive(Debug)]
 pub struct TerminalOriginalScalarValue {
     pub(crate) path: Vec<CanonicalStructuralPathSegment>,
@@ -74,6 +75,10 @@ pub struct TerminalOriginalStorageRequest {
     pub(crate) referent: Vec<CanonicalStructuralPathSegment>,
     pub(crate) access: StructuralAccess,
     pub(crate) values: Vec<TerminalOriginalScalarValue>,
+    /// Initialized cells needed to preserve the physical allocation image.
+    /// Unlike `values`, these cells receive no returned resident backing and
+    /// confer no semantic read or write authority on their endpoints.
+    pub(crate) allocation_contents: Vec<TerminalOriginalScalarValue>,
     pub(crate) argument_path: Vec<CanonicalStructuralPathSegment>,
     pub(crate) view_type: StructuralTypeId,
     pub(crate) references: Vec<TerminalOriginalReferenceValue>,
@@ -126,6 +131,9 @@ impl TerminalOriginalStorageRequest {
     }
     pub fn values(&self) -> &[TerminalOriginalScalarValue] {
         &self.values
+    }
+    pub fn allocation_contents(&self) -> &[TerminalOriginalScalarValue] {
+        &self.allocation_contents
     }
 }
 

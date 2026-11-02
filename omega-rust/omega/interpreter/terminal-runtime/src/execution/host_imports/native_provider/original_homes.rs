@@ -17,9 +17,9 @@ use std::{
     time::Duration,
 };
 use terminal_interpreter::{
-    TerminalEffectRejection, TerminalOriginalScalarBackings, TerminalOriginalStorageLoan,
-    TerminalOriginalStorageRequest, TerminalOriginalStorageRoot, TerminalScalarBacking,
-    TerminalScalarValue,
+    TerminalEffectRejection, TerminalOriginalScalarBackings, TerminalOriginalScalarValue,
+    TerminalOriginalStorageLoan, TerminalOriginalStorageRequest, TerminalOriginalStorageRoot,
+    TerminalScalarBacking, TerminalScalarValue,
 };
 
 pub(in super::super) fn rejection(reason: impl Into<String>) -> TerminalEffectRejection {
@@ -217,67 +217,29 @@ impl NativeContext {
                     "original native root changed artifact, type or geometry",
                 ));
             }
+            for value in request.allocation_contents() {
+                self.prepare_scalar(
+                    original,
+                    layout,
+                    extent,
+                    &mut established_here,
+                    value,
+                    false,
+                )?;
+            }
             let mut row = Vec::with_capacity(request.values().len());
             for value in request.values() {
-                let (offset, logical, stored) = match layout {
-                    Some(layout) => scalar_location(layout, value.path())?,
-                    None => {
-                        let [Path::FixedIndex(index)] = value.path() else {
-                            return Err(rejection("original byte owner lost its exact byte index"));
-                        };
-                        let offset = usize::try_from(*index).map_err(|_| {
-                            rejection("original byte index exceeds the host address space")
-                        })?;
-                        let logical = value.value().scalar_type();
-                        if offset >= extent
-                            || !matches!(logical, ScalarType::Integer(integer) if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == 8)
-                        {
-                            return Err(rejection(
-                                "original byte owner has an invalid byte coordinate or carrier",
-                            ));
-                        }
-                        (offset, logical, logical)
-                    }
-                };
-                if value.value().scalar_type() != logical {
-                    return Err(rejection("original scalar differs from native recipe"));
-                }
-                if let Some(existing) = original.cells.get(value.path()) {
-                    let backing: Rc<dyn TerminalScalarBacking> = existing.clone();
-                    if existing.offset != offset
-                        || existing.logical != logical
-                        || existing.stored != stored
-                        || match value.backing() {
-                            Some(actual) => !Rc::ptr_eq(actual, &backing),
-                            None => !established_here.contains(&(key, value.path().to_vec())),
-                        }
-                        || backing.read()? != value.value()
-                    {
-                        return Err(rejection(
-                            "original scalar no longer names the same resident home",
-                        ));
-                    }
-                    row.push(backing);
-                } else {
-                    if value.backing().is_some() {
-                        return Err(rejection(
-                            "resident scalar belongs to a different original allocation",
-                        ));
-                    }
-                    let resident = Rc::new(Resident {
-                        sponsor: self.sponsor.clone(),
-                        home: original.home,
-                        offset,
-                        logical,
-                        stored,
-                    });
-                    resident.write(value.value())?;
-                    original
-                        .cells
-                        .insert(value.path().to_vec(), resident.clone());
-                    established_here.insert((key, value.path().to_vec()));
-                    row.push(resident as Rc<dyn TerminalScalarBacking>);
-                }
+                let backing = self.prepare_scalar(
+                    original,
+                    layout,
+                    extent,
+                    &mut established_here,
+                    value,
+                    true,
+                )?;
+                row.push(backing.ok_or_else(|| {
+                    rejection("original scalar lost its returned resident backing")
+                })?);
             }
             for reference in request.references() {
                 let offset = reference_location(
@@ -324,6 +286,95 @@ impl NativeContext {
             }
         }
         Ok(result)
+    }
+
+    /// Materialize one original cell. `resident` selects whether the caller's
+    /// authenticated endpoint gets a returned backing; physical contents only
+    /// initialize bytes in the same home and never mint an endpoint.
+    fn prepare_scalar(
+        &self,
+        original: &mut OriginalHome,
+        layout: Option<&NativeBorrowedStorageLayout>,
+        extent: usize,
+        established_here: &mut BTreeSet<(u64, u64, Vec<Path>)>,
+        value: &TerminalOriginalScalarValue,
+        resident: bool,
+    ) -> Result<Option<Rc<dyn TerminalScalarBacking>>, TerminalEffectRejection> {
+        let (offset, logical, stored) = match layout {
+            Some(layout) => scalar_location(layout, value.path())?,
+            None => {
+                let [Path::FixedIndex(index)] = value.path() else {
+                    return Err(rejection("original byte owner lost its exact byte index"));
+                };
+                let offset = usize::try_from(*index).map_err(|_| {
+                    rejection("original byte index exceeds the host address space")
+                })?;
+                let logical = value.value().scalar_type();
+                if offset >= extent
+                    || !matches!(logical, ScalarType::Integer(integer) if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == 8)
+                {
+                    return Err(rejection(
+                        "original byte owner has an invalid byte coordinate or carrier",
+                    ));
+                }
+                (offset, logical, logical)
+            }
+        };
+        if value.value().scalar_type() != logical {
+            return Err(rejection("original scalar differs from native recipe"));
+        }
+        if let Some(existing) = original.cells.get(value.path()) {
+            let backing: Rc<dyn TerminalScalarBacking> = existing.clone();
+            let key = (
+                original.root.namespace(),
+                original.root.allocation(),
+                value.path().to_vec(),
+            );
+            if existing.offset != offset
+                || existing.logical != logical
+                || existing.stored != stored
+                || match value.backing() {
+                    Some(actual) => !Rc::ptr_eq(actual, &backing),
+                    None => !established_here.contains(&key),
+                }
+                || backing.read()? != value.value()
+            {
+                return Err(rejection(
+                    "original scalar no longer names the same resident home",
+                ));
+            }
+            return Ok(Some(backing));
+        }
+        if value.backing().is_some() {
+            return Err(rejection(
+                "resident scalar belongs to a different original allocation",
+            ));
+        }
+        if !resident {
+            let bytes = encode(value.value(), stored)?;
+            let size = scalar_extent(stored)?;
+            self.sponsor
+                .borrow_mut()
+                .with(|process| process.write_home(original.home, offset, &bytes[..size]))?;
+            return Ok(None);
+        }
+        let resident_cell = Rc::new(Resident {
+            sponsor: self.sponsor.clone(),
+            home: original.home,
+            offset,
+            logical,
+            stored,
+        });
+        resident_cell.write(value.value())?;
+        original
+            .cells
+            .insert(value.path().to_vec(), resident_cell.clone());
+        established_here.insert((
+            original.root.namespace(),
+            original.root.allocation(),
+            value.path().to_vec(),
+        ));
+        Ok(Some(resident_cell as Rc<dyn TerminalScalarBacking>))
     }
 
     pub(super) fn reference_slot(

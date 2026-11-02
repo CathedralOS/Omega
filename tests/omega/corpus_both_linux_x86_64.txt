@@ -6718,6 +6718,8 @@ pass/providers/runtime_boundary_owned_array_cycle_exit built 6044ms exit:70 inte
 pass/providers/runtime_boundary_primitive_array_argument_exit built 5882ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/providers/runtime_boundary_qualified_state_exit built 2009ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/providers/runtime_closed_provider_and_assumed_chain_exit built 2315ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/providers/runtime_foreign_leaf_borrowed_byte_argument_exit built 42049ms exit:70 interpreter-exit:70 interpreter:agrees @6b68f53a1f44+wt
+pass/providers/runtime_foreign_leaf_slice_element_argument_exit built 39723ms exit:70 interpreter-exit:70 interpreter:agrees @6b68f53a1f44+wt
 pass/providers/runtime_generic_boundary_relay_exit built 1916ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/providers/runtime_generic_boundary_relay_places_exit built 3390ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/providers/runtime_generic_case_extraction_exit built 4459ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
