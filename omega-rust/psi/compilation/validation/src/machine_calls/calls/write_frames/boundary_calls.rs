@@ -22,7 +22,7 @@ use super::reference_origins::exclusive_reference_origins;
 use super::stored_origins::StoredLocalOrigins;
 use super::type_capabilities::type_may_carry_write_in;
 use super::type_instantiation::{
-    TypeBindings, push_generic_application_bindings, substituted_head,
+    AppliedCallWriteSignature, TypeBindings, push_generic_application_bindings, substituted_head,
 };
 use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
 use crate::frozen_program::expression_table;
@@ -826,13 +826,11 @@ pub(super) fn known_requirement_call_written_paths_for_parts(
     }
     let signature =
         requirement_signature_for_site(program, current_machine, receiver, target, site)?;
-    let parameters = program.state_signature_parameters(signature);
-    let paired = parameters.iter().collect::<Vec<_>>();
-    if paired.len() != arguments.len() {
-        return None;
-    }
     let mut written = Vec::new();
-    let bindings = super::type_instantiation::signature_call_type_bindings_seeded(
+    let AppliedCallWriteSignature {
+        signature,
+        bindings,
+    } = super::type_instantiation::applied_call_write_signature(
         program,
         current_machine,
         signature,
@@ -840,6 +838,8 @@ pub(super) fn known_requirement_call_written_paths_for_parts(
         arguments,
         Vec::new(),
     )?;
+    let paired =
+        super::type_instantiation::signature_arity_parameters(program, signature, arguments)?;
     boundary_written_argument_paths(
         program,
         current_machine,
@@ -1018,9 +1018,10 @@ pub(super) fn known_boundary_call_written_paths_for_parts(
     } else {
         Vec::new()
     };
-    let parameters =
-        super::type_instantiation::signature_arity_parameters(program, signature, arguments)?;
-    let bindings = super::type_instantiation::signature_call_type_bindings_seeded(
+    let AppliedCallWriteSignature {
+        signature,
+        bindings,
+    } = super::type_instantiation::applied_call_write_signature(
         program,
         current_machine,
         signature,
@@ -1028,6 +1029,8 @@ pub(super) fn known_boundary_call_written_paths_for_parts(
         arguments,
         bindings,
     )?;
+    let parameters =
+        super::type_instantiation::signature_arity_parameters(program, signature, arguments)?;
 
     boundary_written_argument_paths(
         program,
@@ -1141,7 +1144,10 @@ pub(super) fn boundary_result_origins(
         bindings,
     } = selected;
     let arguments = expression_table(program).expression_handles(call.arguments);
-    let mut bindings = super::type_instantiation::signature_call_type_bindings_seeded(
+    let AppliedCallWriteSignature {
+        signature,
+        mut bindings,
+    } = super::type_instantiation::applied_call_write_signature(
         program,
         current_machine,
         signature,
@@ -1490,12 +1496,10 @@ pub(super) fn requirement_result_origins(
     );
     let signature = signature?;
     let arguments = expression_table(program).expression_handles(call.arguments);
-    let parameters = program.state_signature_parameters(signature);
-    let paired = parameters.iter().collect::<Vec<_>>();
-    if paired.len() != arguments.len() {
-        return None;
-    }
-    let mut bindings = super::type_instantiation::signature_call_type_bindings_seeded(
+    let AppliedCallWriteSignature {
+        signature,
+        mut bindings,
+    } = super::type_instantiation::applied_call_write_signature(
         program,
         current_machine,
         signature,
@@ -1503,6 +1507,8 @@ pub(super) fn requirement_result_origins(
         arguments,
         Vec::new(),
     )?;
+    let paired =
+        super::type_instantiation::signature_arity_parameters(program, signature, arguments)?;
     let referent = exclusive_result_referent(program, signature, &bindings)?;
 
     match exclusive_boundary_result_origins(
@@ -1668,8 +1674,8 @@ fn owned_storage_may_hold_inner(
     ) && matches!(
         program.type_reference_table.type_reference(referent),
         TypeReferenceNode::FixedArray { .. }
-    ) && (!array_lengths_are_literal(program, container)
-        || !array_lengths_are_literal(program, referent))
+    ) && (!array_shape_is_closed(program, container, bindings)
+        || !array_shape_is_closed(program, referent, bindings))
     {
         return None;
     }
@@ -1777,18 +1783,27 @@ fn owned_storage_may_hold_inner(
     }
 }
 
-/// Literal lengths can prove arrays different without assumptions about a
-/// generic caller. Other length forms stay conservative when type equality
-/// has not already established that the arrays are the same.
-fn array_lengths_are_literal(
+/// Unequal type identities exclude an array alias only when its whole shape
+/// is known. Resolve nested type arguments in their supplying scope; an open
+/// element type or length can still become equal when the caller chooses it.
+fn array_shape_is_closed(
     program: &dyn crate::CheckingInput,
-    mut reference: TypeReferenceHandle,
+    reference: TypeReferenceHandle,
+    bindings: &TypeBindings,
 ) -> bool {
-    for _ in 0..program.type_reference_table.type_reference_count() {
-        reference = match live_unconstrained_type(program, reference) {
-            Some(reference) => reference,
-            None => return false,
-        };
+    let (scopes, scope) =
+        super::type_instantiation::DeclarationScopes::from_bindings(bindings.clone());
+    let mut pending = vec![(reference, scope)];
+    let mut visited = Vec::new();
+    while let Some((reference, scope)) = pending.pop() {
+        let (reference, scope) = scopes.head(program, reference, scope);
+        if visited.contains(&(reference, scope)) {
+            continue;
+        }
+        visited.push((reference, scope));
+        if program.primitive_type_reference(reference).is_some() {
+            continue;
+        }
         match program.type_reference_table.type_reference(reference) {
             TypeReferenceNode::FixedArray {
                 element_type,
@@ -1797,12 +1812,23 @@ fn array_lengths_are_literal(
                 if !matches!(length, typed_trees::types::FixedArrayLength::Literal(_)) {
                     return false;
                 }
-                reference = *element_type;
+                pending.push((*element_type, scope));
             }
-            _ => return true,
+            TypeReferenceNode::Constrained { base_type, .. } => pending.push((*base_type, scope)),
+            TypeReferenceNode::Reference { referee, .. } => pending.push((*referee, scope)),
+            TypeReferenceNode::Slice { element_type } => pending.push((*element_type, scope)),
+            TypeReferenceNode::Unit => {}
+            TypeReferenceNode::Named { symbol, .. } => {
+                if program.data_type_parameter_by_symbol(*symbol).is_some() || !symbol.is_valid() {
+                    return false;
+                }
+            }
+            // Applied nominal arguments may still contain an unknown type or
+            // count. Exact equality above handles known equal applications.
+            _ => return false,
         }
     }
-    false
+    true
 }
 
 /// Is `container`'s root the only position inside its declared storage that

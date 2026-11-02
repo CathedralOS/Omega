@@ -7,7 +7,9 @@
 
 use super::caller_aliases::{CallerWriteSite, caller_statement_owner};
 use crate::frozen_program::expression_table;
-use crate::machine_calls::calls::{CallSite, call_binding_correspondence};
+use crate::machine_calls::calls::{
+    CallSite, call_binding_correspondence, requirement_contract_signature,
+};
 use typed_trees::data::{TypeParameter, TypeParameterKind};
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
@@ -108,17 +110,28 @@ pub(super) fn signature_arity_parameters<'a>(
     (parameters.len() == arguments.len()).then_some(parameters)
 }
 
-pub(super) fn signature_call_type_bindings_seeded(
-    program: &dyn crate::CheckingInput,
+/// A call's prepared declaration and arguments must travel together: its
+/// parameter identities can differ from the original declaration even when
+/// both declarations name the same operation.
+pub(super) struct AppliedCallWriteSignature<'program> {
+    pub signature: &'program StateSignature,
+    pub bindings: TypeBindings,
+}
+
+pub(super) fn applied_call_write_signature<'program>(
+    program: &'program dyn crate::CheckingInput,
     current_machine: &Machine,
-    signature: &StateSignature,
+    signature: &'program StateSignature,
     site: CallerWriteSite<'_>,
     arguments: &[ExpressionHandle],
     bindings: TypeBindings,
-) -> Option<TypeBindings> {
+) -> Option<AppliedCallWriteSignature<'program>> {
     let parameters = program.state_signature_type_parameters(signature);
     if parameters.is_empty() {
-        return Some(bindings);
+        return Some(AppliedCallWriteSignature {
+            signature,
+            bindings,
+        });
     }
     let call = match site {
         CallerWriteSite::Call(call) => CallSite::Statement(call),
@@ -130,25 +143,46 @@ pub(super) fn signature_call_type_bindings_seeded(
         // existing type-only inference until they retain one, too. A failed
         // saved call above must never fall back to guessing from its operands.
         CallerWriteSite::Transition(_) => {
-            return transition_signature_type_bindings(
+            let bindings = transition_signature_type_bindings(
                 program,
                 current_machine,
                 signature,
                 site,
                 arguments,
                 bindings,
-            );
+            )?;
+            return Some(AppliedCallWriteSignature {
+                signature,
+                bindings,
+            });
         }
         CallerWriteSite::Statement(_) => return None,
     };
-    let correspondence =
-        call_binding_correspondence(program, current_machine.symbol, &call).ok()?;
+    let (_, applied) = requirement_contract_signature(program, current_machine.symbol, &call)?;
+    if applied.symbol != signature.symbol {
+        return None;
+    }
+    let signature = applied;
+    let parameters = program.state_signature_type_parameters(signature);
+    let correspondence = call_binding_correspondence(program, current_machine.symbol, &call)
+        .inspect_err(|reason| {
+            if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                eprintln!(
+                    "STRUCT write arguments caller={} callee={} reason={reason}",
+                    current_machine.name, signature.name
+                );
+            }
+        })
+        .ok()?;
     if correspondence.public_owner != signature.symbol {
         return None;
     }
     let saved =
         expression_table(program).static_machine_application_bindings(call.authored_application());
-    let mut bindings = bindings;
+    // The prepared declaration already contains the trait's supplied types.
+    // Applying the original trait arguments again could replace names inside
+    // the caller's own arguments. Only its fresh method parameters remain here.
+    let mut bindings = Vec::with_capacity(parameters.len());
     for parameter in parameters {
         let authored = correspondence
             .parameters
@@ -171,7 +205,10 @@ pub(super) fn signature_call_type_bindings_seeded(
         }
         bindings.push((parameter.symbol, actual));
     }
-    Some(bindings)
+    Some(AppliedCallWriteSignature {
+        signature,
+        bindings,
+    })
 }
 
 fn transition_signature_type_bindings(
