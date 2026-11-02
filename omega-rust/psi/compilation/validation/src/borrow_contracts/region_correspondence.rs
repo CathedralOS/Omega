@@ -24,6 +24,7 @@ enum RegionEnvironment<'scope> {
         bindings: &'scope [super::callable_regions::AppliedRegionBinding],
     },
     Bound(&'scope RegionIdentity),
+    CapturedSlot(typed_trees::type_identity::LifetimeParameterIdentity),
 }
 
 struct RejectedRegionComparison {
@@ -56,6 +57,9 @@ impl RegionEnvironment<'_> {
                 .find(|(parameter, _)| parameter == name.as_str())
                 .map(|(_, identity)| identity.clone()),
             Self::Bound(region) => Some(region.clone()),
+            Self::CapturedSlot(region) => {
+                Some(RegionIdentity::Captured(region.declaration, region.ordinal))
+            }
             Self::Captured { owner, bindings } => captured_lifetimes(program, owner)
                 .into_iter()
                 .rev()
@@ -90,6 +94,10 @@ struct RegionScope<'scope> {
     arguments: RegionEnvironment<'scope>,
     output_elisions: &'scope [(TypeReferenceHandle, RegionIdentity)],
     captured: &'scope [super::callable_regions::AppliedRegionBinding],
+    /// The same simultaneous prefix as substitutions; a supplied operand
+    /// cannot reactivate the receiving frame cut by named_alias.
+    application_scopes: &'scope [typed_trees::type_identity::AppliedTypeIdentityScope<'scope>],
+    argument_owner: SymbolHandle,
 }
 
 impl TypeRegionScope for RegionScope<'_> {
@@ -116,6 +124,35 @@ impl TypeRegionScope for RegionScope<'_> {
             // including a simultaneous operand prefix selected by named_alias.
             return self;
         }
+        let application_owner = program.lifetime_declaration_owner(owner);
+        if application_owner.is_valid()
+            && let Some((ordinal, application)) = self
+                .application_scopes
+                .iter()
+                .enumerate()
+                .rev()
+                .find(|(_, application)| {
+                    program.lifetime_declaration_owner(application.declaration) == application_owner
+                })
+            && ordinal < self.starts.len()
+            && ordinal < self.applications.len()
+        {
+            let end = self
+                .starts
+                .get(ordinal + 1)
+                .copied()
+                .unwrap_or(self.substitutions.len());
+            if end <= self.substitutions.len() && self.starts[ordinal] <= end {
+                self.declaration = application.declaration;
+                self.regions = RegionEnvironment::Resolved(&self.applications[ordinal]);
+                self.substitutions = &self.substitutions[..end];
+                self.starts = &self.starts[..=ordinal];
+                self.applications = &self.applications[..=ordinal];
+                self.application_scopes = &self.application_scopes[..=ordinal];
+                self.output_elisions = &[];
+                return self;
+            }
+        }
         self.regions = RegionEnvironment::Captured {
             owner,
             bindings: self.captured,
@@ -127,6 +164,7 @@ impl TypeRegionScope for RegionScope<'_> {
             self.substitutions = &[];
             self.starts = &[];
             self.applications = &[];
+            self.application_scopes = &[];
         }
         self
     }
@@ -140,6 +178,16 @@ impl TypeRegionScope for RegionScope<'_> {
             super::callable_regions::applied_region(program, self.captured, region)
         {
             self.regions = RegionEnvironment::Bound(argument);
+            self
+        } else if let Some((argument, true)) =
+            typed_trees::type_identity::apply_resolved_lifetime_parameter_identity(
+                program.typed_program(),
+                region,
+                self.argument_owner,
+                self.application_scopes,
+            )
+        {
+            self.regions = RegionEnvironment::CapturedSlot(argument);
             self
         } else {
             self.enter_operand(program, region.declaration)
@@ -181,6 +229,8 @@ impl TypeRegionScope for RegionScope<'_> {
         self.substitutions = &substitutions[..*start];
         self.starts = &starts[..scope_ordinal];
         self.applications = &applications[..applications.len().min(scope_ordinal)];
+        self.application_scopes =
+            &self.application_scopes[..self.application_scopes.len().min(scope_ordinal)];
         self.output_elisions = &[];
         // This operand belongs to the preceding application. Even recursive
         // calls sharing a declaration cannot inherit this receiver's bindings.
@@ -203,6 +253,8 @@ fn contract_scope<'scope>(
         arguments: RegionEnvironment::Resolved(&regions.arguments),
         output_elisions: &[],
         captured: &regions.bindings,
+        application_scopes: contract.application_scopes,
+        argument_owner: contract.argument_owner,
     }
 }
 

@@ -298,6 +298,8 @@ pub struct GenericConformanceBound {
     /// The bound trait, or a transparent refinement of one.
     pub trait_symbol: SymbolHandle,
     pub trait_name: Identifier,
+    /// Explicit trait region operands in declaration order, separate from static slots.
+    pub lifetime_arguments: Vec<Identifier>,
     pub arguments: Vec<TypeReferenceHandle>,
 }
 

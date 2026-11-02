@@ -7,6 +7,7 @@ pub(crate) enum ExpressionContext {
     ProofFact,
     GroupedProofFact,
     LogicalProofFact,
+    LogicalTypeExpressionNoStructLiteral,
     LogicalValue,
     GroupedLogicalProofFact,
 }
@@ -37,6 +38,7 @@ impl ExpressionContext {
                 | Self::LogicalProofFact
                 | Self::GroupedLogicalProofFact
                 | Self::TypeExpressionNoStructLiteral
+                | Self::LogicalTypeExpressionNoStructLiteral
         )
     }
 
@@ -55,7 +57,10 @@ impl ExpressionContext {
     pub(crate) fn allows_logical_subject(self) -> bool {
         matches!(
             self,
-            Self::LogicalProofFact | Self::GroupedLogicalProofFact | Self::LogicalValue
+            Self::LogicalProofFact
+                | Self::GroupedLogicalProofFact
+                | Self::LogicalTypeExpressionNoStructLiteral
+                | Self::LogicalValue
         )
     }
 

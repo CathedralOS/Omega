@@ -846,8 +846,7 @@ helper that passes does not close an item.
     to ordinary resource-backed Representation contracts and reflection-specialized library adapters with
     explicit resources, failures, full supported-value
     coverage, round-trip/preservation obligations and optional proved-total
-    forwarding. Demonstrate a separately authored encoded format family and
-    composed cross-representation conversion without compiler format recognition.
+    forwarding.
     Reuse WIRE-CODEC-LIBRARY's reflection/codec route, not a second generator.
   - Migrate Rust and Omega producers, bundled libraries, samples and fixtures;
     delete declaration-level/domain layout selection, empty policy-data and

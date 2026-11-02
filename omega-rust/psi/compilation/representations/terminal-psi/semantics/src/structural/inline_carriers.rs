@@ -92,8 +92,8 @@ pub fn validate_inline_carriers(
                 )
             }
             (_, StructuralTypeShape::ByteSequence(declared)) => {
-                // Stored access belongs to the field. Its declared byte type
-                // names the descriptor without that loan's access shell.
+                // The declaration may retain the stored descriptor's access.
+                // When it does, that access must agree with this exact field.
                 field
                     .field_type
                     .byte_sequence_carrier()
@@ -324,6 +324,14 @@ mod tests {
                 .id,
             declarations[1].id
         );
+        declarations[1].shape = StructuralTypeShape::ByteSequence(carrier);
+        validate_inline_carriers(&declarations, &declarations[0]).unwrap();
+        assert_eq!(
+            crate::runtime_structural_path_tip(declarations.iter(), declarations[0].id, &path)
+                .unwrap()
+                .id,
+            declarations[1].id
+        );
         for wrong in [
             ByteSequenceCarrier::BoundedView {
                 access: Some(StructuralAccess::SharedBorrow),
@@ -331,6 +339,10 @@ mod tests {
             },
             ByteSequenceCarrier::BoundedView {
                 access: None,
+                capacity: 7,
+            },
+            ByteSequenceCarrier::BoundedView {
+                access: Some(StructuralAccess::MutableBorrow),
                 capacity: 7,
             },
         ] {
@@ -341,5 +353,30 @@ mod tests {
                     .is_none()
             );
         }
+        let StructuralTypeShape::Record { fields, .. } = &mut declarations[0].shape else {
+            panic!("record")
+        };
+        fields[0].field_type =
+            StructuralFieldType::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                access: Some(StructuralAccess::MutableBorrow),
+            });
+        declarations[1].shape =
+            StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                access: Some(StructuralAccess::MutableBorrow),
+            });
+        validate_inline_carriers(&declarations, &declarations[0]).unwrap();
+        assert!(
+            crate::runtime_structural_path_tip(declarations.iter(), declarations[0].id, &path)
+                .is_some()
+        );
+        declarations[1].shape =
+            StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                access: Some(StructuralAccess::SharedBorrow),
+            });
+        assert!(validate_inline_carriers(&declarations, &declarations[0]).is_err());
+        assert!(
+            crate::runtime_structural_path_tip(declarations.iter(), declarations[0].id, &path)
+                .is_none()
+        );
     }
 }

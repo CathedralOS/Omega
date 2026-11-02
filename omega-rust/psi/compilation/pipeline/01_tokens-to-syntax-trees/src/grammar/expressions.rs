@@ -12,3 +12,5 @@ mod primary;
 pub(crate) mod static_argument_values;
 #[cfg(test)]
 mod static_targets_tests;
+
+mod proof_fact_expressions;

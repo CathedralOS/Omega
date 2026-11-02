@@ -85,6 +85,7 @@ pub(crate) fn validate_machine_data_argument(
     parameter: &TypeParameter,
     contract: &MachineParameterContract,
     argument: TypeReferenceHandle,
+    arguments: &[TypeReferenceHandle],
     _type_parameter_scope: TypeParameterScope<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -104,7 +105,7 @@ pub(crate) fn validate_machine_data_argument(
         return;
     }
 
-    let generic_types = program
+    let parameters = program
         .data_definitions()
         .iter()
         .find(|definition| {
@@ -129,9 +130,22 @@ pub(crate) fn validate_machine_data_argument(
                         .span_or_empty(alias.type_parameters)
                 })
         })
-        .unwrap_or(&[])
+        .unwrap_or(&[]);
+    if parameters.len() != arguments.len() {
+        diagnostics.push(Diagnostic::error(format!(
+            "machine parameter `{}` of `{base_name}` lost its complete applied telescope",
+            parameter.name,
+        )));
+        return;
+    }
+    let generic_types = parameters
         .iter()
         .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
+        .collect::<Vec<_>>();
+    let substitutions = parameters
+        .iter()
+        .zip(arguments)
+        .map(|(parameter, argument)| (parameter.symbol, *argument))
         .collect::<Vec<_>>();
     // A distinct in-scope machine parameter is admissible only through the
     // same recursive refinement judgment as a concrete symbol. This is the
@@ -145,6 +159,7 @@ pub(crate) fn validate_machine_data_argument(
         *symbol,
         name.as_str(),
         &generic_types,
+        &substitutions,
         diagnostics,
     );
 }

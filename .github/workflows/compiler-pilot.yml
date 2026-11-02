@@ -97,6 +97,7 @@ jobs:
           key: ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-${{ github.sha }}
           restore-keys: |
             ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-
+            ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-
       - name: Check the exact integration candidate
         id: compiler-check
         run: cargo check --locked -p omega

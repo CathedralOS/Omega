@@ -79,12 +79,14 @@ impl ValueTypeOwner {
     ) -> Option<Vec<TypeReferenceHandle>> {
         match self {
             Self::State { state, .. } => {
-                let place = validation::canonical_place_from_expression_in_state(
+                let Some(place) = validation::canonical_place_from_expression_in_state(
                     program,
                     state,
                     usize::MAX,
                     expression,
-                )?;
+                ) else {
+                    return self.result_type(program, expression).map(|_| Vec::new());
+                };
                 match canonical_place_source_type_application(program, state, usize::MAX, &place) {
                     Some((_, applications)) => Some(applications),
                     None if place.segments.is_empty() => Some(Vec::new()),
@@ -100,7 +102,14 @@ impl ValueTypeOwner {
                 program.state_parameters.span_or_empty(parameters),
                 expression,
             )
-            .map(|(_, applications)| applications),
+            .map(|(_, applications)| applications)
+            .or_else(|| {
+                if validation::canonical_place_from_expression(program, expression).is_some() {
+                    None
+                } else {
+                    self.result_type(program, expression).map(|_| Vec::new())
+                }
+            }),
         }
     }
 

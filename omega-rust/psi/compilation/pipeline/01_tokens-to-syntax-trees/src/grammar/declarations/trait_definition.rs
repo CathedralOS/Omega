@@ -61,6 +61,9 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
     }
     let ((), next) = parse_proposition_parameter_contracts(syntax_trees, type_parameters, input)?;
     input = next;
+    let ((), next) = parse_machine_parameter_contracts(syntax_trees, type_parameters, input)?;
+    validate_machine_parameter_contracts(syntax_trees, type_parameters, next)?;
+    input = next;
     let conformance_bounds = generic_parameters.conformance_bounds;
     input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
     let mut requires = crate::storage::handle_spans::HandleSpanBuilder::new();

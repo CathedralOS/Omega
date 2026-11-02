@@ -76,13 +76,44 @@ impl TerminalExecution<'_> {
             let actual = declaration_type
                 .get(&child.structural_type)
                 .ok_or_else(malformed)?;
-            if inline_carrier_declaration(declaration_type.values(), declaration)
-                .is_none_or(|expected| expected.id != actual.id)
-                || matches!(
-                    binding,
-                    ByteSequenceBinding::Immutable(_) | ByteSequenceBinding::Representation(_)
+            let expected = inline_carrier_declaration(declaration_type.values(), declaration)
+                .ok_or_else(|| {
+                    malformed().in_argument_preparation("byte field has no stored descriptor type")
+                })?;
+            let machine = self.program.machine(self.current_machine)?;
+            let (declared_type, multiplicity) = machine
+                .structural_parameter(argument.place)
+                .map(|parameter| (parameter.structural_type, parameter.multiplicity))
+                .or_else(|| {
+                    let (operation, structural_type) =
+                        machine.producing_operation(argument.place)?;
+                    let result = operation.result.structural()?;
+                    (result.place == argument.place && result.structural_type == structural_type)
+                        .then_some((structural_type, result.multiplicity))
+                })
+                .ok_or_else(|| {
+                    malformed().in_argument_preparation("byte operand has no declared custody")
+                })?;
+            // A value can carry the same pointer and length under a canonical
+            // type or the field's stored type. Require unchanged access and
+            // the operand's actual multiplicity, then transfer its existing
+            // descriptor; matching bytes do not grant a new mutable loan.
+            if declared_type != actual.id
+                || !terminal_semantics::descriptor_value_transfer_matches(
+                    declaration_type.values(),
+                    actual.id,
+                    expected.id,
+                    multiplicity,
                 )
-                || !child.projected_qualifications.is_empty()
+            {
+                return Err(malformed().in_argument_preparation(
+                    "byte field operand changes its descriptor or access",
+                ));
+            }
+            if matches!(
+                binding,
+                ByteSequenceBinding::Immutable(_) | ByteSequenceBinding::Representation(_)
+            ) || !child.projected_qualifications.is_empty()
                 || !terminal_semantics::byte_qualification_predicates_in(
                     self.program.catalogs.structural_domains.iter(),
                     child.structural_type,
