@@ -4038,6 +4038,7 @@ pass/facts/resident_backing_other_state_exit built 18528ms exit:0 interpreter-ex
 pass/facts/resident_backing_parameter_exit built 18367ms exit:0 interpreter-exit:0 interpreter:agrees @9f1ea2b3a8e1
 pass/facts/resident_backing_plain_ram_exit built 7393ms exit:0 interpreter-exit:0 interpreter:agrees @c6b8285077a8+wt
 pass/facts/resident_backing_runtime_cells_exit built 16610ms exit:0 interpreter-exit:0 interpreter:agrees @d86cb017d18f+wt
+pass/facts/resident_backing_runtime_loop_exit built 21179ms exit:0 interpreter-exit:0 interpreter:agrees @e993f43ba966+wt
 pass/facts/resident_backing_target_body_exit built 17432ms exit:0 interpreter-exit:0 interpreter:agrees @9f1ea2b3a8e1
 pass/facts/result_cleanup_guarantees_through_call_result_exit built 2044ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/result_cleanup_guarantees_through_const_name_exit built 2269ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt

@@ -2555,6 +2555,14 @@ fail/facts/resident_backing_runtime_cells_unbounded_rejected rejected 8432ms exp
 	cannot prove requires contract for call merge_vacant_extents from exchange: prefix.taken.length == 0 || suffix.length == 0 || embed(suffix.base) == embed(prefix.taken.base) + embed(prefix.taken.length) (needs fact `left.length == 0 || right.length == 0 || embed(right.base) == embed(left.base) + embed(left.length)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove ensures contract for exit from exchange at statement 6: result.storage.base == storage.base
 	cannot prove ensures contract for exit from exchange at statement 6: result.storage.length == storage.length
+fail/facts/resident_backing_runtime_loop_changed_arrival rejected 8586ms expected @e993f43ba966+wt
+	cannot prove ensures contract for exit from carry at statement 1: result.first.base == first.base
+	cannot prove ensures contract for exit from carry at statement 1: result.second.base == second.base
+fail/facts/resident_backing_runtime_loop_wrong_origin rejected 18867ms expected @e993f43ba966+wt
+	cannot prove ensures contract for exit from carry_pair at statement 2: result.first.base == first.base
+	cannot prove ensures contract for exit from carry_pair at statement 2: result.first.length == first.length
+	cannot prove ensures contract for exit from carry_pair at statement 2: result.second.base == second.base
+	cannot prove ensures contract for exit from carry_pair at statement 2: result.second.length == second.length
 fail/facts/resident_backing_target_body_missing_vacancy rejected 5378ms expected @b3876048c0a2
 	cannot prove requires contract for call partition from allocated: vacant in Extent::Vacant in state `entry`
 	cannot prove initializer of `vacant` in allocated is in domain `Extent::Vacant`; an annotation cannot establish routed qualification
@@ -10031,6 +10039,7 @@ pass/facts/resident_backing_other_state_exit checked 9185ms check-target:macos_a
 pass/facts/resident_backing_parameter_exit checked 9413ms check-target:macos_arm64 @b3876048c0a2
 pass/facts/resident_backing_plain_ram_exit checked 7289ms check-target:macos_arm64 @c6b8285077a8+wt
 pass/facts/resident_backing_runtime_cells_exit checked 10759ms check-target:macos_arm64 @c6b8285077a8+wt
+pass/facts/resident_backing_runtime_loop_exit checked 20840ms check-target:macos_arm64 @6fe30d215f49
 pass/facts/resident_backing_target_body_exit checked 9694ms check-target:macos_arm64 @b3876048c0a2
 pass/facts/result_cleanup_guarantees_through_call_result_exit checked 4216ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/result_cleanup_guarantees_through_const_name_exit checked 3199ms check-target:macos_arm64 @ccdb99ca2214

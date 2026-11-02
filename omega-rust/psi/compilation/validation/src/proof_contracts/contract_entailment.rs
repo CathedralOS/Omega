@@ -88,6 +88,7 @@ mod construction_predicates;
 mod zero_predicates;
 pub use zero_predicates::data_predicates_admit_zero;
 pub(crate) use zero_predicates::domain_predicates_admit_zero;
+pub(crate) mod exit_predicates;
 pub(crate) mod statement_predicates;
 
 pub(crate) use construction_predicates::construction_predicate_judgments;
