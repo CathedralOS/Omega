@@ -1,5 +1,4 @@
 // Fact: Owned semantic schemas retain complete numbered mixed-data descriptions and graph-local relationships under the query author's authority.
-// Expected exit: 0
 use omega::language::core::reflect;
 use foreign;
 
@@ -106,5 +105,5 @@ machine inspect<'graph>(graph: &'graph reflect::TypeSchema) crashes Trap {
     let invalid: reflect::SchemaNode<'graph> = reflect::schema_node(graph, 18446744073709551615u64);
     require_true(reflect::node_role(&invalid) == 0u64);
 }
-const SAVED: reflect::TypeSchema = foreign::describe<Reading>();
+const SAVED: reflect::TypeSchema = describe_here<Reading>();
 machine main() crashes Trap { inspect(&SAVED); }
