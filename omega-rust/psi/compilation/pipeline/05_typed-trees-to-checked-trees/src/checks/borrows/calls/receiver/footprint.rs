@@ -105,6 +105,7 @@ pub(in crate::checks::borrows) fn check_receiver_footprint_against_argument_loan
             |receiver_place: &CapturedPlace, receiver_access, argument_place: &CapturedPlace| {
                 !captured_place_compatibility(
                     program,
+                    &facts.borrow,
                     receiver_place,
                     receiver_access,
                     argument_place,

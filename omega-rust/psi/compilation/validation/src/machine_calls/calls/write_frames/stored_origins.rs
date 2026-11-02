@@ -58,7 +58,7 @@ pub(super) use projections::{project_aggregate_origins, project_stored_origins};
 pub(super) use reference_values::source_reaches_leaf;
 pub(super) use reference_values::{
     CapturedReferenceRead, canonical_reference_origins, canonical_reference_sources,
-    captured_reference_projection_origins, captured_reference_reads,
+    canonical_storage_origins, captured_reference_projection_origins, captured_reference_reads,
     completed_reference_projection_reads, completed_reference_projection_sources,
 };
 pub(super) use storage_projection::{

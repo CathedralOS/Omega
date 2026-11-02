@@ -170,6 +170,24 @@ impl TypeReferenceTable {
             }),
             TypeReferenceNode::Unit => self.insert(TypeReferenceNode::Unit),
         };
+        let argument = source.array_extent_argument(type_reference);
+        if argument.is_valid() {
+            let argument = match self.type_reference(copied) {
+                TypeReferenceNode::FixedArray {
+                    length: FixedArrayLength::Expression(argument),
+                    ..
+                } => *argument,
+                _ => self.copy_with_expressions(
+                    source,
+                    source_expressions,
+                    target_expressions,
+                    argument,
+                    expressions,
+                ),
+            };
+            self.retain_array_extent_argument(copied, argument)
+                .expect("copied array extent child");
+        }
         // Copying retains the same authored declaration identities, like the
         // expression table's occurrence metadata. Lexical remapping below must
         // not turn these original selections into generated local selections.
@@ -233,6 +251,12 @@ impl TypeReferenceTable {
         let symbols = symbols.into();
         if !type_reference.is_valid() {
             return;
+        }
+        let argument = self.array_extent_argument(type_reference);
+        if argument.is_valid()
+            && !matches!(self.type_reference(type_reference), TypeReferenceNode::FixedArray { length: FixedArrayLength::Expression(current), .. } if *current == argument)
+        {
+            self.remap_symbols_in(argument, expressions, symbols);
         }
         // Resolved regions, like operand_lifetime_owner, name the supplying
         // authored declaration. Remapping executable locals does not mint new

@@ -2149,22 +2149,24 @@ fn recognize_structural_state_leaves_from<'a>(
                         continue;
                     }
                     let target_parameters = program.state_parameters(target_state);
-                    let target_frames =
-                        if let Some(expression) = call_expression {
-                            judge.normal_operation_entries(
-                            statement_index, expression,
+                    let target_frames = if let Some(expression) = call_expression {
+                        judge.normal_operation_entries(
+                            statement_index,
+                            expression,
                             super::structural_judgment::normal_returns::OperationOperandDemand::All,
-                            &branch_environment, (invocation, state, state.return_type),
+                            &branch_environment,
+                            (invocation, state, state.return_type),
                         )?
-                        } else {
-                            judge.normal_argument_entries(
-                                argument_handles,
-                                target_parameters,
-                                &branch_environment,
-                                (invocation, state, state.return_type),
-                                None,
-                            )?
-                        };
+                    } else {
+                        judge.normal_argument_entries(
+                            argument_handles,
+                            target_parameters,
+                            super::structural_judgment::normal_returns::OperationOperandDemand::All,
+                            &branch_environment,
+                            (invocation, state, state.return_type),
+                            None,
+                        )?
+                    };
                     let subjects = if judge.requires_value_preservation() {
                         let frames = judge.frame_resolver()?;
                         if let Some(expression) = call_expression {

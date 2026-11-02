@@ -4,9 +4,7 @@
 use super::super::path_instantiation::aggregate_arguments::{
     ArgumentOrigins, ReferenceSource, reference_leaves,
 };
-use super::super::reference_origins::{
-    exclusive_reference_origins, exclusive_reference_referee, referent_has_only_owned_storage,
-};
+use super::super::reference_origins::{exclusive_reference_origins, exclusive_reference_referee};
 use super::super::stored_origins::{declared_origins_for_query, place_suffix, source_reaches_leaf};
 use super::super::{
     ExpressionHandle, FramePathPrecision, FramePlaceOrigin, FrameSourcePlace, Machine,
@@ -83,9 +81,17 @@ pub(in crate::machine_calls::calls::write_frames) fn instantiate_source(
     }
     if let Some(referee) = exclusive_reference_referee(program, parameter.type_reference) {
         let origins = {
-            if !referent_has_only_owned_storage(program, referee) {
-                return None;
-            }
+            // Forwarding an outer reference does not load every descriptor
+            // stored beside its selected place. Authenticate only the returned
+            // owned path. A reference-valued endpoint or an interior descriptor
+            // crossing still fails this walk and needs captured load evidence;
+            // unrelated reference fields cannot erase the outer address.
+            super::super::reference_subjects::validate_referent_projection(
+                program,
+                referee,
+                &relative.source.segments,
+                &Vec::new(),
+            )?;
             exclusive_reference_origins(program, caller_machine, actual, symbols, inference)?
                 .into_iter()
                 .map(ReferenceSource::Symbolic)

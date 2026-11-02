@@ -295,40 +295,40 @@ pub(super) fn exclusive_reference_origins(
                     declared_origin_root(program, current_machine, actual)?;
                     return frame_place_path(program, actual).map(|origin| vec![origin]);
                 };
-                let owned = {
-                    // A generic helper's carrier is judged on the storage the
-                    // call instantiates, not the formal parameter name: bind
-                    // the callee's `Type` parameters from this actual's
-                    // declared type, then run the same owned-storage gate.
-                    let type_parameters = program.machine_type_parameters(callee_machine);
-                    let mut bindings = Vec::new();
-                    if !type_parameters.is_empty() {
-                        let (state, _, _) = caller_statement_owner(
-                            program,
-                            current_machine,
-                            CallerWriteSite::Expression(actual),
-                        )?;
-                        let actual_type = crate::value_custody::places::declared_place_type_raw(
-                            program,
-                            current_machine,
-                            Some(state),
-                            actual,
-                        )?;
-                        if !bind_formal_type(
-                            program,
-                            parameter.type_reference,
-                            actual_type,
-                            type_parameters,
-                            &mut bindings,
-                        ) {
-                            return None;
-                        }
+                // Preserve the exact caller application while validating the
+                // returned owned span. Unrelated stored descriptors do not
+                // relocate this outer pointer, and another descriptor crossing
+                // still requires its own captured source rather than a type.
+                let type_parameters = program.machine_type_parameters(callee_machine);
+                let mut bindings = Vec::new();
+                if !type_parameters.is_empty() {
+                    let (state, _, _) = caller_statement_owner(
+                        program,
+                        current_machine,
+                        CallerWriteSite::Expression(actual),
+                    )?;
+                    let actual_type = crate::value_custody::places::declared_place_type_raw(
+                        program,
+                        current_machine,
+                        Some(state),
+                        actual,
+                    )?;
+                    if !bind_formal_type(
+                        program,
+                        parameter.type_reference,
+                        actual_type,
+                        type_parameters,
+                        &mut bindings,
+                    ) {
+                        return None;
                     }
-                    referent_has_only_owned_storage_in(program, referee, &bindings)
-                };
-                if !owned {
-                    return None;
                 }
+                super::reference_subjects::validate_referent_projection(
+                    program,
+                    referee,
+                    &result_place.source.segments,
+                    &bindings,
+                )?;
 
                 exclusive_reference_origins(program, current_machine, actual, symbols, inference)
             },

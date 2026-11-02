@@ -223,3 +223,7 @@ compiler source is retained by checkpoint `3bd254ac6193`. Raw observations and
 the exact source bundle are retained under `build/advance/` and
 `build/corpus-source/` in the owning worktree. Other hosts and the broader parent
 acceptance remain unqualified by this run.
+
+[Boolean equality and inequality requirements](local/relation_requirement/README.md)
+carry the same signed private-cycle fact through all nine places, with
+strict-descent twins and focused Boolean/partial-operand controls.

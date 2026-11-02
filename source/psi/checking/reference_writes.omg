@@ -1,0 +1,383 @@
+use psi::checking::checker;
+use psi::checking::evaluation;
+use psi::checking::places;
+use psi::checking::reference_backings;
+use psi::checking::reference_origins;
+use psi::checking::references;
+use psi::checking::snapshots;
+use psi::checks::checks;
+use psi::source::source;
+use psi::syntax::syntax;
+use psi::types::types;
+
+// Executed calls preserve earlier operand reads before invalidating storage;
+// a universal refinement world has no executed operand history.
+public data ReferenceRelease [copy] {
+    case Refinement;
+    case Invocation(expression: Expression, lender: u64 in Trapping);
+    case Assignment(source: u64 in Trapping, source_span: SourceSpan);
+}
+
+// Place-index scratch for the transitive storage a container's exclusive
+// descriptors can reach. Collect before forgetting: replacing an aggregate
+// must retire its old nested pointees before its descriptor captures expire.
+data ReferenceWrites {
+    pending: [u64 in Trapping; 256];
+    seen: [bool; 256];
+    written: [bool; 256];
+    contents: [bool; 256];
+    count: u64 in Trapping;
+    end: u64 in Trapping;
+    views: [u64 in Trapping; 256];
+    views_seen: [bool; 256];
+    view_count: u64 in Trapping;
+    view_head: u64 in Trapping;
+}
+
+public machine Checker::forget_exclusive_referents(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, root: u64 in Trapping, release: ReferenceRelease)
+crashes Trap
+{
+    let mut writes: ReferenceWrites;
+    writes.count = 0;
+    writes.view_count = 0;
+    writes.view_head = 0;
+    writes.end = checker.place_count as u64 in Trapping;
+    Checker::open_reference_writes(&mut writes);
+    Checker::enqueue_reference_write(&mut writes, root);
+    Checker::seed_reference_view_write(checker, syntax, &mut writes, root, release);
+    Checker::collect_reference_writes(checker, syntax, typing, &mut writes, release);
+    Checker::apply_reference_writes(checker, syntax, typing, &writes, release);
+}
+
+machine Checker::open_reference_writes(writes: &mut ReferenceWrites)
+crashes Trap
+{
+    transition { _ -> next(writes, 0) }
+    machine next(writes: &mut ReferenceWrites, index: u64 in Trapping) {
+        transition index < 256 { true -> clear(writes, index) false -> {} }
+    }
+    machine clear(writes: &mut ReferenceWrites, index: u64 in Trapping)
+    requires index < 256
+    {
+        writes.pending[index] = 0;
+        writes.seen[index] = false;
+        writes.written[index] = false;
+        writes.contents[index] = true;
+        writes.views[index] = 0;
+        writes.views_seen[index] = false;
+        transition { _ -> next(writes, index + 1) }
+    }
+}
+
+machine Checker::enqueue_reference_write(writes: &mut ReferenceWrites, place: u64 in Trapping)
+crashes Trap
+{
+    transition place > 0 && place <= writes.end && place <= 256 {
+        true -> candidate(writes, place, place - 1)
+        false -> {}
+    }
+    machine candidate(writes: &mut ReferenceWrites, place: u64 in Trapping, index: u64 in Trapping)
+    requires index < 256
+    {
+        transition !writes.seen[index] && writes.count < 256 {
+            true -> enqueue(writes, place, index, writes.count)
+            false -> {}
+        }
+    }
+    machine enqueue(writes: &mut ReferenceWrites, place: u64 in Trapping, index: u64 in Trapping, tail: u64 in Trapping)
+    requires index < 256
+    requires tail < 256
+    {
+        writes.seen[index] = true;
+        writes.pending[tail] = place;
+        writes.count = tail + 1;
+    }
+}
+
+machine Checker::collect_reference_writes(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, writes: &mut ReferenceWrites, release: ReferenceRelease)
+crashes Trap
+{
+    transition { _ -> next(checker, syntax, typing, writes, release, 0) }
+    machine next(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, writes: &mut ReferenceWrites, release: ReferenceRelease, head: u64 in Trapping) {
+        transition head < writes.count && head < 256 {
+            true -> scan(checker, syntax, typing, writes, release, head, 0)
+            false -> views(checker, syntax, typing, writes, release, head)
+        }
+    }
+    machine scan(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, writes: &mut ReferenceWrites, release: ReferenceRelease, head: u64 in Trapping, index: u64 in Trapping)
+    requires head < 256
+    {
+        transition index < writes.end && index < 256 {
+            true -> inspect(checker, syntax, typing, writes, release, head, index)
+            false -> next(checker, syntax, typing, writes, release, head + 1)
+        }
+    }
+    machine inspect(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, writes: &mut ReferenceWrites, release: ReferenceRelease, head: u64 in Trapping, index: u64 in Trapping)
+    requires head < 256
+    {
+        let root: u64 in Trapping = writes.pending[head];
+        Checker::collect_reference_descriptor(checker, syntax, typing, writes, release, root, index);
+        transition { _ -> scan(checker, syntax, typing, writes, release, head, index + 1) }
+    }
+    machine views(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, writes: &mut ReferenceWrites, release: ReferenceRelease, head: u64 in Trapping) {
+        transition writes.view_head < writes.view_count && writes.view_head < 256 {
+            true -> view(checker, syntax, typing, writes, release, head, writes.view_head)
+            false -> {}
+        }
+    }
+    machine view(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, writes: &mut ReferenceWrites, release: ReferenceRelease, head: u64 in Trapping, index: u64 in Trapping)
+    requires index < 256
+    {
+        let backing: u64 in Trapping = writes.views[index];
+        writes.view_head = index + 1;
+        Checker::collect_reference_view(checker, syntax, writes, release, backing);
+        transition { _ -> next(checker, syntax, typing, writes, release, head) }
+    }
+}
+
+machine Checker::collect_reference_descriptor(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, writes: &mut ReferenceWrites, release: ReferenceRelease, root: u64 in Trapping, index: u64 in Trapping)
+crashes Trap
+{
+    let entry: Place = Checker::place_at(checker, index);
+    let row: TypeRow = TypeTable::row(&typing.types, entry.type_handle);
+    let within: bool = index + 1 != root && Checker::within(checker, index + 1, root);
+    transition within && row.kind == TypeKind::Reference && row.access != ReferenceAccess::Shared {
+        true -> origin(checker, syntax, writes, release, index + 1, entry.parent)
+        false -> {}
+    }
+    machine origin(checker: &mut Checker, syntax: &SyntaxTrees, writes: &mut ReferenceWrites, release: ReferenceRelease, descriptor: u64 in Trapping, parent: u64 in Trapping) {
+        let origin: ReferenceOrigin = Checker::reference_origin(checker, descriptor);
+        transition origin {
+            ReferenceOrigin::Unrecorded -> incoming(checker, syntax, writes, release, descriptor, parent)
+            _ -> recorded(checker, syntax, writes, release, origin)
+        }
+    }
+    machine incoming(checker: &mut Checker, syntax: &SyntaxTrees, writes: &mut ReferenceWrites, release: ReferenceRelease, place: u64 in Trapping, parent: u64 in Trapping) {
+        transition Checker::incoming_reference_field(checker, parent) {
+            true -> logical(checker, syntax, writes, release, place)
+            false -> recorded(checker, syntax, writes, release, ReferenceOrigin::Unknown)
+        }
+    }
+    machine logical(checker: &mut Checker, syntax: &SyntaxTrees, writes: &mut ReferenceWrites, release: ReferenceRelease, place: u64 in Trapping) {
+        let origin: ReferenceOrigin = Checker::exact_reference_origin(checker, place);
+        Checker::mark_reference_write(checker, syntax, writes, release, origin);
+    }
+    machine recorded(checker: &mut Checker, syntax: &SyntaxTrees, writes: &mut ReferenceWrites, release: ReferenceRelease, origin: ReferenceOrigin) {
+        Checker::mark_reference_write(checker, syntax, writes, release, origin);
+    }
+}
+
+machine Checker::seed_reference_view_write(checker: &mut Checker, syntax: &SyntaxTrees, writes: &mut ReferenceWrites, root: u64 in Trapping, release: ReferenceRelease)
+crashes Trap
+{
+    let backing: u64 in Trapping = Checker::reference_view_backing(checker, root);
+    transition backing > 0 {
+        true -> mark(checker, syntax, writes, release, root, backing)
+        false -> {}
+    }
+    machine mark(checker: &mut Checker, syntax: &SyntaxTrees, writes: &mut ReferenceWrites, release: ReferenceRelease, place: u64 in Trapping, backing: u64 in Trapping) {
+        Checker::mark_reference_write(checker, syntax, writes, release, ReferenceOrigin::View { place: place, backing: backing });
+    }
+}
+
+machine Checker::mark_reference_write(checker: &mut Checker, syntax: &SyntaxTrees, writes: &mut ReferenceWrites, release: ReferenceRelease, origin: ReferenceOrigin)
+crashes Trap
+{
+    transition origin {
+        ReferenceOrigin::Exact { place } -> mark(writes, place, false)
+        ReferenceOrigin::Footprint { place } -> mark(writes, place, true)
+        ReferenceOrigin::View { place, backing } -> view(checker, syntax, writes, release, place, backing)
+        _ -> unknown(checker, syntax, release)
+    }
+    machine mark(writes: &mut ReferenceWrites, place: u64 in Trapping, contents: bool) {
+        transition place > 0 && place <= writes.end && place <= 256 {
+            true -> written(writes, place, place - 1, contents)
+            false -> {}
+        }
+    }
+    machine written(writes: &mut ReferenceWrites, place: u64 in Trapping, index: u64 in Trapping, contents: bool)
+    requires index < 256
+    {
+        writes.written[index] = true;
+        writes.contents[index] = writes.contents[index] && contents;
+        Checker::enqueue_reference_write(writes, place);
+    }
+    machine view(checker: &mut Checker, syntax: &SyntaxTrees, writes: &mut ReferenceWrites, release: ReferenceRelease, place: u64 in Trapping, backing: u64 in Trapping) {
+        mark(writes, place, false);
+        transition backing > 0 && backing <= checker.reference_view_count && backing <= 256 {
+            true -> candidate(writes, backing, backing - 1)
+            false -> unknown(checker, syntax, release)
+        }
+    }
+    machine candidate(writes: &mut ReferenceWrites, backing: u64 in Trapping, index: u64 in Trapping)
+    requires index < 256
+    {
+        transition !writes.views_seen[index] && writes.view_count < 256 {
+            true -> enqueue(writes, backing, index, writes.view_count)
+            false -> {}
+        }
+    }
+    machine enqueue(writes: &mut ReferenceWrites, backing: u64 in Trapping, index: u64 in Trapping, tail: u64 in Trapping)
+    requires index < 256
+    requires tail < 256
+    {
+        writes.views_seen[index] = true;
+        writes.views[tail] = backing;
+        writes.view_count = tail + 1;
+    }
+    machine unknown(checker: &mut Checker, syntax: &SyntaxTrees, release: ReferenceRelease) {
+        transition release {
+            ReferenceRelease::Invocation { expression, lender } -> rejected(checker, expression.source_span)
+            ReferenceRelease::Assignment { source, source_span } -> rejected(checker, source_span)
+            ReferenceRelease::Refinement -> logical(checker, syntax)
+        }
+    }
+    machine logical(checker: &mut Checker, syntax: &SyntaxTrees) {
+        let item: MachineItem = SyntaxTrees::machine_item(syntax, checker.machine);
+        Checker::reject_reference_release(checker, item.source_span);
+    }
+    machine rejected(checker: &mut Checker, source_span: SourceSpan) {
+        Checker::reject_reference_release(checker, source_span);
+    }
+}
+
+machine Checker::collect_reference_view(checker: &mut Checker, syntax: &SyntaxTrees, writes: &mut ReferenceWrites, release: ReferenceRelease, backing: u64 in Trapping)
+crashes Trap
+{
+    transition backing > 0 && backing <= checker.reference_view_count && backing <= 256 {
+        true -> read(checker, syntax, writes, release, backing - 1)
+        false -> unknown(checker, syntax, writes, release)
+    }
+    machine read(checker: &mut Checker, syntax: &SyntaxTrees, writes: &mut ReferenceWrites, release: ReferenceRelease, index: u64 in Trapping)
+    requires index < 256
+    {
+        let view: ReferenceView = checker.reference_views[index];
+        transition view.count > 0 {
+            true -> next(checker, syntax, writes, release, view, 0)
+            false -> unknown(checker, syntax, writes, release)
+        }
+    }
+    machine next(checker: &mut Checker, syntax: &SyntaxTrees, writes: &mut ReferenceWrites, release: ReferenceRelease, view: ReferenceView, offset: u64 in Trapping) {
+        transition offset < view.count {
+            true -> edge(checker, syntax, writes, release, view, offset, view.first + offset)
+            false -> {}
+        }
+    }
+    machine edge(checker: &mut Checker, syntax: &SyntaxTrees, writes: &mut ReferenceWrites, release: ReferenceRelease, view: ReferenceView, offset: u64 in Trapping, index: u64 in Trapping) {
+        transition index < checker.reference_backing_count && index < 256 {
+            true -> origin(checker, syntax, writes, release, view, offset, index)
+            false -> unknown(checker, syntax, writes, release)
+        }
+    }
+    machine origin(checker: &mut Checker, syntax: &SyntaxTrees, writes: &mut ReferenceWrites, release: ReferenceRelease, view: ReferenceView, offset: u64 in Trapping, index: u64 in Trapping)
+    requires index < 256
+    {
+        let origin: ReferenceOrigin = checker.reference_backings[index];
+        Checker::mark_reference_write(checker, syntax, writes, release, origin);
+        transition { _ -> next(checker, syntax, writes, release, view, offset + 1) }
+    }
+    machine unknown(checker: &mut Checker, syntax: &SyntaxTrees, writes: &mut ReferenceWrites, release: ReferenceRelease) {
+        Checker::mark_reference_write(checker, syntax, writes, release, ReferenceOrigin::Unknown);
+    }
+}
+
+// Snapshot every old observation before retiring any collected storage.
+// Clearing an owned descriptor is different from changing the pointee of a
+// descriptor elsewhere; the root reference's captured address survives.
+machine Checker::apply_reference_writes(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, writes: &ReferenceWrites, release: ReferenceRelease)
+crashes Trap
+{
+    transition { _ -> next(checker, syntax, typing, writes, release, true, 0) }
+    machine next(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, writes: &ReferenceWrites, release: ReferenceRelease, snapshotting: bool, index: u64 in Trapping) {
+        transition index < writes.end && index < 256 {
+            true -> inspect(checker, syntax, typing, writes, release, snapshotting, index)
+            false -> finished(checker, syntax, typing, writes, release, snapshotting)
+        }
+    }
+    machine inspect(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, writes: &ReferenceWrites, release: ReferenceRelease, snapshotting: bool, index: u64 in Trapping)
+    requires index < 256
+    {
+        Checker::apply_reference_write(checker, syntax, typing, writes, release, snapshotting, index);
+        transition { _ -> next(checker, syntax, typing, writes, release, snapshotting, index + 1) }
+    }
+    machine finished(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, writes: &ReferenceWrites, release: ReferenceRelease, snapshotting: bool) {
+        transition snapshotting {
+            true -> next(checker, syntax, typing, writes, release, false, 0)
+            false -> {}
+        }
+    }
+}
+
+machine Checker::apply_reference_write(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, writes: &ReferenceWrites, release: ReferenceRelease, snapshotting: bool, index: u64 in Trapping)
+requires index < 256
+crashes Trap
+{
+    transition writes.written[index] {
+        true -> apply(checker, syntax, typing, writes, release, snapshotting, index)
+        false -> {}
+    }
+    machine apply(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, writes: &ReferenceWrites, release: ReferenceRelease, snapshotting: bool, index: u64 in Trapping)
+    requires index < 256
+    {
+        transition snapshotting {
+            true -> snapshot(checker, syntax, typing, release, index + 1)
+            false -> retire(checker, typing, index + 1, writes.contents[index])
+        }
+    }
+    machine snapshot(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, release: ReferenceRelease, place: u64 in Trapping) {
+        transition release {
+            ReferenceRelease::Invocation { expression, lender } -> observed(checker, syntax, typing, expression, lender, place)
+            ReferenceRelease::Refinement -> {}
+            ReferenceRelease::Assignment { source, source_span } -> assigned(checker, syntax, typing, source, place)
+        }
+    }
+    machine assigned(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, source: u64 in Trapping, place: u64 in Trapping) {
+        checker.write_epoch = checker.write_epoch + 1;
+        Checker::snapshot_assignment(checker, syntax, typing, source, place);
+    }
+    machine observed(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, lender: u64 in Trapping, place: u64 in Trapping) {
+        checker.write_epoch = checker.write_epoch + 1;
+        let write: WriteFootprint = WriteFootprint { place: place, callee: 0, whole: true };
+        Checker::snapshot_operands(checker, syntax, typing, expression, lender, write);
+    }
+    machine retire(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, contents: bool) {
+        Checker::forget_reference_descendants(checker, typing, place);
+        transition contents {
+            true -> footprint(checker, typing, place)
+            false -> whole(checker, typing, place)
+        }
+    }
+    machine footprint(checker: &mut Checker, typing: &Typing, place: u64 in Trapping) {
+        Checker::forget_contents(checker, typing, place);
+    }
+    machine whole(checker: &mut Checker, typing: &Typing, place: u64 in Trapping) {
+        Checker::forget_place(checker, typing, place);
+    }
+
+}
+
+machine Checker::reject_reference_release(checker: &mut Checker, source_span: SourceSpan)
+crashes Trap
+{
+    Checks::reject(&mut checker.output, CheckDiagnosticCode::UnsupportedCheck, source_span);
+}
+
+
+// Stores and calls use the same backing closure. The RHS is captured before
+// any possible backing loses facts; only the logical destination is rebound.
+public machine Checker::prepare_reference_store(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, statement: Statement, place: u64 in Trapping)
+crashes Trap
+{
+    let backing: u64 in Trapping = Checker::reference_view_backing(checker, place);
+    transition backing > 0 {
+        true -> view(checker, syntax, typing, statement, place)
+        false -> ordinary(checker, syntax, typing, statement, place)
+    }
+    machine view(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, statement: Statement, place: u64 in Trapping) {
+        let release: ReferenceRelease = ReferenceRelease::Assignment { source: statement.value, source_span: statement.source_span };
+        Checker::forget_exclusive_referents(checker, syntax, typing, place, release);
+    }
+    machine ordinary(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, statement: Statement, place: u64 in Trapping) {
+        Checker::snapshot_assignment(checker, syntax, typing, statement.value, place);
+    }
+}

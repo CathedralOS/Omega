@@ -184,6 +184,12 @@ containing `main.omg`, including nested fact-place paths.
 For canonical checking rows after runtime is already qualified, add
 `--checking-only` (manual workflow input `checking_only: true`). It requires
 exact fixture IDs and refuses sample or ordinary CLI execution selectors.
+The ordinary CLI selector `cli_fixtures` also accepts an exact normal-exit
+`samples/cli/...` project. It retains that project's original relative dependency
+paths and numeric source oracle; it does not select descendants or weaken the
+fact-only `samples` selector. Windows hosted application runs explicitly
+provision current-drive `\tmp`, as the filesystem examples require, without
+rewriting their rooted paths.
 Empty entries, duplicates, traversal, missing roots and substring-filter
 collisions refuse before building; malformed input never selects default smoke.
 An unset/empty environment variable leaves the default unchanged. Pass fixtures

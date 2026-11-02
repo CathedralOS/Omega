@@ -88,3 +88,9 @@ This is still a checked-tree realization seam, not the completed Terminal-only
 architecture. Its source-dependent inputs must ultimately become retained
 Terminal evidence. Moving this owner out of the compiler does not claim that
 provider installation already occurs after Terminal production.
+
+Build admission owns [deferred constant evaluation](../../build-evaluation/src/admission/selected_constants.rs).
+It consumes selected numeric identities from this owner and invokes Psi evaluation
+under the exact admitted Build context. Product constants depending on runtime
+provider selection still require portable recipes; a target choice is never
+folded back into shared checked Product source.

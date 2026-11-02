@@ -60,3 +60,8 @@ fixtures are `facts/nested_machine_joint_rank_computed_upper_*` and
 engine observations are in this workbench's `build/computed-upper/`.
 The broader parent acceptance, other declared body forms, storage observations,
 source migration and Omega-written compiler remain open.
+
+[Contracted cursor steps](called_step/README.md) carry the same seven-step fact
+through ordinary helper results, retaining complete scalar argument rosters and
+public result relations. The no-progress twins remove only the helper's strict
+step; ordered-input controls keep later reads separate from earlier snapshots.

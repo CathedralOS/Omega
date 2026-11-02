@@ -44,6 +44,16 @@ enum Subject {
     Boolean(bool),
 }
 
+fn has_boolean_carrier(engine: &Engine<'_>, expression: ExpressionHandle) -> bool {
+    matches!(
+        expression_table(engine.program).expression(expression),
+        ExpressionNode::Boolean(_)
+    ) || engine
+        .source_result_type(expression)
+        .and_then(|reference| engine.program.primitive_type_reference(reference))
+        == Some(PrimitiveType::Bool)
+}
+
 /// Form the complete requirement and prove every feasible result true before
 /// the call can publish its result. The same selective-path operation used by
 /// dispatches handles negation and short-circuit operands, including partial
@@ -80,13 +90,7 @@ pub(super) fn form(
         engine: engine.clone(),
         conditions: Vec::new(),
     };
-    let boolean = matches!(
-        expression_table(program).expression(dispatch.subject),
-        ExpressionNode::Boolean(_)
-    ) || engine
-        .source_result_type(dispatch.subject)
-        .and_then(|reference| program.primitive_type_reference(reference))
-        == Some(PrimitiveType::Bool);
+    let boolean = has_boolean_carrier(engine, dispatch.subject);
     if crate::proof_contracts::contract_entailment::struct_trace() {
         eprintln!(
             "STRUCT declaration-dispatch begin expression={expression:?} boolean={boolean} subject={:?} type={:?}",
@@ -238,15 +242,36 @@ fn condition_paths<'program>(
         ExpressionNode::Binary(binary)
             if path.engine.selected_binary_meaning(expression, binary) =>
         {
-            if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) {
+            // Boolean relations compare completed truth values, not integer
+            // denotations. Form both operands in order on every feasible path;
+            // only the selected short-circuit operations may skip the right.
+            let boolean_relation = matches!(
+                binary.operator,
+                BinaryOperator::Equal | BinaryOperator::NotEqual
+            ) && [binary.left, binary.right]
+                .into_iter()
+                .all(|operand| has_boolean_carrier(&path.engine, operand));
+            if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or)
+                || boolean_relation
+            {
                 let mut cases = Vec::new();
-                for (value, path) in condition_paths(path, binary.left, depth + 1, decisions)? {
-                    if (binary.operator == BinaryOperator::And && !value)
-                        || (binary.operator == BinaryOperator::Or && value)
+                for (left, path) in condition_paths(path, binary.left, depth + 1, decisions)? {
+                    if (binary.operator == BinaryOperator::And && !left)
+                        || (binary.operator == BinaryOperator::Or && left)
                     {
-                        cases.push((value, path));
+                        cases.push((left, path));
                     } else {
-                        cases.extend(condition_paths(path, binary.right, depth + 1, decisions)?);
+                        let mut right_cases =
+                            condition_paths(path, binary.right, depth + 1, decisions)?;
+                        for (right, _) in &mut right_cases {
+                            *right = match binary.operator {
+                                BinaryOperator::And | BinaryOperator::Or => *right,
+                                BinaryOperator::Equal => left == *right,
+                                BinaryOperator::NotEqual => left != *right,
+                                _ => return None,
+                            };
+                        }
+                        cases.append(&mut right_cases);
                     }
                 }
                 return Some(cases);
