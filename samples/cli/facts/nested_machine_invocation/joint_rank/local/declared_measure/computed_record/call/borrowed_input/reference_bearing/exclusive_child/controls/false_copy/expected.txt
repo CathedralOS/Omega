@@ -1,0 +1,1 @@
+data `Progress` declares `[copy]` but field `guard` is not `copy`
