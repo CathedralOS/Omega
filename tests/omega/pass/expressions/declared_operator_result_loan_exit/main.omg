@@ -1,0 +1,20 @@
+// A token-bound body may return a reference into one operand. The result is a loan on
+// that operand, read after the call while both operands stay borrowed. The four fields
+// differ, so selecting the wrong operand or field changes the observed value.
+data Pair { first: u64; second: u64; }
+
+machine + Pair::select<'a, 'b>(left: &'a Pair, right: &'b Pair) -> &'b u64 {
+    &right.second
+}
+
+machine main() crashes Trap {
+    let left: Pair = Pair { first: 1, second: 2 };
+    let right: Pair = Pair { first: 3, second: 4 };
+    let chosen: &u64 = &left + &right;
+    transition chosen == 4 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

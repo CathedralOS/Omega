@@ -1,0 +1,14 @@
+// A nonboundary token-bound machine must own a checked body. Without one it has no
+// supply, and the declaration rejects before any use demands it.
+data Wrapped { value: u8; }
+
+machine + Wrapped::add(left: &Wrapped, right: &Wrapped) -> u64;
+
+machine main() crashes Trap {
+    let left: Wrapped = Wrapped { value: 1 };
+    let right: Wrapped = Wrapped { value: 2 };
+    let sum: u64 = &left + &right;
+    transition sum == 3 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
