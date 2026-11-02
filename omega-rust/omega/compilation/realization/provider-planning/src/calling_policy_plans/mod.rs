@@ -6,7 +6,10 @@
 //!
 //! `boundary_signatures.rs` associates geometry with Source review coordinates.
 //! `plan_computation.rs` prepares authored admission and publishes default or
-//! authored plans from canonical storage. `calling_program.rs` owns the
+//! authored plans from canonical storage. `selected_providers.rs` applies the
+//! canonical invocation-scoped provider choice and rejoins its exact checked
+//! bodies for Psi admission; it does not run another Source selection graph.
+//! `calling_program.rs` owns the
 //! exact source-entry association and finite invocation accounting;
 //! `terminal_execution.rs` runs the canonical code without source,
 //! `policy_signature.rs` encodes canonical ABI input and validates the result,

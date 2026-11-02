@@ -19,6 +19,28 @@ pub struct AuthoredTargetProviders {
 }
 
 impl AuthoredTargetProviders {
+    /// Neutral helper contracts precede the ABI value a Calling policy computes.
+    /// They use ordinary whole-provider selection but grant no native ABI identity.
+    pub(crate) fn unevaluated(
+        services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'_>,
+        body_declarations: &DirectCallDeclarations<SymbolHandle>,
+        defaults: &[ProviderSelection],
+        target: target::TargetProfile,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let candidates =
+            crate::derive_satisfies_plans(crate::ProviderPlanDerivation::unevaluated(
+                services,
+                body_declarations,
+                &[],
+                Some(target.target_name()),
+            ))?;
+        Ok(Self {
+            target: Some(target),
+            defaults: defaults.to_vec(),
+            candidates,
+        })
+    }
+
     pub(crate) fn target(&self) -> Option<target::TargetProfile> {
         self.target
     }
