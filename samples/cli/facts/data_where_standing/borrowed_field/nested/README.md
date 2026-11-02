@@ -28,6 +28,14 @@ neighbor fields and markers. The match entry executes both selections. The
 selected-target entry retains distinct provider tags. Every positive declares
 exit 0 and binds all four hosted targets.
 
+| Descriptor control | Obligation |
+| --- | --- |
+| [Saved pointer](controls/snapshot/main.omg) | A copied scalar pointer keeps its original referent after the local record pointer is replaced. |
+| [Replacement identity](controls/snapshot/invalid/main.omg) | The old value cannot prove equality to a read through the replacement. |
+| [Known local supplier](controls/known_source/main.omg) | A locally constructed descriptor keeps its established supplier. |
+| [Write-only intermediate](controls/write_only/invalid/main.omg) | A write-only reference cannot authorize reading the nested scalar descriptor. |
+| [Suspended descriptor home](controls/suspended_home/invalid/main.omg) | A live exclusive borrow prevents a conflicting descriptor read. |
+
 ## Requirements and evidence
 
 - **Establishment:** constructing `Counter` proves `bounded(value) == true`.

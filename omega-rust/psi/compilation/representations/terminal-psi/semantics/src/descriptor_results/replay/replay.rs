@@ -1817,6 +1817,7 @@ mod snapshot_tests {
         let block = BlockId::new(1).unwrap();
         let positions = [(block, 0), (block, 1), (block, 2)];
         let parameter = location(1);
+        let replacement_parameter = location(2);
         let scalar = StructuralTypeId::new(1).unwrap();
         let carrier = StructuralTypeId::new(2).unwrap();
         let collection = StructuralTypeId::new(3).unwrap();
@@ -1880,15 +1881,28 @@ mod snapshot_tests {
         let mut graph = vec![DescriptorMachine {
             id,
             returns: None,
-            places: vec![DescriptorPlace {
-                place: parameter.root,
-                definition: DescriptorDefinition::Parameter {
-                    position: 0,
-                    access: StructuralAccess::Owned,
-                    structural_type: carrier,
+            places: vec![
+                DescriptorPlace {
+                    place: parameter.root,
+                    definition: DescriptorDefinition::Parameter {
+                        position: 0,
+                        access: StructuralAccess::Owned,
+                        structural_type: carrier,
+                    },
                 },
-            }],
-            place_types: BTreeMap::from([(parameter.root, carrier)]),
+                DescriptorPlace {
+                    place: replacement_parameter.root,
+                    definition: DescriptorDefinition::Parameter {
+                        position: 1,
+                        access: StructuralAccess::Owned,
+                        structural_type: carrier,
+                    },
+                },
+            ],
+            place_types: BTreeMap::from([
+                (parameter.root, carrier),
+                (replacement_parameter.root, carrier),
+            ]),
             entry: positions[0],
             flow,
             case_constructors: BTreeMap::new(),
@@ -1954,8 +1968,19 @@ mod snapshot_tests {
         assert!(replay.read_contents(&graph[0], &current, &query).is_none());
         // An exact later producer re-establishes its own leaf, as ordinary
         // reads already allow; the ancestor does not erase that observation.
-        current.slots_mut().insert(leaf.clone(), observed.clone());
-        assert_eq!(replay.read(&graph[0], &current, &leaf), observed);
+        let mut replacement_leaf = leaf.clone();
+        replacement_leaf.root = replacement_parameter.root;
+        let replacement = replay.read(&graph[0], &current, &replacement_leaf);
+        assert!(replacement.is_some());
+        assert_ne!(replacement, observed);
+        current
+            .slots_mut()
+            .insert(leaf.clone(), replacement.clone());
+        assert_eq!(replay.read(&graph[0], &current, &leaf), replacement);
+        assert_eq!(
+            replay.read_contents(&graph[0], &current, &query),
+            replacement
+        );
         drop(replay);
 
         let mut limited = Replay::with_slot_kind(&types, &graph, DescriptorSlotKind::References);

@@ -24,6 +24,17 @@ impl Replay<'_> {
         depth: &DescriptorReadDepth,
     ) -> Value {
         let _read = depth.enter()?;
+        query.validate(self.types, *machine.place_types.get(&query.root)?)?;
+        if self.slot_kind.tracks_references()
+            && let Some(location) = query.exact_location()
+            && let Some(location) = self.canonical_storage(machine, state, &location)
+            && let Some(value) = state.slots.get(&location)
+        {
+            // An established current leaf overrides its old entry family.
+            // This reads payload only; contents_targets still owns storage
+            // destinations and must never mistake this pointer for its slot.
+            return value.clone();
+        }
         let mut origins = BTreeSet::new();
         for target in self.contents_targets_with_depth(machine, state, query, depth)? {
             match target {

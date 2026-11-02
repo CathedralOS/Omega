@@ -45,9 +45,8 @@ use facts::{
 use typed_trees::expression::{ExpressionHandle, TableCallExpression};
 use validation::{
     CanonicalPlace, canonical_place_type_reference, captured_integer_value,
-    declared_place_type_raw, effective_member_symbol,
-    has_builtin_bound_expression_meaning, indexed_operation_has_builtin_meaning,
-    owned_projection_type_reference, reference_shell,
+    declared_place_type_raw, effective_member_symbol, has_builtin_bound_expression_meaning,
+    indexed_operation_has_builtin_meaning, owned_projection_type_reference, reference_shell,
 };
 
 impl Execution<'_, '_, '_> {
@@ -68,6 +67,8 @@ impl Execution<'_, '_, '_> {
         };
         let mut resources = self.borrow.state_loans(state).filter(|(_, loan)| {
             loan.statement_index == self.statement_index
+                && loan.storage_owner == PlaceRoot::Expression(capture.expression)
+                && loan.formation_expression == capture.expression
                 && self
                     .borrow
                     .incoming_references
@@ -450,9 +451,7 @@ impl Execution<'_, '_, '_> {
             .map(|(_, state)| self.program.state_parameters(state))
             .or_else(|| {
                 validation::selected_requirement_signature(self.program, entered_target)
-                    .map(|(_, signature)| {
-                        self.program.state_signature_parameters(signature)
-                    })
+                    .map(|(_, signature)| self.program.state_signature_parameters(signature))
             })
         else {
             return Some(HandleSpan::empty());
@@ -863,9 +862,7 @@ impl Execution<'_, '_, '_> {
             .map(|(_, state)| self.program.state_parameters(state))
             .or_else(|| {
                 validation::selected_requirement_signature(self.program, entered_target)
-                    .map(|(_, signature)| {
-                        self.program.state_signature_parameters(signature)
-                    })
+                    .map(|(_, signature)| self.program.state_signature_parameters(signature))
             })
         else {
             return;
