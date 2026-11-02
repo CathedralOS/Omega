@@ -2,7 +2,7 @@ use checked_trees::{CheckFacts, CheckedOperatorResolutionIssue};
 use diagnostics::Diagnostic;
 
 use crate::flow::expressions;
-use crate::labels::symbol_name;
+use crate::published::labels::symbol_name;
 
 mod destinations;
 mod float_semantic;

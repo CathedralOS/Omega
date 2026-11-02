@@ -17,7 +17,7 @@ use crate::checks::borrows::access_sources::resolve_captured_all;
 use crate::checks::borrows::aliases::ResolvedAlias;
 use crate::flow::captured_call_operands;
 use crate::flow::expressions;
-use crate::places::place_at;
+use crate::published::places::place_at;
 use arena::{Arena, Handle, HandleSpan};
 use checked_trees::{
     BorrowLoanFact, BorrowLoanOwnerSegment, CapturedPlace, CheckFacts,

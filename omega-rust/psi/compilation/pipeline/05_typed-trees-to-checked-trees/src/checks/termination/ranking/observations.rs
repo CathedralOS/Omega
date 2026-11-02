@@ -6,7 +6,7 @@ use super::{
     OrderResolution, RankingOrder, resolve_machine_witness_subjects,
     resolve_machine_witness_view_arguments,
 };
-use crate::places::place_at;
+use crate::published::places::place_at;
 use checked_trees::{CheckedNaturalRankMeasure as RankMeasure, CheckedStateNaturalRank};
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::types::PrimitiveType;

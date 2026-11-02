@@ -3,7 +3,7 @@
 //! saved places consume only live flow predicates. Initializers and calls are
 //! never replayed to recover a tag after their evaluation point.
 
-use crate::places::place_at;
+use crate::published::places::place_at;
 use validation::CanonicalPlace;
 
 use checked_trees::{CheckFacts, ContractProofFactKind, ContractProofFactOwner, FlowExitFact};

@@ -9,7 +9,7 @@ use crate::checks::multiplicity::linear_validation::{
 };
 use crate::checks::multiplicity::permission_events::record_crash_frontier_lower_bounds;
 use crate::checks::multiplicity::projected_affine;
-use crate::places::place_at;
+use crate::published::places::place_at;
 use checked_trees::CheckFacts;
 use diagnostics::Diagnostic;
 use language_semantics::{
@@ -142,15 +142,18 @@ pub(crate) fn check_linear_obligations(
     // cleanup fixed point; recording them again here reproduced the same
     // events. Only the crash-frontier projection needs the incoming guard
     // index, which exists only now.
-    phase_profile::scope("psi.05.check_checked_facts.check_linear_obligations.crash_frontiers", || {
-        record_crash_frontier_lower_bounds(program, facts, incoming_guards)
-    });
-    phase_profile::scope("psi.05.check_checked_facts.check_linear_obligations.validate_linear", || {
-        validate_linear_permission_events(program, facts)
-    })?;
-    phase_profile::scope("psi.05.check_checked_facts.check_linear_obligations.borrowed_windows", || {
-        borrowed_windows::check_recorded_invocations(program, facts)
-    })
+    phase_profile::scope(
+        "psi.05.check_checked_facts.check_linear_obligations.crash_frontiers",
+        || record_crash_frontier_lower_bounds(program, facts, incoming_guards),
+    );
+    phase_profile::scope(
+        "psi.05.check_checked_facts.check_linear_obligations.validate_linear",
+        || validate_linear_permission_events(program, facts),
+    )?;
+    phase_profile::scope(
+        "psi.05.check_checked_facts.check_linear_obligations.borrowed_windows",
+        || borrowed_windows::check_recorded_invocations(program, facts),
+    )
 }
 
 /// A nominal cleanup machine is entitled to one whole valid value. Reject a
@@ -174,7 +177,7 @@ pub(super) fn prepare_storage_deaths(
             let Some(flow) = facts.flow.control.state(machine.symbol, state.symbol) else {
                 diagnostics.push(Diagnostic::error(format!(
                     "state `{}` has no checked flow for storage-transfer validation",
-                    crate::labels::symbol_name(program, state.symbol),
+                    crate::published::labels::symbol_name(program, state.symbol),
                 )));
                 continue;
             };

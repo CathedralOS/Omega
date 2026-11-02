@@ -2,7 +2,7 @@
 //! Possible transfers fence disposal of the original slot. Definite transfers
 //! additionally prove that every selected alternative moved that slot.
 
-use crate::places::place_at;
+use crate::published::places::place_at;
 use arena::Handle;
 use checked_trees::{
     CheckFacts, CheckedCallScalarArgument, CheckedElementViewRegion, CheckedMemberIdentity,

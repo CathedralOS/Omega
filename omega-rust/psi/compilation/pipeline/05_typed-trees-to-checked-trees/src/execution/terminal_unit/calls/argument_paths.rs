@@ -19,7 +19,7 @@ use crate::execution::terminal_unit::{
     TypeReferenceHandle, TypeReferenceNode,
 };
 use crate::flow::{expressions, state_statements};
-use crate::places::place_at;
+use crate::published::places::place_at;
 use crate::values::lower_unit_scalar_argument;
 use crate::values::scalar_expression_type;
 use checked_trees::CheckedByteSequenceCarrier;

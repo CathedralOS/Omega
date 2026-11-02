@@ -206,7 +206,7 @@ pub(in crate::flow) fn completed_output_retention(
             if !known {
                 return None;
             }
-            crate::collections::push_unique(&mut roots, loan.root);
+            crate::shared::collections::push_unique(&mut roots, loan.root);
         }
     }
     Some(roots)

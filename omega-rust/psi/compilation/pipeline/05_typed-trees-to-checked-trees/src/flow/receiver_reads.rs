@@ -52,7 +52,7 @@ use crate::flow::mutation::{
     WritePlaceNamespace, call_data_argument, call_receiver_mutated_place,
     canonical_receiver_place_for_call_site, instantiate_call_relative_places,
 };
-use crate::places::place_at;
+use crate::published::places::place_at;
 
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::{BorrowCallFact, BorrowFacts};
@@ -138,7 +138,7 @@ pub(crate) fn call_receiver_read_accesses(
             return whole_receiver();
         };
         for place in places {
-            crate::collections::push_unique(&mut instantiated, place);
+            crate::shared::collections::push_unique(&mut instantiated, place);
         }
     }
     instantiated

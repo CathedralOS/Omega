@@ -9,8 +9,8 @@ use super::prover::{
     live_contexts_prove_boolean_expression, semantic_contexts_prove_boolean_expression,
 };
 use crate::flow::canonical_place_segments_may_overlap;
-use crate::labels::machine_name;
-use crate::places::place_at;
+use crate::published::labels::machine_name;
+use crate::published::places::place_at;
 
 /// Discharge each assembly assertion against ordinary invalidation-adjusted
 /// flow contexts. Entry assertions precede instruction evaluation. Exit

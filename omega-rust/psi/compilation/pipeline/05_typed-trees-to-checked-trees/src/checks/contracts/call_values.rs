@@ -8,9 +8,9 @@
 
 mod predicate_subjects;
 
-use crate::facts::boolean_predicates;
-use crate::facts::entry_parameter_place_before_statement;
-use crate::places::place_at;
+use crate::published::facts::boolean_predicates;
+use crate::published::facts::entry_parameter_place_before_statement;
+use crate::published::places::place_at;
 use validation::CanonicalPlace;
 
 use checked_trees::{
@@ -450,7 +450,7 @@ pub(super) fn membership_evidence(
         if contract.fact != source_fact {
             continue;
         }
-        let bound = match crate::semantic::facts::contract_parameter_position(
+        let bound = match crate::published::semantic::facts::contract_parameter_position(
             program,
             &facts.proof,
             contract,
@@ -483,7 +483,7 @@ pub(super) fn membership_evidence(
         return Some(MembershipEvidence::default());
     };
     let Some(expected) = actual.argument.and_then(|argument| {
-        crate::semantic::facts::projected_argument_place(
+        crate::published::semantic::facts::projected_argument_place(
             program,
             state.state_symbol,
             call.statement_index,

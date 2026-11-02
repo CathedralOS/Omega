@@ -56,7 +56,7 @@ pub(crate) fn captured_before_snapshot(
             return Some(Vec::new());
         }
         for place in selected {
-            crate::collections::push_unique(&mut places, place);
+            crate::shared::collections::push_unique(&mut places, place);
         }
     }
     Some(places)
@@ -89,7 +89,7 @@ pub(crate) fn reference_places_at_snapshot(
                 // The existing ingress namespace names its descriptor value;
                 // it supplies no new formation or concrete pointee address.
                 let place = super::CapturedReferencePlace::unformed(place);
-                crate::collections::push_unique(&mut places, place);
+                crate::shared::collections::push_unique(&mut places, place);
             }
             StoredOperand::Alternatives(alternatives) => {
                 pending.extend(alternatives.into_iter().rev())
@@ -117,7 +117,7 @@ pub(crate) fn reference_places_at_snapshot(
                     return Some(Vec::new());
                 }
                 for place in selected {
-                    crate::collections::push_unique(&mut places, place);
+                    crate::shared::collections::push_unique(&mut places, place);
                 }
             }
         }

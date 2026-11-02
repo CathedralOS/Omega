@@ -208,7 +208,7 @@ pub(in crate::execution::terminal_unit) fn normal_call_completion(
             let Some(expression) = disposition.root.as_expression() else {
                 return;
             };
-            crate::collections::push_unique(&mut dying, expression);
+            crate::shared::collections::push_unique(&mut dying, expression);
         },
     );
     if dying.is_empty() {
@@ -259,7 +259,7 @@ pub(in crate::execution::terminal_unit) fn normal_call_completion(
     let mut retained_owners = Vec::new();
     for operand in facts.flow.control.operands.span(source_call.operands)? {
         for root in crate::flow::captured_lifetime_roots(program, &facts.flow.control, operand)? {
-            crate::collections::push_unique(&mut retained_owners, root);
+            crate::shared::collections::push_unique(&mut retained_owners, root);
         }
     }
     let (_, statement_node) = indexed_statements(program, state.statement_nodes)

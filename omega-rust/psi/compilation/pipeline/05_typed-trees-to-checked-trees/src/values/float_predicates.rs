@@ -4,7 +4,7 @@
 //! could read another value after a mutation or a state-parameter transfer.
 
 use crate::flow::place_segment_has_static_identity;
-use crate::places::place_at;
+use crate::published::places::place_at;
 use facts::FloatPredicate;
 use numerics::bignum::{BigRational, ExactFloat, IeeeRounding};
 use numerics::literals::FloatFormat;

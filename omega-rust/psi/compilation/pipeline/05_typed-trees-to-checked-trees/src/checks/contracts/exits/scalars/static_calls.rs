@@ -8,7 +8,7 @@ use super::{ExpressionHandle, ScalarValue};
 use crate::checks::contracts::exits::scalars::ExitScalars;
 use crate::checks::contracts::exits::scalars::stable_segments;
 use crate::checks::contracts::prover::evaluate_scalar;
-use crate::places::place_at;
+use crate::published::places::place_at;
 
 use typed_trees::data::{TypeParameter, TypeParameterKind};
 use typed_trees::expression::{BinaryOperator, ExpressionNode, StaticMachineArgument};

@@ -6,7 +6,7 @@
 use super::super::linear_obligations::LinearPlace;
 use super::super::permission_events::exact_positive_case_test;
 use super::super::permission_events::visit_positive_case_tests;
-use crate::places::place_at;
+use crate::published::places::place_at;
 use checked_trees::{CheckFacts, FlowClaimJoinExit, FlowClaimJoinExitKind};
 use facts::PlaceSegment;
 use symbols::SymbolHandle;

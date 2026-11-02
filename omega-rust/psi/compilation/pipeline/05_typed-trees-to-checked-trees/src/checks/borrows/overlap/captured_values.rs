@@ -8,7 +8,7 @@
 //! today's premises as evidence about an earlier extraction. The same spatial
 //! comparison serves source windows, arm joins and executable window repair.
 
-use crate::places::place_at;
+use crate::published::places::place_at;
 use checked_trees::{FlowConstraintKind, FlowOperandFact, FlowStateFact};
 use facts::{PlaceRoot, PlaceSegment, ScalarValue};
 use symbols::SymbolHandle;
@@ -41,7 +41,7 @@ pub(super) fn equalities(
     // of treating the initializer's spelling as surviving value provenance.
     let mut symbols = left_symbols.clone();
     for &symbol in &right_symbols {
-        crate::collections::push_unique(&mut symbols, symbol);
+        crate::shared::collections::push_unique(&mut symbols, symbol);
     }
     for symbol in symbols {
         let Some(source) = stored_call_source(program, captures, symbol, lookup) else {

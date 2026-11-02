@@ -4,7 +4,7 @@
 
 use crate::flow::expressions;
 use crate::flow::relative_place_segments_from_expression;
-use crate::places::place_at;
+use crate::published::places::place_at;
 use checked_trees::{CheckFacts, FlowStateFact};
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;

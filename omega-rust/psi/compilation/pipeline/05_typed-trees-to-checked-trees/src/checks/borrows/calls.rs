@@ -14,7 +14,7 @@ use checked_trees::{BorrowCallFact, CheckFacts, FlowStateFact};
 use diagnostics::Diagnostic;
 
 use crate::flow::expressions;
-use crate::labels::call_target_label;
+use crate::published::labels::call_target_label;
 
 mod conflicts;
 mod held_places;

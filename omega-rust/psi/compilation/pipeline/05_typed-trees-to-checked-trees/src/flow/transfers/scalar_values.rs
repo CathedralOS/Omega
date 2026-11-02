@@ -4,7 +4,7 @@ use super::super::call_phases::call_storage_writes;
 use validation::CanonicalPlace;
 
 use crate::flow::FlowBuildContext;
-use crate::places::place_at;
+use crate::published::places::place_at;
 use arena::HandleSpan;
 use checked_trees::CheckedScalarExpressionRole;
 use checked_trees::CheckedStructuralPredicatePathSegment;

@@ -14,7 +14,7 @@ use typed_trees::types::TypeReferenceHandle;
 
 use crate::execution::terminal_unit::calls;
 use crate::execution::terminal_unit::types::field_requires_place_observation;
-use crate::places::place_at;
+use crate::published::places::place_at;
 
 pub(crate) struct ReferenceCapture {
     pub(crate) source: CheckedUnitStructuralArgumentPlan,

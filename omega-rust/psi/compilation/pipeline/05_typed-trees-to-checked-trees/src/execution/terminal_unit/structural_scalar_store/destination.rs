@@ -13,7 +13,7 @@ use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::control::statement_sequence::bounded_byte_values;
 use crate::execution::terminal_unit::types::terminal_field_identity;
 use crate::flow::expressions;
-use crate::places::place_at;
+use crate::published::places::place_at;
 
 /// The storage roots retained for source-validated stores: owned or exclusive
 /// borrowed structural parameters, established locals, and the `mut` scalar

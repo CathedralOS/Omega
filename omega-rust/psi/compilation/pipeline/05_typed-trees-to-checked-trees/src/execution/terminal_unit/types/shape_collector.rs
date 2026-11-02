@@ -1177,10 +1177,7 @@ impl<'program> ShapeCollector<'program> {
     /// application view that borrows the authored declaration's symbol beside
     /// the generated carrier; an origin whose `base_symbol` is still the
     /// candidate's own symbol marks that borrowed view, never the carrier.
-    fn canonical_closed_carrier(
-        &mut self,
-        identity: TypeIdentityId,
-    ) -> Option<DataDefinition> {
+    fn canonical_closed_carrier(&mut self, identity: TypeIdentityId) -> Option<DataDefinition> {
         if self.canonical_carriers.is_none() {
             let typed = self.program.typed_program();
             let mut carriers = BTreeMap::new();
@@ -1756,7 +1753,7 @@ impl<'program> ShapeCollector<'program> {
                 CheckedUnitStructuralFieldType::Structural { .. }
             ) {
                 for (_, carrier) in carriers {
-                    crate::collections::push_unique(&mut qualification_carriers, carrier);
+                    crate::shared::collections::push_unique(&mut qualification_carriers, carrier);
                 }
             }
         }

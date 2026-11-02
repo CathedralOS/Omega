@@ -5,8 +5,8 @@
 
 use super::{Execution, ReadPurpose};
 use crate::flow::expressions;
-use crate::places::place_at;
-use crate::semantic::places::append_place;
+use crate::published::places::place_at;
+use crate::published::semantic::places::append_place;
 use arena::HandleSpan;
 use checked_trees::{
     FlowConstraintKind, FlowConstraintRef, FlowOperandCompletion, FlowOperandFact,

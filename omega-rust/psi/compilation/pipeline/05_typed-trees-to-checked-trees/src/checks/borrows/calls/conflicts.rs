@@ -12,7 +12,7 @@ use super::staging::completed_observation_before_terminal_transfer;
 use checked_trees::{BorrowCallFact, CheckFacts, FlowStateFact};
 use diagnostics::Diagnostic;
 
-use crate::labels::{borrow_access_label, symbol_name};
+use crate::published::labels::{borrow_access_label, symbol_name};
 
 use super::super::details::active_loan_detail;
 use super::super::overlap::StatedOrderingPremise;
@@ -134,7 +134,7 @@ pub(in crate::checks::borrows) fn check_staged_operand_move<'program>(
                 }
                 diagnostics.push(Diagnostic::error(format!(
                     "state `{}` receives owned `{}` while an earlier argument in the same call still borrows it",
-                    crate::labels::call_target_label(program, call.target_symbol),
+                    crate::published::labels::call_target_label(program, call.target_symbol),
                     validation::CanonicalPlace { root: event.root, segments: path.to_vec() }.label(program),
                 )));
             }

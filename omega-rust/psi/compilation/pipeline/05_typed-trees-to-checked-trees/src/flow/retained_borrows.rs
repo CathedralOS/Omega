@@ -5,7 +5,7 @@
 
 use crate::borrow::call_reference_lifetime_sources;
 use crate::borrow::place_path_covers_owner;
-use crate::collections::push_unique;
+use crate::shared::collections::push_unique;
 use checked_trees::{
     BorrowCallFact, BorrowFacts, BorrowLoanFact, BorrowLoanLineage, FlowControlFacts,
 };
