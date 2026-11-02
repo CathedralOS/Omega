@@ -1,0 +1,143 @@
+//! Matching Linux kernel operations over an instance-private descriptor table.
+//! The receiving runtime separately admits target, exact ABI and delegation.
+//! The libc syscall trampoline only enters the selected kernel operation: its
+//! immediate thread-local errno is restored to Linux's negative-status convention.
+//! No Rust I/O error, retry, private worker descriptor or modeled stream supplies
+//! a kernel result. Owned descriptors close when this namespace retires.
+
+use std::{ffi::CStr, io};
+
+#[derive(Default)]
+pub struct LinuxFilesystem {
+    #[cfg(target_os = "linux")]
+    descriptors: std::collections::BTreeMap<i32, Option<std::os::fd::OwnedFd>>,
+}
+
+impl LinuxFilesystem {
+    pub fn open_at(
+        &mut self,
+        directory: i32,
+        path: &CStr,
+        flags: i32,
+        mode: i32,
+    ) -> io::Result<i64> {
+        #[cfg(target_os = "linux")]
+        {
+            use std::os::fd::FromRawFd;
+            let directory = if directory == libc::AT_FDCWD {
+                directory
+            } else {
+                self.descriptor(directory)?
+            };
+            // The CStr owns the complete initialized terminator window. The
+            // synchronous syscall neither retains it nor writes its storage.
+            let status = kernel_status(unsafe {
+                libc::syscall(libc::SYS_openat, directory, path.as_ptr(), flags, mode)
+            })?;
+            if status < 0 {
+                return Ok(status);
+            }
+            let native = i32::try_from(status)
+                .map_err(|_| io::Error::other("kernel descriptor exceeds its native carrier"))?;
+            // A successful openat creates exactly this owned descriptor.
+            let native = unsafe { std::os::fd::OwnedFd::from_raw_fd(native) };
+            let guest = (3..=i32::MAX)
+                .find(|guest| !self.descriptors.contains_key(guest))
+                .ok_or_else(|| {
+                    io::Error::other("guest filesystem descriptor namespace exhausted")
+                })?;
+            self.descriptors.insert(guest, Some(native));
+            Ok(i64::from(guest))
+        }
+        #[cfg(not(target_os = "linux"))]
+        {
+            let _ = (directory, path, flags, mode);
+            Err(unsupported())
+        }
+    }
+
+    pub fn write(&self, descriptor: i32, bytes: &[u8]) -> io::Result<i64> {
+        #[cfg(target_os = "linux")]
+        {
+            let descriptor = self.descriptor(descriptor)?;
+            // Only this initialized, authenticated input window is observable.
+            // Preserve partial writes and EINTR; retries belong to guest code.
+            kernel_status(unsafe {
+                libc::syscall(libc::SYS_write, descriptor, bytes.as_ptr(), bytes.len())
+            })
+        }
+        #[cfg(not(target_os = "linux"))]
+        {
+            let _ = (descriptor, bytes);
+            Err(unsupported())
+        }
+    }
+
+    pub fn close(&mut self, descriptor: i32) -> io::Result<i64> {
+        #[cfg(target_os = "linux")]
+        {
+            use std::os::fd::IntoRawFd;
+            // Check before removal; private standard descriptors are never guest
+            // resources. Failed-close tombstones cannot revive reused OS numbers.
+            self.descriptor(descriptor)?;
+            let native = match self.descriptors.remove(&descriptor) {
+                Some(Some(native)) => native.into_raw_fd(),
+                None => -1,
+                Some(None) => unreachable!("descriptor rejected its tombstone"),
+            };
+            // Consume ownership before close, including its error path. Linux
+            // retires the descriptor before reporting late errors: no retry or
+            // OwnedFd destructor may close its subsequently reused OS number.
+            let status = kernel_status(unsafe { libc::syscall(libc::SYS_close, native) });
+            if !matches!(&status, Ok(0)) {
+                self.descriptors.insert(descriptor, None);
+            }
+            status
+        }
+        #[cfg(not(target_os = "linux"))]
+        {
+            let _ = descriptor;
+            Err(unsupported())
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    fn descriptor(&self, guest: i32) -> io::Result<i32> {
+        use std::os::fd::AsRawFd;
+        if (0..=2).contains(&guest) {
+            return Err(io::Error::other(
+                "filesystem delegation does not supply host standard streams",
+            ));
+        }
+        match self.descriptors.get(&guest) {
+            Some(Some(native)) => Ok(native.as_raw_fd()),
+            Some(None) => Err(io::Error::other(
+                "filesystem descriptor is uncertain after close",
+            )),
+            // Ask the actual kernel about a known invalid descriptor. Never
+            // interpret an arbitrary guest integer in the host's descriptor table.
+            None => Ok(-1),
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn kernel_status(status: libc::c_long) -> io::Result<i64> {
+    if status != -1 {
+        return Ok(status);
+    }
+    match io::Error::last_os_error().raw_os_error() {
+        Some(errno @ 1..=4095) => Ok(-i64::from(errno)),
+        _ => Err(io::Error::other(
+            "kernel trampoline returned no Linux errno",
+        )),
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+fn unsupported() -> io::Error {
+    io::Error::new(
+        io::ErrorKind::Unsupported,
+        "Linux filesystem supply requires a Linux host",
+    )
+}

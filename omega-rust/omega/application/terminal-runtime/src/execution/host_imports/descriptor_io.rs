@@ -44,6 +44,7 @@ pub(super) struct DescriptorIoImport<'input> {
     contract: admission::DescriptorContract,
     input: Option<Arc<Mutex<Box<dyn Read + Send + 'input>>>>,
     output: BufferedStreams,
+    linux_filesystem: Option<super::filesystem::LinuxFilesystemWrite>,
 }
 
 impl<'input> DescriptorIoImport<'input> {
@@ -56,8 +57,9 @@ impl<'input> DescriptorIoImport<'input> {
         storage_layouts: &[NativeBorrowedStorageLayout],
         input: Option<Arc<Mutex<Box<dyn Read + Send + 'input>>>>,
         output: BufferedStreams,
+        filesystem: &super::filesystem::FilesystemContext,
     ) -> Result<Option<Self>, TerminalRuntimeError> {
-        let adapter = Self::for_filesystem(
+        let mut adapter = Self::for_filesystem(
             program,
             declaration,
             binding,
@@ -65,6 +67,19 @@ impl<'input> DescriptorIoImport<'input> {
             input,
             output,
         )?;
+        if let Some(adapter) = &mut adapter {
+            if matches!(
+                (adapter.contract.abi, adapter.contract.operation),
+                (DescriptorAbi::LinuxKernel, DescriptorOperation::Write)
+            ) {
+                adapter.linux_filesystem = super::filesystem::LinuxFilesystemWrite::admit(
+                    filesystem,
+                    program,
+                    declaration,
+                    binding,
+                );
+            }
+        }
         if adapter.as_ref().is_some_and(|adapter| {
             matches!(adapter.contract.operation, DescriptorOperation::Read)
                 && adapter.input.is_none()
@@ -96,6 +111,7 @@ impl<'input> DescriptorIoImport<'input> {
             contract,
             input,
             output,
+            linux_filesystem: None,
         }))
     }
 
@@ -314,6 +330,13 @@ impl TerminalEffectHandler for DescriptorIoImport<'_> {
                     && matches!(self.contract.abi, DescriptorAbi::WindowsCrt)
                 {
                     return self.result(-1);
+                }
+                if !matches!(*descriptor, 1 | 2) {
+                    if let Some(filesystem) = &self.linux_filesystem {
+                        let descriptor =
+                            i32::try_from(*descriptor).map_err(|_| invalid_operands())?;
+                        return self.result(filesystem.write(descriptor, &bytes[..count])?);
+                    }
                 }
                 self.output.append(*descriptor, &bytes[..count])?;
                 Ok(result)

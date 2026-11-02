@@ -78,6 +78,7 @@ def observe(root, producer, fixture, output):
         event = dict(stage=stage, arguments=[str(arg) for arg in arguments], timeout=timeout)
         record["stages"].append(event)
         started = time.monotonic()
+        print(f"ordinary CLI: {fixture}: {stage} (limit {timeout}s)", flush=True)
         input_path = project / "input.txt"
         input_file = input_path.open("rb") if stage == "both" and input_path.is_file() else None
         stdin = input_file if input_file is not None else subprocess.DEVNULL
@@ -93,6 +94,7 @@ def observe(root, producer, fixture, output):
             if input_file is not None:
                 input_file.close()
             event["seconds"] = round(time.monotonic() - started, 3)
+            print(f"ordinary CLI: {fixture}: {stage} finished in {event['seconds']}s", flush=True)
             verify()
 
     try:
@@ -118,7 +120,17 @@ def observe(root, producer, fixture, output):
         runtime.mkdir()
         code = command("both", [producer.cli, "run", "--both", "--keep", project / "main.omg"],
                        runtime, 240)
-        validate_exits(code, (output / "both.stderr").read_text(encoding="utf-8", errors="replace"), expected)
+        text = (output / "both.stderr").read_text(encoding="utf-8", errors="replace")
+        kept = re.search(r"^build dir kept: (.+)$", text, re.MULTILINE)
+        if kept:
+            shutil.copytree(Path(kept.group(1).strip()), output / "products")
+            record["products"] = {
+                path.relative_to(output / "products").as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
+                for path in sorted((output / "products").rglob("*")) if path.is_file()
+            }
+        validate_exits(code, text, expected)
+        if not kept or not (output / "products/program.oterm").is_file():
+            raise ValueError("ordinary CLI fixture lost its retained Terminal product")
         record.update(passed=True, native_exit=expected, terminal_exit=expected)
         return record
     except (OSError, ValueError) as error:
