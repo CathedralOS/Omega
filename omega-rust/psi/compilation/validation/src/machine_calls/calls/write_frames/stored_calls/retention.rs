@@ -21,11 +21,38 @@ pub(in crate::machine_calls::calls::write_frames) fn local_backing_survives_jump
     backing: SymbolHandle,
     symbols: &TopLevelSymbols<'_>,
 ) -> Option<()> {
-    program.state_local_declaration(source, backing)?;
+    // A failed spatial/lifetime relation is not an empty retained-home set.
+    // Keep the refused join visible through the existing query diagnostics.
+    macro_rules! required_home {
+        ($value:expr, $phase:literal) => {
+            match $value {
+                Some(value) => value,
+                None => {
+                    if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                        eprintln!(
+                            "CHECKSITE retained-home-refusal source={} target={} statement={} backing={} phase={}",
+                            source.name, target.name, statement_index,
+                            program.symbols.name(backing), $phase,
+                        );
+                    }
+                    return None;
+                }
+            }
+        };
+    }
+    required_home!(
+        program.state_local_declaration(source, backing),
+        "local-declaration"
+    );
     let mut inference = FrameInference::default();
-    let (_, prefixes) =
-        stored_reference_transfer(program, machine, source, symbols, &mut inference)?;
-    let prefix = prefixes.get(statement_index)?.as_ref()?;
+    let (_, prefixes) = required_home!(
+        stored_reference_transfer(program, machine, source, symbols, &mut inference),
+        "source-transfer"
+    );
+    let prefix = required_home!(
+        prefixes.get(statement_index).and_then(Option::as_ref),
+        "source-prefix"
+    );
     let initial = vec![FrameSourcePlace {
         recasts: Vec::new(),
         representation: None,
@@ -38,15 +65,18 @@ pub(in crate::machine_calls::calls::write_frames) fn local_backing_survives_jump
         .statement_table
         .statements(source.statement_nodes)
         .get(statement_index)?;
-    let completed = expression_effects::completed_targets(
-        program,
-        machine,
-        source,
-        statement,
-        prefix,
-        symbols,
-        &mut inference,
-    )?;
+    let completed = required_home!(
+        expression_effects::completed_targets(
+            program,
+            machine,
+            source,
+            statement,
+            prefix,
+            symbols,
+            &mut inference,
+        ),
+        "completed-targets"
+    );
     let mut arrivals = completed.iter().filter(|completed| {
         super::super::transition_topology::named_transition_target_state(
             program,
@@ -62,19 +92,22 @@ pub(in crate::machine_calls::calls::write_frames) fn local_backing_survives_jump
                 .zip(arguments)
                 .all(|(captured, expression)| captured.expression == *expression)
     });
-    let arrival = arrivals.next()?;
+    let arrival = required_home!(arrivals.next(), "completed-arrival");
     if arrivals.next().is_some() {
         return None;
     }
-    let slots = transferred_slots(
-        program,
-        machine,
-        target,
-        &arrival.arguments,
-        &arrival.context,
-        &initial,
-        symbols,
-    )?;
+    let slots = required_home!(
+        transferred_slots(
+            program,
+            machine,
+            target,
+            &arrival.arguments,
+            &arrival.context,
+            &initial,
+            symbols,
+        ),
+        "arrival-slots"
+    );
     let mut pending = vec![Arrival {
         state: target.symbol,
         slots,
@@ -86,9 +119,14 @@ pub(in crate::machine_calls::calls::write_frames) fn local_backing_survives_jump
         if arrival.slots.is_empty() {
             continue;
         }
-        let state = program.state_in_machine(machine, arrival.state)?;
-        let (last, prefixes) =
-            stored_reference_transfer(program, machine, state, symbols, &mut inference)?;
+        let state = required_home!(
+            program.state_in_machine(machine, arrival.state),
+            "successor-state"
+        );
+        let (last, prefixes) = required_home!(
+            stored_reference_transfer(program, machine, state, symbols, &mut inference),
+            "successor-transfer"
+        );
         let mut has_transition = false;
         for (index, statement) in program
             .statement_table
@@ -109,15 +147,18 @@ pub(in crate::machine_calls::calls::write_frames) fn local_backing_survives_jump
             if transition.exit != TransitionExit::Ordinary {
                 continue;
             }
-            let completed = expression_effects::completed_targets(
-                program,
-                machine,
-                state,
-                statement,
-                prefix,
-                symbols,
-                &mut inference,
-            )?;
+            let completed = required_home!(
+                expression_effects::completed_targets(
+                    program,
+                    machine,
+                    state,
+                    statement,
+                    prefix,
+                    symbols,
+                    &mut inference,
+                ),
+                "completed-targets"
+            );
             for edge in transition.targets() {
                 let edge_value = completed
                     .iter()
