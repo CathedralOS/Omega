@@ -111,3 +111,33 @@ The [unformed-arm control](controls/invalid_unformed_arm/main.omg) changes only
 the zero-input arm selector from 1 to 2. The private positive-input state
 cannot donate its unreachable-arm decision to the public entry application,
 which admits zero and must form that arm independently.
+
+
+## Qualified observations
+
+The optimized compiler source is `c760f905800634aab6da0eec9f97f745aac7d753`.
+The original nine-place copy and indexed writeback programs remain unchanged.
+
+| Observation | Result |
+| --- | --- |
+| Sample gate | 32 projects: 14 positives execute native/Terminal exit 0/0; 18 intended rejections match. |
+| Default corpus checking | 36 fixtures: 16 checked and 20 rejected; positive entry realization selected macOS ARM64, without physical execution. |
+| Linux x86-64 corpus execution | 16 positives: native exit 0, Terminal exit 0, and interpreter agreement. |
+| Runtime falsifiers | Wrong counter and wrong selected-provider expectation each produce native signal 4 and agreeing Terminal Trap. |
+| Existing productions | Two positives execute in both engines; the borrowed zero-step twin rejects. |
+| Unchanged peer selector source | Native/Terminal exit 0/0; its zero-step twin rejects. |
+| Three-arm composition | Checking and native/Terminal exit 0/0. |
+
+CLI SHA-256: `49aecfa59f0bb8471c24dd239684d8fc15a40322083350a32f1daed701ca9cdf`.
+Corpus runner SHA-256: `b292bf93354ed8987c69997dce86c0e46c910fe6685067c867ec42c3a137d9cd`.
+Bundled library tree: `0e12fe346c8e5eb1419538cacf183220f4f8574d`.
+Checking and execution outcomes retain separate commits and producer identities.
+
+Integration retains the complete read metadata and observation-root repair
+published by [#1453](https://github.com/CathedralOS/Omega/pull/1453). The nested
+public getter also needs the shared referent-snapshot projection published by
+[#1500](https://github.com/CathedralOS/Omega/pull/1500): its exact two-file move
+replaces the storage-only crossing, preserving readable access, carrier identity
+and descriptor-only reference children. The targeted trace found the owned
+snapshot hidden by the structural term's diagnostic display; no purity or
+repeatability gate was relaxed.
