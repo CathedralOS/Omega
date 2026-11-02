@@ -13621,7 +13621,7 @@ pass/providers/runtime_boundary_linear_result_exit incomplete 11122ms check-targ
 pass/providers/runtime_boundary_owned_array_cycle_exit checked 12268ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/runtime_boundary_primitive_array_argument_exit checked 13816ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/runtime_boundary_qualified_state_exit checked 3836ms check-target:macos_arm64 @ccdb99ca2214
-pass/providers/runtime_checked_completion_forwarding_exit checked 4835ms check-target:macos_arm64 @ccdb99ca2214
+pass/providers/runtime_checked_completion_forwarding_exit checked 5044ms check-target:macos_arm64 @fa76e9a8d5e2
 pass/providers/runtime_closed_provider_and_assumed_chain_exit checked 4044ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/runtime_foreign_allocation_across_component_exit rejected 7656ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	ordinary external `via` evaluation failed: `ForeignBinding` has no case `DllImport`
