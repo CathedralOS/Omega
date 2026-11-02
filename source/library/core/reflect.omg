@@ -10,7 +10,7 @@ public data SchemaMembers [copy] { graph: TypeSchema; handles: &[u8]; role: u64;
 
 // Only this exact toolchain declaration is elaborated by Psi. The occurrence
 // retains its lexical author's visibility, including through generic helpers.
-public machine schema<T>() -> TypeSchema {}
+public machine schema<T>() -> TypeSchema { TypeSchema { storage: "" } }
 
 // The image version and scalar encoding are a library representation of the
 // existing semantic graph. These ordinary readers cannot authorize a query,
@@ -182,7 +182,10 @@ public machine SchemaMembers::count(members: &SchemaMembers) -> u64 crashes Trap
         let selected: u64 = SchemaNode::role(&node);
         let tail: &[u8] = &handles[8u64..];
         transition role == 0u64 || role == selected {
-            true -> scan(graph, tail, role, count + 1u64)
+            // Each increment consumes eight bytes from a finite slice. The
+            // total is bounded by its original byte length divided by eight;
+            // the defined arithmetic never reaches its wrap point.
+            true -> scan(graph, tail, role, ((count as u64 in Wrapping) + 1u64) as u64)
             false -> scan(graph, tail, role, count)
         }
     }
