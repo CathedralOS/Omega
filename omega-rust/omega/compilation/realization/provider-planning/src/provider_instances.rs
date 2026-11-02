@@ -16,7 +16,6 @@ pub struct SelectedProviderSource {
     inventory: Arc<checked_trees::PreparedProviderInventory>,
     plans: effects::SelectedProviderPlanFacts,
     declarations: OnceLock<PreparedProviderInstances>,
-    checked_bodies: OnceLock<Vec<Vec<Result<bool, Diagnostic>>>>,
 }
 
 struct PreparedProviderInstances {
@@ -50,7 +49,6 @@ impl SelectedProviderSource {
             inventory,
             plans,
             declarations: OnceLock::new(),
-            checked_bodies: OnceLock::new(),
         }
     }
 
