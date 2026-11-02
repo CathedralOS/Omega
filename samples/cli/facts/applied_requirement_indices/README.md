@@ -45,6 +45,8 @@ python tools/sample_native_gate.py --facts --filter cli/facts/applied_requiremen
 
 ### The oracle discriminates
 
+The match-join place executes both arms: the `true` arm returns the incoming payload `29`, while the `false` arm returns a separately qualified payload `31`. Its caller checks both results. Inverting the branch, always selecting one arm, or substituting the other arm's payload therefore traps while the same `Tagged<Value>` fact is carried through either arm.
+
 The exit code `0` is strictly discriminative. Perturbing a single payload token in `main` (`let value: Payload in Tagged<Word> = Payload { value: 29 };` to `30`) preserves all static type-indexed domain contracts (`Tagged<Word>`) so the program still compiles cleanly, but changes `from_state.value` at runtime from `29` to `30`. The guard `from_state.value == 29 && from_compound.value == 37 && from_pair.value == 43 && from_other_pair.value == 47` then takes the `false -> bad()` branch and executes `crash Trap;`, causing both native and Terminal Psi execution to abort non-zero (`native signal 5` and `interp crash: Trap` in agreement).
 
 ## Reject Twins
