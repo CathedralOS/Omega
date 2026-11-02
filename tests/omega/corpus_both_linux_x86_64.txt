@@ -1341,7 +1341,7 @@ pass/control_flow/runtime_selected_copy_repeated_call_exit built 1913ms exit:0 i
 pass/control_flow/runtime_shared_case_return_call_exit built 6689ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/control_flow/runtime_string_literal_dispatch_exit built 6602ms exit:11 interpreter-exit:11 interpreter:agrees @a92f16431042
 pass/control_flow/runtime_sum_tuple_matrix_exhaustive_exit built 5995ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
-pass/control_flow/runtime_tuple_case_destructure_exit built 5969ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
+pass/control_flow/runtime_tuple_case_destructure_exit built 57036ms exit:70 interpreter-exit:70 interpreter:agrees @7899446a0dc7
 pass/control_flow/runtime_tuple_transition_exit built 6282ms exit:22 interpreter-exit:22 interpreter:agrees @a92f16431042
 pass/control_flow/runtime_two_index_state_loans_exit built 2353ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/control_flow/runtime_wrapping_division_reused_inputs_exit built 6041ms exit:0 stdout:match stderr:match interpreter-exit:0 interpreter-stdout:match interpreter-stderr:match interpreter:agrees @a92f16431042
@@ -5031,6 +5031,7 @@ pass/facts/thirtytwo_arg_stack_calling_plan_through_other_machine_exit built 124
 pass/facts/thirtytwo_arg_stack_calling_plan_through_other_state_exit built 54079ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/thirtytwo_arg_stack_calling_plan_through_parameter_exit built 125106ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/thirtytwo_arg_stack_calling_plan_through_target_body_exit built 182731ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/facts/transparent_alias_qualified_cases_exit built 6476ms exit:0 interpreter-exit:0 interpreter:agrees @6defc740839f
 pass/facts/transparent_alias_rhs_captured_supplier_call_result_exit built 8063ms exit:0 interpreter-exit:0 interpreter:agrees @a1964f50142c
 pass/facts/transparent_alias_rhs_captured_supplier_const_name_exit built 7003ms exit:0 interpreter-exit:0 interpreter:agrees @df2704cb8b18
 pass/facts/transparent_alias_rhs_captured_supplier_exit built 4883ms exit:0 interpreter-exit:0 interpreter:agrees @24d35f3b86c4

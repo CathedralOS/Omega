@@ -2192,6 +2192,8 @@ fail/facts/target_family_contract_operand/callback_capability rejected 517ms exp
 	machine argument `bounded_matches` for `choose` does not refine `Callback`: its requires facts are not a conservative refinement
 fail/facts/target_family_contract_operand/stronger_provider_requirement rejected 1609ms expected @b0315c8f656c
 	machine parameter `Selected` of provider machine `ArmChoice::choose` for trait requirement `Choosing::choose` does not refine `Callback`: its requires facts are not a conservative refinement
+fail/facts/transparent_alias_qualified_case_wrong_payload_rejected rejected 2003ms expected @6defc740839f
+	construction of `leaf::choices::Choice<u64>` field `value` stores a boolean into a `u64` field, which holds a numeric value
 fail/facts/transparent_alias_rhs_captured_supplier_call_result_mismatch_rejected rejected 2345ms expected @a1964f50142c
 	argument `value` for state `forward` expects `[u8; 5]`, got `named value`; expected carrier `array(named(name(u8)),literal(5))`, declared place carrier `array(named(name(u8)),literal(4))`
 fail/facts/transparent_alias_rhs_captured_supplier_const_name_mismatch_rejected rejected 2042ms expected @df2704cb8b18
@@ -4277,8 +4279,7 @@ pass/control_flow/runtime_string_literal_dispatch_exit checked 12244ms check-tar
 pass/control_flow/runtime_sum_tuple_matrix_exhaustive_exit rejected 6228ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	tests/omega/pass/control_flow/runtime_sum_tuple_matrix_exhaustive_exit/main.omg:1:1: call target must be a path or member access
 pass/control_flow/runtime_terminal_unit_local_cleanup_exit checked 3686ms check-target:macos_arm64 @ccdb99ca2214
-pass/control_flow/runtime_tuple_case_destructure_exit rejected 6474ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	tests/omega/pass/control_flow/runtime_tuple_case_destructure_exit/main.omg:34:26: expected `:`, found keyword `as`
+pass/control_flow/runtime_tuple_case_destructure_exit checked 57466ms check-target:macos_arm64 @7899446a0dc7
 pass/control_flow/runtime_tuple_transition_exit rejected 10834ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	tests/omega/pass/control_flow/runtime_tuple_transition_exit/main.omg:1:1: call target must be a path or member access
 pass/control_flow/runtime_two_index_state_loans_exit checked 6540ms check-target:macos_arm64 @911f6617ba9e
@@ -10296,6 +10297,7 @@ pass/facts/thirtytwo_arg_stack_calling_plan_through_other_machine_exit checked 4
 pass/facts/thirtytwo_arg_stack_calling_plan_through_other_state_exit checked 3591ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/thirtytwo_arg_stack_calling_plan_through_parameter_exit checked 4669ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/thirtytwo_arg_stack_calling_plan_through_target_body_exit checked 3568ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/transparent_alias_qualified_cases_exit checked 6791ms check-target:macos_arm64 @6defc740839f
 pass/facts/transparent_alias_rhs_captured_supplier_call_result_exit checked 7568ms check-target:macos_arm64 @a1964f50142c
 pass/facts/transparent_alias_rhs_captured_supplier_const_name_exit checked 7750ms check-target:macos_arm64 @df2704cb8b18
 pass/facts/transparent_alias_rhs_captured_supplier_exit checked 5439ms check-target:macos_arm64 @24d35f3b86c4
