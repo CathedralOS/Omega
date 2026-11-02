@@ -1148,8 +1148,8 @@ pub(crate) fn finalize_completion_actions(
         .flow
         .terminal_unit_effects
         .adopt_structural_types(shapes.types.into_values())
-        .map_err(|_| {
-            String::from("temporary cleanup has conflicting executable structural types")
+        .map_err(|(identity, reason)| {
+            format!("temporary cleanup has conflicting executable structural type {identity:?}: {reason}")
         })?;
     Ok(())
 }

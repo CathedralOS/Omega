@@ -67,9 +67,20 @@ pub fn select_boundary_applications(
         let (Some((plan, row, execution, external_realization)), None) =
             (matching.next(), matching.next())
         else {
-            return Err(error(
-                "Terminal boundary application has no unique exact selected row",
-            ));
+            return Err(error(&format!(
+                "Terminal boundary application has no unique exact selected row for `{}` in package {:?}; selected coordinates: {:?}",
+                requirement.overload(),
+                requirement.package(),
+                selected_rows
+                    .iter()
+                    .map(|(plan, row, _, _)| (
+                        plan.schema
+                            .identity_text(plan.schema.declaration.trait_name),
+                        plan.schema.declaration.trait_package_identity,
+                        plan.identities.text(row.requirement_identity),
+                    ))
+                    .collect::<Vec<_>>(),
+            )));
         };
         let realization = match &row.binding {
             ProviderBinding::CompilerIntrinsic { .. } => {

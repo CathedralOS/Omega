@@ -33,7 +33,7 @@ X86SelectVal satisfies SelectedSelectVal {
     {
         let checked_alias: [u64; checked_extent(1)] = ALIAS;
         SelectedBodyCheck::require_tag(17u64);
-     checked_alias[1] 
+     checked_alias[1]
     }
 }
 
@@ -43,7 +43,7 @@ ArmSelectVal satisfies SelectedSelectVal {
     {
         let checked_alias: [u64; checked_extent(1)] = ALIAS;
         SelectedBodyCheck::require_tag(29u64);
-     checked_alias[1] 
+     checked_alias[1]
     }
 }
 

@@ -71,7 +71,34 @@ impl CheckedInitializers {
         accounting: &crate::evaluation_accounting::EvaluationAccounting,
         operators: &[crate::SelectedBuildTimeBinaryOperator],
     ) -> Result<Self, Vec<Diagnostic>> {
-        let references = typed_trees::references::collect_program_references(prepared.typed());
+        // Helper checking and result-carrier comparison consume concrete type
+        // dependencies too. Settle their length jobs on this private arena
+        // before projecting probe bodies; removing a probe must not leave a
+        // helper's declared array carrier symbolic beside a literal result.
+        let domain = crate::build_time_evaluation::EvaluationDomain::all()
+            .with_accounting(accounting.clone());
+        let settled = if crate::const_evaluation::const_lengths::pending_array_lengths(
+            prepared.typed(),
+            &domain,
+        )
+        .is_empty()
+        {
+            None
+        } else {
+            let mut execution = prepared.typed().clone();
+            crate::const_evaluation::const_lengths::evaluate_selected_array_lengths(
+                &mut execution,
+                authority.clone(),
+                crate::SelectedBuildTimeOperators {
+                    operators,
+                    provider_bodies: &[],
+                },
+                &domain,
+            )?;
+            Some(execution)
+        };
+        let execution = settled.as_ref().unwrap_or_else(|| prepared.typed());
+        let references = typed_trees::references::collect_program_references(execution);
         let operators = operators
             .iter()
             .filter(|row| {
@@ -98,8 +125,7 @@ impl CheckedInitializers {
         // The private scalar evaluator owns probe expressions. The projection
         // removes their unused generated context as well as their roots, while
         // preserving every helper or descriptive operand that actually uses it.
-        let projection =
-            super::probe_projection::ProbeProjection::new(prepared.typed(), probe_symbols);
+        let projection = super::probe_projection::ProbeProjection::new(execution, probe_symbols);
         let bodies = projection.helper_bodies();
         let preparation_request = typed_trees_to_typed_trees::PreparationRequest::settled();
         let checking = typed_trees_to_checked_trees::CheckingRequest::new();
