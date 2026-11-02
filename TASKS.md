@@ -553,7 +553,7 @@ decision (`SourceChecked`) into stage 06 and stage 00.
   `omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi`,
   `omega-rust/psi/compilation/representations/terminal-psi/{semantics,codec}`,
   `omega-rust/psi/interpreter/terminal-interpreter` and
-  `omega-rust/omega/application/terminal-runtime`.
+  `omega-rust/omega/interpreter/terminal-runtime`.
   - Stage 06's fail-closed shape gates (`unsupported`, `unpinned`), counted
     per file in `tools/stage06_shape_gates.txt`, re-check checked custody.
     Retire only gates shown to be unreachable, after reject twins cover the
@@ -680,11 +680,11 @@ compile-time, Build, CLI/corpus, and embedded execution through the common core.
   **CHECKED-INTERPRETER-DELETED** and **TERMINAL-RUNTIME-DRIVERS**)
   Delete `omega-rust/psi/interpreter/checked-interpreter/` immediately after
   **TERMINAL-BUILD-SEED** closes, restore hosted CLI/corpus/embedded Terminal
-  runtime drivers (`omega-rust/omega/application/terminal-runtime`), and close
+  runtime drivers (`omega-rust/omega/interpreter/terminal-runtime`), and close
   the universal cutover with one execution core and no executable tree visitor
   end to end (`omega run --both`).
   Owners: `omega-rust/psi/interpreter/`,
-  `omega-rust/omega/application/terminal-runtime/src/execution.rs`, and
+  `omega-rust/omega/interpreter/terminal-runtime/src/execution.rs`, and
   `source/psi/` + `source/omega/`.
   - **CHECKED-INTERPRETER-DELETED:** remove
     `omega-rust/psi/interpreter/checked-interpreter/` and all production
@@ -692,7 +692,7 @@ compile-time, Build, CLI/corpus, and embedded execution through the common core.
     any remaining unimplemented caller as an explicit capability gap before
     effects.
   - **TERMINAL-RUNTIME-DRIVERS:** finish the source-free Terminal artifact
-    execution boundary in `omega-rust/omega/application/terminal-runtime`
+    execution boundary in `omega-rust/omega/interpreter/terminal-runtime`
     (consuming retained provisions from `native-artifact` without recompiling
     source or rerunning Build), completing scalar entry arguments,
     placed/aggregate/atomic host loans, case replacement, clock/descriptor
