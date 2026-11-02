@@ -415,10 +415,10 @@ pub(crate) fn local_trait_contract_identity(
     Some(program_intern_type_identity(
         program,
         compound(
-            "local-trait-contract",
+            CoordinateTag::LocalTraitContract,
             [
                 program.type_identity_text(base)?,
-                compound("refinements", refinements),
+                compound(CoordinateTag::Refinements, refinements),
             ],
         ),
     ))
