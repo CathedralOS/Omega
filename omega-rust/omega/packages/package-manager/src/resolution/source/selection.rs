@@ -10,12 +10,19 @@ pub(crate) enum PackageSourceSelectionEvidence {
     Root,
     /// A declared member was selected from an authenticated Git workspace.
     GitWorkspace(GitWorkspaceSelectionEvidence),
+    /// SDK-issued bytes for an accepted historical pin/navigation. The retained
+    /// resolver object authenticates acquisition, not a fresh Build declaration.
+    /// Only old-source comparison receives this custody; snapshot rendering
+    /// verifies materialized content before and after reading it.
+    HistoricalGit {
+        _source: std::sync::Arc<package_source::ResolvedGitSource>,
+    },
 }
 
 impl PackageSourceSelectionEvidence {
     pub(crate) fn observations(&self) -> &[super::WorkspaceMemberObservation] {
         match self {
-            Self::Root => &[],
+            Self::Root | Self::HistoricalGit { .. } => &[],
             Self::GitWorkspace(evidence) => evidence.observations(),
         }
     }

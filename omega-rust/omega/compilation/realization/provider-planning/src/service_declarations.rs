@@ -1,13 +1,15 @@
-//! Close service schemas and declaration owners at checked-provider binding.
+//! Attach target Calling evidence to shared, Source-closed service declarations.
 //!
+//! The source-owned census already supplies nominal owners and ordered
+//! requirement identities. This target join never reopens checked trees.
 //! Resolved consumers retain source-free records. Only this invocation's
 //! catalog maps them back to source symbols for remaining source-contract work.
 //! Unused unsupported/local declarations retain refusals instead of introducing
 //! new obligations merely because the inventory was prepared eagerly.
 
 use crate::calling_policy_plans::BoundaryCallingPlanRealization;
-use checked_trees::typed_trees::TypedTrees;
-use checked_trees::typed_trees::service_declarations::ServiceCatalog;
+use checked_trees::typed_trees::service_declarations::PreparedServiceDeclaration;
+pub(crate) use checked_trees::typed_trees::service_declarations::exact_identity;
 use diagnostics::Diagnostic;
 use effects::provider_plan::ServiceSchema;
 use semantic_vocabulary::PackageKeyIdentity;
@@ -63,16 +65,14 @@ impl SourceServiceDeclaration {
 }
 
 impl ServiceDeclarations {
-    pub fn prepare(
-        catalog: ServiceCatalog<'_>,
+    pub fn prepare<'catalog>(
+        declarations: impl IntoIterator<Item = PreparedServiceDeclaration<'catalog>>,
         calling_plans: &[BoundaryCallingPlanRealization],
-        exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
     ) -> Self {
-        let typed = catalog.context().typed;
         let mut sources = Vec::new();
-        for definition in catalog.declared_traits() {
+        for definition in declarations {
             let symbol = definition.schema.symbol();
-            let nominal_identity = exact_identity(typed, symbol, exact_toolchain_sources);
+            let nominal_identity = definition.nominal_identity.clone();
             let projection = (|| {
                 let nominal_identity = nominal_identity.as_ref().map_err(Clone::clone)?.clone();
                 let projected = definition.surface.as_ref().ok_or_else(|| {
@@ -80,9 +80,10 @@ impl ServiceDeclarations {
                 })?;
                 let schema = crate::service_schema::attach_calling(projected, calling_plans);
                 let requirements = projected.exact_requirements()?;
-                let identities = requirements
+                let identities = projected
+                    .requirements
                     .iter()
-                    .map(|symbol| exact_identity(typed, *symbol, exact_toolchain_sources))
+                    .map(|requirement| requirement.nominal_identity.clone())
                     .collect::<Result<Vec<_>, _>>()?;
                 Ok(ServiceProjection {
                     declaration: Arc::new(ServiceDeclaration {
@@ -181,17 +182,4 @@ impl ServiceDeclarations {
         }
         first.resolved()
     }
-}
-
-pub(crate) fn exact_identity(
-    typed: &TypedTrees,
-    symbol: SymbolHandle,
-    sources: &[(source::SourceId, [u8; 32])],
-) -> Result<String, Diagnostic> {
-    typed
-        .exact_owner_nominal_identity(symbol, sources)
-        .and_then(|identity| typed.type_identity_text(identity))
-        .ok_or_else(|| {
-            Diagnostic::error("service declaration has no exact package or toolchain owner")
-        })
 }

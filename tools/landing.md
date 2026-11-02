@@ -57,12 +57,25 @@ ready) and either enqueues at once, when the check on that head is already
 green, or asks the queue to take the PR when the check passes (GitHub's
 auto-merge request, which on this merge-queue branch means "add to the queue when
 ready"; the repository allows it since 2026-11-01, and it bypasses nothing). It
-returns in seconds and prints the PR, exit 0. No session has to stay alive, poll CI or be woken for its work to land;
-before this, 9 of 70 PRs from desktop sessions sat green for 66 to 262 minutes
-because nothing woke the session that had to enqueue them.
+returns in seconds and prints the PR, exit 0. This registers native asynchronous
+intent, not a confirmed queue entry or publication. GitHub normally queues it
+after the check passes, so continuous polling is unnecessary. If a later status
+shows a green head still armed without a queue entry, rerun the same fenced
+`land` command: it rechecks that head and uses the ordinary enqueue path. No
+additional CI permissions or workflow are needed for this foreground recovery.
 
-Arming is the landing decision. A later push to the same PR stays armed and lands
-when its check passes, so push only finished work after `land`, or disarm first
+The [merge retrospective (#1030)](https://github.com/CathedralOS/Omega/pull/1030)
+tracks the earlier merge-delay problem. The session for
+[#1451](https://github.com/CathedralOS/Omega/pull/1451) later observed a green,
+clean, armed PR without a queue entry: repeating `land` returned it unchanged,
+while explicit enqueue advanced it. Native intent also queued
+[#1446](https://github.com/CathedralOS/Omega/pull/1446) and
+[#1452](https://github.com/CathedralOS/Omega/pull/1452) normally. The recovery
+above fixes the client's later-call ordering, without removing native intent
+or asserting that GitHub never fulfills it.
+
+Arming is the landing decision. A later push to the same PR retains that intent
+for the new head, so push only finished work after `land`, or disarm first
 with `gh pr merge NUMBER --disable-auto`. A red check leaves the PR out of the
 queue: inspect the failed run (`gh pr checks NUMBER`, `gh run view RUN_ID
 --log-failed`), fix the source and push; the request stays armed for the new
@@ -72,8 +85,10 @@ Verify the landing on a later turn with `python tools/landing.py status NUMBER`
 (`state` MERGED and `mergeCommit`), or, where the host lets a command run in the
 background, add `--wait-seconds N` (at most 86400) so `land` also waits: it exits
 0 for MERGED, 2 at the deadline, and 1 for a red check, a conflict, a closed PR
-or removal from the queue. It never re-enqueues. A rerun resumes from the PR's
-current state and repeats no mutation.
+or removal from the queue. Waiting never re-enqueues a removed entry. A later
+`land` leaves merged or queued PRs untouched, retains an armed pending request,
+and enqueues an already-armed green head. An armed request alone does not
+guarantee unattended publication; verify the final state.
 
 `PR_BODY` is a file containing the change's explanation and focused evidence.
 Include actual agent/model provenance there when known, not in commit trailers.

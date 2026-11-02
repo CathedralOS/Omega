@@ -833,6 +833,29 @@ impl StructuralJudge<'_> {
                         }
                         projected
                     }
+                    CapturedStorageSegment::Place(segment @ PlaceSegment::Case { .. }) => {
+                        // A payload read traverses the classifier of this
+                        // current owned value. Consume the independent tag
+                        // through the shared typed projection owner; the path
+                        // itself establishes neither the tag nor its predicate.
+                        if self.require_closed_computation {
+                            let closed = if self.runtime_body_values {
+                                self.completed_value_identity(value.clone())
+                            } else {
+                                self.resolve_at(value.clone(), 1)
+                            };
+                            if !closed.is_closed_value() {
+                                return None;
+                            }
+                        }
+                        super::super::observed_projections::project_observed_value_in_scope(
+                            self.program,
+                            self,
+                            reference,
+                            value,
+                            std::slice::from_ref(segment),
+                        )?
+                    }
                     CapturedStorageSegment::Place(_) => return None,
                 };
                 reference = projected_type;

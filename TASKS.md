@@ -503,8 +503,7 @@ narrows realization only.
     declarations: host classification's catalog-local source join, typed
     constant/comparison evaluation (including Early Build's typed-only
     comparison path), general review call coordinates, source-dependent
-    direct-call preparation, calling-policy request
-    enumeration and checked target-body correspondence.
+    direct-call preparation.
   - Move review-only products' complete conformance evidence from checked
     source custody into Terminal Psi.
   - Publish portable dormant-use records and the trust-model accepted-machine
@@ -644,9 +643,9 @@ compile-time, Build, CLI/corpus, and embedded execution through the common core.
   - Connect admitted Build operations, remaining live-storage accounting,
     remaining host operations (including admitted carriers for reference results from
     opaque host providers), and the staged dependency preparation/provider
-    park/resume contract to the production Build scheduler, replacing checked-tree Build
-    evaluation and the live-source/Git static syntax projections in
-    `omega-rust/omega/packages/build-declarations`.
+    park/resume contract to the production Build scheduler, and replace the
+    Rust-supplied default declaration for a missing `build.omg` with ordinary
+    source Build execution.
   - **BUILD-PRODUCT-REFERENCES / TERMINAL-BUILD-QUERIES:** keep `bind`,
     `select_provider`, `assume_binding_contract`, test registration, and product
     description/schema queries inert during Build and resolve them at the final
