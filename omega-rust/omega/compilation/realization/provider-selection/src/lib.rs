@@ -41,7 +41,8 @@ mod selection;
 
 pub use publication::{
     CanonicalProviderDeclaration, PreparedProviderCandidate, PreparedProviderRealizations,
-    PreparedTargetChoices, PreparedTargetProviderPublication,
+    PreparedTargetChoices, PreparedTargetProviderPublication, SelectedTargetProviderPublication,
+    SelectedTargetProviders, TargetProviderChoice,
 };
 
 pub use declarations::{

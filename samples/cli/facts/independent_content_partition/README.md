@@ -32,7 +32,7 @@ The corresponding corpus fixtures are pinned as
 - Soundness boundaries: every twin omits one conservation law and must reject.
   Additional controls cover repeated owner equations, absent input membership,
   and overlapping output geometry.
-- Checked-to-Terminal Psi (Psi 05–07): normalized independent derivations survive
+- Checked-to-Terminal Psi (Psi 06–08): normalized independent derivations survive
   proof erasure, structural result lowering and exact claim transfers. Terminal
   execution checks actual custody through calls and both match arms.
 - Provider settlement, layout and ABI (Omega 00–02): Build companions bind all

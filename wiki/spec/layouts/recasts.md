@@ -80,7 +80,7 @@ invalid reference bytes cannot be materialized and then checked. Reading indepen
 established fields needs their own validity/access facts and cannot assume the
 unfinished whole's coupling. Raw-byte validation must use a legal byte observation
 under exclusive custody, not a concurrent surviving alias. Write-only access cannot
-read its referent. Authorized domain-establishment routes and `read by` / `written by`
+read its referent. Authorized domain-establishment routes and reader/writer
 restrictions remain mandatory throughout.
 
 Complete target establishment closes the window and permits ordinary typed use.
@@ -120,8 +120,8 @@ outstanding ownership, custody, domain, and synchronization obligations. Judge t
 operations, not just whether the reference is spelled `&` or `&mut`.
 
 [Domain-owned access restrictions](../language/domains.md#domain-owned-read-and-write-authority)
-are part of that source authority. Forgetting a domain with `read by` or
-`written by` must retain the restriction on the resulting view; a target/use
+are part of that source authority. Forgetting a domain with an access policy
+must retain the restriction on the resulting view; a target/use
 that requires broader authority rejects. Neither exclusive ownership nor an
 atomic-to-atomic or intermediate byte cast bypasses an installed domain policy.
 Ordinary erasure of non-owning meaning remains legal when it does not widen access.
@@ -148,12 +148,14 @@ and domain minting alone does not restrict every operation on an existing value.
 
 ## Access views
 
-This representation judgment applies to ordinary values/storage, not
-`Access<P, T>` or its accessors. A recast could otherwise reveal a field denied
-by the source access plan even while preserving its observation class. Access
-view-to-view recasts reject. Detached snapshots may be recast as ordinary
-values; a retained underlying extent loan may be submitted for another
-[access establishment](../resources/access.md).
+Domain qualification does not exempt a view from this judgment. Ordinary Stable
+recasts preserve the domain's restrictions on the same storage. A cast cannot
+re-plan operation-governed External/Atomic backing, reveal a denied field, or
+manufacture a stable/exclusive loan from an accessor. Such a new interpretation
+requires explicit [access establishment](../resources/access.md) through legitimate
+underlying authority, with independent layout, observation and custody checks.
+Detached snapshots may be recast under their own ordinary contracts; they do not
+erase restrictions still governing the source storage.
 
 The [implementation note](../../../omega-rust/psi/compilation/checking/recasts.md)
 records supported shapes and source positions separately from this contract.

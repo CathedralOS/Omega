@@ -51,7 +51,7 @@ impl Projection {
             + usize::from(matches!(
                 path.get(length),
                 Some(
-                    StructuralPathSegment::FixedByteRange { .. }
+                    StructuralPathSegment::FixedRange { .. }
                         | StructuralPathSegment::RuntimeIndex { .. }
                 )
             ));
@@ -220,7 +220,7 @@ impl Projection {
                 AddressStep::Path(path, at) => {
                     for segment in path {
                         match segment {
-                            StructuralPathSegment::FixedByteRange { start, .. } => {
+                            StructuralPathSegment::FixedRange { start, .. } => {
                                 append_offset(&mut offset, Some(*start))?
                             }
                             StructuralPathSegment::FixedIndex(_)

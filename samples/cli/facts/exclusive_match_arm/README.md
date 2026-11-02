@@ -129,7 +129,7 @@ The `case_payload` probe is not pinned and never counts toward the row.
    source is disturbed while the loan is live; the positives show the same
    checker admits the loan write, preserves exclusivity, and leaves the
    unselected primitive untouched.
-5. **Checked-to-Terminal Psi lowering (`Psi 05–07`):** The match, the primitive
+5. **Checked-to-Terminal Psi lowering (`Psi 06–08`):** The match, the primitive
    exclusive loan, and its write/read lower without loss into canonical
    target-neutral Terminal Psi (`PSITERM\0`); the Terminal Psi interpreter
    executes root and all nine positive places in complete agreement with native

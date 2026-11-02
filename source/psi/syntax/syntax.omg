@@ -908,7 +908,7 @@ public data ParseDiagnostic [copy] {
 }
 
 public data SyntaxTrees
-where
+requires
     root_count <= 4096,
     use_count <= 1024,
     member_count <= 32000,

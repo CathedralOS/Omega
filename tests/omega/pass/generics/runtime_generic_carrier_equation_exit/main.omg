@@ -3,7 +3,7 @@ use omega_language_std::console;
 domain<Carrier, const Index: u64> Carrier::Tagged<Index>;
 
 data Box<Payload [copy], const Index: u64> [copy]
-where
+requires
     Payload == u64::Tagged<Index>
 {
     value: Payload;

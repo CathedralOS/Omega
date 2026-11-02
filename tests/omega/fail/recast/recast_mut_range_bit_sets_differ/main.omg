@@ -3,14 +3,14 @@
 // source admits bit pattern 0, so either mutable alias could invalidate the
 // other view's range fact.
 data SignedBounded
-where
+requires
     value >= 0 && value <= 100,
 {
     value: i32;
 }
 
 data ShiftedUnsigned
-where
+requires
     value >= 1 && value <= 101,
 {
     value: u32;

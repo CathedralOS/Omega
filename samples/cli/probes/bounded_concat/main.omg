@@ -2,7 +2,7 @@
 // Expected exit: 0. The entry checks the selected success result.
 domain [u8; 16]::Ascii requires ascii_only(self);
 domain [u8]::Ascii requires ascii_only(self);
-data TextBuffer where used <= 16 { storage: [u8; 16] in Ascii; used: u64; }
+data TextBuffer requires used <= 16 { storage: [u8; 16] in Ascii; used: u64; }
 machine live(buffer: &TextBuffer) -> &[u8] in Ascii { &buffer.storage[..buffer.used] }
 machine copy(buffer: &mut [u8; 16] in Ascii, bytes: &[u8] in Ascii, start: u64)
 requires start <= 16, bytes.len <= 16 - start
@@ -29,7 +29,7 @@ ensures buffer in Ascii
 }
 
 domain [u8; 4]::Ascii requires ascii_only(self);
-data Label where used <= 4 { storage: [u8; 4] in Ascii; used: u64; }
+data Label requires used <= 4 { storage: [u8; 4] in Ascii; used: u64; }
 machine label_live(label: &Label) -> &[u8] in Ascii
 ensures result.len == label.used && result.len <= 4
 { &label.storage[..label.used] }

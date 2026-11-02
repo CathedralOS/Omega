@@ -5,7 +5,7 @@
 use omega_language_std::console;
 
 data Stack
-where
+requires
     depth <= 4,
 {
     items: [u64; 4];

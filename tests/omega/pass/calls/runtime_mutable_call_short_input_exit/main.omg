@@ -3,7 +3,7 @@
 // four-byte minimum, so both engines take the failure exit 72.
 use omega_language_std::console;
 
-data Loader where cursor <= 16383 {
+data Loader requires cursor <= 16383 {
     line: [u8; 8];
     tags: [u8; 16384] in Trapping;
     firsts: [u8; 16384] in Trapping;

@@ -240,28 +240,17 @@ fn parse_boundary_item<'tokens, 'source>(
         let (definition, rest) = parse_let_definition(syntax_trees, input, true)?;
         return Ok((ParsedDeclaration::Mathematical(definition), rest));
     }
+    // Settled `boundary-operations-are-trait-requirements`
+    // (language/machines.md, "Supply"): data and code are independent, so a
+    // carrier-owned `boundary requirement Owner::operation(...);` row is
+    // retired and a one-member boundary trait supplies an independent slot.
     if input.at_contextual("requirement") {
-        let input = input.take_contextual("requirement")?;
-        let (mut item, rest) = parse_machine(syntax_trees, input)?;
-        if item.spelling.is_some() {
-            return Err(rest.error_here(
-                "a `boundary requirement` does not take a fixed operator token; a \
-                 token-bearing boundary requirement is spelled bodyless \
-                 `boundary machine + Name(...);`",
-            ));
-        }
-        if !item.satisfies.is_empty() {
-            return Err(rest.error_here(
-                "a top-level `boundary requirement` declares a required operation and cannot itself carry a `satisfies` clause",
-            ));
-        }
-        if !item.bodyless {
-            return Err(rest.error_here(
-                "a top-level `boundary requirement` is bodyless and must end with `;`, not a checked `{ ... }` body",
-            ));
-        }
-        item.is_top_level_boundary_requirement = true;
-        return Ok((ParsedDeclaration::Item(Item::Machine(item)), rest));
+        return Err(input.error_here(
+            "standalone `boundary requirement Owner::operation(...);` declarations are retired; \
+             declare the operation as a member of a boundary trait \
+             (`boundary trait Owner { machine operation(...) reaches ...; }`), \
+             using a one-member trait when it needs independent provider selection",
+        ));
     }
     if input.at_keyword(KeywordKind::Data) {
         let input = input.take_keyword(KeywordKind::Data, "data")?;

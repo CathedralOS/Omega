@@ -4,7 +4,7 @@
 // and later stores under a callee `requires` relating its own parameters
 // keep the bound at the point the machine exits.
 data Window
-where
+requires
     low <= high,
 {
     low: u64;

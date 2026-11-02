@@ -2,7 +2,7 @@
 // Place: other_machine. A forwarding machine forwards the bounded reading to the verifying machine.
 // Expected exit: 0
 
-data Reading [copy] where value >= 1.25f32 && value <= 2.75f32 {
+data Reading [copy] requires value >= 1.25f32 && value <= 2.75f32 {
     value: f32;
 }
 

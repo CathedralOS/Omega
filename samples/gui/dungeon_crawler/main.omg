@@ -12,7 +12,7 @@ use dungeon_core::configuration::FRAME_DELAY_MILLISECONDS;
 use dungeon_core::configuration::EVENT_BUDGET;
 
 data Main
-where cursor <= FRAME_PIXELS, pumped <= EVENT_BUDGET, direction >= -1 && direction < 4 {
+requires cursor <= FRAME_PIXELS, pumped <= EVENT_BUDGET, direction >= -1 && direction < 4 {
     game: Game;
     frame: Frame;
     pixels: [i32; FRAME_PIXELS];

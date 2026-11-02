@@ -299,7 +299,7 @@ impl RequestedTerminalCompilation {
     ) -> Result<CompilationOutput, CompilationProductError> {
         let checked = self.realization.into_checked_compilation();
         phase_profile::scope(
-            "06.0.b_admit_permissions_and_trust",
+            "omega.product.admit_permissions_and_trust",
             || -> Result<_, CompilationProductError> {
                 admit_permissions(&checked, self.permissions.as_ref(), true)?;
                 checked
@@ -310,7 +310,7 @@ impl RequestedTerminalCompilation {
         // Product eligibility precedes application completion, as it did before
         // batching. Both production halves consume the same settled choices.
         let product =
-            phase_profile::scope("06.0.c_report_prepare", || self.report.prepare(&checked))?;
+            phase_profile::scope("omega.product.report_prepare", || self.report.prepare(&checked))?;
         let report = match product {
             CheckedProductReport::Complete(_) => {
                 return Err(vec![Diagnostic::error(
@@ -334,7 +334,7 @@ impl RequestedTerminalCompilation {
                 request,
                 rollback,
             } => {
-                let terminal = phase_profile::scope("06.0.d_finish_terminal_application", || {
+                let terminal = phase_profile::scope("omega.product.finish_terminal_application", || {
                     let request =
                         checked.terminal_native_proposal_request(rollback.effective(), &[])?;
                     produced.prepare(request)

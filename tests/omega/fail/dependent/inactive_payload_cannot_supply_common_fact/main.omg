@@ -1,4 +1,4 @@
-data Restricted [copy] where value <= 5 { value: u64; }
+data Restricted [copy] requires value <= 5 { value: u64; }
 data Plain [copy] { value: u64; }
 data Choice [copy] {
     case A(item: Restricted);

@@ -22,14 +22,14 @@ public data Reward [copy] {
 }
 
 public data Exit<const Rooms: u64> [copy]
-where Rooms >= 1, destination < Rooms {
+requires Rooms >= 1, destination < Rooms {
     destination: u64;
     open: bool;
     needs_key: bool;
 }
 
 public data Room<const Rooms: u64> [copy]
-where Rooms >= 1 {
+requires Rooms >= 1 {
     exits: [Exit<Rooms>; 4];
     layout: Layout;
     reward: Reward;
@@ -38,7 +38,7 @@ where Rooms >= 1 {
 }
 
 public data Dungeon<const Rooms: u64>
-where Rooms >= 1 {
+requires Rooms >= 1 {
     rooms: [Room<Rooms>; Rooms];
 }
 
@@ -49,7 +49,7 @@ public data RoomProgress [copy] {
 }
 
 public data Progress<const Rooms: u64> [copy]
-where Rooms >= 1 {
+requires Rooms >= 1 {
     rooms: [RoomProgress; Rooms];
     key: bool;
     won: bool;

@@ -2,7 +2,7 @@
 // Place: local. The bounded reading is stored in a local variable before passing to verify_f32_window.
 // Expected exit: 0
 
-data Reading [copy] where value >= 1.25f32 && value <= 2.75f32 {
+data Reading [copy] requires value >= 1.25f32 && value <= 2.75f32 {
     value: f32;
 }
 

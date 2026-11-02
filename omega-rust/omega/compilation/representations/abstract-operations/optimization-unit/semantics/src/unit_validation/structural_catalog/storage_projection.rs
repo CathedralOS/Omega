@@ -30,7 +30,7 @@ pub(crate) fn shared_view_declaration(declaration: &StructuralTypeDeclaration) -
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StructuralStorageProjection {
     Endpoint(StructuralTypeId),
-    ByteWindow {
+    CollectionWindow {
         backing: StructuralTypeId,
         offset: u64,
         length: u64,
@@ -58,12 +58,12 @@ impl StructuralStorageProjection {
                 borrowed_referent_matches(declarations, actual, expected)
             }
             (
-                Self::ByteWindow {
+                Self::CollectionWindow {
                     backing: actual,
                     offset,
                     length,
                 },
-                Self::ByteWindow {
+                Self::CollectionWindow {
                     backing: expected,
                     offset: expected_offset,
                     length: expected_length,
@@ -86,13 +86,10 @@ pub fn structural_storage_projection<'types>(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
 ) -> Option<StructuralStorageProjection> {
-    if matches!(
-        path.last(),
-        Some(StructuralPathSegment::FixedByteRange { .. })
-    ) {
+    if matches!(path.last(), Some(StructuralPathSegment::FixedRange { .. })) {
         let window =
-            terminal_semantics::fixed_byte_storage_window(declarations.clone(), root, path)?;
-        Some(StructuralStorageProjection::ByteWindow {
+            terminal_semantics::fixed_collection_storage_window(declarations.clone(), root, path)?;
+        Some(StructuralStorageProjection::CollectionWindow {
             backing: structural_projection_type(declarations, root, window.backing_path)?,
             offset: window.offset,
             length: window.length,

@@ -395,6 +395,25 @@ lane under the existing child deadline; Terminal execution observes its own
 original allocations. Missing, extra or differing observations cannot be recorded
 as successful runtime oracles. An empty input file explicitly tests absent supply.
 
+`runtime portable component-input <requirement> <observations|storage-refusal|write-refusal> [nested-requirements...]`
+installs the authored provider as a real independent Terminal component. The
+`build/component_borrowed_continuation` fixture lends an original opaque input
+through mutable and shared contracts, pauses the child before its host effect,
+and checks exact observations after return and repeated completion. The mutable
+child changes the host object before its caller observes it. Explicit reborrows
+and a second component preserve the same backing. The embedding supplies an
+owned original object; checked source forms its loans. The owned control uses
+the existing transfer path; `storage-refusal` requires guest materialized storage
+and an unbacked borrowed entry to refuse before child or host effects. Enable with
+`OMEGA_CORPUS_HOST_PROVISIONS=1`; otherwise it is `unrequested`. This establishes
+the embedding's opaque input carrier, not complete Build continuation staging.
+
+`write-refusal` exercises a checked field write with no original guest backing:
+the child remains retained, rejects before changing storage or calling the host,
+and cannot resume its lender. The same writer in the ordinary application uses
+real local backing and must preserve its caller-visible value. An owned
+materialized record also crosses a real component and retains its exact contents.
+
 `runtime portable build-bindings <slots> <entry> <identifier-or->` supplies the
 Build binding imports with source-issued designated operands. Slots are an
 ordered comma-separated list. Both borrowed and loaded artifacts must retain

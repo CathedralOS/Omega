@@ -42,7 +42,7 @@ ensures result >= value - tolerance && result <= value + tolerance
     grid(value, tolerance)
 }
 
-data Reading where value >= 0 && value <= 20 {
+data Reading requires value >= 0 && value <= 20 {
     value: i32;
 }
 

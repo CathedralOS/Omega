@@ -4,7 +4,8 @@ A domain is a zero-cost semantic theory attached to a value's unchanged
 carrier.
 
 A domain can state predicates, contribute a unit meaning or arithmetic policy,
-name authorized establishment/read/write routes, select cleanup with `dropped by`,
+attach an access policy for establishment/read/write restrictions and observation
+requirements, select cleanup with `dropped by`,
 or alias other domains. These
 roles are checked separately. The [domain specification](../spec/language/domains.md)
 owns the complete rules; this chapter shows how to use them.
@@ -150,14 +151,15 @@ machine Game::start_game(game: &mut Game)
 
 ## Read And Write Authority
 
-Domain access restrictions are opt-in. `read by` names the operations allowed
-to obtain read access; `written by` does the same for writes. They are independent
-of each other and of `established by`. An omitted clause adds no restriction on
-that axis; ordinary borrowing, validity, and authority rules still apply.
+Domain access restrictions are opt-in. One `access` policy owns establishment,
+reader and writer lists. These axes are independent. An omitted list adds no
+restriction; an empty list permits nobody. Ordinary borrowing, validity, backing
+and observation rules still apply. The plan never grants missing authority.
 
 The policy belongs to the domain, not to the file or a field-private annotation.
-Fields simply use a qualified type. This is settled source design; compiler
-support remains an implementation task.
+Fields may use a qualified type, or the whole object's policy may restrict selected
+fields through semantic reflection. Layout is independently selected, not embedded
+in the access plan.
 
 ```omega
 public data Cell {
@@ -165,9 +167,21 @@ public data Cell {
 }
 
 public domain Cell::Controlled
-    established by Cell::create
-    read by Cell::read
-    written by Cell::set;
+    access CellAccess;
+
+CellAccess satisfies AccessPolicy {
+    machine plan(schema: reflect::TypeSchema) -> AccessPlan {
+        let mut plan: AccessPlan = AccessPlan::new(&schema);
+        AccessPlan::establish(&mut plan, [reflect::callable(Cell::create)]);
+        AccessPlan::allow_readers(
+            &mut plan, TypeSchema::root(&schema), [reflect::callable(Cell::read)]
+        );
+        AccessPlan::allow_writers(
+            &mut plan, TypeSchema::root(&schema), [reflect::callable(Cell::set)]
+        );
+        plan
+    }
+}
 
 public data Counter {
     cell: Cell in Controlled;
@@ -245,17 +259,94 @@ not unrestricted access, and the policy is not a guarantee of secrecy.
 The [domain access contract](../spec/language/domains.md#domain-owned-read-and-write-authority)
 owns establishment, delegation, composition, and erasure details.
 
+### Whole-object and field restrictions
+
+One policy covers both scales. This controller leaves `configuration` under the
+whole-object rules, makes `status` read-only, and makes `command` write-only to
+one machine:
+
+```omega
+data Controller {
+    configuration: u32;
+    status: u32;
+    command: u32;
+}
+
+domain Controller::Controlled
+    requires self.configuration <= 100
+    access ControllerAccess;
+
+ControllerAccess satisfies AccessPolicy {
+    machine plan(schema: reflect::TypeSchema) -> AccessPlan {
+        let mut plan: AccessPlan = AccessPlan::new(&schema);
+        AccessPlan::establish(&mut plan, [reflect::callable(Controller::create)]);
+        AccessPlan::allow_readers(&mut plan, TypeSchema::root(&schema), [
+            reflect::callable(Controller::inspect),
+            reflect::callable(Controller::update)
+        ]);
+        AccessPlan::allow_writers(&mut plan, TypeSchema::root(&schema), [
+            reflect::callable(Controller::configure),
+            reflect::callable(Controller::update)
+        ]);
+        AccessPlan::allow_writers(&mut plan, reflect::field(Controller::status), []);
+        AccessPlan::allow_readers(&mut plan, reflect::field(Controller::command), []);
+        AccessPlan::allow_writers(&mut plan, reflect::field(Controller::command), [
+            reflect::callable(Controller::update)
+        ]);
+        plan
+    }
+}
+
+machine Controller::create() -> Controller in Controlled {
+    Controller { configuration: 0, status: 0, command: 0 }
+}
+
+machine Controller::inspect(controller: &(Controller in Controlled)) -> u32 {
+    controller.status
+}
+
+machine Controller::configure(
+    controller: &mut (Controller in Controlled), configuration: u32
+)
+requires configuration <= 100
+{
+    controller.configuration = configuration;
+}
+
+machine Controller::update(controller: &mut (Controller in Controlled), command: u32) {
+    controller.command = command;
+}
+```
+
+`reflect::field(Controller::status)` is metadata about a declaration, not a borrow
+of an instance and not an offset. `reflect::callable` returns one descriptor type
+for exact machines and trait machine requirements; a field descriptor cannot enter
+a caller list. See [reflection](chapter_21_reflection.md#typed-field-and-callable-selectors).
+
+All applicable lists intersect. No later policy call overrides a parent denial.
+An empty writer list does not grant reads; a field may deny both. Whole-object
+overwrite checks every affected field, so `configure` cannot bypass the readonly
+status by replacing the record. Fresh initialization precedes establishment;
+casting or opening an invariant window on existing storage does not recreate it.
+The field rules apply to this qualification, not all unqualified controllers.
+
+Atomic load needs reader authorization, store needs writer authorization, and
+read-modify-write needs both. No atomic caller-list syntax is needed. The operation
+still checks its ordering, backing and custody contract. Device observation
+requirements use the same domain policy; see
+[external storage](chapter_20_memory_layout_abi.md#access-policies-and-externally-mutable-memory).
+
 ## Establishing And Qualifying Domains
 
 A domain declaration states two independent kinds of establishment evidence:
 
 - `requires` contains propositions about `value`; all of them must be proved.
-- `established by` contains exact trait-requirement or machine-declaration
-    identities authorized to establish membership. Its comma-separated entries
-    are alternative routes.
+- The access policy's establishment list contains exact reflected trait-requirement
+  or machine-declaration identities authorized to establish membership. Entries
+  in one list are alternative routes.
 
 For a predicate-only domain, proving every `requires` row establishes the
-structural qualification. For a domain with `established by`, those proofs are
+structural qualification. For a domain with an establishment restriction, those proofs are
 only side conditions: an exact authorized route occurrence must also introduce
 or forward the provenance. Copyable proof cannot mint Type-side authority.
 
@@ -264,11 +355,27 @@ domain [u8]::Path
     requires no_nul(self) == true;
 
 public domain Reservation::Issued
-established by Issues::issue;
+    access ReservationAccess;
 
 domain Reservation::Confirmed
     requires has_seat(self) == true
-    established by Confirms::confirm;
+    access ConfirmationAccess;
+
+ReservationAccess satisfies AccessPolicy {
+    machine plan(schema: reflect::TypeSchema) -> AccessPlan {
+        let mut plan: AccessPlan = AccessPlan::new(&schema);
+        AccessPlan::establish(&mut plan, [reflect::callable(Issues::issue)]);
+        plan
+    }
+}
+
+ConfirmationAccess satisfies AccessPolicy {
+    machine plan(schema: reflect::TypeSchema) -> AccessPlan {
+        let mut plan: AccessPlan = AccessPlan::new(&schema);
+        AccessPlan::establish(&mut plan, [reflect::callable(Confirms::confirm)]);
+        plan
+    }
+}
 ```
 
 A carrier-qualified domain is still an independently nameable declaration.
@@ -276,7 +383,7 @@ It is private unless marked `public`; it does not inherit visibility from its
 carrier. Conversely, publishing a domain does not publish a private carrier,
 and any public signature that names both must be able to name both.
 
-The `established by` clause does not execute its targets. A requirement route
+The establishment list does not execute its targets. A requirement route
 authorizes valid selected conformers through that requirement; an exact-machine
 route authorizes only that declaration's invocation. Normally the established
 subject is the result. A matching explicit
@@ -285,10 +392,10 @@ installed external root. Every predicate obligation is checked at the
 established subject once; later uses consume the resulting guarantee rather
 than re-proving it.
 
-Because an `established by` entry carries no call signature, its target path
+Because a callable selector supplies no overload-disambiguating call signature, its target path
 must resolve uniquely. Ambiguity across overloads or declaration kinds rejects;
 an expected result or selected conformance cannot choose the target. Adding an
-overload can therefore break establishment clauses in other packages. The
+overload can therefore break establishment selectors in other packages. The
 signature-free addressing rule retains whether the target is a requirement or
 an exact machine, rather than treating a satisfier as its requirement.
 
@@ -297,7 +404,15 @@ names a private checked machine accessible to the domain author:
 
 ```omega
 public domain Reservation::Issued
-established by issue_reservation;
+    access PrivateReservationAccess;
+
+PrivateReservationAccess satisfies AccessPolicy {
+    machine plan(schema: reflect::TypeSchema) -> AccessPlan {
+        let mut plan: AccessPlan = AccessPlan::new(&schema);
+        AccessPlan::establish(&mut plan, [reflect::callable(issue_reservation)]);
+        plan
+    }
+}
 ```
 
 Its authorized result occurrence supplies provenance only after the carrier,
@@ -325,7 +440,15 @@ public boundary trait InterruptEntry {
 }
 
 public domain InterruptAcknowledgement::Pending
-established by InterruptEntry::enter;
+    access InterruptAccess;
+
+InterruptAccess satisfies AccessPolicy {
+    machine plan(schema: reflect::TypeSchema) -> AccessPlan {
+        let mut plan: AccessPlan = AccessPlan::new(&schema);
+        AccessPlan::establish(&mut plan, [reflect::callable(InterruptEntry::enter)]);
+        plan
+    }
+}
 ```
 
 The same distinction matters for resource capacity: an ordinary call must
@@ -386,7 +509,7 @@ selected machine, and a boundary-trait requirement additionally requires provide
 and admission. Public ordinary conformances are allowed when the domain author
 deliberately publishes an open checked route.
 
-`established by` belongs to the domain. A checked machine's `satisfies` clause
+The access policy belongs to the domain. A checked machine's `satisfies` clause
 implements the named requirement; package Build records irreducible native
 backing through [a direct binding](../spec/build/foreign_bindings.md#build-owned-native-binding),
 not a source `via` clause or a per-symbol forwarding machine.
@@ -399,7 +522,17 @@ changing representation. A progress profile is explicit:
 ```omega
 domain SchedulerHandle::WeakFair
 satisfies ProgressProfile
-established by SchedulerAdmission::grant_weak_fair;
+access WeakFairAccess;
+
+WeakFairAccess satisfies AccessPolicy {
+    machine plan(schema: reflect::TypeSchema) -> AccessPlan {
+        let mut plan: AccessPlan = AccessPlan::new(&schema);
+        AccessPlan::establish(&mut plan, [
+            reflect::callable(SchedulerAdmission::grant_weak_fair)
+        ]);
+        plan
+    }
+}
 ```
 
 [Progress profiles](../spec/language/termination.md#opaque-progress-profiles)

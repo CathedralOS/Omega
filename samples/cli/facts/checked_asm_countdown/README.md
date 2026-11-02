@@ -124,7 +124,7 @@ receipts are distinct from the original baseline and producer-1273 records.
   mixed ISA registers, unencodable immediates, unsupported wide aliases and
   missing or invented clobbers. Existing assembly rejection controls remain
   regression inputs. No access or hardware authority is granted.
-- Psi 05–07: known arithmetic erases to ordinary checked modular scalar
+- Psi 06–08: known arithmetic erases to ordinary checked modular scalar
   computations and explicit ZF transitions. The catalog's target demand and
   exact input/result identities survive extraction and Terminal lowering.
 - Omega 00–02: explicit target-keyed named implementation rows and ProgramEntry join the ordinary

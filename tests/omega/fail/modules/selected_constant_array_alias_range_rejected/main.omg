@@ -1,4 +1,4 @@
-data ArrayHolder [copy] where elements[0] <= 2 {
+data ArrayHolder [copy] requires elements[0] <= 2 {
     elements: [u64; 1];
 }
 const SOURCE: [u64; 1] = [3];

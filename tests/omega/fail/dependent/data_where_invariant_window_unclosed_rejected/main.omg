@@ -2,7 +2,7 @@
 // re-establish the attached data's standing start <= end fact there.
 public boundary trait Console { machine exit_process(return_code: i32) reaches; }
 data Main
-where
+requires
     start <= end,
 {
     start: i32;

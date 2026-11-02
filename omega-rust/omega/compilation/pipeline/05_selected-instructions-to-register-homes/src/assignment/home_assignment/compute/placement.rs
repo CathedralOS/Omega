@@ -23,7 +23,7 @@ pub(crate) fn compute_function(
     if legality.virtual_registers.len() != ranges.virtual_registers.len() {
         return Err(RegisterHomeError::FunctionMismatch { function });
     }
-    let domains = phase_profile::scope("06.1.d.05.j.1_build_domains", || {
+    let domains = phase_profile::scope("omega.05.probe_all.build_domains", || {
         build_domains(function, legality, ranges)
     })?;
     let max_reg_id = legality
@@ -40,7 +40,7 @@ pub(crate) fn compute_function(
         }
     }
     let affinities = PreparedAffinities::new(domains.len(), &domain_of, &ranges.copy_affinities);
-    let conflicts = phase_profile::scope("06.1.d.05.j.2_prepared_conflicts", || {
+    let conflicts = phase_profile::scope("omega.05.probe_all.prepared_conflicts", || {
         PreparedConflicts::new(
             function,
             &domains,
@@ -51,7 +51,7 @@ pub(crate) fn compute_function(
         )
     })?;
     if conflicts.uses_bitmasks() {
-        return phase_profile::scope("06.1.d.05.j.3_compute_bitmask", || {
+        return phase_profile::scope("omega.05.probe_all.compute_bitmask", || {
             compute_function_bitmask(
                 function,
                 legality,

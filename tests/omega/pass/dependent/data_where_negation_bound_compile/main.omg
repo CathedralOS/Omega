@@ -3,7 +3,7 @@
 // temperatures still construct. Negative literals in the bound and in the
 // field's type are ordinary signed values.
 data Reading
-where
+requires
     reading >= -40,
 {
     reading: i64;

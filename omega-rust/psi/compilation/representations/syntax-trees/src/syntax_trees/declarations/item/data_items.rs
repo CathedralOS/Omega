@@ -20,7 +20,7 @@ pub struct DataDefinition {
     /// whose equivalence obligations admit the declaration.
     pub quotient: Option<QuotientDefinition>,
     /// R2 rung 1 (ch12 "Dependent Data"): the DEFAULT-DOMAIN facts --
-    /// `data M where count * stride <= len, { ... }` -- bare field names,
+    /// `data M requires count * stride <= len, { ... }` -- bare field names,
     /// any number of facts, holding at every observation. Parsed and
     /// stored; the syntax->resolved lowering refuses them loudly until R2
     /// rung 2 consumes the model (never a silent drop).

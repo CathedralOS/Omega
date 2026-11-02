@@ -38,6 +38,17 @@ pub struct ReferenceStorageRegion {
     pub byte_offset: u64,
     pub byte_length: u64,
     pub scalar: Option<ReferenceStorageProjection>,
+    /// A selected array window keeps its original declaration, not a new
+    /// type whose length was guessed from its physical byte extent.
+    pub array: Option<ReferenceArrayWindow>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ReferenceArrayWindow {
+    pub declaration: StructuralTypeId,
+    /// Offset relative to the array's own original backing, not its parent.
+    pub byte_offset: u64,
+    pub byte_length: u64,
 }
 
 fn align(offset: u64, alignment: u64) -> Option<u64> {
@@ -659,9 +670,10 @@ pub fn reference_storage_region<'types>(
     if projection.fragments.is_some() {
         return None;
     }
-    let size = match projection.scalar {
-        Some((_, stored)) => scalar_geometry(stored)?.0,
-        None => reference_storage_size(types, projection.carrier)?,
+    let size = match (projection.window, projection.scalar) {
+        (Some(window), _) => window.byte_length,
+        (None, Some((_, stored))) => scalar_geometry(stored)?.0,
+        (None, None) => reference_storage_size(types, projection.carrier)?,
     };
     Some(ReferenceStorageRegion {
         byte_offset: projection.byte_offset,
@@ -673,6 +685,7 @@ pub fn reference_storage_region<'types>(
                 stored_scalar,
             }
         }),
+        array: projection.window,
     })
 }
 
@@ -704,6 +717,7 @@ struct StoragePathProjection<'recipe> {
     carrier: StructuralTypeId,
     scalar: Option<(ScalarType, ScalarType)>,
     fragments: Option<&'recipe semantic_vocabulary::AuthoredBitFragments>,
+    window: Option<ReferenceArrayWindow>,
 }
 
 fn storage_path<'types>(
@@ -717,6 +731,7 @@ fn storage_path<'types>(
     let mut selected_storage = None;
     let mut selected_scalar = None;
     let mut fragments = None;
+    let mut window: Option<ReferenceArrayWindow> = None;
     for segment in path {
         if let StructuralPathSegment::RepresentationView {
             structural_type,
@@ -726,14 +741,18 @@ fn storage_path<'types>(
             if fragments.is_some() {
                 return None;
             }
-            let source_size = match selected_scalar {
-                Some(logical) => scalar_geometry(selected_storage.unwrap_or(logical))?.0,
-                None => match *crate::structural_shape(types.clone(), carrier)? {
-                    StructuralTypeShape::PrimitiveScalar(logical) => {
-                        scalar_geometry(selected_storage.unwrap_or(logical))?.0
-                    }
-                    _ => reference_storage_size(types.clone(), carrier)?,
-                },
+            let source_size = if let Some(window) = window {
+                window.byte_length
+            } else {
+                match selected_scalar {
+                    Some(logical) => scalar_geometry(selected_storage.unwrap_or(logical))?.0,
+                    None => match *crate::structural_shape(types.clone(), carrier)? {
+                        StructuralTypeShape::PrimitiveScalar(logical) => {
+                            scalar_geometry(selected_storage.unwrap_or(logical))?.0
+                        }
+                        _ => reference_storage_size(types.clone(), carrier)?,
+                    },
+                }
             };
             let view = crate::representation_view_declaration(
                 types.clone(),
@@ -751,7 +770,13 @@ fn storage_path<'types>(
             selected_storage = *stored_scalar;
             selected_scalar = None;
             repeated_stride = None;
+            window = None;
             continue;
+        }
+        // A region has no value namespace. A following explicit storage
+        // interpretation may select one; ordinary field/index access cannot.
+        if window.is_some() {
+            return None;
         }
         if selected_scalar.is_some() {
             return None;
@@ -830,6 +855,36 @@ fn storage_path<'types>(
                 carrier = *element;
                 selected_storage = None;
             }
+            (
+                StructuralTypeShape::FixedArray {
+                    element,
+                    length: terminal_psi::ArrayExtent::Literal(length),
+                },
+                StructuralPathSegment::FixedRange { start, end },
+            ) if start <= end && end <= length => {
+                let (size, alignment) = reference_storage_layout(types.clone(), *element)?;
+                let stride = repeated_stride.take().unwrap_or(align(size, alignment)?);
+                if stride < size {
+                    return None;
+                }
+                let array_offset = start.checked_mul(stride)?;
+                byte_offset = byte_offset.checked_add(array_offset)?;
+                let count = end.checked_sub(*start)?;
+                let byte_length = if count == 0 {
+                    0
+                } else {
+                    count
+                        .checked_sub(1)?
+                        .checked_mul(stride)?
+                        .checked_add(size)?
+                };
+                window = Some(ReferenceArrayWindow {
+                    declaration: carrier,
+                    byte_offset: array_offset,
+                    byte_length,
+                });
+                selected_storage = None;
+            }
             _ => return None,
         }
     }
@@ -847,6 +902,7 @@ fn storage_path<'types>(
         carrier,
         scalar,
         fragments,
+        window,
     })
 }
 

@@ -2,18 +2,18 @@
 domain<Carrier, const Index: u64> Carrier::Tagged<Index>;
 
 data Box<Payload [copy], const Index: u64> [copy]
-where
+requires
     Payload == u64::Tagged<Index>
 {
     value: Payload;
 }
 
 data Reversed<const Index: u64, Payload [copy]> [copy]
-where Payload == u64::Tagged<Index>
+requires Payload == u64::Tagged<Index>
 { value: Payload; }
 
 data Same<Left, Right, Payload [copy]> [copy]
-where
+requires
     Left == [Payload; 1],
     Right == [Payload; 1]
 { value: Payload; }

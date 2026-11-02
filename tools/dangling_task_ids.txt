@@ -41,7 +41,6 @@ samples/cli/facts/narrow_to_wide_unsigned_8to64_extension/README.md NUMERIC-SCAL
 samples/cli/facts/nested_array_element_projection/README.md LAYOUT-PLANS
 samples/cli/facts/nested_array_element_projection/README.md STRUCTURAL-ACCESS
 samples/cli/facts/nominal_callback_reach/README.md STATIC-CALLBACK-REACH-RETENTION
-samples/cli/facts/placed_stable_write/README.md PLAN-LAID-VIEWS
 samples/cli/facts/predicate_type_formation/README.md DOMAIN-DEFAULT-PREDICATE-UNIFICATION
 samples/cli/facts/range_fact_delivery/README.md ONE-INTEGER-BOUNDS-ENGINE
 samples/cli/facts/readonly_byte_pool_relocation_bound/README.md BYTE-VIEW-BOUND-DISCHARGE

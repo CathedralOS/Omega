@@ -2,7 +2,7 @@
 use omega_language_std::console;
 
 data Main
-where position < 2;
+requires position < 2;
 {
     position: u64;
     bytes: [u8;2];

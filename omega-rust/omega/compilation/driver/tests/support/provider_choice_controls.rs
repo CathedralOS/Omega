@@ -55,7 +55,9 @@ pub(super) fn prepare(
             .services_for(checked.execution().provider_source.program())
             .map_err(|error| format!("provider choice source catalog: {error:?}"))?,
         defaults: checked.provider_defaults(),
-        settlement: checked.providers(),
+        authored: checked.providers().authored_providers(),
+        calling_plans: &checked.providers().boundary_calling_plan_realizations,
+        bindings: &checked.providers().evaluated_via_bindings,
     };
     let targets = vec![(
         profile.target_name().to_owned(),
@@ -78,6 +80,7 @@ pub(super) fn prepare(
             .plans()
             .assumed_bindings(),
         independent_components: &checked.providers().verified_independent_components,
+        selected: None,
         targets: &targets,
     }
     .prepare();

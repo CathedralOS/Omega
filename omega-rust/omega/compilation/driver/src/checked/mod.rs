@@ -9,7 +9,7 @@
 //! carrier and its projections.
 //! The checked product settles trust through the realization trust owner;
 //! Build evaluation owns declaration admission before any Build effects.
-//! Checked-product selection executes in Psi stage 04. Exact-rule rollback
+//! Checked-product selection executes in Psi stage 05. Exact-rule rollback
 //! settlement is owned by `optimization_core`.
 
 pub(crate) mod checking;

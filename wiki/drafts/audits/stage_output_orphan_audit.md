@@ -25,7 +25,7 @@ files that must still name the stage's `output_marker`:
 
 | Stage entrance | Produced route marker | Consumers checked |
 | --- | --- | --- |
-| `06_lowered-psi-to-lowered-psi/src/psi_optimization.rs` | `run_psi_optimization` | `terminal-production/src/terminal_production.rs` |
+| `07_lowered-psi-to-lowered-psi/src/psi_optimization.rs` | `run_psi_optimization` | `terminal-production/src/terminal_production.rs` |
 | `01_abstract-operations-to-abstract-operations/src/rules/mod.rs` | `built_in_psi_registries` | `.../pass_manager/entry.rs` |
 | `04_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/mod.rs` | `resolve_selected_lowering_rules` | `.../rewrites/literal_folds/mod.rs` |
 | `04_selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/mod.rs` | `selected_allocation_recovery_rule` | `05_selected-instructions-to-register-homes/src/register_allocation.rs` |
@@ -71,7 +71,7 @@ test-only channels are cataloged, not flagged.
 | `TypedTrees` | psi/compilation/representations/typed-trees | 162 | 145 | 8 | 9 |
 | `CheckedTrees` | psi/compilation/representations/checked-trees | 2 | 1 | 1 | 0 |
 | `LoweredPsi` | psi/compilation/representations/lowered-psi | 0 | — | — | — |
-| `PsiOptimizationStageResult` | psi/compilation/pipeline/06_lowered-psi-to-lowered-psi | 4 | 4 | 0 | 0 |
+| `PsiOptimizationStageResult` | psi/compilation/pipeline/07_lowered-psi-to-lowered-psi | 4 | 4 | 0 | 0 |
 | `CheckedCompilation` | omega/compilation/driver/checked-compilation | 57 | 49 | 8 | 0 |
 | `AdmittedArtifactPlan` | omega/compilation/pipeline/00_terminal-psi-to-abstract-operations | 4 | 4 | 0 | 0 |
 | `AdmittedOptimizationArtifact` | omega/compilation/pipeline/00_terminal-psi-to-abstract-operations | 5 | 5 | 0 | 0 |

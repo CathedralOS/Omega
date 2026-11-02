@@ -14,7 +14,7 @@ use psi::tokens::tokens;
 // another declaration. The explicit stack shares the syntax tables' existing
 // 256-contract budget, including open and staged contracts.
 public data CallableHeaderFrame [copy]
-where first_clause <= 2048, first_contract <= 256
+requires first_clause <= 2048, first_contract <= 256
 {
     owner: ClauseOwner;
     contract: Contract;

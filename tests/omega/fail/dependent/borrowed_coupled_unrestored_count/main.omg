@@ -1,6 +1,6 @@
 // Reject: the last store does not restore the incoming record's coupling.
 data Payload { value: u64; }
-data Coupled where count == payload.value && count >= 1 {
+data Coupled requires count == payload.value && count >= 1 {
     payload: Payload;
     count: u64;
 }

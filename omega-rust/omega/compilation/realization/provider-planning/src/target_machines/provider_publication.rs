@@ -81,6 +81,8 @@ pub struct TargetProviderPreparationRequest<'program> {
     pub assumed_bindings: &'program [effects::AssumedBindingContractSelection],
     pub independent_components:
         &'program [std::sync::Arc<component_description::VerifiedComponent>],
+    pub selected:
+        Option<&'program std::sync::Arc<provider_selection::SelectedTargetProviderPublication>>,
     pub targets: &'program [(
         String,
         Result<std::sync::Arc<super::AuthoredTargetProviders>, Vec<Diagnostic>>,
@@ -95,10 +97,28 @@ impl TargetProviderPreparationRequest<'_> {
             .targets
             .iter()
             .map(|(target, inventory)| {
+                if let Some(selected) = self.selected
+                    && selected.profile.target_name() == target
+                {
+                    return (
+                        target.clone(),
+                        self.canonical_roots(target).map(|application_roots| {
+                            provider_selection::TargetProviderChoice::Selected {
+                                selected: std::sync::Arc::clone(selected),
+                                application_roots,
+                            }
+                        }),
+                    );
+                }
                 let prepared = inventory
                     .as_ref()
                     .map_err(Clone::clone)
-                    .and_then(|inventory| self.prepare_target(target, inventory));
+                    .and_then(|inventory| self.prepare_target(target, inventory, &[]))
+                    .map(|prepared| {
+                        provider_selection::TargetProviderChoice::Prepared(
+                            prepared.without_correspondence(),
+                        )
+                    });
                 (target.clone(), prepared)
             })
             .collect();
@@ -110,11 +130,15 @@ impl TargetProviderPreparationRequest<'_> {
         )
     }
 
-    fn prepare_target(
+    pub(crate) fn prepare_target(
         &self,
         target: &str,
         inventory: &super::AuthoredTargetProviders,
-    ) -> Result<PreparedTargetChoices, Vec<Diagnostic>> {
+        native_build_plans: &[crate::DerivedProviderPlan],
+    ) -> Result<
+        PreparedTargetChoices<crate::ProviderPlanProvenance, ProviderSelection>,
+        Vec<Diagnostic>,
+    > {
         let profile = inventory.target().ok_or_else(|| {
             vec![Diagnostic::error(
                 "provider publication requires a target inventory",
@@ -125,7 +149,11 @@ impl TargetProviderPreparationRequest<'_> {
                 "provider publication target differs from its authored inventory",
             )]);
         }
-        let candidates = inventory.candidates();
+        let candidates = inventory
+            .candidates()
+            .iter()
+            .chain(native_build_plans)
+            .collect::<Vec<_>>();
         let explicit_choices = inventory
             .defaults()
             .iter()
@@ -182,6 +210,7 @@ impl TargetProviderPreparationRequest<'_> {
                         provider_selection::PreparedProviderRealizations {
                             provider_declaration: closed.provider_declaration,
                             row_numeric_realizations: closed.row_numeric_realizations,
+                            owner: candidate.provenance.clone(),
                         }
                     }),
                 },
@@ -189,19 +218,7 @@ impl TargetProviderPreparationRequest<'_> {
                 explicitly_selected,
             });
         }
-        let application_roots = self
-            .application_roots
-            .map(|roots| {
-                roots
-                    .iter()
-                    .filter(|(scope, _)| scope == target)
-                    .map(|(_, root)| {
-                        self.canonical_declaration(*root)
-                            .map_err(|reason| vec![Diagnostic::error(reason)])
-                    })
-                    .collect::<Result<Vec<_>, _>>()
-            })
-            .transpose()?;
+        let application_roots = self.canonical_roots(target)?;
         Ok(PreparedTargetChoices {
             application_roots,
             profile,
@@ -220,15 +237,36 @@ impl TargetProviderPreparationRequest<'_> {
         })
     }
 
+    fn canonical_roots(
+        &self,
+        target: &str,
+    ) -> Result<Option<Vec<provider_selection::CanonicalProviderDeclaration>>, Vec<Diagnostic>>
+    {
+        self.application_roots
+            .map(|roots| {
+                roots
+                    .iter()
+                    .filter(|(scope, _)| scope == target)
+                    .map(|(_, root)| {
+                        self.canonical_declaration(*root)
+                            .map_err(|reason| vec![Diagnostic::error(reason)])
+                    })
+                    .collect::<Result<Vec<_>, _>>()
+            })
+            .transpose()
+    }
+
     fn canonical_choice(
         &self,
         source: &ProviderSelection,
-    ) -> provider_selection::ProviderDeclaration<provider_selection::CanonicalProviderDeclaration>
-    {
+    ) -> provider_selection::ProviderDeclaration<
+        provider_selection::CanonicalProviderDeclaration,
+        ProviderSelection,
+    > {
         let mut choice = crate::provider_planning::selection_declarations::project_declaration(
             source,
             &|symbol| self.canonical_declaration(symbol),
-            (),
+            source.clone(),
         );
         crate::provider_planning::selection_declarations::retain_family_replay(
             self.context,

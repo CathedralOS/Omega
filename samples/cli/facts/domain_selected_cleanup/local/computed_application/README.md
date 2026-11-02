@@ -62,7 +62,7 @@ and [static generic applications](../../../../../../wiki/spec/language/generics.
   two match arms and ordinary call/return/field transports retain the obligation.
 - Soundness: retaining a recipe grants neither a concrete specialization nor
   permission to erase cleanup, misclassify a Type argument, or overflow a carrier.
-- Psi 05–07: the exact selected hook and owned subject must survive ordinary
+- Psi 06–08: the exact selected hook and owned subject must survive ordinary
   cleanup production and canonical Terminal execution.
 - Omega 00–02: all four hosted ProgramEntry bindings are authored; the selected
   implementation uses ordinary target-keyed Build providers and calling plans.

@@ -1,7 +1,7 @@
 // `count - used` under `used <= count` is non-negative in exact u32.
 // `data where count <= 11` keeps that fact standing for `as i32`.
 // Expected exit: 0
-data Main where count <= 11 { count: u32; j: u32; out: i32; }
+data Main requires count <= 11 { count: u32; j: u32; out: i32; }
 
 boundary trait SelectedBodyCheck {
     machine require_tag(tag: u64) reaches crashes Trap;

@@ -79,7 +79,7 @@ classifies intended-invalid and pins the same install Ensures refusal.
   inferred from the obsolete old [3,1] snapshot, and the wanted postcondition
   cannot justify its own store. Descriptor/reference reseating is a separate
   mechanism. See [structural access](../../../../wiki/spec/terminal-psi/structural_access.md).
-- **Psi 05–07:** owned copies, whole-field store, records, returns, joins and
+- **Psi 06–08:** owned copies, whole-field store, records, returns, joins and
   nested transitions must retain normal semantics through canonical Terminal
   Psi. Predicate facts erase; both arrays remain independently represented.
 - **Omega 00–02:** ordinary Holder/Packet layout and aggregate call/result

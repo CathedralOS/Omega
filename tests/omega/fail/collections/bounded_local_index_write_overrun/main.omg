@@ -1,7 +1,7 @@
 // The written index is `depth - 1` behind `depth > 0`, but the data `where`
 // admits a depth of 5 over four items, so `top` may be 4: the store rejects.
 data Stack
-where
+requires
     depth <= 5,
 {
     items: [u64; 4];

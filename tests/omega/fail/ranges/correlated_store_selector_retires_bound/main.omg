@@ -1,5 +1,5 @@
-data Limited where value <= 320 { value: u64; }
-data Input where total <= 320, amount <= 1000 { total: u64; amount: u64; }
+data Limited requires value <= 320 { value: u64; }
+data Input requires total <= 320, amount <= 1000 { total: u64; amount: u64; }
 machine clobber(input: &mut Input) -> u64 ensures result == 0 {
     input.amount = 321;
     0

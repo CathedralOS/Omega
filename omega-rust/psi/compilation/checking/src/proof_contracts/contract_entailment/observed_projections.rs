@@ -402,14 +402,7 @@ pub(super) fn declared_scalar_field_read(
     };
     let receiver =
         crate::expression_result_type_reference(program, machine, state, member.receiver)?;
-    let data = crate::value_custody::places::data_definition_for_type(program, receiver)?;
-    let field = crate::value_custody::places::exact_data_member_field(
-        program,
-        data,
-        member.member_symbol,
-        member.member.as_str(),
-        member.case_variant.as_ref().map(|case| case.as_str()),
-    )?;
+    let field = crate::value_custody::places::applied_data_member_field(program, receiver, member)?;
     if !field.symbol.is_valid() || program.symbols.get(field.symbol).kind != SymbolKind::Field {
         return None;
     }

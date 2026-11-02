@@ -20,7 +20,7 @@ machine replaced_descriptor_is_not_its_initializer() {
     nonempty(bytes);
 }
 // Capacity belongs to an explicit owner; its empty prefix remains empty.
-data Buffer where used <= 8 { storage: [u8; 8]; used: u64; }
+data Buffer requires used <= 8 { storage: [u8; 8]; used: u64; }
 machine live(buffer: &Buffer) -> &[u8] { &buffer.storage[..buffer.used] }
 machine capacity_is_not_live_length() {
     let buffer: Buffer;

@@ -1,5 +1,5 @@
 data Counter [copy]
-where self.value <= self.ceiling && self.ceiling <= 60
+requires self.value <= self.ceiling && self.ceiling <= 60
 { value: i32; ceiling: i32; }
 const NAMED: Counter = Counter { value: 61, ceiling: 60 };
 public machine main() crashes Trap {

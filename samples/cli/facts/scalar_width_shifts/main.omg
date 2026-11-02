@@ -8,7 +8,7 @@ machine shift_round_trip(val: u32 in Wrapping, shift: u32) -> u32 in Wrapping
     shifted >> shift
 }
 
-data ShiftState where shift < 4 {
+data ShiftState requires shift < 4 {
     val: u32 in Wrapping;
     shift: u32;
 }

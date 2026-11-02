@@ -60,7 +60,7 @@ fact is replaced by a caller equality guard.
   of obligations. Each invocation checks its own declared contract.
 - **Soundness boundaries:** an opaque frame grants no post-state preservation,
   access authority, termination promise or assumption about callback contents.
-- **Psi 05–07:** ordinary checking and Terminal lowering retain the two input
+- **Psi 06–08:** ordinary checking and Terminal lowering retain the two input
   facts and return both arithmetic results. Actual `omega run --both` observes
   the Terminal interpreter alongside native execution.
 - **Omega 00–02:** the four hosted Build entries and the selected provider use

@@ -2,7 +2,7 @@
 // `wide * tall <= 24` — the fact reasons over a product operand, not just
 // sums or bare comparisons.
 data Area
-where
+requires
     wide * tall <= 24,
 {
     wide: u64;

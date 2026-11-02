@@ -14,7 +14,7 @@
 
 const value: u64 = 99;
 
-data Holder where value <= 5 {
+data Holder requires value <= 5 {
     value: u64;
 }
 

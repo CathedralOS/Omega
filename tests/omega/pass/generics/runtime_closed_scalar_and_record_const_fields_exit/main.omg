@@ -2,7 +2,7 @@
 use omega_language_std::console;
 data Configuration [copy] { minimum: u64; }
 data Chosen<const Setting: Configuration> {}
-data Gate<const Number: u64> where Number == 0 { code: u8; }
+data Gate<const Number: u64> requires Number == 0 { code: u8; }
 data Holder {
     gate: Gate<0>;
     selected: Chosen<(Configuration { minimum: 7 })>;

@@ -23,7 +23,8 @@ Requirement spelling follows [unified requirement clauses](state_contracts.md#re
 Named decision: `domain-brace-retirement`, settled 2026-10-28. Domain
 declarations end with `;`, not a body. Empty `{ }` is also retired, not an
 alternative spelling. Predicates belong in `requires`, establishment routes
-use `established by`, and executable operations are separate machines. A domain
+and access restrictions belong in the policy selected by `access`, and executable
+operations are separate machines. A domain
 without predicate requirements remains distinct from one explicitly requiring
 `true`; neither form has an executable body.
 
@@ -93,7 +94,15 @@ domain i32::Positive
     requires self > 0;
 
 public domain Reservation::Issued
-    established by Issues::issue;
+    access ReservationAccess;
+
+ReservationAccess satisfies AccessPolicy {
+    machine plan(schema: reflect::TypeSchema) -> AccessPlan {
+        let mut plan: AccessPlan = AccessPlan::new(&schema);
+        AccessPlan::establish(&mut plan, [reflect::callable(Issues::issue)]);
+        plan
+    }
+}
 
 domain i32::Km;
 ```
@@ -105,8 +114,8 @@ machine calls may occur as denotational value terms inside propositions under
 execute a validator. Executable validation is an ordinary machine whose exact
 guarantee may establish a proposition after its successful call.
 
-Each comma-separated `established by` entry names an exact trait requirement or
-concrete machine as an alternative authorized origin, not an invocation.
+Each callable descriptor in the policy's establishment list names an exact trait
+requirement or concrete machine as an alternative authorized origin, not an invocation.
 Predicates alone establish predicate-only membership.
 A routed domain additionally needs exact authorized provenance, even when all
 its predicates are proved. A predicate-free domain with establishment routes
@@ -115,7 +124,7 @@ establishment routes adds no predicate or issuer obligation: a valid bare `i32`
 may be explicitly qualified as `Km` without an owner grant. Predicate-free does
 not mean uninhabited.
 
-Access clauses add independent permission obligations under
+The same policy adds independent reader/writer obligations under
 [domain-owned read/write authority](#domain-owned-read-and-write-authority);
 absence of an issuer restriction does not waive those obligations.
 
@@ -124,7 +133,7 @@ This rule also applies to affine and linear carriers
 not authority to introduce a qualification. A predicate-free, route-free tag on
 a linear value may be introduced by `as`; the same value is transferred, not
 copied, and its ownership obligations remain. Carrier validity and inherited
-domain obligations still apply. Omitting `established by` imposes no issuer
+domain obligations still apply. Omitting an establishment restriction imposes no issuer
 restriction; it does not mean that nobody can establish membership.
 
 Establishment restrictions belong to the selected domain's normalized theory,
@@ -191,30 +200,56 @@ grant additional dependency reach or expose other extensions.
 
 ## Domain-owned read and write authority
 
-Named decision: `domain-read-write-authority`.
+Named decision: `domain-access-unification`, settled 2026-11-01. This retains the
+enforcement of `domain-read-write-authority` under one policy surface.
 
-Domains may independently restrict who obtains access to their qualified subject:
+Domains independently specify predicates and select an ordinary access policy:
 
 ```omega
 public domain Cell::Controlled
-    established by Cell::create
-    read by Cell::read
-    written by Cell::set;
+    access CellAccess;
+
+CellAccess satisfies AccessPolicy {
+    machine plan(schema: reflect::TypeSchema) -> AccessPlan {
+        let mut plan: AccessPlan = AccessPlan::new(&schema);
+        AccessPlan::establish(&mut plan, [reflect::callable(Cell::create)]);
+        AccessPlan::allow_readers(
+            &mut plan, TypeSchema::root(&schema), [reflect::callable(Cell::read)]
+        );
+        AccessPlan::allow_writers(
+            &mut plan, TypeSchema::root(&schema), [reflect::callable(Cell::set)]
+        );
+        plan
+    }
+}
 
 public data Counter {
     cell: Cell in Controlled;
 }
 ```
 
-`read by` and `written by` belong to the domain declaration, not the field or
-data declaration. Fields use ordinary qualification. Each clause has a nonempty,
-comma-separated list of alternative exact machine declarations or trait
-requirements. Omitting a clause adds no restriction on that access axis; it does
-not mean deny-all. `written by` does not imply `read by`, or conversely.
-The clause words are recognized in domain-clause position; they do not reserve
-ordinary machine names such as `Cell::read`. `established by` remains independent:
-an issuer need not be a reader or writer, and an authorized reader or writer
-cannot thereby mint membership.
+The former `established by`, `read by` and `written by` clauses are retired, not
+parallel ways of configuring the policy. `access` belongs to the domain, not a
+field-private modifier. Fields may use qualified types; a whole-value domain's
+policy may also name individual fields with `reflect::field(Type::field)`.
+
+`AccessPlan::new(&schema)` imposes no additional caller restrictions. Explicit
+establishment, reader and writer lists are independent ceilings: omission leaves
+that axis unrestricted by this policy, an empty list permits nobody, and a
+nonempty list contains alternative exact callable identities. Authorizing writers
+does not authorize readers or issuers. Whole-subject, field, inherited and repeated
+restrictions intersect without order-dependent overrides. A field rule alone
+does not require a whole-object rule. Backing/loan authority still limits every
+operation; default-permissive caller authorization manufactures none of it.
+
+An ordinary named `AccessPolicy` computes the plan at compile time under the
+[access-plan contract](../resources/access.md#plans-and-admitted-supply). It consumes
+the semantic schema, not a layout. The plan also retains any observation demands,
+exposure and required reach. Layouts stay independently selected and validated;
+establishment checks their correspondence with actual backing and custody.
+The separate `Access<P, T>` source wrapper is retired in favor of domain-qualified
+values/views. External/Atomic projections still use restricted operation accessors
+where an ordinary field loan would promise invalid stable/exclusive backing.
 
 Access routes use the same exact-declaration resolution, requirement-versus-machine
 distinction, private-route visibility exception, and selected-conformance rules
@@ -324,7 +359,7 @@ obligations.
 ### Composition and erasure
 
 Every applicable atom must authorize the requested access. Alternatives within
-one clause are disjunctive; independent domains and inherited policies compose
+one list are disjunctive; independent domains and inherited policies compose
 conjunctively. Alias expansion cannot drop a constituent's policy, and a child
 domain cannot widen a parent's access. Normalization retains the separate exact
 read and write route sets, subject, and substituted indices in semantic interface
@@ -339,10 +374,10 @@ non-owning or has no predicates. Ordinary predicate/unit erasure remains availab
 when it does not evade an access or custody obligation. See
 [recast authority](../layouts/recasts.md#access-authority-and-concurrent-observation).
 
-These clauses add no runtime permission bits, storage wrapper, alias/newtype
+These policies add no runtime permission bits, storage wrapper, alias/newtype
 declaration form, or field-private syntax. They attach checked access policy to
-ordinary domain-qualified values. Compiler implementation and a complete mutex
-construction are not established by this specification settlement.
+ordinary domain-qualified values. Mutex exclusion, ordering and payload custody
+still require their own checked protocol; caller authorization alone proves none.
 
 ## Domain-selected automatic cleanup
 
@@ -507,7 +542,7 @@ Weakening is per normalized atom:
 - Owned claims cannot be cast away; they must be consumed or transferred.
 - Access policies survive qualification forgetting whenever needed to prevent
   authority amplification; a view that cannot retain them rejects. Neither
-  non-owning provenance nor explicit erasure waives `read by` / `written by`.
+  non-owning provenance nor explicit erasure waives the domain's access policy.
 
 Thus `i32::Km & Positive` may flow to `i32::Km`, but not implicitly to bare
 `i32`. Carry demands survive qualification forgetting until the underlying

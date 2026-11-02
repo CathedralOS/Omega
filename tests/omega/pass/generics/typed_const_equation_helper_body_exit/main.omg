@@ -1,5 +1,5 @@
 data Holder<Value [copy], const Size: u64> [copy]
-where Value == [u8; Size]
+requires Value == [u8; Size]
 { items: Value; }
 machine extent() -> u64 {
     let holder: Holder<[u8; 2], 2> = Holder { items: [2, 3] };

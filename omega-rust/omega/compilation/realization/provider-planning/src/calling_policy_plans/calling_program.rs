@@ -49,9 +49,9 @@ impl Eq for CallingProgram {}
 impl CallingProgram {
     pub(crate) fn require_owner(
         &self,
-        checked: &checked_trees::CheckedTrees,
+        source_owner: &std::sync::Weak<checked_trees::CheckedTrees>,
     ) -> Result<(), String> {
-        if std::ptr::eq(self.source_owner.as_ptr(), checked) {
+        if std::sync::Weak::ptr_eq(&self.source_owner, source_owner) {
             return Ok(());
         }
         Err("calling-policy code belongs to a different checked source owner".into())

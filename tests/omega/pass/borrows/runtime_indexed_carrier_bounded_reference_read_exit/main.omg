@@ -1,9 +1,9 @@
 // Select the reference carrier before crossing its pointer, then read a field.
 use omega_language_std::console;
 
-data Cell where value >= 0, value <= 100 { stamp: i32; value: i32; ready: bool; }
+data Cell requires value >= 0, value <= 100 { stamp: i32; value: i32; ready: bool; }
 data Message { stamp: i32; body: &Cell; }
-data Main where index <= 1 {
+data Main requires index <= 1 {
     first: Cell;
     second: Cell;
     index: u64;

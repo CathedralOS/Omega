@@ -57,7 +57,7 @@ hashes, commands and output remain in those records and the publication evidence
   their expression handles never become caller-owned field bindings.
 - Soundness: nominal type, numeric policy, formation, pure/total call admission,
   copy authority and strict descent remain independent. Missing ordering rejects.
-- Psi 05–07: checking retains the whole runtime input beside scalar read bindings.
+- Psi 06–08: checking retains the whole runtime input beside scalar read bindings.
   The declaration call uses its own checked origin and an admitted owned-copy
   receipt; statement loans or temporary captures cannot be fabricated. The
   ordinary call scheduler and structural argument lowering consume that receipt.

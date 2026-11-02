@@ -11,7 +11,7 @@
 // ProcessExit provider.
 
 data Main
-where
+requires
     start <= end,
 {
     start: i32;

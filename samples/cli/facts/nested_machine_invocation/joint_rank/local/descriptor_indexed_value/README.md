@@ -16,7 +16,7 @@ Requirement boundaries:
 - Identity/lifetime: the slice retains original backing and live extent. Borrowed observations retain exact source dependencies; owned copies remain independent snapshots. Stores withdraw overlapping facts.
 - Composition: every cyclic arrival substitutes the entire actual telescope, and every complete cycle encounters strict descent. Lexical ancestry supplies no premise.
 - Soundness: independently authenticated reference sources and readable access remain necessary. No proof or permission comes from type geometry.
-- Psi 05–07: pure entry reads retain exact descriptor prefixes, selectors and checked bound decisions; lowering emits ordinary `RuntimeIndex` obligations against the selected view length.
+- Psi 06–08: pure entry reads retain exact descriptor prefixes, selectors and checked bound decisions; lowering emits ordinary `RuntimeIndex` obligations against the selected view length.
 - Omega 00–02: original backing address, window offset, descriptor extent and scalar ABI lanes use ordinary call/layout plans.
 - Omega 03–09: the counter, selected payload and untouched neighbors trap on incorrect control, address calculation or stores. Execution records identify producer and target in qualification evidence.
 

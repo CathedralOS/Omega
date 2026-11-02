@@ -752,7 +752,7 @@ fn successor_case_round_trip_retains_ordered_cleanup_actions() {
                     StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(4)),
                     StructuralPathSegment::Referent,
                     StructuralPathSegment::FixedIndex(1),
-                    StructuralPathSegment::FixedByteRange { start: 2, end: 4 },
+                    StructuralPathSegment::FixedRange { start: 2, end: 4 },
                     StructuralPathSegment::RuntimeIndex {
                         index: ValueId::new(23).unwrap(),
                         obligation: ObligationId::new(24).unwrap(),

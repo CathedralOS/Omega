@@ -4,7 +4,7 @@
 // naming a parameter, a local or a sibling field declares a window nothing
 // enforces. scale(1.0, 20.0) and settle(20.0) were admitted against a
 // maximum of 1.0; each declaration is now refused.
-data Gauge where level >= 0.0 && level <= limit {
+data Gauge requires level >= 0.0 && level <= limit {
     limit: f64;
     level: f64;
 }

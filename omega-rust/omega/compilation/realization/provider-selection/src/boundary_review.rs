@@ -1,7 +1,8 @@
-//! Admit complete declaration policy before executable demand exists.
+//! Admit selected declaration policy under canonical Product demand.
 //! Psi supplies ordered, source-free eligibility and application evidence. This
 //! operation owns selected-plan cardinality, binding policy and evidence use;
-//! successful source review never authorizes a later Terminal artifact.
+//! successful source review never authorizes a later Terminal artifact. The
+//! full selected declaration phase is independent of executable use demand.
 
 use crate::CheckedBodyCandidate;
 use diagnostics::Diagnostic;
@@ -11,6 +12,9 @@ use language_semantics::boundary_provider_review::{
 };
 
 pub struct BoundaryProviderAdmission<'facts> {
+    /// Required schemas recorded by canonical Product demand discovery. The
+    /// full declaration catalog remains separate from executable demand.
+    pub demands: &'facts [ProviderPlan],
     pub review: &'facts BoundaryProviderReview<'facts>,
     pub identities: &'facts terminal_psi::TerminalIdentityTable,
     pub external_providers: &'facts [terminal_psi::ExternalProviderConformance],
@@ -21,7 +25,6 @@ impl BoundaryProviderAdmission<'_> {
     /// diagnostic phases. Each phase completes before the next one begins.
     pub fn admit(
         &self,
-        candidates: &[&ProviderPlan],
         selected: &effects::SelectedProviderPlanFacts,
     ) -> Result<(), Vec<Diagnostic>> {
         let mut diagnostics = Vec::new();
@@ -37,7 +40,7 @@ impl BoundaryProviderAdmission<'_> {
             if let Err(error) = self.admit_operator(
                 declaration.requirement,
                 OperatorEvidence::Declaration(&declaration.bodies),
-                candidates,
+                selected.plans(),
                 selected,
             ) {
                 diagnostics.push(error);
@@ -50,7 +53,7 @@ impl BoundaryProviderAdmission<'_> {
             if let Err(error) = self.admit_operator(
                 usage.requirement,
                 OperatorEvidence::Application(&usage.application),
-                candidates,
+                self.demands,
                 selected,
             ) {
                 diagnostics.push(error);
@@ -60,7 +63,7 @@ impl BoundaryProviderAdmission<'_> {
             return Err(diagnostics);
         }
         for usage in &self.review.requirement_uses {
-            if let Err(error) = self.admit_requirement(usage, candidates, selected) {
+            if let Err(error) = self.admit_requirement(usage, self.demands, selected) {
                 diagnostics.push(error);
             }
         }
@@ -74,7 +77,7 @@ impl BoundaryProviderAdmission<'_> {
     fn admit_requirement(
         &self,
         usage: &language_semantics::boundary_provider_review::BoundaryRequirementUse<'_>,
-        candidates: &[&ProviderPlan],
+        candidates: &[ProviderPlan],
         selected: &effects::SelectedProviderPlanFacts,
     ) -> Result<(), Diagnostic> {
         let Some((plan, row)) = selected_plan(
@@ -104,7 +107,7 @@ impl BoundaryProviderAdmission<'_> {
         &self,
         requirement: BoundaryRequirementReview<'_>,
         evidence: OperatorEvidence<'_>,
-        candidates: &[&ProviderPlan],
+        candidates: &[ProviderPlan],
         selected: &effects::SelectedProviderPlanFacts,
     ) -> Result<(), Diagnostic> {
         let Some((plan, row)) =
@@ -175,7 +178,7 @@ enum BoundaryUse<'facts> {
 
 fn selected_plan<'plans>(
     requirement: BoundaryRequirementReview<'_>,
-    candidates: &[&ProviderPlan],
+    candidates: &[ProviderPlan],
     selected: &'plans effects::SelectedProviderPlanFacts,
     usage: BoundaryUse<'_>,
 ) -> Result<Option<(&'plans ProviderPlan, &'plans ProviderPlanRow)>, Diagnostic> {

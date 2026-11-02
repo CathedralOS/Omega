@@ -1,5 +1,5 @@
 // Expected error: cannot prove index `handle` is within length 4
-data Table where self.count <= 4 {
+data Table requires self.count <= 4 {
     count: u64;
     rows: [u64; 4];
 }

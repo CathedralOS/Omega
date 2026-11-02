@@ -2,7 +2,7 @@
 // Place: another target body. Target-scoped machine bodies execute indirect aggregate returns on each hosted target.
 // Expected exit: 0
 
-data Quartet [copy] where
+data Quartet [copy] requires
     first >= 10u64 && first <= 10u64,
     second >= 20u64 && second <= 20u64,
     third >= 30u64 && third <= 30u64,

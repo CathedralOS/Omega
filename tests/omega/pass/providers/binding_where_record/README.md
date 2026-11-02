@@ -1,6 +1,6 @@
 # binding_where_record
 
-`data Session where retries <= 3 { retries: u64; }` — a data `where` constrains
+`data Session requires retries <= 3 { retries: u64; }` — a data `requires` predicate constrains
 a record's scalar field while the `pub boundary trait Console` slot stands
 beside it: the constraint does not hide the boundary declaration from
 establishment, and vice versa.

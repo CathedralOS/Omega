@@ -32,7 +32,7 @@ public boundary trait ExtentPartition {
 // it is a separate premise from the tail's placement authority. Retain their
 // exact relationship in the strategy itself: a caller-supplied counter must
 // never authorize a request larger than the concrete allocatable tail.
-public data Bump where remaining == tail.length {
+public data Bump requires remaining == tail.length {
     tail: Extent in Granted & Vacant;
     remaining: u64;
 }
