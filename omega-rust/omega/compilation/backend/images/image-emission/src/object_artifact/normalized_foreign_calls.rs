@@ -884,18 +884,16 @@ fn scalar_argument_transport_context(
     argument: &target_operations::TargetUnitScalarCallArgument,
 ) -> String {
     use selected_instructions::{FrameStorageSlotId, SelectedInstructionKind};
-    let anchor = block
-        .instructions
-        .iter()
-        .position(|instruction| {
-            matches!(
-                instruction.kind,
-                SelectedInstructionKind::FrameAddress {
-                    slot: FrameStorageSlotId::Outgoing(slot), byte_offset: 0,
-                } if slot.invocation_site == record.invocation_site
-                    && slot.argument_index == argument.parameter_index
-            )
-        })
+    let outgoing = block.instructions.iter().position(|instruction| {
+        matches!(
+            instruction.kind,
+            SelectedInstructionKind::FrameAddress {
+                slot: FrameStorageSlotId::Outgoing(slot), byte_offset: 0,
+            } if slot.invocation_site == record.invocation_site
+                && slot.argument_index == argument.parameter_index
+        )
+    });
+    let anchor = outgoing
         .or_else(|| {
             block.instructions.iter().position(|instruction| {
                 instruction
@@ -905,8 +903,8 @@ fn scalar_argument_transport_context(
             })
         })
         .unwrap_or(0);
-    let instructions = &block.instructions
-        [anchor.saturating_sub(2)..anchor.saturating_add(12).min(block.instructions.len())];
+    let instructions =
+        &block.instructions[anchor..anchor.saturating_add(6).min(block.instructions.len())];
     let mut registers = instructions
         .iter()
         .flat_map(|instruction| {
@@ -918,23 +916,40 @@ fn scalar_argument_transport_context(
         .collect::<Vec<_>>();
     registers.sort_by_key(|register| register.0);
     registers.dedup();
+    // Diagnostic messages have a bounded rendering budget. Put the failing
+    // slot first and retain coordinates rather than repeating constraint rows.
     format!(
-        "argument={argument:?}; outgoing={:?}; instructions={:?}; registers={:?}",
+        "argument={argument:?}; slot={:?}; found_outgoing={}; steps={:?}; origins={:?}",
         function
             .outgoing_arguments
             .iter()
-            .filter(|slot| slot.id.invocation_site == record.invocation_site)
+            .filter(|slot| slot.id.invocation_site == record.invocation_site
+                && slot.id.argument_index == argument.parameter_index)
             .collect::<Vec<_>>(),
+        outgoing.is_some(),
         instructions
             .iter()
             .map(|instruction| (
-                instruction,
-                fragment_instruction_span(fragment, instruction.id)
+                instruction.id,
+                &instruction.kind,
+                instruction
+                    .operands
+                    .iter()
+                    .map(|operand| (operand.virtual_register, operand.access))
+                    .collect::<Vec<_>>(),
+                &instruction.provenance.values,
+                foreign_invocation_provenance_matches(
+                    &instruction.provenance,
+                    record.invocation_site
+                ),
+                fragment_instruction_span(fragment, instruction.id),
             ))
             .collect::<Vec<_>>(),
         registers
             .iter()
-            .map(|register| function.virtual_register(*register))
+            .filter_map(|register| function
+                .virtual_register(*register)
+                .map(|value| (*register, value.origin)))
             .collect::<Vec<_>>()
     )
 }
