@@ -191,22 +191,10 @@ retired-syntax deletions to completion.
   - Carry field/case propositions through construction
     (`checking/src/proof_contracts/contract_entailment/construction_predicates.rs`),
     remaining case/aggregate writes, record-field and owned-array
-    predicate handback with current storage versions. WindowDemo's guarded
-    `pumped + 1` / `frame + 1` writes now complete its native 60-frame oracle
-    after ordinary package review, retaining `pumped <= 16`, `frame <= 60`,
-    the original guards and operation. Pixel/input/close and Finder-launch
-    qualification remains pending under **MACOS-APPLICATION-PUBLICATION**,
-    as requested by the owner; Terminal comparison currently declines the
-    Objective-C adapter's additional service demands. Scalar-range syntax
-    migration and the remaining aggregate handback obligations below stay open.
-    Applied case predicates now retain saved scalar endpoints through an invalid
-    intermediate payload write and exact restoration across all nine places in
-    `samples/cli/facts/case_dependent_default_domain` (`macos_arm64` native/Terminal
-    exit 0); missing-ceiling and stale-snapshot controls still reject.
-    Noninterfering scalar-loan calls now preserve the current mixed predicate
-    through returned recast views in `recast_parent_restoration`'s nine places;
-    its native/Terminal exit-0 and invalid-restoration controls are retained.
-    Carry those facts through reads, calls, state joins,
+    predicate handback with current storage versions.
+  - Complete changed-source scalar-loan representation guarantees, common-field
+    case-predicate rosters, and recursive/reference predicate read inventories.
+    Carry the remaining propositions through reads, calls, state joins,
     [mutable recasts](omega-rust/psi/compilation/checking/recasts.md), and
     returns, preserving the audited inventories in
     [range_suffix_migration.md](wiki/drafts/designs/range_suffix_migration.md).
