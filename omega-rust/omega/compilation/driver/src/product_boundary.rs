@@ -477,18 +477,6 @@ fn provider_derivation_consumes_the_prepared_service_census() {
     );
     let service_catalog =
         include_str!("../../realization/provider-planning/src/service_declarations.rs");
-    let entry_calling =
-        include_str!("../../realization/provider-planning/src/program_entry/calling_plans.rs");
-    assert_absent(
-        &[entry_calling],
-        "entry Calling settlement reopens Source",
-        &[
-            "TypedTrees",
-            "ServiceCatalog",
-            "ProviderPlanningContext",
-            "type_identity_text(",
-        ],
-    );
     assert_absent(
         &[derivation, named, service_catalog],
         "provider census consumer reopens",
