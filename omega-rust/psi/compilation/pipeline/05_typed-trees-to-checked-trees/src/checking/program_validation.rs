@@ -99,12 +99,12 @@ pub(crate) fn entailment_errors_first(
     }
 }
 
-/// A bare boundary trait in value position does not denote a service carrier:
-/// fields, parameters, signature slots and returns name `Binding<R>` instead.
-/// Borrows (`&T`, `&mut T`) and container members are other positions and stay
-/// out of this gate; only the outermost `Named`/`DynamicTrait`/`Generic` head
-/// (through `Constrained` shells) is inspected, so `Binding<Console>` itself is
-/// never mistaken for a bare trait.
+/// A boundary trait is a static provider slot reached through its requirement
+/// calls, never a value: fields, parameters, signature slots and returns cannot
+/// name it bare. Borrows (`&T`, `&mut T`) and container members are other
+/// positions and stay out of this gate; only the outermost
+/// `Named`/`DynamicTrait`/`Generic` head (through `Constrained` shells) is
+/// inspected.
 fn validate_no_bare_boundary_trait_values(
     program: &dyn ::validation::CheckingInput,
 ) -> Result<(), Vec<Diagnostic>> {
@@ -112,7 +112,7 @@ fn validate_no_bare_boundary_trait_values(
     let mut check = |type_reference: TypeReferenceHandle, position: &dyn Fn() -> String| {
         if let Some(trait_name) = bare_boundary_trait_name(program, type_reference) {
             diagnostics.push(Diagnostic::error(format!(
-                "{} names bare boundary trait `{trait_name}` in value position; the intrinsic `Binding<R>` carrier is the only service value spelling",
+                "{} names bare boundary trait `{trait_name}` in value position; a boundary trait is a static provider slot, not a value type",
                 position()
             )));
         }

@@ -1187,9 +1187,6 @@ fn shape_inner(
     active.push(root);
     let declaration = find_structural_type(declarations, root)?;
     let result = match &declaration.shape {
-        // Borrowing preserves a pointer to the established occurrence even
-        // though the service marker itself contributes no payload bytes.
-        StructuralTypeShape::BindingCarrier => Some(ValueShape::integer(0, 1)),
         StructuralTypeShape::PrimitiveScalar(scalar) => scalar_shape(*scalar),
         StructuralTypeShape::ByteSequence(carrier) => field_shape(
             &StructuralFieldType::ByteSequence(*carrier),

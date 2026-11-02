@@ -1151,11 +1151,6 @@ mod tests {
             reference_storage_dependencies(types.iter(), identity(2)),
             Ok(vec![application(2)])
         );
-        types[2].shape = StructuralTypeShape::BindingCarrier;
-        assert_eq!(
-            reference_storage_dependencies(types.iter(), identity(2)),
-            Err(StorageGeometryError::UnsupportedType(identity(3)))
-        );
         types[2].shape = StructuralTypeShape::FixedArray {
             element: identity(2),
             length: terminal_psi::ArrayExtent::Literal(0),

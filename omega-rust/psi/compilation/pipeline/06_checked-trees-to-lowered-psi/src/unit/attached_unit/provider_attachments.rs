@@ -18,7 +18,6 @@ pub(crate) fn lower_provider_attachment_places(
     checked: &checked_trees::CheckedTrees,
     attachment: StructuralTypeId,
     declaration: &StructuralTypeDeclaration,
-    structural_types: &[StructuralTypeDeclaration],
     requirements: &[checked_trees::CheckedProviderAttachmentRequirementPlan],
     boundaries: &[(symbols::SymbolHandle, BoundaryMachineId)],
     next_place: &mut u64,
@@ -42,11 +41,9 @@ pub(crate) fn lower_provider_attachment_places(
             .ok_or(LoweringError::Unsupported(
                 "provider-backed attachment requirement names an unknown field",
             ))?;
-            // A retained binding keeps its semantic field path even though
-            // Fused realization has no payload. This specialization root is
-            // evidence, not a substitute argument or a new establishment.
+            // This specialization root is evidence, not a substitute argument
+            // or a new establishment.
             if !terminal_semantics::fused_service_field_matches(
-                structural_types,
                 field,
                 identities.intern(
                     &checked

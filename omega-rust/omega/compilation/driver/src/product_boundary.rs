@@ -436,7 +436,6 @@ fn terminal_calling_activation_uses_only_canonical_geometry() {
     );
 }
 
-
 #[test]
 fn native_telescope_construction_is_shared_by_preparation_and_canonical_replay() {
     let source = include_str!(
@@ -522,18 +521,14 @@ fn provider_derivation_consumes_the_prepared_service_census() {
 }
 
 #[test]
-fn service_catalog_consumers_do_not_keep_retired_binding_projection() {
+fn service_catalog_dispatch_does_not_reopen_service_schemas() {
     let dispatch = include_str!(
         "../../realization/selected-dispatch/src/checked_interpreter_dispatch/boundary_dispatch.rs"
     );
     assert_absent(
         &[dispatch],
         "dispatch retained",
-        &[
-            "classify_exact_bound_service_carrier(",
-            "classify_exact_service_parameter_carrier(",
-            "service_schema::from_typed",
-        ],
+        &["service_schema::from_typed"],
     );
 }
 

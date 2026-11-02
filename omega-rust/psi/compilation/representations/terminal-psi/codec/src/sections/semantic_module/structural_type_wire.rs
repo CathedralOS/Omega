@@ -35,7 +35,6 @@ pub(crate) fn encode_structural_type(
     writer.boolean(declaration.descriptor_cleanup);
     writer.boolean(declaration.copyable);
     match &declaration.shape {
-        StructuralTypeShape::BindingCarrier => writer.u8(11),
         StructuralTypeShape::Reference { referent, access } => {
             writer.u8(7);
             writer.id(*referent);
@@ -153,7 +152,6 @@ pub(crate) fn decode_structural_type(
     let copyable = reader.boolean()?;
     let mut scalar_restriction = None;
     let shape = match reader.u8()? {
-        11 => StructuralTypeShape::BindingCarrier,
         7 => StructuralTypeShape::Reference {
             referent: reader.id("StructuralTypeId")?,
             access: decode_structural_access(reader)?,
