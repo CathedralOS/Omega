@@ -12,6 +12,12 @@ public data SchemaMembers<'graph> [copy] { graph: &'graph [u8]; handles: &'graph
 // retains its lexical author's visibility, including through generic helpers.
 public machine schema<T>() -> TypeSchema { TypeSchema { storage: "" } }
 
+// An ordinary size observation used when choosing owned image storage. It
+// returns no address and does not perform another structural query.
+public machine schema_image_length(graph: &TypeSchema) -> u64 reaches terminates {
+    graph.storage.len
+}
+
 // The image version and scalar encoding are a library representation of the
 // existing semantic graph. These ordinary readers cannot authorize a query,
 // project a value, establish a domain, or select a layout from supplied bytes.

@@ -87,14 +87,79 @@ pub(super) fn elaborate(
         fields,
         ..Default::default()
     });
+    // Materialization replaces execution, not authored invocation custody.
+    // The ordinary provenance edge retains the exact selected query through
+    // constant recipes and later arena copies without executing it again.
+    let authored = authored_query(program, selection.site)?;
+    let table = expressions_of_mut(program);
+    let materialized = table.insert(value);
+    table.set_source_span(materialized, table.source_span(authored));
+    let occurrences = table
+        .authored_selection_occurrences(authored)
+        .collect::<Vec<_>>();
+    table.attach_authored_selection_occurrences(materialized, occurrences);
+    table.retain_materialization_source(materialized, authored);
     match selection.site {
-        CallSite::Expression(expression) => {
-            *expressions_of_mut(program).expression_mut(expression) = value
-        }
+        CallSite::Expression(expression) => table.replace_with_existing(expression, materialized),
         CallSite::Statement(statement) => {
-            let value = expressions_of_mut(program).insert(value);
-            *program.statement_table.statement_mut(statement) = StatementNode::Expression(value);
+            *program.statement_table.statement_mut(statement) =
+                StatementNode::Expression(materialized);
         }
     }
     Ok(())
+}
+
+/// Both source call forms retain one expression recipe. This is descriptive
+/// custody only: the active replacement above contains the materialized value.
+fn authored_query(
+    program: &mut TypedTrees,
+    site: CallSite,
+) -> Result<ExpressionHandle, Vec<Diagnostic>> {
+    match site {
+        CallSite::Expression(expression) => Ok(expressions_of_mut(program).insert_copy(expression)),
+        CallSite::Statement(statement) => {
+            let Some(call) = program
+                .statement_table
+                .statement(statement)
+                .as_call()
+                .cloned()
+            else {
+                return Err(error("semantic schema lost its authored statement query"));
+            };
+            let arguments = program
+                .statement_table
+                .expression_handles(call.arguments)
+                .to_vec();
+            let table = expressions_of_mut(program);
+            let arguments = table.insert_expression_handles(arguments);
+            let occurrence = call.authored_call_selection;
+            let source_span = call.source_span;
+            let expression = table.insert(ExpressionNode::Call(
+                typed_trees::expression::TableCallExpression {
+                    authored_call_selection: occurrence,
+                    authored_call_binding: None,
+                    authored_machine_application: call.authored_machine_application,
+                    build_selection: Default::default(),
+                    exact_coercion_target: Default::default(),
+                    requirement_application: Default::default(),
+                    receiver: Default::default(),
+                    target_symbol: call.target_symbol,
+                    target: call.target,
+                    static_machine_parameter: call.static_machine_parameter,
+                    static_requirement_dispatch: call.static_requirement_dispatch,
+                    machine_arguments: call.machine_arguments,
+                    quotient_operation: None,
+                    private_layout_operation: None,
+                    layout_query: None,
+                    native_code_layout: None,
+                    arguments,
+                    evidence_arguments: call.evidence_arguments,
+                    operational_acknowledgement: call.operational_acknowledgement,
+                },
+            ));
+            table.set_source_span(expression, source_span);
+            table.attach_authored_selection_occurrences(expression, occurrence);
+            Ok(expression)
+        }
+    }
 }

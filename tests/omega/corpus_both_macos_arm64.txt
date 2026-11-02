@@ -1008,8 +1008,10 @@ pass/facts/owned_array_field_replacement_other_machine_exit built 1088ms exit:0 
 pass/facts/owned_array_field_replacement_other_state_exit built 1037ms exit:0 interpreter-exit:0 interpreter:agrees @4ef0dddd5128
 pass/facts/owned_array_field_replacement_parameter_exit built 980ms exit:0 interpreter-exit:0 interpreter:agrees @4ef0dddd5128
 pass/facts/owned_array_field_replacement_target_body_exit built 1037ms exit:0 interpreter-exit:0 interpreter:agrees @4ef0dddd5128
+pass/facts/owned_semantic_schema_call_result built 28967ms exit:0 interpreter-exit:0 interpreter:agrees @63af67b94f91
 pass/facts/owned_semantic_schema_field built 20117ms exit:0 interpreter-exit:0 interpreter:agrees @6b1e6a51ea70
 pass/facts/owned_semantic_schema_local built 20067ms exit:0 interpreter-exit:0 interpreter:agrees @6b1e6a51ea70
+pass/facts/owned_semantic_schema_match_join built 30471ms exit:0 interpreter-exit:0 interpreter:agrees @63af67b94f91
 pass/facts/owned_semantic_schema_parameter built 20817ms exit:0 interpreter-exit:0 interpreter:agrees @6b1e6a51ea70
 pass/facts/prefix_case_identity_call_result built 1017ms exit:0 interpreter-exit:0 interpreter:agrees @55a5fd4e07f8
 pass/facts/prefix_case_identity_const_name built 1045ms exit:0 interpreter-exit:0 interpreter:agrees @55a5fd4e07f8
@@ -1464,6 +1466,7 @@ pass/range/runtime_guarded_runtime_index_increment_exit built 7751ms exit:1 inte
 pass/ranges/sum_payload_range_arith_narrowed_exit built 6884ms exit:70 interpreter-exit:70 interpreter:agrees @daa14c70b1c0+wt
 pass/recast/native_bounded_array_window_exit built 1453ms exit:0 interpreter-exit:0 interpreter:agrees @bb8f3fedf0ae
 pass/recast/runtime_restricted_field_loans_exit built 8806ms exit:0 interpreter-exit:0 interpreter:agrees @8fce926f9735
+pass/reflection/schema_query_scalar_const built 24141ms exit:0 interpreter-exit:0 interpreter:agrees @63af67b94f91
 pass/termination/nested_machine_computed_distance_indexed_upper_exit built 6632ms exit:0 interpreter-exit:0 interpreter:agrees @6c0b29931314
 pass/termination/nested_machine_computed_distance_narrow_inputs_exit built 2880ms exit:0 interpreter-exit:0 interpreter:agrees @6c0b29931314
 pass/termination/runtime_rank_range_state_call_exit built 4584ms exit:70 interpreter-exit:70 interpreter:agrees @15a66acf6a30

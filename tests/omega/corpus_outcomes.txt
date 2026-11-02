@@ -2241,9 +2241,13 @@ fail/facts/open_record_const_closed_call_target_body_rejected rejected 1839ms ex
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
 fail/facts/open_record_const_closed_call_wrong_carrier_rejected rejected 689ms expected @e9f492c5ccc6+wt
 	const-generic application evaluation failed: constant initializer result does not match its declared carrier
+fail/facts/owned_semantic_schema_call_result rejected 3702ms expected @63af67b94f91
+	semantic schema cannot select the subject from its lexical author's scope
 fail/facts/owned_semantic_schema_field rejected 2609ms expected @6b1e6a51ea70
 	semantic schema cannot select the subject from its lexical author's scope
 fail/facts/owned_semantic_schema_local rejected 2565ms expected @6b1e6a51ea70
+	semantic schema cannot select the subject from its lexical author's scope
+fail/facts/owned_semantic_schema_match_join rejected 3692ms expected @63af67b94f91
 	semantic schema cannot select the subject from its lexical author's scope
 fail/facts/owned_semantic_schema_parameter rejected 2535ms expected @6b1e6a51ea70
 	semantic schema cannot select the subject from its lexical author's scope
@@ -2923,6 +2927,8 @@ fail/recast/pending_layout_view_mutable_escape_preserves_source_padding rejected
 	construction of `Decoded` field `value`: mutable recast target escape has no complete source-storage handback; target padding is not initialized field storage
 fail/recast/u64_open_upper_bound_is_not_signed_ceiling rejected 559ms expected @70ba9ee572b42c4d7f6ffe7d3051217e0906221c
 	machine `Main::main` state `main`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `Narrow` are not representation-compatible
+fail/reflection/schema_borrowed_facade_const rejected 2810ms expected @63af67b94f91
+	constant initializer: build-time result of machine `@const-argument-0` is not ConstEvaluable: result.storage contains Text; borrowed or dynamically sized text cannot cross the semantic const boundary
 fail/reflection/schema_runtime_operand rejected 1193ms expected @6b1e6a51ea70
 	semantic schema query accepts no runtime or evidence operands
 fail/termination/declared_measure_hidden_overflow_rejected rejected 721ms expected @4518281b90b2+wt
@@ -9584,8 +9590,10 @@ pass/facts/owned_qualified_reference_carrier_exit checked 3802ms check-target:ma
 pass/facts/owned_qualified_reference_field_exit checked 3701ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/owned_qualified_reference_result_exit checked 3299ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/owned_qualified_reference_selection_exit checked 3604ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/owned_semantic_schema_call_result checked 30026ms check-target:macos_arm64 @63af67b94f91
 pass/facts/owned_semantic_schema_field checked 18148ms check-target:macos_arm64 @6b1e6a51ea70
 pass/facts/owned_semantic_schema_local checked 17847ms check-target:macos_arm64 @6b1e6a51ea70
+pass/facts/owned_semantic_schema_match_join checked 33350ms check-target:macos_arm64 @63af67b94f91
 pass/facts/owned_semantic_schema_parameter checked 18184ms check-target:macos_arm64 @6b1e6a51ea70
 pass/facts/placed_stable_write_through_call_result_exit checked 4939ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/placed_stable_write_through_const_name_exit checked 5627ms check-target:macos_arm64 @ccdb99ca2214
@@ -13720,6 +13728,7 @@ pass/recast/write_footprint/state checked 3336ms check-target:macos_arm64 @ccdb9
 pass/references/mutable_loan_member_read_initializes_local_exit checked 13571ms check-target:macos_arm64 @ccdb99ca2214
 pass/references/runtime_shared_ref_param_guard_exit checked 19666ms check-target:macos_arm64 @ccdb99ca2214
 pass/references/selected_record_loan_disjoint_fields_exit checked 12565ms check-target:macos_arm64 @ccdb99ca2214
+pass/reflection/schema_query_scalar_const checked 32268ms check-target:macos_arm64 @63af67b94f91
 pass/register_allocation/fixed_uses_across_hosted_clobbers_exit checked 11639ms check-target:macos_arm64 @ccdb99ca2214
 pass/register_allocation/runtime_call_crossing_decimal_reload_exit rejected 10371ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	call to `header` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
