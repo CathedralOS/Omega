@@ -504,7 +504,7 @@ fn parse_destructure_pattern_arm<'tokens, 'source>(
         .at_punctuation(PunctuationKind::LeftParen)
     {
         let Ok((fields, rest)) =
-            crate::patterns::parse_positional_fields(syntax_trees, pattern_input)
+            crate::grammar::patterns::parse_positional_fields(syntax_trees, pattern_input)
         else {
             return Ok(None);
         };
@@ -520,7 +520,8 @@ fn parse_destructure_pattern_arm<'tokens, 'source>(
             }
             return Ok(None);
         }
-        let (fields, rest) = crate::grammar::patterns::parse_destructure_fields(syntax_trees, after_path)?;
+        let (fields, rest) =
+            crate::grammar::patterns::parse_destructure_fields(syntax_trees, after_path)?;
         (Some(path), fields, rest)
     };
     let fields = parsed_fields

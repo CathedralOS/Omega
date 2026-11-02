@@ -36,7 +36,8 @@ pub(crate) fn try_parse_destructure_let<'tokens, 'source>(
     let after_let = input.take_keyword(KeywordKind::Let, "let")?;
     let positional = after_let.at_punctuation(PunctuationKind::LeftParen);
     let (head, fields, rest) = if positional {
-        let (fields, rest) = crate::patterns::parse_positional_fields(syntax_trees, after_let)?;
+        let (fields, rest) =
+            crate::grammar::patterns::parse_positional_fields(syntax_trees, after_let)?;
         (ExpressionHandle::invalid(), fields, rest)
     } else {
         let (head, pattern_input) = if after_let.at_punctuation(PunctuationKind::LeftBrace) {
@@ -46,7 +47,7 @@ pub(crate) fn try_parse_destructure_let<'tokens, 'source>(
             // route. Only a declaration path immediately followed by `{` names a
             // structural pattern; no initializer is parsed speculatively.
             let Ok((path, rest)) =
-                crate::input::token_cursor::parse_path_handle_span(after_let, |member| {
+                crate::tokens::token_cursor::parse_path_handle_span(after_let, |member| {
                     exprs(syntax_trees).append_identifier_path_member(member)
                 })
             else {
@@ -58,7 +59,7 @@ pub(crate) fn try_parse_destructure_let<'tokens, 'source>(
             (exprs(syntax_trees).insert(ExpressionNode::Name(path)), rest)
         };
         let (fields, rest) =
-            crate::patterns::parse_destructure_fields(syntax_trees, pattern_input)?;
+            crate::grammar::patterns::parse_destructure_fields(syntax_trees, pattern_input)?;
         (head, fields, rest)
     };
     let rest = rest.take_punctuation(PunctuationKind::Equal, "=")?;
