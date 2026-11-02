@@ -20,6 +20,33 @@ use crate::{
 mod tests;
 
 impl TerminalExecution<'_> {
+    /// Declaration paths cross component namespaces through exact nominal
+    /// identities. Storage borrowers use this same mapping as owned contents;
+    /// copying dense IDs would select another field in the receiving artifact.
+    pub(super) fn component_storage_path(
+        &self,
+        source_type: StructuralTypeId,
+        destination_type: StructuralTypeId,
+        provider: &TerminalProgram<'_>,
+        path: &[Path],
+    ) -> Result<Vec<Path>, TerminalInterpretError> {
+        self.component_contents_mapping(provider)
+            .rehome_path(source_type, destination_type, path)
+            .map(|(path, _, _)| path)
+    }
+
+    fn component_contents_mapping<'source, 'destination>(
+        &'source self,
+        provider: &'destination TerminalProgram<'_>,
+    ) -> ComponentContentsMapping<'source, 'destination> {
+        ComponentContentsMapping {
+            source_types: self.structural_types(),
+            source_identities: &self.program.catalogs.identities,
+            destination_types: provider.program.structural_types(),
+            destination_identities: &provider.program.catalogs.identities,
+        }
+    }
+
     pub(super) fn capture_component_contents(
         &self,
         argument: &StructuralArgument,
@@ -51,12 +78,7 @@ impl TerminalExecution<'_> {
             &description.leaves,
             &[],
         )?;
-        let mapping = ComponentContentsMapping {
-            source_types: self.structural_types(),
-            source_identities: &self.program.catalogs.identities,
-            destination_types: provider.program.structural_types(),
-            destination_identities: &provider.program.catalogs.identities,
-        };
+        let mapping = self.component_contents_mapping(provider);
         let mut values = values
             .into_iter()
             .map(|contents| mapping.rehome(value.structural_type, destination_type, contents))
@@ -79,14 +101,43 @@ struct ComponentContentsMapping<'source, 'destination> {
 impl ComponentContentsMapping<'_, '_> {
     fn rehome(
         &self,
-        mut source_type: StructuralTypeId,
-        mut destination_type: StructuralTypeId,
+        source_type: StructuralTypeId,
+        destination_type: StructuralTypeId,
         contents: TerminalBoundaryStorageValue,
     ) -> Result<TerminalBoundaryStorageValue, TerminalInterpretError> {
-        let mut path = Vec::with_capacity(contents.path.len());
+        let (path, source_type, destination_type) =
+            self.rehome_path(source_type, destination_type, &contents.path)?;
+        let contents = match contents.contents {
+            TerminalStorageContents::Scalar { .. } => contents.contents,
+            TerminalStorageContents::Case(case) => {
+                let source = self.source_types.declaration(&source_type)?;
+                let source = terminal_psi::find_structural_case(
+                    source.shape.sum_cases().ok_or_else(malformed)?,
+                    case,
+                )
+                .ok_or_else(malformed)?;
+                let destination = self.destination_types.declaration(&destination_type)?;
+                let destination = terminal_psi::structural_case_by_identity(
+                    destination.shape.sum_cases().ok_or_else(malformed)?,
+                    self.map_identity(source.identity)?,
+                )
+                .ok_or_else(malformed)?;
+                TerminalStorageContents::Case(destination.id)
+            }
+        };
+        Ok(TerminalBoundaryStorageValue { path, contents })
+    }
+
+    fn rehome_path(
+        &self,
+        mut source_type: StructuralTypeId,
+        mut destination_type: StructuralTypeId,
+        source_path: &[Path],
+    ) -> Result<(Vec<Path>, StructuralTypeId, StructuralTypeId), TerminalInterpretError> {
+        let mut path = Vec::with_capacity(source_path.len());
         let mut source_case_fields = None;
         let mut destination_case_fields = None;
-        for (position, segment) in contents.path.iter().enumerate() {
+        for (position, segment) in source_path.iter().enumerate() {
             let source = self.source_types.declaration(&source_type)?;
             let destination = self.destination_types.declaration(&destination_type)?;
             if self.map_identity(source.identity)? != destination.identity {
@@ -144,7 +195,7 @@ impl ComponentContentsMapping<'_, '_> {
                             source_type = source;
                             destination_type = destination;
                         }
-                        (None, None) if position + 1 == contents.path.len() => {}
+                        (None, None) if position + 1 == source_path.len() => {}
                         _ => return Err(malformed()),
                     }
                 }
@@ -194,25 +245,7 @@ impl ComponentContentsMapping<'_, '_> {
         {
             return Err(malformed());
         }
-        let contents = match contents.contents {
-            TerminalStorageContents::Scalar { .. } => contents.contents,
-            TerminalStorageContents::Case(case) => {
-                let source = self.source_types.declaration(&source_type)?;
-                let source = terminal_psi::find_structural_case(
-                    source.shape.sum_cases().ok_or_else(malformed)?,
-                    case,
-                )
-                .ok_or_else(malformed)?;
-                let destination = self.destination_types.declaration(&destination_type)?;
-                let destination = terminal_psi::structural_case_by_identity(
-                    destination.shape.sum_cases().ok_or_else(malformed)?,
-                    self.map_identity(source.identity)?,
-                )
-                .ok_or_else(malformed)?;
-                TerminalStorageContents::Case(destination.id)
-            }
-        };
-        Ok(TerminalBoundaryStorageValue { path, contents })
+        Ok((path, source_type, destination_type))
     }
 
     fn map_identity(

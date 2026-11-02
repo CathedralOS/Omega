@@ -11,7 +11,15 @@ use crate::record::accessors::field_projection_accessors;
 pub struct PackageReviewConstShape {
     pub(crate) identity: PackageReviewNominalIdentity,
     pub(crate) declared_type: PackageReviewTypeIdentity,
-    pub(crate) canonical_value_encoding: String,
+    pub(crate) meaning: PackageReviewConstMeaning,
+}
+
+/// A completed value and an admitted target-dependent declaration describe
+/// different public meanings. A folded scalar never replaces its dependency.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) enum PackageReviewConstMeaning {
+    Evaluated(String),
+    TargetDependent(super::expressions::PackageReviewContractExpression),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

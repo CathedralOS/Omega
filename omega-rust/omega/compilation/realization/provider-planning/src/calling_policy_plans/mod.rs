@@ -6,7 +6,10 @@
 //!
 //! `boundary_signatures.rs` associates geometry with Source review coordinates.
 //! `plan_computation.rs` prepares authored admission and publishes default or
-//! authored plans from canonical storage. `calling_program.rs` owns the
+//! authored plans from canonical storage. `selected_providers.rs` applies the
+//! canonical invocation-scoped provider choice and rejoins its exact checked
+//! bodies for Psi admission; it does not run another Source selection graph.
+//! `calling_program.rs` owns the
 //! exact source-entry association and finite invocation accounting;
 //! `terminal_execution.rs` runs the canonical code without source,
 //! `policy_signature.rs` encodes canonical ABI input and validates the result,
@@ -29,6 +32,7 @@ mod plan_computation;
 mod policy_signature;
 mod scalar_completion;
 mod selected_application;
+mod selected_providers;
 mod signature_review;
 mod terminal_execution;
 mod terminal_signature;
@@ -37,6 +41,7 @@ pub use calling_program::CallingProgram;
 pub use policy_signature::CallingPolicySignature;
 pub use selected_application::component_calling_applications;
 pub(crate) use selected_application::selected_source_calling_applications;
+pub use selected_providers::CallingPolicyProviderInputs;
 pub use terminal_execution::{TerminalCallingPolicyInvocation, evaluate_terminal_calling_policy};
 pub use terminal_signature::{CanonicalCallingSignature, CanonicalOpaqueUse};
 

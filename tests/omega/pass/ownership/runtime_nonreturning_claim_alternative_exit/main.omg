@@ -1,0 +1,40 @@
+// Expected exit: 0.
+// A linear Token [linear] carries its exact payload across the place and retires through its explicit consuming machine on every normal exit.
+use omega::language::core::drop;
+
+data Token [linear] { value: u64; }
+machine Token::drop(token: &mut Token) { token.value = 0; }
+machine retire(token: Token) -> u64 {
+    let value: u64 = token.value;
+    drop(token);
+    value
+}
+
+// The failure transfers control without publishing a result. Its presence
+// cannot remove custody from the success result or invent a second result.
+machine select(token: Token, keep: bool) -> Token crashes Trap {
+    transition keep {
+        true -> token
+        false -> failed()
+    }
+    machine failed() -> Token { crash Trap; }
+}
+
+// A crash ceiling alone says nothing about whether this call returns.
+machine forwarded(token: Token, keep: bool) -> Token crashes Trap {
+    let selected: Token = select(token, keep);
+    selected
+}
+
+machine main() crashes Trap {
+    let first: Token = forwarded(Token { value: 41 }, true);
+    let second: Token = forwarded(Token { value: 73 }, true);
+    let first_value: u64 = retire(first);
+    let second_value: u64 = retire(second);
+    transition first_value == 41 && second_value == 73 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

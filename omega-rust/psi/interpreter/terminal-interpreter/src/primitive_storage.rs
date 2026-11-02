@@ -271,6 +271,15 @@ impl PrimitiveStorageWrites {
         if value.scalar_type() != scalar_type || !terminal_scalar_belongs_to_type(value) {
             return Err(malformed());
         }
+        match &storage.endpoint {
+            PrimitiveStorageEndpoint::Scalar(home) => {
+                execution.require_guest_storage_mutation(home)?;
+            }
+            PrimitiveStorageEndpoint::ScalarField(field) => {
+                execution.require_guest_storage_mutation(&field.parent)?;
+            }
+            _ => {}
+        }
         if let PrimitiveStorageEndpoint::Projection {
             fragments,
             logical,

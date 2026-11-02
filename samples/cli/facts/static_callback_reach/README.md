@@ -148,7 +148,7 @@ reject independently. Concrete recursive edges still owe strict descent.
 - Soundness: Extra-reaching twins reject. Existing external-ingress controls
   challenge substituted or incomplete conformance invocation records. No
   contract, authority or custody check is disabled by this repair.
-- Psi 05–07: retained conformance and reach records agree after source-free
+- Psi 06–08: retained conformance and reach records agree after source-free
   artifact reload. Terminal execution is measured separately from reload.
 - Omega 00–02: all four hosted ProgramEntry bindings are authored. This row
   uses ordinary scalar calls and a record field, not foreign/provider ABI.

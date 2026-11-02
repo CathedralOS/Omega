@@ -13,7 +13,7 @@ relying on a source-text search.
 
 The Omega firewall rules carry the edges that existed when they landed
 (2026-11-01) as `FIREWALL_ALLOWANCES`: 11 from Omega compilation crates into
-source-side Psi and 21 between Omega stages. Each row names the imports that
+source-side Psi and 20 between Omega stages. Each row names the imports that
 hold it. A row whose edge is gone fails until it is deleted, so the list only
 shrinks; two rows are sanctioned by pipeline.md and the rest are debt.
 """
@@ -41,8 +41,8 @@ PERMITTED_OWNERS = (
     "omega-rust/psi/compilation/checking/terminal-installation",
     "omega-rust/psi/compilation/proof/admission",
 )
-RUNTIME_ROOT = "omega-rust/omega/application/terminal-runtime"
-NATIVE_PROVIDER_RUNTIME_ROOT = "omega-rust/omega/application/native-provider-runtime"
+RUNTIME_ROOT = "omega-rust/omega/interpreter/terminal-runtime"
+NATIVE_PROVIDER_RUNTIME_ROOT = "omega-rust/omega/interpreter/native-provider-runtime"
 NATIVE_PROVIDER_RUNTIME_OWNERS = (NATIVE_PROVIDER_RUNTIME_ROOT, *PERMITTED_OWNERS[1:])
 PROVIDER_SELECTION_OWNERS = PERMITTED_OWNERS[1:]
 TRUST_OWNERS = (TRUST_ROOT, *PERMITTED_OWNERS[1:])
@@ -63,7 +63,7 @@ PACKAGE_MANAGER = f"{PACKAGES}/package-manager"
 PRODUCT_COORDINATOR = f"{OMEGA}/compilation/driver"
 PRODUCTS = f"{OMEGA}/compilation/products"
 BUILD_EVALUATION = f"{OMEGA}/compilation/build-evaluation"
-BUILD_APPLICATION = f"{OMEGA}/application/build"
+BUILD_COORDINATOR = f"{OMEGA}/compilation/build"
 CLI_APPLICATION = f"{OMEGA}/application/cli"
 TRUST_MODEL = f"{OMEGA}/compilation/realization/trust-model"
 REVIEW_EVIDENCE = f"{PACKAGES}/review-evidence"
@@ -74,8 +74,8 @@ SOURCE_STAGES = tuple(
     for stage in (
         "02_syntax-trees-to-symbol-resolved-trees",
         "03_symbol-resolved-trees-to-typed-trees",
-        "03b_typed-trees-to-typed-trees",
-        "04_typed-trees-to-checked-trees",
+        "04_typed-trees-to-typed-trees",
+        "05_typed-trees-to-checked-trees",
     )
 )
 PARSER_STAGES = tuple(
@@ -84,9 +84,9 @@ PARSER_STAGES = tuple(
 TERMINAL_STAGES = tuple(
     f"{PSI_PIPELINE}/{stage}"
     for stage in (
-        "05_checked-trees-to-lowered-psi",
-        "06_lowered-psi-to-lowered-psi",
-        "07_lowered-psi-to-terminal-psi",
+        "06_checked-trees-to-lowered-psi",
+        "07_lowered-psi-to-lowered-psi",
+        "08_lowered-psi-to-terminal-psi",
     )
 )
 
@@ -163,7 +163,6 @@ FIREWALL_ALLOWANCES = (
     Allowance(stage("03"), stage("02"),
               "Debt: calls classified_boundary_shape and descriptor_input_guard instead of "
               "reading them from stage 02 output"),
-    Allowance(stage("04"), stage("02"), "Debt: no reference in src; delete the dependency"),
     Allowance(stage("04"), stage("03"),
               "Debt: calls staging_custody_core_accessors and selected_instruction_plan_identity; "
               "ValidatedSelectedInstructions"),
@@ -206,7 +205,7 @@ FORBIDDEN_DEPENDENCIES = tuple(Rule(*rule) for rule in (
         "application operations call compiler facades, not numbered transforms",
     ),
     (
-        (BUILD_APPLICATION,),
+        (BUILD_COORDINATOR,),
         (
             PSI_PIPELINE,
             OMEGA_PIPELINE,
@@ -253,7 +252,7 @@ FORBIDDEN_DEPENDENCIES = tuple(Rule(*rule) for rule in (
         (
             f"{PSI}/compilation/compile-time",
             f"{PSI}/interpreter/checked-interpreter",
-            f"{PSI_PIPELINE}/04_typed-trees-to-checked-trees",
+            f"{PSI_PIPELINE}/05_typed-trees-to-checked-trees",
             f"{PSI}/compilation/checking/terminal-installation",
             f"{PSI}/compilation/representations/terminal-psi",
             f"{OMEGA}/compilation/backend/target",
@@ -264,7 +263,7 @@ FORBIDDEN_DEPENDENCIES = tuple(Rule(*rule) for rule in (
     (
         (PSI_FACADE,),
         TERMINAL_STAGES,
-        "stages 05-07 are sequenced only by terminal-production",
+        "stages 06-08 are sequenced only by terminal-production",
         (TERMINAL_PRODUCTION,),
     ),
     (

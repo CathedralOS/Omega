@@ -1,4 +1,4 @@
-use omega_language_std::math;
+use omega::language::core::math;
 
 // A static entry forwards its lent `context: &mut Main` into a state, and the
 // state lends fixed-array fields of that context as borrowed views. Across

@@ -2,18 +2,18 @@
 
 [lib.rs](src/lib.rs) exposes opaque source preparation and exact-return completion
 for any supplied target count. Application
-[`compile_sources`](../../application/build/src/source_compilation.rs) owns the
+[`compile_sources`](../../compilation/build/src/source_compilation.rs) owns the
 one-shot `CompileRequest` lifecycle and executes Build between those calls.
 The coordinator sequences typed owner results; it does
 not implement package loading, build evaluation, transformation algorithms or
 visualization semantics. See the [pipeline map](../../../pipeline.md).
 
 [Terminal production](../../../psi/compilation/driver/terminal-production/README.md)
-is the Psi-owned stage-05–07 sequence called directly by ordinary, package and
+is the Psi-owned stage-06–08 sequence called directly by ordinary, package and
 inspection consumers. This driver supplies its product exclusion policy and
 timing observer, not a second production entrance. Permission-ledger validation
-belongs to stage 05; entry eligibility, source receipt joins and publication
-belong to stage 07. Their language rules do not live in the coordinator.
+belongs to stage 06; entry eligibility, source receipt joins and publication
+belong to stage 08. Their language rules do not live in the coordinator.
 
 The independent [native compiler](../native-production/README.md) owns the
 Terminal-to-image sequence behind a source-free dependency boundary. This
@@ -100,9 +100,9 @@ reports belong to their product owners.
 
 Application Build requests package admission, then schedules dependency-ordered
 `PackageCompilationRequest`s in
-[`compile_packages`](../../application/build/src/package_compilation.rs), with the
+[`compile_packages`](../../compilation/build/src/package_compilation.rs), with the
 requested product and root permission consent supplied up front. Its
-[Build execution owner](../../application/build/src/build_execution.rs) advances
+[Build execution owner](../../compilation/build/src/build_execution.rs) advances
 dependency frontiers, joins generated outputs and waits for demanded independent
 components before their consumers advance. The compiler no longer schedules that
 dependency loop. Its [package facade](src/checked/package_compilation.rs) prepares
@@ -256,7 +256,7 @@ checked pass; eliminating that duplicate semantic work is separate from moving
 the protocol out of the coordinator. There is no compiler-private package gate
 or public raw Build checkpoint that can bypass the evaluation protocol.
 Checked-product selection belongs to
-[Psi stage 04](../../../psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/product_pruning/mod.rs):
+[Psi stage 05](../../../psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/product_pruning/mod.rs):
 the coordinator supplies the requested roots after rollback; the stage owns the
 identity case, root validation, pruning and selection evidence. It consumes only
 checked trees, not the Omega provider-settlement carrier.
@@ -363,7 +363,7 @@ production or its exact declaration join; neither step executes an artifact.
 Terminal production borrows the unoptimized program for authored exclusions,
 checking each application's main and selected callback roots before optimization.
 Exclusion admission uses the backend effects checker; on rejection,
-[Psi lowering's source attribution](../../../psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/lowered_machine_provenance.rs)
+[Psi lowering's source attribution](../../../psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/lowered_machine_provenance.rs)
 supplies machine names and declaration spans. That diagnostic mapping is not
 admission evidence.
 

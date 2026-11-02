@@ -45,7 +45,7 @@ not run.
 - **Composition:** `hold` reads the qualified value. No post-hoc guard replaces
   the domain call.
 - **Soundness:** a selected field of `false` leaves `true` outside `bool::Held`.
-- **Psi 05–07 through Omega 07–09:** the nine positives agree on this host.
+- **Psi 06–08 through Omega 07–09:** the nine positives agree on this host.
   The other hosted targets are bound and not executed here.
 
 ## Build-owned target-body migration

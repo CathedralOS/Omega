@@ -8,7 +8,7 @@
 // `omega --check` at 42db5b1ac3a rejects with "package-aware compilation
 // cannot admit individual accepted machine `establish`; package claims
 // require complete package-level review". Earlier, removing the acceptance
-// for diagnosis reached stage 04's execution-planning refusal (boundary
+// for diagnosis reached stage 05's execution-planning refusal (boundary
 // `establish` has no boundary plan): the citation needs an admitted
 // fact-only invocation, not an invented executable provider.
 use trusted_claims::claims;

@@ -15,7 +15,7 @@ interpreter returned 70 but native production rejected `case payload observation
 requires an established case`. Both now execute with the authored exit.
 Package review is a separate prerequisite of the public command.
 
-Stage 05 carries the existing case-leaf read source into scalar-field emission,
+Stage 06 carries the existing case-leaf read source into scalar-field emission,
 which performs the copy and read at the expression's execution point. The
 successor-only precomputation and nested value namespace have been removed.
 Terminal replay independently requires the copied carrier's exact active case;

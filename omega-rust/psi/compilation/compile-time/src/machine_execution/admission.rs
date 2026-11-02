@@ -38,7 +38,9 @@ pub(crate) use concrete_invocation::{
 };
 pub(crate) use supplied_values::require_established_arguments;
 pub(crate) mod const_evaluable;
+mod selected_closures;
 mod selection_authority;
+pub use selected_closures::SelectedBuildTimeClosureAdmission;
 
 use closure_validation::checked_closure_violation;
 use const_evaluable::require_const_evaluable_result;
@@ -63,6 +65,7 @@ pub(crate) fn require_const_expression_selection(
         machine,
         Some(BuildTimeInvocationCustody::Source(source)),
         authority,
+        &[],
         &[],
         None,
     ) {
@@ -148,6 +151,8 @@ pub struct BuildTimeAdmissionPlan {
     pub(crate) operators: checked_trees::CheckedOperatorFacts,
     selection_authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
     selected_operators: Vec<crate::SelectedBuildTimeBinaryOperator>,
+    selected_provider_bodies: Vec<crate::SelectedBuildTimeProviderBody>,
+    selected_execution: Option<TypedTrees>,
     selected_machine_bodies: Vec<crate::SelectedBuildTimeMachineBody>,
     pub(crate) accounting: EvaluationAccounting,
     checked_closures: std::cell::RefCell<
@@ -178,6 +183,7 @@ struct BuildTimeCallEdge {
     target_machine_symbol: SymbolHandle,
     target_state_symbol: SymbolHandle,
     target_operator_symbol: SymbolHandle,
+    expression: typed_trees::expression::ExpressionHandle,
 }
 
 impl BuildTimeCallEdge {
@@ -240,7 +246,7 @@ impl BuildTimeAdmissionPlan {
         let service_reaches = validation::infer_service_reaches(program, &operational);
         let operators = validation::derive_pre_flow_operator_selections(program);
         let (suspension, blocking, call_edges) =
-            Self::project_axes_and_operator_edges(&operational, &operators);
+            Self::project_axes_and_operator_edges(program, &operational, &operators);
         Self {
             service_reaches,
             suspension,
@@ -249,6 +255,8 @@ impl BuildTimeAdmissionPlan {
             operators,
             selection_authority,
             selected_operators: Vec::new(),
+            selected_provider_bodies: Vec::new(),
+            selected_execution: None,
             selected_machine_bodies: Vec::new(),
             accounting: Default::default(),
             checked_closures: Default::default(),
@@ -263,11 +271,13 @@ impl BuildTimeAdmissionPlan {
         execution: &mut Vec<SymbolHandle>,
     ) {
         let operational = validation::infer_operational_may(program);
-        let (_, _, call_edges) = Self::project_axes_and_operator_edges(&operational, operators);
+        let (_, _, call_edges) =
+            Self::project_axes_and_operator_edges(program, &operational, operators);
         Self::append_edges_to_execution_dependencies(&call_edges, program, execution);
     }
 
     fn project_axes_and_operator_edges(
+        program: &TypedTrees,
         operational: &flow_effects::OperationalPlan,
         operators: &checked_trees::CheckedOperatorFacts,
     ) -> (
@@ -275,7 +285,7 @@ impl BuildTimeAdmissionPlan {
         Vec<BuildTimeBlockingRow>,
         Vec<BuildTimeCallEdge>,
     ) {
-        let (suspension, blocking, mut call_edges) = project_operational_axes(operational);
+        let (suspension, blocking, mut call_edges) = project_operational_axes(program, operational);
         // Selected trait algebra is an exact source execution edge, just like
         // an ordinary named call. Retain the selected body so every admission
         // axis traverses it; this does not select an external provider.
@@ -298,6 +308,7 @@ impl BuildTimeAdmissionPlan {
                 target_machine_symbol: candidate.realization_machine_symbol,
                 target_state_symbol: candidate.realization_state_symbol,
                 target_operator_symbol: candidate.trait_requirement_symbol,
+                expression,
             });
         }
         (suspension, blocking, call_edges)
@@ -387,6 +398,48 @@ impl BuildTimeAdmissionPlan {
         execution: &mut Vec<SymbolHandle>,
     ) {
         Self::append_edges_to_execution_dependencies(&self.call_edges, program, execution);
+    }
+
+    /// Unadmitted execution demand, including already selected body edges.
+    /// Discovering these declarations grants no invocation or selection authority.
+    pub fn execution_dependencies(
+        &self,
+        program: &TypedTrees,
+        roots: &[SymbolHandle],
+    ) -> Vec<SymbolHandle> {
+        let mut execution = roots.to_vec();
+        self.append_execution_dependencies(program, &mut execution);
+        execution
+    }
+
+    /// Bind the same authenticated occurrence replacements used by semantic
+    /// evaluation into the admission graph. Published source effect summaries
+    /// remain intact; the selected bodies add their independently checked axes.
+    /// No expression, argument or declaration in the source program changes.
+    fn with_selected_provider_bodies(
+        mut self,
+        program: &TypedTrees,
+        bodies: &[crate::SelectedBuildTimeProviderBody],
+    ) -> Result<Self, String> {
+        if !self.selected_provider_bodies.is_empty() || !self.selected_machine_bodies.is_empty() {
+            return Err("build-time execution bodies are already settled".to_owned());
+        }
+        if let Some(execution) = super::selected_operators::prepare_selected_execution(
+            program,
+            bodies,
+            &self.selected_operators,
+        )? {
+            // Occurrence substitution precedes inference, so two closed uses
+            // never acquire a shared (caller, requirement) heuristic redirect.
+            let operational = validation::infer_operational_may(&execution);
+            let operators = validation::derive_pre_flow_operator_selections(&execution);
+            self.call_edges =
+                Self::project_axes_and_operator_edges(&execution, &operational, &operators).2;
+            self.selected_execution = Some(execution);
+        }
+        self.selected_provider_bodies = bodies.to_vec();
+        self.checked_closures.borrow_mut().clear();
+        Ok(self)
     }
 
     fn append_edges_to_execution_dependencies(
@@ -556,6 +609,7 @@ impl BuildTimeAdmissionPlan {
         // validation. Authenticate every supplied row on its producing graph
         // before selecting the portion that the checked closure consumes.
         crate::validate_selected_operators(program, &self.selected_operators)?;
+        crate::validate_selected_provider_bodies(program, &self.selected_provider_bodies)?;
         crate::SelectedBuildTimeMachineBody::validate_all(program, &self.selected_machine_bodies)?;
         let program_key = (
             std::ptr::from_ref(program) as usize,
@@ -614,8 +668,20 @@ impl BuildTimeAdmissionPlan {
                 })
                 .copied()
                 .collect::<Vec<_>>();
+            let provider_bodies = self
+                .selected_provider_bodies
+                .iter()
+                .filter(|row| {
+                    row.origin
+                        .machine_symbol()
+                        .is_some_and(|owner| execution.machine(owner).is_some())
+                        && references.expressions.contains(&row.expression)
+                })
+                .cloned()
+                .collect::<Vec<_>>();
             let admission = Self::infer(execution, self.selection_authority.clone())
                 .with_selected_operators(execution, &operators)?
+                .with_selected_provider_bodies(execution, &provider_bodies)?
                 .with_selected_machine_bodies(execution, &machine_bodies)?;
             Ok(std::rc::Rc::new((checked, admission)))
         })();
@@ -751,6 +817,7 @@ impl BuildTimeAdmissionPlan {
     ) -> Result<(), BuildTimeAdmissionRejection> {
         let program = input.typed();
         crate::validate_selected_operators(program, &self.selected_operators)?;
+        crate::validate_selected_provider_bodies(program, &self.selected_provider_bodies)?;
         crate::SelectedBuildTimeMachineBody::validate_all(program, &self.selected_machine_bodies)?;
         // The ordinary inference may stop at a bodyless family contract. Its
         // selected body's complete summaries remain independently mandatory;
@@ -787,10 +854,17 @@ impl BuildTimeAdmissionPlan {
                 && concrete_invocation::argument_independent_closure_discharges(
                     self, input, machine,
                 )?);
+        // Termination follows the same authenticated occurrence substitutions
+        // as the selected graph. Source requirement selection and published
+        // effect summaries above still use the unchanged checked source.
+        let execution = self.selected_execution.as_ref().unwrap_or(program);
+        let execution_machine = execution.machine_by_symbol(machine.symbol).ok_or_else(|| {
+            "selected build-time execution lost its exact source machine".to_owned()
+        })?;
         let closure_violation = checked_closure_violation(
             &self.call_edges,
-            program,
-            machine,
+            execution,
+            execution_machine,
             discharge_authored_requires,
         );
         let selection_violation = selection_authority_violation(
@@ -800,6 +874,7 @@ impl BuildTimeAdmissionPlan {
             custody,
             authority,
             &self.selected_operators,
+            &self.selected_provider_bodies,
             input.operator_facts(),
         );
         if services.is_empty()
@@ -1223,6 +1298,7 @@ impl BuildTimeAdmissionPlan {
 }
 
 fn project_operational_axes(
+    program: &TypedTrees,
     operational: &flow_effects::OperationalPlan,
 ) -> (
     Vec<BuildTimeSuspensionRow>,
@@ -1249,6 +1325,16 @@ fn project_operational_axes(
                     target_machine_symbol: call.target_machine_symbol,
                     target_state_symbol: call.target_state_symbol,
                     target_operator_symbol: call.target_operator_symbol,
+                    expression: match validation::find_call_site(
+                        program,
+                        machine.symbol,
+                        state.symbol,
+                        call.statement_index,
+                        call.call_ordinal,
+                    ) {
+                        Some(validation::CallSite::Expression { expression, .. }) => expression,
+                        _ => typed_trees::expression::ExpressionHandle::invalid(),
+                    },
                 });
             }
         }

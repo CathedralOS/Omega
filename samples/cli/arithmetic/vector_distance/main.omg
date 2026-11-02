@@ -9,7 +9,7 @@
 
 use omega::language::core::float_operations;
 use omega_language_std::console;
-use omega_language_std::math;
+use omega::language::core::math;
 
 data Main {
     dx: f64;

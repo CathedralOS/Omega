@@ -27,6 +27,19 @@ pub(crate) fn validate_normalized_expression(
     syntax: &syntax_trees::SyntaxTrees,
     normalization: &syntax_trees::types::ConstArgumentNormalization,
 ) -> Result<(), Diagnostic> {
+    if normalization.materialized_expression.is_valid()
+        && (!normalization.authored_expression.is_valid()
+            || !syntax
+                .expressions
+                .contains_expression(normalization.materialized_expression)
+            || syntax_expressions(syntax).source_span(normalization.materialized_expression)
+                != normalization.reference)
+    {
+        return Err(Diagnostic::error(
+            "constant argument lost its exact materialized result expression",
+        )
+        .with_source_span(normalization.reference));
+    }
     if normalization_requires_expression(normalization)
         && (!syntax
             .expressions

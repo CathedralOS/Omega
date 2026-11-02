@@ -24,14 +24,11 @@ machine Nat::Descending(value: u64) -> u64;
 // declared law, forall-to-forall).
 use omega::language::core::algebra;
 
-// Math roster N4, first slice (2026-07-11): Nat as ORDINARY RECURSIVE
-// DATA -- legal to declare and proof-only by N1's computed
-// classification (recursive data has no layout; every runtime
-// consumption face refuses with the classification named). N2's exact
-// engine evaluates Nat facts. N2(d)'s structural bridge is live: a proof
+// Nat is ordinary recursive data, proof-only by the computed classification:
+// recursive data has no layout, and every runtime consumption refuses with the
+// classification named. The exact engine evaluates Nat facts, and a proof
 // machine may induct over guarded unsigned `n - 1` while its recursive result
-// and contract stay in this structural Nat world. Wider fact-position operator
-// routing remains N3 work.
+// and contract stay in this structural Nat world.
 public data Nat {
     case Zero;
     case Succ(prev: Nat);
@@ -61,13 +58,13 @@ requires
     transition { _ -> (saturating_sub(left, right)) }
 }
 
-// N4 roster operations (2026-07-11): the Peano ring surface as ordinary
+// The Peano ring surface as ordinary
 // PROOF MACHINES -- free machines over proof-only data (machine-stratum
 // contagion), structurally recursive, every self-call descending by the
 // arm-bound case-payload subterm. `mul` composes `add` by an ordinary
 // cross-machine call (no cycle; only self-calls need the measure).
-// Extraction lemmas (add_zero, add_succ, commutativity) ride N3/N4's
-// ensures-extraction rung.
+// The extraction lemmas (add_zero, add_succ, commutativity) are discharged
+// by ensures extraction.
 public machine add(a: Nat, b: Nat) -> Nat
 satisfies CommutativeSemiring<Nat>::add
 terminates by a
@@ -102,8 +99,8 @@ satisfies CommutativeSemiring<Nat>::one
     transition { _ -> Nat::Succ { prev: Nat::Zero } }
 }
 
-// N4 extraction lemmas (2026-07-11): the first PROVEN library lemmas --
-// the structural entailment judge (N3) discharges each ensures at
+// Extraction lemmas: proven library lemmas -- the structural entailment
+// judge discharges each ensures at
 // compile time, so every program importing this module carries machine-
 // checked Peano facts. add_zero_left unfolds add's Zero arm
 // (compute-mode); add_zero_right is STRUCTURAL INDUCTION on `a` (its step
@@ -183,7 +180,7 @@ ensures
     }
 }
 
-// COMMUTATIVITY (N3 rung 2, 2026-07-12): induction on `a` with PER-ARM
+// COMMUTATIVITY: induction on `a` with PER-ARM
 // SUB-STATE proofs -- each case arm transitions to its own state carrying
 // exactly the citations that case needs (ch10 "Citing Proofs", explicit
 // fact injection). The base case cites add_zero_right's law at `b`; the
@@ -247,14 +244,12 @@ ensures
     }
 }
 
-// mul's right-successor law -- CITATION-FREE since rearrange-mode
-// (2026-07-18). This step case was the citation-choreography showcase:
-// three cited rewrites (comm, assoc, comm) hand-normalized
-// `add(b, add(prev, mul(prev, b)))` onto the goal's other side. The
-// rearrange tier dissolves the choreography: after unfolding and the
-// inductive hypothesis, both sides flatten to the same addend multiset
-// under Nat's CommutativeSemiring conformance, and the msr_step sub-state
-// deletes entirely.
+// mul's right-successor law -- citation-free: rearrange mode normalizes
+// `add(b, add(prev, mul(prev, b)))` onto the goal's other side without the
+// three cited rewrites (comm, assoc, comm) it would otherwise need. After
+// unfolding and the inductive hypothesis, both sides flatten to the same
+// addend multiset under Nat's CommutativeSemiring conformance, and the
+// msr_step sub-state deletes entirely.
 machine mul_succ_right(a: Nat, b: Nat) -> Nat
 terminates by a
 ensures
@@ -279,8 +274,7 @@ ensures
     add_zero_right(a);
 }
 
-// DISTRIBUTIVITY -- CITATION-FREE (the rearrange-mode acceptance,
-// 2026-07-18): induction on `a`, no sub-states, no cited instances. The
+// DISTRIBUTIVITY -- citation-free: induction on `a`, no sub-states, no cited instances. The
 // step case unfolds mul/add and applies the inductive hypothesis, leaving a
 // four-addend shuffle (`add(b, add(c, X))` against `add(add(b, X'), ...)`)
 // that the engine's REARRANGE tier discharges: Nat's explicit
@@ -401,7 +395,7 @@ ensures
     }
 }
 
-// CANCELLATION (requires-bearing induction, 2026-07-16): add is left-
+// CANCELLATION (requires-bearing induction): add is left-
 // cancellative. Induction on c: the Zero arm's requires unfolds to a == b
 // outright; the Succ arm's requires unfolds to Succ-wrapped sides whose
 // injectivity yields the prev-level equation -- exactly the inductive
@@ -430,7 +424,7 @@ ensures
 }
 
 
-// PREDECESSOR (N4 Rat-ladder prerequisite 2026-07-20): pred(Zero) = Zero,
+// PREDECESSOR: pred(Zero) = Zero,
 // pred(Succ a') = a' -- the single-transition shape the structural judge
 // unfolds. Lean analog: Nat.pred.
 machine pred(a: Nat) -> Nat
@@ -549,8 +543,7 @@ ensures
 }
 
 
-// ORDER AS MONUS (N4 Rat-ladder strict-ranking evidence, design-ruled
-// 2026-07-17): the roster spelling is `a <= b` := saturating_sub(a, b) == Zero and
+// ORDER AS MONUS: the spelling is `a <= b` := saturating_sub(a, b) == Zero and
 // `a < b` := saturating_sub(Succ a, b) == Zero -- no new predicate, the monus IS the
 // order carrier until an order surface lands.
 

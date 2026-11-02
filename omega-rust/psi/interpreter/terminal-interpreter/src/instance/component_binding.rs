@@ -13,6 +13,7 @@ use terminal_fuel::TerminalFuelMeter;
 use terminal_installation::{AdmittedComponentProvider, AdmittedScalarApplications};
 
 use super::{ComponentOwnedReturn, TerminalImportBinding, TerminalInstance};
+use crate::calls::{ComponentCallScope, ComponentInputCustody};
 use crate::program::TerminalProgram;
 use crate::results::TerminalExecutionStatus;
 use crate::{
@@ -30,17 +31,19 @@ pub struct TerminalComponentBinding<'host, 'artifact> {
     scalar_admission: Option<std::borrow::Cow<'artifact, AdmittedScalarApplications>>,
     required_imports: Vec<BoundaryMachineId>,
     bindings: BTreeMap<BoundaryMachineId, TerminalImportBinding<'host>>,
+    storage_resolver: Option<std::rc::Rc<dyn crate::TerminalProviderStorageResolver + 'host>>,
     components: ComponentBindings<'host, 'artifact>,
     pending: Option<PendingComponent<'host, 'artifact>>,
 }
 
 struct PendingComponent<'host, 'artifact> {
+    caller: ComponentCallScope,
     operation: OperationId,
     arguments: Vec<TerminalScalarValue>,
     structural_operands: Vec<terminal_psi::StructuralArgument>,
     // Keep the original transferred atom tuple beside the real child through
     // suspension. Resumption never resolves the consumed receiver homes again.
-    structural_arguments: Vec<crate::TerminalStructuralValue>,
+    inputs: ComponentInputCustody,
     instance: Option<Box<TerminalInstance<'host, 'artifact>>>,
     completed: Option<ComponentOwnedReturn<'host, 'artifact>>,
 }
@@ -90,6 +93,7 @@ impl<'host, 'artifact> TerminalComponentBinding<'host, 'artifact> {
             scalar_admission,
             required_imports: requirements.imports,
             bindings: BTreeMap::new(),
+            storage_resolver: None,
             components: BTreeMap::new(),
             pending: None,
         })
@@ -99,6 +103,17 @@ impl<'host, 'artifact> TerminalComponentBinding<'host, 'artifact> {
         self.required_imports.iter().copied().filter(|boundary| {
             !self.bindings.contains_key(boundary) && !self.components.contains_key(boundary)
         })
+    }
+
+    pub fn bind_storage_resolver(
+        &mut self,
+        resolver: std::rc::Rc<dyn crate::TerminalProviderStorageResolver + 'host>,
+    ) -> Result<(), String> {
+        if self.pending.is_some() || self.storage_resolver.is_some() {
+            return Err("component provider storage resolver is active or already bound".into());
+        }
+        self.storage_resolver = Some(resolver);
+        Ok(())
     }
 
     pub fn import(&self, boundary: BoundaryMachineId) -> Option<&BoundaryMachineDeclaration> {
@@ -201,18 +216,30 @@ impl<'host, 'artifact> TerminalComponentBinding<'host, 'artifact> {
     /// custody moves only after instantiation succeeds.
     pub(crate) fn prepare(
         &mut self,
+        caller: ComponentCallScope,
         operation: OperationId,
         arguments: &[TerminalScalarValue],
         structural_operands: &[terminal_psi::StructuralArgument],
-        structural_inputs: TerminalStructuralInputs<'_>,
+        inputs: ComponentInputCustody,
         account: Option<&EvaluationInvocationAccount>,
     ) -> Result<(), String> {
         self.require_ready()?;
+        if caller.namespace.is_none()
+            && structural_operands
+                .iter()
+                .any(|argument| argument.access != terminal_psi::StructuralAccess::Owned)
+        {
+            return Err("component lending requires its live caller activation".into());
+        }
         let mut instance = self
             .program
             .instantiate(crate::TerminalInstantiation {
                 scalar_arguments: arguments,
-                structural_inputs,
+                structural_inputs: TerminalStructuralInputs {
+                    arguments: &inputs.values,
+                    contents: &inputs.contents,
+                    ..TerminalStructuralInputs::default()
+                },
                 installation: Some(&self.supplies),
                 account,
                 entry_results: None,
@@ -223,13 +250,23 @@ impl<'host, 'artifact> TerminalComponentBinding<'host, 'artifact> {
         if instance.required_imports != self.required_imports {
             return Err("component invocation changed its preflighted import closure".into());
         }
+        inputs
+            .establish_lent_inputs(
+                instance
+                    .execution
+                    .as_mut()
+                    .ok_or("new component lost its execution")?,
+            )
+            .map_err(|error| format!("component lent input custody: {error:?}"))?;
         instance.bindings = std::mem::take(&mut self.bindings);
+        instance.storage_resolver = self.storage_resolver.clone();
         instance.components = std::mem::take(&mut self.components);
         self.pending = Some(PendingComponent {
+            caller,
             operation,
             arguments: arguments.to_vec(),
             structural_operands: structural_operands.to_vec(),
-            structural_arguments: structural_inputs.arguments.to_vec(),
+            inputs,
             instance: Some(Box::new(instance)),
             completed: None,
         });
@@ -240,6 +277,7 @@ impl<'host, 'artifact> TerminalComponentBinding<'host, 'artifact> {
     /// pause retains this child and its transferred input tuple/committed effects.
     pub(crate) fn invoke(
         &mut self,
+        caller: ComponentCallScope,
         operation: OperationId,
         arguments: &[TerminalScalarValue],
         structural_operands: &[terminal_psi::StructuralArgument],
@@ -249,10 +287,16 @@ impl<'host, 'artifact> TerminalComponentBinding<'host, 'artifact> {
             .pending
             .as_mut()
             .ok_or("component invocation was not prepared")?;
-        if pending.operation != operation
+        if pending.caller != caller
+            || pending.operation != operation
             || pending.arguments != arguments
             || pending.structural_operands != structural_operands
-            || pending.structural_arguments.len() != structural_operands.len()
+            || pending.inputs.values.len() != structural_operands.len()
+            || pending
+                .inputs
+                .source
+                .as_ref()
+                .is_some_and(|source| source.values.len() != structural_operands.len())
         {
             return Err(
                 "pending component invocation has another operation or input snapshot".into(),

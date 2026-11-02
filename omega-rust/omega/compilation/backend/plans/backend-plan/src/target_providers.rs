@@ -50,6 +50,61 @@ pub struct TerminalTargetProviderPlan {
     pub row_numeric_realizations: Vec<Option<String>>,
 }
 
+/// Join a producer-backed checked adapter to its declaration facts. This is
+/// identity selection, not conformance replay or executable admission.
+pub fn selected_checked_adapter_header<'module>(
+    plan: &effects::provider_plan::ProviderPlan,
+    row: &effects::provider_plan::ProviderPlanRow,
+    module: &'module terminal_psi::TerminalModule,
+) -> Result<&'module terminal_psi::ProofCallableHeader, String> {
+    let effects::provider_plan::ProviderBinding::CheckedAdapter {
+        machine_identity,
+        machine_package_identity,
+    } = &row.binding
+    else {
+        return Err("selected row is not a checked adapter".into());
+    };
+    if *machine_package_identity != plan.origin_package_identity {
+        return Err("checked adapter differs from its retained package identity".into());
+    }
+    let callable = plan.identity_text(*machine_identity);
+    if callable.is_empty() {
+        return Err("checked adapter has no complete callable identity".into());
+    }
+    let target = if plan.target.is_empty() {
+        target::TargetProfile::host().target_name()
+    } else {
+        &plan.target
+    };
+    let mut matches = module
+        .scalar_applications
+        .proof_scope
+        .callable_headers
+        .iter()
+        .map(|(_, header)| header)
+        .filter(|header| {
+            header.product_eligible
+                && header.package == *machine_package_identity
+                && header
+                    .source_target
+                    .as_deref()
+                    .is_none_or(|source| source == target)
+                && header
+                    .callable
+                    .as_ref()
+                    .is_ok_and(|identity| module.identities.text(*identity) == Some(callable))
+        });
+    let header = matches.next().ok_or_else(|| {
+        format!("checked adapter `{callable}` has no exact canonical declaration header")
+    })?;
+    if matches.next().is_some() {
+        return Err(format!(
+            "checked adapter `{callable}` has multiple exact canonical declaration headers"
+        ));
+    }
+    Ok(header)
+}
+
 impl TerminalTargetProviderSelection {
     /// Project complete checked rosters from canonical associations. This
     /// constructs a proposal only; receiving target admission remains required.
@@ -474,7 +529,7 @@ pub fn selected_provider_candidate_rows<'plan>(
                             == Some(requirement)
                         && module.identities.text(candidate.source_candidate_identity)
                             == Some(realization)
-                        && receiving_application_matches(plan, row, module, candidate)
+                        && receiving_application_matches(plan, row, module, candidate.receiving_application)
                         // The portable catalog retains every member of the
                         // remaining legacy families. A target-keyed plan joins
                         // only its exact member before checking uniqueness;
@@ -523,6 +578,80 @@ pub fn selected_provider_candidate_rows<'plan>(
             candidate_positions: matching,
         });
     }
+    // The obligation roster is issued independently of candidates. Checking
+    // only the candidate list cannot notice one missing uncalled instance.
+    for selected in &selections {
+        let requirement_template = plan.identity_text(selected.row.requirement_identity);
+        let method = plan
+            .schema
+            .declaration
+            .methods
+            .iter()
+            .find(|method| {
+                plan.schema.identity_text(method.requirement_identity) == requirement_template
+            })
+            .ok_or("selected provider row lost its exact requirement declaration")?;
+        for obligations in module
+            .provider_instance_requirements
+            .iter()
+            .filter(|obligations| {
+                obligations.package == method.requirement_owner_package_identity
+                    && module.identities.text(obligations.template) == Some(requirement_template)
+                    && obligations
+                        .selecting_declaration
+                        .as_ref()
+                        .is_none_or(|declaration| {
+                            module.identities.text(declaration.identity()) == Some(owner)
+                                && match selected.row.binding {
+                                    effects::provider_plan::ProviderBinding::CheckedAdapter {
+                                        machine_identity,
+                                        ..
+                                    } => {
+                                        module
+                                            .identities
+                                            .text(obligations.source_candidate_identity)
+                                            == Some(plan.identity_text(machine_identity))
+                                    }
+                                    _ => false,
+                                }
+                        })
+            })
+        {
+            for required in &obligations.required_instances {
+                if !receiving_application_matches(
+                    plan,
+                    selected.row,
+                    module,
+                    required.receiving_application,
+                ) {
+                    continue;
+                }
+                let count = selected
+                    .candidate_positions
+                    .iter()
+                    .filter(|position| {
+                        let candidate = &module.provider_candidates[**position];
+                        candidate.requirement_identity == required.requirement_identity
+                            && (required.candidate_identity.is_absent()
+                                || candidate.candidate_identity == required.candidate_identity)
+                            && candidate.receiving_application == required.receiving_application
+                            && candidate.receiving_region_arguments
+                                == required.receiving_region_arguments
+                    })
+                    .count();
+                if count != 1 {
+                    return Err(format!(
+                        "selected provider plan `{}` resolves retained closed requirement `{}` to {count} canonical provider instances; exactly one must serve it",
+                        plan.name,
+                        module
+                            .identities
+                            .text(required.requirement_identity)
+                            .unwrap_or("<unknown requirement>"),
+                    ));
+                }
+            }
+        }
+    }
     Ok(selections)
 }
 
@@ -530,7 +659,7 @@ fn receiving_application_matches(
     plan: &effects::provider_plan::ProviderPlan,
     row: &effects::provider_plan::ProviderPlanRow,
     module: &terminal_psi::TerminalModule,
-    candidate: &terminal_psi::ProviderCandidateConformance,
+    receiving_application: terminal_psi::TerminalIdentityIndex,
 ) -> bool {
     let requirement = plan.identity_text(row.requirement_identity);
     let surface = &plan.schema.declaration;
@@ -554,7 +683,7 @@ fn receiving_application_matches(
     if !surface.receiver_applications.is_empty() && views().next().is_none() {
         return false;
     }
-    if candidate.receiving_application == terminal_psi::TerminalIdentityIndex::default() {
+    if receiving_application == terminal_psi::TerminalIdentityIndex::default() {
         // Non-applied declarations have no closed receiver coordinate. They
         // cannot supply a parameterized or region-applied receiver selection.
         return views().all(|application| {
@@ -564,7 +693,7 @@ fn receiving_application_matches(
     }
     let Some(receiving) = module
         .identities
-        .text(candidate.receiving_application)
+        .text(receiving_application)
         .filter(|text| !text.is_empty())
     else {
         return false;

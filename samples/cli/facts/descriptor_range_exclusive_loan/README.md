@@ -116,7 +116,7 @@ and nine fail fixtures (each a byte-identical copy of its place twin plus the pi
 4. **Soundness boundaries:** every twin rejects during proof checking with its authored
    ``mutates … while local borrow `selected` is still active`` fragment; access authority of the
    `&mut` payload loans and the flag counter are preserved.
-5. **Checked-to-Terminal Psi lowering (`Psi 05–07`):** the case-tagged `Slot` payloads, the
+5. **Checked-to-Terminal Psi lowering (`Psi 06–08`):** the case-tagged `Slot` payloads, the
    subrange loans and the indexed write lower without loss into Terminal Psi and execute in the
    interpreter in agreement with native execution on all nine places plus the root.
 6. **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** each place

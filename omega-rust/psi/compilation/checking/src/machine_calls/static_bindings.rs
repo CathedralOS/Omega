@@ -373,7 +373,7 @@ pub fn validate_static_machine_bindings(
                 .iter()
                 .filter(|(source, _, _)| *source == handle)
             {
-                // Stage 04 retargets a selector call to its instantiated slot.
+                // Stage 05 retargets a selector call to its instantiated slot.
                 // That slot is this occurrence's exact applied requirement and
                 // names the declaration the authored tuple was written
                 // against, so the tuple is judged against that declaration --

@@ -164,6 +164,15 @@ pub struct TerminalExecution<'artifact> {
     /// A storage relocation changes the key, not the host's forwarding token;
     /// this table grants no storage, loan, qualification or lifecycle authority.
     pub(crate) structural_host_atoms: RuntimeRows<StructuralRuntimePlace, HostStructuralPayload>,
+    /// A component's opaque loan authenticates host identity, not guest memory.
+    /// These exact borrowed homes cannot acquire detached writable payloads.
+    pub(crate) component_lent_host_atoms: RuntimeRows<StructuralRuntimePlace, ()>,
+    /// Actual scalar backing aliases retain the lender's address namespace
+    /// independently of their artifact-local receiving field coordinates.
+    pub(crate) component_borrowed_addresses: RuntimeRows<
+        crate::storage_addresses::ScalarStorageAddressKey,
+        crate::storage_addresses::ScalarStorageAddress,
+    >,
     pub(crate) next_host_atom_collection_size: usize,
     pub(crate) scalar_array_values: crate::scalar_array::ScalarArrayBindings,
     /// Frame-local immutable descriptors or exact boundary-introduced mutable
@@ -658,6 +667,8 @@ impl<'artifact> TerminalExecution<'artifact> {
             empty_array_storage: EmptyArrayStorage::new(account.as_ref()),
             structural_cases: RuntimeRows::new(account.as_ref()),
             structural_host_atoms: RuntimeRows::new(account.as_ref()),
+            component_lent_host_atoms: RuntimeRows::new(account.as_ref()),
+            component_borrowed_addresses: RuntimeRows::new(account.as_ref()),
             next_host_atom_collection_size: 1024,
             scalar_array_values: crate::scalar_array::ScalarArrayBindings::new(account.as_ref()),
             byte_sequence_values: RuntimeRows::new(account.as_ref()),

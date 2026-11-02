@@ -444,6 +444,20 @@ pub(crate) fn callee_entry_contract(
     })
 }
 
+/// The contract this call's caller sees. A static requirement dispatch
+/// executes its selected realization but publishes only the requirement's
+/// contract; the realization's stronger private guarantees stay private.
+pub(crate) fn call_contract<'program>(
+    program: &'program dyn crate::CheckingInput,
+    call: &typed_trees::expression::TableCallExpression,
+) -> Option<CalleeContract<'program>> {
+    let target = call
+        .static_requirement_dispatch
+        .as_ref()
+        .map_or(call.target_symbol, |dispatch| dispatch.contract_symbol());
+    callee_entry_contract(program, target)
+}
+
 /// A boundary or requirement call targets the trait's declared signature
 /// symbol rather than a machine-body state. A retained closed application owns
 /// its already-substituted signature, even when the authored trait has `Type`
@@ -647,8 +661,18 @@ pub(crate) fn validate_call_arguments(
                     expression_type_name_handle(program, *argument)
                 );
             }
+            let declared_detail =
+                declared_place_type(program, current_machine, current_state, *argument)
+                    .map(|actual| {
+                        format!(
+                            "; expected carrier `{}`, declared place carrier `{}`",
+                            program.normalized_type_identity_text(parameter.type_reference),
+                            program.normalized_type_identity_text(actual),
+                        )
+                    })
+                    .unwrap_or_default();
             diagnostics.push(Diagnostic::error(format!(
-                "argument `{}` for state `{}` expects `{}`, got `{}`",
+                "argument `{}` for state `{}` expects `{}`, got `{}`{declared_detail}",
                 parameter.name,
                 target_name,
                 expected_type,
@@ -931,7 +955,9 @@ pub(crate) use argument_correspondence::{
     call_binding_correspondence, captured_argument_position, executable_parameters,
 };
 mod occurrences;
-pub use argument_correspondence::{SelectedCallArgument, selected_call_arguments};
+pub use argument_correspondence::{
+    SelectedCallArgument, SelectedCallArgumentError, selected_call_arguments,
+};
 pub use occurrences::{
     CallSite, call_is_unconditional, call_site_argument_expressions, call_site_evidence_arguments,
     collect_call_sites_in_statement, find_call_site, find_call_site_in_state,

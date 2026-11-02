@@ -1,4 +1,4 @@
-use omega_language_std::wire;
+use omega::language::core::wire;
 use omega::language::core::reflect;
 use omega::language::core::fixed_vec;
 // `FixedVec<i32, 4>` as a wire member: `#1 samples` encodes a

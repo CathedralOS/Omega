@@ -38,14 +38,17 @@ pub(crate) fn project_public_traits<'a>(
             continue;
         };
         let parameters = compilation.trait_type_parameters(definition);
-        let (mut trait_binders, type_parameters) = project_type_parameters(
+        // A trait binds exactly its declared statics. Contract binders are
+        // numbered by list position and type identities spell `type-parameter:N`,
+        // so a leading subject entry would shift one numbering off the other and
+        // off the recovery scope (declared statics, then the requirement's own).
+        let (trait_binders, type_parameters) = project_type_parameters(
             compilation,
             parameters,
             "trait",
             &identity.path,
             &definition.lifetime_parameters,
         )?;
-        trait_binders.insert(0, (definition.symbol, "trait-self".to_owned()));
         let conformance_bounds = project_conformance_bounds(
             compilation,
             &definition.conformance_bounds,

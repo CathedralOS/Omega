@@ -234,9 +234,9 @@ fn package_binding_policy_does_not_interpret_checked_source() {
 fn build_operations_do_not_assemble_compiler_products() {
     assert_absent(
         &[
-            include_str!("../../../application/build/src/build.rs"),
-            include_str!("../../../application/build/src/project_compilation.rs"),
-            include_str!("../../../application/build/src/products.rs"),
+            include_str!("../../../compilation/build/src/build.rs"),
+            include_str!("../../../compilation/build/src/project_compilation.rs"),
+            include_str!("../../../compilation/build/src/products.rs"),
         ],
         "Build operation drives",
         &[
@@ -270,7 +270,7 @@ fn accepted_packages_supply_plans_not_compiler_continuations() {
 fn package_frontiers_batch_components_without_nested_source_workers() {
     assert_absent(
         &[
-            include_str!("../../../application/build/src/build_execution.rs"),
+            include_str!("../../../compilation/build/src/build_execution.rs"),
             include_str!("checked/product_batch.rs"),
         ],
         "package batch nests source work:",
@@ -313,7 +313,7 @@ fn checked_operator_choice_consumes_retained_candidates() {
 #[test]
 fn issuer_identities_precede_occurrence_production() {
     let preparation = include_str!(
-        "../../../../psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/semantic/facts.rs"
+        "../../../../psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/semantic/facts.rs"
     );
     assert_in_order(
         preparation,
@@ -386,7 +386,7 @@ fn components_use_the_shared_product_sequence() {
 
 #[test]
 fn component_handoff_retains_the_producing_join() {
-    let components = include_str!("../../../application/build/src/native_completion.rs");
+    let components = include_str!("../../../compilation/build/src/native_completion.rs");
     assert_absent(
         &[components],
         "native handoff reconstructs",
@@ -542,7 +542,7 @@ fn service_catalog_consumers_do_not_keep_retired_binding_projection() {
 #[test]
 fn native_product_supplies_inputs_without_orchestrating_component_emission() {
     let source = include_str!("product_execution.rs");
-    let inputs = include_str!("../../../application/build/src/native_completion.rs");
+    let inputs = include_str!("../../../compilation/build/src/native_completion.rs");
     assert_absent(
         &[source],
         "compiler still drives",
@@ -840,7 +840,7 @@ fn selected_callback_custody_carries_declarations_not_source_symbols() {
         &["checked_trees", "typed_trees", "psi_terminal_production"],
     );
     let declarations = include_str!(
-        "../../../../psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/external_provider_declarations/callbacks.rs"
+        "../../../../psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/external_provider_declarations/callbacks.rs"
     );
     assert!(declarations.contains("checked.callback_declaration(usage)"));
     assert!(declarations.contains("declarations::identity("));

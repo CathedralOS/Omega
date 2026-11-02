@@ -1,0 +1,88 @@
+//! Create real producing instances from the native product's exact companions.
+//! This host root supplies the same invocation capabilities to both artifacts;
+//! the interpreter owns child entry, suspension, completion and token custody.
+
+use super::{TerminalRuntimeError, host_imports};
+use terminal_interpreter::{
+    TerminalComponentBinding, TerminalInterpretError, TerminalProgram,
+    TerminalRuntimeSupplyRequest, admit_target_layouts, admit_target_machine_selections,
+};
+
+pub(super) fn prepare<'host, 'artifact>(
+    component: &'artifact native_artifact::NativeComponentProduct,
+    context: &host_imports::HostContext<'host>,
+    x86_flags: Option<terminal_interpreter::TerminalX86FlagsEnvironment>,
+    memory_ordering: Option<terminal_interpreter::TerminalMemoryOrderingEnvironment>,
+) -> Result<TerminalComponentBinding<'host, 'artifact>, TerminalRuntimeError> {
+    let artifact = component.artifact().view();
+    let program = TerminalProgram::borrow(artifact);
+    let runtime = component.runtime();
+    if runtime.identity() != program.terminal_psi()
+        || runtime.entry() != component.selection().candidate()
+        || component.authority().subject() != program.terminal_psi()
+    {
+        return Err(TerminalRuntimeError::InvalidProvision(
+            "component runtime companions name another producing occurrence",
+        ));
+    }
+    let target_machines = admit_target_machine_selections(artifact, runtime.target().target_name());
+    let facts = super::layout_target_facts(runtime.target().target_name()).map_err(|error| {
+        TerminalRuntimeError::Requirements(TerminalInterpretError::TargetLayoutSelection(error))
+    })?;
+    let target_layouts =
+        admit_target_layouts(artifact, &target_machines, &facts).map_err(|error| {
+            TerminalRuntimeError::Requirements(TerminalInterpretError::TargetLayoutSelection(error))
+        })?;
+    let mut imports = Vec::new();
+    for provision in runtime.host_provisions().host() {
+        if matches!(&provision.realization,
+            target_operations::BoundarySettlementRealization::NormalizedForeignCall(binding)
+                if matches!(binding.mechanism, target_operations::NormalizedForeignCallMechanism::Component { .. }))
+        {
+            return Err(TerminalRuntimeError::InvalidProvision(
+                "nested component execution requires its own retained installed product roster",
+            ));
+        }
+        if !host_imports::executes_internally(&program, provision)
+            && program
+                .external_completion_requirement(provision.boundary)
+                .is_none()
+        {
+            imports.push(provision.boundary);
+        }
+    }
+    let supplies = program
+        .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
+            x86_flags,
+            memory_ordering,
+            entry: Some(terminal_psi::TargetMachineCallable::Machine(
+                runtime.entry(),
+            )),
+            installation: runtime
+                .scalar_applications()
+                .map(|completed| completed.primary().providers())
+                .or_else(|| runtime.host_provisions().installation()),
+            host_imports: &imports,
+            target_machines: Some(&target_machines),
+            target_layouts: Some(&target_layouts),
+        })
+        .map_err(TerminalRuntimeError::Requirements)?;
+    let mut binding = TerminalComponentBinding::new(
+        component.selection().clone(),
+        program.clone(),
+        supplies,
+        runtime
+            .scalar_applications()
+            .map(std::borrow::Cow::Borrowed),
+    )
+    .map_err(TerminalRuntimeError::ComponentBinding)?;
+    let imports = binding.unbound_imports().collect::<Vec<_>>();
+    host_imports::bind(
+        &program,
+        &mut binding,
+        Some(runtime.host_provisions()),
+        &imports,
+        context,
+    )?;
+    Ok(binding)
+}

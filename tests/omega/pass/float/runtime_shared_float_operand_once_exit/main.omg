@@ -1,4 +1,4 @@
-use omega_language_std::math;
+use omega::language::core::math;
 
 // abs shares one normalized operand; distinct tick calls remain distinct.
 use omega_language_std::console;

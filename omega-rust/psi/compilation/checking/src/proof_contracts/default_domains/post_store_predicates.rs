@@ -45,24 +45,28 @@ pub(super) fn post_store_predicate_holds(
     state: &State,
     statement_index: usize,
     receiver: &crate::CanonicalPlace,
+    receiver_type: typed_trees::types::TypeReferenceHandle,
     preserves_scalar_value: bool,
     place: &TrackedPlace<'_>,
     written_field: SymbolHandle,
     written_value: ExpressionHandle,
     predicate: ExpressionHandle,
 ) -> bool {
+    let Some(completed_prefix) = statement_index.checked_add(1) else {
+        return false;
+    };
     // A representation-changing store supplies source bits, not the RHS's
     // numerical value. The execution-prefix owner interprets those bits at
     // the captured source coordinate before proving its predicate.
     if !preserves_scalar_value {
-        return crate::proof_contracts::contract_entailment::stored_data_predicate_holds(
+        return crate::proof_contracts::contract_entailment::captured_data_predicate_holds(
             program,
             machine,
             state,
-            statement_index,
+            completed_prefix,
             receiver,
+            receiver_type,
             place.definition,
-            place.active_case,
             predicate,
         );
     }
@@ -262,14 +266,14 @@ pub(super) fn post_store_predicate_holds(
             bindings: fields,
         },
     ) == StrictArithmeticImplicationJudgment::Proven
-        || crate::proof_contracts::contract_entailment::stored_data_predicate_holds(
+        || crate::proof_contracts::contract_entailment::captured_data_predicate_holds(
             program,
             machine,
             state,
-            statement_index,
+            completed_prefix,
             receiver,
+            receiver_type,
             place.definition,
-            place.active_case,
             predicate,
         )
 }

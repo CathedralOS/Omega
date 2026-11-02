@@ -67,7 +67,7 @@ this workbench's `build/joint-rank/` and identified in the publication record.
   tail-position checks remain separate. Unpromised productive components receive
   no fabricated natural rank. Other views and authored ranges retain their
   existing full-coordinate and endpoint obligations.
-- Psi 05–07: admitted coordinates become the existing entry observation and
+- Psi 06–08: admitted coordinates become the existing entry observation and
   constant-stack component rows, including witness-free helpers. Native and
   canonical Terminal execution agree; the pinned corpus independently audits
   emitted operations and custody.
@@ -266,3 +266,7 @@ retain the full read roster; exact increment-zero twins reject non-descent.
 continue the same production through an ordinary helper borrowing the complete
 owned entry input. The checked call retains its exact referent type and short
 shared window separately from the scalar proof reads.
+
+[Declaration-local selector coordinates](local/declared_measure/computed_record/selected_value/README.md)
+carry the same private-cycle fact through indexed measure reads in all nine
+places, with public-contract and computed-selector compositions.

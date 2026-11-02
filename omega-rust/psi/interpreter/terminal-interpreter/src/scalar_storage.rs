@@ -14,6 +14,9 @@ use evaluation_accounting::EvaluationInvocationAccount;
 use semantic_vocabulary::ScalarType;
 use std::{collections::BTreeMap, rc::Rc};
 
+mod component_loans;
+pub(crate) use component_loans::ScalarLoanScope;
+
 /// One admitted scalar endpoint of original storage. The host owns its actual
 /// geometry and lifetime. This interface grants no extra access: the engine
 /// must authenticate the operation's ordinary loan and storage restrictions.

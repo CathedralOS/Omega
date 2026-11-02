@@ -226,7 +226,7 @@ nesting neither supplies an induction hypothesis nor bypasses strict descent
 when a recursive contract is cited as proof.
 Reference identity may transport an existing live qualification, never establish
 a missing or invalidated one. Bounded source-certificate support remains beside
-[checked progress](../../../omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/README.md#flow-ranges-and-progress).
+[checked progress](../../../omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/README.md#flow-ranges-and-progress).
 
 ## Composition and limits
 

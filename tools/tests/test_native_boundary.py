@@ -272,7 +272,7 @@ class ForbiddenDependencyTests(unittest.TestCase):
         products = self.package("compilation-products", "omega-rust/omega/compilation/products")
         checker = self.package(
             "typed-trees-to-checked-trees",
-            "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees",
+            "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees",
         )
         facade = self.package("psi-compiler", PSI_FACADE)
         self.edge(products, facade)
@@ -280,12 +280,12 @@ class ForbiddenDependencyTests(unittest.TestCase):
         self.edge(products, checker)
         failures = forbidden_dependency_violations(self.metadata)
         self.assertEqual(len(failures), 1)
-        self.assertIn("compilation-products -> 04_typed-trees-to-checked-trees", failures[0])
+        self.assertIn("compilation-products -> 05_typed-trees-to-checked-trees", failures[0])
 
     def test_only_terminal_production_sequences_the_terminal_stages(self):
         stage = self.package(
             "lowered-psi-to-terminal-psi",
-            "omega-rust/psi/compilation/pipeline/07_lowered-psi-to-terminal-psi",
+            "omega-rust/psi/compilation/pipeline/08_lowered-psi-to-terminal-psi",
         )
         production = self.package("psi-terminal-production", TERMINAL_PRODUCTION)
         self.edge(production, stage)
@@ -294,7 +294,7 @@ class ForbiddenDependencyTests(unittest.TestCase):
         self.edge(facade, stage)
         failures = forbidden_dependency_violations(self.metadata)
         self.assertEqual(len(failures), 1)
-        self.assertIn("psi-compiler -> 07_lowered-psi-to-terminal-psi", failures[0])
+        self.assertIn("psi-compiler -> 08_lowered-psi-to-terminal-psi", failures[0])
 
     def test_omega_crate_cannot_import_source_side_psi(self):
         dispatch = self.package("selected-dispatch", "omega-rust/omega/compilation/realization/selected-dispatch")
@@ -305,7 +305,7 @@ class ForbiddenDependencyTests(unittest.TestCase):
             ("omega-rust/omega/compilation/backend/target", "omega-rust/psi/compilation/representations/checked-trees"),
             ("omega-rust/omega/compilation/representations/target-operations", "omega-rust/psi/interpreter/checked-interpreter"),
             ("omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations",
-             "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi"),
+             "omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi"),
             ("omega-rust/omega/compilation/backend/layout", "omega-rust/psi/compilation/checking/representation-planning"),
         ):
             with self.subTest(owner=owner):

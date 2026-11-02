@@ -120,12 +120,15 @@ impl<'program> CarrierCorrespondence<'program> {
         Ok(Self { frames })
     }
 
-    pub(super) fn matches(
+    pub(super) fn identities(
         &self,
         program: &dyn crate::CheckingInput,
         executable: TypeReferenceHandle,
         public: TypeReferenceHandle,
-    ) -> bool {
+    ) -> (
+        Option<typed_trees::type_identity::NormalizedTypeIdentity>,
+        Option<typed_trees::type_identity::NormalizedTypeIdentity>,
+    ) {
         let scopes = self
             .frames
             .iter()
@@ -137,7 +140,7 @@ impl<'program> CarrierCorrespondence<'program> {
             .collect::<Vec<_>>();
         let left = applied_declared_carrier_identity(program, executable, &scopes);
         let right = applied_declared_carrier_identity(program, public, &[]);
-        left.zip(right).is_some_and(|(left, right)| left == right)
+        (left, right)
     }
 }
 

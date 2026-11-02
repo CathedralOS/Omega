@@ -24,7 +24,7 @@ All positive projects select the source provider and bind `ProgramEntry` for the
 2. **Identity and lifetime.** The precondition observes the same live request field at invocation. It grants no post-call preservation through `&mut Request`; a focused stale post-call consumer rejects.
 3. **Composition.** The request reaches the boundary through a local, record field, helper parameter, returned record, match join, named zero, successor state, forwarding machine or target body. The consumer supplies no new guard proving the field zero.
 4. **Soundness.** Boundary signature selection remains exact; argument effects and mutable writes remain visible. Focused changed-before-call and effectful-argument controls reject at acquire, and post-call stale-field use rejects at its later consumer.
-5. **Checked-to-Terminal Psi (Psi 05–07).** The precondition is checked before invocation; Terminal executes the selected source provider's real mutation and return.
+5. **Checked-to-Terminal Psi (Psi 06–08).** The precondition is checked before invocation; Terminal executes the selected source provider's real mutation and return.
 6. **Provider, layout and ABI (Omega 00–02).** `Build::select_provider<Io, Actual>` supplies the ordinary checked provider, and the mutable record uses its actual reference lane.
 7. **Instructions, registers and activations (Omega 03–06).** Native execution invokes that provider and consumes its returned status in each transport variation.
 8. **Encoding and emission (Omega 07–09).** Every positive native image exits zero, agreeing with Terminal Psi.

@@ -30,7 +30,8 @@ use target::TargetProfile;
 
 const ELF64_DYNAMIC_SYMBOL_SIZE: u64 = 24;
 const ELF64_DYN_VALUE_SIZE: u8 = 8;
-const UNVERSIONED_FIXED_ROW_COUNT: usize = 14;
+const UNVERSIONED_FIXED_ROW_COUNT: usize = 15;
+const DF_BIND_NOW: u64 = 0x8;
 const UNVERSIONED_ADDRESS_COUNT: usize = 7;
 /// Independently validated semantic `.dynamic` rows and address obligations.
 ///
@@ -130,6 +131,7 @@ pub(crate) enum ElfDynamicTag {
     DynamicSymbolEntrySize = 11,
     ProcedureRelocationKind = 20,
     ProcedureRelocation = 23,
+    Flags = 30,
     GnuSymbolVersion = 0x6fff_fff0,
     GnuHash = 0x6fff_fef5,
     GnuVersionRequirement = 0x6fff_fffe,
@@ -147,6 +149,7 @@ pub(crate) enum ElfDynamicValue {
     DynamicSymbolEntryByteCount(u64),
     RelocationTag(ElfDynamicTag),
     VersionRequirementRecordCount(u64),
+    BindingFlags(u64),
     Null,
 }
 
@@ -158,7 +161,8 @@ pub(crate) const fn encoded_value(value: ElfDynamicValue) -> u64 {
         | ElfDynamicValue::GeneralRelocationEntryByteCount(count)
         | ElfDynamicValue::DynamicStringByteCount(count)
         | ElfDynamicValue::DynamicSymbolEntryByteCount(count)
-        | ElfDynamicValue::VersionRequirementRecordCount(count) => count,
+        | ElfDynamicValue::VersionRequirementRecordCount(count)
+        | ElfDynamicValue::BindingFlags(count) => count,
         ElfDynamicValue::RelocationTag(tag) => (tag as i64) as u64,
         ElfDynamicValue::AddressPlaceholder | ElfDynamicValue::Null => 0,
     }
@@ -319,6 +323,13 @@ fn derive_contents(
             )?),
         });
     }
+    // The program enters its admitted finite stack after the interpreter has
+    // loaded the graph. Lazy PLT resolution has no admitted same-stack extent;
+    // require the loader to complete it before entering that program stack.
+    rows.push(ElfDynamicSemanticRow {
+        tag: ElfDynamicTag::Flags,
+        value: ElfDynamicValue::BindingFlags(DF_BIND_NOW),
+    });
     rows.push(ElfDynamicSemanticRow {
         tag: ElfDynamicTag::Null,
         value: ElfDynamicValue::Null,
@@ -537,6 +548,10 @@ fn validate_fixed_rows(
         ]);
     }
     fixed.push(ElfDynamicSemanticRow {
+        tag: ElfDynamicTag::Flags,
+        value: ElfDynamicValue::BindingFlags(DF_BIND_NOW),
+    });
+    fixed.push(ElfDynamicSemanticRow {
         tag: ElfDynamicTag::Null,
         value: ElfDynamicValue::Null,
     });
@@ -715,6 +730,7 @@ fn non_authoritative_tag_compatibility_fingerprint(
             ElfDynamicValue::VersionRequirementRecordCount(count) => {
                 tagged_u64(&mut hash, 7, count)
             }
+            ElfDynamicValue::BindingFlags(flags) => tagged_u64(&mut hash, 11, flags),
             ElfDynamicValue::Null => hash.byte(8),
         }
     }

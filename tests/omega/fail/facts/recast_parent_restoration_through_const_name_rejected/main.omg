@@ -11,11 +11,13 @@ requires self.start >= 0 && self.start <= self.end,
     origin: u32;
 }
 const RESTORING: u32 = 0xFFFFFFFFu32;
+machine retain_view<'storage>(view: &'storage mut u32) -> &'storage mut u32 { view }
 public machine inspect(pair: &mut Pair)
 {
     let replacement: u32 = RESTORING;
     pair.marker = 11;
-    let view: &mut u32 = &mut pair.start as &mut u32;
+    let formed: &mut u32 = &mut pair.start as &mut u32;
+    let view: &mut u32 = retain_view(formed);
     view = 0xFFFFFFFFu32;
     view = replacement;
     pair.end = 10;

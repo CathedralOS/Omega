@@ -57,7 +57,7 @@ fn both_targets_plan_exact_needed_prefix_fixed_tags_and_address_obligations() {
             .expect("validated semantic dynamic tags");
         assert_eq!(plan.descriptors().descriptor_count(), 11);
         assert_eq!(plan.needed_row_count(), 2);
-        assert_eq!(plan.row_count(), 19);
+        assert_eq!(plan.row_count(), 20);
         assert_eq!(plan.address_obligation_count(), 9);
         assert_ne!(plan.non_authoritative_tag_compatibility_fingerprint(), 0);
 
@@ -100,6 +100,7 @@ fn both_targets_plan_exact_needed_prefix_fixed_tags_and_address_obligations() {
                 ElfDynamicTag::GnuSymbolVersion,
                 ElfDynamicTag::GnuVersionRequirement,
                 ElfDynamicTag::GnuVersionRequirementCount,
+                ElfDynamicTag::Flags,
                 ElfDynamicTag::Null,
             ],
         );
@@ -145,7 +146,11 @@ fn both_targets_plan_exact_needed_prefix_fixed_tags_and_address_obligations() {
             plan.contents.rows[17].value,
             ElfDynamicValue::VersionRequirementRecordCount(2),
         );
-        assert_eq!(plan.contents.rows[18].value, ElfDynamicValue::Null);
+        assert_eq!(
+            plan.contents.rows[18].value,
+            ElfDynamicValue::BindingFlags(0x8)
+        );
+        assert_eq!(plan.contents.rows[19].value, ElfDynamicValue::Null);
         validate_contents(plan.descriptors(), &plan.contents)
             .expect("independent dynamic-tag replay");
     }
@@ -405,7 +410,7 @@ fn component_only_imports_omit_absent_version_records_and_their_address_fixup() 
     let descriptors = crate::test_support::linkage_descriptors(inputs);
     let plan = plan_elf_dynamic_tags(descriptors).unwrap();
     assert_eq!(plan.needed_row_count(), 2);
-    assert_eq!(plan.row_count(), 16);
+    assert_eq!(plan.row_count(), 17);
     assert_eq!(plan.address_obligation_count(), 7);
     assert!(!plan.has_version_requirements());
     assert!(!plan.contents.rows.iter().any(|row| matches!(
@@ -438,4 +443,19 @@ fn component_only_imports_omit_absent_version_records_and_their_address_fixup() 
         validate_contents(plan.descriptors(), &malformed).is_err(),
         "a zero count cannot justify a present pointer to an absent Verneed record"
     );
+}
+
+#[test]
+fn finite_program_stack_requires_loader_binding_before_entry() {
+    let plan = plan_elf_dynamic_tags(descriptors(TargetProfile::LinuxX64, &IMPORTS)).unwrap();
+    let mut unbound = plan.contents.clone();
+    let flags = unbound
+        .rows
+        .iter_mut()
+        .find(|row| row.tag == ElfDynamicTag::Flags)
+        .unwrap();
+    flags.value = ElfDynamicValue::BindingFlags(0);
+    assert!(validate_contents(plan.descriptors(), &unbound).is_err());
+    unbound.rows.retain(|row| row.tag != ElfDynamicTag::Flags);
+    assert!(validate_contents(plan.descriptors(), &unbound).is_err());
 }

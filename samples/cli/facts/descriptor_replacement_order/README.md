@@ -101,7 +101,7 @@ Requirement evidence and boundaries:
 4. **Soundness boundaries:** only admitted ingress leaves and owned strict
    prefixes authorize descriptor retirement. Noncopy second use, moved-parent
    writes and local escapes remain invalid; no source affine claim is invented.
-5. **Psi 05–07:** checked post-RHS cleanup disposes the selected descriptor,
+5. **Psi 06–08:** checked post-RHS cleanup disposes the selected descriptor,
    retains its home and installs at captured coordinates. Terminal execution
    must agree with native; encoded copy permission is retained explicitly.
 6. **Omega 00–02:** nested fixed-array/record layouts and structural call/state
@@ -120,7 +120,7 @@ hosts. Windows native execution is explicitly deferred to a Windows agent.
 The parent remains open for runtime/case projections, opaque incoming referents
 and other stored-reference composition outside this row. Clean baseline
 `0dce4dc599e2` already fails nested byte observations below an exclusive
-descriptor array: byte indexing refuses at Psi 05's declared projection walk,
+descriptor array: byte indexing refuses at Psi 06's declared projection walk,
 and length reads execute natively but fail Terminal interpretation with
 `VerifiedOperationMalformed`. The broader failed probe and both baseline and
 candidate streams remain in the repair's evidence; this row does not fix them.

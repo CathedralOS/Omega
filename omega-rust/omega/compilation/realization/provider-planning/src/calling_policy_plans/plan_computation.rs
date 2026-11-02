@@ -5,7 +5,6 @@
 use crate::calling_policy_plans::boundary_signatures::BoundaryOpaqueMovementGeometry;
 use crate::calling_policy_plans::callback_bindings::validate_retained_callback_binders;
 use crate::calling_policy_plans::{BoundaryCallingPlanRealization, MaterializedBoundarySignature};
-use build_time_evaluation::BuildTimeProgram;
 use calling_conventions::ValidatedBoundaryEntryPlan;
 use calling_conventions::callback_nominal_report_fingerprint;
 use calling_conventions::{CallingPolicy, evaluate_ordinary_boundary_entry_plan};
@@ -87,14 +86,19 @@ pub(crate) fn evaluate_default_calling_applications(
     Ok(applications)
 }
 /// Prepare Source invocation admission and exact review coordinates only.
-/// Canonical publication owns declaration storage; target activation reads it.
+/// Shared inert Terminal publication precedes invocation-scoped helper choice.
+/// Psi's original Source admission remains required before target activation.
 pub fn prepare_boundary_calling_plans(
     checked: &Arc<checked_trees::CheckedTrees>,
     services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'_>,
     target_profile: target::TargetProfile,
     opaque_representation_selections: &[OpaqueRepresentationSelection],
     package_inputs: Option<&package_compilation::PackageCompilationInputs>,
+    provider_inputs: super::CallingPolicyProviderInputs<'_>,
+    code: &super::CallingProgram,
 ) -> Result<PreparedBoundaryCallingPlans, Vec<Diagnostic>> {
+    code.require_owner(&Arc::downgrade(checked))
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
     if !std::ptr::eq(&*checked.typed, services.context().typed)
         || services.context().scope != source::DependencyScope::Product
     {
@@ -157,7 +161,6 @@ pub fn prepare_boundary_calling_plans(
                         policy_machine: policy_machine.name.as_str().to_owned(),
                         policy_symbol: policy_machine.symbol,
                         relationship_span: request.span,
-                        admission: Ok(()),
                         review: super::signature_review::PreparedCallingReview::prepare(
                             declaration,
                             Arc::clone(opaque_reviews.get_or_insert_with(|| {
@@ -172,6 +175,7 @@ pub fn prepare_boundary_calling_plans(
             }
         }
     }
+    let mut provider_declarations = Vec::new();
     if !pending.is_empty() {
         // Source admission remains independent of geometry and policy results.
         // Its exact selected-body map must agree with the canonical activation.
@@ -187,31 +191,50 @@ pub fn prepare_boundary_calling_plans(
                     })
             })
             .collect::<Vec<_>>();
-        let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(
-            typed,
-            package_inputs.map(|inputs| {
+        let providers = super::selected_providers::prepare(
+            checked,
+            services,
+            target_profile,
+            &pending
+                .iter()
+                .map(|policy| policy.policy_symbol)
+                .collect::<Vec<_>>(),
+            &provider_inputs,
+            code,
+        )?;
+        let admissions = build_time_evaluation::SelectedBuildTimeClosureAdmission {
+            program: checked,
+            selection_authority: package_inputs.map(|inputs| {
                 std::sync::Arc::new(inputs.clone())
                     as std::sync::Arc<dyn build_time_evaluation::BuildTimeSelectionAuthority>
             }),
-        )
-        .with_selected_machine_bodies(typed, &machine_bodies)
-        .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        for policy in &mut pending {
-            policy.admission = admission
-                .admitted_program_machine_closure_symbols(
-                    BuildTimeProgram::Checked(checked),
-                    policy.policy_symbol,
-                    build_time_evaluation::BuildTimeInvocationCustody::Source(
-                        policy.relationship_span,
-                    ),
-                )
-                .map(|_closure| ());
+            selections: build_time_evaluation::SelectedBuildTimeOperators {
+                operators: &[],
+                provider_bodies: &providers.bodies,
+            },
+            machine_bodies: &machine_bodies,
         }
+        .admit(pending.iter().map(|policy| {
+            (
+                policy.policy_symbol,
+                build_time_evaluation::BuildTimeInvocationCustody::Source(policy.relationship_span),
+            )
+        }))
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        // Publication is inert. Every selected closure must pass the existing
+        // Psi admission floor before any scalar or calling-policy activation.
+        for (policy, admission) in pending.iter().zip(admissions) {
+            admission.map_err(|reason| {
+                vec![Diagnostic::error(reason).with_source_span(policy.relationship_span)]
+            })?;
+        }
+        provider_declarations = providers.declarations;
     }
     Ok(PreparedBoundaryCallingPlans {
         source_owner: Arc::downgrade(checked),
         pending,
         target: target_profile,
+        providers: provider_declarations,
     })
 }
 
@@ -221,6 +244,7 @@ pub struct PreparedBoundaryCallingPlans {
     source_owner: Weak<checked_trees::CheckedTrees>,
     pending: Vec<PreparedCallingPolicy>,
     target: target::TargetProfile,
+    providers: Vec<backend_plan::TerminalTargetProviderPlan>,
 }
 
 struct PreparedCallingPolicy {
@@ -235,7 +259,6 @@ struct PreparedCallingPolicy {
     policy_machine: String,
     policy_symbol: symbols::SymbolHandle,
     relationship_span: source::SourceSpan,
-    admission: Result<(), String>,
     review: Result<super::signature_review::PreparedCallingReview, String>,
 }
 
@@ -249,7 +272,6 @@ impl PreparedBoundaryCallingPlans {
             let diagnostic = |reason: String| {
                 vec![Diagnostic::error(reason).with_source_span(policy.relationship_span)]
             };
-            policy.admission.map_err(&diagnostic)?;
             code.require_owner(&self.source_owner)
                 .map_err(&diagnostic)?;
             let module = code.artifact.semantic_module();
@@ -299,6 +321,7 @@ impl PreparedBoundaryCallingPlans {
                     callable,
                     self.target,
                     policy.signature,
+                    &self.providers,
                 )
                 .map_err(&diagnostic)?;
             let callback_context_closed = !canonical.policy.callbacks.binders.is_empty()

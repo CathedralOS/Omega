@@ -15,6 +15,7 @@ use crate::record::PackageReviewContractCallTarget;
 use crate::record::PackageReviewContractExpression;
 use crate::record::PackageReviewContractUnaryOperator;
 use crate::record::PackageReviewFloatLiteral;
+use crate::record::PackageReviewLayoutQueryKind;
 use crate::record::PackageReviewReferenceAccess;
 
 pub(super) fn encode_contract_expression_body(
@@ -22,6 +23,17 @@ pub(super) fn encode_contract_expression_body(
     expression: &PackageReviewContractExpression,
 ) -> Result<(), PackageReviewEncodingError> {
     match expression {
+        PackageReviewContractExpression::LayoutQuery { kind, operand } => {
+            encoder.tag("layout_query", 27);
+            encoder.field("kind", |encoder| {
+                match kind {
+                    PackageReviewLayoutQueryKind::Size => encoder.tag("size", 0),
+                    PackageReviewLayoutQueryKind::Alignment => encoder.tag("alignment", 1),
+                };
+                Ok(())
+            })?;
+            encoder.field_by("operand", operand, encode_type_identity)?;
+        }
         PackageReviewContractExpression::TypeEquality {
             left,
             right,

@@ -57,11 +57,9 @@ implies deletion.
 - [Psi interpreters](psi/interpreter): separate checked-tree and Terminal Psi
   engines. [Build-time evaluation](psi/compilation/compile-time) uses
   target-neutral execution without depending on the Omega compiler coordinator.
-- [Topology package](../source/library/topology/): an ordinary Omega package-defined
-  plan and policy, separate from compiler ownership.
 
-Omega has four domains: `application/`, `compilation/`, `packages/` and
-`foundation/`; see the [domain map](omega/README.md). Each
+Omega has five domains: `application/`, `compilation/`, `interpreter/`,
+`packages/` and `foundation/`; see the [domain map](omega/README.md). Each
 supporting crate retains its own manifest and API. The package manager can use
 compiler services without the compiler depending back on package management;
 shared foundations and utilities remain independently owned. Durable IRs stay

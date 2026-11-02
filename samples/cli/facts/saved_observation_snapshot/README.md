@@ -71,7 +71,7 @@ establish execution on macOS ARM64 only.
   range evidence uses their hull. Write-only or differently interpreted
   references cannot manufacture a scalar fact. All nine fact-sensitive twins
   reject; additional stale-pre-call controls also reject.
-- **Checked-to-Terminal Psi (`Psi 05–07`):** generic reference calls, explicit
+- **Checked-to-Terminal Psi (`Psi 06–08`):** generic reference calls, explicit
   loans, scalar read completion and the match join lower through the ordinary
   scalar path and execute in Terminal Psi. This row does not establish proof-tag,
   affine cleanup, dynamic dispatch or crash-route completeness.

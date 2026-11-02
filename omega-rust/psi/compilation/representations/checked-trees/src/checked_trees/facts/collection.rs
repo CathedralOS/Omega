@@ -83,6 +83,8 @@ pub struct CheckFacts {
     /// The closed boundary requirement each concrete provider refines through
     /// a conformance naming a generic top-level requirement template.
     pub provider_closed_requirements: crate::CheckedProviderClosedRequirements,
+    /// Portable obligation and receiver descriptions frozen before lowering.
+    pub provider_instance_publication: crate::CheckedProviderInstancePublication,
     /// Every type reference's ownership and content classification,
     /// classified once over the frozen type table. Lowering reads these rows
     /// instead of re-running checking's recursive contents walk at each of

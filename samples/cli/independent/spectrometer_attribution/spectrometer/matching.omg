@@ -1,5 +1,5 @@
 module spectrometer::matching;
-use omega_language_std::math;
+use omega::language::core::math;
 use spectrometer::model::Spectrum;
 use spectrometer::model::Regions;
 use omega::language::core::float_operations;

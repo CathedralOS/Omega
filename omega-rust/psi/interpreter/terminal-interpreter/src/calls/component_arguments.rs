@@ -1,10 +1,11 @@
-//! Prepare exact owned opaque arguments for a real independent child.
+//! Prepare exact opaque inputs for a real independent child.
 //!
 //! Ordinary argument presentation and affine partitioning stay authoritative.
-//! Unchanged host atoms retain their tokens; materialized owned contents use the
-//! ordinary complete scalar/case initializer in the child's declaration space.
-//! Loans, routed claims and projected memberships require their own transfer
-//! carriers. Whole memberships use the installation's sealed
+//! Owned initialized data uses the ordinary complete-content child initializer;
+//! unchanged host atoms retain their tokens. A borrowed atom retains its real
+//! paused lender. Borrowed materialized backing, reference descriptors, routed
+//! claims and projected memberships need their own carriers. Whole memberships
+//! use the sealed
 //! domain-theory relation, never a provider annotation or a copied dense ID.
 //! Preparing these values executes nothing and changes no
 //! parent custody. The caller commits the staged frontier only after a real
@@ -13,28 +14,107 @@
 use crate::custody::validate_boundary_requirements;
 use std::collections::{BTreeMap, BTreeSet};
 
-use semantic_vocabulary::{ClaimId, PlaceId};
+use semantic_vocabulary::{BlockId, ClaimId, MachineId, PlaceId};
 use terminal_psi::{
     BoundaryMachineDeclaration, CompletionReceipt, StructuralAccess, StructuralAffineDiscard,
     StructuralArgument, StructuralMultiplicity,
 };
 
+use super::component_empty_arguments::SharedEmptyArgument;
+use super::component_scalar_arguments::LentScalarArgument;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::program::TerminalProgram;
 use crate::values::{StructuralRuntimePlace, TerminalStructuralValue};
 
 pub(super) struct PreparedComponentArguments {
-    pub(super) values: Vec<TerminalStructuralValue>,
-    pub(super) contents: Vec<crate::TerminalStructuralContents>,
+    pub(super) custody: ComponentInputCustody,
     pub(super) remaining_affine: BTreeSet<StructuralAffineDiscard>,
     pub(super) remaining_claims: BTreeMap<ClaimId, crate::execution::LiveClaim>,
     pub(super) retired_sources: Vec<PlaceId>,
+    pub(super) borrowed_mutations: Vec<StructuralRuntimePlace>,
+}
+
+/// The original prepared tuple stays owned by the paused caller's component
+/// until its real child returns and the caller acknowledges completion. The
+/// mapped values are presentations for that exact child, not new backing.
+pub(crate) struct ComponentInputCustody {
+    pub(crate) source: Option<crate::effects::byte_buffers::BoundaryArguments>,
+    pub(crate) values: Vec<TerminalStructuralValue>,
+    pub(crate) contents: Vec<crate::TerminalStructuralContents>,
+    opaque_arguments: Vec<usize>,
+    scalar_arguments: Vec<LentScalarArgument>,
+    empty_arguments: Vec<SharedEmptyArgument>,
+    _scalar_scope: Option<crate::scalar_storage::ScalarLoanScope>,
+}
+
+impl ComponentInputCustody {
+    /// Public borrowed entry annotations establish no opaque host backing. This
+    /// private carrier comes from the actual parent's authenticated host cells,
+    /// retained beside the child until acknowledgement. Install that association
+    /// at the child's resident homes so another checked component call can lend
+    /// the same object, without converting arbitrary entry identities to backing.
+    pub(crate) fn establish_lent_inputs(
+        &self,
+        child: &mut TerminalExecution<'_>,
+    ) -> Result<(), TerminalInterpretError> {
+        if self.source.is_none() {
+            return Ok(());
+        }
+        let entry = child.program.verified_machine(child.current_machine)?;
+        if entry.structural_parameters.len() != self.values.len() {
+            return Err(malformed());
+        }
+        for &index in &self.opaque_arguments {
+            let parameter = entry
+                .structural_parameters
+                .get(index)
+                .ok_or_else(malformed)?;
+            let value = self.values.get(index).ok_or_else(malformed)?;
+            if !matches!(
+                parameter.access,
+                terminal_psi::reading_borrow_pair_pattern!()
+            ) {
+                return Err(malformed());
+            }
+            let home = StructuralRuntimePlace::from(child.structural_value(parameter.place)?);
+            child.component_lent_host_atoms.insert(home.clone(), ())?;
+            child.structural_host_atoms.insert(
+                home,
+                crate::structural_storage::HostStructuralPayload::Opaque(value.opaque_identity),
+            )?;
+        }
+        for argument in &self.empty_arguments {
+            argument.establish(child)?;
+        }
+        for argument in &self.scalar_arguments {
+            argument.establish(child)?;
+        }
+        Ok(())
+    }
+}
+
+/// A pending input cannot migrate to another caller activation or call frame.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) struct ComponentCallScope {
+    pub(crate) namespace: Option<u64>,
+    machine: MachineId,
+    block: BlockId,
+    depth: usize,
 }
 
 impl<'artifact> TerminalExecution<'artifact> {
+    pub(crate) fn component_call_scope(&self) -> ComponentCallScope {
+        ComponentCallScope {
+            namespace: self.local_structural_identities.exposure_namespace,
+            machine: self.current_machine,
+            block: self.current,
+            depth: self.call_stack.len(),
+        }
+    }
+
     pub(super) fn prepare_component_arguments(
-        &self,
+        &mut self,
         arguments: &[StructuralArgument],
         completion_receipts: &[CompletionReceipt],
         receiver: &BoundaryMachineDeclaration,
@@ -69,8 +149,22 @@ impl<'artifact> TerminalExecution<'artifact> {
             self.account.as_ref(),
         )?;
         validate_boundary_requirements(receiver, |index| prepared.values.get(index))?;
-        let mut values = prepared.into_opaque_values(self.local_structural_identities.cursor())?;
+        prepared.opaque_values(self.local_structural_identities.cursor())?;
+        let mut prepared = prepared;
+        let lending = arguments
+            .iter()
+            .any(|argument| argument.access != StructuralAccess::Owned);
+        let mut values = if lending {
+            prepared.values.clone()
+        } else {
+            // An entirely owned tuple has no lender to retain. Preserve its
+            // existing move into the child instead of retaining a second copy.
+            std::mem::take(&mut prepared.values)
+        };
         let mut contents = Vec::new();
+        let mut opaque_arguments = Vec::new();
+        let mut scalar_arguments = Vec::new();
+        let mut empty_arguments = Vec::new();
         let mut remaining_affine = self.live_affine_frontier.clone();
         let receiver_types = self.structural_types();
         let provider_types = provider.program.structural_types();
@@ -88,9 +182,14 @@ impl<'artifact> TerminalExecution<'artifact> {
             let provider_type = provider_types
                 .get(&supplied.structural_type)
                 .ok_or_else(malformed)?;
-            if argument.access != StructuralAccess::Owned
-                || required.access != StructuralAccess::Owned
-                || supplied.access != StructuralAccess::Owned
+            let owned = argument.access == StructuralAccess::Owned;
+            let lent = matches!(
+                argument.access,
+                terminal_psi::reading_borrow_pair_pattern!()
+            );
+            if argument.access != required.access
+                || required.access != supplied.access
+                || (!owned && !lent)
                 || required.multiplicity != supplied.multiplicity
                 || !required.projected_qualifications.is_empty()
                 || !supplied.projected_qualifications.is_empty()
@@ -113,11 +212,18 @@ impl<'artifact> TerminalExecution<'artifact> {
                             .text(provider_type.identity),
                     )
                     .is_some_and(|(left, right)| !left.is_empty() && left == right)
-                || crate::custody::has_live_loan(self.reference_referents.as_map(), value)
+                || (owned
+                    && crate::custody::has_live_loan(self.reference_referents.as_map(), value))
             {
                 return Err(reject(
                     "component input lacks exact owned closed Inert type/custody",
                 ));
+            }
+            if lent {
+                // Use the existing access/availability judgment on the actual
+                // caller carrier. Lending does not consume its ownership or
+                // close its parent loan; the complete caller stays paused.
+                self.validate_descriptor_borrow(argument, required.access)?;
             }
             let formal = &entry.structural_parameters[argument_index];
             if formal.structural_type != supplied.structural_type
@@ -184,6 +290,15 @@ impl<'artifact> TerminalExecution<'artifact> {
             // Ancestor cases were authenticated by ordinary projection and
             // remain with the residual parent. Only metadata belonging to this
             // exact subtree would need to accompany the moved value.
+            if lent
+                && (self.structural_cases.keys().any(within_value)
+                    || self.structural_byte_storage.keys().any(within_value)
+                    || self.empty_array_storage.rows.keys().any(within_value))
+            {
+                return Err(reject(
+                    "component borrowed input needs its original materialized storage carrier",
+                ));
+            }
             if self.reference_referents.keys().any(within_value)
                 || self.structural_element_view_fields.keys().any(within_value)
                 || self.original_storage_roots.keys().any(within_value)
@@ -208,16 +323,43 @@ impl<'artifact> TerminalExecution<'artifact> {
                     "component input requires a loan or resource storage transfer carrier",
                 ));
             }
-            // The existing storage map authenticates the actual atom. A plain
-            // opaque_identity, equal layout or synthesized input cannot answer it.
-            if !self.forward_host_atom(value) {
-                contents.push(self.capture_component_contents(
-                    argument,
+            let scalar_backing = lent
+                && (self.structural_primitive_storage.keys().any(within_value)
+                    || self
+                        .structural_scalar_fields
+                        .keys()
+                        .any(|field| within_value(&field.parent)));
+            if scalar_backing {
+                scalar_arguments.push(self.prepare_component_scalar_argument(
                     value,
                     argument_index,
+                    required.access,
                     provider,
                     supplied.structural_type,
                 )?);
+            // The existing storage map authenticates the actual atom. A plain
+            // opaque_identity, equal layout or synthesized input cannot answer it.
+            } else if !self.forward_host_atom(value) {
+                if required.access == StructuralAccess::SharedBorrow
+                    && let Some(original) =
+                        self.prepare_shared_empty_argument(value, argument_index)?
+                {
+                    empty_arguments.push(original);
+                } else if !owned {
+                    return Err(reject(
+                        "component input requires actual unchanged opaque host storage",
+                    ));
+                } else {
+                    contents.push(self.capture_component_contents(
+                        argument,
+                        value,
+                        argument_index,
+                        provider,
+                        supplied.structural_type,
+                    )?);
+                }
+            } else if lent {
+                opaque_arguments.push(argument_index);
             }
             // The caller binder authenticated these exact occurrence facts
             // before custody staging. Installation joined their full nominal
@@ -237,7 +379,7 @@ impl<'artifact> TerminalExecution<'artifact> {
                 .collect::<Result<Vec<_>, _>>()?;
             value.qualifications.sort();
             value.structural_type = supplied.structural_type;
-            if required.multiplicity == StructuralMultiplicity::Affine {
+            if owned && required.multiplicity == StructuralMultiplicity::Affine {
                 self.consume_affine_call_argument(&mut remaining_affine, argument)?;
             }
         }
@@ -252,12 +394,37 @@ impl<'artifact> TerminalExecution<'artifact> {
             completion_receipts,
             &receiver.structural_parameters,
         )?;
+        let borrowed_mutations = scalar_arguments
+            .iter()
+            .filter_map(|argument| argument.mutated_home().cloned())
+            .collect();
+        let scalar_scope =
+            (!scalar_arguments.is_empty()).then(crate::scalar_storage::ScalarLoanScope::new);
+        let mut scalar_views = BTreeMap::new();
+        let scalar_arguments = scalar_arguments
+            .into_iter()
+            .map(|argument| {
+                argument.lend(
+                    self,
+                    scalar_scope.as_ref().ok_or_else(malformed)?,
+                    &mut scalar_views,
+                )
+            })
+            .collect::<Result<_, _>>()?;
         Ok(PreparedComponentArguments {
-            values,
-            contents,
+            custody: ComponentInputCustody {
+                source: lending.then_some(prepared),
+                values,
+                contents,
+                opaque_arguments,
+                scalar_arguments,
+                empty_arguments,
+                _scalar_scope: scalar_scope,
+            },
             remaining_affine,
             remaining_claims,
             retired_sources,
+            borrowed_mutations,
         })
     }
 }

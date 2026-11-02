@@ -1,4 +1,4 @@
-use omega_language_std::wire;
+use omega::language::core::wire;
 use omega::language::core::reflect;
 // Wire NESTED MESSAGE + REPEATED field in ONE message: both features stage
 // runtime-sized payloads (the sub-message replays length-prefixed from the

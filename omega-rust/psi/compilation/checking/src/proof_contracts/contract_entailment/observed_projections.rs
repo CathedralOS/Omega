@@ -160,10 +160,13 @@ fn project_observed_value_under_cases(
                 let (owner, _) = program.variant_owner(*variant)?;
                 let carrier =
                     crate::value_custody::places::unwrapped_type_reference(program, reference)?;
-                if crate::value_custody::type_shapes::head_data_symbol(program, carrier)
-                    != Some(owner.symbol)
-                    || !case_is_proved(&value, owner.symbol, *variant)
-                {
+                // A generic carrier's head names its template while its
+                // prepared payload path can name the closed case. Rejoin the
+                // exact application before requiring the independent tag fact;
+                // a head-symbol comparison discards valid captured fields.
+                let definition = program.data_constructor_definition(carrier, owner.symbol)?;
+                let selected = program.data_constructor_case(carrier, owner.symbol, *variant)?;
+                if !case_is_proved(&value, definition.symbol, selected.symbol) {
                     return None;
                 }
             }

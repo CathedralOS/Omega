@@ -111,7 +111,7 @@ fixtures have no `build.omg`.
    explicit empty clause does not admit `Mark`. Service reach stays separate
    from `invokes`, suspension, blocking, and crashes. Public omission still
    publishes an empty synchronous-invocation ceiling and is outside this row.
-5. **Checked-to-Terminal Psi (`Psi 05–07`).** The direct boundary call, the
+5. **Checked-to-Terminal Psi (`Psi 06–08`).** The direct boundary call, the
    provider body, and the comparison lower into Terminal Psi and execute in
    the interpreter. The empty-ceiling twins are rejected in checking and do
    not produce a program.
@@ -153,8 +153,9 @@ value guard establishes or changes a service row.
 in place. `transitive/` carries the same call through a public wrapper with an
 independent `invokes Mark;` contract and a private helper. `generic/` retains an
 exact nominal machine requirement and substitutes the selected callable's
-published contract. `dynamic/` retains the selector slot's pinned requirement,
-without replacing it by a selected implementation's smaller body. The
+published contract. `dynamic/` carries the call through a selection whose
+implementation calls `Mark`; a dynamic call contributes its selected
+conformance's reach ([selected dynamic reach](../dynamic_selected_reach/README.md)). The
 `target_body` place also carries the call through the portable target family.
 These are productions of the same reach summary, not new fact folders.
 
@@ -224,8 +225,9 @@ reselects a provider by spelling or uses its body to narrow the requirement.
   consuming contract, and all applicable nine transports are retained.
 - **Soundness:** boundary/provider authority, trust, `invokes`, blocking,
   suspension and crashes remain independent. Selected implementations must fit
-  their requirements; a silent selected body cannot erase the pinned reach.
-- **Psi 05–07:** the checked service records survive ordinary Terminal production;
+  their requirements; a silent selected provider body cannot erase a boundary
+  call's pinned reach.
+- **Psi 06–08:** the checked service records survive ordinary Terminal production;
   positive runtime observations require actual Terminal execution.
 - **Omega 00–02:** exact boundary/provider identity selects the read implementation;
   result and argument placement preserve 7 through the nine carriers.

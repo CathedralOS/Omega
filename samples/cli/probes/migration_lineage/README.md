@@ -8,7 +8,7 @@ own non-aliased requirement identity.
 
 ## Learnings
 
-- `use omega_language_std::format_lineage` + `Build::depend(builder,
+- `use omega::language::core::format_lineage` + `Build::depend(builder,
   Source::Path{location: "../../../../source/library/std"})` — the
   std-package path dependency route.
 - Package review staleness ("accepted package compiler identity

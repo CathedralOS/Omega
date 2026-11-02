@@ -1449,3 +1449,49 @@ fn constant_destination_debt_is_remapped_without_settling_or_refreshing_stale_in
     assert_eq!(pending, stale);
     assert_ne!(pending.initializer, copied.value);
 }
+
+#[test]
+fn copying_const_result_preserves_distinct_computation_and_materialized_value() {
+    let mut source = SyntaxTrees::new(Default::default());
+    let authored = source.expressions.insert(ExpressionNode::Boolean(true));
+    let materialized = source.expressions.insert(ExpressionNode::Boolean(false));
+    let argument = source
+        .type_references
+        .insert_named(Identifier::generated("result"));
+    source.type_references.retain_const_argument_normalization(
+        argument,
+        Default::default(),
+        String::new(),
+        [],
+        [],
+    );
+    source
+        .type_references
+        .retain_const_argument_expression(argument, authored);
+    source
+        .type_references
+        .retain_const_argument_materialized_expression(argument, materialized);
+    let mut copied = SyntaxTrees::new(Default::default());
+    for _ in 0..8 {
+        copied.expressions.insert(ExpressionNode::Boolean(true));
+    }
+    let argument = copied.copy_type_reference_handle(&source, argument);
+    let normalization = copied
+        .type_references
+        .const_argument_normalization(argument)
+        .unwrap();
+    assert_ne!(normalization.authored_expression, authored);
+    assert_ne!(normalization.materialized_expression, materialized);
+    assert!(matches!(
+        copied
+            .expressions
+            .expression(normalization.authored_expression),
+        ExpressionNode::Boolean(true)
+    ));
+    assert!(matches!(
+        copied
+            .expressions
+            .expression(normalization.materialized_expression),
+        ExpressionNode::Boolean(false)
+    ));
+}

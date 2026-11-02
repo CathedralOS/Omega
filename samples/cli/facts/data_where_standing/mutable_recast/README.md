@@ -50,7 +50,7 @@ target bodies are checked, not claimed as cross-host native execution.
   rejects mutation while the transported exclusive view remains live. Necessary interval envelopes never replace stronger
   or coupled predicates. Reference descriptor transport grants no owned referent
   claims and preserves the ordinary owned endpoint qualification check.
-- **Psi 05–07:** erased standing proofs justify the same checked arithmetic;
+- **Psi 06–08:** erased standing proofs justify the same checked arithmetic;
   reference results and match receipts retain descriptor, loan and linear-claim
   custody through Terminal lowering and interpreter execution.
 - **Omega 00–02:** ordinary fixed aggregate layout, entry bindings and calling
