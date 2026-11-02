@@ -1,9 +1,32 @@
 //! Completed nominal values retain formation at their producing occurrence.
 //! Reads still authenticate current storage before consuming these receipts;
 //! an equal constructor spelling or receiving annotation supplies no validity.
-use super::{StructuralJudge, StructuralTerm};
+use super::{ExpressionHandle, StructuralJudge, StructuralTerm, TypeReferenceHandle, ValueScope};
 
 impl StructuralJudge<'_> {
+    /// The caller owns independent admission at the completed operation cut.
+    /// A unique snapshot carries that validity through local/transition homes;
+    /// its denotation remains available without granting equal values admission.
+    pub(super) fn retain_completed_nominal_value(
+        &mut self,
+        expression: ExpressionHandle,
+        reference: TypeReferenceHandle,
+        observed: StructuralTerm,
+        scope: ValueScope<'_>,
+    ) -> Option<StructuralTerm> {
+        let value = self.capture_unknown_value(expression, scope)?;
+        self.assume_normal_equation(value.clone(), observed.clone());
+        std::sync::Arc::make_mut(&mut self.completed_nominal_values).push(
+            super::super::CompletedNominalValue {
+                anchor: expression,
+                reference,
+                value: value.clone(),
+                observed_value: observed,
+            },
+        );
+        Some(value)
+    }
+
     /// Recover the denotation of this exact completed nominal value.
     /// This receipt is produced by subject evaluation, not by value-equation
     /// rewriting. Storage fences still govern obtaining the source observation.
