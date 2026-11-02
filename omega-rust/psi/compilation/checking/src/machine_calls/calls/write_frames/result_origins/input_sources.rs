@@ -86,10 +86,11 @@ pub(in crate::machine_calls::calls::write_frames) fn instantiate_source(
             // owned path. A reference-valued endpoint or an interior descriptor
             // crossing still fails this walk and needs captured load evidence;
             // unrelated reference fields cannot erase the outer address.
-            super::super::reference_subjects::validate_owned_projection(
+            super::super::reference_subjects::validate_referent_projection(
                 program,
                 referee,
                 &relative.source.segments,
+                &Vec::new(),
             )?;
             exclusive_reference_origins(program, caller_machine, actual, symbols, inference)?
                 .into_iter()
