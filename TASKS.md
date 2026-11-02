@@ -832,11 +832,12 @@ helper that passes does not close an item.
     nested representation composition, cleanup, references, recasts and ABI
     realization without wrapper storage or per-layout Build registration.
     The [guarded fixed-layout byte-roundtrip row](samples/cli/facts/fixed_layout_byte_roundtrip/README.md)
-    covers all nine Rust/Linux and Mac ARM64 places with rejection twins.
+    covers all nine places on Rust/Linux x86_64, Linux ARM64 and Mac ARM64
+    with rejection twins.
     The [typed interior-region prerequisite](samples/cli/facts/fixed_region_byte_roundtrip/README.md)
     additionally carries byte views through fields, parameters and returned records
     on Mac ARM64; its other five transport places and other-host observations remain open.
-    Complete Windows/Linux ARM64 execution, broader reference composition, and other-host
+    Complete Windows execution, broader reference composition, and other-host
     execution for [typed stored-reference readback](samples/cli/facts/fixed_layout_reference_readback/README.md)
     and [implementation-region forwarding](samples/cli/facts/implementation_region_forwarding/README.md).
   - Complete remaining schema/case composition support and platform ABI
