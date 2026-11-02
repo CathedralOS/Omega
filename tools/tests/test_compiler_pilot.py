@@ -184,6 +184,22 @@ class CompilerPilotTests(unittest.TestCase):
                 self.assertEqual(producer.verify.call_count, 2)
                 self.assertEqual("runner_sha256" in summary, bool(negatives))
 
+    def test_ordinary_cli_checks_through_package_admission_without_corpus(self):
+        fixture = "pass/filesystem/write_all_full_device_exit"
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            producer = Mock(revision="a" * 40, target="linux_x86_64", runner=None, runner_profile=None)
+            with patch.object(pilot, "command", side_effect=lambda argv: "" if "status" in argv else "a" * 40), \
+                    patch.dict(os.environ, {"GITHUB_SHA": "a" * 40}), \
+                    patch.object(pilot.corpus_gate, "host_target", return_value=producer.target), \
+                    patch.object(pilot.subprocess, "run") as run, \
+                    patch.object(pilot, "prepare_producer", return_value=producer) as build, \
+                    patch.object(pilot.ordinary_cli_fixture, "observe", return_value={"passed": True}) as observe:
+                pilot.execute(output, {}, positives=(), negatives=(), cli_fixtures=(fixture,))
+            build.assert_called_once_with(output, need_runner=False)
+            observe.assert_called_once_with(pilot.ROOT, producer, fixture, output / "ordinary-cli" / fixture)
+            run.assert_not_called()
+
     def test_cli_only_producer_cannot_execute_corpus_fixtures(self):
         producer = Mock(revision="a" * 40, target="linux_x86_64", runner=None, runner_profile=None)
         with tempfile.TemporaryDirectory() as temporary, \

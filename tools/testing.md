@@ -125,8 +125,9 @@ before building; empty, unscored or check-only positives cannot pass. The
 artifact includes `samples.json` beside the corpus reports.
 
 For a named existing pass fixture whose oracle is a numeric exit, the optional
-`cli_fixtures` input uses the same optimized producer for source checking and
-ordinary CLI update/review/resume followed by `run --both --keep`. It freezes
+`cli_fixtures` input builds only the optimized CLI and checks source through
+ordinary CLI update/review/resume followed by `run --both --keep`; it does not
+repeat that package check in the corpus runner. It freezes
 tracked fixture/library inputs and requires explicit native and Terminal exit
 markers. It preserves raw logs for both review phases; managed acceptance is
 ordinary pending-row decisions, not a copied lock. Stream, inspection and RAM

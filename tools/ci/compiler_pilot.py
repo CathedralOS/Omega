@@ -288,7 +288,7 @@ def execute(output, summary, *, positives=POSITIVES, negatives=NEGATIVES, checki
         finally:
             result["seconds"] = round(time.monotonic() - started, 3)
 
-    need_runner = bool(positives or negatives or checking_only or cli_fixtures)
+    need_runner = bool(positives or negatives or checking_only)
     if producer is None:
         producer = stage("prepare optimized compiler", lambda: prepare_producer(output, need_runner=need_runner))
     stage("authenticate optimized producer", producer.verify)
@@ -319,8 +319,8 @@ def execute(output, summary, *, positives=POSITIVES, negatives=NEGATIVES, checki
         validate_report(json.loads(report_path.read_text(encoding="utf-8")), fixtures,
                         both=both, revision=revision, target=summary["target"])
 
-    if positives or checking_only or negatives or cli_fixtures:
-        checking = tuple(dict.fromkeys(positives + checking_only + negatives + cli_fixtures))
+    if positives or checking_only or negatives:
+        checking = tuple(dict.fromkeys(positives + checking_only + negatives))
         stage("checking and rejection controls", lambda: corpus("checking", checking))
     if positives:
         stage("native and Terminal execution", lambda: corpus("both", positives, both=True))
