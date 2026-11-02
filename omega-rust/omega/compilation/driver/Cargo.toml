@@ -59,7 +59,6 @@ phase-profile = { path = "../../../psi/foundation/phase-profile" }
 optimization-core = { path = "../../foundation/optimization-core" }
 
 [dev-dependencies]
-language-core = { path = "../../../psi/foundation/language-core" }
 layout = { path = "../backend/layout" }
 image-emission = { path = "../backend/images/image-emission" }
 terminal-fuel = { path = "../../../psi/compilation/representations/terminal-psi/fuel" }
@@ -81,6 +80,7 @@ installation-evidence = { path = "../backend/runtime/installation-evidence" }
 object-file = { path = "../backend/object/object-file" }
 mimalloc = { version = "0.1", default-features = false }
 package-compilation = { path = "../../packages/compilation-inputs", features = ["test-support"] }
+language-core = { path = "../../../psi/foundation/language-core" }
 
 [target.'cfg(unix)'.dev-dependencies]
 # Match the CLI's native dependency features. A libc feature mismatch travels
