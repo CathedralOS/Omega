@@ -76,7 +76,7 @@ pub use machine_calls::calls::{
 };
 pub use machine_calls::fact_only_citations::{
     fact_only_theorem, is_fact_only_citation, is_fact_only_citation_call,
-    validate_runtime_proof_citations,
+    is_fact_only_requirement_citation, validate_runtime_proof_citations,
 };
 pub use machine_calls::static_machine_call_contracts::{
     static_machine_call_binding_bytes, static_machine_parameter_contract_bytes,
@@ -245,7 +245,8 @@ pub use value_custody::places::{
 };
 
 pub use proof_contracts::bound_expression_meaning::{
-    applied_case_membership_variant, exact_case_reference_owner, exact_domain_subject_type,
+    applied_case_membership_variant, applied_declaration_case_membership_variant,
+    exact_case_reference_owner, exact_domain_subject_type,
     has_builtin_binary_expression_meaning, has_builtin_bound_expression_meaning,
     has_builtin_decomposed_guard_meaning, has_builtin_domain_decomposed_guard_meaning,
     has_builtin_or_sealed_float_comparison_meaning, has_exact_case_membership_meaning,

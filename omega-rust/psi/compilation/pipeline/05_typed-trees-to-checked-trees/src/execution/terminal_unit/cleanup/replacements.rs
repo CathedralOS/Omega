@@ -11,7 +11,7 @@
 
 use crate::execution::terminal_unit::types::ShapeCollector;
 use crate::flow::state_statements;
-use crate::places::place_at;
+use crate::published::places::place_at;
 use checked_trees::{
     CheckFacts, CheckedNormalCleanupAction, CheckedUnitCallableEntry,
     CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentSourcePlan,
@@ -294,7 +294,7 @@ pub(super) fn actions(
                 if destination.path.starts_with(&region.path) {
                     region = destination.clone();
                 }
-                crate::collections::push_unique(&mut selected_regions, region);
+                crate::shared::collections::push_unique(&mut selected_regions, region);
             }
             let selected_actions = super::actions::disposition_actions(
                 program,

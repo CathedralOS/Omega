@@ -21,7 +21,7 @@ use super::conversions::{ConversionKind, SelectedConversion};
 
 use crate::flow::transfers::scalar_values::CallValues;
 use crate::flow::{FlowBuildContext, active_context_handles};
-use crate::places::place_at;
+use crate::published::places::place_at;
 use arena::HandleSpan;
 use checked_trees::expression::ExpressionHandle;
 use checked_trees::expression::ExpressionNode;

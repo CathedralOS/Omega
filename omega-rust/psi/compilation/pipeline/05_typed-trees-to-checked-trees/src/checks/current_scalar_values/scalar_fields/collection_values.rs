@@ -103,7 +103,10 @@ impl CurrentScalarValues<'_> {
                 let mut read_dependencies = Vec::new();
                 for candidate in selected {
                     for dependency in &candidate.read_dependencies {
-                        crate::collections::push_unique(&mut read_dependencies, dependency.clone());
+                        crate::shared::collections::push_unique(
+                            &mut read_dependencies,
+                            dependency.clone(),
+                        );
                     }
                 }
                 Some(CapturedScalarField {

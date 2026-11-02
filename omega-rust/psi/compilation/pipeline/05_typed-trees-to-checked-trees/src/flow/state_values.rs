@@ -1,9 +1,9 @@
 //! Same-invocation state arrivals transport live completed facts. Ordinary
 //! machine applications contribute unknown inputs to callable non-entry states;
 //! their incidental actuals never become assumptions of a generic body.
-use crate::facts::boolean_predicates::BoundPredicate;
-use crate::facts::boolean_predicates::EntryPaths;
-use crate::facts::boolean_predicates::seed_entry_paths;
+use crate::published::facts::boolean_predicates::BoundPredicate;
+use crate::published::facts::boolean_predicates::EntryPaths;
+use crate::published::facts::boolean_predicates::seed_entry_paths;
 use crate::values::integer_bounds_at_place;
 use validation::CallSite;
 

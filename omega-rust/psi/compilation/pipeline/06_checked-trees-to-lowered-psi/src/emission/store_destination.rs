@@ -3,7 +3,7 @@
 //! checks its replacement and the receiving frontier checks live custody.
 
 use crate::expression_preparation::bindings::structural_local_by_root;
-use crate::lowering_error::{LoweringError, unsupported};
+use crate::shared::lowering_error::{LoweringError, unsupported};
 use semantic_vocabulary::{PlaceId, StructuralTypeId};
 
 /// A local names its current storage declaration, which may be an operation

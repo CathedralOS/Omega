@@ -145,7 +145,7 @@ pub(super) fn case_observation(
             let mut dependencies = vec![place.clone()];
             for referent in referents {
                 let pointee = canonical(referent)?;
-                crate::collections::push_unique(&mut dependencies, pointee);
+                crate::shared::collections::push_unique(&mut dependencies, pointee);
             }
             (place, dependencies, descriptor)
         }
@@ -221,13 +221,13 @@ pub(super) fn predicate_case_dependencies(
         if captured.descriptor.is_valid() && !descriptors.contains(&captured.descriptor) {
             descriptors.push(captured.descriptor);
         }
-        crate::collections::push_unique(&mut dependencies, captured.subject);
+        crate::shared::collections::push_unique(&mut dependencies, captured.subject);
         if !captured.dependencies.is_empty() {
             // The actual load supplies its binding and all possible backing
             // dependencies. Re-resolving source syntax would both lose that
             // selection and require one arbitrarily chosen physical alias.
             for dependency in captured.dependencies {
-                crate::collections::push_unique(&mut dependencies, dependency);
+                crate::shared::collections::push_unique(&mut dependencies, dependency);
             }
             continue;
         }
@@ -235,7 +235,7 @@ pub(super) fn predicate_case_dependencies(
         for occurrence in occurrences.iter().copied() {
             let dependency =
                 build.completed_read_place_at(program, state, statement_index, occurrence)?;
-            crate::collections::push_unique(&mut dependencies, dependency);
+            crate::shared::collections::push_unique(&mut dependencies, dependency);
         }
     }
     Some(PredicateCaseDependencies {

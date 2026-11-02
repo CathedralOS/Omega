@@ -6,7 +6,7 @@
 //! after its own selectors, and before the next actual argument begins.
 
 use crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment;
-use crate::lowering_error::{LoweringError, unsupported};
+use crate::shared::lowering_error::{LoweringError, unsupported};
 use semantic_vocabulary::StructuralTypeId;
 use terminal_psi::{StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape};
 

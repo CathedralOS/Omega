@@ -21,7 +21,6 @@ use super::super::super::{
 };
 use super::super::{CheckedTrees, LoweringError, catalogs};
 use super::{AdmittedGraph, CheckedComposedUnitControlMachinePlan, ranking, returns, successors};
-use crate::checked_facts::{flow_facts, value_facts};
 use crate::emission::claim_bindings::CompletedValueClaim;
 use crate::emission::claim_bindings::UnreceivedResultClaim;
 use crate::emission::operation_emission::place_declarations::retain_block_parameters;
@@ -31,7 +30,8 @@ use crate::expression_preparation::computation_graph::value_call_operations;
 use crate::scalar_lowering::computations::produced_values::prepare;
 use crate::scalar_lowering::contracts::erased_formal_declarations;
 use crate::scalar_lowering::contracts::erased_proof_formal_declarations;
-use crate::terminal_identities::value_id;
+use crate::shared::checked_facts::{flow_facts, value_facts};
+use crate::shared::terminal_identities::value_id;
 use crate::unit::TerminalMachineResult;
 use crate::unit::attached_unit::claims::LoweredUnitClaims;
 use crate::unit::attached_unit::operation_frame::claim_established_here;
@@ -131,7 +131,8 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
     ),
     LoweringError,
 > {
-    let _setup_guard = phase_profile::guard("psi.06.lower_selected_machine.emit_composed_body.setup");
+    let _setup_guard =
+        phase_profile::guard("psi.06.lower_selected_machine.emit_composed_body.setup");
     let result_places_start = catalogs.result_places.len();
     let mut structural_places = parameters
         .iter()
@@ -762,7 +763,8 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         dynamic_dispatch,
     };
     drop(_setup_guard);
-    let _emit_states_guard = phase_profile::guard("psi.06.lower_selected_machine.emit_composed_body.emit_states");
+    let _emit_states_guard =
+        phase_profile::guard("psi.06.lower_selected_machine.emit_composed_body.emit_states");
     for position in 0..plan.states.len() {
         if !emission.admitted.live[position] {
             continue;
@@ -770,8 +772,10 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         emission.emit_state(identities, position)?;
     }
     drop(_emit_states_guard);
-    let _finish_guard = phase_profile::guard("psi.06.lower_selected_machine.emit_composed_body.finish");
-    let _req_guard = phase_profile::guard("psi.06.lower_selected_machine.emit_composed_body.requires");
+    let _finish_guard =
+        phase_profile::guard("psi.06.lower_selected_machine.emit_composed_body.finish");
+    let _req_guard =
+        phase_profile::guard("psi.06.lower_selected_machine.emit_composed_body.requires");
     let live_states = std::mem::take(&mut emission.admitted.live);
     let StateGraphEmission {
         parameters,
@@ -962,7 +966,8 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         });
     }
     drop(_req_guard);
-    let _places_guard = phase_profile::guard("psi.06.lower_selected_machine.emit_composed_body.places");
+    let _places_guard =
+        phase_profile::guard("psi.06.lower_selected_machine.emit_composed_body.places");
     blocks.sort_by_key(|block| block.id);
     let existing_result_and_temp_places: std::collections::HashSet<semantic_vocabulary::PlaceId> =
         catalogs
@@ -1022,7 +1027,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             .typed
             .machine(plan.machine)
             .map(|machine| machine.assembly_target_requirement)
-            .ok_or(crate::lowering_error::LoweringError::Unsupported(
+            .ok_or(crate::shared::lowering_error::LoweringError::Unsupported(
                 "assembly target requirement has no checked machine",
             ))?,
         closed_reach_application: None,
@@ -1074,7 +1079,8 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         },
     };
     drop(_places_guard);
-    let _loans_guard = phase_profile::guard("psi.06.lower_selected_machine.emit_composed_body.loans");
+    let _loans_guard =
+        phase_profile::guard("psi.06.lower_selected_machine.emit_composed_body.loans");
     captured_loans.finish(&mut machine, &state_ids)?;
     let retained_entry_homes =
         loaned_local_homes::finish(&mut machine, &loaned_local_homes, &retained_loan_parents)?;
@@ -1089,7 +1095,8 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         &mut catalogs.scalar_calls.next_call_obligation,
     )?;
     drop(_loans_guard);
-    let _cont_guard = phase_profile::guard("psi.06.lower_selected_machine.emit_composed_body.continuations");
+    let _cont_guard =
+        phase_profile::guard("psi.06.lower_selected_machine.emit_composed_body.continuations");
     let continuation_value_uses = machine
         .blocks
         .iter()
@@ -1172,7 +1179,8 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         }
     }
     drop(_cont_guard);
-    let _affine_guard = phase_profile::guard("psi.06.lower_selected_machine.emit_composed_body.affine_cleanup");
+    let _affine_guard =
+        phase_profile::guard("psi.06.lower_selected_machine.emit_composed_body.affine_cleanup");
     // Authored entry/local cleanup already belongs to the composed emitter.
     // Complete checked no-code carrier frontiers after private loans and their
     // continuations have reached their final emitted graph. Plain owned type
@@ -1188,7 +1196,8 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         &catalogs.structural_types,
     )?;
     drop(_affine_guard);
-    let _rank_guard = phase_profile::guard("psi.06.lower_selected_machine.emit_composed_body.crash_and_ranking");
+    let _rank_guard =
+        phase_profile::guard("psi.06.lower_selected_machine.emit_composed_body.crash_and_ranking");
     // Crash ceilings live in the invocation signature, independent of the
     // state's block-local value roster. Predicate parameters retain authored
     // structural positions and scalar formals retain their dense coordinates.

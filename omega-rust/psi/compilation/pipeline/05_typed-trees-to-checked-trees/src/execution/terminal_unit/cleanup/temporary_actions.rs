@@ -204,7 +204,7 @@ fn release_owned_dispositions<'plans>(
     {
         if let CheckedUnitEffectOperationPlan::ReleaseReference { owner_cleanups, .. } = operation {
             for owner in control.reference_owner_cleanups.span(*owner_cleanups)? {
-                crate::collections::push_unique(&mut dispositions, owner.disposition);
+                crate::shared::collections::push_unique(&mut dispositions, owner.disposition);
             }
         }
     }

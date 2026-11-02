@@ -5,8 +5,8 @@
 //! or a callee, and a write followed by restoration still breaks the relation.
 use super::captured_boolean::computed_values_have_source_identity;
 use crate::checks::operators::closed_operators_are_builtin;
-use crate::facts::contract_occurrences::append_expression_occurrences;
-use crate::places::place_at;
+use crate::published::facts::contract_occurrences::append_expression_occurrences;
+use crate::published::places::place_at;
 use checked_trees::{CheckFacts, FlowCallFact, FlowStateFact};
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 

@@ -13,6 +13,7 @@ mod data_cleanup_scopes;
 mod domain_scopes;
 mod machine_instances;
 mod machine_selections;
+mod namespaces;
 pub use machine_instances::MachineInstantiation;
 mod payloads;
 mod requirement_instances;
@@ -108,8 +109,8 @@ impl TypedTrees {
         let mut live = Vec::new();
         for root in self.applied_trait_roots() {
             root.visit(self, &mut |scope| {
-                if let Some(identity) = scope.application_identity(self) {
-                    live.push((scope.declaration.symbol, identity));
+                if let Some(key) = scope.callable_contract_key(self) {
+                    live.push(key);
                 }
             });
         }

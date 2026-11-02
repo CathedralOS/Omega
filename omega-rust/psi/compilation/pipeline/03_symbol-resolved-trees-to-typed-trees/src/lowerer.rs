@@ -361,6 +361,9 @@ pub(crate) fn close_typed_cohort(
 ) -> Result<(), Diagnostic> {
     settle_satisfied_declarations_from(&mut lowerer.typed_trees, cohort.typed_machines)?;
     normalize_machine_progress_premises(&mut lowerer.typed_trees, cohort.typed_machines)?;
+    // Source call custody precedes every logical signature copy. A copied
+    // qualifier cannot reconstruct its original declaration telescope.
+    lowerer.typed_trees.retain_static_argument_contexts();
     lowerer
         .typed_trees
         .instantiate_nominal_machine_parameter_contracts()

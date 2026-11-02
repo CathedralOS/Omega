@@ -7,7 +7,7 @@ use crate::execution::terminal_unit::types::mutable_boundary_trait_symbol;
 use crate::execution::terminal_unit::{
     Multiplicity, PrimitiveType, StateParameter, SymbolHandle, TypeReferenceNode,
 };
-use crate::places::place_at;
+use crate::published::places::place_at;
 
 /// The source of boundary authority is independent of operand scheduling.
 /// Consumers retain the ordinary parameter in their own signature. Selecting

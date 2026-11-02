@@ -4,7 +4,7 @@
 //! qualify an existing home, a parameter or a callee's ABI result by annotation.
 
 use crate::emission::operation_emission::buffer::OperationBuffer;
-use crate::lowering_error::LoweringError;
+use crate::shared::lowering_error::LoweringError;
 use semantic_vocabulary::{PlaceId, StructuralDomainId};
 
 pub(crate) fn publish(

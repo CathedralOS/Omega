@@ -596,6 +596,45 @@ pub fn applied_case_membership_variant(
     if !has_exact_case_membership_meaning(program, machine, state, expression, comparison) {
         return None;
     }
+    selected_case_in_subject_namespace(program, comparison, |subject| {
+        operand_type(program, machine, state, subject)
+    })
+}
+
+/// The same translation for a membership authored in a declaration's own
+/// contract, such as a requirement signature's `requires subject in T::Case`.
+/// A requirement has no machine state; its telescope is the observation scope.
+pub fn applied_declaration_case_membership_variant(
+    program: &dyn crate::CheckingInput,
+    declaration_owner: symbols::SymbolHandle,
+    parameters: &[typed_trees::signature::StateParameter],
+    expression: ExpressionHandle,
+    comparison: &typed_trees::expression::TableBinaryExpression,
+) -> Option<symbols::SymbolHandle> {
+    if !has_exact_declaration_case_membership_meaning(
+        program,
+        declaration_owner,
+        parameters,
+        expression,
+        comparison,
+    ) {
+        return None;
+    }
+    selected_case_in_subject_namespace(program, comparison, |subject| {
+        crate::parameter_expression_result_type_reference(
+            program,
+            declaration_owner,
+            parameters,
+            subject,
+        )
+    })
+}
+
+fn selected_case_in_subject_namespace(
+    program: &dyn crate::CheckingInput,
+    comparison: &typed_trees::expression::TableBinaryExpression,
+    subject_type: impl FnOnce(ExpressionHandle) -> Option<TypeReferenceHandle>,
+) -> Option<symbols::SymbolHandle> {
     let selected = expression_table(program)
         .name_path_node(comparison.right)?
         .symbol;
@@ -603,7 +642,7 @@ pub fn applied_case_membership_variant(
     while let ExpressionNode::Borrow(borrow) = expression_table(program).expression(subject) {
         subject = borrow.target;
     }
-    let reference = operand_type(program, machine, state, subject).map(|reference| {
+    let reference = subject_type(subject).map(|reference| {
         program
             .type_reference_table
             .peeled_type_reference(reference)

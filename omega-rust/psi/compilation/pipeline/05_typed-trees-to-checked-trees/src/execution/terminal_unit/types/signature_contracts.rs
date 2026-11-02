@@ -2,10 +2,10 @@
 //! or result carries, and the domain requirements boundary machines publish.
 
 use super::*;
-use crate::collections::push_unique;
 use crate::execution::terminal_unit::calls::projected_argument_path;
 use crate::flow::canonical_place_from_semantic_place;
-use crate::places::place_at;
+use crate::published::places::place_at;
+use crate::shared::collections::push_unique;
 
 /// Invocation clauses retain their own represented erased lanes. Their
 /// presence is independent of a scalar body's result operation. Internal
@@ -344,7 +344,7 @@ pub(in crate::execution::terminal_unit) fn fold_boundary_result_domains(
             // qualification and its authorized route still reaches that
             // channel. Denying the result plan here refused every requirement
             // whose result contract established a carry permission.
-            let Some(domain) = crate::facts::qualification_evidence::domain_definition(
+            let Some(domain) = crate::published::facts::qualification_evidence::domain_definition(
                 program,
                 membership.domain_symbol,
             ) else {
@@ -520,7 +520,7 @@ pub(in crate::execution::terminal_unit) fn fold_parameter_entry_domains(
             if !routed && !vacuous {
                 continue;
             }
-            let Some(domain) = crate::facts::qualification_evidence::domain_definition(
+            let Some(domain) = crate::published::facts::qualification_evidence::domain_definition(
                 program,
                 membership.domain_symbol,
             ) else {

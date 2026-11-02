@@ -5,7 +5,7 @@
 
 use super::captured_inputs::RetainedSources;
 use crate::borrow::owner_place_segments;
-use crate::places::place_at;
+use crate::published::places::place_at;
 use arena::Handle;
 use checked_trees::{
     BorrowCallFact, BorrowFacts, BorrowLoanFact, BorrowLoanLineage, FlowControlFacts,

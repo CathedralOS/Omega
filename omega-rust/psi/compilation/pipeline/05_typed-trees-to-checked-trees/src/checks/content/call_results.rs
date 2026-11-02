@@ -6,10 +6,10 @@
 
 use super::content_paths::content_segments_to_fact_path;
 use crate::checks::multiplicity::linear_claim_frontier;
-use crate::facts::qualification_evidence::unwrapped_type_references_match;
 use crate::flow::expressions;
-use crate::labels::symbol_name;
-use crate::places::place_at;
+use crate::published::facts::qualification_evidence::unwrapped_type_references_match;
+use crate::published::labels::symbol_name;
+use crate::published::places::place_at;
 use checked_trees::CheckFacts;
 use diagnostics::Diagnostic;
 use facts::{FactOrigin, FactPayload, FactPlace, PlaceRoot, PlaceSegment, ProgramPoint};
@@ -331,7 +331,7 @@ pub(super) fn check_call_result_qualifications(
                             let Some(exact_call) = exact_call else {
                                 return false;
                             };
-                            if !crate::proof::contracts::call_signatures::owns_contract(
+                            if !crate::published::proof::contracts::call_signatures::owns_contract(
                                 program,
                                 &facts.proof,
                                 exact_call,

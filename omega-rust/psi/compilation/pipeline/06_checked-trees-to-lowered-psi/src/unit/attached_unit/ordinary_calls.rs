@@ -12,7 +12,6 @@ use super::{
     lower_structural_arguments, lower_structural_crash_route_buckets, place_id, primitive_locals,
     unsupported,
 };
-use crate::direct_calls::{DirectCall, DirectCallResult, ModuleInvocationArguments};
 use crate::emission::claim_bindings::emitted_claim_transfers;
 use crate::emission::operation_emission::buffer::{
     OperationBuffer, SourceCallCoordinate, SourceInvocation,
@@ -20,7 +19,8 @@ use crate::emission::operation_emission::buffer::{
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::place_declarations::operation_result_place;
 use crate::scalar_lowering::contracts::lowered_proof_term;
-use crate::terminal_identities::StructuralDomainBinding;
+use crate::shared::direct_calls::{DirectCall, DirectCallResult, ModuleInvocationArguments};
+use crate::shared::terminal_identities::StructuralDomainBinding;
 use crate::unit::runtime_requirements::substitute_runtime_requirement_scalar_values;
 
 pub(crate) struct Target<'a> {
@@ -45,7 +45,7 @@ impl ModuleInvocationArguments {
         checked: &CheckedTrees,
         operations: &mut OperationBuffer,
         coordinate: impl Into<SourceInvocation>,
-        record: crate::direct_calls::CallRecord<'_>,
+        record: crate::shared::direct_calls::CallRecord<'_>,
         result: OperationResult,
         callee: MachineId,
         result_kind: DirectCallResult,
@@ -53,8 +53,9 @@ impl ModuleInvocationArguments {
         // Unit, scalar and structural routes supply the same checked occurrence,
         // not whichever machine/state symbol their local emission happens to use.
         let coordinate = coordinate.into();
-        let (target, _, source_site) = crate::call_sites::checked_invocation(checked, coordinate)?;
-        crate::direct_calls::emit_direct_call(
+        let (target, _, source_site) =
+            crate::shared::call_sites::checked_invocation(checked, coordinate)?;
+        crate::shared::direct_calls::emit_direct_call(
             operations,
             coordinate,
             source_site,
@@ -564,7 +565,7 @@ pub(super) fn emit_structural(
             statement_index: coordinate.statement_index as usize,
             call_ordinal: coordinate.call_ordinal as usize,
         },
-        crate::direct_calls::CallRecord::Frontier(frontier_before_call),
+        crate::shared::direct_calls::CallRecord::Frontier(frontier_before_call),
         OperationResult::Structural(returned.clone()),
         callee,
         DirectCallResult::Structural {

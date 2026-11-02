@@ -6,12 +6,12 @@
 //! current storage facts must never replace a detached operand's snapshot.
 
 use crate::checks::operators::InvocationContexts;
-use crate::facts::contract_occurrences::append_expression_occurrences;
+use crate::published::facts::contract_occurrences::append_expression_occurrences;
 use validation::{CanonicalPlace, canonical_place_from_expression};
 
 use crate::checks::operators::closed_operators_are_builtin;
 use crate::flow::expressions;
-use crate::places::place_at;
+use crate::published::places::place_at;
 use checked_trees::CheckedOperatorFacts;
 use facts::{FactPayload, FactPlace, FactPlan, FloatPredicate, ProgramPoint};
 use numerics::literals::FloatFormat;

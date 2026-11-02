@@ -9,7 +9,7 @@ use super::{
     Builder, CheckedScalarComputationHandle as ComputationHandle,
     CheckedScalarComputationKind as ComputationKind, ExpressionHandle, ExpressionNode,
 };
-use crate::places::place_at;
+use crate::published::places::place_at;
 use checked_trees::{
     CheckedStructuralAccess, CheckedUnitStructuralArgumentPlan,
     CheckedUnitStructuralArgumentSourcePlan as SourcePlan,

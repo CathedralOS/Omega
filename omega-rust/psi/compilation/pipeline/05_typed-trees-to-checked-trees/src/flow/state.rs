@@ -203,22 +203,23 @@ pub(super) fn build_state_flow_fact<'plans>(
     let execution_order = program
         .statement_table
         .admitted_execution_order(state.statement_nodes);
-    let state_calls = phase_profile::scope("psi.05.build_check_facts.flow.state_statements", || {
-        append_state_statement_flow_facts(
-            program,
-            borrow,
-            proof,
-            semantic,
-            domains,
-            build,
-            machine,
-            state,
-            &mut active_contexts,
-            &mut active_constraints,
-            borrow_state,
-            &execution_order,
-        )
-    });
+    let state_calls =
+        phase_profile::scope("psi.05.build_check_facts.flow.state_statements", || {
+            append_state_statement_flow_facts(
+                program,
+                borrow,
+                proof,
+                semantic,
+                domains,
+                build,
+                machine,
+                state,
+                &mut active_contexts,
+                &mut active_constraints,
+                borrow_state,
+                &execution_order,
+            )
+        });
     active_constraints = filter_expired_borrow_loans(
         &mut build.borrow_lifetimes.weakenings,
         &mut build.contexts.constraint_refs,

@@ -28,8 +28,8 @@ use super::{Invocation, actual_projection, bound_place, direct_place, invocation
 use crate::checks::contracts::return_values::completed_return_operand;
 use crate::checks::contracts::return_values::exit_return_call;
 use crate::checks::unsigned;
-use crate::facts::contract_occurrences::append_expression_occurrences;
 use crate::flow::ValueObservation;
+use crate::published::facts::contract_occurrences::append_expression_occurrences;
 use checked_trees::{CheckFacts, FlowStateFact};
 use facts::{ContractFactKind, FactContextHandle, FactOrigin, FactPayload};
 use numerics::arithmetic::ArithmeticDomain;

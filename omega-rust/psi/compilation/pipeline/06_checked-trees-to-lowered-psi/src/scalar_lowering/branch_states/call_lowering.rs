@@ -1,6 +1,5 @@
 //! Lower a direct scalar call binding against its callee's Unit body.
 
-use crate::checked_facts::value_facts;
 use crate::emission::expression_validation::validate_direct_parameter_types;
 use crate::emission::operation_emission::buffer::SourceInvocation;
 use crate::emission::operation_emission::calls::{
@@ -15,6 +14,7 @@ use crate::scalar_lowering::{
     CheckedScalarExpressionRole, CheckedTrees, LoweringError, QualifiedScalarType, scalar_carriers,
     unsupported,
 };
+use crate::shared::checked_facts::value_facts;
 use checked_trees::CheckedErasedProofParameterPlan;
 
 #[allow(clippy::too_many_arguments)]

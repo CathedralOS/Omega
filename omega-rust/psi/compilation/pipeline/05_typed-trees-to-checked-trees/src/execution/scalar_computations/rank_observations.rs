@@ -7,7 +7,7 @@
 mod operands;
 
 use super::{Builder, CheckedScalarComputationHandle, CheckedScalarComputationKind};
-use crate::places::place_at;
+use crate::published::places::place_at;
 use checked_trees::{
     CheckedIntegerRankObservation, CheckedNaturalRankMeasure as RankMeasure,
     CheckedScalarExpression, CheckedScalarExpressionRole, CheckedStateNaturalRank as NaturalRank,

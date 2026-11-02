@@ -5,7 +5,7 @@ use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression
 use crate::emission::operation_emission::boolean::emit_boolean_expression;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::value_successor;
-use crate::terminal_identities::{block_id, edge_id, mint};
+use crate::shared::terminal_identities::{block_id, edge_id, mint};
 use semantic_vocabulary::{BlockId, ValueId};
 use terminal_psi::{
     Block, StructuralCaseSuccessorEdge, SuccessorEdge, Terminator, ValueDeclaration,

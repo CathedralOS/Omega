@@ -6,8 +6,8 @@
 //! the ordinary consumer. The raw call keeps its provider and source identity.
 
 use super::super::buffer::{OperationBuffer, SourceCallCoordinate};
-use crate::lowering_error::{LoweringError, unsupported};
-use crate::terminal_identities::{allocate_dense, value_id};
+use crate::shared::lowering_error::{LoweringError, unsupported};
+use crate::shared::terminal_identities::{allocate_dense, value_id};
 use checked_trees::{
     CheckedArithmeticPolicyAdapter, CheckedTrees, CheckedValueOrigin, NominalMachineUseSite,
 };

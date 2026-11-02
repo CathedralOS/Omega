@@ -32,8 +32,8 @@ use super::details::active_loan_detail;
 use super::overlap::StatedOrderingPremise;
 use super::place_access;
 use crate::checks::ownership_occurrences::{StatementOccurrence, StatementStep};
-use crate::labels::symbol_name;
-use crate::places::place_at;
+use crate::published::labels::symbol_name;
+use crate::published::places::place_at;
 
 /// Refine conservative syntactic holds with the producer's exact access ends.
 /// A scalar copied into an operand no longer borrows its source during the

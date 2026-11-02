@@ -50,8 +50,9 @@ fn proves_scoped(
     if matches!(
         program.expression_table.expression(required),
         ExpressionNode::Binary(_) | ExpressionNode::Unary(_)
-    ) && !crate::authored_selections::typed_operator_has_no_authored_selection(program, required)
-    {
+    ) && !crate::shared::authored_selections::typed_operator_has_no_authored_selection(
+        program, required,
+    ) {
         return false;
     }
     let equal = |left, right| expressions(program).expressions_structurally_equal(left, right);

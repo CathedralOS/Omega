@@ -14,7 +14,7 @@ use std::sync::Arc;
 use symbols::SymbolHandle;
 use typed_trees::data::{DataDefinition, DataMember, DataVariant};
 use typed_trees::expression::StaticMachineArgument;
-use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 use typed_trees::types::TypeReferenceHandle;
 
 /// Translate an authenticated classifier into its subject's exact application.

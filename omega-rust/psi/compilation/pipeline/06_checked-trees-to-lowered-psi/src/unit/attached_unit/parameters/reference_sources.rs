@@ -249,13 +249,14 @@ pub(crate) fn lower_reference_result_sources(
                 (Some(parameter.place), parameter.structural_type, coordinate)
             }
             checked_trees::CheckedReferenceOriginRoot::Invocation { carrier_type } => {
-                let declaration = crate::terminal_identities::structural_declaration_by_identity(
-                    structural_types,
-                    identities,
-                    checked,
-                    carrier_type,
-                    "returned invocation origin lost its carrier type",
-                )?;
+                let declaration =
+                    crate::shared::terminal_identities::structural_declaration_by_identity(
+                        structural_types,
+                        identities,
+                        checked,
+                        carrier_type,
+                        "returned invocation origin lost its carrier type",
+                    )?;
                 if reference.source.entry_reference_hops != 0 {
                     return unsupported("invocation origin cannot erase a formal entry");
                 }

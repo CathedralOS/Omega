@@ -6,7 +6,7 @@
 //! reaching a cycle does not invalidate caller-proven stores outside it, and
 //! acyclic helper substitution can establish a store within the cyclic body.
 use super::contracts::call_values;
-use crate::places::place_at;
+use crate::published::places::place_at;
 use checked_trees::{
     CheckFacts, CheckedBooleanExpression as Boolean, CheckedStoredIntegerWrite, FlowCallFact,
     FlowStateFact, PerformedIntegerWrite, StoredIntegerWriteSite,
@@ -746,7 +746,7 @@ impl<'a> Admission<'a> {
         let mut predicate = if established {
             Boolean::Constant(true)
         } else {
-            crate::facts::integer_write_obligation(write, stored)
+            crate::published::facts::integer_write_obligation(write, stored)
                 .ok_or("performed integer value has no fitting bounds or entry relation")?
         };
         for invocation in self.stack.iter_mut().rev() {
@@ -784,11 +784,13 @@ impl<'a> Admission<'a> {
                 predicate,
             )
             .ok_or("performed write cannot transport its actual value relation")?;
-            if let Some(condition) = crate::facts::boolean_predicates::entry_path_condition(
-                &self.facts.semantic,
-                &contexts,
-                invocation.state.machine_symbol,
-            ) && condition != Boolean::Constant(true)
+            if let Some(condition) =
+                crate::published::facts::boolean_predicates::entry_path_condition(
+                    &self.facts.semantic,
+                    &contexts,
+                    invocation.state.machine_symbol,
+                )
+                && condition != Boolean::Constant(true)
             {
                 predicate = Boolean::Or {
                     left: Box::new(Boolean::Not(Box::new(condition))),

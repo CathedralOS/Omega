@@ -2,7 +2,7 @@
 //! after body storage changes. Named-state requirements describe an arrival,
 //! not the invocation snapshot, and must never enter this collection.
 
-use crate::facts::canonical_crash_contract_predicate;
+use crate::published::facts::canonical_crash_contract_predicate;
 use crate::values::lower_machine_entry_crash_contract_expression;
 use checked_trees::{CheckedOperatorFacts, CrashPredicateIdentity};
 use typed_trees::expression::ExpressionHandle;

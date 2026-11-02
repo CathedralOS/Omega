@@ -16,7 +16,7 @@
 //! versions of the same source place. Conjunctions are proved leaf by leaf by
 //! the ordinary requires checker; they do not need all premises at one time.
 
-use crate::facts::contract_occurrences::append_expression_occurrences;
+use crate::published::facts::contract_occurrences::append_expression_occurrences;
 use arena::Handle;
 use checked_trees::{
     CheckFacts, CheckedNamedOperatorUseFact, CheckedOperatorUseFact, FlowCallFact, FlowFacts,

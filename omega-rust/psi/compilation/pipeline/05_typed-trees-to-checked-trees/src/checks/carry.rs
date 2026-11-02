@@ -191,7 +191,7 @@ impl ClaimCarryContext<'_> {
             }
         }
 
-        crate::collections::unique_in_order(
+        crate::shared::collections::unique_in_order(
             latest_by_path.into_iter().map(|(_, _, identity)| identity),
         )
     }
@@ -724,7 +724,7 @@ fn resolve_crossing_carry(
         })
         .collect::<Vec<_>>();
     crossing.effective = CarryPolicy::PERMISSIVE;
-    let target_name = crate::labels::symbol_name(program, call.target_symbol);
+    let target_name = crate::published::labels::symbol_name(program, call.target_symbol);
     for ((live, obligation), lifetime) in crossing
         .live_values
         .iter_mut()

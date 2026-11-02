@@ -513,7 +513,7 @@ impl AssignedValues<'_> {
         // a nominal tag, not a scalar comparison: the assigned case at the
         // subject's place decides it.
         if let Some((member, case)) =
-            crate::proof::exact_outcome_case_test(self.program, expression)
+            crate::published::proof::exact_outcome_case_test(self.program, expression)
             && let Some(selected) = self.relative_subject(subject, member, domain)
         {
             return self

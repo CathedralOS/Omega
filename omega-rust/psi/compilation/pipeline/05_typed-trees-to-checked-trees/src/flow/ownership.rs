@@ -10,7 +10,7 @@
 
 use crate::flow::canonical_place_from_symbol;
 use crate::flow::state_statements;
-use crate::places::place_at;
+use crate::published::places::place_at;
 use checked_trees::BorrowFacts;
 use checked_trees::statement::StatementNode;
 use symbols::SymbolHandle;

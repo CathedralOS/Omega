@@ -10,7 +10,7 @@ use checked_trees::{
 };
 use language_semantics::SemanticDomainId;
 
-use crate::lowering_error::{LoweringError, unsupported};
+use crate::shared::lowering_error::{LoweringError, unsupported};
 
 pub(crate) fn validate(
     checked: &CheckedTrees,

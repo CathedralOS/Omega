@@ -9,8 +9,8 @@ use super::scalar_fields::ScalarField;
 use super::scalar_fields::entry_selector_value;
 use super::scalar_fields::same_projection;
 use super::scalar_fields::{ScalarProjection, capture_path};
-use crate::collections::UniqueRoster;
 use crate::flow::indexed_statements;
+use crate::shared::collections::UniqueRoster;
 use validation::BigIntInterval;
 use validation::ScopedArithmeticValue;
 

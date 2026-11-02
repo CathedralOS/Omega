@@ -260,6 +260,14 @@ pub fn boundary_operator_requirement_identity(
     program: &TypedTrees,
     operator: &OperatorDefinition,
 ) -> String {
+    // A token view does not declare another provider slot. Checking and
+    // Terminal demands retain the machine callable, so schema publication
+    // and source provider lookup must use that same overload identity.
+    if let Some(requirement) = program.machine(operator.symbol) {
+        return program
+            .machine_callable_identity_text(requirement)
+            .unwrap_or_default();
+    }
     let path = program.operator_path_string(operator.name);
     let parameters = program
         .operator_parameters(operator)

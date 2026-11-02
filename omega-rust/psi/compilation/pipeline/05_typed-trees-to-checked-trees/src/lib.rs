@@ -10,39 +10,34 @@
 //! stage. Independent validation and proof packages own shared semantic queries;
 //! facts, flow, values, borrow, checks and execution build the checked result.
 
-// The route, in the order `lower_typed_trees` runs it.
 pub(crate) use optimization::digest_encoder;
-mod authored_selections;
-mod borrow;
-mod call_formals;
+
+// The entry, and the guard that pins preparation's tables as read-only here.
 mod checking;
-mod checks;
-mod execution;
-mod facts;
-mod flow;
 #[cfg(test)]
 mod immutable_checking_input;
-mod operators;
-mod places;
-mod proof;
-mod quotient_eligibility;
-mod semantic;
+
+// The steps. `lower_typed_trees` runs them as: facts are built, flow and
+// values are judged, borrows and checks are settled, execution plans are
+// assembled.
+mod borrow;
+mod checks;
+mod execution;
+mod flow;
 mod values;
 
-// Beside the route.
-mod collections;
-mod labels;
-
-// Orchestration seams, called after a checked tree exists.
-mod package_review;
-mod product_pruning;
+// What the stage publishes, the helpers every step reads, and the seams the
+// product coordinator reaches once a checked tree exists.
+mod products;
+mod published;
+mod shared;
 
 pub use ::facts::declaration_page_fork_totals;
 pub use checking::{
     CheckingOutcome, CheckingRequest, RetainedCheck, lower_typed_trees, lower_typed_trees_reusing,
     reuse_retained_check,
 };
-pub use package_review::{
+pub use products::package_review::{
     derive_authored_machine_crash_buckets, derive_authored_signature_crash_buckets,
     derive_checked_contract_expression_evidence_instantiation,
     derive_checked_contract_expression_evidence_parameters, derive_checked_nominal_call_target,
@@ -52,7 +47,7 @@ pub use package_review::{
     typed_operator_authored_selection_candidates, typed_operator_has_no_authored_selection,
 };
 
-pub use product_pruning::{
+pub use products::product_pruning::{
     CheckedTreeProductPruning, CheckedTreeProductPruningOutcome, CheckedTreeProductRoots,
     CheckedTreeProductRootsError, CheckedTreeProductSelection, CheckedTreeProductSelectionIdentity,
     prune_checked_tree_product, select_checked_tree_product,

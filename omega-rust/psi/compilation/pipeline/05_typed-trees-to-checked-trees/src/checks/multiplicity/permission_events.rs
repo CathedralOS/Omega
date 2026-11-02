@@ -29,7 +29,7 @@ use crate::checks::multiplicity::linear_validation::{
 };
 use crate::checks::multiplicity::owned_selection;
 use crate::checks::multiplicity::temporary_results;
-use crate::places::place_at;
+use crate::published::places::place_at;
 use checked_trees::{CheckFacts, ContextualCleanupFacts, FlowPermissionEventFact as EventFact};
 use diagnostics::Diagnostic;
 use language_semantics::{
@@ -703,7 +703,10 @@ pub(crate) fn prepare_permission_events(
             .storage_transfers = facts.flow.ownership.storage_transfers.insert_many(moves);
     }
     drop(state_loop_guard);
-    phase_profile::checkpoint("after permission state walk", "psi.05.build_check_facts.permissions.state_loop");
+    phase_profile::checkpoint(
+        "after permission state walk",
+        "psi.05.build_check_facts.permissions.state_loop",
+    );
 
     phase_profile::scope("psi.05.build_check_facts.permissions.append_borrow", || {
         append_borrow_permission_events(
@@ -713,14 +716,17 @@ pub(crate) fn prepare_permission_events(
             &mut claim_identities,
         );
     });
-    let claim_outcome_maps = phase_profile::scope("psi.05.build_check_facts.permissions.reconcile_origins", || {
-        reconcile_state_call_result_origins(
-            program,
-            &facts.borrow,
-            &mut facts.flow.ownership,
-            &mut permission_events,
-        )
-    })
+    let claim_outcome_maps = phase_profile::scope(
+        "psi.05.build_check_facts.permissions.reconcile_origins",
+        || {
+            reconcile_state_call_result_origins(
+                program,
+                &facts.borrow,
+                &mut facts.flow.ownership,
+                &mut permission_events,
+            )
+        },
+    )
     .map_err(|message| vec![Diagnostic::error(message)])?;
 
     // Reconciliation can prove that a returned sum never establishes a
@@ -748,10 +754,11 @@ pub(crate) fn prepare_permission_events(
         .permissions
         .insert_many(permission_events);
     publish_claim_outcome_maps(facts, claim_outcome_maps);
-    let joined_receivers = phase_profile::scope("psi.05.build_check_facts.permissions.publish_joins", || {
-        publish_call_claim_joins(program, facts)
-    })
-    .map_err(|message| vec![Diagnostic::error(message)])?;
+    let joined_receivers =
+        phase_profile::scope("psi.05.build_check_facts.permissions.publish_joins", || {
+            publish_call_claim_joins(program, facts)
+        })
+        .map_err(|message| vec![Diagnostic::error(message)])?;
     let joined_events = facts
         .flow
         .ownership
@@ -759,15 +766,16 @@ pub(crate) fn prepare_permission_events(
         .iter()
         .map(|(_, event)| event.clone())
         .collect::<Vec<_>>();
-    let joined_maps = phase_profile::scope("psi.05.build_check_facts.permissions.derive_maps", || {
-        derive_checked_claim_outcome_maps(
-            program,
-            &facts.borrow,
-            &facts.flow.ownership,
-            &joined_events,
-        )
-    })
-    .map_err(|message| vec![Diagnostic::error(message)])?;
+    let joined_maps =
+        phase_profile::scope("psi.05.build_check_facts.permissions.derive_maps", || {
+            derive_checked_claim_outcome_maps(
+                program,
+                &facts.borrow,
+                &facts.flow.ownership,
+                &joined_events,
+            )
+        })
+        .map_err(|message| vec![Diagnostic::error(message)])?;
     let correspondence_changed = claim_outcomes
         .update(joined_maps.clone(), joined_receivers)
         .map_err(|message| vec![Diagnostic::error(message)])?;
@@ -787,17 +795,21 @@ pub(crate) fn prepare_permission_events(
         // carrier. Select that death while source windows still distinguish
         // a live old value from an already extracted hole, before deriving
         // hook prerequisites and effects from the complete death roster.
-        phase_profile::scope("psi.05.build_check_facts.permissions.storage_deaths", || {
-            prepare_storage_deaths(program, facts)
-        })?;
+        phase_profile::scope(
+            "psi.05.build_check_facts.permissions.storage_deaths",
+            || prepare_storage_deaths(program, facts),
+        )?;
         let mut cleanup_dispositions = std::mem::take(&mut facts.contextual_cleanup);
-        phase_profile::scope("psi.05.build_check_facts.permissions.bind_applications", || {
-            crate::facts::contextual_cleanup::bind_applications(
-                program,
-                &facts.flow,
-                &mut cleanup_dispositions,
-            );
-        });
+        phase_profile::scope(
+            "psi.05.build_check_facts.permissions.bind_applications",
+            || {
+                crate::published::facts::contextual_cleanup::bind_applications(
+                    program,
+                    &facts.flow,
+                    &mut cleanup_dispositions,
+                );
+            },
+        );
         facts.contextual_cleanup = cleanup_dispositions;
         Ok(false)
     } else {
@@ -1018,7 +1030,7 @@ fn proven_conditional_entry_claims(
                     subject_path: subject.segments[argument.segments.len()..].to_vec(),
                     variant,
                 };
-                crate::collections::push_unique(&mut memberships, membership);
+                crate::shared::collections::push_unique(&mut memberships, membership);
             }
         }
     }
@@ -1208,7 +1220,7 @@ pub(crate) fn case_transition_run_is_exhaustive(
             return false;
         }
         subject_label = Some(label);
-        crate::collections::push_unique(&mut covered, variant);
+        crate::shared::collections::push_unique(&mut covered, variant);
     }
     let Some(first_variant) = covered.first() else {
         return false;

@@ -18,8 +18,8 @@ use crate::checks::multiplicity::linear_obligations::{
     CheckedClaimOutcomeEntry, CheckedClaimOutcomeMap, CheckedClaimOutcomeSource,
 };
 use crate::checks::multiplicity::linear_validation::linear_claim_frontier;
-use crate::collections::push_unique;
-use crate::collections::unique_in_order;
+use crate::shared::collections::push_unique;
+use crate::shared::collections::unique_in_order;
 use checked_trees::{
     CheckFacts, FlowClaimJoinAlternative, FlowClaimJoinAlternativeSource, FlowClaimJoinExit,
     FlowClaimJoinExitKind, FlowClaimJoinReceipt, FlowClaimOutcomeSource, FlowOwnershipFacts,

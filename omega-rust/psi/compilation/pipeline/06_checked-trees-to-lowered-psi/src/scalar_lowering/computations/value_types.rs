@@ -69,7 +69,7 @@ fn value_type(
             let target = callee
                 .static_target()
                 .map_or(callee.called_signature(), |(_, state)| state);
-            let signature = crate::declarations::target_signature(checked, target, target)?;
+            let signature = crate::shared::declarations::target_signature(checked, target, target)?;
             qualifications.signature_value_type(checked, signature.return_type)?
         }
         CheckedScalarComputationKind::StorageAddress { .. }

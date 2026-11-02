@@ -1,6 +1,6 @@
 //! Reuse checked call occurrences and the existing structured mutation owner.
 
-use crate::places::place_at;
+use crate::published::places::place_at;
 use validation::CallSite;
 use validation::CanonicalPlace;
 

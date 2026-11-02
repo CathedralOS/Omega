@@ -2,7 +2,7 @@
 //! symbols, and the operand rosters an operator call reads through.
 
 use crate::flow::expressions;
-use crate::places::place_at;
+use crate::published::places::place_at;
 use validation::CanonicalPlace;
 
 use super::super::{
