@@ -102,6 +102,28 @@ jobs:
           OMEGA_COMPILER_PILOT_SAMPLES: ${{ inputs.samples }}
           OMEGA_COMPILER_PILOT_CLI_FIXTURES: ${{ inputs.cli_fixtures }}
         run: python tools/ci/compiler_pilot.py
+      - name: Retain the direct CLI home diagnostic
+        if: always() && github.event_name == 'workflow_dispatch' && inputs.fixtures == 'pass/facts/fixed_layout_byte_roundtrip_through_other_state_exit'
+        env:
+          OMEGA_STRUCT_TRACE: '1'
+          OMEGA_COMPILER_CHECK_SITES: '1'
+        run: |
+          python - <<'PYTRACE'
+          import json, subprocess
+          from pathlib import Path
+          from tools import corpus_gate
+          output = Path('build/compiler-pilot')
+          records = list(output.glob('producer-*/producer.json'))
+          assert len(records) == 1
+          producer = json.loads(records[0].read_text())
+          cli = producer['cli']
+          assert corpus_gate.require_optimized(cli) == producer['cli_profile']
+          command = [cli, '--check', '--target', 'macos_arm64', 'samples/cli/facts/fixed_layout_byte_roundtrip/other_state/main.omg']
+          with (output / 'retained-home.stdout').open('wb') as out, (output / 'retained-home.stderr').open('wb') as err:
+              result = subprocess.run(command, stdout=out, stderr=err, timeout=180)
+          (output / 'retained-home.json').write_text(json.dumps(dict(command=command, exit=result.returncode, producer=producer), indent=2))
+          print('Retained exact direct CLI trace, exit', result.returncode)
+          PYTRACE
       - name: Report actual producer and fixture observations
         if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
         run: python -c "from pathlib import Path; root = Path('build/compiler-pilot'); [print(name + '\n' + (root / name).read_text(encoding='utf-8')) for name in ('summary.json', 'checking.json', 'both.json', 'samples.json', 'cli.json') if (root / name).is_file()]"
