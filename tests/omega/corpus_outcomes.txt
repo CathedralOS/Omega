@@ -2266,6 +2266,24 @@ fail/facts/saved_observation_snapshot_indexed_handback_whole_replacement_rejecte
 	cannot prove ensures contract for exit from preserve at statement 1: holder.items[kept] == 7 && holder.items[changed] == value
 fail/facts/sealed_requirement_member_through_field_rejected rejected 5427ms expected @911f6617ba9e
 	cannot prove requires contract for call apply$specialized$abaf361fafff1d4e$0 from probe: 0 <= operands.right && operands.right <= 50 (needs fact `0 <= right && right <= 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/skipped_short_circuit_call_through_call_result_rejected rejected 13474ms expected @91458311fe6a+wt
+	cannot prove requires contract for call untouched from main: counter == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/skipped_short_circuit_call_through_const_name_rejected rejected 8879ms expected @91458311fe6a+wt
+	cannot prove requires contract for call untouched from main: counter == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/skipped_short_circuit_call_through_field_rejected rejected 10942ms expected @91458311fe6a+wt
+	cannot prove requires contract for call untouched from main: counter == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/skipped_short_circuit_call_through_local_rejected rejected 10828ms expected @91458311fe6a+wt
+	cannot prove requires contract for call untouched from main: counter == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/skipped_short_circuit_call_through_match_join_rejected rejected 10663ms expected @91458311fe6a+wt
+	cannot prove requires contract for call untouched from main: counter == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/skipped_short_circuit_call_through_other_machine_rejected rejected 7694ms expected @91458311fe6a+wt
+	cannot prove requires contract for call untouched from evaluate: counter == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/skipped_short_circuit_call_through_other_state_rejected rejected 6510ms expected @91458311fe6a+wt
+	cannot prove requires contract for call untouched from arrive: counter == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/skipped_short_circuit_call_through_parameter_rejected rejected 7614ms expected @91458311fe6a+wt
+	cannot prove requires contract for call untouched from probe: counter == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/skipped_short_circuit_call_through_target_body_rejected rejected 5075ms expected @91458311fe6a+wt
+	cannot prove requires contract for call untouched from main: counter == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/slice_view_indexed_descriptor_through_call_result_insufficient_guard rejected 6680ms expected @f9df9c1404e3
 	cannot prove requires contract for call read from read_guarded: selected < windows.len && windows[selected].values.len >= 3 (needs fact `selected < windows.len && windows[selected].values.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/slice_view_indexed_descriptor_through_const_name_insufficient_guard rejected 5917ms expected @f9df9c1404e3
@@ -10135,6 +10153,15 @@ pass/facts/size_align_layout_geometry_through_other_machine_exit checked 1788ms 
 pass/facts/size_align_layout_geometry_through_other_state_exit checked 1839ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @8b519ca647cd+wt
 pass/facts/size_align_layout_geometry_through_parameter_exit checked 1711ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @8b519ca647cd+wt
 pass/facts/size_align_layout_geometry_through_target_body_exit checked 1874ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @8b519ca647cd+wt
+pass/facts/skipped_short_circuit_call_through_call_result_exit checked 19694ms check-target:macos_arm64 @91458311fe6a+wt
+pass/facts/skipped_short_circuit_call_through_const_name_exit checked 19841ms check-target:macos_arm64 @91458311fe6a+wt
+pass/facts/skipped_short_circuit_call_through_field_exit checked 14145ms check-target:macos_arm64 @91458311fe6a+wt
+pass/facts/skipped_short_circuit_call_through_local_exit checked 17285ms check-target:macos_arm64 @91458311fe6a+wt
+pass/facts/skipped_short_circuit_call_through_match_join_exit checked 22840ms check-target:macos_arm64 @91458311fe6a+wt
+pass/facts/skipped_short_circuit_call_through_other_machine_exit checked 14012ms check-target:macos_arm64 @91458311fe6a+wt
+pass/facts/skipped_short_circuit_call_through_other_state_exit checked 22880ms check-target:macos_arm64 @91458311fe6a+wt
+pass/facts/skipped_short_circuit_call_through_parameter_exit checked 14032ms check-target:macos_arm64 @91458311fe6a+wt
+pass/facts/skipped_short_circuit_call_through_target_body_exit checked 22887ms check-target:macos_arm64 @91458311fe6a+wt
 pass/facts/slice_view_element_read_bound_through_call_result_exit checked 4168ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/slice_view_element_read_bound_through_const_name_exit checked 4098ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/slice_view_element_read_bound_through_field_exit checked 3887ms check-target:macos_arm64 @ccdb99ca2214
