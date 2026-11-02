@@ -422,6 +422,7 @@ fn values_relation<'program>(
             | BinaryOperator::Greater
             | BinaryOperator::GreaterOrEqual
             | BinaryOperator::Equal
+            | BinaryOperator::NotEqual
     ) {
         return StrictArithmeticImplicationJudgment::Unknown;
     }
@@ -454,6 +455,7 @@ fn values_relation<'program>(
                 engine.prove_at_least(&right.sub(&left), &zero)
                     && engine.prove_at_least(&left.sub(&right), &zero)
             }
+            BinaryOperator::NotEqual => engine.proves_nonzero(&left.sub(&right)),
             _ => false,
         };
     if proven {
