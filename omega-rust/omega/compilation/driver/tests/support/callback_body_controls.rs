@@ -20,11 +20,26 @@ pub(super) struct PreparedCallbackBodies {
     declarations: terminal_psi::CallbackDeclarationRoster,
     calling: Vec<terminal_psi::CallbackRequirementId>,
     roots: Vec<terminal_psi::CallbackUseId>,
+    requires_omission: bool,
 }
 
 pub(super) fn prepare(
     checked: &compiler::CheckedCompilation,
+    root: &std::path::Path,
 ) -> Result<PreparedCallbackBodies, String> {
+    let oracle = root
+        .parent()
+        .ok_or("callback fixture has no parent")?
+        .join("expected_callback_header_omission.txt");
+    let requires_omission = if oracle.is_file() {
+        let expected = std::fs::read_to_string(oracle).map_err(|error| error.to_string())?;
+        if expected.trim() != "required" {
+            return Err("callback header omission oracle must say required".into());
+        }
+        true
+    } else {
+        false
+    };
     let execution = checked.execution();
     let program = execution.provider_source.program();
     let typed = &program.typed;
@@ -109,6 +124,7 @@ pub(super) fn prepare(
         declarations,
         calling,
         roots,
+        requires_omission,
         providers: std::sync::Arc::clone(&checked.providers().provider_declarations),
     })
 }
@@ -174,10 +190,16 @@ impl PreparedCallbackBodies {
         }
         // A selected checked registrar actually consumed by a nominal use must
         // not silently become foreign/unchecked when its header is omitted.
+        let projected = backend_plan::close_checked_provider_specializations(
+            self.selected.clone(),
+            &self.providers,
+            module,
+        )?;
+        let mut omissions = 0;
         for (_, usage) in self.declarations.uses.iter() {
             let declaration = self.declarations.declaration(usage);
             let Ok(language_semantics::callback_declarations::CallbackRegistrationDeclaration::External(identity)) = declaration.registration else { continue; };
-            let Some((plan, row)) = self.selected.selected_requirement_row(&identity) else {
+            let Some((plan, row)) = projected.selected_requirement_row(&identity) else {
                 continue;
             };
             let ProviderBinding::CheckedAdapter {
@@ -215,15 +237,7 @@ impl PreparedCallbackBodies {
                 .proof_scope
                 .callable_headers
                 .free(*handle);
-            let optimization =
-                terminal_codec::build_identity_optimization_execution_record(&omitted)
-                    .map_err(|error| format!("callback-header envelope: {error:?}"))?;
-            let omitted =
-                terminal_codec::CanonicalTerminalArtifact::from_parts(omitted, optimization, None)
-                    .map_err(|error| format!("callback-header artifact: {error:?}"))?;
-            let omitted =
-                terminal_codec::CanonicalTerminalArtifact::from_bytes(&omitted.to_bytes())
-                    .map_err(|error| format!("callback-header ingress: {error:?}"))?;
+            let omitted = load(omitted)?;
             match self.select(omitted.semantic_module()) {
                 Err(reason) if reason.contains("has no exact canonical checked-body header") => {}
                 other => {
@@ -232,8 +246,45 @@ impl PreparedCallbackBodies {
                     ));
                 }
             }
+            let mut bodyless = module.clone();
+            bodyless
+                .scalar_applications
+                .proof_scope
+                .callable_headers
+                .get_mut(*handle)
+                .supplies_checked_body = false;
+            let bodyless = load(bodyless)?;
+            match self.select(bodyless.semantic_module()) {
+                Err(reason)
+                    if reason.contains(
+                        "callback forwarding provider does not supply a checked body",
+                    ) => {}
+                other => {
+                    return Err(format!(
+                        "false callback body fact did not refuse: {other:?}"
+                    ));
+                }
+            }
+            omissions += 1;
             break;
+        }
+        if self.requires_omission && omissions != 1 {
+            return Err(format!(
+                "fixture requires one consumed callback header omission control, got {omissions}"
+            ));
         }
         Ok(())
     }
+}
+
+fn load(
+    module: terminal_psi::TerminalModule,
+) -> Result<terminal_codec::CanonicalTerminalArtifact, String> {
+    let optimization = terminal_codec::build_identity_optimization_execution_record(&module)
+        .map_err(|error| format!("callback-header envelope: {error:?}"))?;
+    let artifact =
+        terminal_codec::CanonicalTerminalArtifact::from_parts(module, optimization, None)
+            .map_err(|error| format!("callback-header artifact: {error:?}"))?;
+    terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes())
+        .map_err(|error| format!("callback-header ingress: {error:?}"))
 }

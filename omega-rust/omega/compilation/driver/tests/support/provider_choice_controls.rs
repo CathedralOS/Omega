@@ -96,7 +96,7 @@ pub(super) fn prepare(
     }
     .prepare();
     let expected_instances = provider_instance_controls::prepare(&checked, root)?;
-    let callback_bodies = callback_body_controls::prepare(&checked)?;
+    let callback_bodies = callback_body_controls::prepare(&checked, root)?;
     drop(targets);
     drop(checked);
     drop(prepared);
