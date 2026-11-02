@@ -194,6 +194,29 @@ pub(crate) fn validate_for_subject(
         return Some((case, true));
     };
     let reference = structural_match_subject_type_for_subject(program, machine, state, subject)?;
+    if pattern.application_type.is_valid() {
+        let matches = crate::value_custody::places::unwrapped_type_reference(program, reference)
+            .zip(crate::value_custody::places::unwrapped_type_reference(
+                program,
+                pattern.application_type,
+            ))
+            .is_some_and(|(subject, application)| {
+                crate::value_custody::type_references::type_references_match(
+                    program,
+                    subject,
+                    application,
+                )
+            });
+        if !matches {
+            diagnostics.push(
+                Diagnostic::error(
+                    "pattern type application differs from its subject's exact carrier",
+                )
+                .with_source_span(source_span),
+            );
+            return None;
+        }
+    }
     let data = crate::value_custody::places::data_definition_for_type(program, reference)?;
     let mut declared = program
         .data_members(data)
