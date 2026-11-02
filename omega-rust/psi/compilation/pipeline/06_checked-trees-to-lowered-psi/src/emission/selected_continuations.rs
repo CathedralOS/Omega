@@ -210,9 +210,21 @@ pub(crate) fn prepare(
                     .ok_or(LoweringError::Unsupported(
                         "selected death lost its occurrence",
                     ))?;
-                match outgoing[selected] {
+                match &outgoing[selected] {
                     RegionState::Live => {}
                     RegionState::Absent => target = group.bypass,
+                    RegionState::Partial(missing)
+                        if transfers_complete_custody(
+                            &group.region,
+                            missing,
+                            parameters,
+                            places,
+                            blocks,
+                            types,
+                        )? =>
+                    {
+                        target = group.bypass;
+                    }
                     RegionState::Partial(_) => {
                         return unsupported(
                             "selected whole-owner cleanup has a partially transferred occurrence",
@@ -395,6 +407,46 @@ fn restore(
             }
         }
     }
+}
+
+/// Whether the projected transfers already carried away every structural
+/// child of the occurrence's selected case. A payload move names its case, so
+/// only that case's payload and the common fields remain owed; an inactive
+/// alternative is never enumerated. With no residual left, the candidate death
+/// has nothing to dispose and is skipped exactly as for an absent value. Any
+/// remaining residual, a whole extraction, or a parent nominal hook (which
+/// needs an intact subject) keeps the refusal: this grants no partial cleanup.
+fn transfers_complete_custody(
+    region: &StructuralArgument,
+    missing: &[Vec<StructuralPathSegment>],
+    parameters: &[StructuralParameterDeclaration],
+    places: &[StructuralPlaceDeclaration],
+    blocks: &[Block],
+    types: &[StructuralTypeDeclaration],
+) -> Result<bool, LoweringError> {
+    if !region.path.is_empty() {
+        return Ok(false);
+    }
+    let parent_hook = blocks.iter().any(|block| {
+        block.terminator.cleanup_rosters().any(|(_, actions)| {
+            actions.iter().any(|action| {
+                matches!(
+                    action,
+                    TerminalAffineCleanupAction::InvokeNominal(cleanup)
+                        if cleanup.place == region.place && cleanup.path.is_empty()
+                )
+            })
+        })
+    });
+    if parent_hook {
+        return Ok(false);
+    }
+    let root = root_type(region.place, parameters, places, blocks)?;
+    let moved = missing.iter().cloned().collect();
+    Ok(
+        terminal_semantics::partial_affine_residuals(types, root, &moved, 1)
+            .is_some_and(|residuals| residuals.is_empty()),
+    )
 }
 
 fn root_type(
