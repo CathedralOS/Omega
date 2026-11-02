@@ -2122,7 +2122,7 @@ dependencies = [
  "provider-planning",
  "provider-selection",
  "psi-terminal-production",
- "representation-planning",
+ "representation-selections",
  "semantic-vocabulary",
  "source",
  "symbols",
