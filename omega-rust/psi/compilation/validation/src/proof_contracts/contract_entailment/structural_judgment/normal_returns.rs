@@ -49,6 +49,25 @@ use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::signature::SignatureContractKind;
 use typed_trees::types::TypeReferenceHandle;
 
+impl StructuralJudge<'_> {
+    /// Both value equations and nominal tag judgments name this exact return.
+    /// The case ledger deliberately ignores general value rewrites, so bind
+    /// the observed result here rather than teaching tag lookup to unfold them.
+    /// Callers establish that `result` is the reserved completion binder.
+    pub(in crate::proof_contracts::contract_entailment) fn bind_returned_value(
+        &mut self,
+        value: &StructuralTerm,
+    ) {
+        self.intake_case_equation(
+            StructuralTerm::Variable(super::super::RESULT_BINDER.to_owned()),
+            value.clone(),
+            0,
+        );
+        Arc::make_mut(&mut self.substitutions)
+            .insert(0, (super::super::RESULT_BINDER.to_owned(), value.clone()));
+    }
+}
+
 pub(in crate::proof_contracts::contract_entailment) struct NormalReturnPath<'program> {
     pub value: StructuralTerm,
     pub judge: StructuralJudge<'program>,

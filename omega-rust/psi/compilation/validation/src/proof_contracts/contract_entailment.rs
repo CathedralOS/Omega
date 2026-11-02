@@ -499,8 +499,7 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
             } else {
                 let mut bound = judge.clone();
                 if !result_is_parameter {
-                    std::sync::Arc::make_mut(&mut bound.substitutions)
-                        .insert(0, (RESULT_BINDER.to_owned(), value.clone()));
+                    bound.bind_returned_value(value);
                 }
                 (bound.judge(program, fact), None)
             };
@@ -565,11 +564,7 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
             }
             if paths.iter().all(|path| {
                 let mut bound = path.normal_judge.clone();
-                bound.intake_case_equation(
-                    StructuralTerm::Variable(RESULT_BINDER.to_owned()),
-                    path.value.clone(),
-                    0,
-                );
+                bound.bind_returned_value(&path.value);
                 matches!(bound.judge(program, fact), StructuralJudgment::Proven)
             }) {
                 return StructuralJudgment::Proven;
@@ -693,8 +688,7 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
                 }
             }
             if !result_is_parameter {
-                std::sync::Arc::make_mut(&mut bound.substitutions)
-                    .insert(0, (RESULT_BINDER.to_owned(), arm.value.clone()));
+                bound.bind_returned_value(&arm.value);
             }
             match bound.judge(program, fact) {
                 StructuralJudgment::Proven => {}
