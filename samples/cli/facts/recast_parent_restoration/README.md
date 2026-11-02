@@ -155,7 +155,8 @@ GUI qualification remains pending.
 Final-source checkpoint `4a65db8ea7a55553ea8e77d11678d6c129bd5335` builds
 optimized corpus producer SHA-256
 `e9c31754f6e35f95da96a1b7469e41e669b96de2da5f24a42df50b05679e4517`.
-Its focused source leg checks 27 positives and rejects 28 intended controls.
+Its focused check leg accepts 26 positives and rejects 28 intended controls;
+one additional positive has the attributed baseline lowering refusal.
 The execution leg observes 25 native/Terminal agreements, including all nine
 strengthened places and forwarding-marker composition. One additional fixture
 is compile-only. The existing `runtime_scalar_field_local_loan_handback_exit`
