@@ -2,7 +2,7 @@
 
 Compile-scope probe. No standard-library dependency.
 
-- quotient_data_decl: `data Q = Rep % equiv where equiv satisfies
+- quotient_data_decl: `data Q = Rep % equiv requires equiv satisfies
   Equivalence<Rep,equiv> as Impl` — quotient data in user code,
   `Trait::member = machine` impl roster, `as Q` cast.
 - discreteness_calls: `x <= 7` recovers `x < 8` — kernel
