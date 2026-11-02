@@ -27,6 +27,7 @@ pub(super) struct ReferenceOutputs {
     types: Vec<StructuralTypeDeclaration>,
     parameters: Vec<StructuralTypeId>,
     outputs: Vec<BoundaryReferenceOutput>,
+    result_regions: Vec<terminal_psi::TerminalDynamicReferenceRegion>,
     pub codecs: BTreeMap<StructuralTypeId, StorageCodec>,
     captures: Vec<Capture>,
 }
@@ -44,6 +45,7 @@ impl ReferenceOutputs {
                 .map(|parameter| parameter.structural_type)
                 .collect(),
             outputs: declaration.reference_outputs.clone(),
+            result_regions: declaration.result_reference_regions.clone(),
             // Unsupported unrelated layouts do not become codecs. Every
             // captured view below must find its own complete admitted codec.
             codecs: layouts
@@ -114,6 +116,66 @@ impl ReferenceOutputs {
                 }
             }))
     }
+    /// Match the actual returned word inside the worker to one captured typed
+    /// endpoint, then mint only that buffer's opaque selection for Core.
+    pub fn returned_reference(
+        &self,
+        native: &NativeContext,
+        buffers: &[TerminalBoundaryStorageBuffer],
+        returned: &[u8],
+        referent: StructuralTypeId,
+        access: StructuralAccess,
+    ) -> Result<terminal_interpreter::TerminalBoundaryReferenceSelection, TerminalEffectRejection>
+    {
+        for capture in &self.captures {
+            if capture.view != referent || !covers(capture.access, access) {
+                continue;
+            }
+            let path = self.path(capture)?;
+            let allowed = self.result_regions.iter().any(|region| {
+                region.path.is_empty()
+                    && region.access == access
+                    && region.origin
+                        == (terminal_psi::TerminalDynamicReferenceOrigin::Parameter {
+                            argument_index: capture.argument as u32,
+                        })
+                    && path.starts_with(terminal_semantics::reference_source_storage_path(
+                        self.types.iter(),
+                        self.parameters[capture.argument],
+                        &region.source_path,
+                    ))
+            });
+            if !allowed {
+                continue;
+            }
+            let codec = self
+                .codecs
+                .get(&capture.view)
+                .ok_or_else(|| rejection("returned reference candidate has no exact codec"))?;
+            let (home, offset) = native.loan(&capture.loan, codec)?;
+            let target = NativePointerTarget {
+                home,
+                offset,
+                byte_size: codec.extent,
+                alignment: codec.alignment,
+            };
+            if native
+                .sponsor
+                .borrow_mut()
+                .with(|process| process.returned_pointer_matches(returned, target))?
+            {
+                return buffers
+                    .iter()
+                    .find(|buffer| argument(buffer) == capture.argument)
+                    .ok_or_else(|| rejection("returned reference lost its captured input buffer"))?
+                    .select_reference(&capture.path, access);
+            }
+        }
+        Err(rejection(
+            "native returned reference is outside its captured typed input endpoints",
+        ))
+    }
+
     pub fn complete(
         &self,
         native: &NativeContext,

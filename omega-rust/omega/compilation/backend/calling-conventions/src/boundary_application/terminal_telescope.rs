@@ -101,6 +101,7 @@ mod tests {
                 scalar_domain_requirements: vec![],
                 scalar_requires: vec![],
                 scalar_ensures: vec![],
+                result_reference_regions: Vec::new(),
                 reference_outputs: vec![],
                 program_local_root_introductions: vec![],
                 content_guarantees: vec![],

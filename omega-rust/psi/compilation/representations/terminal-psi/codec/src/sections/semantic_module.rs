@@ -155,7 +155,8 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // private slots cannot infer their owner from another slot's claimed role.
 // Combines physical declaration owners with retained compiler-evaluation facts.
 // Neither standalone 233 nor standalone 234 has this wire layout.
-pub(crate) const FORMAT_MARKER: u16 = 235;
+// Boundary declarations additionally retain complete public returned-borrow regions.
+pub(crate) const FORMAT_MARKER: u16 = 236;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

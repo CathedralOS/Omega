@@ -1138,7 +1138,8 @@ pub(super) fn adapt(
                         .iter()
                         .filter(|declaration| declaration.id == *boundary);
                     if let (Some(declaration), None) = (declarations.next(), declarations.next())
-                        && !declaration.reference_outputs.is_empty()
+                        && (!declaration.reference_outputs.is_empty()
+                            || !declaration.result_reference_regions.is_empty())
                         && slot_kind != DescriptorSlotKind::AccessOrigins
                     {
                         graph.calls.insert(
@@ -1149,6 +1150,7 @@ pub(super) fn adapt(
                                 slot_kind,
                                 declaration,
                                 structural_arguments,
+                                result,
                                 &graph.place_types,
                             )?,
                         );

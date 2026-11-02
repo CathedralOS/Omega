@@ -20,10 +20,13 @@ mod descriptor_regions;
 mod result_regions;
 pub use call_results::{
     ReferenceCallContract, ReferenceCallOrigin, ReferenceCallResult, ReferenceCallSource,
-    bind_reference_call_results,
+    bind_public_reference_call_results, bind_reference_call_results,
 };
 pub use descriptor_regions::validate_descriptor_result_regions;
-pub use result_regions::{ReferenceLeaf, reference_leaves, validate_dynamic_reference_regions};
+pub use result_regions::{
+    ReferenceLeaf, reference_leaves, validate_boundary_reference_regions,
+    validate_dynamic_reference_regions,
+};
 use std::slice::from_ref;
 
 /// The exact supplying permission and the relation below it. All consumers use

@@ -89,11 +89,12 @@ pub use reference_completion::{
 pub use reference_origins::{
     BorrowedResultLeaf, BorrowedResultLeafKind, ReferenceCallContract, ReferenceCallOrigin,
     ReferenceCallResult, ReferenceCallSource, ReferenceLeaf, ReferenceOriginBinding,
-    ReferenceResultMemberships, bind_reference_call_results, bind_reference_origin,
-    borrowed_result_leaves, captured_reference_origin_type, collection_element_type,
-    reference_call_preserved_memberships, reference_leaves, reference_origin_is_covered,
-    reference_origin_paths_may_overlap, reference_origin_type, reference_result_memberships_weaken,
-    reference_result_refines_regions, validate_descriptor_result_regions,
+    ReferenceResultMemberships, bind_public_reference_call_results, bind_reference_call_results,
+    bind_reference_origin, borrowed_result_leaves, captured_reference_origin_type,
+    collection_element_type, reference_call_preserved_memberships, reference_leaves,
+    reference_origin_is_covered, reference_origin_paths_may_overlap, reference_origin_type,
+    reference_result_memberships_weaken, reference_result_refines_regions,
+    validate_boundary_reference_regions, validate_descriptor_result_regions,
     validate_dynamic_reference_regions,
 };
 pub use reference_storage_geometry::{

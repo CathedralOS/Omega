@@ -164,6 +164,19 @@ pub(crate) fn lower_declarations(
             structural_types,
             domain_ids,
         )?;
+        let result_reference_regions =
+            crate::unit::dynamic_dispatch::lower_result_reference_regions(
+                identities,
+                checked,
+                &plan.result_reference_sources,
+                &result,
+                &parameters
+                    .iter()
+                    .map(|p| (p.structural_type, p.access))
+                    .collect::<Vec<_>>(),
+                type_ids,
+                structural_types,
+            )?;
         declarations.push(BoundaryMachineDeclaration {
             numeric_intrinsic: checked.typed.numeric_intrinsic_execution(plan.machine),
             scalar_domain_requirements,
@@ -239,6 +252,7 @@ pub(crate) fn lower_declarations(
             crash_routes,
             structural_parameters: parameters.clone(),
             result: result.clone(),
+            result_reference_regions,
             requires,
             program_local_root_introductions: lower_program_local_root_introductions(
                 checked,
