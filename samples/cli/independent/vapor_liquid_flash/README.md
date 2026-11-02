@@ -56,10 +56,3 @@ return exercise invocation-local scalar storage; the caller keeps its bracket
 endpoint. Compiler fixture `runtime_owned_mutable_float_parameter_exit` also
 checks `f32`, nested-machine arrival, caller isolation, and signed zero, alongside
 immutable-mutation and live-loan refusal controls.
-
-For a faster finite suite, build the supported runner with
-`mbx build -p omega --example qualify_inputs`, then pass its absolute executable
-path as `--qualifier` to the same validator. The runner compiles the normally
-accepted project once and uses a fresh native process and isolated Terminal
-invocation for each input. The validator still checks both complete streams,
-actual process-exit statuses, source-invalid refusal, and every frozen value.
