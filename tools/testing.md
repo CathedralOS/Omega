@@ -124,6 +124,27 @@ Selection validates
 before building; empty, unscored or check-only positives cannot pass. The
 artifact includes `samples.json` beside the corpus reports.
 
+For a named existing pass fixture whose oracle is a numeric exit, the optional
+`cli_fixtures` input uses the same optimized producer for source checking and
+ordinary CLI update/review/resume followed by `run --both --keep`. It freezes
+tracked fixture/library inputs and requires explicit native and Terminal exit
+markers. It preserves raw logs for both review phases; managed acceptance is
+ordinary pending-row decisions, not a copied lock. Stream, inspection and RAM
+oracles are refused before building rather than silently omitted. For example:
+
+```sh
+gh workflow run compiler-pilot.yml --ref work/NAME \
+  -f native_host=linux_x86_64 \
+  -f cli_fixtures=pass/filesystem/write_all_full_device_exit
+```
+
+This replaces the default smoke when used alone and produces `cli.json` plus
+per-project observations/logs. Review phases have a 600-second allowance based
+on measured single-project Std admission; runtime has a 240-second cap. It
+changes neither corpus defaults nor the corpus's absent filesystem delegation.
+A single project can still spend minutes in real admission: retain those phase
+timings and report that workflow cost, without adding a sweep or another build.
+
 Select `linux_arm64`, `windows_x86_64` or `macos_arm64` for a separate
 matching-host run. Linux ARM64 uses `ubuntu-24.04-arm`; macOS ARM64 uses
 `macos-15`, matching the existing post-merge runners. These execute on the native

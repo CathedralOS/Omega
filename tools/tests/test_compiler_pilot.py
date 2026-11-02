@@ -29,6 +29,36 @@ class CompilerPilotTests(unittest.TestCase):
             (directory / "main.omg").write_text("// Expected exit: 0\nmachine main() {}")
             (directory / "build.omg").write_text("ProgramEntry")
 
+    def test_ordinary_cli_selection_is_exact_and_never_replaces_refusal_with_smoke(self):
+        fixture = "pass/filesystem/normal_exit"
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.fixture_root(root, fixture)
+            project = root / "tests/omega" / fixture
+            (project / "build.omg").write_text("ProgramEntry")
+            (project / "expected_native_exit.txt").write_text("70")
+            with patch.object(pilot, "ROOT", root), patch.object(pilot, "execute") as execute:
+                self.assertEqual(pilot.run_suite("cli", pilot.POSITIVES, pilot.NEGATIVES,
+                                                cli_fixtures=fixture), 0)
+                self.assertEqual(execute.call_args.kwargs["positives"], ())
+                self.assertEqual(execute.call_args.kwargs["cli_fixtures"], (fixture,))
+                execute.reset_mock()
+                (project / "expected_stdout.windows_x86_64.txt").write_text("must be checked")
+                self.assertEqual(pilot.run_suite("bad", pilot.POSITIVES, pilot.NEGATIVES,
+                                                cli_fixtures=fixture), 1)
+                execute.assert_not_called()
+
+    def test_ordinary_cli_requires_explicit_terminal_exit_including_nonzero_oracles(self):
+        validate = pilot.ordinary_cli_fixture.validate_exits
+        validate(70, "native exit 70\ninterp exit: 70\n", 70)
+        for code, stderr in ((0, "native exit 0\ninterp: DECLINED\n"),
+                             (0, "native exit 0\n"),
+                             (0, "native exit 0\ninterp exit: 1\n"),
+                             (0, "native exit 0\ninterp exit: 0\ninterp: TRAP\n"),
+                             (1, "native exit 0\ninterp exit: 0\n")):
+            with self.subTest(code=code, stderr=stderr), self.assertRaisesRegex(ValueError, "agreement"):
+                validate(code, stderr, 0)
+
     def test_fact_selection_includes_nested_control_but_refuses_filter_collision(self):
         sample = "samples/cli/facts/layout/local"
         with tempfile.TemporaryDirectory() as temporary:
