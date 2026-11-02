@@ -1420,8 +1420,9 @@ fn scalar_shape(scalar_type: ScalarType) -> Option<calling_conventions::ValueSha
 }
 
 /// The emitted interval one integer-immediate argument occupies: the register
-/// copy whose result feeds the call operand, or the contiguous outgoing-slot
-/// `FrameAddress`/`Store` pair this call's argument transport owns.
+/// copy whose result feeds the call operand, or its outgoing address/store
+/// interval. An exact uncharged immediate rematerialization may reproduce the
+/// scalar between those steps without changing the argument's value or home.
 #[allow(clippy::too_many_arguments)]
 pub fn scalar_immediate_span<F>(
     function: &selected_instructions::SelectedFunction,
@@ -1504,7 +1505,18 @@ where
                 ) && candidate.provenance.values.as_slice() == [source_value]
             })?;
             let address = &block.instructions[address_index];
-            let store = block.instructions.get(address_index + 1)?;
+            let mut store_index = address_index.checked_add(1)?;
+            let next = block.instructions.get(store_index)?;
+            let rematerialized = next.operands.first().and_then(|operand| {
+                function
+                    .virtual_register(operand.virtual_register)
+                    .filter(|value| rematerializes_argument(next, value, argument.source))
+                    .map(|value| value.id)
+            });
+            if rematerialized.is_some() {
+                store_index = store_index.checked_add(1)?;
+            }
+            let store = block.instructions.get(store_index)?;
             let selected_instructions::SelectedInstructionKind::Store {
                 byte_offset: 0,
                 byte_size: stored_bytes,
@@ -1530,15 +1542,67 @@ where
             {
                 return None;
             }
-            let (address_offset, address_bytes) = fragment_instruction_span(fragment, address.id)?;
-            let (store_offset, store_bytes) = fragment_instruction_span(fragment, store.id)?;
-            if store_offset != address_offset + address_bytes {
+            if rematerialized.is_some_and(|value| {
+                store
+                    .operands
+                    .get(1)
+                    .map(|operand| operand.virtual_register)
+                    != Some(value)
+            }) {
                 return None;
             }
-            Some((address_offset, address_bytes + store_bytes))
+            let (address_offset, _) = fragment_instruction_span(fragment, address.id)?;
+            let end =
+                transported_span_end(fragment, block, address_index, store_index.checked_add(1)?)?;
+            Some((address_offset, end.checked_sub(address_offset)?))
         }
         _ => None,
     }
+}
+
+/// Allocation's pure regeneration keeps the original scalar type and source
+/// value on its fresh result. It cannot claim another operation's fuel or
+/// stand in for a computed home, reference, different literal or register.
+fn rematerializes_argument(
+    instruction: &selected_instructions::SelectedInstruction,
+    register: &selected_instructions::VirtualRegister,
+    source: target_operations::TargetUnitScalarArgumentSource,
+) -> bool {
+    use register_model::RegisterOperandAccess;
+    use selected_instructions::{SelectedInstructionKind, VirtualRegisterOrigin};
+    let target_operations::TargetUnitScalarArgumentSource::IntegerImmediate {
+        source_value,
+        value,
+        ..
+    } = source
+    else {
+        return false;
+    };
+    let [output] = instruction.operands.as_slice() else {
+        return false;
+    };
+    instruction.kind == SelectedInstructionKind::MaterializeI64 { value }
+        && output.virtual_register == register.id
+        && output.access == RegisterOperandAccess::Def
+        && output.class == register.class
+        && output.fixed_view.is_none()
+        && output.tied_to.is_none()
+        && !output.early_clobber
+        && register.entry_fixed_view.is_none()
+        && register.scalar_type == source.scalar_type()
+        && register.origin
+            == VirtualRegisterOrigin::InstructionResult {
+                instruction: instruction.id,
+                source_value,
+            }
+        && instruction.implicit_uses.is_empty()
+        && instruction.implicit_defs.is_empty()
+        && instruction.clobbers.is_empty()
+        && instruction.provenance.operations.is_empty()
+        && instruction.provenance.edges.is_empty()
+        && instruction.provenance.obligations.is_empty()
+        && instruction.provenance.fuel.is_empty()
+        && instruction.provenance.values.as_slice() == [source_value]
 }
 
 /// The producing call one scalar-call-result `Home` names: exactly one
