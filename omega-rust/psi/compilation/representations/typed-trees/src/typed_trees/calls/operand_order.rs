@@ -86,7 +86,16 @@ impl TypedTrees {
                     // A logical evidence member has no executable state yet.
                     // Its exact authored bound still owns the ordinary roster;
                     // malformed bounds remain unavailable to this observation.
+                    if !target.is_valid() {
+                        return None;
+                    }
                     let binder = self.symbols.get(target).parent;
+                    if !binder.is_valid()
+                        || self.symbols.get(binder).kind
+                            != symbols::SymbolKind::ConformanceParameter
+                    {
+                        return None;
+                    }
                     let owner = self.symbols.get(binder).parent;
                     self.evidence_bound_requirement(owner, binder, target)
                         .ok()
