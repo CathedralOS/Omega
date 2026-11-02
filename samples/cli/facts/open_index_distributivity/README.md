@@ -70,7 +70,7 @@ python tools/sample_native_gate.py --cli <omega> --facts --filter cli/facts/open
 python tools/corpus_gate.py --both --filter open_index_distributivity
 ```
 
-Measured on Windows x86-64 with an optimized producer built from base `05a6f6af37e` plus this change (`opt_level: 1`):
+Measured on Windows x86-64 with an optimized producer built from `af2cbd5e683` (`opt_level: 1`), base `6e9573fc181` plus this change; the base observations below are from the producer at `05a6f6af37e`, where the defect was first recorded:
 
 - The nine places and the commutative-semiring production report `native exit 0` and `interp exit: 0` through `omega run --both` (20 of 20 engine runs exit 0).
 - The ten twins and the six controls exit at compile time with the diagnostics above. The place twins and the production twin fail at the template and again at its specialized instance; the controls `conditional_law`, `repeated_operand_law`, `foreign_addition` and `mutual_distributivity` fail the same way, and `missing_law_member` and `unproved_law` fail at the conformance.
