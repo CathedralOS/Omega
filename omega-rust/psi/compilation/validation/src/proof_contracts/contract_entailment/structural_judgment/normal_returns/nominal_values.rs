@@ -48,4 +48,69 @@ impl StructuralJudge<'_> {
         }
         observed
     }
+
+    /// Follow owned capture identities without equating reconstructed values.
+    /// Membership can follow a captured field back to its admitted subject,
+    /// but two equal constructors cannot share an establishment receipt.
+    pub(in crate::proof_contracts::contract_entailment::structural_judgment) fn completed_nominal_subject(
+        &self,
+        value: &StructuralTerm,
+    ) -> StructuralTerm {
+        let mut observed = value.clone();
+        for _ in 0..self.completed_nominal_values.len() {
+            let (root, path) = match &observed {
+                StructuralTerm::Projection { subject, path } => (&**subject, Some(path)),
+                value => (value, None),
+            };
+            let Some(capture) = self
+                .completed_nominal_values
+                .iter()
+                .rev()
+                .find(|capture| &capture.value == root)
+            else {
+                break;
+            };
+            let mut source = capture.observed_value.clone();
+            if let Some(path) = path {
+                // Typed projection consumes authenticated inline observations
+                // and masks reference children; a descriptor still cannot
+                // authorize reading its referent.
+                for field in path.split('.') {
+                    let Some(projected) =
+                        super::super::super::observed_projections::project_declared_field(
+                            self.program,
+                            self,
+                            source,
+                            field,
+                        )
+                    else {
+                        return observed;
+                    };
+                    source = projected;
+                }
+            }
+            if super::super::super::structural_terms::owned_observation_type(self.program, &source)
+                .is_some()
+            {
+                // This is the admitted inline value, not a borrowed descriptor.
+                // Compare its identity while retaining the constructor fence.
+                source = source.into_semantic_value();
+            }
+            let mut source_root = &source;
+            while let StructuralTerm::Projection { subject, .. } = source_root {
+                source_root = subject;
+            }
+            if !matches!(
+                source_root,
+                StructuralTerm::Variable(_)
+                    | StructuralTerm::BoundValue(_)
+                    | StructuralTerm::BoundProjection { .. }
+                    | StructuralTerm::CapturedValue { .. }
+            ) {
+                break;
+            }
+            observed = source;
+        }
+        observed
+    }
 }

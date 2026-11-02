@@ -90,8 +90,10 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
             items(syntax_trees).append_identifier_path_member(member)
         })?;
         input = next;
-        let equivalence = if input.at_contextual("where") {
-            input = input.take_contextual("where")?;
+        // `requires Relation satisfies Trait<...> as Implementation` selects the
+        // equivalence evidence; a quotient has no other requirement.
+        let equivalence = if input.at_contextual("requires") {
+            input = input.take_contextual("requires")?;
             let (selected_relation, next) = parse_path_handle_span(input, |member| {
                 items(syntax_trees).append_identifier_path_member(member)
             })?;

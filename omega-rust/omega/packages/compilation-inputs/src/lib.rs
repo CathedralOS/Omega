@@ -19,36 +19,31 @@
 //! `toolchain_library` locates and validates the compiler's bundled sources.
 //! `build_execution` owns immutable build inputs, filesystem custody and
 //! output settlement; it consumes interpreter observations, not compiler state.
+//! The source modules live under `source/` and the reuse keys and caches under
+//! `reuse/`; `build_execution` and `package_compilation` stay at the root.
 //! This package is the shared input contract below compilation and package
 //! commands, not a dependency on either application's orchestration.
 
-mod anonymous_owner;
-pub use anonymous_owner::AnonymousSourceCapture;
 pub use package_source::local::resolution_observations::CapturedLocalSource;
+pub use source::anonymous_owner::AnonymousSourceCapture;
 pub mod build_execution;
-mod canonical_fs;
-mod checked_source_cache;
 mod codec_bytes;
-mod compilation_reuse;
 mod cursor;
-pub(crate) use optimization_core::digest_encoder;
-pub mod source_assembly;
-pub use source_assembly::BuildSourceSelection;
-pub mod source_imports;
-pub mod toolchain_library;
+mod reuse;
+mod source;
 pub use build_execution::*;
+pub(crate) use optimization_core::digest_encoder;
+pub use source::source_assembly;
+pub use source::source_assembly::BuildSourceSelection;
+pub use source::source_imports;
+pub use source::toolchain_library;
 mod package_compilation;
-mod review_cache_digests;
 #[doc(hidden)]
-pub mod review_record_encoding;
+pub use reuse::review_record_encoding;
 mod semantic_bindings;
-mod source_consumption;
-mod source_snapshot;
 mod target_profile_tags;
 
 pub use build_declarations::BuildDeclarationKind;
-pub use checked_source_cache::{CheckedSourceCache, CheckedSourceCacheLimits};
-pub use compilation_reuse::{ProductSourceInputs, SourceAssemblyInputs};
 pub use package_compilation::{
     CompilerProductRetention, IndependentComponentDescription, PackageBuildHandoff,
     PackageCompilationInputError, PackageCompilationInputs, PackageCompilationSourceInputs,
@@ -57,21 +52,23 @@ pub use package_compilation::{
 };
 #[doc(hidden)]
 pub use package_compilation::{native_output_codec, provider_selection_codec};
-pub use review_cache_digests::{
+pub use reuse::checked_source_cache::{CheckedSourceCache, CheckedSourceCacheLimits};
+pub use reuse::compilation_reuse::{ProductSourceInputs, SourceAssemblyInputs};
+pub use reuse::review_cache_digests::{
     package_build_handoff_digest, review_cache_inputs_digest, review_cache_snapshot_digest,
 };
 pub use semantic_bindings::{
     AcceptedSemanticBinding, AcceptedSemanticBindingRole, accepted_service_schema_digest,
     program_entry_semantic_binding_role,
 };
-pub use source_consumption::{
+pub use source::source_consumption::{
     BuildSourceCustody, CheckedSourceCustody, ConsumedSourceUnit, ConsumedSourceUnitKind,
     PackageSourceConsumptionCommitment, derive_package_compilation_subject,
     derive_source_consumption_commitment, toolchain_source_identities,
     toolchain_source_identity_digest,
 };
-pub(crate) use source_snapshot::capture_scoped_source_input;
-pub use source_snapshot::{
+pub(crate) use source::source_snapshot::capture_scoped_source_input;
+pub use source::source_snapshot::{
     BuildSourceCaptureObligation, BuildSourceCaptureRequest, capture_package_source_input,
 };
 

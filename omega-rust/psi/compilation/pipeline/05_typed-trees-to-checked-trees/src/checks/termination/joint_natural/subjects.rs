@@ -199,7 +199,7 @@ impl Subject {
                 for (read, coordinate) in shape.reads.iter().zip(reads) {
                     let captured = coordinate.bounded_value(value(coordinate)?)?;
                     bindings.push(ScopedArithmeticBinding {
-                        binder: Binder::Coordinate(read.coordinate.clone()),
+                        binder: Binder::DeclaredRead(read.clone()),
                         value: captured,
                     });
                 }

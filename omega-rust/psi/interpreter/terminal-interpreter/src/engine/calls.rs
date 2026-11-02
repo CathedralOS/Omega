@@ -610,10 +610,9 @@ impl<'artifact> TerminalExecution<'artifact> {
             &boundary_arguments.values,
         )?;
         self.preflight_boundary_result(boundary_declaration, &operation.result)?;
-        let reference_result = operation
-            .result
-            .structural()
-            .is_some_and(|result| self.supports_reference_result(boundary_declaration, result));
+        let reference_result = operation.result.structural().is_some_and(|result| {
+            self.supports_captured_reference_result(boundary_declaration, result)
+        });
         if reference_result && !handler.accepts_reference_results(boundary) {
             return Err(TerminalInterpretError::UnsupportedSemanticVariant(
                 "host reference results require an explicit captured-input interface",
@@ -763,19 +762,35 @@ impl<'artifact> TerminalExecution<'artifact> {
                 crash,
             )));
         }
+        if matches!(&returned, TerminalEffectResult::Reference(_))
+            && !boundary_declaration
+                .result_reference_regions
+                .iter()
+                .any(|region| {
+                    matches!(
+                        region.origin,
+                        terminal_psi::TerminalDynamicReferenceOrigin::Invocation { .. }
+                    )
+                })
+        {
+            return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                "materialized host reference result has no invocation-owned public region",
+            ));
+        }
         boundary_arguments
             .validate_writeback(self, boundary_declaration)
             .map_err(|error| error.in_argument_preparation("restore captured host storage"))?;
-        let prepared_reference = if let TerminalEffectResult::Reference(selection) = &returned {
-            Some(boundary_arguments.prepare_reference_result(
-                self,
-                boundary_declaration,
-                operation.result.structural().ok_or_else(malformed)?,
-                selection,
-            )?)
-        } else {
-            None
-        };
+        let prepared_reference =
+            if let TerminalEffectResult::CapturedReference(selection) = &returned {
+                Some(boundary_arguments.prepare_reference_result(
+                    self,
+                    boundary_declaration,
+                    operation.result.structural().ok_or_else(malformed)?,
+                    selection,
+                )?)
+            } else {
+                None
+            };
         if let TerminalEffectResult::Structural(value) = &returned {
             boundary_arguments.reserve_host_result(&mut self.local_structural_identities, value)?;
         }

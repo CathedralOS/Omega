@@ -151,17 +151,6 @@ fn project_captured_value_by(
     ) -> Option<super::StructuralTerm>,
 ) -> Option<(TypeReferenceHandle, super::StructuralTerm)> {
     for segment in path {
-        // Invocation entry may already have observed the exact referent of an
-        // incoming reference. That owned snapshot is not a raw descriptor to
-        // dereference again. Preserve its independently checked carrier.
-        if let Some(observed) =
-            super::super::structural_terms::owned_observation_type(program, &value)
-            && let Some(shell) = crate::reference_shell(program, reference)
-            && shell.access.is_readable()
-            && crate::declared_carriers_match(program, shell.referee, observed)
-        {
-            reference = observed;
-        }
         let projected = segment.projected_type(program, reference)?;
         value = match segment {
             CapturedStorageSegment::Place(segment) => project_place(reference, value, segment)?,
@@ -785,10 +774,24 @@ impl StructuralJudge<'_> {
         // An owned descriptor cell identifies the pointer, not its scalar
         // contents. A separately authenticated live backing read may observe
         // those contents; otherwise retain the descriptor's existing fence.
-        if current.as_ref().is_none_or(|value| {
+        let missing_contents = current.as_ref().is_none_or(|value| {
             super::super::structural_terms::term_is_unobserved_descriptor(self.program, value)
-        }) && let Some((machine, state)) = scope
-            && let Some(value) = self.current_backing_value(machine, state, expression)
+                || scope
+                    .and_then(|(machine, state)| {
+                        self.scalar_reference_read_type(machine, state, expression)
+                    })
+                    .is_some_and(|reference| {
+                        !super::super::structural_terms::scalar_operand_is_observed(
+                            self.program,
+                            reference,
+                            value,
+                        )
+                    })
+        });
+        if missing_contents
+            && let Some((machine, state)) = scope
+            && let Some(value) =
+                self.current_backing_value(machine, state, expression, read_version)
         {
             return Some(value);
         }

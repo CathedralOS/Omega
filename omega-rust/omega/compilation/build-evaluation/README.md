@@ -117,12 +117,12 @@ host services and independent-component rejection.
 ## Source-stage ownership
 
 Source assembly is not an evaluator responsibility. Package compilation's
-[source assembly](../../packages/compilation-inputs/src/source_assembly.rs)
+[source assembly](../../packages/compilation-inputs/src/source/source_assembly.rs)
 prepares file frontiers through Psi 00/01. Its
-[source import owner](../../packages/compilation-inputs/src/source_imports.rs)
+[source import owner](../../packages/compilation-inputs/src/source/source_imports.rs)
 owns project roots, dependency-scope selection, generated-source collision
 checks, parsed-file ownership and exact import bindings. Its
-[toolchain library owner](../../packages/compilation-inputs/src/toolchain_library.rs)
+[toolchain library owner](../../packages/compilation-inputs/src/source/toolchain_library.rs)
 selects and validates the bundled sources.
 Psi 00 owns physical/in-memory loading, scoped load queues and ordered batch lexing; Psi 01 owns
 batch parsing into the caller's syntax arena. Their source, token and parsed-root

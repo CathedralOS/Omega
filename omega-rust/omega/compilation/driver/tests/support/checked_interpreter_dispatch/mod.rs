@@ -12,9 +12,9 @@ mod checked_body;
 
 pub(crate) use checked_body::exact_checked_body_entry;
 
-use selected_dispatch::SelectedExecution;
 use boundary_dispatch::settle_selected_boundary_adapter_dispatch;
 use diagnostics::Diagnostic;
+use selected_dispatch::SelectedExecution;
 
 /// Exact adapter and IEEE comparison bindings for one checked-source oracle.
 #[derive(Debug, Clone, PartialEq, Eq)]

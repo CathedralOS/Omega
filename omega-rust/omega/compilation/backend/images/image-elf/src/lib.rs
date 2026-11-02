@@ -70,7 +70,7 @@
 //! produce a file that runs until it reaches the unbound call, which is the
 //! failure mode hardest to attribute back to the compiler.
 
-//! `image-emission/src/dynamic_elf.rs` is the only caller of the dynamic
+//! `image-emission/src/image/dynamic_elf.rs` is the only caller of the dynamic
 //! lane's entry; `image` supplies `FinalImage`, `place_executable_regions`
 //! and the relocation appliers both lanes use.
 //!

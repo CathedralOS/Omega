@@ -5,7 +5,10 @@
 //! Start at [`stage_optimized_instruction_selection`] in `optimized.rs`: it
 //! owns the target-register environment, runs [`legalize_target_operations`]
 //! and then [`select_instructions`], each of which seals its own plan with a
-//! receipt, and records their identities in one custody receipt.
+//! receipt, and records their identities in one custody receipt. Its
+//! [`TargetSelectionInput`] borrows the target plan, the optimized source it
+//! was lowered from and the admitted boundary facts; the coordinator owns the
+//! products that hold them.
 //! `legalization` is the raw-target to legal-operation join, `selection` the
 //! legal-operation to selected-CFG join, and `structural_inputs` the
 //! input-only reconstruction of structural storage, parameter shape and
@@ -50,7 +53,8 @@ pub use abstract_operations_to_target_operations::{
 };
 pub use optimized::{
     OptimizedSelectionPipelineError, StagedOptimizedSelectedInstructions,
-    StagedOptimizedSelectionCustodyReceipt, stage_optimized_instruction_selection,
+    StagedOptimizedSelectionCustodyReceipt, TargetSelectionInput,
+    stage_optimized_instruction_selection,
 };
 // The two joins the entry sequences.
 pub(crate) use legalization::{

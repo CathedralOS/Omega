@@ -35,7 +35,7 @@ pub struct QuotientDefinition {
     pub carrier: crate::types::TypeReferenceHandle,
     pub relation: HandleSpan<Identifier>,
     /// Exact declaration-site selection from
-    /// `where R satisfies Equivalence<C, R> as Name;`.
+    /// `requires R satisfies Equivalence<C, R> as Name;`.
     pub equivalence: Option<QuotientEquivalenceSelection>,
 }
 

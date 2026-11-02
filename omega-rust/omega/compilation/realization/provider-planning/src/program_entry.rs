@@ -297,7 +297,6 @@ impl PreparedCompilerProgramEntry {
 /// distinct from the validated ABI plans' own structural commitments.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedProgramEntryCallingPlans {
-    pub physical_requirement: symbols::SymbolHandle,
     pub semantic_calling_application: calling_conventions::BoundaryCallingApplication,
     pub physical_calling_application: calling_conventions::BoundaryCallingApplication,
     pub storage_entry: program_entry_plan::SelectedProgramStorageEntryPlan,
@@ -314,7 +313,7 @@ pub struct SelectedProgramEntryCallingPlans {
 pub struct SelectedCompilerProgramEntry {
     declaration: SelectedEntryDeclaration,
     calling_plans: Option<SelectedProgramEntryCallingPlans>,
-    physical_adapter: Option<symbols::SymbolHandle>,
+    physical_adapter: Option<terminal_psi::PreparedNominalRoot>,
 }
 
 impl SelectedCompilerProgramEntry {
@@ -336,27 +335,36 @@ impl SelectedCompilerProgramEntry {
     /// The explicitly selected checked implementation of physical arrival.
     /// This is separate from the semantic ProgramEntry: firmware cannot call
     /// the two-root continuation with its handle and System Table registers.
-    pub const fn physical_adapter(&self) -> Option<symbols::SymbolHandle> {
-        self.physical_adapter
+    pub fn physical_adapter(&self) -> Option<&terminal_psi::PreparedNominalRoot> {
+        self.physical_adapter.as_ref()
     }
 
     pub fn bind_physical_adapter(
         &mut self,
-        typed: &TypedTrees,
+        module: &terminal_psi::TerminalModule,
         providers: &[crate::SelectedProviderReviewProvenance],
+        declarations: &[backend_plan::TerminalTargetProviderPlan],
     ) -> Result<(), Vec<Diagnostic>> {
         let Some(plans) = &self.calling_plans else {
             return Ok(());
         };
+        let contract = plans.storage_entry.physical_contract().ok_or_else(|| {
+            vec![Diagnostic::error(
+                "selected entry lost its physical contract",
+            )]
+        })?;
+        let requirement = contract
+            .identities()
+            .text(contract.requirement_identity())
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "physical contract lost its requirement identity",
+                )]
+            })?;
         let mut selected = None;
         for provider in providers {
-            for (requirement, implementation) in provider
-                .provider
-                .row_requirements
-                .iter()
-                .zip(&provider.provider.row_realizations)
-            {
-                if *requirement != plans.physical_requirement {
+            for row in &provider.plan.rows {
+                if provider.plan.identity_text(row.requirement_identity) != requirement {
                     continue;
                 }
                 if matches!(
@@ -367,23 +375,77 @@ impl SelectedCompilerProgramEntry {
                         "physical entry adapter requires an explicit provider selection",
                     )]);
                 }
-                let machine = typed
-                    .machines()
-                    .iter()
-                    .find(|machine| Some(machine.symbol) == implementation.authored())
-                    .ok_or_else(|| {
-                        vec![Diagnostic::error(
-                            "selected physical entry adapter is absent",
-                        )]
-                    })?;
-                if entry_state(typed, machine).is_none_or(|entry| !entry.symbol.is_valid())
-                    || !typed.machine_type_parameters(machine).is_empty()
-                {
+                if !matches!(
+                    row.binding,
+                    effects::provider_plan::ProviderBinding::CheckedAdapter { .. }
+                ) {
+                    return Err(vec![Diagnostic::error(
+                        "selected physical entry adapter is absent",
+                    )]);
+                }
+                let header =
+                    backend_plan::selected_checked_adapter_header(&provider.plan, row, module)
+                        .map_err(|reason| vec![Diagnostic::error(reason)])?;
+                if !header.supplies_checked_body || header.type_parameter_count != 0 {
                     return Err(vec![Diagnostic::error(
                         "physical entry adapter must have a checked source body",
                     )]);
                 }
-                if selected.replace(machine.symbol).is_some() {
+                let mut matching = declarations
+                    .iter()
+                    .filter(|declaration| declaration.plan == provider.plan);
+                let declaration = matching.next().ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "physical entry adapter lost its exact selected declaration",
+                    )]
+                })?;
+                if matching.next().is_some() {
+                    return Err(vec![Diagnostic::error(
+                        "physical entry adapter has competing selected declarations",
+                    )]);
+                }
+                let owner = declaration.provider_declaration.as_deref().ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "physical entry adapter lost its selecting owner",
+                    )]
+                })?;
+                let rows =
+                    backend_plan::selected_provider_candidate_rows(&provider.plan, owner, module)
+                        .map_err(|reason| vec![Diagnostic::error(reason)])?;
+                let candidates = rows
+                    .iter()
+                    .find(|candidate| candidate.row == row)
+                    .ok_or_else(|| {
+                        vec![Diagnostic::error(
+                            "physical entry adapter lost its exact requirement row",
+                        )]
+                    })?;
+                let [position] = candidates.candidate_positions.as_slice() else {
+                    return Err(vec![Diagnostic::error(format!(
+                        "physical entry requirement has {} canonical realizations instead of one",
+                        candidates.candidate_positions.len(),
+                    ))]);
+                };
+                let candidate = &module.provider_candidates[*position];
+                let machine = module.machine(candidate.candidate).ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "selected physical entry adapter is absent",
+                    )]
+                })?;
+                let declaration = machine
+                    .declaration
+                    .as_ref()
+                    .and_then(|declaration| module.identities.text(declaration.machine.identity()))
+                    .ok_or_else(|| {
+                        vec![Diagnostic::error(
+                            "physical entry adapter lost its nominal declaration",
+                        )]
+                    })?;
+                // The shared program owns the adapter's diagnostic name/span.
+                // Absence here preserves that attribution instead of rebuilding it.
+                let root = terminal_psi::PreparedNominalRoot::new(declaration, "", None)
+                    .map_err(|reason| vec![Diagnostic::error(reason.to_string())])?;
+                if selected.replace(root).is_some() {
                     return Err(vec![Diagnostic::error(
                         "physical arrival has more than one selected adapter",
                     )]);

@@ -84,3 +84,14 @@ original descriptor. Its bounds twin rejects a cell extending past the end.
 The accompanying ordinary-RAM control preserves an untouched neighbor but
 rejects a stale fact about the written field; content-only writes must not
 accidentally become the rule for every access view.
+
+The field place captures its qualified extent through an ordinary call both
+before reconstructing `Held` and while restoring a borrowed `Held`. Its default
+domain consumes the returned length guarantee and the saved entry count. The
+typed projection of an authenticated referent snapshot must agree with ordinary
+owned projection; neither a reference descriptor nor an equal constructor can
+supply missing Granted or Vacant membership. The
+[unrestored control](field/invalid_restoration/main.omg) replaces the saved count
+with zero and must reject at invariant-window closure. Together these exercise
+the owned-record transfer and borrowed restoration needed by the allocator and
+Vec, using the same real backing and neighbor-canary oracle as the field place.

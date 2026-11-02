@@ -146,7 +146,6 @@ pub(super) fn settle(
         .with_physical_contract(physical_contract.clone())
         .map_err(|diagnostic| vec![Diagnostic::error(diagnostic.to_string())])?;
     Ok(SelectedProgramEntryCallingPlans {
-        physical_requirement: physical_signature,
         semantic_calling_application: semantic_realization
             .native_application()
             .map_err(|reason| vec![Diagnostic::error(reason)])?,

@@ -1184,7 +1184,6 @@ dependencies = [
  "numerics",
  "proof-admission",
  "semantic-vocabulary",
- "source",
  "symbols",
  "terminal-codec",
  "terminal-psi",
@@ -2455,6 +2454,7 @@ dependencies = [
  "semantic-vocabulary",
  "target",
  "task-plans",
+ "terminal-installation",
  "terminal-psi",
 ]
 
@@ -2463,7 +2463,6 @@ name = "target-operations-to-selected-instructions"
 version = "0.1.0"
 dependencies = [
  "abstract-operations",
- "abstract-operations-to-abstract-operations",
  "abstract-operations-to-target-operations",
  "access-plans",
  "calling-conventions",
@@ -2482,7 +2481,6 @@ dependencies = [
  "target-operations",
  "terminal-codec",
  "terminal-psi",
- "terminal-psi-to-abstract-operations",
  "terminal-semantics",
 ]
 

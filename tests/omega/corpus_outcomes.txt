@@ -12,6 +12,9 @@ fail/borrows/collection_metadata_descriptor_slot_suspended rejected 4601ms expec
 	statement 4 reads `alias.view` while local borrow `exclusive` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
 fail/borrows/independent_invocation_reference_result_escapes rejected 1619ms expected @c0424312ea2a+wt
 	machine `Code::reply` returns a view borrowing the local `bytes`, which does not outlive the call; return a view of storage that outlives the invocation instead
+fail/borrows/inline_carried_reference_holds_backing rejected 9683ms expected @6b1e6a51ea70
+	state `observe` receives `bytes` as both mutable and read-only
+	state `observe` receives `bytes` as both mutable and read-only
 fail/borrows/match_effectful_subject_fresh_overlap_rejected rejected 13145ms expected @5445b5af611f+wt
 	statement 2 creates local borrow `slot` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 3 and it is released at state exit)
 fail/boundary/requirement_case_precondition_unproved rejected 13880ms expected @57a69f8b8ad1
@@ -460,6 +463,31 @@ fail/facts/darwin_stat_abi/record_through_parameter_rejected rejected 25781ms ex
 fail/facts/darwin_stat_abi/record_through_target_body_rejected rejected 51346ms expected @f19844409a95
 	machine `verify` state `entry` local `transported` expects `LayoutStorage<DarwinStatRecord, OtherPolicy>`, but the value is delivered as `LayoutStorage<DarwinStatRecord, CAbiPolicy<DarwinStatRecord>>`
 	argument `value` for state `entry` expects `LayoutStorage<DarwinStatRecord, CAbiPolicy<DarwinStatRecord>>`, got `named value`
+fail/facts/data_where_standing_borrowed_field_array_call_result rejected 5151ms expected @c934a3b70574
+	exact arithmetic in machine `compute` state `entry` local `total` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_where_standing_borrowed_field_array_const_name rejected 5299ms expected @c934a3b70574
+	exact arithmetic in machine `compute` state `entry` local `total` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_where_standing_borrowed_field_array_field rejected 6300ms expected @c934a3b70574
+	exact arithmetic in machine `compute` state `entry` local `total` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_where_standing_borrowed_field_array_local rejected 6023ms expected @c934a3b70574
+	exact arithmetic in machine `compute` state `entry` local `total` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_where_standing_borrowed_field_array_match_join rejected 6013ms expected @c934a3b70574
+	exact arithmetic in machine `compute` state `entry` local `total` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_where_standing_borrowed_field_array_missing_index_bound rejected 8816ms expected @c934a3b70574
+	cannot prove index `index` is within length 2 in selected_value::entry
+fail/facts/data_where_standing_borrowed_field_array_other_machine rejected 5568ms expected @c934a3b70574
+	exact arithmetic in machine `add` state `entry` local `total` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_where_standing_borrowed_field_array_other_state rejected 5024ms expected @c934a3b70574
+	exact arithmetic in machine `next` state `entry` local `total` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_where_standing_borrowed_field_array_parameter rejected 5202ms expected @c934a3b70574
+	exact arithmetic in machine `compute` state `entry` local `total` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_where_standing_borrowed_field_array_saved_selector rejected 7753ms expected @c934a3b70574
+	cannot prove ensures contract for exit from selected_value at statement 5: result == holder.counters[1].value
+fail/facts/data_where_standing_borrowed_field_array_target_body rejected 3649ms expected @c934a3b70574
+	exact arithmetic in machine `X86Compute::compute` state `compute` local `total` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `ArmCompute::compute` state `compute` local `total` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_where_standing_borrowed_field_array_wrong_selected_equality rejected 5372ms expected @c934a3b70574
+	cannot prove ensures contract for exit from selected_value at statement 1: result == holder.counters[0].value
 fail/facts/data_where_standing_borrowed_field_descriptor_rebound_rejected rejected 1712ms expected @e96e52e3f616
 	exact arithmetic in machine `compute` state `entry` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/data_where_standing_borrowed_field_through_call_result_rejected rejected 831ms expected @e96e52e3f616
@@ -729,34 +757,44 @@ fail/facts/dynamic_trait_input_arithmetic_through_parameter_weakened_input rejec
 	cannot prove requires contract for call dyn WeightedCombine::combine from probe: a >= 60 && a <= 60 (needs fact `left >= 60 && left <= 60` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/dynamic_trait_input_arithmetic_through_target_body_weakened_input rejected 7602ms expected @297562733b94
 	cannot prove requires contract for call dyn WeightedCombine::combine from probe: a >= 60 && a <= 60 (needs fact `left >= 60 && left <= 60` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/fixed_layout_byte_roundtrip_through_call_result_missing_validation_rejected rejected 7847ms expected @dd84cfd469edbc75948bdf9a96c87bc9df140e10
+fail/facts/fixed_layout_byte_roundtrip_through_call_result_missing_validation_rejected rejected 7126ms expected @dcd2509c66fa4717e28a0b781c10f44fe6a3100d
 	construction of `Decoded` field `value`: unestablished recast target `Payload`; prove its predicate over current storage before consuming a valid value
-fail/facts/fixed_layout_byte_roundtrip_through_const_name_missing_validation_rejected rejected 6487ms expected @e1c62c271d9e30b5f3117cc5bc054777ea994d51
+fail/facts/fixed_layout_byte_roundtrip_through_const_name_missing_validation_rejected rejected 10706ms expected @dcd2509c66fa4717e28a0b781c10f44fe6a3100d
 	construction of `Decoded` field `value`: unestablished recast target `Payload`; prove its predicate over current storage before consuming a valid value
-fail/facts/fixed_layout_byte_roundtrip_through_field_missing_validation_rejected rejected 2572ms expected @cfcadebbcc854010a9a88c968ba0f699d969e793
+fail/facts/fixed_layout_byte_roundtrip_through_field_missing_validation_rejected rejected 9659ms expected @dcd2509c66fa4717e28a0b781c10f44fe6a3100d
 	construction of `Decoded` field `value`: unestablished recast target `Payload`; prove its predicate over current storage before consuming a valid value
-fail/facts/fixed_layout_byte_roundtrip_through_local_missing_validation_rejected rejected 1416ms expected @70ba9ee572b42c4d7f6ffe7d3051217e0906221c
+fail/facts/fixed_layout_byte_roundtrip_through_local_missing_validation_rejected rejected 7774ms expected @dcd2509c66fa4717e28a0b781c10f44fe6a3100d
 	construction of `Decoded` field `value`: unestablished recast target `Payload`; prove its predicate over current storage before consuming a valid value
-fail/facts/fixed_layout_byte_roundtrip_through_match_join_missing_validation_rejected rejected 8620ms expected @dd84cfd469edbc75948bdf9a96c87bc9df140e10
+fail/facts/fixed_layout_byte_roundtrip_through_match_join_missing_validation_rejected rejected 11337ms expected @dcd2509c66fa4717e28a0b781c10f44fe6a3100d
 	construction of `Decoded` field `value`: unestablished recast target `Payload`; prove its predicate over current storage before consuming a valid value
-fail/facts/fixed_layout_byte_roundtrip_through_other_machine_missing_validation_rejected rejected 4306ms expected @e1c62c271d9e30b5f3117cc5bc054777ea994d51
+fail/facts/fixed_layout_byte_roundtrip_through_other_machine_missing_validation_rejected rejected 7214ms expected @dcd2509c66fa4717e28a0b781c10f44fe6a3100d
 	construction of `Decoded` field `value`: unestablished recast target `Payload`; prove its predicate over current storage before consuming a valid value
-fail/facts/fixed_layout_byte_roundtrip_through_other_state_missing_validation_rejected rejected 9447ms expected @e1c62c271d9e30b5f3117cc5bc054777ea994d51
+fail/facts/fixed_layout_byte_roundtrip_through_other_state_missing_validation_rejected rejected 7953ms expected @dcd2509c66fa4717e28a0b781c10f44fe6a3100d
 	construction of `Decoded` field `value`: unestablished recast target `Payload`; prove its predicate over current storage before consuming a valid value
-fail/facts/fixed_layout_byte_roundtrip_through_parameter_missing_validation_rejected rejected 6122ms expected @dd84cfd469edbc75948bdf9a96c87bc9df140e10
+fail/facts/fixed_layout_byte_roundtrip_through_parameter_missing_validation_rejected rejected 7914ms expected @dcd2509c66fa4717e28a0b781c10f44fe6a3100d
 	construction of `Decoded` field `value`: unestablished recast target `Payload`; prove its predicate over current storage before consuming a valid value
-fail/facts/fixed_layout_byte_roundtrip_through_target_body_missing_validation_rejected rejected 6397ms expected @e1c62c271d9e30b5f3117cc5bc054777ea994d51
+fail/facts/fixed_layout_byte_roundtrip_through_target_body_missing_validation_rejected rejected 11805ms expected @dcd2509c66fa4717e28a0b781c10f44fe6a3100d
 	construction of `Decoded` field `value`: unestablished recast target `Payload`; prove its predicate over current storage before consuming a valid value
 	construction of `Decoded` field `value`: unestablished recast target `Payload`; prove its predicate over current storage before consuming a valid value
 fail/facts/fixed_region_byte_roundtrip_through_call_result_short_region_rejected rejected 9737ms expected @36cacd8d3083
 	machine `main` state `entry`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `[u8; 40]` are not representation-compatible
+fail/facts/fixed_region_byte_roundtrip_through_const_name_short_region_rejected rejected 7326ms expected @2669e12a2d98+wt
+	machine `main` state `entry`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `[u8; 40]` are not representation-compatible
 fail/facts/fixed_region_byte_roundtrip_through_field_short_region_rejected rejected 9202ms expected @36cacd8d3083
 	machine `main` state `entry`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `[u8; 40]` are not representation-compatible
-fail/facts/fixed_region_byte_roundtrip_through_local_overlap_rejected rejected 4491ms expected @ee194ea71d07
+fail/facts/fixed_region_byte_roundtrip_through_local_overlap_rejected rejected 11901ms expected @dcd2509c66fa4717e28a0b781c10f44fe6a3100d
 	statement 4 mutates `destination[2]` while local borrow `output` is still active (borrowed at statement 3; its last use is at statement 5)
 fail/facts/fixed_region_byte_roundtrip_through_local_short_region_rejected rejected 763ms expected @70ba9ee572b42c4d7f6ffe7d3051217e0906221c
 	machine `main` state `entry`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `[u8; 40]` are not representation-compatible
+fail/facts/fixed_region_byte_roundtrip_through_match_join_short_region_rejected rejected 3418ms expected @2669e12a2d98+wt
+	machine `copy_region` state `entry`: recast source window endpoint is not statically exact
+fail/facts/fixed_region_byte_roundtrip_through_other_machine_short_region_rejected rejected 1182ms expected @2669e12a2d98+wt
+	machine `copy_region` state `entry`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `[u8; 40]` are not representation-compatible
+fail/facts/fixed_region_byte_roundtrip_through_other_state_short_region_rejected rejected 1201ms expected @2669e12a2d98+wt
+	machine `copy_region` state `entry`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `[u8; 40]` are not representation-compatible
 fail/facts/fixed_region_byte_roundtrip_through_parameter_short_region_rejected rejected 9134ms expected @36cacd8d3083
+	machine `main` state `entry`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `[u8; 40]` are not representation-compatible
+fail/facts/fixed_region_byte_roundtrip_through_target_body_short_region_rejected rejected 1596ms expected @2669e12a2d98+wt
 	machine `main` state `entry`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `[u8; 40]` are not representation-compatible
 fail/facts/float_comparison_route_nonnumeric_contract_rejected rejected 8727ms expected @cc26a0e67500
 	cannot prove requires contract for call bounded from select: value <= 1.0 (needs fact `value <= 1.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -1137,10 +1175,34 @@ fail/facts/narrowed_integer_write_unselected_implementation_rejected rejected 82
 	IntegerAt call in main requires every performed value to fit its physical storage: performed integer value is not proven to fit
 fail/facts/nested_machine_copied_structural_payload_rejected rejected 8066ms expected @6485d5294954
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `take`, state `entry` (statement 1)
+fail/facts/nested_machine_declared_repeated_reads_call_result rejected 109042ms expected @7280b73089bb
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_declared_repeated_reads_conserved_sum rejected 79629ms expected @7280b73089bb
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_declared_repeated_reads_const_name rejected 83309ms expected @7280b73089bb
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_declared_repeated_reads_distinct_slots rejected 98148ms expected @7280b73089bb
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_declared_repeated_reads_field rejected 92799ms expected @7280b73089bb
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_declared_repeated_reads_local rejected 95844ms expected @7280b73089bb
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_declared_repeated_reads_match_join rejected 93775ms expected @7280b73089bb
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_declared_repeated_reads_other_machine rejected 19266ms expected @8b2ce6e240b5
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_declared_repeated_reads_other_state rejected 25140ms expected @8b2ce6e240b5
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_declared_repeated_reads_parameter rejected 18460ms expected @8b2ce6e240b5
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_declared_repeated_reads_self_selected rejected 80421ms expected @7280b73089bb
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_declared_repeated_reads_target_body rejected 56110ms expected @7280b73089bb
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_declared_selector_computed_selector rejected 7800ms expected @b3e852cfac94
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-fail/facts/nested_machine_declared_selector_distinct_contexts rejected 7818ms expected @b3e852cfac94
-	machine call cycle: `count`, `forward` -- a computed natural rank application has no independent entry formation; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_declared_selector_distinct_contexts rejected 53459ms expected @7280b73089bb
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_declared_selector_missing_bound rejected 6089ms expected @b3e852cfac94
 	cannot form specification index in machine `count` requires contract: independent collection bounds are not established by preceding formed facts
 fail/facts/nested_machine_declared_selector_public_call rejected 7472ms expected @b3e852cfac94
@@ -1209,6 +1271,39 @@ fail/facts/nested_machine_invocation/callable_contracts/weaker_guarantee rejecte
 fail/facts/nested_machine_invocation/generic_context rejected 1632ms expected @99a35aae42ec
 	machine `keep` state `entry` return value expects `T`, but the value is delivered as `U`
 	machine `keep$specialized$5d0e37fe7ba7ec68$0` state `entry` stores a boolean into a `u64` return value, which holds a numeric value
+fail/facts/nested_machine_invocation/returned_reference_poststate/ambiguous_backing rejected 15557ms expected @3ecf7187d84d
+	exact arithmetic in machine `main` state `entry` local `gap_left` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `main` state `entry` local `gap_right` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/nested_machine_invocation/returned_reference_poststate/call_result rejected 15588ms expected @3ecf7187d84d
+	exact arithmetic in machine `main` state `entry` local `gap` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/nested_machine_invocation/returned_reference_poststate/const_name rejected 15533ms expected @3ecf7187d84d
+	exact arithmetic in machine `main` state `entry` local `gap` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/nested_machine_invocation/returned_reference_poststate/field rejected 14938ms expected @3ecf7187d84d
+	exact arithmetic in machine `main` state `entry` local `gap` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/nested_machine_invocation/returned_reference_poststate/indexed_candidates rejected 15633ms expected @3ecf7187d84d
+	exact arithmetic in machine `exercise` state `entry` local `gap_left` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `exercise` state `entry` local `gap_right` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/nested_machine_invocation/returned_reference_poststate/indexed_reference rejected 15646ms expected @3ecf7187d84d
+	exact arithmetic in machine `main` state `entry` local `gap` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/nested_machine_invocation/returned_reference_poststate/intervening_write rejected 16010ms expected @3ecf7187d84d
+	exact arithmetic in machine `main` state `entry` local `gap` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/nested_machine_invocation/returned_reference_poststate/local rejected 15474ms expected @3ecf7187d84d
+	exact arithmetic in machine `main` state `entry` local `gap` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/nested_machine_invocation/returned_reference_poststate/match_join rejected 15392ms expected @3ecf7187d84d
+	exact arithmetic in machine `exercise` state `entry` local `gap` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/nested_machine_invocation/returned_reference_poststate/other_machine rejected 15386ms expected @3ecf7187d84d
+	exact arithmetic in machine `inspect` state `entry` local `gap` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/nested_machine_invocation/returned_reference_poststate/other_state rejected 8745ms expected @3ecf7187d84d
+	exact arithmetic in machine `inspect` state `entry` local `gap` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/nested_machine_invocation/returned_reference_poststate/parameter rejected 8152ms expected @3ecf7187d84d
+	exact arithmetic in machine `inspect` state `entry` local `gap` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/nested_machine_invocation/returned_reference_poststate/reinterpreted_scalar rejected 8099ms expected @3ecf7187d84d
+	exact arithmetic in machine `main` state `entry` local `gap` may overflow `u16`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u16 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/nested_machine_invocation/returned_reference_poststate/saved_snapshot rejected 8048ms expected @3ecf7187d84d
+	exact arithmetic in machine `main` state `entry` local `gap` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/nested_machine_invocation/returned_reference_poststate/target_body rejected 8414ms expected @3ecf7187d84d
+	exact arithmetic in machine `X86View::inspect` state `inspect` local `gap` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `ArmView::inspect` state `inspect` local `gap` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/nested_machine_invocation/sibling_cycle rejected 6509ms expected @1fe4c72f984e
 	machine call cycle: `ping`, `pong` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_affine_call_borrow_into_owned_rejected rejected 19977ms expected @92895cab1ecc
@@ -2170,6 +2265,16 @@ fail/facts/open_record_const_closed_call_target_body_rejected rejected 1839ms ex
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
 fail/facts/open_record_const_closed_call_wrong_carrier_rejected rejected 689ms expected @e9f492c5ccc6+wt
 	const-generic application evaluation failed: constant initializer result does not match its declared carrier
+fail/facts/owned_semantic_schema_call_result rejected 3702ms expected @63af67b94f91
+	semantic schema cannot select the subject from its lexical author's scope
+fail/facts/owned_semantic_schema_field rejected 2609ms expected @6b1e6a51ea70
+	semantic schema cannot select the subject from its lexical author's scope
+fail/facts/owned_semantic_schema_local rejected 2565ms expected @6b1e6a51ea70
+	semantic schema cannot select the subject from its lexical author's scope
+fail/facts/owned_semantic_schema_match_join rejected 3692ms expected @63af67b94f91
+	semantic schema cannot select the subject from its lexical author's scope
+fail/facts/owned_semantic_schema_parameter rejected 2535ms expected @6b1e6a51ea70
+	semantic schema cannot select the subject from its lexical author's scope
 fail/facts/predicate_type_formation_rejected rejected 3892ms expected @62ce026b5931+wt
 	data `Value<bool>` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
@@ -2411,9 +2516,11 @@ fail/facts/resident_backing_call_result_missing_vacancy rejected 5482ms expected
 fail/facts/resident_backing_const_name_missing_vacancy rejected 5911ms expected @b3876048c0a2
 	cannot prove requires contract for call partition from allocated: vacant in Extent::Vacant in state `entry`
 	cannot prove initializer of `vacant` in allocated is in domain `Extent::Vacant`; an annotation cannot establish routed qualification
-fail/facts/resident_backing_field_missing_vacancy rejected 5365ms expected @b3876048c0a2
+fail/facts/resident_backing_field_missing_vacancy rejected 23260ms expected @e7c12b127bc8+wt
 	cannot prove requires contract for call partition from allocated: vacant in Extent::Vacant in state `entry`
 	cannot prove initializer of `vacant` in allocated is in domain `Extent::Vacant`; an annotation cannot establish routed qualification
+fail/facts/resident_backing_field_unrestored rejected 17423ms expected @e7c12b127bc8+wt
+	data `Held`'s default domain is still FALSE at state exit: the invariant window opened on `held` must close first -- restore the `where` facts before this consumption point (ch11)
 fail/facts/resident_backing_local_missing_vacancy rejected 5376ms expected @b3876048c0a2
 	cannot prove requires contract for call partition from allocated: vacant in Extent::Vacant in state `entry`
 	cannot prove initializer of `vacant` in allocated is in domain `Extent::Vacant`; an annotation cannot establish routed qualification
@@ -2846,6 +2953,10 @@ fail/recast/pending_layout_view_mutable_escape_preserves_source_padding rejected
 	construction of `Decoded` field `value`: mutable recast target escape has no complete source-storage handback; target padding is not initialized field storage
 fail/recast/u64_open_upper_bound_is_not_signed_ceiling rejected 559ms expected @70ba9ee572b42c4d7f6ffe7d3051217e0906221c
 	machine `Main::main` state `main`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `Narrow` are not representation-compatible
+fail/reflection/schema_borrowed_facade_const rejected 2810ms expected @63af67b94f91
+	constant initializer: build-time result of machine `@const-argument-0` is not ConstEvaluable: result.storage contains Text; borrowed or dynamically sized text cannot cross the semantic const boundary
+fail/reflection/schema_runtime_operand rejected 1193ms expected @6b1e6a51ea70
+	semantic schema query accepts no runtime or evidence operands
 fail/termination/declared_measure_hidden_overflow_rejected rejected 721ms expected @4518281b90b2+wt
 	terminating machine walk_flat: cannot prove rank range `0..=10` for the rank produced by the selected view
 	terminating machine walk: cannot prove rank range `0..=limit` for the rank produced by the selected view
@@ -3261,6 +3372,7 @@ pass/borrows/guard_subject_ends_before_returning_call_exit checked 3938ms check-
 pass/borrows/incoming_reference_slot_replacement_exit checked 4353ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/indexed_record_field_replacement_exit checked 16352ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/initialized_empty_array_snapshot_replacement_exit checked 3706ms check-target:macos_arm64 @ccdb99ca2214
+pass/borrows/inline_carried_reference_exit checked 13975ms check-target:macos_arm64 @6b1e6a51ea70
 pass/borrows/interleaved_parameter_field_replacement_exit checked 19013ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/later_state_reference_field_loan_exit checked 3538ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/lifetime_return_borrow checked 3542ms @ccdb99ca2214
@@ -6744,6 +6856,15 @@ pass/facts/data_where_private_write_through_other_machine_exit checked 7933ms ch
 pass/facts/data_where_private_write_through_other_state_exit checked 4768ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/data_where_private_write_through_parameter_exit checked 4587ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/data_where_private_write_through_target_body_exit checked 4792ms check-target:macos_arm64 @911f6617ba9e
+pass/facts/data_where_standing_borrowed_field_array_call_result checked 10819ms check-target:macos_arm64 @c934a3b70574
+pass/facts/data_where_standing_borrowed_field_array_const_name checked 12618ms check-target:macos_arm64 @c934a3b70574
+pass/facts/data_where_standing_borrowed_field_array_field checked 12469ms check-target:macos_arm64 @c934a3b70574
+pass/facts/data_where_standing_borrowed_field_array_local checked 10741ms check-target:macos_arm64 @c934a3b70574
+pass/facts/data_where_standing_borrowed_field_array_match_join checked 14900ms check-target:macos_arm64 @c934a3b70574
+pass/facts/data_where_standing_borrowed_field_array_other_machine checked 12643ms check-target:macos_arm64 @c934a3b70574
+pass/facts/data_where_standing_borrowed_field_array_other_state checked 15030ms check-target:macos_arm64 @c934a3b70574
+pass/facts/data_where_standing_borrowed_field_array_parameter checked 12495ms check-target:macos_arm64 @c934a3b70574
+pass/facts/data_where_standing_borrowed_field_array_target_body checked 10732ms check-target:macos_arm64 @c934a3b70574
 pass/facts/data_where_standing_borrowed_field_descriptor_snapshot_exit checked 9897ms check-target:macos_arm64 @e96e52e3f616
 pass/facts/data_where_standing_borrowed_field_disjoint_local_write_exit checked 7994ms check-target:macos_arm64 @e96e52e3f616
 pass/facts/data_where_standing_borrowed_field_through_call_result_exit checked 7963ms check-target:macos_arm64 @e96e52e3f616
@@ -7262,16 +7383,16 @@ pass/facts/fixed_layout_bit_observation_through_other_machine_exit checked 2956m
 pass/facts/fixed_layout_bit_observation_through_other_state_exit checked 2909ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
 pass/facts/fixed_layout_bit_observation_through_parameter_exit checked 2871ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
 pass/facts/fixed_layout_bit_observation_through_target_body_exit checked 3026ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
-pass/facts/fixed_layout_byte_roundtrip_rejected_payload_exit checked 4947ms check-target:macos_arm64 @70ba9ee572b42c4d7f6ffe7d3051217e0906221c
-pass/facts/fixed_layout_byte_roundtrip_through_call_result_exit checked 17667ms check-target:macos_arm64 @dd84cfd469edbc75948bdf9a96c87bc9df140e10
-pass/facts/fixed_layout_byte_roundtrip_through_const_name_exit checked 12998ms check-target:macos_arm64 @e1c62c271d9e30b5f3117cc5bc054777ea994d51
-pass/facts/fixed_layout_byte_roundtrip_through_field_exit checked 12683ms check-target:macos_arm64 @cfcadebbcc854010a9a88c968ba0f699d969e793
-pass/facts/fixed_layout_byte_roundtrip_through_local_exit checked 4946ms check-target:macos_arm64 @70ba9ee572b42c4d7f6ffe7d3051217e0906221c
-pass/facts/fixed_layout_byte_roundtrip_through_match_join_exit checked 21341ms check-target:macos_arm64 @dd84cfd469edbc75948bdf9a96c87bc9df140e10
-pass/facts/fixed_layout_byte_roundtrip_through_other_machine_exit checked 11868ms check-target:macos_arm64 @e1c62c271d9e30b5f3117cc5bc054777ea994d51
-pass/facts/fixed_layout_byte_roundtrip_through_other_state_exit checked 9663ms check-target:macos_arm64 @e1c62c271d9e30b5f3117cc5bc054777ea994d51
-pass/facts/fixed_layout_byte_roundtrip_through_parameter_exit checked 14513ms check-target:macos_arm64 @dd84cfd469edbc75948bdf9a96c87bc9df140e10
-pass/facts/fixed_layout_byte_roundtrip_through_target_body_exit checked 13126ms check-target:macos_arm64 @e1c62c271d9e30b5f3117cc5bc054777ea994d51
+pass/facts/fixed_layout_byte_roundtrip_rejected_payload_exit checked 18349ms check-target:macos_arm64 @dcd2509c66fa4717e28a0b781c10f44fe6a3100d
+pass/facts/fixed_layout_byte_roundtrip_through_call_result_exit checked 17876ms check-target:macos_arm64 @dcd2509c66fa4717e28a0b781c10f44fe6a3100d
+pass/facts/fixed_layout_byte_roundtrip_through_const_name_exit checked 21910ms check-target:macos_arm64 @dcd2509c66fa4717e28a0b781c10f44fe6a3100d
+pass/facts/fixed_layout_byte_roundtrip_through_field_exit checked 21470ms check-target:macos_arm64 @dcd2509c66fa4717e28a0b781c10f44fe6a3100d
+pass/facts/fixed_layout_byte_roundtrip_through_local_exit checked 18909ms check-target:macos_arm64 @dcd2509c66fa4717e28a0b781c10f44fe6a3100d
+pass/facts/fixed_layout_byte_roundtrip_through_match_join_exit checked 20788ms check-target:macos_arm64 @dcd2509c66fa4717e28a0b781c10f44fe6a3100d
+pass/facts/fixed_layout_byte_roundtrip_through_other_machine_exit checked 16930ms check-target:macos_arm64 @dcd2509c66fa4717e28a0b781c10f44fe6a3100d
+pass/facts/fixed_layout_byte_roundtrip_through_other_state_exit checked 17000ms check-target:macos_arm64 @dcd2509c66fa4717e28a0b781c10f44fe6a3100d
+pass/facts/fixed_layout_byte_roundtrip_through_parameter_exit checked 15989ms check-target:macos_arm64 @dcd2509c66fa4717e28a0b781c10f44fe6a3100d
+pass/facts/fixed_layout_byte_roundtrip_through_target_body_exit checked 25426ms check-target:macos_arm64 @dcd2509c66fa4717e28a0b781c10f44fe6a3100d
 pass/facts/fixed_layout_storage_through_call_result_exit checked 2891ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
 pass/facts/fixed_layout_storage_through_const_name_exit checked 3053ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
 pass/facts/fixed_layout_storage_through_field_exit checked 2977ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
@@ -7282,9 +7403,14 @@ pass/facts/fixed_layout_storage_through_other_state_exit checked 2877ms check-ta
 pass/facts/fixed_layout_storage_through_parameter_exit checked 2940ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
 pass/facts/fixed_layout_storage_through_target_body_exit checked 3009ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
 pass/facts/fixed_region_byte_roundtrip_through_call_result_exit checked 21807ms check-target:macos_arm64 @36cacd8d3083
+pass/facts/fixed_region_byte_roundtrip_through_const_name_exit checked 10396ms check-target:macos_arm64 @2669e12a2d98+wt
 pass/facts/fixed_region_byte_roundtrip_through_field_exit checked 22231ms check-target:macos_arm64 @36cacd8d3083
 pass/facts/fixed_region_byte_roundtrip_through_local_exit checked 7520ms check-target:macos_arm64 @ee194ea71d07
-pass/facts/fixed_region_byte_roundtrip_through_parameter_exit checked 22073ms check-target:macos_arm64 @36cacd8d3083
+pass/facts/fixed_region_byte_roundtrip_through_match_join_exit checked 12773ms check-target:macos_arm64 @2669e12a2d98+wt
+pass/facts/fixed_region_byte_roundtrip_through_other_machine_exit checked 12769ms check-target:macos_arm64 @2669e12a2d98+wt
+pass/facts/fixed_region_byte_roundtrip_through_other_state_exit checked 12837ms check-target:macos_arm64 @2669e12a2d98+wt
+pass/facts/fixed_region_byte_roundtrip_through_parameter_exit checked 13672ms check-target:macos_arm64 @dcd2509c66fa4717e28a0b781c10f44fe6a3100d
+pass/facts/fixed_region_byte_roundtrip_through_target_body_exit checked 10296ms check-target:macos_arm64 @2669e12a2d98+wt
 pass/facts/float_comparison_route_through_call_result_exit checked 6521ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/float_comparison_route_through_const_name_exit checked 7524ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/float_comparison_route_through_field_exit checked 5960ms check-target:macos_arm64 @ccdb99ca2214
@@ -7492,15 +7618,15 @@ pass/facts/generic_calling_policy_through_other_machine_exit checked 19931ms che
 pass/facts/generic_calling_policy_through_other_state_exit checked 19941ms check-target:macos_arm64 @6416b0fdfbe3
 pass/facts/generic_calling_policy_through_parameter_exit checked 19840ms check-target:macos_arm64 @6416b0fdfbe3
 pass/facts/generic_calling_policy_through_target_body_exit checked 20148ms check-target:macos_arm64 @6416b0fdfbe3
-pass/facts/generic_case_subject_through_call_result_exit checked 3665ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/generic_case_subject_through_const_name_exit checked 4218ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/generic_case_subject_through_field_exit checked 4066ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/generic_case_subject_through_local_exit checked 3886ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/generic_case_subject_through_match_join_exit checked 5119ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/generic_case_subject_through_other_machine_exit checked 3692ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/generic_case_subject_through_other_state_exit checked 3616ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/generic_case_subject_through_parameter_exit checked 4687ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/generic_case_subject_through_target_body_exit checked 4543ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/generic_case_subject_through_call_result_exit checked 8621ms check-target:macos_arm64 @9ec6893f3cf3
+pass/facts/generic_case_subject_through_const_name_exit checked 8620ms check-target:macos_arm64 @9ec6893f3cf3
+pass/facts/generic_case_subject_through_field_exit checked 9757ms check-target:macos_arm64 @9ec6893f3cf3
+pass/facts/generic_case_subject_through_local_exit checked 9748ms check-target:macos_arm64 @9ec6893f3cf3
+pass/facts/generic_case_subject_through_match_join_exit checked 8417ms check-target:macos_arm64 @9ec6893f3cf3
+pass/facts/generic_case_subject_through_other_machine_exit checked 8414ms check-target:macos_arm64 @9ec6893f3cf3
+pass/facts/generic_case_subject_through_other_state_exit checked 8543ms check-target:macos_arm64 @9ec6893f3cf3
+pass/facts/generic_case_subject_through_parameter_exit checked 8519ms check-target:macos_arm64 @9ec6893f3cf3
+pass/facts/generic_case_subject_through_target_body_exit checked 7938ms check-target:macos_arm64 @9ec6893f3cf3
 pass/facts/generic_comparison_body_through_call_result_exit checked 3409ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/generic_comparison_body_through_const_name_exit checked 3784ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/generic_comparison_body_through_field_exit checked 3900ms check-target:macos_arm64 @ccdb99ca2214
@@ -8457,6 +8583,17 @@ pass/facts/nested_machine_completion_result_target_body_exit rejected 30ms regre
 	select_provider requires two bare declaration operands and its explicit mutable Build and catalog target arguments (plus an optional composition mode)
 pass/facts/nested_machine_completion_result_unit_and_crash_exit checked 3109ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_machine_copied_structural_payload_exit checked 10944ms check-target:macos_arm64 @6485d5294954
+pass/facts/nested_machine_declared_repeated_reads_call_result checked 79027ms check-target:macos_arm64 @7280b73089bb
+pass/facts/nested_machine_declared_repeated_reads_const_name checked 92910ms check-target:macos_arm64 @7280b73089bb
+pass/facts/nested_machine_declared_repeated_reads_distinct_slots checked 87122ms check-target:macos_arm64 @7280b73089bb
+pass/facts/nested_machine_declared_repeated_reads_field checked 79480ms check-target:macos_arm64 @7280b73089bb
+pass/facts/nested_machine_declared_repeated_reads_local checked 30107ms check-target:macos_arm64 @8b2ce6e240b5
+pass/facts/nested_machine_declared_repeated_reads_match_join checked 25616ms check-target:macos_arm64 @8b2ce6e240b5
+pass/facts/nested_machine_declared_repeated_reads_other_machine checked 22490ms check-target:macos_arm64 @8b2ce6e240b5
+pass/facts/nested_machine_declared_repeated_reads_other_state checked 78759ms check-target:macos_arm64 @7280b73089bb
+pass/facts/nested_machine_declared_repeated_reads_parameter checked 102161ms check-target:macos_arm64 @7280b73089bb
+pass/facts/nested_machine_declared_repeated_reads_self_selected checked 24942ms check-target:macos_arm64 @8b2ce6e240b5
+pass/facts/nested_machine_declared_repeated_reads_target_body checked 114852ms check-target:macos_arm64 @7280b73089bb
 pass/facts/nested_machine_declared_selector_computed_selector built 15500ms exit:0 interpreter-exit:0 interpreter:agrees @b3e852cfac94
 pass/facts/nested_machine_declared_selector_public_call built 16921ms exit:0 interpreter-exit:0 interpreter:agrees @b3e852cfac94
 pass/facts/nested_machine_declared_selector_through_call_result built 17445ms exit:0 interpreter-exit:0 interpreter:agrees @b3e852cfac94
@@ -8550,6 +8687,16 @@ pass/facts/nested_machine_invocation/private_bounds/admitted_domain/other_state 
 pass/facts/nested_machine_invocation/private_bounds/admitted_domain/parameter checked 7397ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/nested_machine_invocation/private_bounds/admitted_domain/target_body checked 6347ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/nested_machine_invocation/ranked_callee checked 4015ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/nested_machine_invocation/returned_reference_poststate/call_result checked 29064ms check-target:macos_arm64 @3ecf7187d84d
+pass/facts/nested_machine_invocation/returned_reference_poststate/const_name checked 29015ms check-target:macos_arm64 @3ecf7187d84d
+pass/facts/nested_machine_invocation/returned_reference_poststate/field checked 29062ms check-target:macos_arm64 @3ecf7187d84d
+pass/facts/nested_machine_invocation/returned_reference_poststate/indexed_reference checked 29065ms check-target:macos_arm64 @3ecf7187d84d
+pass/facts/nested_machine_invocation/returned_reference_poststate/local checked 29201ms check-target:macos_arm64 @3ecf7187d84d
+pass/facts/nested_machine_invocation/returned_reference_poststate/match_join checked 29071ms check-target:macos_arm64 @3ecf7187d84d
+pass/facts/nested_machine_invocation/returned_reference_poststate/other_machine checked 29107ms check-target:macos_arm64 @3ecf7187d84d
+pass/facts/nested_machine_invocation/returned_reference_poststate/other_state checked 29124ms check-target:macos_arm64 @3ecf7187d84d
+pass/facts/nested_machine_invocation/returned_reference_poststate/parameter checked 29232ms check-target:macos_arm64 @3ecf7187d84d
+pass/facts/nested_machine_invocation/returned_reference_poststate/target_body checked 29342ms check-target:macos_arm64 @3ecf7187d84d
 pass/facts/nested_machine_invocation/selected_helper checked 4464ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_machine_invocation/shadowing checked 4138ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_machine_invocation/sibling_cycle checked 14615ms check-target:macos_arm64 @1fe4c72f984e
@@ -9478,6 +9625,11 @@ pass/facts/owned_qualified_reference_carrier_exit checked 3802ms check-target:ma
 pass/facts/owned_qualified_reference_field_exit checked 3701ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/owned_qualified_reference_result_exit checked 3299ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/owned_qualified_reference_selection_exit checked 3604ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/owned_semantic_schema_call_result checked 30026ms check-target:macos_arm64 @63af67b94f91
+pass/facts/owned_semantic_schema_field checked 18148ms check-target:macos_arm64 @6b1e6a51ea70
+pass/facts/owned_semantic_schema_local checked 17847ms check-target:macos_arm64 @6b1e6a51ea70
+pass/facts/owned_semantic_schema_match_join checked 33350ms check-target:macos_arm64 @63af67b94f91
+pass/facts/owned_semantic_schema_parameter checked 18184ms check-target:macos_arm64 @6b1e6a51ea70
 pass/facts/placed_stable_write_through_call_result_exit checked 4939ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/placed_stable_write_through_const_name_exit checked 5627ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/placed_stable_write_through_field_exit checked 4164ms check-target:macos_arm64 @ccdb99ca2214
@@ -9681,18 +9833,32 @@ pass/facts/qualified_field_capacity_through_other_state_exit checked 7042ms chec
 pass/facts/qualified_field_capacity_through_parameter_exit checked 7261ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/qualified_field_capacity_through_target_body_exit checked 8239ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/qualified_owned_join_exit checked 4304ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/quotient_closed_literal checked 7460ms check-target:macos_arm64 terminal-inspections:match @ccdb99ca2214
-pass/facts/quotient_closed_literal_scalar_first checked 3283ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/quotient_closed_literal_through_call_result_exit checked 4083ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/quotient_closed_literal_through_const_name_exit checked 3141ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/quotient_closed_literal_through_field_exit checked 3930ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/quotient_closed_literal_through_local_exit checked 3644ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/quotient_closed_literal_through_match_join_exit checked 3471ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/quotient_closed_literal_through_other_machine_exit checked 3762ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/quotient_closed_literal_through_other_state_exit checked 3559ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/quotient_closed_literal_through_parameter_exit checked 4121ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/quotient_closed_literal_through_target_body_exit checked 3811ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/quotient_closed_literal_transport checked 3673ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/quotient_closed_literal rejected 32197ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64+terminal-inspections:match @41e5eea428cb+wt
+	`Quotient::lift` retains its exact representative operation and selected theorem machine application, but executable quotient operations are not admitted until quotient formation, theorem-schema, correspondence, and result-flow obligations are independently checked
+	inspection lifted admission: [Diagnostic { severity: Error, message: "`Quotient::lift` retains its exact representative operation and selected theorem machine application, but executable quotient operations are not admitted until quotient formation, theorem-schema, correspondence, and result-flow obligations are independently checked", exceeded_provision: None, source_span: None, resolved_location: None }]
+pass/facts/quotient_closed_literal_scalar_first rejected 16396ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @41e5eea428cb+wt
+	`Quotient::lift` retains its exact representative operation and selected theorem machine application, but executable quotient operations are not admitted until quotient formation, theorem-schema, correspondence, and result-flow obligations are independently checked
+pass/facts/quotient_closed_literal_through_call_result_exit rejected 15384ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @41e5eea428cb+wt
+	`Quotient::lift` retains its exact representative operation and selected theorem machine application, but executable quotient operations are not admitted until quotient formation, theorem-schema, correspondence, and result-flow obligations are independently checked
+pass/facts/quotient_closed_literal_through_const_name_exit rejected 13149ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @41e5eea428cb+wt
+	`Quotient::lift` retains its exact representative operation and selected theorem machine application, but executable quotient operations are not admitted until quotient formation, theorem-schema, correspondence, and result-flow obligations are independently checked
+pass/facts/quotient_closed_literal_through_field_exit rejected 11241ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @41e5eea428cb+wt
+	`Quotient::lift` retains its exact representative operation and selected theorem machine application, but executable quotient operations are not admitted until quotient formation, theorem-schema, correspondence, and result-flow obligations are independently checked
+pass/facts/quotient_closed_literal_through_local_exit rejected 12153ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @41e5eea428cb+wt
+	`Quotient::lift` retains its exact representative operation and selected theorem machine application, but executable quotient operations are not admitted until quotient formation, theorem-schema, correspondence, and result-flow obligations are independently checked
+pass/facts/quotient_closed_literal_through_match_join_exit rejected 12154ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @41e5eea428cb+wt
+	`Quotient::lift` retains its exact representative operation and selected theorem machine application, but executable quotient operations are not admitted until quotient formation, theorem-schema, correspondence, and result-flow obligations are independently checked
+pass/facts/quotient_closed_literal_through_other_machine_exit rejected 16493ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @41e5eea428cb+wt
+	`Quotient::lift` retains its exact representative operation and selected theorem machine application, but executable quotient operations are not admitted until quotient formation, theorem-schema, correspondence, and result-flow obligations are independently checked
+pass/facts/quotient_closed_literal_through_other_state_exit rejected 15337ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @41e5eea428cb+wt
+	`Quotient::lift` retains its exact representative operation and selected theorem machine application, but executable quotient operations are not admitted until quotient formation, theorem-schema, correspondence, and result-flow obligations are independently checked
+pass/facts/quotient_closed_literal_through_parameter_exit rejected 11147ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @41e5eea428cb+wt
+	`Quotient::lift` retains its exact representative operation and selected theorem machine application, but executable quotient operations are not admitted until quotient formation, theorem-schema, correspondence, and result-flow obligations are independently checked
+pass/facts/quotient_closed_literal_through_target_body_exit rejected 11315ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @41e5eea428cb+wt
+	`Quotient::lift` retains its exact representative operation and selected theorem machine application, but executable quotient operations are not admitted until quotient formation, theorem-schema, correspondence, and result-flow obligations are independently checked
+	`Quotient::lift` retains its exact representative operation and selected theorem machine application, but executable quotient operations are not admitted until quotient formation, theorem-schema, correspondence, and result-flow obligations are independently checked
+pass/facts/quotient_closed_literal_transport rejected 15337ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @41e5eea428cb+wt
+	`Quotient::lift` retains its exact representative operation and selected theorem machine application, but executable quotient operations are not admitted until quotient formation, theorem-schema, correspondence, and result-flow obligations are independently checked
 pass/facts/range_fact_delivery_through_call_result_exit checked 3680ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/range_fact_delivery_through_const_name_exit checked 3536ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/range_fact_delivery_through_field_exit checked 7205ms check-target:macos_arm64 @911f6617ba9e
@@ -9843,7 +10009,7 @@ pass/facts/required_output_path/target_body checked 22634ms check-target:macos_a
 pass/facts/resident_backing_call_result_exit checked 9137ms check-target:macos_arm64 @b3876048c0a2
 pass/facts/resident_backing_coexisting_exit checked 9180ms check-target:macos_arm64 @2f26bec1b1f6+wt
 pass/facts/resident_backing_const_name_exit checked 8977ms check-target:macos_arm64 @b3876048c0a2
-pass/facts/resident_backing_field_exit checked 9085ms check-target:macos_arm64 @b3876048c0a2
+pass/facts/resident_backing_field_exit checked 26870ms check-target:macos_arm64 @e7c12b127bc8+wt
 pass/facts/resident_backing_local_exit checked 9208ms check-target:macos_arm64 @b3876048c0a2
 pass/facts/resident_backing_match_join_exit checked 9155ms check-target:macos_arm64 @b3876048c0a2
 pass/facts/resident_backing_other_machine_exit checked 9156ms check-target:macos_arm64 @b3876048c0a2
@@ -13179,10 +13345,10 @@ pass/proofs/proposition_const_operand_application checked 2494ms @ccdb99ca2214
 pass/proofs/proposition_reference_operand_application checked 2647ms @ccdb99ca2214
 pass/proofs/proposition_relation_hierarchy_compile checked 2530ms @ccdb99ca2214
 pass/proofs/qualified_scalar_operand_exit checked 4118ms check-target:macos_arm64 @ccdb99ca2214
-pass/proofs/quotient_define_managed_compile rejected 450ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
+pass/proofs/quotient_define_managed_compile rejected 456ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @41e5eea428cb+wt
 	fixture linux_x86_64 admission: reviewed native production requires application root `quotient_define_managed_compile`; found Package
-pass/proofs/quotient_equivalence_compile checked 2575ms @ccdb99ca2214
-pass/proofs/quotient_lift_managed_compile rejected 273ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
+pass/proofs/quotient_equivalence_compile checked 14678ms @41e5eea428cb+wt
+pass/proofs/quotient_lift_managed_compile rejected 413ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @41e5eea428cb+wt
 	fixture linux_x86_64 admission: reviewed native production requires application root `quotient_lift_managed_compile`; found Package
 pass/proofs/quotient_mutual_cycle checked 3754ms @ccdb99ca2214
 pass/proofs/quotient_symbolic_endpoint checked 3783ms @ccdb99ca2214
@@ -13597,6 +13763,7 @@ pass/recast/write_footprint/state checked 3336ms check-target:macos_arm64 @ccdb9
 pass/references/mutable_loan_member_read_initializes_local_exit checked 13571ms check-target:macos_arm64 @ccdb99ca2214
 pass/references/runtime_shared_ref_param_guard_exit checked 19666ms check-target:macos_arm64 @ccdb99ca2214
 pass/references/selected_record_loan_disjoint_fields_exit checked 12565ms check-target:macos_arm64 @ccdb99ca2214
+pass/reflection/schema_query_scalar_const checked 32268ms check-target:macos_arm64 @63af67b94f91
 pass/register_allocation/fixed_uses_across_hosted_clobbers_exit checked 11639ms check-target:macos_arm64 @ccdb99ca2214
 pass/register_allocation/runtime_call_crossing_decimal_reload_exit rejected 10371ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	call to `header` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
@@ -16031,7 +16198,7 @@ fail/borrows/nested_reference_call_stale_index rejected 1879ms expected @ccdb99c
 	cannot prove index `external` is within length 2 in exercise::entry
 fail/borrows/nested_reference_live_source_write rejected 1664ms expected @ccdb99ca2214
 	statement 2 mutates `cell.value` while local borrow `message` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
-fail/borrows/nested_result_retains_operand_loan rejected 1968ms expected @ccdb99ca2214
+fail/borrows/nested_result_retains_operand_loan rejected 12297ms expected @dcd2509c66fa4717e28a0b781c10f44fe6a3100d
 	state `observe` receives `value` as mutable more than once
 fail/borrows/nested_retained_mutable_loan_shared_argument rejected 3700ms expected @ccdb99ca2214
 	state `observe_hold` receives `counter` as both mutable and read-only
@@ -24027,33 +24194,42 @@ fail/facts/generic_calling_policy_through_parameter_rejected rejected 17312ms ex
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
 fail/facts/generic_calling_policy_through_target_body_rejected rejected 17297ms expected @f8fd5ea66130
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
-fail/facts/generic_case_subject_through_call_result_rejected rejected 1886ms expected @ccdb99ca2214
-	case membership must test a value of the exact declaring data type (machine `observe`, state `entry`)
-	case `Other::Value` has a payload; construct it with a case literal
-fail/facts/generic_case_subject_through_const_name_rejected rejected 1719ms expected @ccdb99ca2214
-	case membership must test a value of the exact declaring data type (machine `observe`, state `entry`)
-	case `Other::Value` has a payload; construct it with a case literal
-fail/facts/generic_case_subject_through_field_rejected rejected 1342ms expected @ccdb99ca2214
-	case membership must test a value of the exact declaring data type (machine `observe`, state `entry`)
-	case `Other::Value` has a payload; construct it with a case literal
-fail/facts/generic_case_subject_through_local_rejected rejected 1360ms expected @ccdb99ca2214
-	case membership must test a value of the exact declaring data type (machine `observe`, state `entry`)
-	case `Other::Value` has a payload; construct it with a case literal
-fail/facts/generic_case_subject_through_match_join_rejected rejected 1916ms expected @ccdb99ca2214
-	case membership must test a value of the exact declaring data type (machine `observe`, state `entry`)
-	case `Other::Value` has a payload; construct it with a case literal
-fail/facts/generic_case_subject_through_other_machine_rejected rejected 1292ms expected @ccdb99ca2214
-	case membership must test a value of the exact declaring data type (machine `observe`, state `entry`)
-	case `Other::Value` has a payload; construct it with a case literal
-fail/facts/generic_case_subject_through_other_state_rejected rejected 1632ms expected @ccdb99ca2214
-	case membership must test a value of the exact declaring data type (machine `next`, state `entry`)
-	case `Other::Value` has a payload; construct it with a case literal
-fail/facts/generic_case_subject_through_parameter_rejected rejected 2010ms expected @ccdb99ca2214
-	case membership must test a value of the exact declaring data type (machine `observe`, state `entry`)
-	case `Other::Value` has a payload; construct it with a case literal
-fail/facts/generic_case_subject_through_target_body_rejected rejected 1283ms expected @ccdb99ca2214
-	case membership must test a value of the exact declaring data type (machine `observe`, state `entry`)
-	case `Other::Value` has a payload; construct it with a case literal
+fail/facts/generic_case_subject_through_call_result_rejected rejected 5263ms expected @9ec6893f3cf3
+	case-membership operation lost its exact subject, carrier or case identity
+	machine `observe` state `entry` reads a nested member `value`, but data `Choice<u64>` has no field `value` (check the spelling of the field name)
+	match pattern does not select a record or case of its subject's exact carrier in `observe::entry`: selected Some(("Other::Value", Handle { arena_index: 870, generation: 1 })), subject Handle { arena_index: 7699, generation: 1 } Name(TableNamePath { members: HandleSpan { start: Handle { arena_index: 3196, generation: 1 }, count: 1 }, member_symbols: HandleSpan { start: Handle { arena_index: 3176, generation: 1 }, count: 1 }, head_symbol: Handle { arena_index: 2669, generation: 1 }, symbol: Handle { arena_index: 2669, generation: 1 } }), type Some(Named { symbol: Handle { arena_index: 1374, generation: 1 }, name: "Choice<u64>" }); parameters []; locals [("__transition_subject#49", Handle { arena_index: 2669, generation: 1 }, Handle { arena_index: 2671, generation: 1 }, Handle { arena_index: 7698, generation: 1 })]
+fail/facts/generic_case_subject_through_const_name_rejected rejected 3838ms expected @9ec6893f3cf3
+	case-membership operation lost its exact subject, carrier or case identity
+	machine `observe` state `entry` reads a nested member `value`, but data `Choice<u64>` has no field `value` (check the spelling of the field name)
+	match pattern does not select a record or case of its subject's exact carrier in `observe::entry`: selected Some(("Other::Value", Handle { arena_index: 870, generation: 1 })), subject Handle { arena_index: 7704, generation: 1 } Name(TableNamePath { members: HandleSpan { start: Handle { arena_index: 3196, generation: 1 }, count: 1 }, member_symbols: HandleSpan { start: Handle { arena_index: 3176, generation: 1 }, count: 1 }, head_symbol: Handle { arena_index: 2670, generation: 1 }, symbol: Handle { arena_index: 2670, generation: 1 } }), type Some(Named { symbol: Handle { arena_index: 1370, generation: 1 }, name: "Choice<u64>" }); parameters []; locals [("__transition_subject#50", Handle { arena_index: 2670, generation: 1 }, Handle { arena_index: 953, generation: 1 }, Handle { arena_index: 7703, generation: 1 })]
+fail/facts/generic_case_subject_through_field_rejected rejected 3811ms expected @9ec6893f3cf3
+	case-membership operation lost its exact subject, carrier or case identity
+	machine `observe` state `entry` reads a nested member `value`, but data `Choice<u64>` has no field `value` (check the spelling of the field name)
+	match pattern does not select a record or case of its subject's exact carrier in `observe::entry`: selected Some(("Other::Value", Handle { arena_index: 870, generation: 1 })), subject Handle { arena_index: 7702, generation: 1 } Name(TableNamePath { members: HandleSpan { start: Handle { arena_index: 3197, generation: 1 }, count: 1 }, member_symbols: HandleSpan { start: Handle { arena_index: 3177, generation: 1 }, count: 1 }, head_symbol: Handle { arena_index: 2672, generation: 1 }, symbol: Handle { arena_index: 2672, generation: 1 } }), type Some(Named { symbol: Handle { arena_index: 1372, generation: 1 }, name: "Choice<u64>" }); parameters []; locals [("holder", Handle { arena_index: 2671, generation: 1 }, Handle { arena_index: 2672, generation: 1 }, Handle { arena_index: 7699, generation: 1 }), ("__transition_subject#52", Handle { arena_index: 2672, generation: 1 }, Handle { arena_index: 955, generation: 1 }, Handle { arena_index: 7701, generation: 1 })]
+fail/facts/generic_case_subject_through_local_rejected rejected 3987ms expected @9ec6893f3cf3
+	case-membership operation lost its exact subject, carrier or case identity
+	machine `observe` state `entry` reads a nested member `value`, but data `Choice<u64>` has no field `value` (check the spelling of the field name)
+	match pattern does not select a record or case of its subject's exact carrier in `observe::entry`: selected Some(("Other::Value", Handle { arena_index: 870, generation: 1 })), subject Handle { arena_index: 7700, generation: 1 } Name(TableNamePath { members: HandleSpan { start: Handle { arena_index: 3197, generation: 1 }, count: 1 }, member_symbols: HandleSpan { start: Handle { arena_index: 3177, generation: 1 }, count: 1 }, head_symbol: Handle { arena_index: 2670, generation: 1 }, symbol: Handle { arena_index: 2670, generation: 1 } }), type Some(Named { symbol: Handle { arena_index: 1374, generation: 1 }, name: "Choice<u64>" }); parameters []; locals [("selected", Handle { arena_index: 2669, generation: 1 }, Handle { arena_index: 2671, generation: 1 }, Handle { arena_index: 7698, generation: 1 }), ("__transition_subject#50", Handle { arena_index: 2670, generation: 1 }, Handle { arena_index: 2674, generation: 1 }, Handle { arena_index: 7699, generation: 1 })]
+fail/facts/generic_case_subject_through_match_join_rejected rejected 3944ms expected @9ec6893f3cf3
+	case-membership operation lost its exact subject, carrier or case identity
+	machine `observe` state `entry` reads a nested member `value`, but data `Choice<u64>` has no field `value` (check the spelling of the field name)
+	match pattern does not select a record or case of its subject's exact carrier in `observe::entry`: selected Some(("Other::Value", Handle { arena_index: 870, generation: 1 })), subject Handle { arena_index: 7708, generation: 1 } Name(TableNamePath { members: HandleSpan { start: Handle { arena_index: 3201, generation: 1 }, count: 1 }, member_symbols: HandleSpan { start: Handle { arena_index: 3181, generation: 1 }, count: 1 }, head_symbol: Handle { arena_index: 2674, generation: 1 }, symbol: Handle { arena_index: 2674, generation: 1 } }), type Some(Named { symbol: Handle { arena_index: 1374, generation: 1 }, name: "Choice<u64>" }); parameters [("input", Handle { arena_index: 1666, generation: 1 }, Handle { arena_index: 1403, generation: 1 })]; locals [("__transition_subject#60", Handle { arena_index: 2674, generation: 1 }, Handle { arena_index: 2677, generation: 1 }, Handle { arena_index: 7707, generation: 1 })]
+fail/facts/generic_case_subject_through_other_machine_rejected rejected 3787ms expected @9ec6893f3cf3
+	case-membership operation lost its exact subject, carrier or case identity
+	machine `observe` state `entry` reads a nested member `value`, but data `Choice<u64>` has no field `value` (check the spelling of the field name)
+	match pattern does not select a record or case of its subject's exact carrier in `observe::entry`: selected Some(("Other::Value", Handle { arena_index: 870, generation: 1 })), subject Handle { arena_index: 7701, generation: 1 } Name(TableNamePath { members: HandleSpan { start: Handle { arena_index: 3197, generation: 1 }, count: 1 }, member_symbols: HandleSpan { start: Handle { arena_index: 3177, generation: 1 }, count: 1 }, head_symbol: Handle { arena_index: 2672, generation: 1 }, symbol: Handle { arena_index: 2672, generation: 1 } }), type Some(Named { symbol: Handle { arena_index: 1374, generation: 1 }, name: "Choice<u64>" }); parameters []; locals [("__transition_subject#52", Handle { arena_index: 2672, generation: 1 }, Handle { arena_index: 2677, generation: 1 }, Handle { arena_index: 7700, generation: 1 })]
+fail/facts/generic_case_subject_through_other_state_rejected rejected 3842ms expected @9ec6893f3cf3
+	case-membership operation lost its exact subject, carrier or case identity
+	machine `next` state `entry` reads a nested member `value`, but data `Choice<u64>` has no field `value` (check the spelling of the field name)
+	match pattern does not select a record or case of its subject's exact carrier in `next::entry`: selected Some(("Other::Value", Handle { arena_index: 870, generation: 1 })), subject Handle { arena_index: 7700, generation: 1 } Name(TableNamePath { members: HandleSpan { start: Handle { arena_index: 3197, generation: 1 }, count: 1 }, member_symbols: HandleSpan { start: Handle { arena_index: 3177, generation: 1 }, count: 1 }, head_symbol: Handle { arena_index: 2672, generation: 1 }, symbol: Handle { arena_index: 2672, generation: 1 } }), type Some(Named { symbol: Handle { arena_index: 1374, generation: 1 }, name: "Choice<u64>" }); parameters [("selected", Handle { arena_index: 1665, generation: 1 }, Handle { arena_index: 1402, generation: 1 })]; locals [("__transition_subject#52", Handle { arena_index: 2672, generation: 1 }, Handle { arena_index: 2675, generation: 1 }, Handle { arena_index: 7699, generation: 1 })]
+fail/facts/generic_case_subject_through_parameter_rejected rejected 3983ms expected @9ec6893f3cf3
+	case-membership operation lost its exact subject, carrier or case identity
+	machine `observe` state `entry` reads a nested member `value`, but data `Choice<u64>` has no field `value` (check the spelling of the field name)
+	match pattern does not select a record or case of its subject's exact carrier in `observe::entry`: selected Some(("Other::Value", Handle { arena_index: 870, generation: 1 })), subject Handle { arena_index: 7699, generation: 1 } Name(TableNamePath { members: HandleSpan { start: Handle { arena_index: 3197, generation: 1 }, count: 1 }, member_symbols: HandleSpan { start: Handle { arena_index: 3177, generation: 1 }, count: 1 }, head_symbol: Handle { arena_index: 2670, generation: 1 }, symbol: Handle { arena_index: 2670, generation: 1 } }), type Some(Named { symbol: Handle { arena_index: 1374, generation: 1 }, name: "Choice<u64>" }); parameters [("selected", Handle { arena_index: 1663, generation: 1 }, Handle { arena_index: 1401, generation: 1 })]; locals [("__transition_subject#48", Handle { arena_index: 2670, generation: 1 }, Handle { arena_index: 2674, generation: 1 }, Handle { arena_index: 7698, generation: 1 })]
+fail/facts/generic_case_subject_through_target_body_rejected rejected 3335ms expected @9ec6893f3cf3
+	case-membership operation lost its exact subject, carrier or case identity
+	machine `WindowsChoiceObservation::observe` state `observe` reads a nested member `value`, but data `Choice<u64>` has no field `value` (check the spelling of the field name)
+	match pattern does not select a record or case of its subject's exact carrier in `WindowsChoiceObservation::observe::observe`: selected Some(("Other::Value", Handle { arena_index: 870, generation: 1 })), subject Handle { arena_index: 7755, generation: 1 } Name(TableNamePath { members: HandleSpan { start: Handle { arena_index: 3212, generation: 1 }, count: 1 }, member_symbols: HandleSpan { start: Handle { arena_index: 3192, generation: 1 }, count: 1 }, head_symbol: Handle { arena_index: 2681, generation: 1 }, symbol: Handle { arena_index: 2681, generation: 1 } }), type Some(Named { symbol: Handle { arena_index: 1374, generation: 1 }, name: "Choice<u64>" }); parameters []; locals [("__transition_subject#69", Handle { arena_index: 2681, generation: 1 }, Handle { arena_index: 2675, generation: 1 }, Handle { arena_index: 7754, generation: 1 })]
 fail/facts/generic_comparison_body_through_call_result_rejected rejected 2167ms expected @ccdb99ca2214
 	cannot prove requires contract for call hold from main: direct == false (needs fact `direct == false` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/generic_comparison_body_through_const_name_rejected rejected 2588ms expected @ccdb99ca2214
@@ -27543,36 +27719,34 @@ fail/facts/qualified_owned_join_missing_arm rejected 675ms expected @ccdb99ca221
 	exact arithmetic in machine `cut` state `entry` terminal expression may overflow `addr`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`addr in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/qualified_owned_join_reused_source rejected 1457ms expected @ccdb99ca2214
 	owned value may have been transferred by an earlier match; it cannot be used here
-fail/facts/quotient_closed_literal_landing rejected 3074ms expected @ccdb99ca2214
-	`Quotient::lift` retains its exact representative operation and selected theorem machine application, but its direct-terminal relation plan is unresolved (direct-lift literal 1 does not have an admitted exact representative target and value identity); executable quotient operations are not admitted
-fail/facts/quotient_closed_literal_missing_legality rejected 1401ms expected @ccdb99ca2214
+fail/facts/quotient_closed_literal_landing rejected 12901ms unexpected @41e5eea428cb+wt
+	`Quotient::lift` retains its exact representative operation and selected theorem machine application, but executable quotient operations are not admitted until quotient formation, theorem-schema, correspondence, and result-flow obligations are independently checked
+fail/facts/quotient_closed_literal_missing_legality rejected 7895ms expected @41e5eea428cb+wt
 	cannot prove requires contract for specification call `representative` in machine `representative_respects` ensures contract: establish its selected precondition in an independently formed prior requires fact
 	cannot prove requires contract for specification call `representative` in machine `representative_respects` ensures contract: establish its selected precondition in an independently formed prior requires fact
-fail/facts/quotient_closed_literal_theorem rejected 2836ms expected @ccdb99ca2214
-	`Quotient::lift` has compiler-derived direct-terminal relations RA=[0:equivalent, 1:==<i32>] and RR===<i32> plus exact representative telescope `representative`(Representative, i32)->i32 plus checked unconditional termination of `representative` plus checked pure representative effect summary plus exact theorem `representative_respects`(Representative, Representative, i32)[static-bindings:0] plus expected exact theorem-schema=[parameters:3, relations:1, legality:2, applications:2, conclusion:1] (verification failed: the selected theorem conclusion is not the exact result relation over the two exact representative applications) plus checked theorem termination summary plus checked pure theorem effect summary plus checked crash-free theorem routes plus exact direct-lift-runtime=[0, 1] plus exact Q=[dependent:0, fixed:0] plus exact P=[dependent:0, fixed:1] (normalized source correspondence unavailable: the complete correspondence certificate is absent) and complete transition-free single-state normal-result coverage through the exact result root, but executable quotient operations are not admitted until complete operation/static correspondence, exact selected theorem schema verification, general precondition implication and adapted lift arguments, fixed representative call obligations, normalized source correspondence are independently checked
-fail/facts/quotient_closed_literal_through_call_result_rejected rejected 2839ms expected @ccdb99ca2214
-	`Quotient::lift` retains its exact representative operation and selected theorem machine application, but its direct-terminal relation plan is unresolved (public fixed Q does not discharge representative fixed call precondition 0 after exact runtime substitution); built-in public Q => representative P implication failed for the runtime representative application: expected public fact coordinates [] to imply representative fact coordinate representative-P.machine-contract[0].fact[0]; use `Quotient::lift<F, Congruence, Transport>(...)` and select one exact checked forward-precondition transport theorem; executable quotient operations are not admitted
-fail/facts/quotient_closed_literal_through_const_name_rejected rejected 2997ms expected @ccdb99ca2214
-	`Quotient::lift` retains its exact representative operation and selected theorem machine application, but its direct-terminal relation plan is unresolved (public fixed Q does not discharge representative fixed call precondition 0 after exact runtime substitution); built-in public Q => representative P implication failed for the runtime representative application: expected public fact coordinates [] to imply representative fact coordinate representative-P.machine-contract[0].fact[0]; use `Quotient::lift<F, Congruence, Transport>(...)` and select one exact checked forward-precondition transport theorem; executable quotient operations are not admitted
-fail/facts/quotient_closed_literal_through_field_rejected rejected 3051ms expected @ccdb99ca2214
-	`Quotient::lift` retains its exact representative operation and selected theorem machine application, but its direct-terminal relation plan is unresolved (public fixed Q does not discharge representative fixed call precondition 0 after exact runtime substitution); built-in public Q => representative P implication failed for the runtime representative application: expected public fact coordinates [] to imply representative fact coordinate representative-P.machine-contract[0].fact[0]; use `Quotient::lift<F, Congruence, Transport>(...)` and select one exact checked forward-precondition transport theorem; executable quotient operations are not admitted
-fail/facts/quotient_closed_literal_through_local_rejected rejected 2793ms expected @ccdb99ca2214
-	`Quotient::lift` retains its exact representative operation and selected theorem machine application, but its direct-terminal relation plan is unresolved (public fixed Q does not discharge representative fixed call precondition 0 after exact runtime substitution); built-in public Q => representative P implication failed for the runtime representative application: expected public fact coordinates [] to imply representative fact coordinate representative-P.machine-contract[0].fact[0]; use `Quotient::lift<F, Congruence, Transport>(...)` and select one exact checked forward-precondition transport theorem; executable quotient operations are not admitted
-fail/facts/quotient_closed_literal_through_match_join_rejected rejected 3133ms expected @ccdb99ca2214
-	`Quotient::lift` retains its exact representative operation and selected theorem machine application, but its direct-terminal relation plan is unresolved (public fixed Q does not discharge representative fixed call precondition 0 after exact runtime substitution); built-in public Q => representative P implication failed for the runtime representative application: expected public fact coordinates [] to imply representative fact coordinate representative-P.machine-contract[0].fact[0]; use `Quotient::lift<F, Congruence, Transport>(...)` and select one exact checked forward-precondition transport theorem; executable quotient operations are not admitted
-fail/facts/quotient_closed_literal_through_other_machine_rejected rejected 2379ms expected @ccdb99ca2214
-	`Quotient::lift` retains its exact representative operation and selected theorem machine application, but its direct-terminal relation plan is unresolved (public fixed Q does not discharge representative fixed call precondition 0 after exact runtime substitution); built-in public Q => representative P implication failed for the runtime representative application: expected public fact coordinates [] to imply representative fact coordinate representative-P.machine-contract[0].fact[0]; use `Quotient::lift<F, Congruence, Transport>(...)` and select one exact checked forward-precondition transport theorem; executable quotient operations are not admitted
-fail/facts/quotient_closed_literal_through_other_state_rejected rejected 2956ms expected @ccdb99ca2214
-	`Quotient::lift` retains its exact representative operation and selected theorem machine application, but its direct-terminal relation plan is unresolved (public fixed Q does not discharge representative fixed call precondition 0 after exact runtime substitution); built-in public Q => representative P implication failed for the runtime representative application: expected public fact coordinates [] to imply representative fact coordinate representative-P.machine-contract[0].fact[0]; use `Quotient::lift<F, Congruence, Transport>(...)` and select one exact checked forward-precondition transport theorem; executable quotient operations are not admitted
-fail/facts/quotient_closed_literal_through_parameter_rejected rejected 2565ms expected @ccdb99ca2214
-	`Quotient::lift` retains its exact representative operation and selected theorem machine application, but its direct-terminal relation plan is unresolved (public fixed Q does not discharge representative fixed call precondition 0 after exact runtime substitution); built-in public Q => representative P implication failed for the runtime representative application: expected public fact coordinates [] to imply representative fact coordinate representative-P.machine-contract[0].fact[0]; use `Quotient::lift<F, Congruence, Transport>(...)` and select one exact checked forward-precondition transport theorem; executable quotient operations are not admitted
-fail/facts/quotient_closed_literal_through_target_body_rejected rejected 2970ms expected @ccdb99ca2214
-	`Quotient::lift` retains its exact representative operation and selected theorem machine application, but its direct-terminal relation plan is unresolved (public fixed Q does not discharge representative fixed call precondition 0 after exact runtime substitution); built-in public Q => representative P implication failed for the runtime representative application: expected public fact coordinates [] to imply representative fact coordinate representative-P.machine-contract[0].fact[0]; use `Quotient::lift<F, Congruence, Transport>(...)` and select one exact checked forward-precondition transport theorem; executable quotient operations are not admitted
-	`Quotient::lift` retains its exact representative operation and selected theorem machine application, but its direct-terminal relation plan is unresolved (public fixed Q does not discharge representative fixed call precondition 0 after exact runtime substitution); built-in public Q => representative P implication failed for the runtime representative application: expected public fact coordinates [] to imply representative fact coordinate representative-P.machine-contract[0].fact[0]; use `Quotient::lift<F, Congruence, Transport>(...)` and select one exact checked forward-precondition transport theorem; executable quotient operations are not admitted
-	`Quotient::lift` retains its exact representative operation and selected theorem machine application, but its direct-terminal relation plan is unresolved (public fixed Q does not discharge representative fixed call precondition 0 after exact runtime substitution); built-in public Q => representative P implication failed for the runtime representative application: expected public fact coordinates [] to imply representative fact coordinate representative-P.machine-contract[0].fact[0]; use `Quotient::lift<F, Congruence, Transport>(...)` and select one exact checked forward-precondition transport theorem; executable quotient operations are not admitted
-	`Quotient::lift` retains its exact representative operation and selected theorem machine application, but its direct-terminal relation plan is unresolved (public fixed Q does not discharge representative fixed call precondition 0 after exact runtime substitution); built-in public Q => representative P implication failed for the runtime representative application: expected public fact coordinates [] to imply representative fact coordinate representative-P.machine-contract[0].fact[0]; use `Quotient::lift<F, Congruence, Transport>(...)` and select one exact checked forward-precondition transport theorem; executable quotient operations are not admitted
-fail/facts/quotient_closed_literal_wrong_literal rejected 2998ms expected @ccdb99ca2214
-	`Quotient::lift` retains its exact representative operation and selected theorem machine application, but its direct-terminal relation plan is unresolved (public fixed Q does not discharge representative fixed call precondition 0 after exact runtime substitution); built-in public Q => representative P implication failed for the runtime representative application: expected public fact coordinates [] to imply representative fact coordinate representative-P.machine-contract[0].fact[0]; use `Quotient::lift<F, Congruence, Transport>(...)` and select one exact checked forward-precondition transport theorem; executable quotient operations are not admitted
+fail/facts/quotient_closed_literal_theorem rejected 12353ms unexpected @41e5eea428cb+wt
+	`Quotient::lift` retains its exact representative operation and selected theorem machine application, but executable quotient operations are not admitted until quotient formation, theorem-schema, correspondence, and result-flow obligations are independently checked
+fail/facts/quotient_closed_literal_through_call_result_rejected rejected 14208ms unexpected @41e5eea428cb+wt
+	`Quotient::lift` retains its exact representative operation and selected theorem machine application, but executable quotient operations are not admitted until quotient formation, theorem-schema, correspondence, and result-flow obligations are independently checked
+fail/facts/quotient_closed_literal_through_const_name_rejected rejected 13267ms unexpected @41e5eea428cb+wt
+	`Quotient::lift` retains its exact representative operation and selected theorem machine application, but executable quotient operations are not admitted until quotient formation, theorem-schema, correspondence, and result-flow obligations are independently checked
+fail/facts/quotient_closed_literal_through_field_rejected rejected 14018ms unexpected @41e5eea428cb+wt
+	`Quotient::lift` retains its exact representative operation and selected theorem machine application, but executable quotient operations are not admitted until quotient formation, theorem-schema, correspondence, and result-flow obligations are independently checked
+fail/facts/quotient_closed_literal_through_local_rejected rejected 11022ms unexpected @41e5eea428cb+wt
+	`Quotient::lift` retains its exact representative operation and selected theorem machine application, but executable quotient operations are not admitted until quotient formation, theorem-schema, correspondence, and result-flow obligations are independently checked
+fail/facts/quotient_closed_literal_through_match_join_rejected rejected 10866ms unexpected @41e5eea428cb+wt
+	`Quotient::lift` retains its exact representative operation and selected theorem machine application, but executable quotient operations are not admitted until quotient formation, theorem-schema, correspondence, and result-flow obligations are independently checked
+fail/facts/quotient_closed_literal_through_other_machine_rejected rejected 10014ms unexpected @41e5eea428cb+wt
+	`Quotient::lift` retains its exact representative operation and selected theorem machine application, but executable quotient operations are not admitted until quotient formation, theorem-schema, correspondence, and result-flow obligations are independently checked
+fail/facts/quotient_closed_literal_through_other_state_rejected rejected 15700ms unexpected @41e5eea428cb+wt
+	`Quotient::lift` retains its exact representative operation and selected theorem machine application, but executable quotient operations are not admitted until quotient formation, theorem-schema, correspondence, and result-flow obligations are independently checked
+fail/facts/quotient_closed_literal_through_parameter_rejected rejected 12573ms unexpected @41e5eea428cb+wt
+	`Quotient::lift` retains its exact representative operation and selected theorem machine application, but executable quotient operations are not admitted until quotient formation, theorem-schema, correspondence, and result-flow obligations are independently checked
+fail/facts/quotient_closed_literal_through_target_body_rejected rejected 15345ms unexpected @41e5eea428cb+wt
+	`Quotient::lift` retains its exact representative operation and selected theorem machine application, but executable quotient operations are not admitted until quotient formation, theorem-schema, correspondence, and result-flow obligations are independently checked
+	`Quotient::lift` retains its exact representative operation and selected theorem machine application, but executable quotient operations are not admitted until quotient formation, theorem-schema, correspondence, and result-flow obligations are independently checked
+fail/facts/quotient_closed_literal_wrong_literal rejected 13639ms unexpected @41e5eea428cb+wt
+	`Quotient::lift` retains its exact representative operation and selected theorem machine application, but executable quotient operations are not admitted until quotient formation, theorem-schema, correspondence, and result-flow obligations are independently checked
 fail/facts/range_fact_delivery_through_call_result_rejected rejected 2300ms expected @ccdb99ca2214
 	cannot prove requires contract for call count from probe: source(input) <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/range_fact_delivery_through_const_name_rejected rejected 2192ms expected @ccdb99ca2214
@@ -33569,50 +33743,50 @@ fail/proofs/proposition_reference_operand_depth_rejected rejected 776ms expected
 fail/proofs/proposition_relation_inherited_law_rejected rejected 1799ms expected @ccdb99ca2214
 	machine `related_reflexive` realizes `Reflexive::reflexive` but requires `different`, which the requirement does not imply; callers of the requirement prove only its own `requires`
 	machine `related_reflexive` satisfies `Reflexive::reflexive` but proves no ensures matching proposition law `proposition:fact:related(value,value)` after trait-family substitution
-fail/proofs/quotient_congruence_substituted_rejected rejected 1714ms expected @ccdb99ca2214
-	`Quotient::lift` has compiler-derived direct-terminal relations RA=[0:equivalent] and RR=equivalent plus exact representative telescope `representative`(Representative)->Representative plus checked unconditional termination of `representative` plus checked pure representative effect summary plus exact theorem `equivalent_symmetric`(Representative, Representative)[static-bindings:0] plus expected exact theorem-schema=[parameters:2, relations:1, legality:2, applications:2, conclusion:1] (verification failed: the selected theorem's requires fact count does not exactly match all relation and representative-legality premises) plus checked theorem termination summary plus checked pure theorem effect summary plus checked crash-free theorem routes plus exact forward transport `representative_transports`(Representative, Representative)[static-bindings:0] plus transport-schema=[parameters:2, public-Q:2, representative-P:2] plus checked forward-transport termination summary plus checked pure forward-transport effect summary plus checked crash-free forward-transport routes plus exact direct-lift-runtime=[0] plus exact Q=[dependent:1, fixed:0] plus exact P=[dependent:1, fixed:0] (normalized source correspondence unavailable: the complete correspondence certificate is absent) and complete transition-free single-state normal-result coverage through the exact result root, but executable quotient operations are not admitted until complete operation/static correspondence, exact selected theorem schema verification, general precondition implication and adapted lift arguments, fixed representative call obligations, normalized source correspondence are independently checked
-fail/proofs/quotient_define_transport_role_rejected rejected 141ms expected @ccdb99ca2214
+fail/proofs/quotient_congruence_substituted_rejected rejected 10998ms unexpected @41e5eea428cb+wt
+	`Quotient::lift` retains its exact representative operation and selected theorem machine application, but executable quotient operations are not admitted until quotient formation, theorem-schema, correspondence, and result-flow obligations are independently checked
+fail/proofs/quotient_define_transport_role_rejected rejected 1638ms expected @41e5eea428cb+wt
 	`Quotient::define` requires exactly `F, Congruence`; forward transport is not a `define` role
-fail/proofs/quotient_lift_congruence_missing_rejected rejected 160ms expected @ccdb99ca2214
+fail/proofs/quotient_lift_congruence_missing_rejected rejected 2477ms expected @41e5eea428cb+wt
 	`Quotient::lift` requires `F, Congruence` or `F, Congruence, Transport` in canonical role order
-fail/proofs/quotient_lift_missing_respect rejected 842ms expected @ccdb99ca2214
+fail/proofs/quotient_lift_missing_respect rejected 9567ms expected @41e5eea428cb+wt
 	argument `value` for state `advance::entry` expects the `Representative` data type but got `EquivalenceClass` in the `argument` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
+	machine `bad_lift` state `entry` terminal call to `advance` completes with its `Representative` result, but the state returns `EquivalenceClass`; a terminal machine call's normal result is its caller's result, so the two must match
 	machine `bad_lift` state `entry` expects the `EquivalenceClass` data type but got `Representative` in the `return value` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
-fail/proofs/quotient_lift_surplus_role_rejected rejected 121ms expected @ccdb99ca2214
+fail/proofs/quotient_lift_surplus_role_rejected rejected 1612ms expected @41e5eea428cb+wt
 	`Quotient::lift` requires `F, Congruence` or `F, Congruence, Transport` in canonical role order
 fail/proofs/quotient_linear_property rejected 17ms expected @e97ed21415d9
 	tests/omega/fail/proofs/quotient_linear_property/main.omg:1:34: a quotient data declaration cannot declare linear or carry properties; the initial quotient surface excludes custody
-fail/proofs/quotient_missing_symmetry rejected 823ms expected @ccdb99ca2214
+fail/proofs/quotient_missing_symmetry rejected 8210ms expected @41e5eea428cb+wt
 	quotient data `EquivalenceClass` conformance `RepresentativeEquivalence` row `Symmetric::symmetric` strengthens or changes the sealed equivalence law premises; quotient formation requires the exact inherited contract
-fail/proofs/quotient_pattern_rejected rejected 690ms expected @ccdb99ca2214
-	destructure arm in machine `expose_pattern` state `entry` cannot pattern-match quotient `EquivalenceClass`: retained representatives are opaque and pattern matching requires a named lifted operation
-fail/proofs/quotient_private_crash_rejected rejected 543ms unexpected @ccdb99ca2214
+fail/proofs/quotient_pattern_rejected checked 12831ms @41e5eea428cb+wt
+fail/proofs/quotient_private_crash_rejected rejected 408ms unexpected @41e5eea428cb+wt
 	fixture linux_x86_64 admission: reviewed native production requires application root `quotient_private_crash_rejected`; found Package
-fail/proofs/quotient_representative_admitted_closure_rejected rejected 693ms expected @ccdb99ca2214
+fail/proofs/quotient_representative_admitted_closure_rejected rejected 8409ms expected @41e5eea428cb+wt
 	bodyless boundary symbol `observe` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
-fail/proofs/quotient_runtime_affine_carrier rejected 1721ms expected @8c2fec05b2ca
+fail/proofs/quotient_runtime_affine_carrier rejected 5753ms expected @41e5eea428cb+wt
 	quotient data `EquivalenceClass` carrier `Representative` contains non-copy Type content `Representative`; the initial quotient surface cannot identify affine or linear occurrences
-fail/proofs/quotient_runtime_equality_rejected rejected 136ms expected @ccdb99ca2214
+fail/proofs/quotient_runtime_equality_rejected rejected 2217ms expected @41e5eea428cb+wt
 	cannot compare quotient `EquivalenceClass` values with `==`/`!=`: retained representatives are opaque and have no synthesized structural equality; call a named lifted equality operation
-fail/proofs/quotient_runtime_false_relation rejected 421ms unexpected @ccdb99ca2214
+fail/proofs/quotient_runtime_false_relation rejected 2128ms unexpected @41e5eea428cb+wt
 	fixture linux_x86_64 admission: reviewed native production requires application root `quotient_runtime_false_relation`; found Package
-fail/proofs/quotient_runtime_false_result rejected 764ms unexpected @ccdb99ca2214
+fail/proofs/quotient_runtime_false_result rejected 1488ms unexpected @41e5eea428cb+wt
 	fixture linux_x86_64 admission: reviewed native production requires application root `quotient_runtime_false_result`; found Package
-fail/proofs/quotient_runtime_routed_carrier rejected 1746ms expected @8c2fec05b2ca
+fail/proofs/quotient_runtime_routed_carrier rejected 6907ms expected @41e5eea428cb+wt
 	quotient data `EquivalenceClass` carrier `Representative` contains routed qualification `Issued`; the initial quotient surface cannot identify exact custody occurrences
 	implicit domain weakening in machine `representative_value` state `entry` drops `Issued`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
-fail/proofs/quotient_struct_literal_rejected rejected 819ms expected @ccdb99ca2214
+fail/proofs/quotient_struct_literal_rejected rejected 7027ms expected @41e5eea428cb+wt
 	cannot construct quotient `EquivalenceClass` with a struct or case literal: retained representatives are opaque and quotient values may be minted only from the exact carrier with `as EquivalenceClass`
-fail/proofs/quotient_theorem_admitted_closure_rejected rejected 2082ms expected @ccdb99ca2214
+fail/proofs/quotient_theorem_admitted_closure_rejected rejected 10619ms expected @41e5eea428cb+wt
 	specification call `observe` has no observation-free, reach-free, crash-free value denotation: the selected closure contains runtime observations or mutable storage
-fail/proofs/quotient_theorem_boundary_rejected rejected 1994ms expected @ccdb99ca2214
-	`Quotient::define` retains its exact representative operation and selected theorem machine application, but its direct-terminal relation plan is unresolved (the selected theorem must be one bodyful checked machine; boundary, accepted, and external proof sources cannot license quotient substitution); executable quotient operations are not admitted
-fail/proofs/quotient_theorem_private_crash_rejected rejected 464ms unexpected @ccdb99ca2214
+fail/proofs/quotient_theorem_boundary_rejected rejected 10767ms unexpected @41e5eea428cb+wt
+	`Quotient::define` retains its exact representative operation and selected theorem machine application, but executable quotient operations are not admitted until quotient formation, theorem-schema, correspondence, and result-flow obligations are independently checked
+fail/proofs/quotient_theorem_private_crash_rejected rejected 455ms unexpected @41e5eea428cb+wt
 	fixture linux_x86_64 admission: reviewed native production requires application root `quotient_theorem_private_crash_rejected`; found Package
-fail/proofs/quotient_theorem_result_bearing_rejected rejected 1571ms expected @ccdb99ca2214
-	`Quotient::define` retains its exact representative operation and selected theorem machine application, but its direct-terminal relation plan is unresolved (the selected theorem must return Unit; a result-bearing machine is not proof-static authority); executable quotient operations are not admitted
-fail/proofs/quotient_transport_roles_reversed_rejected rejected 1656ms expected @ccdb99ca2214
-	`Quotient::lift` has compiler-derived direct-terminal relations RA=[0:equivalent] and RR=equivalent plus exact representative telescope `representative`(Representative)->Representative plus checked unconditional termination of `representative` plus checked pure representative effect summary plus exact theorem `representative_transports`(Representative, Representative)[static-bindings:0] plus expected exact theorem-schema=[parameters:2, relations:1, legality:2, applications:2, conclusion:1] (verification failed: the selected theorem's requires fact count does not exactly match all relation and representative-legality premises) plus checked theorem termination summary plus checked pure theorem effect summary plus checked crash-free theorem routes plus exact forward transport `representative_respects`(Representative, Representative)[static-bindings:0] plus transport-schema verification failed: the selected transport theorem's requires fact count does not exactly match the complete ordered public-Q roster for both representative sides plus checked forward-transport termination summary plus checked pure forward-transport effect summary plus checked crash-free forward-transport routes plus exact direct-lift-runtime=[0] plus exact Q=[dependent:1, fixed:0] plus exact P=[dependent:1, fixed:0] (normalized source correspondence unavailable: the complete correspondence certificate is absent) and complete transition-free single-state normal-result coverage through the exact result root, but executable quotient operations are not admitted until complete operation/static correspondence, exact selected theorem schema verification, exact selected forward-transport schema verification, general precondition implication and adapted lift arguments, fixed representative call obligations, normalized source correspondence are independently checked
+fail/proofs/quotient_theorem_result_bearing_rejected rejected 9682ms unexpected @41e5eea428cb+wt
+	`Quotient::define` retains its exact representative operation and selected theorem machine application, but executable quotient operations are not admitted until quotient formation, theorem-schema, correspondence, and result-flow obligations are independently checked
+fail/proofs/quotient_transport_roles_reversed_rejected rejected 9367ms unexpected @41e5eea428cb+wt
+	`Quotient::lift` retains its exact representative operation and selected theorem machine application, but executable quotient operations are not admitted until quotient formation, theorem-schema, correspondence, and result-flow obligations are independently checked
 fail/proofs/range_result_stale_observation rejected 2760ms expected @ccdb99ca2214
 	construction of `Checked` field `value` is not proven in domain `Range::Bounded` in check state `entry` at statement 4; a construction value must establish the domain's predicates and any required provenance
 	cannot prove default-domain field requirement for return from check, state entry, at statement 4: Checked::Ready.value requires Range::Bounded
@@ -35808,7 +35982,10 @@ run/ownership/temporary_case_observation checked 2886ms check-target:macos_arm64
 run/ownership/temporary_projected_copy_argument checked 2888ms check-target:macos_arm64 @ccdb99ca2214
 run/ownership/temporary_projected_value_residual checked 3397ms check-target:macos_arm64 @ccdb99ca2214
 run/proofs/embed_collection_length_exit checked 3330ms check-target:macos_arm64 @ccdb99ca2214
-run/proofs/quotient_copy_paths checked 8571ms check-target:macos_arm64 @ccdb99ca2214
+run/proofs/quotient_copy_paths rejected 57231ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @41e5eea428cb+wt
+	`Quotient::define` retains its exact representative operation and selected theorem machine application, but executable quotient operations are not admitted until quotient formation, theorem-schema, correspondence, and result-flow obligations are independently checked
+	`Quotient::define` retains its exact representative operation and selected theorem machine application, but executable quotient operations are not admitted until quotient formation, theorem-schema, correspondence, and result-flow obligations are independently checked
+	`Quotient::lift` retains its exact representative operation and selected theorem machine application, but executable quotient operations are not admitted until quotient formation, theorem-schema, correspondence, and result-flow obligations are independently checked
 run/providers/module_named_float_conversion_family_exit rejected 8776ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	machine `convert` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
 run/providers/target_applicable_provider_closure checked 9910ms check-target:macos_arm64 @ccdb99ca2214

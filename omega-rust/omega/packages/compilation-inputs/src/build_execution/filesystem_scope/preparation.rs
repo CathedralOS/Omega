@@ -195,7 +195,7 @@ pub fn prepare_filesystem_scope(
                         })?;
                         required_members.push(relative.to_path_buf());
                     }
-                    crate::source_snapshot::retained_scoped_source_input(
+                    crate::source::source_snapshot::retained_scoped_source_input(
                         complete,
                         request,
                         required_members,

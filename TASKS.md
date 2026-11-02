@@ -164,8 +164,9 @@ retired-syntax deletions to completion.
     result/Unit postconditions, effects/markers, loans, invariant/hole
     restoration, cleanup, linear custody, and joint SCC measures using
     declaration calls needing exclusive-loan arguments or owned affine transfers,
-    owned copies from borrowed outer input homes or repeated selector
-    occurrences, other remaining declared body forms, nonscalar orders beyond fixed-integer
+    owned copies from borrowed outer input homes, runtime-selected stored-reference
+    call operands (captured-loan access), other remaining declared body forms,
+    nonscalar orders beyond fixed-integer
     lexicographic products, or dependent distances with computed endpoints
     without ambient parent entry facts).
   - Update Terminal production, codecs/checking, both interpreters, native
@@ -571,6 +572,10 @@ decision (`SourceChecked`) into Psi 06 and Omega 00.
     until those authority decisions are made.
   - Complete the wire fixture and public-customer acceptance below, including
     the 40-field runtime qualification.
+  - Carry complete owned numbered mixed-data schema descriptions through const
+    names, nested machines, other machines and selected target implementations;
+    retain exact query-authority reject twins. Const transport needs an owned
+    image of computed array length; borrowed facades must continue rejecting.
   Owners: `source/library/std/wire.omg`,
   `omega-rust/psi/compilation/validation/src/reflection/`, and
   `omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/monomorphization/reflection.rs`.
@@ -720,8 +725,7 @@ helper that passes does not close an item.
   [unified requirement clauses](wiki/spec/language/state_contracts.md#requirement-clauses)
   end to end and retire `where` from Omega source syntax, without a permanent
   compatibility spelling or weaker proof obligations.
-  - Implement quotient equivalence selection (`where equivalent satisfies`),
-    `where proposition` premises, and structural/nominal `requires machine`
+  - Implement `where proposition` premises, and structural/nominal `requires machine`
     contracts in both Rust and Omega producers. Preserve logical `self`, binder-kind
     inference, static/runtime distinctions, specialization and exact subjects;
     repeated predicates conjoin only within their owning scope. Keep a nested
@@ -829,13 +833,9 @@ helper that passes does not close an item.
     compile-time evaluation, complete plan validation, field/case projection,
     nested representation composition, cleanup, references, recasts and ABI
     realization without wrapper storage or per-layout Build registration.
-    The [guarded fixed-layout byte-roundtrip row](samples/cli/facts/fixed_layout_byte_roundtrip/README.md)
-    covers all nine places on Rust/Linux x86_64, Linux ARM64 and Mac ARM64
-    with rejection twins.
-    The [typed interior-region prerequisite](samples/cli/facts/fixed_region_byte_roundtrip/README.md)
-    additionally carries byte views through fields, parameters and returned records
-    on Mac ARM64; its other five transport places and other-host observations remain open.
-    Complete Windows execution, broader reference composition, and other-host
+    Complete remaining host observations for the
+    [typed interior-region prerequisite](samples/cli/facts/fixed_region_byte_roundtrip/README.md),
+    broader reference composition and other-host
     execution for [typed stored-reference readback](samples/cli/facts/fixed_layout_reference_readback/README.md)
     and [implementation-region forwarding](samples/cli/facts/implementation_region_forwarding/README.md).
   - Complete remaining schema/case composition support and platform ABI
@@ -1278,7 +1278,7 @@ defines the complete product bar.
   `language-core/src/inline_assembly/`, Psi 05 CFG/state transfer and
   `execution/terminal_unit/calls/call_operations.rs`, Psi 06 lowering,
   Omega 02 `lowering/control_flow/operations.rs`, Omega 03 scalar-graph
-  admission, `image-emission/src/function_fragments/{production,validation}.rs`,
+  admission, `image-emission/src/object/function_fragments/{production,validation}.rs`,
   `native-artifact/src/physical/derivation/provider_custody.rs`, and the
   shared Terminal/native execution paths.
   - Implement explicit `asm machine` bodies and nested basic-block declarations
@@ -1466,7 +1466,7 @@ defines the complete product bar.
     `omega-rust/omega/compilation/driver/terminal-production/`,
     `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/entry_settlement/`,
     `native-artifact`'s `publish_fragment_object`, and
-    `omega-rust/omega/compilation/backend/images/image-emission/src/hosted_receiver.rs`.
+    `omega-rust/omega/compilation/backend/images/image-emission/src/entries/hosted_receiver.rs`.
   - **PROCESS-EXIT-CONTRACT:** remove `Never` return-type assumptions in
     `source/library/std/process.omg` and treat process termination as a
     non-returning `ProcessExit` boundary call with affine cleanup before
@@ -1864,15 +1864,15 @@ defines the complete product bar.
   [platform services](wiki/spec/build/platform_services.md) and
   [bounded occurrence-specific release proofs](wiki/spec/build/permissions.md#bounded-occurrence-specific-release-proof)
   end to end (`Psi 05–08` and `Omega 00–09`):
-  - Validate the Windows portable `FilesystemService` implementation natively
+  - Validate remaining Windows portable `FilesystemService` paths natively
     (anonymous SQOS on owned path opens, HANDLE storage, explicit permissions and
-    data sync), run `note_vault` (exit 14), and provide trusted
+    data sync), and provide trusted
     Terminal adapters for the exact authored foreign bindings.
   - Wire the occurrence-bound close proof helpers in
     `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/provider_admission/terminal_authority_policy/filesystem.rs`
     so a proved close earns an empty authority classification (with
     `tests/omega/pass/filesystem/native_close` as the unconstrained control).
-  Acceptance: `note_vault` and the remaining Windows filesystem
+  Acceptance: the remaining Windows filesystem
   fixtures pass `omega run --both` on their matching
   hosts with nested raw-provider closure checks and occurrence-bound close
   classifications, while failed acquisition, handle escape, or unproved close

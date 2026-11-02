@@ -30,6 +30,7 @@ enum Mode {
     WrongPath,
     Shared,
     Opaque,
+    Materialized,
     WrongRegion,
     Quota,
 }
@@ -102,6 +103,27 @@ impl TerminalEffectHandler for Host {
         };
         *value = IntegerValue::Unsigned(0x2525252525252525);
         buffer.replace(values)?;
+        if self.mode == Mode::Materialized {
+            let fields = buffer
+                .values()
+                .iter()
+                .map(|field| {
+                    let TerminalStorageContents::Scalar { value, .. } = &field.contents else {
+                        panic!("scalar Cell fields")
+                    };
+                    (field.path.clone(), *value)
+                })
+                .collect();
+            return Ok(TerminalEffectResult::Reference(
+                terminal_interpreter::TerminalReferenceResult {
+                    referent: terminal_interpreter::TerminalScalarAggregateValue {
+                        structural_type: buffer.structural_type(),
+                        result_case: None,
+                        fields,
+                    },
+                },
+            ));
+        }
         let access = if self.mode == Mode::Shared {
             StructuralAccess::SharedBorrow
         } else {
@@ -144,7 +166,7 @@ impl TerminalEffectHandler for Host {
             current.clone()
         };
         observed.first.get_or_insert(current);
-        Ok(TerminalEffectResult::Reference(selected))
+        Ok(TerminalEffectResult::CapturedReference(selected))
     }
 }
 
@@ -199,6 +221,7 @@ fn main() {
                     Mode::WrongPath,
                     Mode::Shared,
                     Mode::Opaque,
+                    Mode::Materialized,
                     Mode::Quota,
                 ]
             };
@@ -295,6 +318,7 @@ fn main() {
                         Mode::NoCapture => Some("no admitted borrowed input capture"),
                         Mode::WrongRegion => Some("exceeds its public input regions"),
                         Mode::Quota => Some("LiveStorage"),
+                        Mode::Materialized => Some("no invocation-owned public region"),
                         _ => None,
                     };
                     if let Some(expected) = expected {

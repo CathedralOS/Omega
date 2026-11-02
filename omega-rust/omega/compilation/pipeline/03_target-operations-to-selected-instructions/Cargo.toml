@@ -18,8 +18,6 @@ register-model = { path = "../../backend/register-model" }
 target = { path = "../../backend/target" }
 abstract-operations = { path = "../../representations/abstract-operations" }
 abstract-operations-to-target-operations = { path = "../02_abstract-operations-to-target-operations" }
-abstract-operations-to-abstract-operations = { path = "../01_abstract-operations-to-abstract-operations" }
-terminal-psi-to-abstract-operations = { path = "../00_terminal-psi-to-abstract-operations" }
 register-environment = { path = "../../backend/register-environment" }
 legalized-operations = { path = "../../representations/target-operations/legalized-operations" }
 selected-instructions = { path = "../../representations/selected-instructions" }

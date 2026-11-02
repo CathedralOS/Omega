@@ -799,19 +799,20 @@ fn interpret_checked_fixture(
             "checked fixture has no selected ProgramEntry",
         );
     };
-    let dispatch =
-        match checked_interpreter_dispatch::prepare_checked_interpreter_dispatch(checked.execution()) {
-            Ok(dispatch) => dispatch,
-            Err(errors) => {
-                return terminal_execution::Observation {
-                    facts: vec!["interpreter:declined".to_owned()],
-                    diagnostics: errors
-                        .iter()
-                        .map(|error| host_free_diagnostic_text(&error.message))
-                        .collect(),
-                };
-            }
-        };
+    let dispatch = match checked_interpreter_dispatch::prepare_checked_interpreter_dispatch(
+        checked.execution(),
+    ) {
+        Ok(dispatch) => dispatch,
+        Err(errors) => {
+            return terminal_execution::Observation {
+                facts: vec!["interpreter:declined".to_owned()],
+                diagnostics: errors
+                    .iter()
+                    .map(|error| host_free_diagnostic_text(&error.message))
+                    .collect(),
+            };
+        }
+    };
     let mut input = match fixture_input(fixture_dir) {
         Ok(input) => input,
         Err(error) => return terminal_execution::Observation::failure(error),
@@ -2160,12 +2161,9 @@ fn fixture_shard() -> Option<(u64, u64)> {
 }
 
 fn shard_of(name: &str) -> u64 {
-    let mut hash = 0xcbf29ce484222325_u64;
-    for byte in name.bytes() {
-        hash ^= u64::from(byte);
-        hash = hash.wrapping_mul(0x100000001b3);
-    }
-    hash
+    let mut hash = semantic_vocabulary::Fnv1a::new();
+    hash.bytes(name.as_bytes());
+    hash.finish()
 }
 
 /// `OMEGA_CORPUS_TIMINGS=<path>`: a prior records file (the gate passes its

@@ -1662,6 +1662,9 @@ impl<'program> StructuralJudge<'program> {
             )
             .is_some();
         let scalar_field_read = scalar_storage_read && matches!(node, ExpressionNode::Member(_));
+        let scalar_reference_read = self
+            .scalar_reference_read_type(scope.0, scope.1, expression)
+            .is_some();
         let mut children_to_evaluate = Vec::new();
         let child_references =
             operand_types::receiving_types(program, scope.0, expression, node, scope.2);
@@ -1896,37 +1899,56 @@ impl<'program> StructuralJudge<'program> {
                         NormalReturnPath::unobserved(judge).at_expression(expression, demand),
                     ]);
                 }
-                let receiver_changed =
-                    scalar_storage_read && judge.storage_write_sequence != receiver_write_sequence;
-                let path = match requested_operations.delivery {
-                    ValueDelivery::Required => judge.completed_value_path(
-                        expression,
-                        environment,
-                        scope,
-                        &inputs,
-                        call_values,
-                        receiver_changed,
-                        scalar_storage_read,
-                    )?,
-                    ValueDelivery::RetainObservations => {
-                        // Value metadata is provisional until its own complete
-                        // description succeeds. Operand effects and pre-operation
-                        // receipts above are already committed independently.
-                        judge
-                            .clone()
-                            .completed_value_path(
-                                expression,
-                                environment,
-                                scope,
-                                &inputs,
-                                call_values,
-                                receiver_changed,
-                                scalar_storage_read,
-                            )
-                            .unwrap_or_else(|| NormalReturnPath::unobserved(judge))
-                    }
+                let receiver_changed = (scalar_storage_read || scalar_reference_read)
+                    && judge.storage_write_sequence != receiver_write_sequence;
+                // A runtime selector chooses one value, while the complete
+                // supplier frontier contributes every proof alternative. These
+                // paths never narrow its physical origin/permission inventory.
+                let alternatives = if !receiver_changed && scalar_reference_read {
+                    let read_version = judge
+                        .read_storage_version(scope.1, expression)
+                        .or(judge.storage_version);
+                    judge.current_backing_values(scope.0, scope.1, expression, read_version)
+                } else {
+                    None
                 };
-                Some(vec![path.at_expression(expression, demand)])
+                let alternatives = alternatives
+                    .map(|values| values.into_iter().map(Some).collect::<Vec<_>>())
+                    .unwrap_or_else(|| vec![None]);
+                let mut completed = Vec::with_capacity(alternatives.len());
+                for contents in alternatives {
+                    let path = match requested_operations.delivery {
+                        ValueDelivery::Required => judge.clone().completed_value_path(
+                            expression,
+                            environment,
+                            scope,
+                            &inputs,
+                            call_values.clone(),
+                            receiver_changed,
+                            scalar_storage_read,
+                            contents,
+                        )?,
+                        ValueDelivery::RetainObservations => {
+                            // Failure of provisional metadata never erases the
+                            // independently completed operands and effects.
+                            judge
+                                .clone()
+                                .completed_value_path(
+                                    expression,
+                                    environment,
+                                    scope,
+                                    &inputs,
+                                    call_values.clone(),
+                                    receiver_changed,
+                                    scalar_storage_read,
+                                    contents,
+                                )
+                                .unwrap_or_else(|| NormalReturnPath::unobserved(judge.clone()))
+                        }
+                    };
+                    completed.push(path.at_expression(expression, demand));
+                }
+                Some(completed)
             })
             .collect::<Option<Vec<_>>>()?
             .into_iter()

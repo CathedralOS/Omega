@@ -44,7 +44,7 @@ impl BoundaryStorageInputs {
         selection: &TerminalBoundaryReferenceSelection,
         identity_cursor: &mut Option<u64>,
     ) -> Result<PreparedReference, TerminalInterpretError> {
-        if !execution.supports_reference_result(declaration, result) {
+        if !execution.supports_captured_reference_result(declaration, result) {
             return Err(malformed());
         }
         let selected = super::reference_outputs::source(selection, &self.reference_inputs)?;

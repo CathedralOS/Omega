@@ -181,9 +181,8 @@ impl ProducedTerminalProduct {
 struct PreparedTerminalProduct<'a> {
     position: usize,
     request: TerminalProductRequest<'a>,
-    selected_machine: symbols::SymbolHandle,
     signature_identity: Option<[u8; 32]>,
-    physical_adapter: symbols::SymbolHandle,
+    physical_adapter: Option<&'a terminal_psi::PreparedNominalRoot>,
     policy: Option<TerminalBehaviorExclusions<'a>>,
     provider_publication: provider_planning::target_machines::PreparedTargetProviderPublication,
 }
@@ -197,19 +196,17 @@ impl<'a> PreparedTerminalProduct<'a> {
         let view = &request.view;
         if request.use_kind != TerminalProductUse::Application {
             let provider_publication =
-                prepare_target_provider_publication(view, request.use_kind, requested_scopes)?;
+                prepare_target_provider_publication(view, request.use_kind, requested_scopes);
             return Ok(Self {
                 position,
                 request,
-                selected_machine: Default::default(),
                 signature_identity: None,
-                physical_adapter: Default::default(),
+                physical_adapter: None,
                 policy: None,
                 provider_publication,
             });
         }
         let entry = admit_terminal_production(view.entry, view.provenance, view.native_components)?;
-        let selected_machine = entry.machine_symbol();
         let signature_identity = entry.source_signature().identity().bytes();
         let policy = TerminalBehaviorExclusions::new(
             view.build.config.behavior_exclusions.as_slice(),
@@ -219,13 +216,12 @@ impl<'a> PreparedTerminalProduct<'a> {
         );
         // Firmware starts in the selected adapter, not the semantic continuation.
         // Admit its behavior and callbacks while retaining the semantic receipt.
-        let physical_adapter = entry.physical_adapter().unwrap_or_default();
+        let physical_adapter = entry.physical_adapter();
         let provider_publication =
-            prepare_target_provider_publication(view, request.use_kind, requested_scopes)?;
+            prepare_target_provider_publication(view, request.use_kind, requested_scopes);
         Ok(Self {
             position,
             request,
-            selected_machine,
             signature_identity: Some(signature_identity),
             physical_adapter,
             policy,
@@ -244,13 +240,30 @@ impl<'a> PreparedTerminalProduct<'a> {
             && self.request.selections.project_psi() == other.request.selections.project_psi()
     }
 
-    fn prepare_application(
-        &self,
-        observer: &mut impl psi_compiler::PsiCompilationObserver,
-    ) -> TerminalApplicationCustody<'a> {
+    fn prepare_application(&self) -> TerminalApplicationCustody<'a> {
+        let entry = self
+            .request
+            .view
+            .entry
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "application has no selected entry declaration",
+                )]
+            })
+            .and_then(|entry| {
+                let signature = entry.source_signature();
+                terminal_psi::PreparedNominalRoot::new(
+                    signature.declaration(),
+                    signature.machine_name(),
+                    None,
+                )
+                .map_err(|reason| {
+                    psi_compiler::TerminalArtifactProductionError::EntryReceipt(reason.into())
+                        .diagnostics()
+                })
+            });
         TerminalApplicationCustody::prepare(
-            self.request.view.program,
-            psi_compiler::TerminalMachineSelection::Symbol(self.selected_machine),
+            entry,
             self.signature_identity,
             self.policy
                 .as_ref()
@@ -258,8 +271,6 @@ impl<'a> PreparedTerminalProduct<'a> {
                     callbacks: Some(self.request.view.callbacks),
                     physical_adapter: self.physical_adapter,
                 }),
-            self.request.view.sources.exact_toolchain_sources(),
-            observer,
         )
     }
 }
@@ -337,13 +348,10 @@ pub(crate) fn produce_retained_terminal_artifacts(
         for mut cohort in cohorts {
             let mut timings = std::mem::take(cohort[0].request.view.timings);
             timings.add_completed(TERMINAL_PRODUCTION_STAGE, 0);
-            let applications = {
-                let mut observer = PsiStageTimings::new(&mut timings);
-                cohort
-                    .iter()
-                    .map(|application| application.prepare_application(&mut observer))
-                    .collect::<Vec<_>>()
-            };
+            let applications = cohort
+                .iter()
+                .map(PreparedTerminalProduct::prepare_application)
+                .collect::<Vec<_>>();
             let started = std::time::Instant::now();
             let produced = produce_shared_terminal(&cohort, &mut timings);
             let elapsed = started.elapsed().as_micros();
@@ -485,110 +493,23 @@ fn admit_terminal_production<'a>(
     })
 }
 
-/// Prepare the Build companion while checked custody is available. Selection
-/// waits for the emitted demand catalog: selecting every source candidate here
-/// would demand unused providers. Preparation retains unavailable targets as
-/// deferred refusal rows, never cohort failures.
+/// Join Source-produced choices with this use's actual receipt and request
+/// roster. Inspection selects against its own artifact instead of reusing the
+/// Product receipt. No declaration lookup or candidate derivation remains here.
 fn prepare_target_provider_publication(
     source: &TerminalProductionView<'_>,
     use_kind: TerminalProductUse<'_>,
     requested_scopes: &[String],
-) -> Result<provider_planning::target_machines::PreparedTargetProviderPublication, Vec<Diagnostic>>
-{
-    let mut targets = source
-        .provider_defaults
-        .iter()
-        .filter_map(|row| row.target.clone())
-        .collect::<Vec<_>>();
-    targets.extend(
-        source
-            .build
-            .config
-            .provider_selections
-            .iter()
-            .filter_map(|selection| {
-                selection
-                    .target
-                    .map(|target| target.canonical_name().to_owned())
-            }),
-    );
-    for binding in &source.build.config.root_bindings {
-        if let Some((owner, _)) = binding.slot.rsplit_once("::")
-            && let Ok(profile) = target::TargetProfile::from_root_slot_owner(owner)
-        {
-            targets.push(profile.target_name().to_owned());
-        }
-    }
-    targets.push(
-        source
-            .selected_target_profile
-            .unwrap_or_else(target::TargetProfile::host)
-            .target_name()
-            .to_owned(),
-    );
-    targets.extend(
-        checked_trees::ProofApplications::new(
-            &source.program.facts.proof_applications,
-            &source.program.facts.operational,
-        )
-        .scopes(
-            source
-                .selected_target_profile
-                .unwrap_or_else(target::TargetProfile::host)
-                .target_name(),
-        )
-        .into_iter()
-        .map(str::to_owned),
-    );
-    // Build rows are not the request domain. Even a sibling with no authored
-    // row needs a complete (possibly refused) proposal in this publication.
-    targets.extend(requested_scopes.iter().cloned());
-    targets.sort();
-    targets.dedup();
-    let inventory = provider_planning::target_machines::TargetProviderInventoryRequest {
-        body_declarations: source.provider_inventory.direct_calls(),
-        origins: source.provider_inventory.origins(),
-        services: source
-            .provider_inventory
-            .services_for(source.program)
-            .map_err(|error| vec![error])?,
-        defaults: source.provider_defaults,
-        authored: source.provider_settlement.authored_providers(),
-        calling_plans: &source
-            .provider_settlement
-            .boundary_calling_plan_realizations,
-        bindings: &source.provider_settlement.evaluated_via_bindings,
+) -> provider_planning::target_machines::PreparedTargetProviderPublication {
+    let selected = match use_kind {
+        TerminalProductUse::Inspection(_) => None,
+        _ => Some(&source.provider_settlement.selected_provider_publication),
     };
-    let targets = targets
-        .into_iter()
-        .map(|target| {
-            let prepared = inventory.prepare(&target);
-            (target, prepared)
-        })
-        .collect::<Vec<_>>();
-    let deployment = source.build.config.provider_deployment()?;
-    Ok(
-        provider_planning::target_machines::TargetProviderPreparationRequest {
-            application_roots: deployment.roots.as_deref(),
-            context: provider_planning::ProviderPlanningContext::new(
-                &source.program.typed,
-                source::DependencyScope::Product,
-            ),
-            exact_toolchain_sources: source.sources.exact_toolchain_sources(),
-            overrides: &source.build.config.provider_selections,
-            assumed_bindings: source.plan_facts.assumed_bindings(),
-            independent_components: &source.provider_settlement.verified_independent_components,
-            // A named inspection has its own requested root and semantic
-            // publication. It must select against that catalog, not replay a
-            // receipt bound to the shared Product artifact. Ordinary Product
-            // publication keeps its already-settled exact choice unchanged.
-            selected: match use_kind {
-                TerminalProductUse::Inspection(_) => None,
-                _ => Some(&source.provider_settlement.selected_provider_publication),
-            },
-            targets: &targets,
-        }
-        .prepare(),
+    source.provider_settlement.provider_publication.prepare(
+        requested_scopes,
+        selected,
+        source.plan_facts.assumed_bindings(),
+        &source.provider_settlement.verified_independent_components,
     )
 }
 

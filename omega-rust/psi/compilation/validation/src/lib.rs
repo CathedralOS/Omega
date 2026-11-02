@@ -53,8 +53,8 @@ pub use value_custody::places::binding_observations::{
 pub use value_custody::places::collection_operations;
 pub use value_custody::places::declared_reference_access;
 pub use value_custody::places::{
-    applied_data_member_field, corresponding_loan_owner_path, corresponding_place_projection,
-    declaration_type_reference, declared_case_projection_field, state_root_type,
+    applied_data_member_field, declaration_type_reference, declared_case_projection_field,
+    state_root_type,
 };
 pub use value_custody::static_inline_storage::{
     runtime_inline_array_extent, validate_prepared_inline_storage,
@@ -627,7 +627,8 @@ pub use value_custody::places::{
     canonical_place_from_expression, canonical_place_from_expression_in_state,
     canonical_place_source_type_application, canonical_place_type_reference,
     canonical_qualification_path, collection_element_type_reference,
-    contextual_canonical_place_from_expression, data_member_symbol_by_name, declared_data_type,
+    contextual_canonical_place_from_expression, corresponding_loan_owner_path,
+    corresponding_place_projection, data_member_symbol_by_name, declared_data_type,
     effective_member_symbol, expression_place_type_reference, expression_root_symbol,
     expression_type_reference_in_state, expression_type_symbol, first_valid_name_path_symbol,
     index_place_segment, loan_carrier_has_owned_storage, machine_symbol_from_type_reference_handle,

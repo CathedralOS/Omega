@@ -21,6 +21,7 @@
 //! provider is missing program content, not a settlement slot; provider
 //! identity is nominal and never inferred from the boundary's name.
 
+pub(crate) mod assumed_bindings;
 mod canonical_filesystem_host;
 mod completion;
 mod composition_modes;
@@ -41,11 +42,9 @@ use effects::SelectedProviderPlanFacts;
 use effects::provider_plan::{
     ProviderBinding, ProviderIdentityTable, ProviderPlan, ProviderPlanRow,
 };
-use language_semantics::direct_calls::DirectCallDeclarations;
 use package_compilation::{
     AcceptedSemanticBinding, AcceptedSemanticBindingRole, PackageCompilationInputs,
 };
-use symbols::SymbolHandle;
 
 /// Resolve the exact Product boundary and normalized schema for the canonical
 /// filesystem host binding.
@@ -237,9 +236,9 @@ pub struct ProviderSettlement<Rows = crate::PreparedProviderRows> {
     /// Complete execution declarations, including compiler-settled leaf plans.
     /// Callback projection and native handoff share this same closed roster.
     pub provider_declarations: std::sync::Arc<[backend_plan::TerminalTargetProviderPlan]>,
-    /// Original authored candidates and their defaults, before native Build
-    /// supplies and compiler-minted plans enter the execution inventory.
-    pub(crate) authored_providers: std::sync::Arc<crate::target_machines::AuthoredTargetProviders>,
+    /// Source-closed authored choices, separate from the actual selected
+    /// native-augmented receipt. Publication borrows no Source context.
+    pub provider_publication: crate::target_machines::ProviderPublicationCatalog,
     /// Exact target used to derive candidate plans, including semantic-only
     /// checking's supported host profile. This grants no deployment entry.
     pub planning_target_profile: Option<target::TargetProfile>,
@@ -289,7 +288,7 @@ impl ProviderSettlement<crate::UnpreparedProviderRows> {
             selected_provider_publication,
             boundary_provider_demands,
             provider_declarations,
-            authored_providers,
+            provider_publication,
             planning_target_profile,
             boundary_calling_plan_realizations,
             component_calling_applications,
@@ -313,7 +312,7 @@ impl ProviderSettlement<crate::UnpreparedProviderRows> {
             selected_provider_publication,
             boundary_provider_demands,
             provider_declarations,
-            authored_providers,
+            provider_publication,
             planning_target_profile,
             boundary_calling_plan_realizations,
             component_calling_applications,
@@ -328,11 +327,6 @@ impl ProviderSettlement<crate::UnpreparedProviderRows> {
 }
 
 impl<Intrinsic> ProviderSettlement<Intrinsic> {
-    pub fn authored_providers(
-        &self,
-    ) -> &std::sync::Arc<crate::target_machines::AuthoredTargetProviders> {
-        &self.authored_providers
-    }
     /// Publish the complete calling catalog from its producing owners. Explicit
     /// policy rows can also own an external import; retain that same application
     /// once. Default native policies retain their materialized geometry here too.
@@ -378,16 +372,10 @@ impl<Intrinsic> ProviderSettlement<Intrinsic> {
 /// slots. Unselected exported implementations remain checked review content.
 pub fn settle_checked_providers(
     checked: &checked_trees::CheckedTrees,
-    exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
     services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'_>,
-    body_declarations: &DirectCallDeclarations<SymbolHandle>,
-    settled_target_machines: SettledTargetMachineDeclarations,
     selected_target_profile: Option<target::TargetProfile>,
     package_inputs: Option<&PackageCompilationInputs>,
-    build_provider_selections: &[ProviderSelection],
-    application_roots: Option<&[(String, SymbolHandle)]>,
-    native_supplies: &[crate::native_bindings::NativeBuildSupply],
-    assumed_bindings: &[build_time_evaluation::assumed_bindings::AssumedBindingContract],
+    prepared_providers: Result<crate::target_machines::PreparedProductProviders, Vec<Diagnostic>>,
     accepted_component_assumptions: &std::collections::BTreeSet<[u8; 32]>,
     boundary_calling_plan_realizations: Vec<BoundaryCallingPlanRealization>,
     calling_program: std::sync::Arc<crate::calling_policy_plans::CallingProgram>,
@@ -410,32 +398,15 @@ pub fn settle_checked_providers(
     // PRV4 provider selection mirrors the native pipeline: candidates remain
     // separate by provider type and only the uniquely covering candidate may
     // rewrite adapter calls in the interpreter program.
-    let mut evaluated_via_bindings = crate::evaluated_via_bindings::evaluate_checked_via_bindings(
+    let prepared = prepared_providers?.attach_calling(
         checked,
-        source::DependencyScope::Product,
         planning_target,
-        package_inputs,
-    )?;
-    let authored_providers =
-        std::sync::Arc::new(crate::target_machines::AuthoredTargetProviders::derive(
-            services,
-            body_declarations,
-            &boundary_calling_plan_realizations,
-            &evaluated_via_bindings,
-            planning_target,
-            settled_target_machines,
-        )?);
-    let mut derived_provider_plans = authored_providers.candidates().to_vec();
-    let mut identities = evaluated_via_bindings.identities().clone().into_builder();
-    let native_build_plans = crate::native_bindings::derive(
-        services,
         &boundary_calling_plan_realizations,
-        native_supplies,
-        planning_target,
-        &mut identities,
     )?;
-    derived_provider_plans.extend(native_build_plans.iter().cloned());
-    evaluated_via_bindings.retain_extended_identities(identities.build())?;
+    let evaluated_via_bindings = prepared.bindings;
+    let derived_provider_plans = prepared.candidates;
+    let native_build_plans = derived_provider_plans[prepared.native_start..].to_vec();
+    let provider_publication = prepared.publication;
     let independent_components = independent_components::verify_independent_components(
         package_inputs,
         accepted_component_assumptions,
@@ -443,23 +414,11 @@ pub fn settle_checked_providers(
     .into_iter()
     .map(std::sync::Arc::new)
     .collect::<Vec<_>>();
-    let assumptions = assumed_binding_coordinates(typed, assumed_bindings)?;
+    let prepared_assumptions = prepared.assumptions;
+    let assumptions = prepared_assumptions.coordinates?;
     let profile = planning_target.unwrap_or_else(target::TargetProfile::host);
-    let prepared = crate::target_machines::TargetProviderPreparationRequest {
-        context: crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product),
-        exact_toolchain_sources,
-        application_roots,
-        overrides: build_provider_selections,
-        assumed_bindings: &assumptions,
-        independent_components: &independent_components,
-        selected: None,
-        targets: &[],
-    }
-    .prepare_target(
-        profile.target_name(),
-        &authored_providers,
-        &native_build_plans,
-    )?;
+    let mut prepared = prepared.choices?;
+    prepared.independent_components = independent_components.clone();
     let artifact = calling_program.artifact.view();
     let canonical_roots = prepared.close_application_roots(artifact)?;
     let provider_selection::SelectedTargetProviders {
@@ -610,118 +569,8 @@ pub fn settle_checked_providers(
         // candidate for the slot even though no package authored it.
         provider_candidates.push(crate::ProviderPlanCandidate::toolchain(minted.plan));
     }
-    for assumption in assumed_bindings {
-        let signature = |symbol| {
-            typed.traits().iter().find_map(|definition| {
-                typed
-                    .trait_machine_signatures(definition)
-                    .iter()
-                    .find(|signature| signature.symbol == symbol)
-            })
-        };
-        let required_signature = signature(assumption.required)
-            .ok_or_else(|| vec![Diagnostic::error("assumed binding lost required signature")])?;
-        let supplied_signature = signature(assumption.supplied)
-            .ok_or_else(|| vec![Diagnostic::error("assumed binding lost supplied signature")])?;
-        let required_parameters = typed.state_signature_parameters(required_signature);
-        let supplied_parameters = typed.state_signature_parameters(supplied_signature);
-        if required_parameters.len() != supplied_parameters.len()
-            || typed.normalized_type_identity(required_signature.return_type)
-                != typed.normalized_type_identity(supplied_signature.return_type)
-            || required_parameters
-                .iter()
-                .zip(supplied_parameters)
-                .any(|(required, supplied)| {
-                    typed.normalized_type_identity(required.type_reference)
-                        != typed.normalized_type_identity(supplied.type_reference)
-                })
-        {
-            return Err(vec![Diagnostic::error("assumed binding has incompatible runtime carriers, parameter order or passing modes").with_source_span(assumption.source_span)]);
-        }
-        if (!required_signature.suspends && supplied_signature.suspends)
-            || (!required_signature.blocks && supplied_signature.blocks)
-            || required_signature.termination_guarantee != supplied_signature.termination_guarantee
-            || !required_signature.invokes.is_empty()
-            || !supplied_signature.invokes.is_empty()
-            || required_signature.lifetime_parameters.len()
-                != supplied_signature.lifetime_parameters.len()
-        {
-            return Err(vec![Diagnostic::error("assumed binding has incompatible or unsupported operational/lifetime correspondence").with_source_span(assumption.source_span)]);
-        }
-
-        // Runtime carrier identity erases regions. Compare the complete
-        // reference graph under an explicit positional alpha correspondence;
-        // equal binder counts alone cannot preserve a result/argument anchor.
-        let lifetime_mapping = required_signature
-            .lifetime_parameters
-            .iter()
-            .zip(&supplied_signature.lifetime_parameters)
-            .map(|(required, supplied)| {
-                (required.as_str().to_owned(), supplied.as_str().to_owned())
-            })
-            .collect::<Vec<_>>();
-        let scopes = [
-            checked_trees::typed_trees::type_identity::AppliedTypeIdentityScope {
-                declaration: required_signature.symbol,
-                arguments: &[],
-                lifetimes: &lifetime_mapping,
-            },
-        ];
-        let corresponding = |required, supplied| {
-            let required =
-                checked_trees::typed_trees::type_identity::applied_type_identity_in_scope(
-                    typed,
-                    required,
-                    required_signature.symbol,
-                    supplied_signature.symbol,
-                    &scopes,
-                );
-            let supplied = checked_trees::typed_trees::type_identity::applied_type_identity(
-                typed,
-                supplied,
-                supplied_signature.symbol,
-                &[],
-            );
-            required.is_some() && required == supplied
-        };
-        if !corresponding(
-            required_signature.return_type,
-            supplied_signature.return_type,
-        ) || required_parameters
-            .iter()
-            .zip(supplied_parameters)
-            .any(|(required, supplied)| {
-                !corresponding(required.type_reference, supplied.type_reference)
-            })
-        {
-            return Err(vec![
-                Diagnostic::error("assumed binding has incompatible lifetime subject mapping")
-                    .with_source_span(assumption.source_span),
-            ]);
-        }
-
-        let required = boundary_calling_plan_realizations
-            .iter()
-            .find(|row| row.requirement_machine == assumption.required);
-        let supplied = boundary_calling_plan_realizations
-            .iter()
-            .find(|row| row.requirement_machine == assumption.supplied);
-        let compatible = match (required, supplied) {
-            (None, None) => true,
-            (Some(required), Some(supplied)) => {
-                required.exact_boundary_entry_plan() == supplied.exact_boundary_entry_plan()
-                    && required.materialized_signature() == supplied.materialized_signature()
-            }
-            _ => false,
-        };
-        if !compatible {
-            return Err(vec![
-                Diagnostic::error(
-                    "assumed binding has incompatible validated layout or calling plan",
-                )
-                .with_source_span(assumption.source_span),
-            ]);
-        }
+    for assumption in prepared_assumptions.rows {
+        assumption.validate_calling(&boundary_calling_plan_realizations)?;
     }
     let mut required = std::collections::BTreeSet::new();
     for row in &assumptions {
@@ -780,7 +629,7 @@ pub fn settle_checked_providers(
             selected_provider_publication,
             boundary_provider_demands,
             provider_declarations: provider_declarations.into(),
-            authored_providers,
+            provider_publication,
             planning_target_profile: planning_target,
             boundary_calling_plan_realizations,
             component_calling_applications,
@@ -801,40 +650,4 @@ pub fn settle_checked_providers(
         selected_provider_plan_facts,
         selected_provider_provenance,
     })
-}
-
-/// Prepare exact descriptive edges before demand discovery. Carrier/lifetime
-/// compatibility and actual selected supply remain their independent checks.
-fn assumed_binding_coordinates(
-    typed: &TypedTrees,
-    assumed_bindings: &[build_time_evaluation::assumed_bindings::AssumedBindingContract],
-) -> Result<Vec<effects::AssumedBindingContractSelection>, Vec<Diagnostic>> {
-    let identity = |symbol| {
-        typed
-            .traits()
-            .iter()
-            .find_map(|definition| {
-                typed
-                    .trait_machine_signatures(definition)
-                    .iter()
-                    .find(|signature| signature.symbol == symbol)
-                    .map(|signature| {
-                        typed.trait_requirement_callable_identity_text(definition, signature)
-                    })
-            })
-            .ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "assumed binding lost exact requirement identity",
-                )]
-            })
-    };
-    assumed_bindings
-        .iter()
-        .map(|row| {
-            Ok(effects::AssumedBindingContractSelection {
-                required: identity(row.required)?,
-                supplied: identity(row.supplied)?,
-            })
-        })
-        .collect()
 }

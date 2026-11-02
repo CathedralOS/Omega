@@ -64,9 +64,23 @@ pub enum TerminalEffectResult {
     Structural(TerminalStructuralValue),
     /// An immutable, storage-backed byte view, not an opaque structural atom.
     ByteSequence(TerminalByteSequenceValue),
-    /// An authenticated endpoint selected from this invocation's captured
-    /// inputs. It supplies neither an arbitrary address nor a new allocation.
-    Reference(super::storage_inputs::TerminalBoundaryReferenceSelection),
+    /// An authenticated endpoint of this invocation's captured input storage.
+    CapturedReference(super::storage_inputs::TerminalBoundaryReferenceSelection),
+    /// A host-produced reference whose referent is materialized guest storage,
+    /// never an opaque token. The interpreter mints the carrier and commits
+    /// the supplied payload beneath it, so the result's exclusive or shared
+    /// loan is real storage the caller's projections can read and write.
+    Reference(TerminalReferenceResult),
+}
+
+/// The materialized referent a host reference result supplies. The carrier
+/// itself is minted at commit; only the referent's declared type and actual
+/// scalar payload cross the boundary.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalReferenceResult {
+    /// The referent's declared type and complete scalar contents, in the same
+    /// canonical-path form `TerminalScalarAggregateValue` uses for results.
+    pub referent: TerminalScalarAggregateValue,
 }
 
 impl TerminalExecution<'_> {
@@ -129,7 +143,11 @@ impl TerminalExecution<'_> {
             && ((requires_materialized_host_custody(&self.structural_types(), result.structural_type)
                 && !self.supports_scalar_aggregate_result(result)
                 && !self.supports_byte_sequence_result(result)
-                && !self.supports_reference_result(boundary, result))
+                && !self.supports_captured_reference_result(boundary, result)
+                && !(self.supports_host_reference_result(result)
+                    && boundary.result_reference_regions.iter().any(|region|
+                        region.path.is_empty() && matches!(region.origin,
+                            terminal_psi::TerminalDynamicReferenceOrigin::Invocation { .. }))))
                 || self.structural_values.contains_key(&result.place)
                 || self
                     .live_affine_frontier
@@ -146,7 +164,7 @@ impl TerminalExecution<'_> {
         Ok(())
     }
 
-    pub(crate) fn supports_reference_result(
+    pub(crate) fn supports_captured_reference_result(
         &self,
         boundary: &BoundaryMachineDeclaration,
         result: &terminal_psi::StructuralOperationResult,
@@ -155,6 +173,13 @@ impl TerminalExecution<'_> {
             && result.projected_qualifications.is_empty()
             && result.claims.is_empty()
             && !boundary.result_reference_regions.is_empty()
+            && boundary.result_reference_regions.iter().all(|region| {
+                region.path.is_empty()
+                    && matches!(
+                        region.origin,
+                        terminal_psi::TerminalDynamicReferenceOrigin::Parameter { .. }
+                    )
+            })
             && matches!(
                 self.structural_types()
                     .get(&result.structural_type)
@@ -204,6 +229,31 @@ impl TerminalExecution<'_> {
                     }
                 ))
             )
+    }
+
+    /// A reference result is admissible from a host only when it carries no
+    /// claims and its referent materializes as a finite scalar aggregate —
+    /// the exact payload the host's `TerminalReferenceResult` commits.
+    fn supports_host_reference_result(
+        &self,
+        result: &terminal_psi::StructuralOperationResult,
+    ) -> bool {
+        result.qualifications.is_empty()
+            && result.projected_qualifications.is_empty()
+            && result.claims.is_empty()
+            && self
+                .reference_contract(result.structural_type)
+                .is_ok_and(|(referent, _)| {
+                    self.structural_types()
+                        .get(&referent)
+                        .is_some_and(|declaration| {
+                            crate::boundary::values::ScalarAggregatePlan::new(
+                                declaration,
+                                |identity| self.structural_types().get(&identity),
+                            )
+                            .is_ok()
+                        })
+                })
     }
 
     fn supports_scalar_aggregate_result(
@@ -390,6 +440,20 @@ impl TerminalExecution<'_> {
                 )?;
                 self.structural_values.insert(declaration.place, value)?;
                 self.track_affine_result(declaration);
+            }
+            (
+                OperationResult::Structural(declaration),
+                BoundaryMachineResult::Structural(expected),
+                TerminalEffectResult::Reference(supply),
+            ) if declaration.structural_type == expected.structural_type
+                && declaration.multiplicity == expected.multiplicity
+                && declaration.qualifications == expected.qualifications
+                && declaration.projected_qualifications.is_empty()
+                && expected.projected_qualifications.is_empty()
+                && declaration.claims.is_empty()
+                && self.supports_host_reference_result(declaration) =>
+            {
+                self.publish_host_reference_result(declaration, supply)?;
             }
             _ => return Err(malformed()),
         }

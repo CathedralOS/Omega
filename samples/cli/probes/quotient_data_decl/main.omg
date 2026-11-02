@@ -1,5 +1,5 @@
 // Quotient data declaration: `data EquivalenceClass =
-// Representative % equivalent where equivalent satisfies
+// Representative % equivalent requires equivalent satisfies
 // Equivalence<Representative, equivalent> as
 // RepresentativeEquivalence` — the carrier, proposition, named
 // conformance, and quotient type all spelled in user code.
@@ -51,7 +51,7 @@ RepresentativeEquivalence satisfies Equivalence<Representative, equivalent> {
 }
 
 data EquivalenceClass = Representative % equivalent
-where equivalent satisfies
+requires equivalent satisfies
     Equivalence<Representative, equivalent>
     as RepresentativeEquivalence;
 

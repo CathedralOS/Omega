@@ -13,6 +13,8 @@ use terminal_psi::BoundaryMachineDeclaration;
 use super::{FilesystemContext, Formal, TerminalRuntimeError, rejection};
 
 mod contracts;
+mod directory;
+mod removal;
 
 #[derive(Default)]
 pub(super) struct Handles {
@@ -59,6 +61,10 @@ enum Effect {
     Path { count: usize },
     Pipe,
     Query { class: u32, bytes: u32 },
+    Directory { class: u32, bytes: u32 },
+    OpenRelative,
+    Disposition,
+    SetInformation { class: u32, bytes: u32 },
 }
 
 pub(in super::super) struct Call {
@@ -218,6 +224,24 @@ impl Call {
             }
             b"GetFileInformationByHandleEx" => matches!(self.effect, Effect::Query { class, bytes }
                 if arguments.len() == 3 && scalar(arguments[1], i128::from(class)) && scalar(arguments[2], i128::from(bytes))),
+            b"NtQueryDirectoryFile" => directory::arguments(self.effect, arguments),
+            b"NtOpenFile" => {
+                arguments.len() == 3
+                    && (scalar(arguments[0], 1114240) || scalar(arguments[0], 1114241))
+                    && scalar(arguments[1], 7)
+                    && scalar(arguments[2], 2113568)
+            }
+            b"SetFileInformationByHandle" => match self.effect {
+                Effect::Disposition => {
+                    arguments.len() == 3 && scalar(arguments[1], 4) && scalar(arguments[2], 1)
+                }
+                Effect::SetInformation { class, bytes } => {
+                    arguments.len() == 3
+                        && scalar(arguments[1], i128::from(class))
+                        && scalar(arguments[2], i128::from(bytes))
+                }
+                _ => false,
+            },
             b"SetFilePointerEx" => {
                 arguments.len() == 3 && (0..=2).any(|method| scalar(arguments[2], method))
             }
@@ -248,7 +272,9 @@ impl Call {
             return Err(invalid());
         }
         let index = match self.effect {
-            Effect::Acquire | Effect::Path { .. } | Effect::Pipe => return Ok(arguments.to_vec()),
+            Effect::Acquire | Effect::Path { .. } | Effect::Pipe | Effect::OpenRelative => {
+                return Ok(arguments.to_vec());
+            }
             Effect::Duplicate => 1,
             _ => 0,
         };
@@ -298,6 +324,21 @@ impl Call {
         value: TerminalScalarValue,
         result: Option<TerminalScalarValue>,
     ) -> Result<Option<TerminalScalarValue>, TerminalEffectRejection> {
+        if matches!(self.effect, Effect::OpenRelative) && argument == 0 {
+            if signed(
+                result.ok_or_else(|| rejection("NT acquisition lost its completion status"))?,
+            )? == 0
+            {
+                let native = handle_bits(value)?;
+                if native == 0 || native == -1 {
+                    return Err(rejection(
+                        "successful NT acquisition returned no owned HANDLE",
+                    ));
+                }
+                return replace_handle(value, self.context.windows.borrow_mut().acquire(native)?)
+                    .map(Some);
+            }
+        }
         if (matches!(self.effect, Effect::Duplicate) && argument == 0)
             || (matches!(self.effect, Effect::Pipe) && argument < 2)
         {
@@ -316,5 +357,27 @@ impl Call {
             }
         }
         Ok(None)
+    }
+    pub(super) fn readonly_record_argument(&self, index: usize) -> bool {
+        matches!(
+            (self.effect, index),
+            (Effect::OpenRelative, 1) | (Effect::Disposition, 0)
+        )
+    }
+    pub(super) fn prepare_readonly_record(
+        &self,
+        index: usize,
+        record: &super::super::native_provider::ReadonlyRecord<'_>,
+    ) -> Result<Option<Vec<u8>>, TerminalEffectRejection> {
+        self.namespace.map_err(rejection)?;
+        match (self.effect, index) {
+            (Effect::OpenRelative, 1) => removal::translate_attributes(record, |guest| {
+                self.context.windows.borrow().translate(guest)
+            }),
+            (Effect::Disposition, 0) if record.bytes() == [1] => Ok(None),
+            _ => Err(rejection(
+                "Windows readonly file request differs from its exact input record",
+            )),
+        }
     }
 }

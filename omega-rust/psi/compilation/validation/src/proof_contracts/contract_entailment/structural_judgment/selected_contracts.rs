@@ -677,6 +677,10 @@ impl StructuralJudge<'_> {
         ) else {
             return StructuralJudgment::Unknown;
         };
+        // An owned read can introduce a fresh occurrence identity without
+        // changing its established membership. Follow only completed-value
+        // receipts; mathematical equality and local annotations grant none.
+        let subject = self.completed_nominal_subject(&subject);
         let Some(machine) = program.machine(self.machine_symbol) else {
             return StructuralJudgment::Unknown;
         };
@@ -725,7 +729,7 @@ impl StructuralJudge<'_> {
         if self.normal_memberships.iter().any(|guarantee| {
             guarantee.domain == required.domain_symbol
                 && guarantee.semantic_domain == required.semantic_domain
-                && guarantee.subject == subject
+                && self.completed_nominal_subject(&guarantee.subject) == subject
         }) {
             return StructuralJudgment::Proven;
         }
@@ -812,7 +816,7 @@ impl StructuralJudge<'_> {
                 {
                     return false;
                 }
-                &projected == subject
+                &self.completed_nominal_subject(&projected) == subject
             })
     }
 }

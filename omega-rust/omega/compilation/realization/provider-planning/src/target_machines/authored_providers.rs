@@ -1,18 +1,16 @@
 //! Own authored provider derivation before native and toolchain augmentation.
 //!
-//! Early settlement and artifact publication consume the same target/defaults/
-//! candidate relationship. Publication may ask for additional target inventories,
-//! but never reconstructs the one settlement already produced. These are source
-//! declarations, not selected supplies or portable declaration-owner evidence.
+//! Source preparation closes the target/default/candidate relationship before
+//! portable publication. Calling attaches to the retained exact surfaces later.
+//! These are declarations, not selected supplies or execution authority.
 
 use crate::{DerivedProviderPlan, ProviderSelection};
 use diagnostics::Diagnostic;
 use language_semantics::direct_calls::DirectCallDeclarations;
-use std::sync::Arc;
 use symbols::SymbolHandle;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AuthoredTargetProviders {
+pub(crate) struct AuthoredTargetProviders {
     target: Option<target::TargetProfile>,
     defaults: Vec<ProviderSelection>,
     candidates: Vec<DerivedProviderPlan>,
@@ -48,7 +46,6 @@ impl AuthoredTargetProviders {
     pub(crate) fn derive(
         services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'_>,
         body_declarations: &DirectCallDeclarations<SymbolHandle>,
-        calling_plans: &[crate::calling_policy_plans::BoundaryCallingPlanRealization],
         bindings: &crate::evaluated_via_bindings::EvaluatedViaBindingTable,
         target: Option<target::TargetProfile>,
         declarations: crate::SettledTargetMachineDeclarations,
@@ -56,7 +53,7 @@ impl AuthoredTargetProviders {
         let candidates = crate::derive_satisfies_plans(crate::ProviderPlanDerivation::evaluated(
             services,
             body_declarations,
-            calling_plans,
+            &[],
             target.map(target::TargetProfile::target_name),
             bindings,
             &declarations.origins,
@@ -75,45 +72,8 @@ impl AuthoredTargetProviders {
     pub(crate) fn candidates(&self) -> &[DerivedProviderPlan] {
         &self.candidates
     }
-}
 
-/// Source-side preparation for the full publication target roster. Unavailable
-/// targets retain their refusal; they cannot invalidate another target's artifact.
-pub struct TargetProviderInventoryRequest<'program> {
-    pub body_declarations: &'program DirectCallDeclarations<SymbolHandle>,
-    pub origins: &'program [crate::SelectedTargetMachineOrigin],
-    pub services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'program>,
-    pub defaults: &'program [crate::TargetProviderDefaults],
-    pub authored: &'program Arc<AuthoredTargetProviders>,
-    pub calling_plans: &'program [crate::calling_policy_plans::BoundaryCallingPlanRealization],
-    pub bindings: &'program crate::evaluated_via_bindings::EvaluatedViaBindingTable,
-}
-
-impl TargetProviderInventoryRequest<'_> {
-    pub fn prepare(&self, target: &str) -> Result<Arc<AuthoredTargetProviders>, Vec<Diagnostic>> {
-        let profile = target::TargetProfile::from_canonical_target_name(target).map_err(|_| {
-            vec![Diagnostic::error(format!(
-                "provider proposal has no receiving target catalog for `{target}`"
-            ))]
-        })?;
-        profile.native_realization().ok_or_else(|| {
-            vec![Diagnostic::error(format!(
-                "target `{target}` has no provider realization in this compiler"
-            ))]
-        })?;
-        let retained = self.authored;
-        if retained.target == Some(profile) {
-            return Ok(Arc::clone(retained));
-        }
-        let declarations = super::settle_provider_defaults(self.origins, self.defaults, profile);
-        AuthoredTargetProviders::derive(
-            self.services,
-            self.body_declarations,
-            self.calling_plans,
-            self.bindings,
-            Some(profile),
-            declarations,
-        )
-        .map(Arc::new)
+    pub(crate) fn into_candidates(self) -> Vec<DerivedProviderPlan> {
+        self.candidates
     }
 }

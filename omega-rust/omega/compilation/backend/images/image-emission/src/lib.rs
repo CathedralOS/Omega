@@ -10,18 +10,18 @@
 //!
 //! The crate has two lanes:
 //!
-//! - **The object artifact** lives in [`object_artifact`]: the sealed
-//!   [`ObjectArtifact`] carrier, built only by [`function_fragments`], which
+//! - **The object artifact** lives in [`object_artifact`](object::object_artifact): the sealed
+//!   [`ObjectArtifact`] carrier, built only by [`function_fragments`](object::function_fragments), which
 //!   projects each admitted fragment once rather than replaying a second
 //!   machine-code record model against final bytes. Executable-image output
 //!   over a sealed object starts at
-//!   [`image_output`]'s `emit_executable_image`, which selects the direct
-//!   writers it owns or the dynamic ELF lane in [`dynamic_elf`], with
-//!   [`final_image_validation`] replaying either for retained-artifact
-//!   readers; [`function_fragments`] places every addressed byte literal's
+//!   [`image_output`](image::image_output)'s `emit_executable_image`, which selects the direct
+//!   writers it owns or the dynamic ELF lane in [`dynamic_elf`](image::dynamic_elf), with
+//!   [`final_image_validation`](image::final_image_validation) replaying either for retained-artifact
+//!   readers; [`function_fragments`](object::function_fragments) places every addressed byte literal's
 //!   octets in one read-only pool after the
 //!   code, binding each literal address field to it. Ordinary callback bodies
-//!   follow that same projection. [`private_object_composition`] embeds their
+//!   follow that same projection. [`private_object_composition`](object::private_object_composition) embeds their
 //!   complete objects while keeping machine, call and replay identities local;
 //!   helpers, imports and data are not discarded to manufacture a single thunk.
 //! - **The canonical installation record wire format** lives in
@@ -33,50 +33,41 @@
 //!   installed code occurrence when the `installed-artifact` feature is on.
 
 mod codec_bytes;
-mod component_object;
-mod component_shared_image;
-mod foreign_adapter;
-pub use component_object::{
+mod entries;
+mod image;
+mod object;
+pub use entries::callable_entry_transport::{
+    create_callable_entry_transport, create_private_function_object,
+};
+pub use entries::foreign_adapter::{
+    NativeForeignAdapterEmissionError, NativeForeignAdapterImage, emit_native_foreign_adapter,
+};
+pub use entries::physical_entry::{
+    PhysicalEntryBinding, PhysicalEntryPartitions, bind_physical_entry,
+};
+pub use object::component_object::{
     ComponentFunctionImage, component_export_symbol, prepare_component_function_image,
 };
-pub use component_shared_image::{
+pub use object::component_shared_image::{
     ComponentSharedContainer, ComponentSharedImage, ComponentSharedImageEmissionError,
     emit_component_shared_image,
 };
-pub use foreign_adapter::{
-    NativeForeignAdapterEmissionError, NativeForeignAdapterImage, emit_native_foreign_adapter,
-};
-mod callable_entry_transport;
-pub use callable_entry_transport::{
-    create_callable_entry_transport, create_private_function_object,
-};
-mod physical_entry;
-pub use physical_entry::{PhysicalEntryBinding, PhysicalEntryPartitions, bind_physical_entry};
-mod dynamic_elf;
-mod final_image_validation;
-mod function_fragments;
-mod hosted_entry_storage;
-mod hosted_receiver;
-mod hosted_unit_entry;
-mod image_output;
 mod installation_record;
-mod object_artifact;
 mod order;
-mod private_object_composition;
 
-pub use function_fragments::FunctionFragmentObjectArtifactError;
-pub use object_artifact::{
+pub use object::function_fragments::FunctionFragmentObjectArtifactError;
+pub use object::object_artifact::{
     ObjectPrivateFunctionEntry, PrivateFunctionObject, PrivateObjectSymbolBinding,
 };
-pub use private_object_composition::compose_private_function_objects;
+pub use object::private_object_composition::compose_private_function_objects;
 
-pub use function_fragments::replay::verify_retained_target_operations;
+pub use object::function_fragments::replay::verify_retained_target_operations;
 
-pub use object_artifact::replay::boundary::byte_sequence_custody::linux_write_line_custody_is_exact;
-pub use object_artifact::replay::boundary::completion_receipts::completion_receipts_have_exact_custody;
-pub(crate) use object_artifact::stack_demand::StackDemand;
-pub use object_artifact::stack_demand::derive_stack_demand;
-pub use object_artifact::{
+pub use object::object_artifact::replay::boundary::byte_sequence_custody::linux_write_line_custody_is_exact;
+pub use object::object_artifact::replay::boundary::completion_receipts::completion_receipts_have_exact_custody;
+pub(crate) use object::object_artifact::stack_demand::StackDemand;
+pub use object::object_artifact::stack_demand::derive_stack_demand;
+pub use object::object_artifact::{
     ObjectArtifact, ObjectBoundarySettlement, ObjectCodeAttribution, ObjectForeignCall,
     ObjectFunction, ObjectScalarCallStack, ObjectUnitCallStack,
     derive_normalized_foreign_call_custody, durable_home_offsets,
@@ -84,19 +75,19 @@ pub use object_artifact::{
     producer_instruction, scalar_call_result_producer, scalar_immediate_span,
     structural_result_capture, transported_span_end, unique_block_instruction,
 };
-pub(crate) use object_artifact::{
+pub(crate) use object::object_artifact::{
     ObjectByteLiteralAddress, ObjectByteLiteralPool, ObjectCompilerPrivateFunction, ObjectError,
     ObjectPortEffect, ObjectScalarStack, ObjectUnitStack,
 };
 
-pub use function_fragments::{
+pub use object::function_fragments::{
     FunctionFragmentObjectArtifactRequest, build_function_fragment_object_artifact,
 };
 
-pub use dynamic_elf::{RequestedDynamicElfImage, validate_requested_dynamic_elf_image};
-pub(crate) use hosted_receiver::HostedReceiverBinding;
-pub use hosted_receiver::bind_hosted_receiver;
-pub use image_output::{
+pub(crate) use entries::hosted_receiver::HostedReceiverBinding;
+pub use entries::hosted_receiver::bind_hosted_receiver;
+pub use image::dynamic_elf::{RequestedDynamicElfImage, validate_requested_dynamic_elf_image};
+pub use image::image_output::{
     ExecutableImage, ExecutableImageEmissionRequest, ImageApplicationMetadataError,
     ObjectContainer, RequestedExecutableImage, can_emit_executable_image, emit_executable_image,
     validate_direct_executable_image,

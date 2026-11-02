@@ -120,6 +120,69 @@ impl TerminalExecution<'_> {
         Ok(())
     }
 
+    /// Publish a host-produced reference result: the interpreter mints the
+    /// carrier, and the host's referent payload becomes real scalar storage
+    /// beneath the carrier's own runtime identity. Rooting the referent view
+    /// at the carrier keeps the producing operation's owned-origin authority
+    /// honest — the reference owns its referent for exactly its loan's life.
+    pub(crate) fn publish_host_reference_result(
+        &mut self,
+        result: &terminal_psi::StructuralOperationResult,
+        supply: crate::boundary::effects::results::TerminalReferenceResult,
+    ) -> Result<(), TerminalInterpretError> {
+        if !result.projected_qualifications.is_empty()
+            || !result.claims.is_empty()
+            || self.structural_values.contains_key(&result.place)
+        {
+            return Err(malformed());
+        }
+        let (referent, _access) = self.reference_contract(result.structural_type)?;
+        if supply.referent.structural_type != referent {
+            return Err(malformed());
+        }
+        supply.referent.validate_against(
+            self.structural_declaration(referent)?,
+            |identity| self.structural_types().get(&identity),
+        )?;
+        let value = TerminalStructuralValue::minted(
+            self.local_structural_identities.allocate()?,
+            result.structural_type,
+            result.qualifications.clone(),
+        );
+        let view = TerminalStructuralValue {
+            opaque_identity: value.opaque_identity,
+            structural_type: referent,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+            path: Vec::new(),
+        };
+        let root = StructuralRuntimePlace::from(&view);
+        let mut storage = ConstructorStorage::new(self.account.as_ref());
+        storage.stage_scalar_aggregate(self, &supply.referent, &root)?;
+        storage.publish(self)?;
+        self.reference_referents.insert(
+            StructuralRuntimePlace::from(&value),
+            crate::storage::reference::ReferenceReferent {
+                view,
+                placed: None,
+                primitive_loan: None,
+                collection_loan: None,
+                byte_owner: None,
+                byte_region: None,
+                aggregate_view: None,
+            },
+        )?;
+        self.structural_host_atoms.insert(
+            StructuralRuntimePlace::from(&value),
+            crate::storage::structural_storage::HostStructuralPayload::Materialized(
+                value.opaque_identity,
+            ),
+        )?;
+        self.structural_values.insert(result.place, value)?;
+        self.track_affine_result(result);
+        Ok(())
+    }
+
     /// Record the affine debt a fresh affine result owes the live frontier.
     pub(crate) fn track_affine_result(&mut self, result: &terminal_psi::StructuralOperationResult) {
         if result.multiplicity == StructuralMultiplicity::Affine {

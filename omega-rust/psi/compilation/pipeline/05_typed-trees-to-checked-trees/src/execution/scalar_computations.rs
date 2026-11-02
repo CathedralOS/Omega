@@ -153,6 +153,7 @@ pub(crate) fn build_checked_value_computation_plans(
                     plans: &mut plans,
                     structural_values: &mut structural_values,
                     statement_nodes_start,
+                    root_scope: builder::RootScope::Statement,
                     scalar_occurrences: Vec::new(),
                     integer_occurrences: Vec::new(),
                 };
