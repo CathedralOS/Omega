@@ -22,8 +22,7 @@ pub(crate) use operational::signature_operational;
 pub use operational::{infer_operational_may, infer_operational_may_for_dependencies};
 pub(crate) use service_reach::signature_service_reach;
 pub use service_reach::{
-    boundary_signature_service_reach, fixed_installation_boundary_service_reach,
-    infer_service_reaches,
+    fixed_installation_boundary_service_reach, infer_service_reaches, trait_signature_service_reach,
 };
 
 /// The published contract of one requirement an opaque realizer satisfies.

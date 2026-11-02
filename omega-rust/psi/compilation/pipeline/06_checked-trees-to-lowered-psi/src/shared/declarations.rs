@@ -140,14 +140,13 @@ pub(crate) fn target_signature(
     let mut signatures = program
         .traits()
         .iter()
-        .filter(|definition| definition.is_boundary)
         .flat_map(|definition| program.executable_trait_machine_instances(definition))
         .filter(|signature| signature.symbol == requirement);
     let signature = signatures.next().ok_or(LoweringError::Unsupported(
-        "call source custody has no authored boundary requirement",
+        "call source custody has no authored trait requirement",
     ))?;
     if signatures.next().is_some() || !signature.symbol.is_valid() {
-        return unsupported("call source custody disagrees with its authored boundary requirement");
+        return unsupported("call source custody disagrees with its authored trait requirement");
     }
     Ok(TargetSignature {
         parameters: program.state_signature_parameters(signature),

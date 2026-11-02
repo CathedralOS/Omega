@@ -134,9 +134,24 @@ the public CLI SHA-256 is
 Raw records remain in the active claim's `build/calling-helper-choice-r3-*`
 files; checked-in corpus rows retain the actual producer revision.
 
-Source invocation admission, request enumeration and checked target-body
-correspondence still prevent full Source-free target planning. This component
-does not close that parent outcome or qualify foreign-host execution.
+Physical ABI row association now uses the canonical declaration census, exact
+inherited receiver application and Calling root independently of the member's
+declaring application. The [shared-parent control](controls/shared_parent_roots/main.omg)
+retains two evaluated policies for the same full member ABI with different
+roots and plans; only the selected root may supply its component application.
+Its [Width-4 twin](controls/shared_parent_roots/invalid/main.omg) still requires
+complete result-byte coverage. The [ordinary-parent control](controls/ordinary_parent_owner/main.omg)
+runs its checked implementation fused while a physical component request must
+refuse the ordinary declaring owner. Logical contract retention and exact
+ancestor correspondence grant neither nominal service reach nor physical ABI
+eligibility. The existing Source-discard tests exercise both retained and
+normally decoded artifacts with no Source companions for this ABI join.
+
+Source invocation admission, request enumeration, checked target-body
+correspondence and the other source-reading provider consumers still prevent
+full Source-free target planning. This component does not close that parent
+outcome or qualify foreign-host execution. Current scoped producer identities
+and observations remain in the implementation commit and active claim records.
 
 ## Retained Build-selection evidence
 
