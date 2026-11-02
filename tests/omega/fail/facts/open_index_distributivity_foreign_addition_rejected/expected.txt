@@ -1,0 +1,2 @@
+`multiply` of `IndexProduct` licenses distributivity over `add`
+`add` of `IndexSum` licenses no law
