@@ -178,7 +178,7 @@ pub use termination::{
     CheckedProofRecursiveCallSite, CheckedProofRecursiveComponent, CheckedProofRecursiveEdge,
     CheckedProofRecursiveMember, CheckedProofRecursiveTransitionLane, CheckedRankApplicationFacts,
     CheckedRankApplicationFormation, CheckedRankApplicationFormationHandle,
-    CheckedRankApplicationOwnedCopy, CheckedRankArrivalEdge, CheckedRankArrivalPlan,
+    CheckedRankApplicationOwnedInput, CheckedRankArrivalEdge, CheckedRankArrivalPlan,
     CheckedRankBodyJudgment, CheckedRankCoordinate, CheckedRankCoordinateBinding,
     CheckedRankCoordinateHandle, CheckedRankCoordinateTransport, CheckedRankLocalCapture,
     CheckedRankObservation, CheckedRankOperand, CheckedRankPremiseRegime,
