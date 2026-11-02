@@ -46,7 +46,7 @@ crashes Trap
     machine builtin(typer: &mut Typer, builtin: BuiltinType, source_span: SourceSpan) -> u64 in Trapping {
         let mut row: TypeRow = TypeRow::of(TypeKind::Builtin);
         row.builtin = builtin;
-        transition builtin == BuiltinType::Slice || builtin == BuiltinType::Result || builtin == BuiltinType::SyscallResult || builtin == BuiltinType::UInt || builtin == BuiltinType::Int { true -> unsupported(typer, source_span) _ -> retained(typer, row, source_span) }
+        transition builtin == BuiltinType::Slice || builtin == BuiltinType::SyscallResult || builtin == BuiltinType::UInt || builtin == BuiltinType::Int { true -> unsupported(typer, source_span) _ -> retained(typer, row, source_span) }
     }
     machine generic(typer: &mut Typer, parameter: u64 in Trapping, source_span: SourceSpan) -> u64 in Trapping {
         let mut row: TypeRow = TypeRow::of(TypeKind::GenericParameter);
