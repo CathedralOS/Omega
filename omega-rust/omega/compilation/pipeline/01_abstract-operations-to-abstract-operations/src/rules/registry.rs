@@ -1,7 +1,4 @@
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    sync::Arc,
-};
+use std::{collections::BTreeSet, sync::Arc};
 
 use optimization::PsiOptimization;
 use optimization_core::{
@@ -11,44 +8,32 @@ use optimization_core::{
 use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate, PsiRewriteCandidateError};
 use semantic_vocabulary::{MachineId, ObligationId, OperationId};
 
+use crate::analyses::analysis_index;
 use crate::{AnalysisProduct, EffectSummaryAnalysis, UseDefinitionAnalysis};
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct RuleAnalysisView<'a> {
-    products: RuleAnalysisProducts<'a>,
-}
-
-#[derive(Debug, Clone, Copy)]
-enum RuleAnalysisProducts<'a> {
-    Cache {
-        products: &'a BTreeMap<AnalysisKind, AnalysisProduct>,
-        requested: AnalysisSet,
-    },
+    products: &'a [Option<AnalysisProduct>],
+    requested: AnalysisSet,
 }
 
 impl<'a> RuleAnalysisView<'a> {
-    pub(crate) const fn from_cache(
-        products: &'a BTreeMap<AnalysisKind, AnalysisProduct>,
+    /// A rule sees only the products it requested, never another rule's.
+    pub(crate) const fn new(
+        products: &'a [Option<AnalysisProduct>],
         requested: AnalysisSet,
     ) -> Self {
         Self {
-            products: RuleAnalysisProducts::Cache {
-                products,
-                requested,
-            },
+            products,
+            requested,
         }
     }
 
     pub fn get(self, kind: AnalysisKind) -> Option<&'a AnalysisProduct> {
-        match self.products {
-            RuleAnalysisProducts::Cache {
-                products,
-                requested,
-            } => requested
-                .contains(kind)
-                .then(|| products.get(&kind))
-                .flatten(),
+        if !self.requested.contains(kind) {
+            return None;
         }
+        self.products[analysis_index(kind)].as_ref()
     }
 
     /// Read shared prerequisites in their established diagnostic order. Going

@@ -1,6 +1,7 @@
-//! Closed analysis-product catalog, dependency graph, and computation dispatch.
+//! Closed analysis-product catalog and computation dispatch. Each product
+//! computes from the unit alone.
 
-use optimization_core::{AnalysisKind, AnalysisSet};
+use optimization_core::AnalysisKind;
 use optimization_unit::PsiOptimizationUnit;
 
 use super::{
@@ -38,43 +39,6 @@ pub(crate) enum AnalysisProduct {
 }
 
 impl AnalysisProduct {}
-
-pub(crate) fn analysis_dependencies(kind: AnalysisKind) -> Option<AnalysisSet> {
-    match kind {
-        AnalysisKind::ControlFlowGraph
-        | AnalysisKind::CallGraph
-        | AnalysisKind::UseDefinition
-        | AnalysisKind::EffectSummaries
-        | AnalysisKind::OwnershipFrontiers
-        | AnalysisKind::PlaceAccessSummaries => Some(AnalysisSet::default()),
-        AnalysisKind::Dominators
-        | AnalysisKind::PostDominators
-        | AnalysisKind::StronglyConnectedComponents => {
-            Some(AnalysisSet::new([AnalysisKind::ControlFlowGraph]))
-        }
-        AnalysisKind::LoopForest => Some(AnalysisSet::new([
-            AnalysisKind::ControlFlowGraph,
-            AnalysisKind::Dominators,
-            AnalysisKind::StronglyConnectedComponents,
-        ])),
-        AnalysisKind::ScalarConstants | AnalysisKind::ValueLiveness => Some(AnalysisSet::new([
-            AnalysisKind::ControlFlowGraph,
-            AnalysisKind::UseDefinition,
-        ])),
-        AnalysisKind::ExecutableEdges => Some(AnalysisSet::new([
-            AnalysisKind::ControlFlowGraph,
-            AnalysisKind::ScalarConstants,
-        ])),
-        AnalysisKind::ValueRanges => Some(AnalysisSet::new([
-            AnalysisKind::ControlFlowGraph,
-            AnalysisKind::Dominators,
-            AnalysisKind::UseDefinition,
-            AnalysisKind::ScalarConstants,
-        ])),
-        AnalysisKind::PlaceAliases => Some(AnalysisSet::new([AnalysisKind::OwnershipFrontiers])),
-        _ => None,
-    }
-}
 
 pub(crate) fn compute_analysis(
     unit: &PsiOptimizationUnit,
