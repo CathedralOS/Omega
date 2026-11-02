@@ -128,6 +128,10 @@ fn expression_children(
         return Err("constant initializer contains a stale expression".into());
     }
     let mut children = Vec::new();
+    let authored = table.materialization_source(expression);
+    if authored.is_valid() {
+        children.push(authored);
+    }
     match table.expression(expression) {
         ExpressionNode::SavedSubject(_) => {}
         ExpressionNode::Call(call) => {
@@ -693,7 +697,7 @@ impl<'program> Collector<'program> {
         // A reflection dispatch jump stays inside the exact generated helper.
         // It is not an authored declaration lookup and borrows no package edge.
         if occurrence.is_none()
-            && self.active_reflection_origin(context.machine).is_some()
+            && self.reflection_body_origin(context.machine).is_some()
             && let validation::CallSite::TransitionNamed { .. } = &site
         {
             let target = call_selections::retained_target(self.program, &site)?;
@@ -743,7 +747,7 @@ impl<'program> Collector<'program> {
 
     /// Exact compiler derivation plus retained source query. Generated names,
     /// source-less bodies and shape equality alone cannot claim this origin.
-    fn active_reflection_origin(
+    fn reflection_body_origin(
         &self,
         machine: &Machine,
     ) -> Option<(typed_trees::statement::StatementHandle, SymbolHandle)> {
@@ -784,7 +788,11 @@ impl<'program> Collector<'program> {
                 == Some(std::path::Path::new("reflect.omg"))
             && matches!(
                 program.symbols.name(declaration),
-                "visit_active_fields" | "visit_active_fields_mut"
+                "visit_runtime_fields"
+                    | "visit_runtime_fields_mut"
+                    | "inspect_record_fields"
+                    | "visit_active_fields"
+                    | "visit_active_fields_mut"
             ))
         .then_some((query, source_state))
     }
@@ -799,7 +807,7 @@ impl<'program> Collector<'program> {
     ) -> Result<(), String> {
         let program = self.program;
         let context =
-            if let Some((query, source_state)) = self.active_reflection_origin(context.machine) {
+            if let Some((query, source_state)) = self.reflection_body_origin(context.machine) {
                 if query != handle {
                     return Err("active reflection helper changed its original query".into());
                 }
@@ -863,6 +871,43 @@ impl<'program> Collector<'program> {
         )?;
         self.static_arguments(&query.machine_arguments);
         Ok(())
+    }
+
+    /// Expression elaboration retains an ordinary Unit helper and the exact
+    /// authored query in that helper's body. Follow that derivation rather than
+    /// treating the generated entry as a new authored declaration selection.
+    fn reflected_expression_call(
+        &mut self,
+        expression: ExpressionHandle,
+        call: &typed_trees::expression::TableCallExpression,
+        context: Context<'program>,
+    ) -> Result<bool, String> {
+        let Some(machine) = self.program.machine_holding_state(call.target_symbol) else {
+            return Ok(false);
+        };
+        let Some((query, _)) = self.reflection_body_origin(machine) else {
+            return Ok(false);
+        };
+        let StatementNode::Call(original) = self.program.statement_table.statement(query) else {
+            return Err("reflected expression lost its original query".into());
+        };
+        let occurrence = original
+            .authored_call_selection
+            .ok_or("reflected expression query lost its authored call occurrence")?;
+        if call.authored_call_selection != Some(occurrence)
+            || !self
+                .program
+                .expression_table
+                .authored_selection_occurrences(expression)
+                .any(|retained| retained == occurrence)
+        {
+            return Err("reflected expression changed its original query selection".into());
+        }
+        self.reflected_query_dependency(query, context)?;
+        if self.expand_callees {
+            self.machines.push(machine.symbol);
+        }
+        Ok(true)
     }
 
     fn call(
@@ -1229,6 +1274,8 @@ impl<'program> Collector<'program> {
         }
         let children = expression_children(program, expression)?;
         match table.expression(expression) {
+            ExpressionNode::Call(call)
+                if self.reflected_expression_call(expression, call, context)? => {}
             ExpressionNode::Call(call) => {
                 self.static_arguments(&call.machine_arguments);
                 if call.authored_machine_application.is_valid() {

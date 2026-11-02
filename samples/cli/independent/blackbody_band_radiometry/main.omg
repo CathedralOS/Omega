@@ -3,7 +3,7 @@
 use io::protocol;
 use model::planck;
 use omega_language_std::console;
-use omega_language_std::math;
+use omega::language::core::math;
 use omega::language::core::float_operations;
 use omega::language::core::slice;
 

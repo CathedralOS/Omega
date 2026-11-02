@@ -322,8 +322,10 @@ relations, observer laws, and current publication limits. Initially, effectful
 operations and custody-bearing carriers are outside that gate: result congruence
 alone cannot preserve effects or make distinct authority occurrences interchangeable.
 
-Core's current Rat/Cauchy proofs and temporary axiomatic Real implementation are
-described in the [mathematical library note](../../source/library/core/mathematics.md).
+Core's Rat and Cauchy proofs and its temporary axiomatic Real are described in
+the headers of [rat](../../source/library/core/rat.omg),
+[cauchy](../../source/library/core/cauchy.omg) and
+[real](../../source/library/core/real.omg).
 They do not establish that the full intended quotient or foundations are implemented.
 
 ## Proof Views

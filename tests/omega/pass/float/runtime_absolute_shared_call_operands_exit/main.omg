@@ -1,4 +1,4 @@
-use omega_language_std::math;
+use omega::language::core::math;
 
 // The std package route binds float operators to boundary calls. The shared
 // operand of absolute value must finish once across those call actuals.

@@ -18,7 +18,7 @@ pub fn normal_return_length_collection(
     if !call.selects_only_nominal_route() || call.static_machine_parameter.is_valid() {
         return None;
     }
-    let callee = crate::machine_calls::calls::callee_entry_contract(program, call.target_symbol)?;
+    let callee = crate::machine_calls::calls::call_contract(program, call)?;
     if !program
         .primitive_type_reference(callee.return_type)
         .is_some_and(PrimitiveType::is_fixed_integer)

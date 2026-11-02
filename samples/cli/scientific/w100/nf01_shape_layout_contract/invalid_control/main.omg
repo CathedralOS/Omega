@@ -1,4 +1,4 @@
-use numerics::arrays::shape_layout_contract;
+use omega::language::core::matrix_layout;
 
 // This descriptor's last coordinate is outside the six-element backing.
 // The explicit arrival facts isolate the intended bounds violation from

@@ -12,11 +12,13 @@ use crate::{
     ScopedArithmeticValue, StrictArithmeticImplicationJudgment, scoped_arithmetic_implication,
 };
 use numerics::bignum::BigInt;
-use typed_trees::{data::DataDefinition, machine::Machine, types::PrimitiveType};
+use typed_trees::{data::DataDefinition, machine::Machine, state::State, types::PrimitiveType};
 
 pub(crate) fn referent_predicates_preserved(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
+    state: &State,
+    statement_index: usize,
     definition: &DataDefinition,
     parent: &CanonicalPlace,
     selected_field: symbols::SymbolHandle,
@@ -34,6 +36,108 @@ pub(crate) fn referent_predicates_preserved(
             .any(|field| field.symbol == selected_field)
             .then_some(variant)
     });
+    // A complete noninterfering invocation preserves the current predicate,
+    // including relations between fields. Reconstructing each field as an
+    // unrelated carrier interval loses those relations; a formal's carrier
+    // also cannot replace an unchanged source value across a representation view.
+    let mut dependencies = Vec::new();
+    for fact in program
+        .proof_facts
+        .span_or_empty(definition.where_facts)
+        .iter()
+        .chain(variant.into_iter().flat_map(|variant| {
+            program
+                .proof_facts
+                .span_or_empty(variant.where_facts)
+                .iter()
+        }))
+    {
+        for field in crate::proof_contracts::default_domains::data_predicate_fields(
+            program, definition, fact,
+        ) {
+            if !dependencies.contains(&field) {
+                dependencies.push(field);
+            }
+        }
+    }
+    // An empty field list can still carry a case-classifier requirement.
+    // Without a classifier footprint, require the complete parent unchanged.
+    // Canonical identities retain case selectors; physical write frames erase
+    // them and coarsen collection selectors. Compare in the frame owner's
+    // vocabulary, never against a diagnostic label of the same storage.
+    let frame_root = parent.root.as_symbol();
+    let parent_frame =
+        frame_root.and_then(|root| crate::frame_coordinate_path(program, root, &parent.segments));
+    let classifier_unwritten = !dependencies.is_empty()
+        || parent_frame.as_deref().is_some_and(|parent| {
+            !written
+                .iter()
+                .any(|path| super::place_paths::place_paths_overlap(path, parent))
+        });
+    let predicate_unwritten = classifier_unwritten
+        && dependencies.iter().all(|symbol| {
+            let Some((_, field)) = program.any_field_owner(*symbol) else {
+                return false;
+            };
+            // An inline scalar has a complete owned read footprint. A descriptor
+            // or aggregate requires its referent/recursive read inventory; its
+            // field slot alone cannot prove that those observations survived.
+            if crate::reference_shell(program, field.type_reference).is_some()
+                || program
+                    .primitive_type_reference(field.type_reference)
+                    .is_none()
+            {
+                return false;
+            }
+            let mut place = parent.clone();
+            crate::value_custody::places::push_field_place_segments(
+                program,
+                &mut place.segments,
+                field.symbol,
+            );
+            let Some(path) = frame_root
+                .and_then(|root| crate::frame_coordinate_path(program, root, &place.segments))
+            else {
+                return false;
+            };
+            !written
+                .iter()
+                .any(|written| super::place_paths::place_paths_overlap(written, &path))
+        });
+    if predicate_unwritten {
+        let Some(receiver) = crate::value_custody::places::canonical_place_type_reference(
+            program,
+            state.symbol,
+            statement_index,
+            parent,
+        ) else {
+            return false;
+        };
+        return program
+            .proof_facts
+            .span_or_empty(definition.where_facts)
+            .iter()
+            .chain(variant.into_iter().flat_map(|variant| {
+                program
+                    .proof_facts
+                    .span_or_empty(variant.where_facts)
+                    .iter()
+            }))
+            .all(|fact| {
+                fact.as_expression().is_some_and(|predicate| {
+                    crate::proof_contracts::contract_entailment::captured_data_predicate_holds(
+                        program,
+                        machine,
+                        state,
+                        statement_index,
+                        parent,
+                        receiver,
+                        definition,
+                        *predicate,
+                    )
+                })
+            });
+    }
     let mut bindings = Vec::new();
     for field in program
         .data_members(definition)
@@ -52,20 +156,29 @@ pub(crate) fn referent_predicates_preserved(
             continue;
         };
         let mut place = parent.clone();
-        place.segments.push(facts::PlaceSegment::Field {
-            symbol: field.symbol,
-        });
+        crate::value_custody::places::push_field_place_segments(
+            program,
+            &mut place.segments,
+            field.symbol,
+        );
         let label = place.label(program);
-        let unwritten = field.symbol != selected_field
-            && !written
-                .iter()
-                .any(|path| super::place_paths::place_paths_overlap(path, &label));
+        let unwritten = frame_root
+            .and_then(|root| crate::frame_coordinate_path(program, root, &place.segments))
+            .is_some_and(|path| {
+                !written
+                    .iter()
+                    .any(|written| super::place_paths::place_paths_overlap(written, &path))
+            });
         let interval =
-            guarantees
-                .iter()
-                .find(|(target, _)| *target == place)
-                .map(|(_, interval)| *interval)
-                .or_else(|| unwritten.then(|| environment.get(&label)).flatten())
+            unwritten
+                .then(|| environment.get(&label))
+                .flatten()
+                .or_else(|| {
+                    guarantees
+                        .iter()
+                        .find(|(target, _)| *target == place)
+                        .map(|(_, interval)| *interval)
+                })
                 .or_else(|| {
                     let carrier = super::integer_ranges::primitive_range(primitive)?;
                     let interval =

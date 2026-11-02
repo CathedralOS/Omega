@@ -15,8 +15,17 @@ These controls retain the canonical fact's Width-8 policy and boundary result
 - `unselected_stronger_contract` adds an implementation whose Width-4
   precondition violates the requirement's public contract. Source must reject
   it even when Build selects another implementation.
+- `inherited_helper` calls the parent requirement through an explicitly selected
+  child implementation. Its Width-4 twin still fails byte-placement validation.
+- `unused_descendant` adds an unselected child implementation whose plan would
+  reject if executed. Selecting its parent must not demand or execute the child;
+  the Width-4 twin still fails for incomplete byte coverage.
 
-Fresh integrated checking and runtime observations are still pending. The
-fact README records the qualification frontier; a control's presence is not
-acceptance evidence. Other local folders here are retained diagnostic replay
-inputs, not additional completed fact places.
+Producer `002791b61f14404bcf6ce65e5376131ca16e1efe` runs the inherited-helper
+and unused-descendant public samples through `omega run --both` on macOS arm64;
+both Width-4 twins reject for their intended byte-coverage obligation. The
+focused corpus also runs `helper_uses_own_policy` at native/Terminal exit 0 and
+retains the selected rejection and missing-selection controls. The fact README
+records the producer identities and remaining migration boundary. Other local
+folders here are retained diagnostic replay inputs, not additional completed
+fact places.

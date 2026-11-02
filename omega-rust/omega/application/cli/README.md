@@ -10,12 +10,12 @@ invocations write a requested-byte/count report to `OMEGA_ALLOCATION_PROFILE`
 when set. Use an uninstrumented retained producer for timing comparisons; see
 the [performance tooling guide](../../../../tools/benchmark/comparison.md).
 
-Project Build has an independent [application owner](../build/README.md).
+Project Build is owned by the [compiler's Build coordinator](../../compilation/build/README.md).
 The CLI package also exposes execution and inspection through its [library](src/lib.rs):
 
 | Operation | Request and result |
 | --- | --- |
-| [Build a project](../build/src/build.rs) | Typed target/product request → ordered reports and published products |
+| [Build a project](../../compilation/build/src/build.rs) | Typed target/product request → ordered reports and published products |
 | [Run a project](src/execution/mod.rs) | Execution/comparison options → report, captured process output, and interpreter comparison |
 | [Inspect a machine](src/inspection/mod.rs) | Source, target, and machine → verified module and fixed-work analysis |
 
@@ -70,7 +70,7 @@ native execution ends. The command forwards those original bytes without
 UTF-8 decoding, before its own diagnostics on stderr. A failed stream write or
 flush reports a command error (status 200), not a successful program result.
 
-Comparison runs the shared [hosted Terminal runtime](../terminal-runtime/README.md)
+Comparison runs the shared [hosted Terminal runtime](../../interpreter/terminal-runtime/README.md)
 on the native report's exact produced
 artifact and retained entry/provider provisions before publication transfers that
 payload. It never interprets checked trees, recompiles source or repeats Build.

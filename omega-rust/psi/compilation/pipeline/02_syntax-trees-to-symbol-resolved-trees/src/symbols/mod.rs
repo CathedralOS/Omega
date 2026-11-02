@@ -280,7 +280,7 @@ pub(crate) fn assign_constant_expression_symbols(
 ) {
     let attached_machines = scope::attached_machines(program);
     let declarations = &mut program.tables.declarations;
-    let scope = scope::MachineScope {
+    let mut scope = scope::MachineScope {
         attached_machines: &attached_machines,
         resolution_indexes: &program.resolution_indexes,
         symbol: symbols::SymbolHandle::invalid(),
@@ -300,6 +300,21 @@ pub(crate) fn assign_constant_expression_symbols(
         type_constraints: &program.tables.types.constraints,
     };
     for initializer in initializers {
+        // The exact initializer root supplies its declaration telescope even
+        // though it has no machine body or runtime parameters. Closed static
+        // operands must retain this owner instead of borrowing their callee's
+        // receiving scope. Detached argument roots retain source lookup only.
+        scope.symbol = program
+            .roots
+            .const_declarations
+            .iter()
+            .find(|declaration| {
+                declaration.initializer == initializer
+                    || declaration.authored_initializer == initializer
+            })
+            .map_or_else(symbols::SymbolHandle::invalid, |declaration| {
+                declaration.symbol
+            });
         expressions::assign_expression_table_symbols(
             &program.symbols,
             &scope,

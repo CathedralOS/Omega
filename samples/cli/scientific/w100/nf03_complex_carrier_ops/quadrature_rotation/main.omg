@@ -2,12 +2,12 @@
 use omega::language::core::float;
 use omega_language_std::console;
 use omega::language::core::float_operations;
-use numerics::complex::complex_carrier_ops::Complex;
-use numerics::complex::complex_carrier_ops::ComplexF32;
-use numerics::complex::complex_carrier_ops::ComplexMagnitude;
-use numerics::numeric::numeric_accuracy_policy::AccuracyComparison;
-use numerics::numeric::numeric_accuracy_policy::ReferenceAdditiveTolerance32;
-use numerics::numeric::numeric_accuracy_policy::compare_reference_additive_f32;
+use omega::language::core::complex::Complex;
+use omega::language::core::complex::ComplexF32;
+use omega::language::core::complex::ComplexMagnitude;
+use omega::language::core::float_accuracy::AccuracyComparison;
+use omega::language::core::float_accuracy::ReferenceAdditiveTolerance32;
+use omega::language::core::float_accuracy::compare_reference_additive_f32;
 // Four quarter-turns and their zero sum. Every destination is a separate carrier.
 data Main {
     point: Complex<f32>;

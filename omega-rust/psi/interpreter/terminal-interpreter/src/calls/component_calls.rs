@@ -57,7 +57,8 @@ impl<'artifact> TerminalExecution<'artifact> {
             ));
         }
         if !binding.pending_at(operation.id) {
-            let receiver = self.program.verified_boundary_machine(boundary)?;
+            let declarations = self.program.clone();
+            let receiver = declarations.verified_boundary_machine(boundary)?;
             let prepared = self.prepare_component_arguments(
                 structural_arguments,
                 completion_receipts,
@@ -80,6 +81,12 @@ impl<'artifact> TerminalExecution<'artifact> {
             // before allowing that child to consume the original atoms.
             self.live_affine_frontier = prepared.remaining_affine;
             self.live_claims = prepared.remaining_claims;
+            // A mutable loan permits writes to these actual cells. Expire
+            // complete-value observations before the child can perform one;
+            // the original storage and its owner remain with this lender.
+            for home in prepared.borrowed_mutations {
+                self.invalidate_stored_provenance(&home);
+            }
             for place in prepared.retired_sources {
                 self.structural_values
                     .remove(&place)

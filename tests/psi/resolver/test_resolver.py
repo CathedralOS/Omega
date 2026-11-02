@@ -114,6 +114,11 @@ def domain_subject(handle: int) -> tuple[int, int, int]:
     return (16, handle, 0)
 
 
+def data_subject(item: int) -> tuple[int, int, int]:
+    """`self` in a data declaration's default-domain `requires`."""
+    return (19, item, 0)
+
+
 def byte_predicate(tag: int) -> tuple[int, int, int]:
     """A primitive byte predicate: 1 `valid_utf8`, 2 `no_nul`, 4
     `ascii_only`, 8 `non_empty`."""
@@ -953,6 +958,14 @@ def main() -> None:
             parameter(1), NOT_A_NAME, NOT_A_NAME,
             parameter(1),
         ),
+    )
+    # `self` in a data declaration's `requires` fact names the declaration.
+    accepted(
+        program,
+        "data-requires-names-its-subject",
+        b"data Range requires self.lo <= self.hi { lo: u64; hi: u64; }",
+        (builtin("u64"), builtin("u64")),
+        (data_subject(0), NOT_A_NAME, data_subject(0), NOT_A_NAME, NOT_A_NAME),
     )
     # Case-local predicates reject in the parser; parser tests retain those
     # controls before any resolver payload-name lookup can occur.

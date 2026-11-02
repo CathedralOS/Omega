@@ -1,5 +1,5 @@
 use text::buffer;
-use omega_language_std::math;
+use omega::language::core::math;
 
 use enemies::enemies;
 use events::room_events;

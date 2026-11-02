@@ -2,9 +2,10 @@ use super::super::declarations::{encode_data_properties, encode_type_identity};
 use super::super::encoder::Encoder;
 use crate::encoding::PackageReviewEncodingError;
 use crate::record::{
-    PackageReviewConstShape, PackageReviewEvidenceInterface, PackageReviewOperatorCoordinate,
-    PackageReviewPropositionBinder, PackageReviewPropositionBinderKind,
-    PackageReviewPropositionShape, PackageReviewPublicPropositionBody,
+    PackageReviewConstMeaning, PackageReviewConstShape, PackageReviewEvidenceInterface,
+    PackageReviewOperatorCoordinate, PackageReviewPropositionBinder,
+    PackageReviewPropositionBinderKind, PackageReviewPropositionShape,
+    PackageReviewPublicPropositionBody,
 };
 
 use super::contracts::encode_contract_fact;
@@ -43,7 +44,20 @@ pub(crate) fn encode_const_shape(
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.field_by("identity", &shape.identity, encode_nominal)?;
     encoder.field_by("declared_type", &shape.declared_type, encode_type_identity)?;
-    encoder.string_field("canonical_value_encoding", &shape.canonical_value_encoding)
+    encoder.field("meaning", |encoder| match &shape.meaning {
+        PackageReviewConstMeaning::Evaluated(value) => {
+            encoder.tag("evaluated", 0);
+            encoder.string_field("canonical_value_encoding", value)
+        }
+        PackageReviewConstMeaning::TargetDependent(initializer) => {
+            encoder.tag("target_dependent", 1);
+            encoder.field_by(
+                "initializer",
+                initializer,
+                super::expressions::encode_contract_expression,
+            )
+        }
+    })
 }
 
 pub(crate) fn encode_operator_coordinate(
@@ -144,4 +158,87 @@ pub(crate) fn encode_evidence_interface(
             encoder.field_by("requirement", &requirement.requirement, encode_nominal)
         })
     })
+}
+
+#[cfg(test)]
+mod constant_meaning_tests {
+    use super::*;
+    use crate::record::{
+        PackageReviewContractExpression as Expression, PackageReviewLayoutQueryKind,
+        PackageReviewNominalIdentity, PackageReviewNominalOwner, PackageReviewTypeIdentity,
+    };
+
+    fn encoded(meaning: PackageReviewConstMeaning) -> Vec<u8> {
+        let identity = PackageReviewNominalIdentity {
+            owner: PackageReviewNominalOwner::Package(
+                semantic_vocabulary::PackageKeyIdentity::from_digest([1; 32]).unwrap(),
+            ),
+            path: "OBSERVED_SIZE".to_owned(),
+        };
+        let shape = PackageReviewConstShape {
+            identity,
+            declared_type: PackageReviewTypeIdentity {
+                canonical: "named(name(u64))".to_owned(),
+            },
+            meaning,
+        };
+        let mut encoder = Encoder::bounded(4096);
+        encode_const_shape(&mut encoder, &shape).unwrap();
+        encoder.finish().unwrap()
+    }
+
+    #[test]
+    fn equal_scalar_layout_answers_keep_distinct_public_dependencies() {
+        // Both queries on u8 answer 1, but their public dependencies differ.
+        let query = |kind, operand: &str| {
+            PackageReviewConstMeaning::TargetDependent(Expression::LayoutQuery {
+                kind,
+                operand: PackageReviewTypeIdentity {
+                    canonical: operand.to_owned(),
+                },
+            })
+        };
+        let size = encoded(query(PackageReviewLayoutQueryKind::Size, "named(name(u8))"));
+        let alignment = encoded(query(
+            PackageReviewLayoutQueryKind::Alignment,
+            "named(name(u8))",
+        ));
+        let other_operand = encoded(query(
+            PackageReviewLayoutQueryKind::Size,
+            "named(name(u16))",
+        ));
+        let ground = encoded(PackageReviewConstMeaning::Evaluated("1".to_owned()));
+        assert_ne!(size, alignment);
+        assert_ne!(size, other_operand);
+        assert_ne!(size, ground);
+        assert_eq!(
+            ground,
+            encoded(PackageReviewConstMeaning::Evaluated("1".to_owned()))
+        );
+        assert_ne!(
+            ground,
+            encoded(PackageReviewConstMeaning::Evaluated(
+                "semantic-nan:f64".to_owned()
+            ))
+        );
+    }
+
+    #[test]
+    fn constant_alias_retains_the_exact_nominal_dependency() {
+        let alias = |path: &str| {
+            PackageReviewConstMeaning::TargetDependent(Expression::Nominal(
+                PackageReviewNominalIdentity {
+                    owner: PackageReviewNominalOwner::Package(
+                        semantic_vocabulary::PackageKeyIdentity::from_digest([1; 32]).unwrap(),
+                    ),
+                    path: path.to_owned(),
+                },
+            ))
+        };
+        assert_ne!(encoded(alias("RAW_SIZE")), encoded(alias("OTHER_SIZE")));
+        assert_ne!(
+            encoded(alias("RAW_SIZE")),
+            encoded(PackageReviewConstMeaning::Evaluated("1".to_owned()))
+        );
+    }
 }

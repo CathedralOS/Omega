@@ -9,20 +9,29 @@ pub(super) fn is_open_field_query(
     program: &dyn crate::CheckingInput,
     site: Option<ValidatedNominalMachineUseSite>,
 ) -> bool {
-    let Some(ValidatedNominalMachineUseSite::Statement(statement)) = site else {
-        return false;
+    let (target, arguments) = match site {
+        Some(ValidatedNominalMachineUseSite::Statement(statement)) => {
+            let Some(call) = program.statement_table.statement(statement).as_call() else {
+                return false;
+            };
+            (call.target_symbol, call.machine_arguments.as_ref())
+        }
+        Some(ValidatedNominalMachineUseSite::Expression(expression)) => {
+            let Some(call) = program.expression_table.call_node(expression) else {
+                return false;
+            };
+            (call.target_symbol, call.machine_arguments.as_ref())
+        }
+        None => return false,
     };
-    let Some(call) = program.statement_table.statement(statement).as_call() else {
-        return false;
-    };
-    if !call.target_symbol.is_valid() {
+    if !target.is_valid() {
         return false;
     }
-    let symbol = program.symbols.get(call.target_symbol);
+    let symbol = program.symbols.get(target);
     let declaration = if symbol.kind == symbols::SymbolKind::State {
         symbol.parent
     } else {
-        call.target_symbol
+        target
     };
     let Some(source) = program
         .symbols
@@ -45,7 +54,7 @@ pub(super) fn is_open_field_query(
     {
         return false;
     }
-    let Some(subject) = call.machine_arguments.first() else {
+    let Some(subject) = arguments.first() else {
         return false;
     };
     has_open_operand(program, subject)

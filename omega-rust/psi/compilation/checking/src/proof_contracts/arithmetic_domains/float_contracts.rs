@@ -28,9 +28,7 @@ pub fn normal_return_float_predicates(
     if !call.selects_only_nominal_route() {
         return;
     }
-    let Some(callee) =
-        crate::machine_calls::calls::callee_entry_contract(program, call.target_symbol)
-    else {
+    let Some(callee) = crate::machine_calls::calls::call_contract(program, call) else {
         return;
     };
     let Some(interval) = normal_return_interval(program, caller, expression, call) else {
@@ -84,7 +82,7 @@ pub(super) fn normal_return_interval(
     {
         return None;
     }
-    let callee = crate::machine_calls::calls::callee_entry_contract(program, call.target_symbol)?;
+    let callee = crate::machine_calls::calls::call_contract(program, call)?;
     let primitive = program.primitive_type_reference(callee.return_type)?;
     if !matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64) {
         return None;

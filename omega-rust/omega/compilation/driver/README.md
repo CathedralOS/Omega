@@ -2,7 +2,7 @@
 
 [lib.rs](src/lib.rs) exposes opaque source preparation and exact-return completion
 for any supplied target count. Application
-[`compile_sources`](../../application/build/src/source_compilation.rs) owns the
+[`compile_sources`](../../compilation/build/src/source_compilation.rs) owns the
 one-shot `CompileRequest` lifecycle and executes Build between those calls.
 The coordinator sequences typed owner results; it does
 not implement package loading, build evaluation, transformation algorithms or
@@ -100,9 +100,9 @@ reports belong to their product owners.
 
 Application Build requests package admission, then schedules dependency-ordered
 `PackageCompilationRequest`s in
-[`compile_packages`](../../application/build/src/package_compilation.rs), with the
+[`compile_packages`](../../compilation/build/src/package_compilation.rs), with the
 requested product and root permission consent supplied up front. Its
-[Build execution owner](../../application/build/src/build_execution.rs) advances
+[Build execution owner](../../compilation/build/src/build_execution.rs) advances
 dependency frontiers, joins generated outputs and waits for demanded independent
 components before their consumers advance. The compiler no longer schedules that
 dependency loop. Its [package facade](src/checked/package_compilation.rs) prepares
