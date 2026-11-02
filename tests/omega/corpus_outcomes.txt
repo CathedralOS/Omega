@@ -2621,6 +2621,16 @@ fail/facts/resident_backing_runtime_loop_wrong_origin rejected 18867ms expected 
 	cannot prove ensures contract for exit from carry_pair at statement 2: result.first.length == first.length
 	cannot prove ensures contract for exit from carry_pair at statement 2: result.second.base == second.base
 	cannot prove ensures contract for exit from carry_pair at statement 2: result.second.length == second.length
+fail/facts/resident_backing_runtime_reconstruction_loop_changed_content rejected 17449ms expected @bfa46c0c6cb4
+	construction value is not proven in domain `Extent::Granted` in forward state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	construction value is not proven in domain `Extent::Vacant` in forward state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	cannot prove ensures contract for exit from forward at statement 3: Granted.content(old(&storage)) == Granted.content(&result)
+	cannot prove ensures contract for exit from forward at statement 3: Vacant.content(old(&storage)) == Vacant.content(&result)
+	cannot prove default-domain field requirement for return from forward, state entry, at statement 3: Extent requires Extent::Granted
+	cannot prove default-domain field requirement for return from forward, state entry, at statement 3: Extent requires Extent::Vacant
+	linear value `storage` reaches scope exit without being consumed or transferred in machine `forward` state `entry`
+fail/facts/resident_backing_runtime_reconstruction_loop_duplicate rejected 18164ms expected @bfa46c0c6cb4
+	cannot use `first` in machine `step` state `entry` (statement 1) after `first` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `first` first
 fail/facts/resident_backing_target_body_missing_vacancy rejected 5378ms expected @b3876048c0a2
 	cannot prove requires contract for call partition from allocated: vacant in Extent::Vacant in state `entry`
 	cannot prove initializer of `vacant` in allocated is in domain `Extent::Vacant`; an annotation cannot establish routed qualification
@@ -10134,6 +10144,7 @@ pass/facts/resident_backing_plain_ram_exit checked 7289ms check-target:macos_arm
 pass/facts/resident_backing_runtime_cells_exit checked 10759ms check-target:macos_arm64 @c6b8285077a8+wt
 pass/facts/resident_backing_runtime_helper_loop_exit checked 19198ms check-target:macos_arm64 @4083ce80c932
 pass/facts/resident_backing_runtime_loop_exit checked 20840ms check-target:macos_arm64 @6fe30d215f49
+pass/facts/resident_backing_runtime_reconstruction_loop_exit checked 20834ms check-target:macos_arm64 @bfa46c0c6cb4
 pass/facts/resident_backing_target_body_exit checked 9694ms check-target:macos_arm64 @b3876048c0a2
 pass/facts/result_cleanup_guarantees_through_call_result_exit checked 4216ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/result_cleanup_guarantees_through_const_name_exit checked 3199ms check-target:macos_arm64 @ccdb99ca2214
