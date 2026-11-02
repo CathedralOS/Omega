@@ -66,4 +66,48 @@ fn completed_extent_custody_survives_distinct_arenas_and_replacement() {
     assert!(!receiving.array_extent_argument(copied).is_valid());
     // Replacement cannot erase a different occurrence's retained computation.
     assert_eq!(source.array_extent_argument(fresh), argument);
+
+    let mut program = crate::TypedTrees::default();
+    program.type_reference_table = source;
+    program.expression_table = expressions;
+    let applied = program
+        .apply_callable_type(fresh, &[], &[], SymbolHandle::invalid())
+        .unwrap();
+    let applied_argument = program.type_reference_table.array_extent_argument(applied);
+    let TypeReferenceNode::ConstExpression(applied_value) = program
+        .type_reference_table
+        .type_reference(applied_argument)
+    else {
+        panic!("callable application lost the completed extent child");
+    };
+    assert!(
+        program
+            .expression_table
+            .materialization_source(*applied_value)
+            .is_valid()
+    );
+
+    let binder = SymbolHandle::from_parts(19, 0);
+    let template = program
+        .type_reference_table
+        .insert(TypeReferenceNode::FixedArray {
+            element_type,
+            length: FixedArrayLength::ConstParameter {
+                symbol: binder,
+                name: Identifier::generated("N"),
+            },
+        });
+    let supplied = program
+        .apply_callable_type(
+            template,
+            &[(binder, argument)],
+            &[],
+            SymbolHandle::invalid(),
+        )
+        .unwrap();
+    assert_eq!(
+        program.type_reference_table.array_extent_argument(supplied),
+        argument,
+        "an already supplied actual must retain its own telescope"
+    );
 }
