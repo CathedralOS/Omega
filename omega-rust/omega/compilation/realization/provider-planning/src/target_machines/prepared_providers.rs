@@ -12,6 +12,10 @@ use crate::calling_policy_plans::BoundaryCallingPlanRealization;
 use crate::evaluated_via_bindings::EvaluatedViaBindingTable;
 use crate::provider_planning::provider_rows::CapturedProviderRows;
 use crate::provider_settlement::assumed_bindings::PreparedAssumedBindings;
+use crate::provider_settlement::{
+    completion,
+    semantic_roles::{PreparedCompletionRole, PreparedCompletionRoles},
+};
 use crate::{
     DerivedProviderPlan, ProviderPlanProvenance, ProviderSchemaDeclaration, ProviderSelection,
 };
@@ -25,6 +29,15 @@ use std::sync::{Arc, Weak};
 use symbols::SymbolHandle;
 
 type SourceChoices = PreparedTargetChoices<ProviderPlanProvenance, ProviderSelection>;
+type ProductChoices = PreparedTargetChoices<PreparedProviderCompletion, ProviderSelection>;
+
+#[derive(Clone)]
+pub(crate) struct PreparedProviderCompletion {
+    pub provenance: ProviderPlanProvenance,
+    pub completion: Result<Vec<Vec<SymbolHandle>>, Vec<Diagnostic>>,
+    pub role: Option<PreparedCompletionRole>,
+}
+
 type ApplicationRoots = Result<Option<Vec<CanonicalProviderDeclaration>>, Vec<Diagnostic>>;
 
 /// Inputs for preparing implementations for one requested target. Preparation
@@ -55,7 +68,8 @@ pub struct PreparedProductProviders {
     bindings: EvaluatedViaBindingTable,
     candidates: Vec<ProductCandidate>,
     native_start: usize,
-    choices: Result<SourceChoices, Vec<Diagnostic>>,
+    choices: Result<ProductChoices, Vec<Diagnostic>>,
+    completion_roles: PreparedCompletionRoles,
     publication: SourcePublication,
 }
 
@@ -235,7 +249,8 @@ pub(crate) struct SettledProductProviders {
     pub bindings: EvaluatedViaBindingTable,
     pub candidates: Vec<SettledProductCandidate>,
     pub native_start: usize,
-    pub choices: Result<SourceChoices, Vec<Diagnostic>>,
+    pub choices: Result<ProductChoices, Vec<Diagnostic>>,
+    pub completion_roles: PreparedCompletionRoles,
     pub publication: ProviderPublicationCatalog,
 }
 
@@ -293,6 +308,7 @@ impl PreparedProductProviders {
         };
         Ok(SettledProductProviders {
             assumptions: self.assumptions,
+            completion_roles: self.completion_roles,
             bindings: self.bindings,
             candidates,
             native_start: self.native_start,
@@ -312,10 +328,10 @@ fn attach_candidates(
         .collect()
 }
 
-fn attach_choices<'candidate>(
-    choices: Result<SourceChoices, Vec<Diagnostic>>,
+fn attach_choices<'candidate, Owner>(
+    choices: Result<PreparedTargetChoices<Owner, ProviderSelection>, Vec<Diagnostic>>,
     candidates: impl ExactSizeIterator<Item = &'candidate DerivedProviderPlan>,
-) -> Result<SourceChoices, Vec<Diagnostic>> {
+) -> Result<PreparedTargetChoices<Owner, ProviderSelection>, Vec<Diagnostic>> {
     let mut choices = choices?;
     if choices.candidates.len() != candidates.len() {
         return Err(vec![Diagnostic::error(
@@ -439,10 +455,34 @@ impl ProductProviderPreparation<'_> {
             });
         }
         let native_start = authored.candidates().len();
-        let candidates = authored
+        let inventory = authored
             .into_candidates()
             .into_iter()
             .chain(native)
+            .collect::<Vec<_>>();
+        let original_candidates = inventory.iter().collect::<Vec<_>>();
+        // Check every possible exit implementation while its checked body is
+        // available. Keep errors with that implementation so an unused invalid
+        // alternative cannot reject the selected program. Adding calling plans
+        // later changes argument placement, not which external operation exits.
+        let choices = choices.map(|choices| {
+            choices.map_owner(|plan, provenance| {
+                let completion = completion::capture(
+                    self.checked,
+                    &provenance,
+                    planning_target.map(target::TargetProfile::target_name),
+                    &original_candidates,
+                );
+                let role = PreparedCompletionRole::capture(&self.checked.typed, plan, &provenance);
+                PreparedProviderCompletion {
+                    provenance,
+                    completion,
+                    role,
+                }
+            })
+        });
+        let candidates = inventory
+            .into_iter()
             .map(|derived| {
                 let rows = CapturedProviderRows::capture(
                     &derived,
@@ -457,6 +497,7 @@ impl ProductProviderPreparation<'_> {
             .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
         Ok(PreparedProductProviders {
             owner: Arc::downgrade(self.checked),
+            completion_roles: PreparedCompletionRoles::capture(&self.checked.typed),
             planning_target,
             assumptions: PreparedAssumedBindings::capture(
                 &self.checked.typed,

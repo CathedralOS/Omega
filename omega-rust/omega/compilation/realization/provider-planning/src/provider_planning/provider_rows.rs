@@ -73,10 +73,6 @@ impl<Rows> ProviderPlanCandidate<Rows> {
         &self.source.plan
     }
 
-    pub(crate) fn derived(&self) -> &DerivedProviderPlan {
-        &self.source
-    }
-
     /// Borrow the producer's original row, without truncating a copied plan or
     /// rebuilding its source associations under projected callable identities.
     pub fn direct_source(
