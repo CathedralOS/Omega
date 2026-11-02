@@ -355,20 +355,16 @@ fn bind_direct_boundary_leaves(
             })?;
         let mut leaf = (*candidate).clone();
         let declaration = std::sync::Arc::make_mut(&mut leaf.plan.schema.declaration);
-        let previous_requirement = declaration.methods[0].requirement_identity;
         let terminal_requirement = declaration.identities.intern(identity);
         declaration.trait_name = terminal_requirement;
         leaf.plan.rows[0].requirement_identity = leaf.plan.identities.intern(identity);
         declaration.methods[0].requirement_identity = terminal_requirement;
-        for application in &mut leaf.plan.schema.calling_applications {
-            if application.requirement == previous_requirement {
-                application.requirement = terminal_requirement;
-            }
-        }
         if let backend_plan::DirectBoundaryExecution::Foreign(Ok(binding)) = &mut leaf.execution {
             binding.trait_name = identity.to_owned();
             binding.requirement_identity = identity.to_owned();
         }
+        leaf.validate_bound_calling_custody(module)
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
         bound.push(leaf);
     }
     Ok(bound)

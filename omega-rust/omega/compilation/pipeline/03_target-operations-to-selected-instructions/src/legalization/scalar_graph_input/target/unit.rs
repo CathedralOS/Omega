@@ -235,7 +235,7 @@ pub(super) fn validate_operation(
                 arguments,
                 structural_arguments,
                 result,
-                completion_claim_sources,
+                completion_claim_sources: _,
                 completion_receipts,
             },
         ) => {
@@ -255,7 +255,6 @@ pub(super) fn validate_operation(
                 || boundary != expected_boundary
                 || realization.demand != demand
                 || argument.access != demand.access
-                || !completion_claim_sources.is_empty()
                 || !completion_receipts.is_empty()
             {
                 return Err(LegalizationError::custody());

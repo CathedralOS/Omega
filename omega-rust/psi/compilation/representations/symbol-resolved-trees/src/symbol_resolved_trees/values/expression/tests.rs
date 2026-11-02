@@ -696,3 +696,23 @@ arm #4 = TableMatchArm { pattern: Value(#37), value: #45, source_span: SourceSpa
 arm #5 = TableMatchArm { pattern: Value(#50), value: #52, source_span: SourceSpan { source_id: SourceId(7), span: Span { start: 80, end: 85 } } }
 arm #6 = TableMatchArm { pattern: Wildcard, value: #53, source_span: SourceSpan { source_id: SourceId(7), span: Span { start: 90, end: 95 } } }
 "#;
+
+#[test]
+fn materialized_value_copy_retains_its_distinct_authored_computation() {
+    let mut source = ExpressionTable::new();
+    let authored = source.insert(ExpressionNode::Boolean(false));
+    let value = source.insert(ExpressionNode::Boolean(true));
+    source.retain_materialization_source(value, authored);
+    let own = source.copy_from_self(value);
+    let mut destination = ExpressionTable::new();
+    for _ in 0..8 {
+        destination.insert(ExpressionNode::Boolean(true));
+    }
+    let copied = destination.copy_from(&source, value);
+    for (table, copied) in [(&source, own), (&destination, copied)] {
+        let authored = table.materialization_source(copied);
+        assert!(authored.is_valid() && authored != copied);
+        assert_eq!(table.expression(copied), &ExpressionNode::Boolean(true));
+        assert_eq!(table.expression(authored), &ExpressionNode::Boolean(false));
+    }
+}

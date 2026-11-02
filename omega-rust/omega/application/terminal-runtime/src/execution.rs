@@ -288,16 +288,10 @@ pub fn execute_sliced(
             {
                 continue;
             }
-            // A placed RAM event is an internal semantic handler, not a host
-            // crossing. Leave its demand unresolved here: the entry-relative
-            // origin analysis below must prove captured or checked private RAM
-            // before removing it, and execution still validates the live loan.
-            if matches!(
-                provision.realization,
-                target_operations::BoundarySettlementRealization::Builtin(
-                    target_operations::BoundaryRealization::AccessorScalarAccess(_)
-                )
-            ) {
+            // Access observations and lifecycles execute inside Psi. Native
+            // realizations are not host replacements for those primitives;
+            // their original backing, profile and loan checks still apply.
+            if host_imports::executes_internally(&program, provision) {
                 continue;
             }
             if program

@@ -2057,6 +2057,7 @@ pass/facts/affine_discard_root_cleanup_through_other_machine_exit built 3163ms e
 pass/facts/affine_discard_root_cleanup_through_other_state_exit built 3121ms exit:0 interpreter-exit:0 interpreter:agrees @02e7d90a49ae+wt
 pass/facts/affine_discard_root_cleanup_through_parameter_exit built 3060ms exit:0 interpreter-exit:0 interpreter:agrees @02e7d90a49ae+wt
 pass/facts/affine_discard_root_cleanup_through_target_body_exit built 3543ms exit:0 interpreter-exit:0 interpreter:agrees @02e7d90a49ae+wt
+pass/facts/aggregate_storage_address_identity_packed_array_exit built 4111ms exit:0 interpreter-exit:0 interpreter:agrees @c0578466ca4e+wt
 pass/facts/aggregate_storage_address_identity_through_call_result_exit built 3712ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/aggregate_storage_address_identity_through_const_name_exit built 3616ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/aggregate_storage_address_identity_through_field_exit built 2425ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
@@ -5546,6 +5547,7 @@ pass/layouts/resident_signed_field_access checked 6739ms @5f668826adf3+wt
 pass/layouts/resident_unused_lifecycle_scope checked 2452ms @5f668826adf3+wt
 pass/layouts/resident_view_without_local_initialization checked 2874ms @5f668826adf3+wt
 pass/layouts/resident_whole_extraction checked 2982ms @5f668826adf3+wt
+pass/layouts/runtime_accessor_with_linear_owner_exit built 5081ms exit:0 interpreter-exit:0 interpreter:agrees @84981c988bf9+wt
 pass/layouts/runtime_callee_integer_at_fitting_write_exit rejected 1960ms interpreter:unchecked @5f668826adf3+wt
 	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
 	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach

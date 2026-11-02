@@ -73,7 +73,7 @@ pub use layouts::layout_plans::compute_native_layout_plan_for_machine;
 pub use layouts::plan_laid::{FixedLayoutTargetScope, evaluate_fixed_layout_applications};
 pub use machine_execution::admission::{
     BuildTimeAdmissionPlan, BuildTimeAdmissionRejection, BuildTimeInvocationCustody,
-    BuildTimeProgram, BuildTimeSelectionAuthority,
+    BuildTimeProgram, BuildTimeSelectionAuthority, SelectedBuildTimeClosureAdmission,
 };
 pub use machine_execution::build_activation::{
     admit_toolchain_build_activation, is_exact_toolchain_build_prelude_data,

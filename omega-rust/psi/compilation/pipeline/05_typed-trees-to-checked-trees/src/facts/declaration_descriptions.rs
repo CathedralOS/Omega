@@ -6,15 +6,29 @@
 //! rather than requesting a source-signature refresh.
 
 use checked_trees::{
-    CheckedDeclarationCapture, CheckedDeclarationDescription, CheckedDeclarationDescriptions,
-    CheckedDeclarationParameter, CheckedDeclarationSpecialization, CheckedMachineDescription,
-    CheckedTrees,
+    CheckedCallableHeader, CheckedDeclarationCapture, CheckedDeclarationDescription,
+    CheckedDeclarationDescriptions, CheckedDeclarationParameter, CheckedDeclarationSpecialization,
+    CheckedMachineDescription, CheckedTrees,
 };
 use symbols::SymbolHandle;
 
 pub(crate) fn retain_declaration_descriptions(checked: &mut CheckedTrees) {
     let mut descriptions = CheckedDeclarationDescriptions::default();
     for machine in checked.typed.machines() {
+        // Do not put this behind `describe`: an open or otherwise unavailable
+        // signature does not erase its independently checked supply mode.
+        descriptions.headers.insert(CheckedCallableHeader {
+            machine: machine.symbol,
+            callable: checked.typed.machine_callable_identity(machine),
+            package: checked.symbols.symbol_package_identity(machine.symbol),
+            source_target: checked.source_target_context(machine).map(str::to_owned),
+            product_eligible: !machine.target_family_interface
+                && checked.symbols.symbol_is_in_dependency_scope(
+                    machine.symbol,
+                    source::DependencyScope::Product,
+                ),
+            supplies_checked_body: machine.supplies_checked_body(),
+        });
         let row = match describe(checked, &mut descriptions, machine.symbol) {
             Ok(description) => CheckedDeclarationDescription::Machine(description),
             Err(reason) => CheckedDeclarationDescription::Unavailable {
@@ -27,6 +41,11 @@ pub(crate) fn retain_declaration_descriptions(checked: &mut CheckedTrees) {
     // Preserve any previously retained dormant declaration. A missing body is
     // not authority to invent a replacement description or erase its identity.
     let previous = &checked.facts.declaration_descriptions;
+    for (_, header) in previous.headers.iter() {
+        if checked.machine(header.machine).is_none() {
+            descriptions.headers.insert(header.clone());
+        }
+    }
     for (_, row) in previous.machines.iter() {
         if checked.machine(row.machine()).is_some() {
             continue;

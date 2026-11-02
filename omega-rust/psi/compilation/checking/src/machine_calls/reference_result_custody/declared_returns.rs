@@ -73,15 +73,19 @@ pub fn returned_sources(
                     )
                     .ok_or("invocation result leaf has no declared carrier")?;
                     Ok(CheckedReturnedReferencePlan {
-                        path: leaf.path,
+                        path: leaf.path.clone(),
                         source: CheckedReferenceOriginSourcePlan {
                             root: checked_trees::CheckedReferenceOriginRoot::Invocation {
                                 carrier_type: program.normalized_type_identity(carrier),
                             },
                             entry_reference_hops: 0,
-                            path: vec![CheckedReferenceOriginProjection::Exact(
-                                CheckedUnitStructuralPathSegment::Referent,
-                            )],
+                            path: leaf.source.path
+                                .strip_prefix(leaf.path.as_slice())
+                                .ok_or("public invocation result source has a different descriptor path")?
+                                .iter()
+                                .cloned()
+                                .map(CheckedReferenceOriginProjection::Exact)
+                                .collect(),
                             extent: ReferenceOriginExtent::Projected,
                             type_identity: leaf.source.type_identity,
                             access: leaf.source.access,

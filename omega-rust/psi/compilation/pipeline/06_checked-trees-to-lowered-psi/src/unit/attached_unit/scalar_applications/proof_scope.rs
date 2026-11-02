@@ -64,9 +64,37 @@ pub(super) fn publish(
             callable: terminal_psi::TargetMachineCallable::Boundary(boundary.id),
         });
     }
+    // A selected generic template may have no emitted body or full signature.
+    // Keep its independent header on the same declaration roster nonetheless.
+    let mut headers = checked
+        .facts
+        .declaration_descriptions
+        .headers
+        .iter()
+        .map(|(_, header)| Ok((identity(header.machine)?, header)))
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    drop(identity);
+    headers.sort_by_key(|(declaration, _)| *declaration);
+    let mut callable_headers = arena::Arena::new();
+    for (declaration, header) in headers {
+        let callable = if header.callable.is_valid() {
+            Ok(identities.intern(&checked.callable_identity_text(header.callable)))
+        } else {
+            Err("checked machine has no callable signature identity".to_owned())
+        };
+        callable_headers.insert(terminal_psi::ProofCallableHeader {
+            declaration,
+            callable,
+            package: header.package,
+            source_target: header.source_target.clone(),
+            product_eligible: header.product_eligible,
+            supplies_checked_body: header.supplies_checked_body,
+        });
+    }
     Ok(PublishedScope {
         scope: ProofApplicationScope {
             declarations: descriptions,
+            callable_headers,
             callables,
             plan,
             calls,
