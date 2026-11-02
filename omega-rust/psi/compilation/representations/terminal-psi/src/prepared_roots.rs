@@ -10,6 +10,83 @@ use semantic_vocabulary::MachineId;
 use source::SourceSpan;
 use std::sync::Arc;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum NominalRootError {
+    MissingEntryDeclaration,
+    TerminalEntryMultiplicity(usize),
+}
+
+impl std::fmt::Display for NominalRootError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(formatter, "{self:?}")
+    }
+}
+
+impl std::error::Error for NominalRootError {}
+
+/// A closed declaration description, not checked-source or execution authority.
+/// Entry contracts already retain this nominal identity; attachment resolves it
+/// against the shared artifact without reopening its producing source.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PreparedNominalRoot {
+    identities: TerminalIdentityTable,
+    declaration: crate::NominalDeclarationIdentity,
+    source_machine_name: String,
+    span: Option<SourceSpan>,
+}
+
+impl PreparedNominalRoot {
+    pub fn new(
+        declaration: &str,
+        source_machine_name: &str,
+        span: Option<SourceSpan>,
+    ) -> Result<Self, NominalRootError> {
+        if declaration.is_empty() {
+            return Err(NominalRootError::MissingEntryDeclaration);
+        }
+        let mut identities = crate::TerminalIdentityTableBuilder::default();
+        let declaration = crate::NominalDeclarationIdentity::new(identities.intern(declaration));
+        Ok(Self {
+            identities: identities.build(),
+            declaration,
+            source_machine_name: source_machine_name.to_owned(),
+            span,
+        })
+    }
+
+    /// Match exact nominal ownership, never a display name or matching ABI.
+    pub fn resolve<'module>(
+        &self,
+        module: &'module TerminalModule,
+    ) -> Result<&'module crate::TerminalMachine, NominalRootError> {
+        let mut matching = module.machines.iter().filter(|machine| {
+            machine.declaration.as_ref().is_some_and(|declaration| {
+                self.declaration.same_identity_as(
+                    &self.identities,
+                    &declaration.machine,
+                    &module.identities,
+                )
+            })
+        });
+        let Some(entry) = matching.next() else {
+            return Err(NominalRootError::TerminalEntryMultiplicity(0));
+        };
+        let remaining = matching.count();
+        if remaining != 0 {
+            return Err(NominalRootError::TerminalEntryMultiplicity(remaining + 1));
+        }
+        Ok(entry)
+    }
+
+    pub fn source_machine_name(&self) -> &str {
+        &self.source_machine_name
+    }
+
+    pub fn diagnostic_name(&self) -> Option<(&str, Option<SourceSpan>)> {
+        (!self.source_machine_name.is_empty()).then_some((&self.source_machine_name, self.span))
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum TerminalRootDeclaration {
     #[default]

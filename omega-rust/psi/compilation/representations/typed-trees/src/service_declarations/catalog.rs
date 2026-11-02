@@ -21,9 +21,19 @@ use symbols::SymbolHandle;
 
 /// Exact Source correspondence. Physical calling eligibility and declaration
 /// ABI requests cross the portable boundary in the canonical calling census.
-#[derive(Default)]
 pub struct PreparedServiceRequirement {
     pub source: ServiceRequirementSource,
+    /// Nominal declaration ownership, distinct from the callable overload key.
+    pub nominal_identity: Result<String, Diagnostic>,
+}
+
+impl Default for PreparedServiceRequirement {
+    fn default() -> Self {
+        Self {
+            source: ServiceRequirementSource::default(),
+            nominal_identity: Err(missing_declaration_owner()),
+        }
+    }
 }
 
 /// Lookup coordinates are issued by source preparation, never reconstructed
@@ -49,6 +59,7 @@ struct ServiceRecord {
     argument_owner: SymbolHandle,
     package: Option<PackageKeyIdentity>,
     path: String,
+    nominal_identity: Result<String, Diagnostic>,
     declaration: Option<Arc<ServiceSurface>>,
     requirements: HandleSpan<PreparedServiceRequirement>,
     arguments: HandleSpan<TypeReferenceHandle>,
@@ -65,6 +76,7 @@ impl Default for ServiceRecord {
             argument_owner: SymbolHandle::invalid(),
             package: None,
             path: String::new(),
+            nominal_identity: Err(missing_declaration_owner()),
             declaration: None,
             requirements: HandleSpan::default(),
             arguments: HandleSpan::default(),
@@ -107,7 +119,24 @@ pub struct PreparedServiceCatalog {
 #[derive(Clone, Copy)]
 pub struct ServiceCatalog<'catalog> {
     context: ProviderPlanningContext<'catalog>,
-    catalog: &'catalog PreparedServiceCatalog,
+    catalog: &'catalog Arc<PreparedServiceCatalog>,
+}
+
+/// One immutable prepared surface with its original arena owner. Retention
+/// keeps metadata, never a Source context or execution permission.
+pub struct RetainedServiceSurface {
+    catalog: Arc<PreparedServiceCatalog>,
+    record: Handle<ServiceRecord>,
+}
+
+impl RetainedServiceSurface {
+    pub fn surface(&self) -> Result<PreparedServiceSurface<'_>, Diagnostic> {
+        self.catalog
+            .view(self.catalog.records.get(self.record))
+            .ok_or_else(|| {
+                Diagnostic::error("retained service declaration lost its prepared surface")
+            })
+    }
 }
 
 /// The complete declaration census includes unsupported dormant declarations.
@@ -116,6 +145,7 @@ pub struct PreparedServiceDeclaration<'catalog> {
     pub schema: ProviderSchemaDeclaration,
     pub package: Option<PackageKeyIdentity>,
     pub path: &'catalog str,
+    pub nominal_identity: &'catalog Result<String, Diagnostic>,
     pub surface: Option<PreparedServiceSurface<'catalog>>,
 }
 
@@ -145,11 +175,14 @@ impl PreparedServiceSurface<'_> {
 impl PreparedServiceCatalog {
     /// Complete source formation once, preserving source order and deferred
     /// absence/refusals. The caller must finish mutable preparation first.
-    pub fn prepare(context: ProviderPlanningContext<'_>) -> Self {
+    pub fn prepare(
+        context: ProviderPlanningContext<'_>,
+        exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
+    ) -> Self {
         let signatures = Arc::new(super::signatures::PreparedBoundarySignatures::prepare(
             context.typed,
         ));
-        Self::assemble(context, signatures)
+        Self::assemble(context, signatures, exact_toolchain_sources)
     }
 
     /// Reuse the census formed while checking this exact immutable input.
@@ -158,16 +191,19 @@ impl PreparedServiceCatalog {
     pub fn prepare_frozen(
         program: &crate::FrozenTypedTrees,
         scope: source::DependencyScope,
+        exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
     ) -> Self {
         Self::assemble(
             ProviderPlanningContext::new(program, scope),
             Arc::clone(program.boundary_signatures()),
+            exact_toolchain_sources,
         )
     }
 
     fn assemble(
         context: ProviderPlanningContext<'_>,
         signatures: Arc<super::signatures::PreparedBoundarySignatures>,
+        exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
     ) -> Self {
         let program = context.typed;
         let mut catalog = Self {
@@ -190,6 +226,7 @@ impl PreparedServiceCatalog {
             let schema = ProviderSchemaDeclaration::BoundaryTrait(declaration.symbol);
             catalog.retain(
                 context,
+                exact_toolchain_sources,
                 ServiceOrigin::Declaration(schema),
                 schema,
                 projection::from_typed(context, declaration),
@@ -215,6 +252,7 @@ impl PreparedServiceCatalog {
                 }
                 catalog.retain(
                     context,
+                    exact_toolchain_sources,
                     origin,
                     schema,
                     projection::from_typed_application(context, scope.clone()),
@@ -230,6 +268,7 @@ impl PreparedServiceCatalog {
         {
             catalog.retain_named(
                 context,
+                exact_toolchain_sources,
                 declaration.symbol,
                 Handle::default(),
                 AppliedTraitScope::from_conformance(program, declaration),
@@ -245,6 +284,7 @@ impl PreparedServiceCatalog {
             };
             catalog.retain_named(
                 context,
+                exact_toolchain_sources,
                 declaration.symbol,
                 capture,
                 application
@@ -263,6 +303,7 @@ impl PreparedServiceCatalog {
             let schema = ProviderSchemaDeclaration::BoundaryOperator(operator.symbol);
             catalog.retain(
                 context,
+                exact_toolchain_sources,
                 ServiceOrigin::Declaration(schema),
                 schema,
                 projection::from_typed_operator(context, operator),
@@ -277,21 +318,42 @@ impl PreparedServiceCatalog {
             let schema = ProviderSchemaDeclaration::BoundaryRequirement(machine.symbol);
             catalog.retain(
                 context,
+                exact_toolchain_sources,
                 ServiceOrigin::Declaration(schema),
                 schema,
                 projection::from_typed_boundary_requirement(context, machine),
                 &[],
             );
         }
-        catalog.retain_sealed(context);
+        catalog.retain_sealed(context, exact_toolchain_sources);
         catalog
+    }
+
+    /// Owned preparation may be consumed without borrowing the Source context.
+    /// Local symbols remain correspondence only, never selection authority.
+    pub fn declared_traits(&self) -> impl Iterator<Item = PreparedServiceDeclaration<'_>> {
+        self.records
+            .iter()
+            .filter(|(_, record)| {
+                matches!(
+                    record.origin,
+                    ServiceOrigin::Declaration(ProviderSchemaDeclaration::BoundaryTrait(_))
+                )
+            })
+            .map(move |(_, record)| PreparedServiceDeclaration {
+                schema: record.schema,
+                package: record.package,
+                path: &record.path,
+                nominal_identity: &record.nominal_identity,
+                surface: self.view(record),
+            })
     }
 
     /// Pairing checks occur at source-consuming entrances, not as a grant.
     /// The identity closes address reuse; the address distinguishes clones that
     /// retain the source memo tag. Neither coordinate is portable or serialized.
     pub fn bind<'catalog>(
-        &'catalog self,
+        self: &'catalog Arc<Self>,
         context: ProviderPlanningContext<'catalog>,
     ) -> Result<ServiceCatalog<'catalog>, Diagnostic> {
         if self.owner_identity != context.typed.identity.get()
@@ -308,16 +370,22 @@ impl PreparedServiceCatalog {
         })
     }
 
-    fn lookup(&self, origin: ServiceOrigin) -> Option<PreparedServiceSurface<'_>> {
+    fn record(&self, origin: ServiceOrigin) -> Handle<ServiceRecord> {
         let mut matching = self
             .records
             .iter()
             .filter(|(_, record)| record.origin == origin);
-        let (_, record) = matching.next()?;
+        let Some((record, _)) = matching.next() else {
+            return Handle::default();
+        };
         if matching.next().is_some() {
-            return None;
+            return Handle::default();
         }
-        self.view(record)
+        record
+    }
+
+    fn lookup(&self, origin: ServiceOrigin) -> Option<PreparedServiceSurface<'_>> {
+        self.view(self.records.get(self.record(origin)))
     }
 }
 
@@ -337,6 +405,20 @@ impl<'catalog> ServiceCatalog<'catalog> {
         self.catalog.lookup(ServiceOrigin::Declaration(schema))
     }
 
+    /// Retain the exact declaration selected through this Source-bound query.
+    /// Subsequent readers borrow its metadata without retaining that context.
+    pub fn retain_declaration(
+        self,
+        schema: ProviderSchemaDeclaration,
+    ) -> Option<RetainedServiceSurface> {
+        let record = self.catalog.record(ServiceOrigin::Declaration(schema));
+        self.catalog.view(self.catalog.records.get(record))?;
+        Some(RetainedServiceSurface {
+            catalog: Arc::clone(self.catalog),
+            record,
+        })
+    }
+
     pub fn named_application(
         self,
         declaration: SymbolHandle,
@@ -351,21 +433,7 @@ impl<'catalog> ServiceCatalog<'catalog> {
     }
 
     pub fn declared_traits(self) -> impl Iterator<Item = PreparedServiceDeclaration<'catalog>> {
-        self.catalog
-            .records
-            .iter()
-            .filter(|(_, record)| {
-                matches!(
-                    record.origin,
-                    ServiceOrigin::Declaration(ProviderSchemaDeclaration::BoundaryTrait(_))
-                )
-            })
-            .map(move |(_, record)| PreparedServiceDeclaration {
-                schema: record.schema,
-                package: record.package,
-                path: &record.path,
-                surface: self.catalog.view(record),
-            })
+        self.catalog.declared_traits()
     }
 
     pub fn sealed_accessor(
@@ -418,6 +486,7 @@ impl PreparedServiceCatalog {
     fn retain(
         &mut self,
         context: ProviderPlanningContext<'_>,
+        exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
         origin: ServiceOrigin,
         schema: ProviderSchemaDeclaration,
         projected: Option<ProjectedServiceSurface<'_>>,
@@ -431,18 +500,29 @@ impl PreparedServiceCatalog {
                 .symbols
                 .symbol_package_identity(schema.symbol()),
             path: context.typed.symbols.display_path(schema.symbol(), "::"),
+            nominal_identity: exact_identity(
+                context.typed,
+                schema.symbol(),
+                exact_toolchain_sources,
+            ),
             arguments: self.arguments.insert_many(arguments.iter().copied()),
             ..ServiceRecord::default()
         };
         if let Some(projected) = projected {
             record.correspondence = projected.validate_correspondence();
             record.argument_owner = projected.argument_owner;
-            record.requirements = self.requirements.insert_many(
-                projected
-                    .requirements
-                    .into_iter()
-                    .map(|source| PreparedServiceRequirement { source }),
-            );
+            record.requirements =
+                self.requirements
+                    .insert_many(projected.requirements.into_iter().map(|source| {
+                        PreparedServiceRequirement {
+                            nominal_identity: exact_identity(
+                                context.typed,
+                                source.symbol,
+                                exact_toolchain_sources,
+                            ),
+                            source,
+                        }
+                    }));
             record.declaration = Some(projected.declaration);
         }
         self.records.insert(record);
@@ -451,6 +531,7 @@ impl PreparedServiceCatalog {
     fn retain_named<'program>(
         &mut self,
         context: ProviderPlanningContext<'program>,
+        exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
         declaration: SymbolHandle,
         capture: Handle<crate::typed_trees::CapturedMachineApplication>,
         root: Option<AppliedTraitScope<'program>>,
@@ -475,6 +556,7 @@ impl PreparedServiceCatalog {
                 .and_then(|scope| projection::from_typed_application(context, scope));
             self.retain(
                 context,
+                exact_toolchain_sources,
                 ServiceOrigin::Named {
                     declaration,
                     capture,
@@ -487,7 +569,11 @@ impl PreparedServiceCatalog {
         }
     }
 
-    fn retain_sealed(&mut self, context: ProviderPlanningContext<'_>) {
+    fn retain_sealed(
+        &mut self,
+        context: ProviderPlanningContext<'_>,
+        exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
+    ) {
         let program = context.typed;
         let mut symbols = Vec::new();
         for view in &program.access_view_plans {
@@ -514,6 +600,7 @@ impl PreparedServiceCatalog {
                     });
                     self.retain(
                         context,
+                        exact_toolchain_sources,
                         ServiceOrigin::Declaration(schema),
                         schema,
                         projected,
@@ -527,4 +614,21 @@ impl PreparedServiceCatalog {
             });
         }
     }
+}
+
+/// Close the exact package/toolchain declaration owner, not a callable key.
+/// The supplied sealed source roster authenticates toolchain declarations.
+pub fn exact_identity(
+    typed: &crate::TypedTrees,
+    symbol: SymbolHandle,
+    sources: &[(source::SourceId, [u8; 32])],
+) -> Result<String, Diagnostic> {
+    typed
+        .exact_owner_nominal_identity(symbol, sources)
+        .and_then(|identity| typed.type_identity_text(identity))
+        .ok_or_else(missing_declaration_owner)
+}
+
+fn missing_declaration_owner() -> Diagnostic {
+    Diagnostic::error("service declaration has no exact package or toolchain owner")
 }

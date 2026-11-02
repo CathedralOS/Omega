@@ -245,7 +245,7 @@ pub(super) fn append_statement_calls<'plans>(
                     first_write,
                     completed,
                     *contexts,
-                    *constraints,
+                    constraints,
                 );
                 store_target = execution.context.control.operands.append(captured);
             }
@@ -798,7 +798,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 first_write,
                 completed,
                 *contexts,
-                *constraints,
+                constraints,
             );
             capture.retention = self.formed_view_retention(&capture);
             capture.completion = checked_trees::FlowOperandCompletion::Observation;
@@ -822,7 +822,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 first_write,
                 completed,
                 *contexts,
-                *constraints,
+                constraints,
             );
             self.context.control.operands.append(descriptor)
         } else {
@@ -937,6 +937,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             // so later saved copies can identify that carrier by handle.
             capture.value_source = owner;
         }
+        self.retain_descriptor_permission(&mut capture, constraints);
         self.retain_observation_result(expression, capture);
         EvaluatedOperand {
             boolean,
@@ -1025,7 +1026,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             };
         }
         let capture =
-            self.capture_place_operand(expression, first_write, completed, *contexts, *constraints);
+            self.capture_place_operand(expression, first_write, completed, *contexts, constraints);
         self.retain_observation_result(expression, capture);
         EvaluatedOperand {
             boolean,
@@ -1042,7 +1043,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         first_write: usize,
         completed: CompletedValue,
         contexts: HandleSpan<FlowSemanticContextRef>,
-        constraints: HandleSpan<FlowConstraintRef>,
+        constraints: &mut HandleSpan<FlowConstraintRef>,
     ) -> checked_trees::FlowOperandFact {
         let reference = if completed.formed_type.is_valid() {
             completed.formed_type
@@ -1088,7 +1089,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         let referents = if expression != self.reference_slot_target && produces_view {
             self.complete_reference_formation(
                 expression,
-                constraints,
+                *constraints,
                 referents,
                 completed.case_access,
             )
@@ -1096,7 +1097,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             referents
         };
         let mut capture =
-            self.capture_operand(expression, first_write, contexts, constraints, referents);
+            self.capture_operand(expression, first_write, contexts, *constraints, referents);
         capture.case_access = completed.case_access;
         capture.completion = completed.completion;
         capture.value_source = completed.value_source;
@@ -1138,6 +1139,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 },
             );
         }
+        self.retain_descriptor_permission(&mut capture, constraints);
         capture
     }
 
@@ -1214,6 +1216,8 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         self.filter_captured_sources(&changed, &mut captured_contexts, &mut captured_constraints);
         let retention = self.retention_from_referents(referents);
         checked_trees::FlowOperandFact {
+            descriptor_loan: Handle::invalid(),
+            descriptor_read: Handle::invalid(),
             expression,
             state_symbol: self.state.symbol,
             statement_index: self.statement_index,
@@ -1582,6 +1586,27 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         {
             return None;
         }
+        if let Some(receiver) = validation::collection_length_receiver(
+            self.program,
+            self.machine,
+            Some(self.state),
+            expression,
+        ) {
+            // Both name-path and member spellings observe the same descriptor.
+            // Retain its completed occurrence cut before any later operand can
+            // replace that descriptor; metadata has no nominal field selector.
+            let receiver = self.evaluated_place(receiver, contexts, constraints);
+            *backing = self.context.control.operands.insert(receiver.capture);
+            *referents = Some(HandleSpan::empty());
+            self.retain_value_observation(
+                expression,
+                *backing,
+                HandleSpan::empty(),
+                *contexts,
+                *constraints,
+            );
+            return self.live_boolean(expression, *contexts);
+        }
         match self.program.expression_table.expression(expression) {
             ExpressionNode::SavedSubject(saved) => {
                 let captured = self
@@ -1883,6 +1908,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 }
                 self.install_call_stores(completed.call, completed.stores);
                 self.capture_returned_retention(
+                    completed.call,
                     expression,
                     destination,
                     call,

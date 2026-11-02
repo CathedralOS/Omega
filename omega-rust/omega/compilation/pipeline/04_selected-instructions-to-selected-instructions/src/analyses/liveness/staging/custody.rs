@@ -1,16 +1,15 @@
 use crate::LivenessValidationReceipt;
 
-use target_operations_to_selected_instructions::StagedOptimizedSelectionCustodyReceipt;
-
 use super::StagedOptimizedLivenessCustodyReceipt;
 
 pub(super) fn liveness_custody_receipt(
-    upstream: StagedOptimizedSelectionCustodyReceipt,
+    core: selected_instructions::StagedOptimizedCustodyCore,
+    selected: selected_instructions::SelectedInstructionPlanIdentity,
     validation: LivenessValidationReceipt,
 ) -> StagedOptimizedLivenessCustodyReceipt {
     StagedOptimizedLivenessCustodyReceipt {
-        core: upstream.core(),
-        selected: upstream.selected(),
+        core,
+        selected,
         liveness: validation.identity(),
     }
 }

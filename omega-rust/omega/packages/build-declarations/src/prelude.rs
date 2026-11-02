@@ -13,6 +13,12 @@ pub fn build_prelude_source() -> String {
     targets::install(&optimizations::install(BUILD_PRELUDE))
 }
 
+/// Ordinary default activation. Its supplied role and owner are retained by
+/// source selection; this code neither names a project nor selects an entry.
+pub fn default_build_source() -> &'static str {
+    "machine build(builder: &mut Build) {}\n"
+}
+
 const BUILD_PRELUDE: &str = r#"
 // Toolchain-provided build vocabulary.
 public data Subsystem {

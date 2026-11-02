@@ -56,9 +56,10 @@ public data NameScope [copy] {
     visible_statement_end: u64 in Trapping;
     first_binder: u64 in Trapping;
     binder_count: u64 in Trapping;
-    // Whether `result` names the machine's returned value: its `ensures`
-    // facts.
-    names_result: bool;
+    // The exact declared result named by an `ensures` fact. The enclosing
+    // machine still supplies lexical context; a callable contract owns its
+    // own result independently. NotAName outside a result scope.
+    result_binding: ValueBinding;
     // Whether the names are a fact's, rooted at `fact_root`: only there may
     // a proposition apply.
     in_fact: bool;
@@ -122,7 +123,7 @@ crashes Trap
             visible_statement_end: 0,
             first_binder: 0,
             binder_count: 0,
-            names_result: false,
+            result_binding: ValueBinding::NotAName,
             in_fact: false,
             fact_root: 0,
             names_subject: false,
@@ -243,7 +244,7 @@ crashes Trap
         visible_statement_end: first_statement,
         first_binder: 0,
         binder_count: 0,
-        names_result: false,
+        result_binding: ValueBinding::NotAName,
         in_fact: false,
         fact_root: 0,
         names_subject: false,
@@ -276,7 +277,7 @@ machine Resolver::through_statement(scope: NameScope) -> NameScope {
         visible_statement_end: scope.visible_statement_end + 1,
         first_binder: scope.first_binder,
         binder_count: scope.binder_count,
-        names_result: scope.names_result,
+        result_binding: scope.result_binding,
         in_fact: scope.in_fact,
         fact_root: scope.fact_root,
         names_subject: scope.names_subject,
@@ -294,7 +295,7 @@ machine Resolver::with_binders(scope: NameScope, first_binder: u64 in Trapping, 
         visible_statement_end: scope.visible_statement_end,
         first_binder: first_binder,
         binder_count: binder_count,
-        names_result: scope.names_result,
+        result_binding: scope.result_binding,
         in_fact: scope.in_fact,
         fact_root: scope.fact_root,
         names_subject: scope.names_subject,
@@ -725,8 +726,15 @@ crashes Trap
 
     machine returned(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, name: SourceSpan) -> ValueBinding {
         let spelled: bool = SourceSet::span_spells(sources, name, "result");
-        transition scope.names_result && spelled {
-            true -> found(ValueBinding::ReturnedValue { machine: scope.machine })
+        transition scope.result_binding {
+            ValueBinding::NotAName -> generic(resolution, sources, syntax, scope, name)
+            _ -> result_spelling(resolution, sources, syntax, scope, name, spelled)
+        }
+    }
+
+    machine result_spelling(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, name: SourceSpan, spelled: bool) -> ValueBinding {
+        transition spelled {
+            true -> found(scope.result_binding)
             _ -> generic(resolution, sources, syntax, scope, name)
         }
     }

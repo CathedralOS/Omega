@@ -97,6 +97,70 @@ pub(super) fn argument_backings(
     };
 
     let selected = argument_capture(program, facts, state, call, access);
+    let metadata_context =
+        validation::machine_state_by_symbols(program, state.machine_symbol, state.state_symbol)
+            .filter(|(machine, declaration)| {
+                validation::collection_length_receiver(
+                    program,
+                    machine,
+                    Some(declaration),
+                    access.expression,
+                )
+                .is_some()
+            });
+    if let Some((machine, declaration)) = metadata_context {
+        let selected = selected.ok_or("metadata has no unique completed operand")?;
+        let control = &facts.flow.control;
+        let captured = control.operands.get(selected);
+        let evaluation = crate::flow::call_permission_evaluation(
+            program,
+            machine,
+            declaration,
+            call.statement_index,
+            call.call_ordinal,
+        );
+        let statement = control
+            .statements
+            .span(state.statements)
+            .and_then(|statements| {
+                statements
+                    .iter()
+                    .find(|statement| statement.statement_index == call.statement_index)
+            })
+            .ok_or("metadata lost its exact statement observation roster")?;
+        // The argument roster copies completed values, not their arena handle.
+        // Its backing is still the exact receiver handle issued by the read.
+        let mut observations = control
+            .value_observations
+            .span(statement.value_observations)
+            .ok_or("metadata has no complete observation roster")?
+            .iter()
+            .filter(|observed| {
+                observed.expression == access.expression
+                    && observed.evaluation == evaluation
+                    && observed.receiver == captured.backing
+            });
+        let observed = observations
+            .next()
+            .ok_or("metadata lost its captured receiver observation")?;
+        if observations.next().is_some() {
+            return Err("metadata has competing captured receiver observations");
+        }
+        let places = access_sources::metadata_storage(
+            program,
+            facts,
+            state,
+            call.statement_index,
+            observed,
+            place,
+        )
+        .ok_or("metadata descriptor has no retained storage authority")?;
+        return Ok(ArgumentBackings {
+            places,
+            capture: selected,
+            forwarded_inputs: Vec::new(),
+        });
+    }
     let forwarded = !matches!(
         program.expression_table.expression(access.expression),
         typed_trees::expression::ExpressionNode::Borrow(_)
@@ -248,6 +312,8 @@ fn argument_capture(
                 );
             }
             checked_trees::FlowOperandCompletion::Observation
+            | checked_trees::FlowOperandCompletion::IncomingContents { .. }
+            | checked_trees::FlowOperandCompletion::InvocationResult { .. }
             | checked_trees::FlowOperandCompletion::Copied { .. } => {}
         }
     }
@@ -371,6 +437,7 @@ pub(super) fn access_interferes<'p>(
                         // projected access through the parent cannot fake it.
                         && captured_place_compatibility(
                             program,
+                            borrow,
                             &CapturedPlace {
                                 incoming_reference: ancestor.incoming_reference,
                                 incoming_owner_path: borrow.access_segments.span_or_empty(ancestor.incoming_owner_path).to_vec(),
@@ -403,6 +470,7 @@ pub(super) fn access_interferes<'p>(
         };
         captured_place_compatibility(
             program,
+            borrow,
             &backing.place,
             kind,
             &loan_place,

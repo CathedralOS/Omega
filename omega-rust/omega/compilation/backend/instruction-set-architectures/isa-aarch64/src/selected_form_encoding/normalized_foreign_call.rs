@@ -348,6 +348,108 @@ mod tests {
         )
     }
 
+    #[test]
+    fn table_calls_retain_full_offsets_and_independently_reject_changed_bytes() {
+        use super::super::table_call::{
+            encode_aarch64_selected_table_call_form, validate_aarch64_selected_table_call_form,
+        };
+        for byte_offset in [7, 65_536, u32::MAX] {
+            let (_, _, alternative, operands, accesses, _, mut record) = inputs(false, 1, 1);
+            let contribution = record
+                .call
+                .binding
+                .same_stack_contribution()
+                .unwrap()
+                .clone();
+            record.call.binding.mechanism =
+                target_operations::NormalizedForeignCallMechanism::Table {
+                    target: target::TargetProfile::LinuxArm64,
+                    byte_offset,
+                    dispatch_only: false,
+                    same_stack_contribution: contribution,
+                };
+            let encoded =
+                encode_aarch64_selected_table_call_form(&record, alternative, &operands, &accesses)
+                    .unwrap();
+            assert_eq!(encoded.bytes().len(), 20);
+            assert!(matches!(encoded.footprint().encoded.memory,
+                MachineEncodedMemoryEffect::ReadTableFieldV1 { byte_offset: retained, .. } if retained == byte_offset));
+            assert_eq!(
+                encoded.footprint().encoded.control,
+                MachineEncodedControlEffect::IndirectExternalCallV1
+            );
+            for position in 0..encoded.bytes().len() {
+                let mut changed = encoded.bytes().to_vec();
+                changed[position] ^= 1;
+                assert!(
+                    validate_aarch64_selected_table_call_form(
+                        &record,
+                        alternative,
+                        &operands,
+                        &accesses,
+                        &changed
+                    )
+                    .is_err()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn table_dispatch_only_preserves_wire_plan_and_refuses_ip1_aliases() {
+        use super::super::table_call::encode_aarch64_selected_table_call_form;
+        let (_, _, alternative, _, _, _, mut record) = inputs(true, 1, 1);
+        let original = record.call.binding.boundary_entry_plan.clone();
+        let contribution = record
+            .call
+            .binding
+            .same_stack_contribution()
+            .unwrap()
+            .clone();
+        record.call.binding.mechanism = target_operations::NormalizedForeignCallMechanism::Table {
+            target: target::TargetProfile::MacosArm64,
+            byte_offset: 8,
+            dispatch_only: true,
+            same_stack_contribution: contribution,
+        };
+        let constraint = crate::machine_effects::normalized_foreign_constraint(&record).unwrap();
+        let views = constraint
+            .operands
+            .iter()
+            .map(|operand| operand.fixed_view.unwrap())
+            .collect::<Vec<_>>();
+        let accesses = constraint
+            .operands
+            .iter()
+            .map(|operand| operand.access)
+            .collect::<Vec<_>>();
+        let encoded =
+            encode_aarch64_selected_table_call_form(&record, alternative, &views, &accesses)
+                .unwrap();
+        assert_eq!(&encoded.bytes()[8..12], &0x8b11_0211_u32.to_le_bytes());
+        assert_eq!(record.call.binding.boundary_entry_plan, original);
+        let calling_conventions::ValueLocation::Register { register, .. } =
+            &mut record.call.binding.boundary_entry_plan.call.parameters[0].locations[0]
+        else {
+            panic!("register argument");
+        };
+        *register = calling_conventions::MachineRegister::Aarch64X(17);
+        assert!(
+            encode_aarch64_selected_table_call_form(&record, alternative, &views, &accesses)
+                .is_err()
+        );
+        let calling_conventions::ValueLocation::Register { register, .. } =
+            &mut record.call.binding.boundary_entry_plan.call.parameters[0].locations[0]
+        else {
+            panic!("register argument");
+        };
+        *register = calling_conventions::MachineRegister::Aarch64X(16);
+        assert!(
+            encode_aarch64_selected_table_call_form(&record, alternative, &views, &accesses)
+                .is_err()
+        );
+    }
+
     /// These records carry physical call inputs only; source ownership and
     /// declarations remain the selection tests' independent responsibility.
     fn record(darwin: bool, input_layout: usize, result: usize) -> SelectedNormalizedForeignCall {

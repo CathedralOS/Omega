@@ -14,11 +14,11 @@ use register_model::{
     ValidatedRegisterConstraintCatalog, ValidatedRegisterReservationProfile,
     target_register_environment_identity,
 };
+use selected_instructions::SelectedProgram;
 use selected_instructions::{
     SelectedInstructionId, SelectedTerminator, VirtualRegisterId, VirtualRegisterOrigin,
 };
 use semantic_vocabulary::ScalarType;
-use target_operations_to_selected_instructions::ValidatedSelectedInstructions;
 
 use crate::{
     FixedViewCopy, FixedViewCopyDestination, FixedViewCopyError, FixedViewCopyPlan,
@@ -33,7 +33,7 @@ use site::build_site_copies;
 use source_exit::build_source_exit_copies;
 
 pub(crate) fn compute_terminal_fixed_view_copies(
-    selected: &ValidatedSelectedInstructions,
+    selected: &SelectedProgram,
     ranges: &ValidatedLiveRanges,
     legality: &ValidatedAllocationLegality,
     fixed: &ValidatedFixedPrecoloredIntervals,
@@ -111,7 +111,7 @@ pub(crate) fn compute_terminal_fixed_view_copies(
     }
 
     Ok(FixedViewCopyPlan {
-        source_selected: selected.receipt().identity(),
+        source_selected: selected.identity(),
         source_ranges: ranges.receipt().identity(),
         source_legality: legality.receipt().identity(),
         register_environment,

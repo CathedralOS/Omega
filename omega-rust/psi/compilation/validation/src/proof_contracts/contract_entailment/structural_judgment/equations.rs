@@ -167,6 +167,7 @@ impl StructuralJudge<'_> {
                 | StructuralTerm::CapturedValue { .. }
                 | StructuralTerm::CollectionMeasure { .. }
                 | StructuralTerm::Projection { .. }
+                | StructuralTerm::BoundProjection { .. }
                 | StructuralTerm::IndexedValue { .. }
                 | StructuralTerm::MathematicalBinary { .. }
                 | StructuralTerm::IntegerEmbedding { .. }
@@ -184,6 +185,7 @@ impl StructuralJudge<'_> {
                 | StructuralTerm::CapturedValue { .. }
                 | StructuralTerm::CollectionMeasure { .. }
                 | StructuralTerm::Projection { .. }
+                | StructuralTerm::BoundProjection { .. }
                 | StructuralTerm::IndexedValue { .. }
                 | StructuralTerm::MathematicalBinary { .. }
                 | StructuralTerm::IntegerEmbedding { .. }

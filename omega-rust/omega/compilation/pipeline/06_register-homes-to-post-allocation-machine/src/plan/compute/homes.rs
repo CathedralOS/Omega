@@ -5,8 +5,8 @@
 //! changes neither missing-home behavior nor the operand where an error occurs.
 //! The index borrows assignments; it never rewrites their order or identity.
 
+use register_homes::{FunctionRegisterHomes, VirtualRegisterHome};
 use selected_instructions::VirtualRegisterId;
-use selected_instructions_to_register_homes::{FunctionRegisterHomes, VirtualRegisterHome};
 
 pub(super) struct PreparedHomes<'homes> {
     assignments: Vec<&'homes VirtualRegisterHome>,

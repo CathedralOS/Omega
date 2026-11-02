@@ -275,6 +275,7 @@ impl StructuralPrefixVisitor for ProjectionIdentity<'_> {
                 judge.normal_argument_entries(
                     crate::call_site_argument_expressions(program, &self.call),
                     self.parameters,
+                    super::structural_judgment::normal_returns::OperationOperandDemand::All,
                     environment,
                     (machine, state, state.return_type),
                     Some(self.call),

@@ -56,6 +56,7 @@ pub(super) fn check<'program>(
             if held.place.as_ref().is_some_and(|place| {
                 super::super::overlap::captured_place_compatibility(
                     program,
+                    &facts.borrow,
                     place,
                     &held.access,
                     &moved,
@@ -91,6 +92,7 @@ pub(super) fn check<'program>(
                 (Some(left_place), Some(right_place)) => {
                     super::super::overlap::captured_place_compatibility(
                         program,
+                        &facts.borrow,
                         left_place,
                         &left.access,
                         right_place,

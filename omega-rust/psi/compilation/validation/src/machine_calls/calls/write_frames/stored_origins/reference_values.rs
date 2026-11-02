@@ -15,6 +15,23 @@ pub(in crate::machine_calls::calls::write_frames) fn canonical_reference_origins
     spatial_origins(resolve_sources(program, origin, aliases, stored, None))
 }
 
+/// Capture a descriptor cell's home. Ancestor descriptors still load their
+/// complete captured backing; the final cell's old contents do not select the
+/// address of its own replacement. Unknown ancestors remain unknown.
+pub(in crate::machine_calls::calls::write_frames) fn canonical_storage_origins(
+    program: &dyn crate::CheckingInput,
+    origin: &FramePlaceOrigin,
+    aliases: &[(String, FramePlaceOrigin)],
+    stored: &[StoredLocalOrigins],
+) -> Vec<Option<FramePlaceOrigin>> {
+    spatial_origins(
+        resolve_steps(program, &Some(origin.clone()), aliases, stored, None, false)
+            .into_iter()
+            .map(|step| step.map(|step| step.source))
+            .collect(),
+    )
+}
+
 pub(in crate::machine_calls::calls::write_frames) fn canonical_reference_sources(
     program: &dyn crate::CheckingInput,
     origin: &Option<FramePlaceOrigin>,
@@ -100,7 +117,7 @@ pub(in crate::machine_calls::calls::write_frames) fn captured_reference_reads(
     aliases: &[(String, FramePlaceOrigin)],
     stored: &[StoredLocalOrigins],
 ) -> Vec<Option<CapturedReferenceRead>> {
-    resolve_steps(program, origin, aliases, stored, None)
+    resolve_steps(program, origin, aliases, stored, None, true)
         .into_iter()
         .map(|step| {
             let mut step = step?;
@@ -137,7 +154,7 @@ fn resolve_sources(
     stored: &[StoredLocalOrigins],
     crossed: Option<usize>,
 ) -> Vec<Option<SlotSource>> {
-    resolve_steps(program, origin, aliases, stored, crossed)
+    resolve_steps(program, origin, aliases, stored, crossed, true)
         .into_iter()
         .map(|step| {
             step.map(|mut step| {
@@ -231,6 +248,7 @@ pub(in crate::machine_calls::calls::write_frames) fn completed_reference_project
             &[],
             stored,
             Some(crossed),
+            true,
         ) {
             let mut step = step?;
             let mut slots = read.slots.clone();
@@ -317,6 +335,7 @@ fn resolve_steps(
     aliases: &[(String, FramePlaceOrigin)],
     stored: &[StoredLocalOrigins],
     mut crossed: Option<usize>,
+    dereference_endpoint: bool,
 ) -> Vec<Option<ReferenceStep>> {
     let Some(origin) = origin else {
         return vec![None];
@@ -366,6 +385,8 @@ fn resolve_steps(
         .filter(|leaf| {
             matches!(leaf.kind, super::StoredOriginKind::Reference(_))
                 && !crossed.is_some_and(|depth| leaf.local_segments.len() <= depth)
+                && (dereference_endpoint
+                    || leaf.local_segments.len() < origin.source.segments.len())
                 && source_reaches_leaf(&origin.source.segments, &leaf.local_segments)
                 && !super::projections::reference_is_shadowed(local, leaf, &origin.source.segments)
         })

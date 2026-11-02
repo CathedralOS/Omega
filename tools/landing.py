@@ -5,11 +5,12 @@ Git and `gh pr create` publish the author's branch and evidence. GitHub owns
 integration and required checks. This adapter supplies expected-head fencing,
 bounded waiting, and JSON reads on Windows, macOS and Linux. `land` is the one
 step a session runs once its work is finished and pushed: it marks the draft
-ready and hands the wait to GitHub, which adds the PR to the merge queue when
-the required check passes on that head. It returns at once, so no session has
-to stay alive or poll CI for its work to land; `--wait-seconds` also waits for
-MERGED where a host allows that. The old lease and build-receipt publication
-path is retired; see landing.md.
+ready, enqueues a green head or asks GitHub to queue it when the check passes.
+It returns once that request is registered; an armed request is not a queue
+entry or publication. A later `land` rechecks the head and enqueues it when
+green even if the request remains armed. `--wait-seconds` also observes MERGED
+where a host allows that. The old lease and build-receipt publication path is
+retired; see landing.md.
 """
 
 import argparse
@@ -185,12 +186,12 @@ def arm(repository, remote, number, expected):
 
     Enqueues at once when the check is already green. Refuses a red check, a
     conflict, a closed PR or a changed head without any mutation. A PR that is
-    already merged, queued or armed is returned unchanged, so a rerun repeats
-    nothing.
+    already merged or queued is returned unchanged. An existing pending
+    request stays armed; a later green check takes the ordinary enqueue path.
     """
     pull = pull_request(repository, remote, number)
     validate_head(pull, expected)
-    if pull["state"] == "MERGED" or pull["mergeQueueEntry"] or pull.get("autoMergeRequest"):
+    if pull["state"] == "MERGED" or pull["mergeQueueEntry"]:
         return pull
     if pull["state"] != "OPEN":
         raise LandingError(f"PR {number} was closed without merging.")
@@ -199,6 +200,8 @@ def arm(repository, remote, number, expected):
     verdict, description = check_outcome(head_check(repository, remote, expected))
     if verdict == "red":
         raise LandingError(f"{description} on {expected}; inspect the failed run before changing source.")
+    if verdict == "pending" and pull.get("autoMergeRequest"):
+        return pull
     if pull["isDraft"]:
         mark_ready(repository, remote, number)
     if verdict == "green":

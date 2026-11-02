@@ -202,6 +202,16 @@ impl Resolver<'_> {
         // expressions can still name storage that later operands replaced;
         // follow the retained producer graph before considering that address.
         match operand.completion {
+            FlowOperandCompletion::IncomingContents { .. } => {
+                let frontier = validation::completed_storage::reference_sources_at_path(
+                    self.program,
+                    control,
+                    capture,
+                    path,
+                    operand.storage_snapshot,
+                );
+                return self.stored_frontier(frontier, operand, ancestors, forwarded_inputs);
+            }
             FlowOperandCompletion::Selected(alternatives) => {
                 let alternatives = control
                     .operand_alternatives
@@ -242,6 +252,118 @@ impl Resolver<'_> {
                 );
             }
             _ => {}
+        }
+        if path.is_empty() && operand.descriptor_loan.is_valid() {
+            let handle = operand.descriptor_loan;
+            let (_, owner) = self
+                .facts
+                .borrow
+                .first_state_borrow(self.state.machine_symbol, self.state.state_symbol)
+                .ok_or("the loaded descriptor has no borrow owner")?;
+            if !self.facts.borrow.state_owns_loan(owner, handle) {
+                return Err("the loaded descriptor carries a foreign permission");
+            }
+            let loan = self.facts.borrow.loans.get(handle);
+            if !self
+                .facts
+                .borrow
+                .incoming_references
+                .is_valid(loan.incoming_reference)
+            {
+                return Err("the loaded descriptor has no supplied pointer identity");
+            }
+            let incoming = self
+                .facts
+                .borrow
+                .incoming_references
+                .get(loan.incoming_reference);
+            if !matches!(incoming.origin,
+                checked_trees::IncomingReferenceOrigin::DescriptorLoad { expression }
+                    if expression == operand.expression)
+                || incoming.state_symbol != operand.state_symbol
+                || loan.statement_index != operand.statement_index
+                || !self
+                    .facts
+                    .flow
+                    .borrow_loan_constraints(operand.constraints)
+                    .any(|active| active == handle)
+                || !control.case_accesses.is_valid(operand.case_access)
+            {
+                return Err("the loaded descriptor has no exact completed permission");
+            }
+            let access = control.case_accesses.get(operand.case_access);
+            if access.expression != operand.expression
+                || access.state_symbol != operand.state_symbol
+                || access.statement_index != operand.statement_index
+                || self
+                    .facts
+                    .flow
+                    .borrow_loan_constraints(access.constraints)
+                    .any(|active| active == handle)
+            {
+                return Err("the loaded descriptor cannot authorize its own formation");
+            }
+            let mut activations = self
+                .facts
+                .flow
+                .borrow_lifetimes
+                .activations
+                .span_or_empty(self.state.borrow_activations)
+                .iter()
+                .filter(|activation| activation.loan == handle);
+            let activation = activations
+                .next()
+                .ok_or("the loaded descriptor has no completed activation")?;
+            if activations.next().is_some()
+                || !control.operands.is_valid(activation.formation_value)
+                || !control.value_observations.is_valid(operand.descriptor_read)
+            {
+                return Err("the loaded descriptor has an ambiguous activation or source read");
+            }
+            let formed = control.operands.get(activation.formation_value);
+            let read = control.value_observations.get(operand.descriptor_read);
+            if formed.descriptor_loan != handle
+                || formed.descriptor_read != operand.descriptor_read
+                || formed.expression != operand.expression
+                || formed.state_symbol != operand.state_symbol
+                || formed.statement_index != operand.statement_index
+                || formed.backing != operand.backing
+                || formed.case_access != operand.case_access
+                || formed.retention != operand.retention
+                || formed.referents != operand.referents
+                || read.expression != operand.expression
+                || read.evaluation != access.evaluation
+                || read.receiver != operand.backing
+                || read.constraints != access.constraints
+                || read.places.is_empty()
+                || self
+                    .facts
+                    .flow
+                    .borrow_loan_constraints(read.constraints)
+                    .any(|active| active == handle)
+                || !validation::declared_carriers_match(
+                    self.program,
+                    incoming.carrier_type,
+                    formed.type_reference,
+                )
+                || crate::borrow::reference_borrow_access_kind(self.program, formed.type_reference)
+                    .as_ref()
+                    != Some(&loan.kind)
+                || control.retained_roots(formed.retention).is_none()
+            {
+                return Err(
+                    "the loaded descriptor disagrees with its completed read, carrier or lifetime",
+                );
+            }
+            return Ok(BackingFrontier::borrowed(vec![ResolvedAlias {
+                place: CapturedPlace {
+                    incoming_reference: loan.incoming_reference,
+                    root: loan.root,
+                    segments: self.facts.borrow.loan_segments(loan).to_vec(),
+                    ..Default::default()
+                },
+                lineage: vec![handle],
+            }]));
         }
         let coordinate = place_at(
             self.program,
@@ -373,88 +495,61 @@ impl Resolver<'_> {
             }
             return Ok(resolved);
         }
-        if let ExpressionNode::Call(call) =
-            self.program.expression_table.expression(operand.expression)
+        if let FlowOperandCompletion::InvocationResult {
+            invocation,
+            result_type,
+            path: output,
+        } = operand.completion
         {
-            let mut calls = control
-                .calls
-                .span(self.state.calls)
-                .ok_or("the completed call has no invocation roster")?
-                .iter()
-                .filter(|row| {
-                    row.statement_index == operand.statement_index
-                        && row.authored_expression == operand.expression
-                });
+            if !path.is_empty() {
+                return Err("a returned descriptor observation does not capture pointee contents");
+            }
+            let output = control
+                .operand_retained_paths
+                .span(output)
+                .ok_or("the returned descriptor has no result coordinate")?;
+            let selected =
+                validation::project_type_reference_from_segments(self.program, result_type, output)
+                    .ok_or("the returned descriptor coordinate has no declared type")?;
+            if self.program.normalized_type_identity(selected)
+                != self
+                    .program
+                    .normalized_type_identity(operand.type_reference)
+            {
+                return Err("the returned descriptor disagrees with its completed result leaf");
+            }
+            return self.invocation_result(
+                operand,
+                invocation,
+                result_type,
+                output,
+                ancestors,
+                forwarded_inputs,
+            );
+        }
+        if matches!(
+            self.program.expression_table.expression(operand.expression),
+            ExpressionNode::Call(_)
+        ) {
+            let mut calls = self.state.calls.handles().filter(|handle| {
+                let row = control.calls.get(*handle);
+                row.statement_index == operand.statement_index
+                    && row.authored_expression == operand.expression
+            });
             let invocation = calls
                 .next()
                 .ok_or("the completed result has no actual invocation")?;
-            if calls.next().is_some() || invocation.authored_target != call.target_symbol {
+            if calls.next().is_some() {
                 return Err("the completed result has no unique checked invocation");
             }
-            let sources = crate::borrow::completed_call_reference_sources(
-                self.program,
-                self.state.state_symbol,
-                call,
-            )
-            .ok_or("the completed call has no declared return-source relation")?;
-            let mut resolved = BackingFrontier::default();
-            for source in sources {
-                let (source, projection) = match source {
-                    crate::borrow::CompletedReturnSource::ImmutableImage { owner_path, kind } => {
-                        if kind != checked_trees::BorrowAccessKind::Read {
-                            return Err("immutable image storage cannot grant writable access");
-                        }
-                        let structural =
-                            crate::borrow::structural_owner_path(self.program, &owner_path)
-                                .ok_or("the image result has no declared output path")?;
-                        let output = validation::reference_result_custody::loan_place_segments(
-                            self.program,
-                            operand.type_reference,
-                            &structural,
-                        )
-                        .ok_or("the image result path disagrees with its completed carrier")?;
-                        if same_path(self.program, &output, path) {
-                            resolved.immutable_image = true;
-                        }
-                        continue;
-                    }
-                    crate::borrow::CompletedReturnSource::DescriptorCandidate {
-                        field,
-                        projection,
-                    } => (field, projection),
-                    crate::borrow::CompletedReturnSource::LifetimeDependency { .. } => continue,
-                    crate::borrow::CompletedReturnSource::UnresolvedDescriptor { .. } => {
-                        return Err("the completed call has an unresolved descriptor alternative");
-                    }
-                };
-                let output = crate::borrow::owner_place_segments(&source.owner_path);
-                if !same_path(self.program, &output, path) {
-                    continue;
-                }
-                let actuals = invocation.argument_operands();
-                let index = u32::try_from(source.parameter_index)
-                    .map_err(|_| "the returned descriptor's input coordinate is out of range")?;
-                if index >= actuals.count() {
-                    return Err("the returned descriptor has no completed input");
-                }
-                let input = crate::borrow::owner_place_segments(&source.source_path);
-                let mut backings = self.input_descriptor(
-                    actuals.handle_at(index),
-                    source.source,
-                    &input,
-                    ancestors,
-                    forwarded_inputs,
-                )?;
-                for backing in &mut backings.places {
-                    backing.place.segments =
-                        facts::project_captured_view_segments(&backing.place.segments, &projection)
-                            .ok_or("the returned descriptor cannot project its retained source")?;
-                }
-                resolved.append(backings);
-            }
-            return (!resolved.places.is_empty() || resolved.immutable_image)
-                .then_some(resolved)
-                .ok_or("the completed call does not cover the returned descriptor path");
+            return self.invocation_result(
+                operand,
+                invocation,
+                operand.type_reference,
+                path,
+                ancestors,
+                forwarded_inputs,
+            );
         }
         let source =
             coordinate.ok_or("the completed descriptor has no source storage coordinate")?;
@@ -481,6 +576,114 @@ impl Resolver<'_> {
         } else {
             Err("the computed descriptor has no retained authority producer")
         }
+    }
+
+    /// Both an evaluated call and its retained result-leaf observations name
+    /// the same performed invocation. The normal return contract selects the
+    /// actual captured inputs; lifetime debt and exclusion regions alone never
+    /// become a descriptor supplier.
+    fn invocation_result(
+        &self,
+        operand: &FlowOperandFact,
+        invocation: Handle<checked_trees::FlowCallFact>,
+        result_type: typed_trees::types::TypeReferenceHandle,
+        path: &[PlaceSegment],
+        ancestors: &mut Vec<Handle<FlowOperandFact>>,
+        forwarded_inputs: &mut Vec<Handle<FlowOperandFact>>,
+    ) -> Result<BackingFrontier, &'static str> {
+        let control = &self.facts.flow.control;
+        if !control.calls.is_valid(invocation)
+            || !self
+                .state
+                .calls
+                .handles()
+                .any(|candidate| candidate == invocation)
+        {
+            return Err("the completed result invocation belongs to another state");
+        }
+        let invocation = control.calls.get(invocation);
+        let ExpressionNode::Call(call) = self
+            .program
+            .expression_table
+            .expression(invocation.authored_expression)
+        else {
+            return Err("the completed result has no authored call occurrence");
+        };
+        if invocation.statement_index != operand.statement_index
+            || invocation.authored_target != call.target_symbol
+        {
+            return Err("the completed result disagrees with its checked invocation");
+        }
+        let sources = crate::borrow::completed_call_reference_sources(
+            self.program,
+            self.state.state_symbol,
+            call,
+        )
+        .ok_or("the completed call has no declared return-source relation")?;
+        let mut resolved = BackingFrontier::default();
+        for source in sources {
+            let (source, projection) = match source {
+                crate::borrow::CompletedReturnSource::ImmutableImage { owner_path, kind } => {
+                    if kind != checked_trees::BorrowAccessKind::Read {
+                        return Err("immutable image storage cannot grant writable access");
+                    }
+                    let structural =
+                        crate::borrow::structural_owner_path(self.program, &owner_path)
+                            .ok_or("the image result has no declared output path")?;
+                    let output = validation::reference_result_custody::loan_place_segments(
+                        self.program,
+                        result_type,
+                        &structural,
+                    )
+                    .ok_or("the image result path disagrees with its completed carrier")?;
+                    if same_path(self.program, &output, path) {
+                        resolved.immutable_image = true;
+                    }
+                    continue;
+                }
+                crate::borrow::CompletedReturnSource::DescriptorCandidate { field, projection } => {
+                    (field, projection)
+                }
+                crate::borrow::CompletedReturnSource::LifetimeDependency { .. } => continue,
+                crate::borrow::CompletedReturnSource::UnresolvedDescriptor { .. } => {
+                    return Err("the completed call has an unresolved descriptor alternative");
+                }
+            };
+            let structural = crate::borrow::structural_owner_path(self.program, &source.owner_path)
+                .ok_or("the returned descriptor has no declared output path")?;
+            let output = validation::reference_result_custody::loan_place_segments(
+                self.program,
+                result_type,
+                &structural,
+            )
+            .ok_or("the returned descriptor path disagrees with its completed carrier")?;
+            if !same_path(self.program, &output, path) {
+                continue;
+            }
+            let actuals = invocation.argument_operands();
+            let index = u32::try_from(source.parameter_index)
+                .map_err(|_| "the returned descriptor's input coordinate is out of range")?;
+            if index >= actuals.count() {
+                return Err("the returned descriptor has no completed input");
+            }
+            let input = crate::borrow::owner_place_segments(&source.source_path);
+            let mut backings = self.input_descriptor(
+                actuals.handle_at(index),
+                source.source,
+                &input,
+                ancestors,
+                forwarded_inputs,
+            )?;
+            for backing in &mut backings.places {
+                backing.place.segments =
+                    facts::project_captured_view_segments(&backing.place.segments, &projection)
+                        .ok_or("the returned descriptor cannot project its retained source")?;
+            }
+            resolved.append(backings);
+        }
+        (!resolved.places.is_empty() || resolved.immutable_image)
+            .then_some(resolved)
+            .ok_or("the completed call does not cover the returned descriptor path")
     }
 
     fn immutable_image_profile(
@@ -816,8 +1019,10 @@ impl Resolver<'_> {
         let actual = control.operands.get(capture);
         // Loading a descriptor stored through an input pointer is distinct
         // from returning that pointer's own referent, including when both
-        // declaration-relative paths are empty. Only the actual's captured
-        // pointee inventory may supply the former; never reread its storage.
+        // declaration-relative paths are empty. Ask the completed-value owner
+        // at this actual's captured cut. Its lossless frontier distinguishes
+        // an unchanged incoming slot from a performed value. A roots-only
+        // lifetime profile is not an evaluated descriptor producer.
         if source == validation::borrow_contracts::ViewReturnInputSource::Stored
             && validation::reference_shell(self.program, actual.type_reference).is_some()
         {
@@ -825,18 +1030,23 @@ impl Resolver<'_> {
                 return Err("the borrowed input has no captured stored-descriptor inventory");
             }
             let retained = control.operand_retentions.get(actual.retention);
+            if !control.operands.is_valid(retained.stored_value) {
+                return Err("the borrowed input has no captured contents source");
+            }
             let mut projection = control
                 .operand_retained_paths
                 .span(retained.stored_projection)
                 .ok_or("the borrowed input has no captured stored-descriptor projection")?
                 .to_vec();
             projection.extend_from_slice(path);
-            return self.retained_descriptor(
+            let frontier = validation::completed_storage::reference_sources_at_path(
+                self.program,
+                control,
                 retained.stored_value,
                 &projection,
-                ancestors,
-                forwarded_inputs,
+                actual.storage_snapshot,
             );
+            return self.stored_frontier(frontier, actual, ancestors, forwarded_inputs);
         }
         let resolved = self.retained_descriptor(capture, path, ancestors, forwarded_inputs)?;
         if source == validation::borrow_contracts::ViewReturnInputSource::Referent

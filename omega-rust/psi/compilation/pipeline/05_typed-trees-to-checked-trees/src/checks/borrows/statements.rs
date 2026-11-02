@@ -79,6 +79,28 @@ pub(super) fn check_statement_borrows<'p>(
             .state_loans(borrow_state)
             .filter(|(_, loan)| loan.statement_index == statement.statement_index)
         {
+            if facts
+                .borrow
+                .incoming_references
+                .is_valid(loan.incoming_reference)
+                && matches!(
+                    facts
+                        .borrow
+                        .incoming_references
+                        .get(loan.incoming_reference)
+                        .origin,
+                    checked_trees::IncomingReferenceOrigin::DescriptorLoad { .. }
+                )
+                && !facts
+                    .flow
+                    .borrow_lifetimes
+                    .activations
+                    .span_or_empty(state_flow.borrow_activations)
+                    .iter()
+                    .any(|activation| activation.loan == loan_handle)
+            {
+                continue;
+            }
             let supplying_accesses = super::access_sources::resolve_all(
                 program,
                 facts,
@@ -144,6 +166,52 @@ pub(super) fn check_statement_borrows<'p>(
                     continue;
                 }
                 statement.pre_store_constraints
+            } else if facts
+                .borrow
+                .incoming_references
+                .is_valid(loan.incoming_reference)
+                && matches!(
+                    facts
+                        .borrow
+                        .incoming_references
+                        .get(loan.incoming_reference)
+                        .origin,
+                    checked_trees::IncomingReferenceOrigin::DescriptorLoad { .. }
+                )
+            {
+                let Some(activation) = facts
+                    .flow
+                    .borrow_lifetimes
+                    .activations
+                    .span_or_empty(state_flow.borrow_activations)
+                    .iter()
+                    .find(|activation| activation.loan == loan_handle)
+                else {
+                    continue;
+                };
+                if !facts
+                    .flow
+                    .control
+                    .operands
+                    .is_valid(activation.formation_value)
+                {
+                    continue;
+                }
+                let value = facts.flow.control.operands.get(activation.formation_value);
+                if !facts
+                    .flow
+                    .control
+                    .value_observations
+                    .is_valid(value.descriptor_read)
+                {
+                    continue;
+                }
+                facts
+                    .flow
+                    .control
+                    .value_observations
+                    .get(value.descriptor_read)
+                    .constraints
             } else {
                 statement.entry_constraints
             };
@@ -300,6 +368,7 @@ pub(super) fn check_statement_borrows<'p>(
                             statement,
                             place,
                             expression: *expression,
+                            evaluation: occurrence.evaluation,
                             active_loans: &active,
                         },
                         stated_premises,
@@ -327,11 +396,59 @@ pub(super) fn check_statement_borrows<'p>(
                             push_unique(&mut current_loans, handle);
                         }
                     }
-                    for (handle, _) in facts.borrow.state_loans(borrow_state).filter(|(_, loan)| {
-                        loan.statement_index == statement.statement_index
-                            && !loan.established_by_call.is_valid()
-                            && loan.formation_expression == *expression
-                    }) {
+                    for (handle, _) in facts.borrow.state_loans(borrow_state).filter(
+                        |(handle, loan)| {
+                            let loaded = facts
+                                .borrow
+                                .incoming_references
+                                .is_valid(loan.incoming_reference)
+                                && matches!(
+                                    facts
+                                        .borrow
+                                        .incoming_references
+                                        .get(loan.incoming_reference)
+                                        .origin,
+                                    checked_trees::IncomingReferenceOrigin::DescriptorLoad { .. }
+                                );
+                            loan.statement_index == statement.statement_index
+                                && !loan.established_by_call.is_valid()
+                                && loan.formation_expression == *expression
+                                && (!loaded
+                                    || facts
+                                        .flow
+                                        .borrow_lifetimes
+                                        .activations
+                                        .span_or_empty(state_flow.borrow_activations)
+                                        .iter()
+                                        .any(|activation| {
+                                            activation.loan == *handle
+                                                && facts
+                                                    .flow
+                                                    .control
+                                                    .operands
+                                                    .is_valid(activation.formation_value)
+                                                && {
+                                                    let capture = facts
+                                                        .flow
+                                                        .control
+                                                        .operands
+                                                        .get(activation.formation_value);
+                                                    facts
+                                                        .flow
+                                                        .control
+                                                        .value_observations
+                                                        .is_valid(capture.descriptor_read)
+                                                        && facts
+                                                            .flow
+                                                            .control
+                                                            .value_observations
+                                                            .get(capture.descriptor_read)
+                                                            .evaluation
+                                                            == occurrence.evaluation
+                                                }
+                                        }))
+                        },
+                    ) {
                         push_unique(&mut current_loans, handle);
                     }
                 }
@@ -448,12 +565,50 @@ pub(super) fn check_statement_borrows<'p>(
                                     })
                         })
                 });
+        // This branch has proved a descriptor replacement, not a write
+        // through the pointer. A whole local binding is a fresh home in this
+        // activation. A pointer loaded from unchanged invocation-entry storage
+        // cannot name that later home; replacing it leaves the saved pointer
+        // untouched. This proves nothing about fields behind borrowed roots
+        // or about two distinct loaded pointers.
+        let local_descriptor_home = binding_replacement
+            && mutated_place.segments.is_empty()
+            && program
+                .statement_table
+                .admitted_execution_statements(state.statement_nodes)
+                .take_while(|(index, _)| *index != statement.statement_index)
+                .any(|(_, statement)| {
+                    statement.as_local_data().is_some_and(|local| {
+                        mutated_place.root == facts::PlaceRoot::Symbol(local.symbol)
+                    })
+                });
         // A write through an unselected parent still conflicts with the child.
         for loan_handle in facts
             .flow
             .borrow_loan_constraints(statement.pre_store_constraints)
         {
             if ingress_slot && facts.borrow.loans.get(loan_handle).root == mutated_place.root {
+                continue;
+            }
+            let loan = facts.borrow.loans.get(loan_handle);
+            if local_descriptor_home
+                && facts
+                    .borrow
+                    .incoming_references
+                    .is_valid(loan.incoming_reference)
+                && {
+                    let origin = facts
+                        .borrow
+                        .incoming_references
+                        .get(loan.incoming_reference);
+                    origin.machine_symbol == state_flow.machine_symbol
+                        && origin.state_symbol == state_flow.state_symbol
+                        && matches!(
+                            origin.origin,
+                            checked_trees::IncomingReferenceOrigin::DescriptorLoad { .. }
+                        )
+                }
+            {
                 continue;
             }
             if !super::place_access::access_interferes(

@@ -514,7 +514,7 @@ fn provider_derivation_consumes_the_prepared_service_census() {
         build,
         "Build admission checking",
         &[
-            "PreparedServiceCatalog::prepare(context)",
+            "PreparedServiceCatalog::prepare(context, &[])",
             "derive_satisfies_plans(",
         ],
     );

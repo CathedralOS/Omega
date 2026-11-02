@@ -11,8 +11,8 @@ These focused Rust-producer witnesses exercise transparent aliases without wrapp
 | [RHS const expression](rhs_const_expression/README.md) | Declaration-owned Const occurrence substitution, explicit array interchange and Exact overflow | Linux x86_64 |
 | [RHS declaration scope](rhs_const_scope/README.md) | Imported declaration-global Const and same-named caller separation during array computation | Linux x86_64 |
 | [Captured RHS supplier](rhs_captured_supplier/README.md) | Named-map Const capture with a same-named fresh invocation binder through all nine transport places | Linux x86_64 |
-| [Qualified cases](qualified_cases/README.md) | Imported alias case construction/matching, exact payload formation and qualified-record contrast (local, field, parameter and call result) | Linux x86_64 |
+| [Qualified cases](qualified_cases/README.md) | Imported alias case construction/matching, exact payload formation and qualified-record contrast through all nine places | Linux x86_64 |
 
 The machine witness expands to `u64`; these erased aliases are the same runtime type. The existing restriction on finite-layout data with machine binders remains in force.
 
-The parent [LIBRARY-REPRESENTATION-FAMILIES task](../../../../TASKS.md) remains open: complete nine-place rows, remaining binder compositions, remaining qualified alias cases/patterns and exposure, alias-RHS expression operands, captured Product/Build alias transport, other hosts and the Omega-written producer are not established by these observations.
+The parent [LIBRARY-REPRESENTATION-FAMILIES task](../../../../TASKS.md) remains open: other nine-place rows, remaining binder compositions, broader qualified alias cases/patterns and exposure, alias-RHS expression operands, captured Product/Build alias transport, other hosts and the Omega-written producer are not established by these observations.

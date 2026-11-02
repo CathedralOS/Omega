@@ -65,7 +65,17 @@ fn parameter_roster<'checked>(
             target.structural_parameters,
         )
     } else {
-        let target = UnitBody::find(plans, call.target.machine)?.entry()?;
+        // Attribute a missing body to this exact call target. Emission can
+        // visit a structural producer nested inside another body's completion;
+        // blaming that outer body hides the missing dependency and its gap.
+        let name = checked.symbols.display_path(call.target.machine, "::");
+        let target = UnitBody::find(plans, call.target.machine)
+            .map_err(crate::shared::lowering_error::unit_machine_plan_error(
+                checked,
+                &name,
+                call.target.machine,
+            ))?
+            .entry()?;
         (
             target.state,
             target.scalar_parameters,

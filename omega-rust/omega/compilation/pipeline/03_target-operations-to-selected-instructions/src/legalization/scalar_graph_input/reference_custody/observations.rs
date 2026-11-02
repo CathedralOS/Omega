@@ -6,7 +6,6 @@ use super::*;
 use terminal_semantics::descriptor_lifetimes::{
     descriptor_location, descriptor_path, fixed_runtime_index_alternatives,
 };
-use terminal_semantics::descriptor_results::DescriptorSourceOrigin;
 
 pub(super) struct Observed {
     pub(super) root: Root,
@@ -282,45 +281,50 @@ fn observe_following(
         .as_ref()
         .ok_or(Refusal::UnknownOrigins)?;
     let mut origins = Vec::new();
+    let mut incoming_slots = Vec::new();
+    let mut owns_ingress = false;
     for source in sources {
-        let origin = match source {
-            DescriptorSourceOrigin::IncomingSlot(slot) => {
-                let parameter = function
-                    .structural_parameter(slot.root)
-                    .ok_or(Refusal::InvalidIngressStoragePath)?;
-                let slot_path = descriptor_path(types, parameter.structural_type, &slot.path)
-                    .ok_or(Refusal::InvalidIngressStoragePath)?;
-                if parameter.access == StructuralAccess::Owned {
-                    // An owned ingress descriptor has a real resident
-                    // occurrence; its absence cannot become external custody.
-                    // A slot behind that descriptor is external storage, but
-                    // only the authenticated original incoming pointer may
-                    // supply its incoming contents at this observation epoch.
-                    authenticate_indirect_ingress(
-                        function, custody, types, place, path, slot.root, &slot_path,
-                    )
-                    .ok_or(Refusal::OwnedIngressWithoutResident)?;
-                }
-                if leaf_type(types, parameter.structural_type, &slot_path) != Some(carrier) {
-                    return Err(Refusal::IngressCarrierTypeMismatch);
-                }
-                target_operations::TargetReferenceOrigin {
-                    base: target_operations::TargetReferenceOriginBase::IncomingContents {
-                        root: slot.root,
-                        slot: slot_path,
-                    },
-                    path: Vec::new(),
-                    extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
-                }
+        let origin = if let Some(slot) = source.captured_entry_slot() {
+            let parameter = function
+                .structural_parameter(slot.root)
+                .ok_or(Refusal::InvalidIngressStoragePath)?;
+            let slot_path = descriptor_path(types, parameter.structural_type, &slot.path)
+                .ok_or(Refusal::InvalidIngressStoragePath)?;
+            if parameter.access == StructuralAccess::Owned {
+                // An owned ingress descriptor has a real resident
+                // occurrence; its absence cannot become external custody.
+                // A slot behind that descriptor is external storage, but
+                // only the authenticated original incoming pointer may
+                // supply its incoming contents at this observation epoch.
+                owns_ingress = true;
             }
-            // Exact backing coordinates do not prove absence of a local
-            // parent. Locally formed values require the resident join above.
-            _ => return Err(Refusal::LocalOriginWithoutResident),
+            if leaf_type(types, parameter.structural_type, &slot_path) != Some(carrier) {
+                return Err(Refusal::IngressCarrierTypeMismatch);
+            }
+            incoming_slots.push((slot.root, slot_path.clone()));
+            target_operations::TargetReferenceOrigin {
+                base: target_operations::TargetReferenceOriginBase::IncomingContents {
+                    root: slot.root,
+                    slot: slot_path,
+                },
+                path: Vec::new(),
+                extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
+            }
+        } else {
+            match source {
+                // Exact backing coordinates do not prove absence of a local
+                // parent. Locally formed values require the resident join above.
+                _ => return Err(Refusal::LocalOriginWithoutResident),
+            }
         };
         origins.push(origin);
     }
     if origins.is_empty() {
         return Err(Refusal::EmptyOrigins);
+    }
+    if owns_ingress {
+        authenticate_indirect_ingress(function, custody, types, place, path, &incoming_slots)
+            .ok_or(Refusal::OwnedIngressWithoutResident)?;
     }
     origins.sort();
     origins.dedup();
@@ -403,16 +407,11 @@ fn authenticate_indirect_ingress(
     types: &[StructuralTypeDeclaration],
     current_place: PlaceId,
     current_path: &[StructuralPathSegment],
-    root: PlaceId,
-    incoming_path: &[StructuralPathSegment],
+    incoming_slots: &[(PlaceId, Vec<StructuralPathSegment>)],
 ) -> Option<()> {
     let crossing = current_path
         .iter()
         .rposition(|segment| *segment == StructuralPathSegment::Referent)?;
-    let incoming_crossing = incoming_path
-        .iter()
-        .rposition(|segment| *segment == StructuralPathSegment::Referent)?;
-    let carrier_path = &incoming_path[..incoming_crossing];
     let observed = super::call_paths::call_reference_custody(
         function,
         custody,
@@ -424,18 +423,37 @@ fn authenticate_indirect_ingress(
         },
     )
     .ok()?;
-    let incoming = if carrier_path.contains(&StructuralPathSegment::Referent) {
-        Root::Alternatives(vec![target_operations::TargetReferenceOrigin {
-            base: target_operations::TargetReferenceOriginBase::IncomingContents {
-                root,
-                slot: carrier_path.to_vec(),
-            },
-            path: Vec::new(),
-            extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
-        }])
-    } else {
-        Root::Ingress(root, carrier_path.to_vec())
-    };
-    (!observed.origins.is_empty() && observed.origins.iter().all(|origin| *origin == incoming))
-        .then_some(())
+    let mut incoming = BTreeSet::new();
+    for (root, incoming_path) in incoming_slots {
+        let incoming_crossing = incoming_path
+            .iter()
+            .rposition(|segment| *segment == StructuralPathSegment::Referent)?;
+        let carrier_path = &incoming_path[..incoming_crossing];
+        let parameter = function.structural_parameter(*root)?;
+        let origin = if parameter.access != StructuralAccess::Owned
+            || carrier_path.contains(&StructuralPathSegment::Referent)
+        {
+            Root::Alternatives(vec![target_operations::TargetReferenceOrigin {
+                base: target_operations::TargetReferenceOriginBase::IncomingContents {
+                    root: *root,
+                    slot: carrier_path.to_vec(),
+                },
+                path: Vec::new(),
+                extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
+            }])
+        } else {
+            Root::Ingress(*root, carrier_path.to_vec())
+        };
+        incoming.extend(origin.origins());
+    }
+    // A selected descriptor retains a complete frontier, sometimes grouped in
+    // one Alternatives root. Compare its normalized origins once against the
+    // complete contents frontier. Requiring every selection to equal one
+    // candidate rejects joins; accepting any candidate would omit a branch.
+    let observed = observed
+        .origins
+        .iter()
+        .flat_map(Root::origins)
+        .collect::<BTreeSet<_>>();
+    (!observed.is_empty() && observed == incoming).then_some(())
 }

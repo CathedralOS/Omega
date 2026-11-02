@@ -6,7 +6,8 @@
 
 use super::{
     Binding, CurrentScalarValues, Length, LengthSubject, ScalarField, admitted, fixed_length,
-    integer_carrier, length_occurrence, literal_window_length, scalar_field_occurrence, scoped,
+    integer_carrier, length_occurrence, literal_window_length, scalar_field_occurrence,
+    scoped_operations,
 };
 use crate::flow::expressions;
 use symbols::SymbolHandle;
@@ -44,6 +45,28 @@ impl CurrentScalarValues<'_> {
             parameters,
             arguments,
             &machine_values,
+            false,
+        )?;
+        Some(self.enrich_parameter_goal(captured))
+    }
+
+    /// Capture a declaration recipe under the same simultaneous parameter
+    /// substitution as requires, leaving its operations to formation.
+    pub(crate) fn bind_integer_expression_parameters(
+        &self,
+        callee: &Machine,
+        state: &State,
+        expression: ExpressionHandle,
+        arguments: &[ExpressionHandle],
+    ) -> Option<ScopedArithmeticExpression> {
+        let captured = self.capture_parameter_goal(
+            callee,
+            state,
+            expression,
+            self.program.state_parameters(state),
+            arguments,
+            &[],
+            true,
         )?;
         Some(self.enrich_parameter_goal(captured))
     }
@@ -70,6 +93,7 @@ impl CurrentScalarValues<'_> {
             parameters,
             arguments,
             &machine_values,
+            false,
         ) else {
             return false;
         };
@@ -396,6 +420,7 @@ impl CurrentScalarValues<'_> {
         parameters: &[typed_trees::signature::StateParameter],
         arguments: &[ExpressionHandle],
         machine_values: &[(SymbolHandle, ScopedArithmeticValue)],
+        form_operations: bool,
     ) -> Option<CapturedParameterGoal> {
         if parameters.len() != arguments.len() {
             return None;
@@ -470,10 +495,11 @@ impl CurrentScalarValues<'_> {
             read_dependencies: Some(Vec::new()),
         }));
         let occurrence = self.occurrence_at(self.program, callee, state, &lengths);
-        if !admitted(occurrence, expression, &formals, &fields, 0) {
+        if !form_operations && !admitted(occurrence, expression, &formals, &fields, 0) {
             return None;
         }
-        let mut goal = scoped(occurrence, expression, &formals, &fields)?;
+        let mut goal =
+            scoped_operations(occurrence, expression, &formals, &fields, form_operations)?;
         let mut captured_actuals = Vec::new();
         for (binding_index, binding) in goal.bindings.iter_mut().enumerate() {
             // A callee field needs an actual-place substitution, including on

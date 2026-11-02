@@ -229,7 +229,13 @@ pub(crate) fn walk_state_assignments(
             state,
             symbols,
             inference,
-            None,
+            // Assignment origins need the complete descriptor prefix, not a
+            // physical summary of unrelated earlier content writes. The same
+            // transfer/exposure checks retain every slot load and replacement;
+            // each assignment still records its actual destination below.
+            Some(StateWriteQuery::OriginTransfer {
+                include_shared: true,
+            }),
             None,
             Some(&mut assignments),
         )

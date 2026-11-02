@@ -16,12 +16,16 @@ on:
         description: Optional comma-separated exact pass/group/name and fail/group/name IDs; replaces smoke
         type: string
         default: ''
+      checking_only:
+        description: Check only the exact fixtures and rejection controls, without repeating runtime observations
+        type: boolean
+        default: false
       samples:
         description: Optional comma-separated exact samples/cli/facts project paths (with descendants); replaces smoke
         type: string
         default: ''
       cli_fixtures:
-        description: Optional exact pass/... normal-exit projects through ordinary CLI package review and both engines
+        description: Optional exact pass/... or samples/cli/... normal-exit projects through ordinary CLI package review and both engines
         type: string
         default: ''
       native_host:
@@ -80,6 +84,9 @@ jobs:
         env:
           OMEGA_COMPILER_PILOT_CLI_FIXTURES: ${{ inputs.cli_fixtures }}
         run: python -c "from tools.ci.compiler_pilot import select_cli_fixtures; import os; print(select_cli_fixtures(os.environ['OMEGA_COMPILER_PILOT_CLI_FIXTURES']))"
+      - name: Provision Windows rooted temporary directory for hosted applications
+        if: github.event_name == 'workflow_dispatch' && inputs.native_host == 'windows_x86_64' && inputs.cli_fixtures != ''
+        run: python -c "from pathlib import Path; root = Path(Path.cwd().anchor) / 'tmp'; root.mkdir(exist_ok=True); print('Provisioned current-drive rooted temporary directory:', root)"
       - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         id: build-cache
         with:
@@ -99,6 +106,7 @@ jobs:
           OMEGA_COMPILER_PILOT_FIXTURES: ${{ inputs.fixtures }}
           OMEGA_COMPILER_PILOT_SAMPLES: ${{ inputs.samples }}
           OMEGA_COMPILER_PILOT_CLI_FIXTURES: ${{ inputs.cli_fixtures }}
+          OMEGA_COMPILER_PILOT_CHECKING_ONLY: ${{ inputs.checking_only }}
         run: python tools/ci/compiler_pilot.py
       - name: Report actual producer and fixture observations
         if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')

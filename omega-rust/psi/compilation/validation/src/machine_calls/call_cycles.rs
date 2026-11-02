@@ -315,7 +315,7 @@ pub(crate) fn declaration_call_dependencies(
 /// (`S::member` in a generic body) stands for whichever implementation a call's
 /// type argument names; widening it to every satisfier would reject a body that
 /// applies the template to a different implementation than the one it defines.
-fn requirement_backing_machines(
+pub fn requirement_backing_machines(
     program: &dyn crate::CheckingInput,
     symbol: SymbolHandle,
 ) -> Vec<SymbolHandle> {

@@ -62,6 +62,19 @@ shared-view descriptor assignment inside an ordinary helper. Its product
 selects a different cell through the rebound view and checks both referents
 and their neighbors. Existing counterfeit-local controls remain unchanged.
 
+The original match and constant places also write settings through their
+borrowed carriers. Descriptor replacement captures its storage home before the
+RHS, loading ancestor pointers without following the descriptor being replaced.
+The [descriptor-write composition](compositions/descriptor_write/main.omg)
+checks the original lender's identifier length after the helper returns, so a
+write confined to a snapshot selects the crashing entry. The
+[reference-forwarding](compositions/reference_forward/main.omg) and
+[generic-forwarding](compositions/generic_forward/main.omg) compositions retain
+that same oracle through another helper. Their readonly twins still refuse
+mutable access. Returned-path validation preserves the exact caller type
+application; reference fields beside the path do not relocate its outer address,
+and an interior descriptor load still requires its captured provenance.
+
 ## Requirements and evidence
 
 - **Establishment:** only the admitted Build entry receives the activation.
@@ -97,6 +110,51 @@ and their neighbors. Existing counterfeit-local controls remain unchanged.
 
 Producer identities, commands, raw diagnostics and actual engine outcomes are
 retained in the change's validation record. The parent outcome remains open:
-remaining Build operations, live-storage accounting, admitted host loan returns,
+remaining Build operations, live-storage accounting, opaque-provider loan returns,
 staged dependency/provider preparation and the other matching-host acceptance
 are broader than this borrowed-configuration repair.
+
+At the fixed continuation baseline `c689405c35345f81eab2f7dab1b0ad2010b74150`,
+the unchanged field place runs with native/Terminal exit 0, while six other
+places reject a conflicting `Configuration` structural roster and the constant
+and match places lose their setting-write destinations. The roster differs only
+in native declaration provenance: a per-occurrence application view must use
+its original symbol-owning declaration. Assignment-origin queries use the same
+complete descriptor-transfer and exposure checks as other origin consumers;
+unrelated content writes need no representable whole-state physical summary.
+The assignment itself still captures and records its actual destination.
+These are compiler defects exposed by the complete row, not weakened witnesses.
+
+## Host entry-result loans
+
+The public embedding workflow `mbx run -p compiler --example terminal_loans`
+selects checked entry machines from this fact and from the
+[entry-return composition](controls/entry_return/main.omg). The host calls
+`retain_returned_loans` before execution, then borrows `returned_loan` from the
+completed instance. The carrier reads actual backing through ordinary scalar
+storage projections; it is not a guest value, permission to mutate, or a new
+qualification. Its Rust lifetime prevents closing or resuming the instance
+while an observation remains live.
+
+At the fixed baseline `c689405c35345f81eab2f7dab1b0ad2010b74150`, the original
+`selected` entry refuses with `host reference results require an explicit loan
+carrier interface`. Entry admission now captures the same exact possible source
+backings that ordinary guest calls use, after final entry-storage installation
+and before the first resume. The normal return validator remains shared. A host
+that does not opt in still refuses, before guest work. Capture reserves one
+logical storage cell per return slot and possible source; referent payloads keep
+their original accounting. A failed reservation changes no counters and remains
+a fatal host error. Zero-fuel pauses retain one capture, and closing retires it.
+
+The workflow uses borrowed and decoded artifacts, both input selections, direct
+and call-returned carriers, active and inactive case payloads, and write-only
+carriers. The composition changes the selected original Cell to 41 before
+return; host observations see that write and both neighbor canaries. Its native
+entry then changes the value to 73 and verifies both selections and untouched
+neighbors. The [shared-source twin](controls/entry_return/invalid/main.omg)
+changes only the left input's access, so it cannot supply the required exclusive
+returned loan. Both sources are pinned in `tests/omega/{pass,fail}/facts`.
+
+This is the checked guest-to-host entry crossing. An opaque host provider's
+reference result is a separate crossing; retaining an entry result does not
+admit arbitrary provider-owned backing or alter boundary-output authority.

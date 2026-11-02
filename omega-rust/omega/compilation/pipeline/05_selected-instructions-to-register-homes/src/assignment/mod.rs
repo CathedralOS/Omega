@@ -13,7 +13,7 @@
 /// optimized-target proof input — one getter trio each assignment-mode context
 /// used to restate beside its own retained-stage path.
 macro_rules! assignment_context_accessors {
-    ($field:ident $(. $step:ident())*) => {
+    () => {
         pub const fn homes(&self) -> &crate::ValidatedRegisterHomes {
             &self.homes
         }
@@ -21,15 +21,6 @@ macro_rules! assignment_context_accessors {
             &self,
         ) -> &crate::ValidatedPostAllocationOptimizationManifest {
             &self.manifest
-        }
-        /// The retained optimized-target proof input, kept as replay evidence;
-        /// downstream custody checks compare the owner handle by identity.
-        pub fn optimized_target_owner(
-            &self,
-        ) -> &std::sync::Arc<
-            abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations,
-        > {
-            self.$field$(.$step())*.optimized_target_owner()
         }
     };
 }

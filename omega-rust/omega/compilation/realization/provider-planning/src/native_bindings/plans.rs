@@ -12,6 +12,7 @@ use crate::provider_planning::trait_name_text;
 use crate::{
     DerivedProviderPlan, ProviderPlanProvenance, ProviderRowRealization, ProviderSchemaDeclaration,
 };
+use checked_trees::typed_trees::service_declarations::RetainedServiceSurface;
 use checked_trees::typed_trees::service_declarations::ServiceCatalog;
 use diagnostics::Diagnostic;
 use effects::provider_plan::{
@@ -29,155 +30,234 @@ pub struct NativeBuildRowOrigin {
     pub origin: package_compilation::PackageNativeBindingOrigin,
 }
 
-pub(crate) fn derive(
-    services: ServiceCatalog<'_>,
-    calling: &[crate::calling_policy_plans::BoundaryCallingPlanRealization],
-    supplies: &[NativeBuildSupply],
-    selected_target: Option<target::TargetProfile>,
-    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-) -> Result<Vec<DerivedProviderPlan>, Vec<Diagnostic>> {
-    let typed = services.context().typed;
-    let mut plans: Vec<DerivedProviderPlan> = Vec::new();
-    for supply in supplies {
-        let selection = &supply.selection;
-        let fail = |reason: String| {
-            vec![Diagnostic::error(reason).with_source_span(selection.source_span)]
-        };
-        let owner = typed
-            .trait_definition_by_symbol(selection.subject)
-            .filter(|owner| owner.is_boundary)
-            .ok_or_else(|| fail("native Build requirement lost its boundary owner".into()))?;
-        let signature = typed
-            .trait_machine_signature_by_symbol(owner, selection.requirement)
-            .ok_or_else(|| {
-                fail("native Build requirement lost its exact declared signature".into())
-            })?;
-        let target =
-            target::TargetProfile::from_canonical_target_name(selection.target.canonical_name())
-                .map_err(|error| fail(error.to_string()))?;
-        let requirement = typed.trait_requirement_callable_identity_text(owner, signature);
-        let evaluated = evaluate(supply, &requirement, target, identities).map_err(fail)?;
-        let producer = selection.producer.clone();
-        let production = package_compilation::NativeBindingProduction {
-            producer,
-            evaluated,
-        };
-        // Every authored target's locator is checked under that target. Only
-        // the requested realization consumes this compilation's evaluated
-        // calling geometry; another target must never inherit its ABI plan.
-        if selected_target != Some(target) {
-            continue;
-        }
-        let prepared = services
-            .declaration(ProviderSchemaDeclaration::BoundaryTrait(owner.symbol))
-            .ok_or_else(|| {
-                fail("native Build requirement has no complete service schema".into())
-            })?;
-        let schema = crate::service_schema::attach_calling(&prepared, calling);
-        let group = plans.iter().position(|candidate| {
-            candidate.provenance.schema.symbol() == owner.symbol
-                && candidate.plan.target == target.target_name()
-                && candidate.plan.origin_package_identity == Some(selection.supplier_package)
-        });
-        let index = match group {
-            Some(index) => index,
-            None => {
-                let supplier = selection
-                    .supplier_package
-                    .digest()
-                    .iter()
-                    .map(|byte| format!("{byte:02x}"))
-                    .collect::<String>();
-                let provider = format!("native-build:{supplier}:{}", trait_name_text(&schema));
-                let name = crate::satisfies_plan_name(
-                    target.target_name(),
-                    trait_name_text(&schema),
-                    &provider,
-                );
-                plans.push(DerivedProviderPlan {
-                    plan: ProviderPlan {
-                        name,
-                        provider_type: provider,
-                        provider_type_package_identity: Some(selection.supplier_package),
-                        provider_application: Default::default(),
-                        target: target.target_name().to_owned(),
-                        schema,
-                        rows: Vec::new(),
-                        identities: ProviderIdentityTable::default(),
-                        origin_package_identity: Some(selection.supplier_package),
-                        origin_package: supplier,
-                        digest_memo: Default::default(),
-                    },
-                    provenance: ProviderPlanProvenance {
-                        schema: ProviderSchemaDeclaration::BoundaryTrait(owner.symbol),
-                        provider_type: None,
-                        named_application: None,
-                        row_requirements: Vec::new(),
-                        row_realizations: Vec::new(),
-                        row_target_machine_origins: Vec::new(),
-                        row_accessors: Vec::new(),
-                    },
-                });
-                plans.len() - 1
-            }
-        };
-        let candidate = &mut plans[index];
-        if let Some(prior) =
-            candidate.plan.rows.iter().position(|row| {
-                candidate.plan.identities.text(row.requirement_identity) == requirement
+/// Exact declaration facts for completed Build binding intents. Capturing these
+/// records does not evaluate a locator, consume Calling, or admit a provider.
+/// Each occurrence supplies its own evaluation evidence at settlement; only
+/// declarations are shared. Declaration and surface refusals remain at their
+/// original settlement boundaries.
+pub struct PreparedNativeBuildBindings {
+    rows: Vec<PreparedNativeBuildBinding>,
+}
+
+struct PreparedNativeBuildBinding {
+    selection: build_time_evaluation::native_bindings::NativeBindingSelection,
+    requirement: Result<PreparedNativeRequirement, Vec<Diagnostic>>,
+}
+
+struct PreparedNativeRequirement {
+    owner: symbols::SymbolHandle,
+    signature: symbols::SymbolHandle,
+    identity: String,
+    method: String,
+    surface: Option<RetainedServiceSurface>,
+}
+
+impl PreparedNativeBuildBindings {
+    /// Source formation runs once for this checked Product. Subsequent targets
+    /// borrow immutable metadata, not a Source context or a declaration lookup.
+    pub fn capture(services: ServiceCatalog<'_>, supplies: &[NativeBuildSupply]) -> Self {
+        let typed = services.context().typed;
+        let rows = supplies
+            .iter()
+            .map(|supply| {
+                let selection = &supply.selection;
+                let fail = |reason| {
+                    vec![Diagnostic::error(reason).with_source_span(selection.source_span)]
+                };
+                let requirement = (|| {
+                    let owner = typed
+                        .trait_definition_by_symbol(selection.subject)
+                        .filter(|owner| owner.is_boundary)
+                        .ok_or_else(|| fail("native Build requirement lost its boundary owner"))?;
+                    let signature = typed
+                        .trait_machine_signature_by_symbol(owner, selection.requirement)
+                        .ok_or_else(|| {
+                            fail("native Build requirement lost its exact declared signature")
+                        })?;
+                    Ok(PreparedNativeRequirement {
+                        owner: owner.symbol,
+                        signature: signature.symbol,
+                        identity: typed.trait_requirement_callable_identity_text(owner, signature),
+                        method: signature.name.as_str().to_owned(),
+                        // A dormant target used to check its locator but not
+                        // demand a service surface. Retain absence without
+                        // turning it into an eager source-preparation error.
+                        surface: services.retain_declaration(
+                            ProviderSchemaDeclaration::BoundaryTrait(owner.symbol),
+                        ),
+                    })
+                })();
+                PreparedNativeBuildBinding {
+                    selection: selection.clone(),
+                    requirement,
+                }
             })
-        {
-            let ProviderRowRealization::BuildNative(origin) =
-                &mut candidate.provenance.row_realizations[prior]
-            else {
-                return Err(fail(
-                    "native Build candidate has a different realization owner".into(),
-                ));
+            .collect();
+        Self { rows }
+    }
+
+    pub(crate) fn derive(
+        &self,
+        supplies: &[NativeBuildSupply],
+        calling: &[crate::calling_policy_plans::BoundaryCallingPlanRealization],
+        selected_target: Option<target::TargetProfile>,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    ) -> Result<Vec<DerivedProviderPlan>, Vec<Diagnostic>> {
+        if self.rows.len() != supplies.len() {
+            return Err(vec![Diagnostic::error(
+                "native Build supplies differ from the prepared declaration roster",
+            )]);
+        }
+        let mut plans: Vec<DerivedProviderPlan> = Vec::new();
+        for (prepared_binding, supply) in self.rows.iter().zip(supplies) {
+            let selection = &supply.selection;
+            let fail = |reason: String| {
+                vec![Diagnostic::error(reason).with_source_span(selection.source_span)]
             };
-            if origin.origin.primary.evaluated.identity_digest()
-                != production.evaluated.identity_digest()
-            {
-                return Err(fail("native Build supplier binds one requirement to conflicting normalized locators".into()));
+            // Source cohorts share declarations, never another occurrence's
+            // measured evaluation. Bind the exact authored row to the current
+            // Build evidence without a source lookup or a first-match search.
+            if prepared_binding.selection != *selection {
+                return Err(fail(
+                    "native Build supply differs from its prepared declaration".into(),
+                ));
             }
-            // Equal bindings are one semantic choice. Keep every reached
-            // source/evaluation origin without installing another provider row.
-            Arc::make_mut(origin).origin.equivalents.push(production);
-            continue;
-        }
-        candidate.plan.rows.push(ProviderPlanRow {
-            method: signature.name.as_str().to_owned(),
-            requirement_identity: candidate.plan.identities.intern(&requirement),
-            requirement_lifetime_partition: Vec::new(),
-            admitted_same_stack_bytes: 0,
-            binding: production.evaluated.provider_binding(),
-        });
-        candidate.provenance.row_requirements.push(signature.symbol);
-        candidate
-            .provenance
-            .row_realizations
-            .push(ProviderRowRealization::BuildNative(Arc::new(
-                NativeBuildRowOrigin {
-                    requirement: signature.symbol,
-                    origin: package_compilation::PackageNativeBindingOrigin {
-                        primary: production,
-                        equivalents: Vec::new(),
+            let requirement = prepared_binding
+                .requirement
+                .as_ref()
+                .map_err(Clone::clone)?;
+            let target = target::TargetProfile::from_canonical_target_name(
+                selection.target.canonical_name(),
+            )
+            .map_err(|error| fail(error.to_string()))?;
+            let evaluated =
+                evaluate(supply, &requirement.identity, target, identities).map_err(fail)?;
+            let producer = selection.producer.clone();
+            let production = package_compilation::NativeBindingProduction {
+                producer,
+                evaluated,
+            };
+            // Every authored target's locator is checked under that target. Only
+            // the requested realization consumes this compilation's evaluated
+            // calling geometry; another target must never inherit its ABI plan.
+            if selected_target != Some(target) {
+                continue;
+            }
+            let prepared = requirement
+                .surface
+                .as_ref()
+                .ok_or_else(|| {
+                    fail("native Build requirement has no complete service schema".into())
+                })?
+                .surface()
+                .map_err(|error| vec![error])?;
+            let schema = crate::service_schema::attach_calling(&prepared, calling);
+            let group = plans.iter().position(|candidate| {
+                candidate.provenance.schema.symbol() == requirement.owner
+                    && candidate.plan.target == target.target_name()
+                    && candidate.plan.origin_package_identity == Some(selection.supplier_package)
+            });
+            let index = match group {
+                Some(index) => index,
+                None => {
+                    let supplier = selection
+                        .supplier_package
+                        .digest()
+                        .iter()
+                        .map(|byte| format!("{byte:02x}"))
+                        .collect::<String>();
+                    let provider = format!("native-build:{supplier}:{}", trait_name_text(&schema));
+                    let name = crate::satisfies_plan_name(
+                        target.target_name(),
+                        trait_name_text(&schema),
+                        &provider,
+                    );
+                    plans.push(DerivedProviderPlan {
+                        plan: ProviderPlan {
+                            name,
+                            provider_type: provider,
+                            provider_type_package_identity: Some(selection.supplier_package),
+                            provider_application: Default::default(),
+                            target: target.target_name().to_owned(),
+                            schema,
+                            rows: Vec::new(),
+                            identities: ProviderIdentityTable::default(),
+                            origin_package_identity: Some(selection.supplier_package),
+                            origin_package: supplier,
+                            digest_memo: Default::default(),
+                        },
+                        provenance: ProviderPlanProvenance {
+                            schema: ProviderSchemaDeclaration::BoundaryTrait(requirement.owner),
+                            provider_type: None,
+                            named_application: None,
+                            row_requirements: Vec::new(),
+                            row_realizations: Vec::new(),
+                            row_target_machine_origins: Vec::new(),
+                            row_accessors: Vec::new(),
+                        },
+                    });
+                    plans.len() - 1
+                }
+            };
+            let candidate = &mut plans[index];
+            if let Some(prior) = candidate.plan.rows.iter().position(|row| {
+                candidate.plan.identities.text(row.requirement_identity) == requirement.identity
+            }) {
+                let ProviderRowRealization::BuildNative(origin) =
+                    &mut candidate.provenance.row_realizations[prior]
+                else {
+                    return Err(fail(
+                        "native Build candidate has a different realization owner".into(),
+                    ));
+                };
+                if origin.origin.primary.evaluated.identity_digest()
+                    != production.evaluated.identity_digest()
+                {
+                    return Err(fail("native Build supplier binds one requirement to conflicting normalized locators".into()));
+                }
+                // Equal bindings are one semantic choice. Keep every reached
+                // source/evaluation origin without installing another provider row.
+                Arc::make_mut(origin).origin.equivalents.push(production);
+                continue;
+            }
+            candidate.plan.rows.push(ProviderPlanRow {
+                method: requirement.method.clone(),
+                requirement_identity: candidate.plan.identities.intern(&requirement.identity),
+                requirement_lifetime_partition: Vec::new(),
+                admitted_same_stack_bytes: 0,
+                binding: production.evaluated.provider_binding(),
+            });
+            candidate
+                .provenance
+                .row_requirements
+                .push(requirement.signature);
+            candidate
+                .provenance
+                .row_realizations
+                .push(ProviderRowRealization::BuildNative(Arc::new(
+                    NativeBuildRowOrigin {
+                        requirement: requirement.signature,
+                        origin: package_compilation::PackageNativeBindingOrigin {
+                            primary: production,
+                            equivalents: Vec::new(),
+                        },
                     },
-                },
-            )));
-        candidate.provenance.row_target_machine_origins.push(None);
-        candidate.provenance.row_accessors.push(None);
-    }
-    for candidate in &plans {
-        let errors = candidate.plan.validate_candidate_against_schema();
-        if !errors.is_empty() {
-            return Err(vec![Diagnostic::error(format!(
-                "incomplete native Build provider `{}`: {}",
-                candidate.plan.name,
-                errors.join("; ")
-            ))]);
+                )));
+            candidate.provenance.row_target_machine_origins.push(None);
+            candidate.provenance.row_accessors.push(None);
         }
+        for candidate in &plans {
+            let errors = candidate.plan.validate_candidate_against_schema();
+            if !errors.is_empty() {
+                return Err(vec![Diagnostic::error(format!(
+                    "incomplete native Build provider `{}`: {}",
+                    candidate.plan.name,
+                    errors.join("; ")
+                ))]);
+            }
+        }
+        Ok(plans)
     }
-    Ok(plans)
 }
 
 fn evaluate(

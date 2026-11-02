@@ -1371,7 +1371,7 @@ fn pre_allocation_custody_receipt(
                 step.legality.receipt().virtual_register_count(),
             ),
             None => (
-                source.selected().receipt().identity(),
+                source.selected().identity(),
                 source.liveness().receipt().identity(),
                 source.ranges().receipt().identity(),
                 source.legality().receipt().identity(),

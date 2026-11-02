@@ -1,27 +1,20 @@
-//! Select one package from authenticated Git workspace declarations.
-//!
-//! The planner consumes declaration bytes supplied by its caller. It does not
-//! navigate a filesystem, inspect Git objects, or depend on package-source
-//! custody types.
+//! Select one package from executed declarations bound to authenticated Git inputs.
 
 mod commitment;
 mod error;
 mod evidence;
 mod executed;
 pub(crate) use executed::selection_plan as executed_selection_plan;
-mod planner;
-mod source_projection;
+mod limits;
 
 use build_declarations::{BuildDeclarationKind, ProjectName, WorkspaceMemberPath};
 pub(crate) use commitment::BuildDeclarationCommitment;
 pub(crate) use error::{GitWorkspaceSelectionError, GitWorkspaceSelectionLimit};
-pub(crate) use evidence::{GitWorkspaceSelectionDeclarations, GitWorkspaceSelectionEvidence};
-pub(crate) use planner::account_declaration_bytes;
-pub(crate) use planner::{
+pub(crate) use evidence::GitWorkspaceSelectionEvidence;
+pub(crate) use limits::account_declaration_bytes;
+pub(crate) use limits::{
     MAX_BUILD_DECLARATION_BYTES, MAX_TOTAL_BUILD_DECLARATION_BYTES, MAX_WORKSPACE_MEMBERS,
-    discover_git_workspace, plan_git_workspace_selection,
 };
-pub(super) use source_projection::ManagerGitWorkspacePlanner;
 
 pub(in crate::resolution::source) fn git_workspace_declaration_limits()
 -> package_source::GitWorkspaceDeclarationLimits {
@@ -31,62 +24,6 @@ pub(in crate::resolution::source) fn git_workspace_declaration_limits()
         u64::try_from(MAX_TOTAL_BUILD_DECLARATION_BYTES)
             .expect("declaration aggregate limit fits canonical u64"),
     )
-}
-
-/// Authenticated declaration bytes associated with one declared member path.
-///
-/// Bytes are borrowed only for planning and are never retained in the plan.
-#[derive(Debug, Clone, Copy)]
-pub(crate) struct GitWorkspaceMemberBuild<'a> {
-    member_path: &'a WorkspaceMemberPath,
-    build_bytes: &'a [u8],
-}
-
-/// First-stage discovery of the exact declarations a caller must obtain.
-///
-/// The workspace declaration is committed here so the second-stage selection
-/// can prove it planned against the same authenticated root bytes.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct GitWorkspaceDiscovery {
-    workspace_declaration: BuildDeclarationEvidence,
-    member_paths: Vec<WorkspaceMemberPath>,
-}
-
-impl GitWorkspaceDiscovery {
-    fn new(
-        workspace_declaration: BuildDeclarationEvidence,
-        member_paths: Vec<WorkspaceMemberPath>,
-    ) -> Self {
-        Self {
-            workspace_declaration,
-            member_paths,
-        }
-    }
-
-    pub const fn workspace_declaration(&self) -> &BuildDeclarationEvidence {
-        &self.workspace_declaration
-    }
-
-    pub fn member_paths(&self) -> &[WorkspaceMemberPath] {
-        &self.member_paths
-    }
-}
-
-impl<'a> GitWorkspaceMemberBuild<'a> {
-    pub const fn new(member_path: &'a WorkspaceMemberPath, build_bytes: &'a [u8]) -> Self {
-        Self {
-            member_path,
-            build_bytes,
-        }
-    }
-
-    pub const fn member_path(&self) -> &'a WorkspaceMemberPath {
-        self.member_path
-    }
-
-    pub const fn build_bytes(&self) -> &'a [u8] {
-        self.build_bytes
-    }
 }
 
 /// Replay evidence for one declaration, without retaining package-authored
@@ -108,7 +45,7 @@ impl BuildDeclarationEvidence {
     }
 }
 
-/// One declared workspace member after role and static dependency validation.
+/// One workspace member from an executed declaration and exact source capture.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct GitWorkspaceMemberPlan {
     member_path: WorkspaceMemberPath,
@@ -194,27 +131,5 @@ impl GitWorkspaceSelectionPlan {
             .iter()
             .find(|member| member.member_path() == self.selected_member_path())
             .expect("selection plan retains its selected declared member")
-    }
-
-    pub fn members(&self) -> &[GitWorkspaceMemberPlan] {
-        self.workspace.members()
-    }
-
-    /// Replay the complete selection and require byte-for-byte declaration
-    /// evidence and semantics to remain unchanged.
-    pub fn replay(
-        &self,
-        root_build_bytes: &[u8],
-        member_builds: &[GitWorkspaceMemberBuild<'_>],
-    ) -> Result<(), GitWorkspaceSelectionError> {
-        let replayed = self::plan_git_workspace_selection(
-            self.selected_member().package_name(),
-            root_build_bytes,
-            member_builds,
-        )?;
-        if &replayed != self {
-            return Err(GitWorkspaceSelectionError::DeclarationEvidenceChanged);
-        }
-        Ok(())
     }
 }

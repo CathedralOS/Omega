@@ -28,7 +28,7 @@ impl CurrentFunctionFragmentInput {
             program: ResolvedMachineProgram {
                 selected: replay.shared_selected_plan(),
                 homes: homes.shared_plan(),
-                effects: machine.effects().shared_plan(),
+                effects: Arc::clone(machine.effects()),
                 machine: machine.machine().shared_plan(),
                 encoding: replay.encoding().shared_program(),
                 layout: replay.layout_optimization().shared_layout(),
@@ -64,7 +64,7 @@ impl CurrentFunctionFragmentInput {
         // environment solely to discard it after this comparison.
         if selected != &replay.shared_selected_plan()
             || !matches_shared_plan(homes, replay.register_homes().plan())
-            || !matches_shared_plan(effects, replay.machine().effects().plan())
+            || !matches_shared_plan(effects, replay.machine().effects())
             || !matches_shared_plan(machine, replay.machine().machine().plan())
             || !matches_shared_plan(encoding, replay.encoding().program())
             || !matches_shared_plan(layout, replay.layout_optimization().layout())

@@ -33,6 +33,7 @@ mod compilation_reuse;
 mod cursor;
 pub(crate) use optimization_core::digest_encoder;
 pub mod source_assembly;
+pub use source_assembly::BuildSourceSelection;
 pub mod source_imports;
 pub mod toolchain_library;
 pub use build_execution::*;

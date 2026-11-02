@@ -63,4 +63,4 @@ pub(crate) fn compute_terminal_literal_fold<S: ValidatedSelectedAnalysis>(
     };
     Ok((plan, transformed))
 }
-use target_operations_to_selected_instructions::selected_instruction_plan_identity;
+use selected_instructions::selected_instruction_plan_identity;

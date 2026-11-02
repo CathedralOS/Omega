@@ -76,7 +76,7 @@ crashes Trap
         handle: u64 in Trapping,
         clause: Clause
     ) {
-        let scope: NameScope = Resolver::fact_scope(true, index, item.first_parameter, item.parameter_count, false);
+        let scope: NameScope = Resolver::fact_scope(true, index, item.first_parameter, item.parameter_count, ValueBinding::NotAName);
         Resolver::bind_ranking(resolver, sources, syntax, scope, handle, clause);
         transition clause.argument_count > 0 {
             true -> ranked(resolver, sources, syntax, index, item, offset)
@@ -208,7 +208,7 @@ crashes Trap
     // The payload sees the machine's binders and constants, not its
     // parameters.
     machine payload(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, machine: u64 in Trapping, clause: Clause) {
-        let scope: NameScope = Resolver::fact_scope(true, machine, 0, 0, false);
+        let scope: NameScope = Resolver::fact_scope(true, machine, 0, 0, ValueBinding::NotAName);
         Resolver::bind_tree(resolver, sources, syntax, scope, clause.expression);
     }
 

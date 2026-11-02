@@ -104,7 +104,20 @@ pub(crate) fn substitute_resolved_constants(
                 {
                     indexed.collection
                 }
-                ExpressionNode::Borrow(borrow) => borrow.target,
+                // A whole shared value materializes a fresh temporary through
+                // the ordinary substitution below. It lends that temporary,
+                // never stable storage belonging to the constant declaration.
+                // Projected storage and exclusive loans still owe their own
+                // value/view lowering and writable-place admission.
+                ExpressionNode::Borrow(borrow)
+                    if borrow.access != language_semantics::ReferenceAccess::Shared
+                        || matches!(
+                            body_expressions(&program).expression(borrow.target),
+                            ExpressionNode::Indexed(_) | ExpressionNode::Member(_)
+                        ) =>
+                {
+                    borrow.target
+                }
                 _ => return None,
             };
             loop {

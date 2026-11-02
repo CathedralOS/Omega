@@ -43,7 +43,7 @@ pub(crate) fn measurement() -> evaluation_accounting::EvaluationMeasurementIdent
 /// mandatory dependency join precedes normalized Build publication.
 pub struct ReturnedBuild {
     pub(crate) identity: terminal_codec::TerminalExecutionIdentity,
-    pub(crate) declaration: build_declarations::BuildDeclaration,
+    pub(crate) declaration: Option<build_declarations::BuildDeclaration>,
     pub(crate) source_join: Option<Arc<package_compilation::PackageCompilationSourceInputs>>,
     pub(crate) requests: Vec<IssuedBuildRequest>,
     pub(crate) demanded_sources: Vec<BuildDependencySelection>,
@@ -60,11 +60,11 @@ pub struct ReturnedBuild {
 }
 
 impl ReturnedBuild {
-    /// The role established by this activation's normal return. Package
-    /// management may now bind its name to acquired source lineage; this does
-    /// not settle dependency requests or authorize Product publication.
-    pub fn declaration(&self) -> &build_declarations::BuildDeclaration {
-        &self.declaration
+    /// An authored role established by this activation's normal return. The
+    /// compiler-owned default preserves its admitted context and has no named
+    /// declaration. A name alone never settles dependencies or publishes Product.
+    pub fn declaration(&self) -> Option<&build_declarations::BuildDeclaration> {
+        self.declaration.as_ref()
     }
 
     /// The complete issued roster, including requests observed in earlier steps.
@@ -93,6 +93,8 @@ pub struct TerminalBuildHost {
     started: std::sync::atomic::AtomicBool,
     execution_profile: Option<target::TargetProfile>,
     value_admission: BuildValueAdmission,
+    default_source: bool,
+    default_sources: Option<Arc<package_compilation::PackageCompilationSourceInputs>>,
     machine: Arc<package_compilation::build_execution::SelectedBuildMachine>,
 }
 
@@ -103,6 +105,8 @@ impl TerminalBuildHost {
         machine: Arc<package_compilation::build_execution::SelectedBuildMachine>,
         filesystem_scope: &package_compilation::BuildMachineFilesystemScope,
         execution_profile: Option<target::TargetProfile>,
+        default_source: bool,
+        default_sources: Option<Arc<package_compilation::PackageCompilationSourceInputs>>,
     ) -> Result<Arc<Self>, String> {
         let artifact = produced.view();
         let program = TerminalProgram::borrow(artifact);
@@ -145,6 +149,8 @@ impl TerminalBuildHost {
             started: std::sync::atomic::AtomicBool::new(false),
             execution_profile,
             value_admission: machine.value_admission,
+            default_source,
+            default_sources,
             machine,
         }))
     }
@@ -480,7 +486,17 @@ impl TerminalBuildActivation {
         )?;
         self.instance.close().map_err(describe)?;
         drop(self.instance);
-        let declaration = project::declaration(&self.requests)?;
+        let declaration = if self.host.default_source {
+            // This is the exact compiler-owned ordinary default, never an
+            // authored entry missing its role. Supplied role/owner remain in
+            // package inputs; a loose root acquires its anonymous owner later.
+            if !self.requests.is_empty() {
+                return Err("default Build unexpectedly issued project requests".into());
+            }
+            None
+        } else {
+            Some(project::declaration(&self.requests)?)
+        };
         let mut root_bindings = Vec::new();
         let mut product_selections = Vec::new();
         let mut exclusions = Vec::new();
@@ -499,7 +515,9 @@ impl TerminalBuildActivation {
         Ok(ReturnedBuild {
             identity: self.host.produced.view().custody_identity(),
             declaration,
-            source_join: None,
+            // Default code inherits only the exact graph admitted before its
+            // execution. Completion cannot graft a graph onto an unbound root.
+            source_join: self.host.default_sources.clone(),
             requests: self.requests,
             demanded_sources: self.demanded_sources,
             settings,
