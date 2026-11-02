@@ -82,6 +82,17 @@ impl TypedTrees {
                     self.machine_parameter_signature(target)
                         .map(|(_, signature)| self.state_signature_parameters(signature))
                 })
+                .or_else(|| {
+                    // A logical evidence member has no executable state yet.
+                    // Its exact authored bound still owns the ordinary roster;
+                    // malformed bounds remain unavailable to this observation.
+                    let binder = self.symbols.get(target).parent;
+                    let owner = self.symbols.get(binder).parent;
+                    self.evidence_bound_requirement(owner, binder, target)
+                        .ok()
+                        .flatten()
+                        .map(|bound| self.state_signature_parameters(bound.signature))
+                })
         }
         .ok_or("runtime operand order lost its exact receiving declaration")?;
         if parameters.len() != count {
