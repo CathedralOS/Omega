@@ -40,6 +40,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 # A new PR revision supersedes its old check; never cancel a merge-group check
 # merely because another PR entered the queue.
@@ -97,6 +98,16 @@ jobs:
       - name: Check the exact integration candidate
         id: compiler-check
         run: cargo check --locked -p omega
+      - name: Restore the exact retained compiler for copied-case baseline
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download 41429826043 --name compiler-pilot-linux_x86_64-3c9cfd4b5e2d143394d5f407d8b5a7f7bcd727cb-1 --dir build/case-retained-input
+          git fetch --depth=1 origin 3c9cfd4b5e2d143394d5f407d8b5a7f7bcd727cb
+      - name: Observe the frozen copied-case row without Rust
+        if: github.event_name == 'workflow_dispatch'
+        run: python tools/build_slot.py -- python tools/ci/copied_case_baseline.py
       - name: Optional executable observations
         if: github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
         env:
