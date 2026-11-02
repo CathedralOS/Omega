@@ -97,6 +97,9 @@ jobs:
       - name: Check the exact integration candidate
         id: compiler-check
         run: cargo check --locked -p omega
+      - name: Check stored byte field contracts
+        if: github.event_name == 'workflow_dispatch' && contains(inputs.fixtures, 'resource_representation_buffered_local_exit')
+        run: cargo test --locked -p terminal-semantics inline_carriers::tests::byte_field_keeps_exact_carrier_access_and_extent
       - name: Optional executable observations
         if: github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
         env:
@@ -119,6 +122,9 @@ jobs:
               'omega-rust/psi/compilation/validation/src/proof_contracts/contract_entailment/structural_judgment/normal_returns.rs',
               'omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/execution/scalar_computations/reference_captures.rs',
               'omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/values/reference_sources.rs',
+              'omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/execution/terminal_unit/types/shape_collector.rs',
+              'omega-rust/psi/compilation/representations/terminal-psi/semantics/src/primitive_place.rs',
+              'omega-rust/psi/compilation/representations/terminal-psi/semantics/src/inline_carriers.rs',
           ):
               source = Path(name)
               destination = output / name
