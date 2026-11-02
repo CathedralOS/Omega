@@ -1,12 +1,12 @@
-// NF02 scalar accuracy policy. Existing Float providers own IEEE arithmetic
+// Scalar accuracy policy. Existing Float providers own IEEE arithmetic
 // and conversions; this module owns caller-visible validation and error policy.
 // compare_symmetric_any means absolute OR relative using max-magnitude scaling.
-// compare_reference_additive separately implements the wave acceptance formula.
+// compare_reference_additive separately implements the reference-plus-additive acceptance formula.
 // It admits finite operands only and halves an overflowed subtraction before
 // comparing, so infinity <= infinity cannot stand in for an error budget.
 // Scaled relative comparison avoids overflowing a-b or tolerance*scale.
 // It is a rounded format computation, not a proof of exact real error.
-module numeric::numeric_accuracy_policy;
+module core::float_accuracy;
 
 use omega::language::core::float_operations;
 use omega::language::core::float_order;

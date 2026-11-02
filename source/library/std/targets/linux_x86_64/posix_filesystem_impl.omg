@@ -7,7 +7,7 @@ use omega::language::core::filesystem_authority;
 // satisfies the same requirements with its own system call numbers.
 use omega::language::core::external_binding;
 use posix_filesystem_host;
-use math;
+use omega::language::core::math;
 use calling;
 use posix_byte_view_calling;
 

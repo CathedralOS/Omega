@@ -1,7 +1,7 @@
 # Completed remainder rank arrivals
 
 This bounded repair supports `CORE-INTEGER-FLOAT-APIS`: the scientific consumers
-reach the existing GCD in `source/library/numerics/arrays/shape_layout_contract.omg`.
+reach the existing GCD in `source/library/core/matrix_layout.omg`.
 The fixture copies that machine body and its `terminates by right ->
 Nat::Descending` clause unchanged. Its runtime oracle checks common factors,
 coprime inputs, a zero right operand, and the maximum unsigned dividend.

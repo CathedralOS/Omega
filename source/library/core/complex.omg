@@ -1,15 +1,27 @@
-// One carrier, two explicit floating formats. Arithmetic never allocates.
-// Destination loans must be disjoint from borrowed inputs; copy explicitly
-// before an in-place update. See complex_carrier_ops.api.txt for rounding,
-// overflow and magnitude policy. No matrix shape or backing storage is owned here.
-module complex::complex_carrier_ops;
+// Complex numbers in one carrier, Complex<T>, for f32 and f64. No implicit
+// operators, allocation, precision promotion or hidden copies. Inputs may
+// alias one another; a destination must be disjoint from every input for the
+// call, so an in-place update copies its input first.
+//
+// Every +, -, *, / and sqrt uses the core float provider for the format, with
+// IEEE nearest-even rounding. multiply is four rounded products, then one
+// subtract and one add, with no fused multiply-add or reassociation. add,
+// multiply and norm_squared report no errors and may overflow or yield NaN;
+// norm_squared is re*re + im*im and can overflow when the magnitude would not.
+// conjugate negates the imaginary part with core negate, preserving signed
+// zero. try_magnitude rejects NaN or infinite components, orders the absolute
+// values high >= low, handles zero before dividing, and evaluates
+// high*sqrt(1 + (low/high)^2); a nonfinite result after finite admission is
+// Overflow. It promises no correctly rounded hypot, no relative-error bound for
+// all inputs, and no NaN payload or sign-of-zero result.
+module core::complex;
 
 use omega::language::core::float_operations;
-use numeric::numeric_accuracy_policy::NumericClass;
-use numeric::numeric_accuracy_policy::classify_f32;
-use numeric::numeric_accuracy_policy::classify_f64;
+use omega::language::core::float_accuracy::NumericClass;
+use omega::language::core::float_accuracy::classify_f32;
+use omega::language::core::float_accuracy::classify_f64;
 
-// NF02 supplies the format-specific classification. This operation's input
+// float_accuracy supplies the format-specific classification. This operation's input
 // admission includes both signed zeros and finite nonzero values; its result
 // carrier continues to distinguish rejected inputs from magnitude overflow.
 machine admitted_finite(classification: NumericClass) -> bool {
@@ -30,7 +42,7 @@ public data Complex<T [copy]> [copy] {
     imaginary: T;
 }
 
-// These errors belong to magnitude, while NF02 owns scalar classification.
+// These errors belong to magnitude, while float_accuracy owns scalar classification.
 // Nonfinite component classes reject as inputs; a nonfinite final magnitude
 // after finite admission reports Overflow rather than changing the input class.
 public data ComplexMagnitude<T [copy]> [copy] {

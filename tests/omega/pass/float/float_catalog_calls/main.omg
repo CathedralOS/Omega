@@ -1,4 +1,4 @@
-use omega_language_std::math;
+use omega::language::core::math;
 
 // Float requirement calls are catalog-addressable:
 // `F32::square_root(64.0f32)` selects the format even with anonymous

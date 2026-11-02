@@ -1938,15 +1938,16 @@ defines the complete product bar.
 ## Connected scientific library
 
 - **W100-CONNECTED.** (new-scope) Complete the connected rank-two scientific
-  library in `source/library/numerics/` and its W100 API consumers in
+  kernels in `source/library/core/` (`matrix_layout`, `float_accuracy`,
+  `complex`, `linear_algebra`) and their W100 API consumers in
   `samples/cli/scientific/w100/` end to end through `omega run --both`.
   - Connect descriptor-backed moments to the shared layout, canonical float
     slice access, and numeric policy, and qualify both complete consumers and
     their invalid controls.
-  - Complete the retained rank-two kernels in `source/library/numerics/` against
+  - Complete the retained rank-two kernels in `source/library/core/matrix_layout.omg` against
     frozen mathematical oracles (candidate preservation in `IMPORTS.json` does
     not count as acceptance).
-  Acceptance: `source/library/numerics/` and `samples/cli/scientific/w100/`
+  Acceptance: those core modules and `samples/cli/scientific/w100/`
   compile and execute via `omega run --both` against their frozen mathematical
   oracles with invalid controls rejecting.
 

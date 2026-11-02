@@ -1,6 +1,4 @@
-// SHA-256 over staged bytes — the plan's `request_commitment`, the export
-// endpoint contract digests, and the per-component completeness closure all
-// reduce to this one compression function (FIPS 180-4). Written against the
+// SHA-256 (FIPS 180-4) over staged bytes. Written against the
 // language's `u32 in Wrapping` surface: every addition wraps, rotates are
 // shift-or pairs, and `ch` avoids a bitwise-not by rewriting
 // `(e & f) ^ (~e & g)` as `g ^ (e & (f ^ g))`.
@@ -12,7 +10,7 @@
 // callers can detect an impossible path. Callers stage input bytes into
 // `msg[..msg_n]`; the 32-byte digest lands in `out32`.
 
-module digest;
+module core::sha256;
 
 use omega::language::core::numeric_conversion;
 

@@ -1,4 +1,4 @@
-use omega_language_std::wire;
+use omega::language::core::wire;
 use omega::language::core::reflect;
 // The owner builds an explicit WireSchema through authorized declaration
 // inspection. AuthoredCompactBinary::plan evaluates as an ordinary source
