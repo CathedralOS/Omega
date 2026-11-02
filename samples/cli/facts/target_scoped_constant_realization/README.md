@@ -107,8 +107,8 @@ attributed this to the return replay-stability gate. The repair reuses the
 bounded completed-return/closed-endpoint owner already exercised by the
 `target_layout_derived_constant` work, retaining its genuine target-dependency
 fence. Older retained producer exploration is distinct from exact-candidate
-qualification. Fresh optimized producer
-`8f2c19e0ef15827d4d064c318896b2d005ad490d` now closes this migration on macOS ARM64:
+qualification. The first exact optimized producer
+`8f2c19e0ef15827d4d064c318896b2d005ad490d` qualified the full migration on macOS ARM64:
 22 Source pins are 11 checked / 11 intended refusals, and all 11 runnable pins
 have native exit zero / Terminal exit zero / agreement. This includes the legal
 extent-two helper and distinct-query opposite. All 13 public positives also
@@ -117,11 +117,30 @@ obligation through normal package preparation. Five focused existing Source
 controls and two existing runtime controls preserve their complete baseline
 tuples.
 
-The exact selected-provider-result counterfactual and a flipped first match arm
-both produce actual native signal 5 and Terminal `Trap`, contradicting their
+Actual conflict integration with Main
+`735d5a84739782c663cb07c4e28c6fd1f45801fd` required fresh affected validation:
+Terminal-demand provider selection/default ABI, resident borrowed access for
+`mark_size`, and normal CLI preparation changed. Optimized producer
+`f6c2d20ae37b918d6fae1ec256b128b8b8bdc9b8` and its own SDK freshly pass all
+22 Source pins (11 checked / 11 intended refusals) and all 11 runtime pins
+(native zero / Terminal zero / agreement). The five focused Source controls
+and two runtime controls retain their complete original tuples. Fresh public
+preparation and execution cover match join, target body, multi-method,
+zero extent and the legal extent-two helper. Five public negatives retain
+missing-selection, false-guarantee, exact-underflow, query-kind and complete
+conformance refusals. The absent-selection diagnostic became more precise;
+its original matcher failure is retained, and only the corresponding expected
+fragments changed. The Source bodies, Build choices and authored exit oracles
+remain unchanged. The earlier full public 13-positive/13-negative observations
+keep their actual first-producer identities.
+
+Both producers execute the exact selected-provider-result counterfactual and a
+flipped first match arm; both produce actual native signal 5 and Terminal `Trap`, contradicting their
 unchanged authored zero exit. Four separate explicit single-target requests
 produce hashed PE, ELF and Mach-O artifacts with the original target choices;
-foreign execution is not claimed. These are separate requests because the
+foreign execution is not claimed. The integrated producer repeats these four
+requests on the zero-extent control, preserving its original zero/eight choices.
+These are separate requests because the
 provider-derived constant selects different providers across target rows; this
 migration does not claim a new multi-target consistency closure.
 
