@@ -66,13 +66,19 @@ pub(crate) fn validate_forwarded_argument(
     Ok(())
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) struct TraitApplicationIdentity {
+    arguments: Vec<NormalizedTypeIdentity>,
+    lifetimes: Vec<typed_trees::type_identity::LifetimeParameterIdentity>,
+}
+
 pub(crate) fn applied_bound_argument_identities(
     program: &dyn crate::CheckingInput,
     bound: &GenericConformanceBound,
     receiving_owner: symbols::SymbolHandle,
     argument_owner: symbols::SymbolHandle,
     scopes: &[AppliedTypeIdentityScope<'_>],
-) -> Option<Vec<NormalizedTypeIdentity>> {
+) -> Option<TraitApplicationIdentity> {
     let carrier = crate::refinement_fit::resolve_bound_carrier(program, bound.trait_symbol);
     let root = typed_trees::trait_definition::AppliedTraitScope::new(
         program.typed_program(),
@@ -97,9 +103,9 @@ pub(crate) fn applied_scope_argument_identities(
     application: &typed_trees::trait_definition::AppliedTraitScope<'_>,
     argument_owner: symbols::SymbolHandle,
     outer: &[AppliedTypeIdentityScope<'_>],
-) -> Option<Vec<NormalizedTypeIdentity>> {
+) -> Option<TraitApplicationIdentity> {
     application.with_identity_scopes(program.typed_program(), |inner| {
-        let mut identities = program
+        let identities = program
             .trait_type_parameters(application.declaration)
             .iter()
             .map(|parameter| {
@@ -127,15 +133,31 @@ pub(crate) fn applied_scope_argument_identities(
             .collect::<Option<Vec<_>>>()?;
         let mut scopes = outer.to_vec();
         scopes.extend_from_slice(inner);
-        for parameter in &application.declaration.lifetime_parameters {
-            identities.push(typed_trees::type_identity::applied_lifetime_identity(
-                program.typed_program(),
-                parameter.as_str(),
-                argument_owner,
-                &scopes,
-            )?);
-        }
-        Some(identities)
+        let lifetimes = application
+            .declaration
+            .lifetime_parameters
+            .iter()
+            .map(|parameter| {
+                // Start with the receiving declaration/ordinal. A caller's rigid
+                // same-spelled binder must not bypass this exact application row.
+                let slot = typed_trees::type_identity::lifetime_parameter_identity(
+                    program.typed_program(),
+                    application.declaration.symbol,
+                    parameter.as_str(),
+                )?;
+                typed_trees::type_identity::apply_resolved_lifetime_parameter_identity(
+                    program.typed_program(),
+                    slot,
+                    argument_owner,
+                    &scopes,
+                )
+                .map(|(argument, _)| argument)
+            })
+            .collect::<Option<Vec<_>>>()?;
+        Some(TraitApplicationIdentity {
+            arguments: identities,
+            lifetimes,
+        })
     })
 }
 

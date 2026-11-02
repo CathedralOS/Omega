@@ -1017,15 +1017,13 @@ pub(super) fn clone_single_specialized_machine(
                 ..
             } = program.type_reference_table.type_reference(reference)
             else {
-                return Err(vec![failed(
-                    "captured evidence bound lost its trait application",
-                )]);
+                return Err(failed("captured evidence bound lost its trait application"));
             };
             let bound = &mut cloned.conformance_bounds[index];
             if *base_symbol != bound.trait_symbol {
-                return Err(vec![failed(
+                return Err(failed(
                     "captured evidence bound changed its trait declaration",
-                )]);
+                ));
             }
             bound.lifetime_arguments = lifetime_arguments.clone();
             bound.arguments = program
