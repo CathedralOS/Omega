@@ -38,6 +38,105 @@ use checked_trees::machine::Machine;
 mod named;
 mod selection_coordinates;
 
+/// Publish the obligation side independently of body/candidate discovery.
+/// A required specialization remains an obligation even when no Unit body
+/// or boundary for it was retained by the executable closure.
+pub(super) fn instance_requirements(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    checked: &CheckedTrees,
+    exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
+    boundary_parameters: &[BoundaryParameters],
+) -> Result<Vec<terminal_psi::ProviderInstanceRequirements>, LoweringError> {
+    // Interface retention, not candidate presence, scopes this publication.
+    // A missing uncalled candidate cannot remove its declared obligation;
+    // unrelated source-only interfaces need no portable realization here.
+    let mut templates = Vec::new();
+    let publication = &checked.facts.provider_instance_publication;
+    for (_, obligation) in publication.requirements.iter() {
+        if boundary_parameters.iter().any(|boundary| {
+            boundary.source == obligation.template || boundary.source == obligation.boundary
+        }) && !templates.contains(&obligation.template)
+        {
+            templates.push(obligation.template);
+        }
+    }
+    let mut requirements: Vec<terminal_psi::ProviderInstanceRequirements> = Vec::new();
+    // Checked satisfaction is an obligation independently of candidate/body
+    // retention. Named implementations scope it to the exact choosing owner,
+    // immediate body template, receiving application and public region tuple.
+    for (_, obligation) in publication.requirements.iter() {
+        if !templates.contains(&obligation.template) {
+            continue;
+        }
+        let declaration = obligation
+            .declaration
+            .as_ref()
+            .map_err(|reason| LoweringError::InvalidBoundaryApplication(reason.clone()))?;
+        let template = identities.intern(&declaration.template_identity);
+        let package = declaration.package;
+        let selecting_declaration = if declaration.selecting_declaration.is_valid() {
+            Some(
+                crate::machine_lowering::declarations::nominal(
+                    identities,
+                    checked,
+                    exact_toolchain_sources,
+                    declaration.selecting_declaration,
+                )
+                .map_err(|reason| LoweringError::InvalidDeclarationIdentity(reason.to_owned()))?,
+            )
+        } else {
+            None
+        };
+        let source_candidate_identity = identities.intern(&declaration.source_candidate_identity);
+        let (receiving_application, receiving_region_arguments) =
+            selection_coordinates::intern_prepared_receiving_application(
+                identities,
+                publication,
+                declaration.receiving,
+            )?;
+        let required = terminal_psi::RequiredProviderInstance {
+            requirement_identity: identities.intern(&declaration.requirement_identity),
+            candidate_identity: identities.intern(&declaration.candidate_identity),
+            receiving_application,
+            receiving_region_arguments,
+        };
+        match requirements.iter_mut().find(|row| {
+            row.template == template
+                && row.package == package
+                && row.selecting_declaration == selecting_declaration
+                && row.source_candidate_identity == source_candidate_identity
+        }) {
+            Some(row) => row.required_instances.push(required),
+            None => requirements.push(terminal_psi::ProviderInstanceRequirements {
+                template,
+                package,
+                selecting_declaration,
+                source_candidate_identity,
+                required_instances: vec![required],
+            }),
+        }
+    }
+    for row in &mut requirements {
+        row.required_instances.sort();
+        row.required_instances.dedup();
+    }
+    requirements.sort_by(|left, right| {
+        (
+            left.template,
+            left.package,
+            &left.selecting_declaration,
+            left.source_candidate_identity,
+        )
+            .cmp(&(
+                right.template,
+                right.package,
+                &right.selecting_declaration,
+                right.source_candidate_identity,
+            ))
+    });
+    Ok(requirements)
+}
+
 /// Report the exact checked provider whose ordinary body is missing, including
 /// the checker-owned omission. Result shape must not hide that source frontier.
 fn callable_candidate<'program>(

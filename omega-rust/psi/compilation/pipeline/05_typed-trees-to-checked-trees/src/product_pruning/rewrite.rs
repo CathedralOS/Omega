@@ -131,6 +131,25 @@ fn apply_fact_pruning(
     facts
         .provider_closed_requirements
         .retain(|row| retained.contains(&row.provider));
+    let removed = facts
+        .provider_instance_publication
+        .requirements
+        .iter()
+        .filter_map(|(handle, row)| {
+            let owner = if row.provider.is_valid() {
+                row.provider
+            } else {
+                row.template
+            };
+            (!retained.contains(&owner)).then_some(handle)
+        })
+        .collect::<Vec<_>>();
+    for handle in removed {
+        facts
+            .provider_instance_publication
+            .requirements
+            .free(handle);
+    }
     facts
         .operators
         .symbolic_boundary_applications

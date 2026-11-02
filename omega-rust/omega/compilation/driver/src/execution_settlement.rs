@@ -281,7 +281,6 @@ impl SelectedProductTarget {
         // A source-only stop owes selected-instance coverage without native
         // realization. Executable products obtain it from Terminal instead.
         let execution = &self.custody.execution;
-        execution.provider_source.project_instances()?;
         match terminal {
             Some(module) => check_terminal_task_activations(
                 module,
@@ -419,6 +418,8 @@ fn select_checked_providers(
             boundary_calling_plan_realizations: &providers.boundary_calling_plan_realizations,
             provider_candidates: &providers.provider_candidates,
             boundary_provider_demands: &providers.boundary_provider_demands,
+            provider_declarations: &providers.provider_declarations,
+            terminal_module: providers.calling_program.artifact.semantic_module(),
             selected_provider_plan_facts,
             selected_provider_provenance,
             root_grants: &root_grants,

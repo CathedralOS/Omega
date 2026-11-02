@@ -11,10 +11,18 @@ use provider_planning::target_machines::{
 use terminal_codec::CanonicalTerminalArtifact;
 use terminal_psi_to_abstract_operations::RetainedTerminalArtifact;
 
+#[path = "provider_instance_controls.rs"]
+mod provider_instance_controls;
+
+pub(super) struct PreparedProviderChoices {
+    publication: PreparedTargetProviderPublication,
+    expected_instances: Vec<provider_instance_controls::ExpectedInstance>,
+}
+
 pub(super) fn prepare(
     root: &Path,
     profile: target::TargetProfile,
-) -> Result<PreparedTargetProviderPublication, String> {
+) -> Result<PreparedProviderChoices, String> {
     let snapshot = crate::fixture_package_inputs::fixture_build_snapshot(root)
         .map_err(|errors| format!("provider choices build inputs: {errors:?}"))?;
     let discovered = crate::fixture_package_inputs::discover_fixture(
@@ -84,17 +92,25 @@ pub(super) fn prepare(
         targets: &targets,
     }
     .prepare();
+    let expected_instances = provider_instance_controls::prepare(&checked, root)?;
     drop(targets);
     drop(checked);
     drop(prepared);
-    Ok(publication)
+    Ok(PreparedProviderChoices {
+        publication,
+        expected_instances,
+    })
 }
 
 pub(super) fn inspect(
-    publication: PreparedTargetProviderPublication,
+    prepared: PreparedProviderChoices,
     retained: &RetainedTerminalArtifact,
     target: &str,
 ) -> Result<(), String> {
+    let PreparedProviderChoices {
+        publication,
+        expected_instances,
+    } = prepared;
     let original = retained
         .native_realization_proposal()
         .ok_or("provider choice controls need a native proposal")?
@@ -116,6 +132,55 @@ pub(super) fn inspect(
             return Err(format!(
                 "source-free provider choice changed its complete proposal: {actual:?}"
             ));
+        }
+        let uncalled = provider_instance_controls::inspect(
+            &expected_instances,
+            artifact.module(),
+            original
+                .selection
+                .as_ref()
+                .map_err(|errors| format!("provider selection: {errors:?}"))?,
+            target,
+            original.application_roots.as_deref(),
+        )?;
+        if let Some(uncalled) = uncalled {
+            // External Artifact ingress: remove only one uncalled binding,
+            // retaining both its ordinary body and the independent obligation.
+            // A nonempty candidate catalog must not hide this missing tuple.
+            let mut omitted = artifact.module().clone();
+            let before = omitted.provider_candidates.len();
+            omitted
+                .provider_candidates
+                .retain(|candidate| candidate != &uncalled);
+            if omitted.provider_candidates.len().checked_add(1) != Some(before) {
+                return Err("provider instance control did not remove exactly one binding".into());
+            }
+            let optimization = terminal_codec::build_identity_optimization_execution_record(
+                &omitted,
+            )
+            .map_err(|error| format!("missing-instance optimization envelope: {error:?}"))?;
+            let omitted = CanonicalTerminalArtifact::from_parts(omitted, optimization, None)
+                .map_err(|error| format!("missing-instance artifact: {error:?}"))?;
+            let omitted = CanonicalTerminalArtifact::from_bytes(&omitted.to_bytes())
+                .map_err(|error| format!("missing-instance external ingress: {error:?}"))?;
+            let outcomes = publication
+                .clone()
+                .publish(omitted.view(), original.optimization_selection);
+            let [outcome] = outcomes.as_slice() else {
+                return Err("missing-instance control lost its one target".into());
+            };
+            match &outcome.selection {
+                Err(reasons)
+                    if reasons.iter().any(|reason| {
+                        reason.contains("retained closed requirement")
+                            && reason.contains("0 canonical provider instances")
+                    }) => {}
+                other => {
+                    return Err(format!(
+                        "omitting an uncalled required tuple did not refuse at canonical coverage: {other:?}"
+                    ));
+                }
+            }
         }
     }
     Ok(())

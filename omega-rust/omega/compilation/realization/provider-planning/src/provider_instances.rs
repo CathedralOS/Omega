@@ -15,11 +15,11 @@ pub struct SelectedProviderSource {
     inventory: Arc<checked_trees::PreparedProviderInventory>,
     plans: effects::SelectedProviderPlanFacts,
     declarations: OnceLock<PreparedProviderInstances>,
+    checked_bodies: OnceLock<Vec<Vec<Result<bool, Diagnostic>>>>,
 }
 
 struct PreparedProviderInstances {
     plans: Vec<provider_selection::ProviderPlanInstanceDeclarations>,
-    checked_bodies: Vec<Vec<Result<bool, Diagnostic>>>,
 }
 
 impl std::fmt::Debug for SelectedProviderSource {
@@ -49,6 +49,7 @@ impl SelectedProviderSource {
             inventory,
             plans,
             declarations: OnceLock::new(),
+            checked_bodies: OnceLock::new(),
         }
     }
 
@@ -85,14 +86,41 @@ impl SelectedProviderSource {
     pub fn callback_providers(
         &self,
         declarations: &terminal_psi::CallbackDeclarationRoster,
+        provider_declarations: &[backend_plan::TerminalTargetProviderPlan],
+        module: &terminal_psi::TerminalModule,
     ) -> Result<provider_selection::CallbackProviderDeclarations<'_>, Vec<Diagnostic>> {
         if declarations.uses.is_empty() {
             return Ok(provider_selection::CallbackProviderDeclarations::unused());
         }
-        let instances = self.project_instances()?;
-        let prepared = self.declarations();
+        let instances = backend_plan::close_checked_provider_specializations(
+            self.plans.clone(),
+            provider_declarations,
+            module,
+        )
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        let checked_bodies = self.checked_bodies.get_or_init(|| {
+            let adapters = CheckedAdapterDeclarations::prepare(&self.program().typed, &self.plans);
+            self.plans
+                .plans()
+                .iter()
+                .map(|plan| {
+                    plan.rows
+                        .iter()
+                        .map(|row| {
+                            if matches!(row.binding, ProviderBinding::CheckedAdapter { .. }) {
+                                adapters
+                                    .machine(plan, row)
+                                    .map(Machine::supplies_checked_body)
+                            } else {
+                                Ok(false)
+                            }
+                        })
+                        .collect()
+                })
+                .collect()
+        });
         let mut checked_adapters = Vec::new();
-        for (plan, bodies) in self.plans.plans().iter().zip(&prepared.checked_bodies) {
+        for (plan, bodies) in self.plans.plans().iter().zip(checked_bodies) {
             for (row, body) in plan.rows.iter().zip(bodies) {
                 if !matches!(row.binding, ProviderBinding::CheckedAdapter { .. }) {
                     continue;
@@ -121,29 +149,7 @@ impl SelectedProviderSource {
                 &self.plans,
                 &adapters,
             );
-            let checked_bodies = self
-                .plans
-                .plans()
-                .iter()
-                .map(|plan| {
-                    plan.rows
-                        .iter()
-                        .map(|row| {
-                            if matches!(row.binding, ProviderBinding::CheckedAdapter { .. }) {
-                                adapters
-                                    .machine(plan, row)
-                                    .map(Machine::supplies_checked_body)
-                            } else {
-                                Ok(false)
-                            }
-                        })
-                        .collect()
-                })
-                .collect();
-            PreparedProviderInstances {
-                plans,
-                checked_bodies,
-            }
+            PreparedProviderInstances { plans }
         })
     }
 }
