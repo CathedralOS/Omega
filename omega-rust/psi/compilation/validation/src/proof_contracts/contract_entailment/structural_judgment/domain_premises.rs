@@ -800,6 +800,19 @@ impl StructuralJudge<'_> {
                 );
             }
         }
+        // Const actuals are admitted immutable canonical values. Runtime Value
+        // descriptors retain their separate represented-storage capture path;
+        // their pointed contents are not timeless BoundProjection hypotheses.
+        for parameter in program.machine_type_parameters(machine) {
+            let typed_trees::data::TypeParameterKind::Const { type_reference } = parameter.kind
+            else {
+                continue;
+            };
+            self.intake_admitted_value_predicates(
+                type_reference,
+                StructuralTerm::BoundValue(parameter.symbol),
+            );
+        }
         let entry = program
             .machine_states(machine)
             .first()
