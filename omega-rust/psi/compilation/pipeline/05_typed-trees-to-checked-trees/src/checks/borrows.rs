@@ -55,7 +55,7 @@ use checked_trees::{CheckFacts, FlowStateFact};
 use diagnostics::Diagnostic;
 
 use self::elision::check_view_return_elision;
-pub(crate) use self::escape::check_view_return_escape;
+use self::escape::check_view_return_escape;
 use self::persistent::check_persistent_borrow_assignments;
 use self::statements::check_statement_borrows;
 
@@ -99,6 +99,7 @@ pub(crate) fn check_flow_call_borrows(
     );
 
     check_view_return_elision(program, facts, call_frames, &mut diagnostics);
+    check_view_return_escape(program, facts, &mut diagnostics);
     check_persistent_borrow_assignments(program, facts, call_frames, &mut diagnostics);
 
     // Receiver read footprints serve only this pass's whole-receiver call

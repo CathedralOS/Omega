@@ -5,15 +5,15 @@
 //! Locals and by-value inputs are both invocation-owned. Returning their stored
 //! external references is valid; returning a fresh borrow of their storage is not.
 
-use checked_trees::BorrowFacts;
+use checked_trees::CheckFacts;
 use diagnostics::Diagnostic;
 
-pub(crate) fn check_view_return_escape(
+pub(super) fn check_view_return_escape(
     program: &dyn ::validation::CheckingInput,
-    facts: &BorrowFacts,
+    facts: &CheckFacts,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    for (_, borrow_state) in facts.states.iter() {
+    for (_, borrow_state) in facts.borrow.states.iter() {
         let Some((machine, state)) = validation::machine_state_by_symbols(
             program,
             borrow_state.machine_symbol,
@@ -23,6 +23,7 @@ pub(crate) fn check_view_return_escape(
         };
         let mut reported: Vec<facts::PlaceRoot> = Vec::new();
         for loan in facts
+            .borrow
             .returned_loans
             .span_or_empty(borrow_state.returned_loans)
         {

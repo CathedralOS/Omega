@@ -82,8 +82,12 @@ provider route or the stronger match example. The first Linux replay ran seven p
 selected implementation, but the unchanged returned-view place and the stronger
 match place refused because assignment checking lost their relative field
 address. The local-escape control also refused before its intended lifetime
-check. General address tracking and check-order repairs are under validation;
-this first replay is not row acceptance.
+check: its caller tried to write through the already-invalid returned view.
+That earlier backing obligation remains mandatory. The control now leaves the
+result unused so it isolates the unchanged forbidden return of local storage;
+its original source and baseline refusal remain in the validation records.
+The address repair and this focused control are under validation; the first
+replay is not row acceptance.
 
 This row establishes ordinary write-only representation-view transport. It does
 not close domain-policy retention under erasure, operation demands, helper grants,

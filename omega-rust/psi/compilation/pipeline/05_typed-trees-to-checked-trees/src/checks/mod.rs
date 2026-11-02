@@ -38,7 +38,7 @@
 mod borrows;
 pub(crate) use borrows::{
     StorageSelectorFacts, captured_storage_index, captured_storage_paths_are_disjoint,
-    check_view_return_escape, storage_path_compatibility,
+    storage_path_compatibility,
 };
 pub(crate) mod atomic_fences;
 mod case_access;

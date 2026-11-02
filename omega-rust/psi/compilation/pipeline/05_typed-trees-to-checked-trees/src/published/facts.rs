@@ -153,14 +153,6 @@ pub(crate) fn build_check_facts(
     let program: &dyn validation::CheckingInput = program_context;
     let call_frames = validation::CallFrameResolver::new(program);
     let borrow = build_borrow_facts(program, call_frames.as_ref())?;
-    // Reject a view of invocation-owned storage before a caller's writes need
-    // its impossible backing. Returned loans are complete after borrow
-    // construction; later flow and cleanup facts cannot make them outlive it.
-    let mut return_diagnostics = Vec::new();
-    crate::checks::check_view_return_escape(program, &borrow, &mut return_diagnostics);
-    if !return_diagnostics.is_empty() {
-        return Err(return_diagnostics);
-    }
     let mut values = build_value_facts(program, proof_plan);
     let mut operators = build_operator_facts(program, &values);
     operators.exact_integer_casts = validation_facts.exact_integer_casts.clone();
