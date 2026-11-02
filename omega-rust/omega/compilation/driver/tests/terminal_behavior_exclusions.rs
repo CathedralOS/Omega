@@ -258,6 +258,7 @@ fn assert_calling_review_outlives_source(relative: &str) {
             artifact: Arc::clone(&code.artifact),
             entries: code.entries.clone(),
             source_records: Arc::clone(&code.source_records),
+            evaluator: code.evaluator,
         };
         (
             prepared,

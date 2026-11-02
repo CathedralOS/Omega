@@ -1,31 +1,24 @@
 //! Run one retained calling policy without a source compiler or source trees.
+//!
+//! Provider planning prepares the canonical signature, the selected entry and
+//! the invocation account, then calls this executor through the evaluator its
+//! `CallingProgram` carries. Build evaluation owns Terminal execution; provider
+//! planning keeps signature encoding, result decoding and validation.
 
-use super::CallingPolicySignature;
-use super::build_time_decoding::decode_boundary_plan_result;
-use super::policy_signature::{encode_calling_policy_signature, validate_calling_policy_result};
-use super::scalar_completion::{CallingScalarScope, complete_calling_scalar_inputs};
-use super::terminal_values::{input_contents, result_value};
+mod values;
+
 use calling_conventions::ValidatedBoundaryEntryPlan;
-use evaluation_accounting::EvaluationInvocationAccount;
-use terminal_codec::CanonicalTerminalArtifact;
+use provider_planning::calling_policy_plans::{
+    CallingScalarScope, TerminalCallingPolicyInvocation, complete_calling_scalar_inputs,
+    decode_boundary_plan_result, encode_calling_policy_signature, validate_calling_policy_result,
+};
 use terminal_fuel::{TerminalFuelMeter, TerminalFuelUsage};
 use terminal_interpreter::{
     TerminalExecutionResult, TerminalExecutionStatus, TerminalInstantiation, TerminalProgram,
     TerminalRuntimeSupplyRequest, TerminalStructuralInputs, TerminalStructuralValue,
 };
 use terminal_psi::TargetMachineCallable;
-
-/// Explicit source-free inputs of a policy activation. The producer's checked
-/// invocation admission precedes this request; neither entry selection nor
-/// successful interpretation grants provider, callback or native authority.
-pub struct TerminalCallingPolicyInvocation<'input> {
-    pub artifact: &'input CanonicalTerminalArtifact,
-    pub entry: TargetMachineCallable,
-    pub target: target::TargetProfile,
-    pub signature: &'input CallingPolicySignature,
-    pub account: EvaluationInvocationAccount,
-    pub providers: &'input [backend_plan::TerminalTargetProviderPlan],
-}
+use values::{input_contents, result_value};
 
 /// Execute the selected callable on the supplied signature, decode its actual
 /// returned plan, and validate every placement against that same signature.
