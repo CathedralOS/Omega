@@ -4979,6 +4979,15 @@ pass/facts/structural_issuer_forwarding_other_state built 1908ms exit:0 interpre
 pass/facts/structural_issuer_forwarding_parameter built 1917ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/structural_issuer_forwarding_target_body built 1886ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/subslice_state_extent_after_write_exit built 1797ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/facts/suspension_transported_loan_through_call_result_exit built 22333ms exit:0 interpreter-exit:0 interpreter:agrees @3db1f7baaded+wt
+pass/facts/suspension_transported_loan_through_const_name_exit built 27482ms exit:0 interpreter-exit:0 interpreter:agrees @3db1f7baaded+wt
+pass/facts/suspension_transported_loan_through_field_exit built 24816ms exit:0 interpreter-exit:0 interpreter:agrees @3db1f7baaded+wt
+pass/facts/suspension_transported_loan_through_local_exit built 27959ms exit:0 interpreter-exit:0 interpreter:agrees @3db1f7baaded+wt
+pass/facts/suspension_transported_loan_through_match_join_exit built 23147ms exit:0 interpreter-exit:0 interpreter:agrees @3db1f7baaded+wt
+pass/facts/suspension_transported_loan_through_other_machine_exit built 27234ms exit:0 interpreter-exit:0 interpreter:agrees @3db1f7baaded+wt
+pass/facts/suspension_transported_loan_through_other_state_exit built 19850ms exit:0 interpreter-exit:0 interpreter:agrees @3db1f7baaded+wt
+pass/facts/suspension_transported_loan_through_parameter_exit built 21977ms exit:0 interpreter-exit:0 interpreter:agrees @3db1f7baaded+wt
+pass/facts/suspension_transported_loan_through_target_body_exit built 21145ms exit:0 interpreter-exit:0 interpreter:agrees @3db1f7baaded+wt
 pass/facts/target_family_callback_guarantee/call_result built 3086ms exit:0 interpreter-exit:0 interpreter:agrees @eb23675fbe3f
 pass/facts/target_family_callback_guarantee/const_name built 3180ms exit:0 interpreter-exit:0 interpreter:agrees @eb23675fbe3f
 pass/facts/target_family_callback_guarantee/distinct_capture built 3289ms @eb23675fbe3f

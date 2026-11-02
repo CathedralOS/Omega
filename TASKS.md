@@ -240,9 +240,13 @@ retired-syntax deletions to completion.
     `checked_provider_attachment_requirements`, stage 06
     `attached_unit/provider_attachments.rs`, and
     `fused_service_field_matches`/`fused_service_field_carrier`.
-  - Retire remaining attachment helpers in checking/lowering and complete
-    checked per-value loan carry evidence for suspension production without
+  - Retire remaining attachment helpers in checking/lowering without
     restoring hidden argument insertion.
+  - Complete checked per-value loan carry evidence for suspension production
+    without restoring hidden argument insertion: joins still refuse
+    supplier-less derived descriptors (casts, projected call referents),
+    supplied-output and lifetime-dependency descriptors, and backings with no
+    enclosing owner; Terminal loan rows label accepted transfers `Unresolved`.
   - Retire `machine Data::operation` and reserved `T::drop` spellings across
     compiler/toolchain helper namespaces, operator/proof declarations, and
     fixtures.

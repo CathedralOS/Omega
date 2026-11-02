@@ -37,6 +37,7 @@ mod successor_cleanup;
 // details.
 mod access_sources;
 mod aliases;
+pub(in crate::checks) use aliases::transport_suppliers;
 mod completed_backings;
 mod shared_observations;
 pub(crate) use shared_observations::shared_reference_observation;
