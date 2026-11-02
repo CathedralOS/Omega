@@ -119,3 +119,15 @@ This closes this checked normal-call production of the row. Broader scalar-range
 migration, other representation/origin requirements, common-field case rosters
 and recursive/reference predicate inventories remain open under the parent task.
 GUI qualification stays pending.
+
+
+After the actual golden conflict and affected incoming custody/layout changes,
+a fresh optimized integrated producer at `0a3a759c64e3ba71d5b04863d6e2e7a2fa9e8ff7`
+(SHA-256 `6770f858f84ee26cc676345b5fdf9413036bfa5d52531b37620a3e06afd8ead3`) checks the focused
+39 fixtures: 19 positives and 20 intended rejects. Its execution
+selection records 18 actual native/Terminal exit-0 agreements and
+one compile-only result; both focused gates exit 0. These include the complete
+nine-place row, snapshot/order controls and selected affected custody/authority
+consumers. Earlier 70-fixture observations and their baseline refusal remain
+separate. Golden publication retains changed-source or changed-outcome rows;
+all raw measured rows remain in the PR evidence.
