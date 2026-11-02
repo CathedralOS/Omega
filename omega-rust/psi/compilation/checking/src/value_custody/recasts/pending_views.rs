@@ -136,6 +136,28 @@ fn formation_owner<'program>(
     owners.next().is_none().then_some(owner)
 }
 
+/// Incoming values and checked call results are already valid. Only a local
+/// exclusive recast can introduce this initial pending phase; every ordinary
+/// boundary out of its body is checked below. This is a producer inventory,
+/// not a validity judgment inferred from an annotation or unknown origins.
+fn has_pending_formation(program: &dyn crate::CheckingInput, machine: &Machine) -> bool {
+    program.machine_states(machine).iter().any(|state| {
+        program
+            .statement_table
+            .statements(state.statement_nodes)
+            .iter()
+            .any(|statement| {
+                let mut roots = Vec::new();
+                super::statement_expression_roots(program, statement, &mut roots);
+                crate::expression_traversal::visit_pre_order(program, roots, |_, node| {
+                    matches!(node, typed_trees::expression::ExpressionNode::Cast(cast)
+                    if cast.form.recast_access() == Some(language_core::ReferenceAccess::Mutable)
+                        && pending_record_definition(program, cast.target_type).is_some())
+                })
+            })
+    })
+}
+
 fn pending_origins<'program>(
     program: &'program dyn crate::CheckingInput,
     machine: &Machine,
@@ -143,18 +165,18 @@ fn pending_origins<'program>(
     index: usize,
     expression: ExpressionHandle,
 ) -> Option<Vec<PendingView<'program>>> {
-    let Some(statement) = program
+    if !has_pending_formation(program, machine) {
+        return Some(Vec::new());
+    }
+    program
         .statement_table
         .statements(state.statement_nodes)
-        .get(index)
-    else {
-        return None;
-    };
-    let Some(sources) = crate::CallFrameResolver::new(program)?
-        .reference_expression_sources_before_statement(machine, statement, expression)
-    else {
-        return None;
-    };
+        .get(index)?;
+    // Capture this exact operand, including its selected match-arm bindings
+    // and earlier sibling effects. A statement-prefix inventory omits those
+    // bindings and cannot stand in for a completed reference descriptor.
+    let sources = crate::CallFrameResolver::new(program)?
+        .completed_reference_read_sources(machine, state, expression)?;
     let mut obligations = Vec::new();
     for recast in sources.iter().flat_map(|source| &source.recasts) {
         if pending_record_definition(program, recast.target_type).is_none() {
@@ -233,6 +255,12 @@ pub(crate) fn report_consumption(
     };
     // Scalar field reads have independent validity. They do not consume the
     // enclosing record or require its coupled root predicate.
+    // An owned result has already crossed its own construction/copy boundary.
+    // Loading T through a pending reference still has that reference as its
+    // authored operand and is checked before the copy completes.
+    if crate::reference_shell(program, actual).is_none() {
+        return false;
+    }
     if pending_record_definition(program, actual).is_none() {
         return false;
     }

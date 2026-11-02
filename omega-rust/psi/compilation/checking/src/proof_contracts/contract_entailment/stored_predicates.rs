@@ -160,12 +160,9 @@ fn predicate_holds_on_current_storage(
         .iter()
         .filter_map(|member| member.as_field())
     {
-        let mut place = place.clone();
-        crate::value_custody::places::push_field_place_segments(
-            program,
-            &mut place.segments,
-            field.symbol,
-        );
+        let Some(place) = predicate_field_place(program, place, definition, field.symbol) else {
+            return false;
+        };
         if let Some(value) = judge.captured_place_projection(&place, ContentPlaceVersion::Current) {
             parameters.push(StateParameter {
                 symbol: field.symbol,
@@ -203,12 +200,7 @@ fn predicate_holds_on_current_storage(
             definition,
             variant,
             |field| {
-                let mut place = place.clone();
-                crate::value_custody::places::push_field_place_segments(
-                    program,
-                    &mut place.segments,
-                    field.symbol,
-                );
+                let place = predicate_field_place(program, place, definition, field.symbol)?;
                 judge.captured_place_projection(&place, ContentPlaceVersion::Current)
             },
         );
@@ -243,4 +235,49 @@ fn predicate_holds_on_current_storage(
         Some((machine, state)),
     );
     matches!(judgment, StructuralJudgment::Proven)
+}
+
+/// Predicates name semantic fields; a selected layout owns distinct physical
+/// field symbols. Join them through that exact plan before capturing contents,
+/// retaining semantic binders in the predicate instantiation itself.
+fn predicate_field_place(
+    program: &dyn crate::CheckingInput,
+    place: &crate::CanonicalPlace,
+    definition: &DataDefinition,
+    semantic_field: symbols::SymbolHandle,
+) -> Option<crate::CanonicalPlace> {
+    let mut symbol = semantic_field;
+    if let Some(reference) = place
+        .root
+        .as_symbol()
+        .and_then(|root| crate::declaration_type_reference(program, root))
+        .and_then(|reference| {
+            crate::project_type_reference_from_segments(program, reference, &place.segments)
+        })
+    {
+        let carrier = crate::value_custody::places::assignment_value_type(program, reference);
+        if let Some(physical) = program.closed_data_field_definition(carrier)
+            && let Some(plan) = program.plan_laid_layout_for_data(physical)
+        {
+            let semantic = program.closed_data_field_definition(plan.semantic_type)?;
+            if (semantic.symbol, semantic.generic_instance)
+                != (definition.symbol, definition.generic_instance)
+            {
+                return None;
+            }
+            let mut matches = plan
+                .schema_field_symbols
+                .iter()
+                .enumerate()
+                .filter(|(_, candidate)| **candidate == semantic_field);
+            let (index, _) = matches.next()?;
+            if matches.next().is_some() {
+                return None;
+            }
+            symbol = *plan.field_symbols.get(index)?;
+        }
+    }
+    let mut place = place.clone();
+    crate::value_custody::places::push_field_place_segments(program, &mut place.segments, symbol);
+    Some(place)
 }

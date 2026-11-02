@@ -488,6 +488,7 @@ pub enum RecastLeafSegment {
 /// The original cell containing a recast scalar projection and both carriers.
 /// A smaller view identifies invalidation storage; the flags independently
 /// decide whether a complete scalar value or primitive bits can be reused.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RecastRecordSourceLeaf {
     pub path: Vec<RecastLeafSegment>,
     pub primitive: typed_trees::types::PrimitiveType,
@@ -530,11 +531,9 @@ pub fn recast_scalar_source_leaf(
     target: TypeReferenceHandle,
     target_path: &[facts::PlaceSegment],
 ) -> Option<RecastRecordSourceLeaf> {
-    scalar_source_leaf(
-        &type_representation(program, source)?,
-        &field_geometry_representation(program, target)?,
-        target_path,
-    )
+    common_scalar_source_leaf(program, source, target, target_path, |alternative| {
+        type_representation(alternative, source)
+    })
 }
 
 /// A selected array region retains the original element paths. Its rebased
@@ -547,11 +546,37 @@ pub(crate) fn recast_scalar_source_leaf_in_array_region(
     target: TypeReferenceHandle,
     target_path: &[facts::PlaceSegment],
 ) -> Option<RecastRecordSourceLeaf> {
-    scalar_source_leaf(
-        &array_region_representation(program, source, start, end)?,
-        &field_geometry_representation(program, target)?,
-        target_path,
-    )
+    common_scalar_source_leaf(program, source, target, target_path, |alternative| {
+        array_region_representation(alternative, source, start, end)
+    })
+}
+
+/// A source-checking coordinate has no selected host. Every retained layout
+/// alternative must independently identify the same original scalar cell and
+/// interpretation; no member represents a target family. Native callers with
+/// an explicit guard naturally query only that alternative.
+fn common_scalar_source_leaf(
+    program: &dyn crate::CheckingInput,
+    source: TypeReferenceHandle,
+    target: TypeReferenceHandle,
+    target_path: &[facts::PlaceSegment],
+    source_inventory: impl Fn(&dyn crate::CheckingInput) -> Option<MutableRecordRepresentation>,
+) -> Option<RecastRecordSourceLeaf> {
+    let targets = crate::layout_checking_targets(program, [source, target]).ok()?;
+    let mut common = None;
+    for target_guard in targets {
+        let alternative = crate::LayoutCheckingContext::new(program, target_guard);
+        let projected = scalar_source_leaf(
+            &source_inventory(&alternative)?,
+            &field_geometry_representation(&alternative, target)?,
+            target_path,
+        )?;
+        if common.as_ref().is_some_and(|prior| prior != &projected) {
+            return None;
+        }
+        common = Some(projected);
+    }
+    common
 }
 
 fn scalar_source_leaf(
