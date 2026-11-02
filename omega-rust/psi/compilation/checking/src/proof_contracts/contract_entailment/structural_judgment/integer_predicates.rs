@@ -532,6 +532,14 @@ impl<'program> StructuralJudge<'program> {
         mut observations: IntegerObservations<'program>,
     ) -> Option<PreparedIntegerPremises<'program>> {
         for premise in self.rewrites.iter() {
+            // Projection immediately ignores these constructor equations. Do
+            // that exact test before cloning the accumulated numeric engine;
+            // their discarded forks register no comparisons or dependencies.
+            if matches!(premise.1.semantic_value(), StructuralTerm::Constructor { data, fields, .. }
+                if data != "bool" || !fields.is_empty())
+            {
+                continue;
+            }
             let mut candidate = observations.clone();
             let mut projected =
                 self.project_integer_premises(&mut candidate, std::iter::once(premise));
