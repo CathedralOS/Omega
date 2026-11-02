@@ -74,16 +74,19 @@ fn project_address(
     let control = &facts.flow.control;
     let operand = control.operands.get(capture);
     let mut resolved = Vec::new();
-    if control.operands.is_valid(operand.backing) {
+    if let Some(projection) = operand.address_projection {
+        if !control.operands.is_valid(operand.backing) {
+            return Err("the captured address projection has no completed receiver");
+        }
         let receiver = control.operands.get(operand.backing);
         if receiver.state_symbol != operand.state_symbol
             || receiver.statement_index != operand.statement_index
         {
             return Err("the completed receiver belongs to another evaluation");
         }
-        let projection = operand
-            .address_projection
-            .and_then(|path| control.operand_child_paths.span(path))
+        let projection = control
+            .operand_child_paths
+            .span(projection)
             .ok_or("the completed address has no captured receiver projection")?;
         let backings = address(program, facts, state, operand.backing, false, ancestors)?;
         let projectable = validation::completed_storage::projectable_reference_places(
@@ -117,6 +120,9 @@ fn project_address(
             );
         }
     } else {
+        // A completed value can depend on an earlier value while owning its
+        // own storage, as a copied match subject does. Only a positive address
+        // relation above redirects a write away from this operand's own home.
         let places = control
             .operand_referents
             .span(operand.referents)

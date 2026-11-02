@@ -1633,7 +1633,6 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     *completion = captured.completion;
                     let source = self.context.control.operands.insert(captured);
                     *backing = source;
-                    *address_projection = Some(HandleSpan::empty());
                     if self.is_view_type(captured.type_reference)
                         || self.program.type_multiplicity(captured.type_reference)
                             == language_semantics::Multiplicity::Unrestricted
