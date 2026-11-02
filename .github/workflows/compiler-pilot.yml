@@ -36,6 +36,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 # A new PR revision supersedes its old check; never cancel a merge-group check
 # merely because another PR entered the queue.
@@ -91,11 +92,26 @@ jobs:
           restore-keys: |
             ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-
       - name: Check the exact integration candidate
+        if: github.event_name != 'workflow_dispatch'
         id: compiler-check
         run: cargo check --locked -p omega
-      - name: Temporary exact compound-index consumer observations
+      - name: Restore the exact completed CLI and source for lock-bound replay
         if: github.event_name == 'workflow_dispatch'
-        run: python tools/ci/qualify_compound_index_join.py
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download 41399107774 --name compiler-pilot-linux_x86_64-08b7c22717e58f422e770c848287927ac9099f64-1 --dir build/join-retained-input
+          git fetch --depth=1 origin 08b7c22717e58f422e770c848287927ac9099f64
+          git worktree add --detach build/join-source 08b7c22717e58f422e770c848287927ac9099f64
+      - name: Temporary lock-bound replay on the exact retained CLI
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          OMEGA_JOIN_REPLAY_ROOT: ${{ github.workspace }}/build/join-source
+          OMEGA_JOIN_RETAINED_INPUT: ${{ github.workspace }}/build/join-retained-input
+        run: |
+          python tools/ci/qualify_compound_index_join.py
+          mkdir -p build/compiler-pilot
+          cp -R build/join-source/build/compiler-pilot/. build/compiler-pilot/
       - name: Optional executable observations
         if: github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
         env:
