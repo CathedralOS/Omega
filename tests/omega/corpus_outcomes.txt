@@ -11079,25 +11079,6 @@ pass/filesystem/windows_raw_bounded_view_exit rejected 23957ms check-target:wind
 	call to `empty_and_invalid` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
 	call to `cursor` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
 	call to `cleanup` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-pass/filesystem/windows_raw_breadth_exit rejected 22674ms check-target:windows_x86_64 regressed-from:checked+check-target:windows_x86_64 @ccdb99ca2214
-	call to `write_it` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `sync_it` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `close_it` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `reopen` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `seek_it` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `read_it` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `check_c` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `check_d` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `dup_it` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `read_dup` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `close_dup` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `chmod_it` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `pre_clean_dest` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `rename_it` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `probe_old` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `mkdir_it` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `clean_file` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `clean_dir` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
 pass/filesystem/windows_raw_canonical_path_exit rejected 41178ms check-target:windows_x86_64 terminal-inspections:failed regressed-from:checked+check-target:windows_x86_64+terminal-inspections:match @ccdb99ca2214
 	call to `release` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
 	call to `finish` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
