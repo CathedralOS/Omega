@@ -1269,7 +1269,11 @@ pub fn storage_place_loans(
     statement_index: u32,
     selection: &[checked_trees::CheckedUnitStructuralPathSegment],
 ) -> Option<Vec<RecordLeafLoans>> {
-    let selected_owner_path = loan_owner_path(program, reference, selection)?;
+    let selected_owner_path = crate::corresponding_loan_owner_path(
+        program,
+        reference,
+        &loan_owner_path(program, reference, selection)?,
+    )?;
     let borrowing = facts.borrow.unique_state_borrow(machine, state.symbol)?;
     let loans = facts
         .borrow
@@ -1293,9 +1297,12 @@ pub fn storage_place_loans(
         .span(flow.borrow_activations)?;
     let mut captured = Vec::new();
     for (handle, loan) in facts.borrow.loan_group(loans)? {
-        if !homes
-            .owner_path(program, loan)
-            .starts_with(&selected_owner_path)
+        if !crate::corresponding_loan_owner_path(
+            program,
+            reference,
+            homes.owner_path(program, loan).as_ref(),
+        )?
+        .starts_with(&selected_owner_path)
         {
             continue;
         }
@@ -1513,13 +1520,22 @@ fn record_leaf_loan_groups(
         .into_iter()
         .filter(|source| source.path.starts_with(selection))
     {
-        let owner_path = loan_owner_path(program, reference, &source.path)?;
+        let owner_path = crate::corresponding_loan_owner_path(
+            program,
+            reference,
+            &loan_owner_path(program, reference, &source.path)?,
+        )?;
         let access = source.source.access.borrow_access_kind()?;
         let mut group = arena::HandleSpan::empty();
         let mut formation = None;
         for handle in loans.iter().copied() {
             let loan = facts.borrow.loans.get(handle);
-            if homes.owner_path(program, loan).as_ref() != owner_path {
+            if crate::corresponding_loan_owner_path(
+                program,
+                reference,
+                homes.owner_path(program, loan).as_ref(),
+            )? != owner_path
+            {
                 continue;
             }
             if loan.storage_owner != owner

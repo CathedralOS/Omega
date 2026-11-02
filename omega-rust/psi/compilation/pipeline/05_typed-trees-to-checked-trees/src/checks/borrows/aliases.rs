@@ -212,14 +212,11 @@ fn resolve_descriptor_places_with_loans(
     let matches_owner = |owner: &[BorrowLoanOwnerSegment]| {
         let selected;
         let owner = if let Some(carrier) = carrier {
-            let Some(path) = validation::corresponding_place_projection(
-                program,
-                carrier,
-                &crate::borrow::owner_place_segments(owner),
-            ) else {
+            let Some(path) = validation::corresponding_loan_owner_path(program, carrier, owner)
+            else {
                 return false;
             };
-            selected = crate::borrow::owner_path_from_place_segments(program, &path);
+            selected = path;
             selected.as_slice()
         } else {
             owner
