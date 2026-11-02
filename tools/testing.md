@@ -181,6 +181,9 @@ the exact producer and inputs.
 Locally, the same selector is `python tools/ci/compiler_pilot.py --fixtures IDS`
 or `OMEGA_COMPILER_PILOT_FIXTURES=IDS`. IDs must name existing normalized directories under `pass/` or `fail/`
 containing `main.omg`, including nested fact-place paths.
+For canonical checking rows after runtime is already qualified, add
+`--checking-only` (manual workflow input `checking_only: true`). It requires
+exact fixture IDs and refuses sample or ordinary CLI execution selectors.
 Empty entries, duplicates, traversal, missing roots and substring-filter
 collisions refuse before building; malformed input never selects default smoke.
 An unset/empty environment variable leaves the default unchanged. Pass fixtures
