@@ -1989,11 +1989,6 @@ defines the complete product bar.
   access views end to end (`Psi 05–08` and `Omega 00–09`) under
   [allocation](wiki/spec/resources/allocation.md), needed by Squalr and
   Cathedral.
-  - Complete `ExtentPartition` conservation and every-retired-extent `reset`
-    recomposition over real `Vacant`/`Resident` backing in
-    `tests/omega/pass/memory/bump_allocator_canary`, replacing fixture-local
-    `ResidentStorage` with `Access` establishment, element
-    transfer, and retirement.
   - Connect `Vec` growth/reallocation/drop to the real backing allocator so
     dynamic `Vec` growth executes natively across hosts.
   Acceptance: `tests/omega/pass/memory/bump_allocator_canary` and `Vec` growth

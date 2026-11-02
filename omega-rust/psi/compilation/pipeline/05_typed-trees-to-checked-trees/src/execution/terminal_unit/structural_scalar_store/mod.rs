@@ -641,7 +641,7 @@ fn plan_assignment(
     }
     let field_data =
         validation::field_domains::data_definition_for_field_type(program, field.type_reference)?;
-    if plain_record(field_data, program, &facts.operators) {
+    if plain_record(field_data, program) {
         return None;
     }
     trace.phase("structural field store: case field type");
