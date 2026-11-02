@@ -65,6 +65,14 @@ fail/calls/completed_narrowing_result_case_bounds rejected 544ms @33b180036351
 	data `ByteRead` case `Byte` literal cannot prove the case constraint: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/calls/runtime_guarded_reference_return_nested_local_escape rejected 4129ms expected @c79bb8268163+wt
 	machine `failed` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+fail/calls/selected_crash_argument_snapshot_rejected rejected 9847ms expected @de32436362d5
+	call from `safe` to `read` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+fail/calls/selected_crash_distinct_limits_rejected rejected 8271ms expected @de32436362d5
+	call from `safe_one` to `read` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+fail/calls/selected_crash_match_record_rejected rejected 8847ms expected @de32436362d5
+	call from `safe` to `read` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+fail/calls/selected_crash_private_forwarding_rejected rejected 8976ms expected @de32436362d5
+	call from `safe` to `forward$specialized$ec85689150bfd083$0$2656` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/capabilities/recursive_synchronous_invocations rejected 2175ms expected @2fc408782574
 	machine `a` omits `invokes Third` from its published synchronous-invocation ceiling, but its body may invoke that binding before returning (published invokes: [First, Second])
 fail/cases/constructor_subject_range_narrowing_unproved rejected 1204ms expected @95750e8d2f8d
@@ -4361,9 +4369,13 @@ pass/calls/scalar_local_record_view_call_exit checked 10928ms check-target:macos
 pass/calls/scalar_range_argument_exit checked 18065ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/scalar_return_after_unit_call_exit checked 15908ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/scalar_unit_call_state_forward_exit checked 3820ms check-target:macos_arm64 @ccdb99ca2214
-pass/calls/selected_crash_formal_permitted_crash checked 3536ms check-target:macos_arm64 @ccdb99ca2214
-pass/calls/selected_crash_formal_permitted_return_exit checked 4260ms check-target:macos_arm64 @ccdb99ca2214
-pass/calls/selected_crash_formal_saved_argument_exit checked 3817ms check-target:macos_arm64 @ccdb99ca2214
+pass/calls/selected_crash_argument_snapshot_exit checked 12391ms check-target:macos_arm64 @de32436362d5
+pass/calls/selected_crash_distinct_limits_exit checked 13056ms check-target:macos_arm64 @de32436362d5
+pass/calls/selected_crash_formal_permitted_crash checked 11208ms check-target:macos_arm64 @de32436362d5
+pass/calls/selected_crash_formal_permitted_return_exit checked 10524ms check-target:macos_arm64 @de32436362d5
+pass/calls/selected_crash_formal_saved_argument_exit checked 10550ms check-target:macos_arm64 @de32436362d5
+pass/calls/selected_crash_match_record_exit checked 10532ms check-target:macos_arm64 @de32436362d5
+pass/calls/selected_crash_private_forwarding_exit checked 10474ms check-target:macos_arm64 @de32436362d5
 pass/calls/serviceful_borrowed_scalar_exit checked 17344ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/state_and_machine_names_exit checked 3486ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/state_graph_callee_forwards_mut_parameter_exit checked 17000ms check-target:macos_arm64 @ccdb99ca2214
@@ -10487,19 +10499,15 @@ pass/facts/scoped_scalar_initializer_through_other_state_exit checked 3663ms che
 pass/facts/scoped_scalar_initializer_through_parameter_exit checked 3377ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/scoped_scalar_initializer_through_target_body_exit checked 5455ms check-target:macos_arm64 terminal-target.linux_arm64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
 pass/facts/sealed_requirement_member_through_field_exit checked 8442ms check-target:macos_arm64 @911f6617ba9e
-pass/facts/selected_crash_formal_through_call_result_exit checked 4010ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/selected_crash_formal_through_const_name_exit checked 3517ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/selected_crash_formal_through_field_exit checked 3462ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/selected_crash_formal_through_local_exit checked 3772ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/selected_crash_formal_through_match_join_exit checked 4177ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/selected_crash_formal_through_other_machine_exit checked 4620ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/selected_crash_formal_through_other_state_exit rejected 1470ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	machine `consume` state `entry`: value call `Implementation.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `consume` state `entry` uses `Implementation`, which is not a declared local, parameter, field, or type in this state (check the spelling)
-pass/facts/selected_crash_formal_through_parameter_exit rejected 2126ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	machine `consume` state `entry`: value call `Implementation.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `consume` state `entry` uses `Implementation`, which is not a declared local, parameter, field, or type in this state (check the spelling)
-pass/facts/selected_crash_formal_through_target_body_exit checked 4038ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/selected_crash_formal_through_call_result_exit checked 11398ms check-target:macos_arm64 @de32436362d5
+pass/facts/selected_crash_formal_through_const_name_exit checked 10060ms check-target:macos_arm64 @de32436362d5
+pass/facts/selected_crash_formal_through_field_exit checked 11399ms check-target:macos_arm64 @de32436362d5
+pass/facts/selected_crash_formal_through_local_exit checked 9894ms check-target:macos_arm64 @de32436362d5
+pass/facts/selected_crash_formal_through_match_join_exit checked 10370ms check-target:macos_arm64 @de32436362d5
+pass/facts/selected_crash_formal_through_other_machine_exit checked 10701ms check-target:macos_arm64 @de32436362d5
+pass/facts/selected_crash_formal_through_other_state_exit checked 10570ms check-target:macos_arm64 @de32436362d5
+pass/facts/selected_crash_formal_through_parameter_exit checked 10297ms check-target:macos_arm64 @de32436362d5
+pass/facts/selected_crash_formal_through_target_body_exit checked 10790ms check-target:macos_arm64 @de32436362d5
 pass/facts/selected_native_code_layout_through_call_result_exit rejected 3578ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "fetch", reason: "return materialized custody has another carrier", gap: None })
 pass/facts/selected_native_code_layout_through_const_name_exit checked 3613ms check-target:macos_arm64 @ccdb99ca2214
@@ -17567,7 +17575,7 @@ fail/calls/runtime_recursive_unit_borrowed_non_tail_rejected rejected 15419ms ex
 	machine call cycle: `visit`, `next` -- an internal call occurrence lacks a classified tail edge; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/calls/runtime_recursive_unit_non_tail_rejected rejected 16339ms expected @ccdb99ca2214
 	machine call cycle: `descend`, `next` -- an internal call occurrence lacks a classified tail edge; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-fail/calls/selected_crash_formal_stale_argument_rejected rejected 3787ms expected @ccdb99ca2214
+fail/calls/selected_crash_formal_stale_argument_rejected rejected 7428ms expected @de32436362d5
 	call from `safe` to `read` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/calls/selected_local_owner_reuse rejected 1673ms expected @ccdb99ca2214
 	cannot use `token` in machine `choose` state `entry` (statement 2) after `token` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `token` first
@@ -28948,29 +28956,32 @@ fail/facts/scoped_scalar_initializer_through_parameter_rejected rejected 1857ms 
 	cannot prove initializer of `scoped` in exercise is in domain `BelowIndex`; an annotation cannot establish routed qualification
 fail/facts/scoped_scalar_initializer_through_target_body_rejected rejected 1964ms expected @ccdb99ca2214
 	cannot prove initializer of `scoped` in X86Probe::exercise is in domain `BelowIndex`; an annotation cannot establish routed qualification
-fail/facts/selected_crash_formal_through_call_result_rejected rejected 2677ms expected @ccdb99ca2214
+fail/facts/selected_crash_formal_through_call_result_rejected rejected 9072ms expected @de32436362d5
 	call from `safe` to `read` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/facts/selected_crash_formal_through_const_name_rejected rejected 3109ms expected @ccdb99ca2214
+fail/facts/selected_crash_formal_through_const_name_rejected rejected 7596ms expected @de32436362d5
 	call from `safe` to `read` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/facts/selected_crash_formal_through_field_rejected rejected 3196ms expected @ccdb99ca2214
+fail/facts/selected_crash_formal_through_field_rejected rejected 9213ms expected @de32436362d5
 	call from `safe` to `read` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/facts/selected_crash_formal_through_local_rejected rejected 3757ms expected @ccdb99ca2214
+fail/facts/selected_crash_formal_through_local_rejected rejected 8011ms expected @de32436362d5
 	call from `safe` to `read` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/facts/selected_crash_formal_through_match_join_rejected rejected 4140ms expected @ccdb99ca2214
+fail/facts/selected_crash_formal_through_match_join_rejected rejected 7568ms expected @de32436362d5
 	call from `safe` to `read` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/facts/selected_crash_formal_through_other_machine_rejected rejected 2931ms expected @ccdb99ca2214
+fail/facts/selected_crash_formal_through_other_machine_rejected rejected 10420ms expected @de32436362d5
 	call from `forward` to `read` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/facts/selected_crash_formal_through_other_state_rejected rejected 1446ms unexpected @ccdb99ca2214
-	machine `consume` state `entry`: value call `Implementation.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `consume` state `entry` uses `Implementation`, which is not a declared local, parameter, field, or type in this state (check the spelling)
-fail/facts/selected_crash_formal_through_parameter_rejected rejected 1467ms unexpected @ccdb99ca2214
-	machine `consume` state `entry`: value call `Implementation.read(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `consume` state `entry` uses `Implementation`, which is not a declared local, parameter, field, or type in this state (check the spelling)
-fail/facts/selected_crash_formal_through_target_body_rejected rejected 2756ms expected @ccdb99ca2214
-	call from `forward` to `read` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-	call from `forward` to `read` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-	call from `forward` to `read` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-	call from `forward` to `read` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+	call from `forward$specialized$837a1dd0c4920f73$0$2664` to `read` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+fail/facts/selected_crash_formal_through_other_state_rejected rejected 8170ms expected @de32436362d5
+	call from `safe` to `consume` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+fail/facts/selected_crash_formal_through_parameter_rejected rejected 8298ms expected @de32436362d5
+	call from `safe` to `consume` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+fail/facts/selected_crash_formal_through_target_body_rejected rejected 7975ms expected @de32436362d5
+	call from `WindowsForward::forward` to `read` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+	call from `LinuxX86Forward::forward` to `read` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+	call from `MacosForward::forward` to `read` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+	call from `LinuxArmForward::forward` to `read` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+	call from `WindowsForward::forward$specialized$ecce0c28a7cd7abd$0$2727` to `read` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+	call from `LinuxX86Forward::forward$specialized$7fc74963fe106ff2$0$2730` to `read` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+	call from `MacosForward::forward$specialized$1ff53a77a5d9c8f5$0$2733` to `read` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+	call from `LinuxArmForward::forward$specialized$59f03e25c0846416$0$2736` to `read` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/facts/selected_native_code_layout_through_call_result_rejected rejected 356ms expected @ccdb99ca2214
 	late native code-layout metadata is unavailable to same-product semantic constant, type, layout, or optimization evaluation
 fail/facts/selected_native_code_layout_through_const_name_rejected rejected 359ms expected @ccdb99ca2214

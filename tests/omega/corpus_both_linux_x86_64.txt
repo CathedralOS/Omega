@@ -9,6 +9,10 @@
 # A `# context: {...}` line records the conditions of the --record run.
 # context: {"cpus": 5, "jobs": "1", "load1_end": 1.64, "load1_start": 0.54, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
 pass/borrows/borrowed_reference_field_read_and_write_exit built 8133ms exit:0 interpreter-exit:0 interpreter:agrees @db6331a216fde821d9ba7e2a6bd6171a77e2ee0c
+pass/calls/selected_crash_argument_snapshot_exit built 10446ms exit:0 interpreter-exit:0 interpreter:agrees @de32436362d5
+pass/calls/selected_crash_distinct_limits_exit built 10441ms exit:0 interpreter-exit:0 interpreter:agrees @de32436362d5
+pass/calls/selected_crash_match_record_exit built 11043ms exit:0 interpreter-exit:0 interpreter:agrees @de32436362d5
+pass/calls/selected_crash_private_forwarding_exit built 10163ms exit:0 interpreter-exit:0 interpreter:agrees @de32436362d5
 pass/facts/build_activation_borrow_entry_return_exit built 11951ms exit:0 interpreter-exit:0 interpreter:agrees @b208ceef9bc2
 pass/facts/domain_selected_cleanup_enclosing_generic_telescope_exit built 14212ms exit:0 interpreter-exit:0 interpreter:agrees @dfac2536232b
 pass/facts/domain_selected_cleanup_erased_interface_exit built 13801ms exit:0 interpreter-exit:0 interpreter:agrees @dfac2536232b
@@ -973,9 +977,9 @@ pass/calls/scalar_expression_binding_evaluation_order_exit built 2476ms exit:0 i
 pass/calls/scalar_range_argument_exit built 7963ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/calls/scalar_return_after_unit_call_exit built 7294ms exit:42 interpreter-exit:42 interpreter:agrees @a92f16431042
 pass/calls/scalar_unit_call_state_forward_exit built 2524ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/calls/selected_crash_formal_permitted_crash built 3719ms exit:signal signal:4 interpreter:trapped @a92f16431042
-pass/calls/selected_crash_formal_permitted_return_exit built 3502ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/calls/selected_crash_formal_saved_argument_exit built 3504ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/calls/selected_crash_formal_permitted_crash built 10513ms exit:signal signal:4 interpreter:trapped @de32436362d5
+pass/calls/selected_crash_formal_permitted_return_exit built 10419ms exit:0 interpreter-exit:0 interpreter:agrees @de32436362d5
+pass/calls/selected_crash_formal_saved_argument_exit built 13649ms exit:0 interpreter-exit:0 interpreter:agrees @de32436362d5
 pass/calls/serviceful_borrowed_scalar_exit built 6092ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @a92f16431042
 pass/calls/state_and_machine_names_exit built 2198ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/calls/state_graph_callee_forwards_mut_parameter_exit built 5780ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
@@ -4559,15 +4563,15 @@ pass/facts/scoped_scalar_initializer_through_other_machine_exit built 1723ms exi
 pass/facts/scoped_scalar_initializer_through_other_state_exit built 1859ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/scoped_scalar_initializer_through_parameter_exit built 1849ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/scoped_scalar_initializer_through_target_body_exit built 2759ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/facts/selected_crash_formal_through_call_result_exit built 2729ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/facts/selected_crash_formal_through_const_name_exit built 2721ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/facts/selected_crash_formal_through_field_exit built 3675ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/facts/selected_crash_formal_through_local_exit built 2645ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/facts/selected_crash_formal_through_match_join_exit built 2402ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/facts/selected_crash_formal_through_other_machine_exit built 2418ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/facts/selected_crash_formal_through_other_state_exit built 2966ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/facts/selected_crash_formal_through_parameter_exit built 2731ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/facts/selected_crash_formal_through_target_body_exit built 4032ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/facts/selected_crash_formal_through_call_result_exit built 10893ms exit:0 interpreter-exit:0 interpreter:agrees @de32436362d5
+pass/facts/selected_crash_formal_through_const_name_exit built 11420ms exit:0 interpreter-exit:0 interpreter:agrees @de32436362d5
+pass/facts/selected_crash_formal_through_field_exit built 10285ms exit:0 interpreter-exit:0 interpreter:agrees @de32436362d5
+pass/facts/selected_crash_formal_through_local_exit built 10451ms exit:0 interpreter-exit:0 interpreter:agrees @de32436362d5
+pass/facts/selected_crash_formal_through_match_join_exit built 10282ms exit:0 interpreter-exit:0 interpreter:agrees @de32436362d5
+pass/facts/selected_crash_formal_through_other_machine_exit built 10485ms exit:0 interpreter-exit:0 interpreter:agrees @de32436362d5
+pass/facts/selected_crash_formal_through_other_state_exit built 10549ms exit:0 interpreter-exit:0 interpreter:agrees @de32436362d5
+pass/facts/selected_crash_formal_through_parameter_exit built 10632ms exit:0 interpreter-exit:0 interpreter:agrees @de32436362d5
+pass/facts/selected_crash_formal_through_target_body_exit built 10746ms exit:0 interpreter-exit:0 interpreter:agrees @de32436362d5
 pass/facts/selected_native_code_layout_through_match_join_exit rejected 2734ms interpreter:unchecked @a92f16431042
 	native artifact target lowering failed: StructuralStateBindingMismatch { machine: MachineId(2), reason: "binding=AbstractStructuralBinding { parameter: PlaceId(9), argument: StructuralArgument { place: PlaceId(10), path: [], access: Owned } }; parameter=StructuralParameterDeclaration { place: PlaceId(9), position: 0, structural_type: StructuralTypeId(1), multiplicity: Affine, access: Owned, qualifications: [], projected_qualifications: [] }; source_type=Some(StructuralTypeId(1)); argument_type=Some(StructuralTypeId(1)); source_storage_contract=Some(false); leaf_copy_owned_contract=None; crosses_loan_leaf=false" }
 pass/facts/selected_native_code_layout_through_other_state_exit rejected 2535ms interpreter:unchecked @a92f16431042

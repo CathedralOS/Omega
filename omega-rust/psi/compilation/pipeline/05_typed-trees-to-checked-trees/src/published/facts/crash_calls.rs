@@ -1,15 +1,16 @@
-//! Ordinary private crash summaries compose through exact invocation substitutions;
-//! authored published ceilings remain authoritative. Predicate reduction requires
-//! the callee's builtin operator meaning and entry custody for referenced actuals.
-//! Optional scalar annotations carry checked lowering evidence: after a fully
-//! concrete substitution they may discharge or confirm a route the domain-free
-//! identity cannot fold, and they never keep an undecidable origin from widening.
+//! Check which published crash conditions remain possible at each call.
+//! A selected requirement keeps its full public signature and the argument
+//! values evaluated for that invocation. Private helpers compose those same
+//! conditions with their own checked bodies.
+//! Symbolic conditions retain caller entry-value identities. Checked scalar
+//! expressions also use captured values and bounds; missing evidence leaves
+//! the possible crash in place.
 //!
 //! This file attaches checked crash calls and infers crash causes.
 //! `summary_predicates.rs` carries summary crash predicates and buckets,
 //! `route_substitution.rs` substitutes call arguments into published crash
-//! routes and `private_summaries.rs` solves private body summaries;
-//! `tests.rs` holds the crash call tests.
+//! routes and `private_summaries.rs` solves private body summaries.
+//! `requirement_contracts.rs` prepares each call's selected public signature.
 
 mod potential_causes;
 mod private_summaries;

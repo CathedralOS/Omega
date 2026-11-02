@@ -51,7 +51,9 @@ Only the available Linux x86-64 host supplies native execution evidence here.
   input's nonnegative bound into a later call. Nested machines, match results,
   and forwarding helpers must preserve the same bound. The match example runs
   both branches with distinct returned values, so choosing the wrong branch
-  makes its runtime check fail.
+  makes its runtime check fail. A match keeps a range covering every arm's
+  completed value. A copied argument keeps its bound when a later argument
+  writes the source.
 - **Soundness boundaries:** integer comparison rules apply to executable integer
   values; erased mathematical values and structural equality cannot stand in
   for them. A chosen implementation cannot narrow the public crash conditions.
@@ -94,6 +96,16 @@ nonnegative bound on a field selected by two match arms. Its
 [twin](probes/match_record/invalid/main.omg) permits a crash at zero.
 
 ## Baseline and remaining scope
+
+Fresh measurements at `de32436362d5406eb6d086418967be839ea6d143` pass all nine
+places and their reject twins on Linux x86-64. The focused corpus run checks
+41 programs: 18 valid programs pass and 23 controls reach their intended
+rejections. All 18 native/Terminal observations satisfy their oracles: 16 exit
+0 and two deliberately trap. The ordinary sample path passes all 32 projects
+(18 execution oracles and 14 intended rejections). The optimized producer and
+raw results are retained in
+[run 41533961739](https://github.com/CathedralOS/Omega/actions/runs/41533961739).
+These are Linux execution results; the other hosted targets remain unexecuted.
 
 At `d6cf554fd1cbf20551983d29bae26f5cf3b81664`, the local, nested call-result
 and saved-actual positives wrongly reject with an uncovered Trap call route.

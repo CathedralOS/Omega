@@ -1249,9 +1249,8 @@ pub(crate) fn refine_published_crash_routes(
         target_parameters,
     );
     let mut surviving = Vec::new();
-    // Ordinary argument lists omit self. Keep formal positions aligned without
-    // inventing receiver-entry custody; a guard that reads self must still use
-    // the existing receiver-aware evidence paths.
+    // The checked guard's formal positions follow the authored argument order.
+    // Projected reads still need evidence for the exact field they observe.
     let mut ordinary_arguments = arguments.iter().copied();
     let operands = target_parameters
         .iter()
