@@ -176,18 +176,22 @@ impl TargetProviderPreparationRequest<'_> {
             let schema = candidate.provenance.schema.symbol();
             // A whole map also supplies its inherited requirements. Calls name
             // their declaring owner, not necessarily this map's root trait.
-            let mut schema_symbols = vec![schema];
+            let schema_owner = self.declaration_identity(schema)?;
+            let mut schema_symbols = Vec::new();
             if let Some(definition) = self.context.typed.trait_definition_by_symbol(schema) {
                 checked_trees::typed_trees::trait_definition::AppliedTraitScope::abstract_scope(
                     definition,
                 )
                 .visit(self.context.typed, &mut |scope| {
-                    if !schema_symbols.contains(&scope.declaration.symbol) {
+                    if scope.declaration.is_boundary
+                        && scope.declaration.symbol != schema
+                        && !schema_symbols.contains(&scope.declaration.symbol)
+                    {
                         schema_symbols.push(scope.declaration.symbol);
                     }
                 });
             }
-            let schema_owners = schema_symbols
+            let inherited_owners = schema_symbols
                 .into_iter()
                 .map(|symbol| self.declaration_identity(symbol))
                 .collect::<Result<Vec<_>, _>>()?;
@@ -230,7 +234,8 @@ impl TargetProviderPreparationRequest<'_> {
                         }
                     }),
                 },
-                schema_owners,
+                schema_owner,
+                inherited_owners,
                 explicitly_selected,
             });
         }

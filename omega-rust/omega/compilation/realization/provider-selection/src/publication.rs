@@ -33,8 +33,9 @@ pub struct PreparedProviderCandidate<Owner = ()> {
         CanonicalProviderDeclaration,
         Result<PreparedProviderRealizations<Owner>, Vec<Diagnostic>>,
     >,
-    /// Complete declaring-owner coverage, including inherited requirements.
-    pub schema_owners: Vec<String>,
+    pub schema_owner: String,
+    /// Inherited coverage does not itself demand a descendant's root slot.
+    pub inherited_owners: Vec<String>,
     pub explicitly_selected: bool,
 }
 
@@ -58,7 +59,7 @@ impl<Owner> PreparedProviderCandidate<Owner> {
         // Parent choice relevance uses the same complete receiver application
         // the whole plan supplies. The exact nominal join precedes export-key
         // comparison; a display path cannot invent another receiver owner.
-        self.schema_owners.contains(owner)
+        self.inherited_owners.contains(owner)
             && self
                 .choice
                 .plan
@@ -170,7 +171,8 @@ impl<Owner, Origin> PreparedTargetChoices<Owner, Origin> {
                                 owner: (),
                             }),
                         },
-                        schema_owners: candidate.schema_owners,
+                        schema_owner: candidate.schema_owner,
+                        inherited_owners: candidate.inherited_owners,
                         explicitly_selected: candidate.explicitly_selected,
                     }
                 })
@@ -480,12 +482,23 @@ impl<Owner: Clone, Origin: Clone + Eq> PreparedTargetChoices<Owner, Origin> {
         invoked_owners.sort_unstable();
         invoked_owners.dedup();
         for (candidate, demanded) in self.candidates.iter().zip(demanded) {
-            *demanded |= (matches!(demand, ProviderApplicationDemand::Product(_))
-                && candidate.explicitly_selected)
-                || candidate
-                    .schema_owners
-                    .iter()
-                    .any(|owner| invoked_owners.binary_search(&owner.as_str()).is_ok());
+            let root_invoked = invoked_owners
+                .binary_search(&candidate.schema_owner.as_str())
+                .is_ok();
+            let authored_map_demanded = match demand {
+                ProviderApplicationDemand::Product(_) => candidate.explicitly_selected,
+                ProviderApplicationDemand::Invocation(_) => {
+                    candidate.explicitly_selected
+                        && candidate
+                            .inherited_owners
+                            .iter()
+                            .any(|owner| invoked_owners.binary_search(&owner.as_str()).is_ok())
+                }
+            };
+            // Merely declaring an unused descendant cannot create another
+            // demanded slot. Only an authored whole map may supply an invoked
+            // ancestor without an invocation of its own root requirement.
+            *demanded |= root_invoked || authored_map_demanded;
         }
         Ok(calls)
     }

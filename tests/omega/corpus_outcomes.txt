@@ -570,6 +570,12 @@ fail/facts/foreign_retained_shared_borrow_persistent_retention rejected 2088ms e
 	statement 9 mutates `second_buffer.value` while local borrow `state` is still active (borrowed at statement 7; its last use is at statement 10)
 fail/facts/foreign_retained_shared_borrow_wrapper_redemption rejected 2004ms expected @13c1304502d6
 	callable `Reader::redeem_wrapper` returns content-bearing custody `Buffer::Owned` sourced only from borrowed parameter `pending` through a structural field; retained-after-return authority requires a consumed owned input
+fail/facts/generic_calling_policy/inherited_helper_rejected rejected 22200ms expected @3855367b078c
+	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
+fail/facts/generic_calling_policy/missing_nested_provider rejected 20347ms expected @3855367b078c
+	calling-policy helper requires an exact Build or target-default provider selection
+fail/facts/generic_calling_policy/missing_policy_provider rejected 18616ms expected @3855367b078c
+	slot `ValuePlan` has 3 covering provider plans for the selected target: `<selected target>::SysVValuePlan::satisfies::ValuePlan` [<fingerprint>], `<selected target>::MicrosoftValuePlan::satisfies::ValuePlan` [<fingerprint>], `<selected target>::AapcsValuePlan::satisfies::ValuePlan` [<fingerprint>] -- choose one in build.omg with `Build::select_provider<ValuePlan, ProviderType>(b);`
 fail/facts/generic_nonempty_array_changed_to_zero rejected 619ms expected @a889c2d8b84c
 	machine `step` state `entry` value call to `step` violates required fact `Count > 0`: the instantiated fact is structurally false (`0 > 0`)
 	machine `step$specialized$47e79a86f727bf08$0` state `entry` value call to `step` violates required fact `Count > 0`: the instantiated fact is structurally false (`0 > 0`)
@@ -6524,6 +6530,8 @@ pass/facts/free_entry_local_state_through_target_body_exit checked 4203ms check-
 pass/facts/generic_calling_policy/bound_argument_exit checked 14319ms check-target:linux_x86_64 @ccdb99ca2214
 pass/facts/generic_calling_policy/constant_projection_exit checked 20960ms check-target:linux_x86_64 @ccdb99ca2214
 pass/facts/generic_calling_policy/distinct_applications_exit checked 18902ms check-target:linux_x86_64 @ccdb99ca2214
+pass/facts/generic_calling_policy/helper_uses_own_policy checked 25618ms check-target:macos_arm64 @3855367b078c
+pass/facts/generic_calling_policy/inherited_helper_exit checked 25618ms check-target:macos_arm64 @3855367b078c
 pass/facts/generic_calling_policy/inline_const_exit checked 19475ms check-target:linux_x86_64 @ccdb99ca2214
 pass/facts/generic_calling_policy/literal_arguments_exit checked 21185ms check-target:linux_x86_64 @ccdb99ca2214
 pass/facts/generic_calling_policy/nested_argument_exit rejected 17926ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
@@ -15456,13 +15464,13 @@ fail/build/build_satisfier_trait_signature_mismatch rejected 34ms unexpected @cc
 	machine satisfaction target `ExtentRootProvider::grant` does not resolve to an exact trait requirement or top-level `boundary requirement`
 fail/build/calling_policy_authored_rejection rejected 19361ms expected @ccdb99ca2214
 	calling policy rejected the boundary: local
-fail/build/calling_policy_checked_helper_rejection rejected 18781ms expected @ccdb99ca2214
+fail/build/calling_policy_checked_helper_rejection rejected 21411ms expected @3855367b078c
 	calling policy rejected the boundary: checked helper observed
 fail/build/calling_policy_entry_premise rejected 18444ms expected @ccdb99ca2214
 	machine `LocalPolicy::plan` is not build-time admissible: machine `LocalPolicy::plan` has an authored `requires` premise along `LocalPolicy::plan`; pre-check semantic evaluation has no checked invocation proof for that premise; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure
 fail/build/calling_policy_missing_target_member rejected 8848ms expected @d2937c3afdf3
 	boundary trait `LocalEntry` cannot evaluate Calling<Policy>: calling policy realization `TargetPolicy::plan` has no body for target `linux_x86_64`
-fail/build/calling_policy_unproved_helper rejected 18269ms expected @ccdb99ca2214
+fail/build/calling_policy_unproved_helper rejected 17786ms expected @3855367b078c
 	cannot prove requires contract for call bounded from LocalPolicy::plan: signature.parameter_count <= 1 (needs fact `value <= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `plan`
 fail/build/captured_named_input_missing_slot rejected 578ms expected published:none @ccdb99ca2214
 	named build input `absent` is not assigned to this activation at OperationId(28) in MachineId(6)/BlockId(30) at Some(OperationId(28))
@@ -22913,23 +22921,23 @@ fail/facts/generic_calling_policy/unresolved_argument rejected 9217ms expected @
 	conformance `GenericPolicy` parameter `Width` requires a const argument, but `UnknownWidth` has another static category
 fail/facts/generic_calling_policy/wrong_argument_kind rejected 8686ms expected @ccdb99ca2214
 	conformance `GenericPolicy` parameter `Width` requires a const argument, but `<structural type>` has another static category
-fail/facts/generic_calling_policy_through_call_result_rejected rejected 16868ms expected @6416b0fdfbe3
+fail/facts/generic_calling_policy_through_call_result_rejected rejected 21595ms expected @3855367b078c
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
-fail/facts/generic_calling_policy_through_const_name_rejected rejected 17042ms expected @6416b0fdfbe3
+fail/facts/generic_calling_policy_through_const_name_rejected rejected 21576ms expected @3855367b078c
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
-fail/facts/generic_calling_policy_through_field_rejected rejected 16824ms expected @6416b0fdfbe3
+fail/facts/generic_calling_policy_through_field_rejected rejected 18712ms expected @3855367b078c
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
-fail/facts/generic_calling_policy_through_local_rejected rejected 16719ms expected @6416b0fdfbe3
+fail/facts/generic_calling_policy_through_local_rejected rejected 18106ms expected @3855367b078c
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
-fail/facts/generic_calling_policy_through_match_join_rejected rejected 16860ms expected @6416b0fdfbe3
+fail/facts/generic_calling_policy_through_match_join_rejected rejected 18720ms expected @3855367b078c
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
-fail/facts/generic_calling_policy_through_other_machine_rejected rejected 16966ms expected @6416b0fdfbe3
+fail/facts/generic_calling_policy_through_other_machine_rejected rejected 17933ms expected @3855367b078c
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
-fail/facts/generic_calling_policy_through_other_state_rejected rejected 16843ms expected @6416b0fdfbe3
+fail/facts/generic_calling_policy_through_other_state_rejected rejected 17937ms expected @3855367b078c
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
-fail/facts/generic_calling_policy_through_parameter_rejected rejected 16929ms expected @6416b0fdfbe3
+fail/facts/generic_calling_policy_through_parameter_rejected rejected 18911ms expected @3855367b078c
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
-fail/facts/generic_calling_policy_through_target_body_rejected rejected 17037ms expected @6416b0fdfbe3
+fail/facts/generic_calling_policy_through_target_body_rejected rejected 18894ms expected @3855367b078c
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
 fail/facts/generic_case_subject_through_call_result_rejected rejected 1886ms expected @ccdb99ca2214
 	case membership must test a value of the exact declaring data type (machine `observe`, state `entry`)
