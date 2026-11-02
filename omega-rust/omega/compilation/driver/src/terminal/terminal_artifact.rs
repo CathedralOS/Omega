@@ -286,6 +286,23 @@ pub(crate) fn produce_retained_terminal_artifacts(
     }
 
     for mut cohort in cohorts {
+        // Constants shared by realized targets must agree across this exact
+        // cohort. Inactive Build rows remain available proposals; their mere
+        // presence never requests a backend or expands scalar evaluation.
+        let mut realization_scopes = cohort
+            .iter()
+            .map(|application| {
+                application
+                    .request
+                    .view
+                    .selected_target_profile
+                    .unwrap_or_else(target::TargetProfile::host)
+                    .target_name()
+                    .to_owned()
+            })
+            .collect::<Vec<_>>();
+        realization_scopes.sort();
+        realization_scopes.dedup();
         let mut timings = std::mem::take(cohort[0].request.view.timings);
         timings.add_completed(TERMINAL_PRODUCTION_STAGE, 0);
         let applications = {
@@ -325,6 +342,7 @@ pub(crate) fn produce_retained_terminal_artifacts(
                             proposals: application.provider_publication.publish(
                                 program.artifact().view(),
                                 application.request.selections.identity(),
+                                &realization_scopes,
                             ),
                             program: Arc::clone(&program),
                         });
@@ -365,6 +383,7 @@ pub(crate) fn produce_retained_terminal_artifacts(
                                 provider_proposals: application.provider_publication.publish(
                                     program.artifact().view(),
                                     application.request.selections.identity(),
+                                    &realization_scopes,
                                 ),
                                 artifact: Arc::clone(program.artifact()),
                                 receipt,
@@ -514,7 +533,6 @@ fn prepare_target_provider_publication(
     Ok(
         provider_planning::target_machines::TargetProviderPreparationRequest {
             application_roots: deployment.roots.as_deref(),
-            application_scopes: &deployment.scopes,
             context: provider_planning::ProviderPlanningContext::new(
                 &source.program.typed,
                 source::DependencyScope::Product,
