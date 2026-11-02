@@ -208,8 +208,8 @@ pub fn prepare_typed_trees(
     // concrete machine here. Validation permits unused template bodies but the
     // generic-value-call fence still rejects any emitted concrete caller whose
     // callee remains generic (an incomplete specialization).
-    // A Binding<R> selects R's callable, not a method on its data carrier.
-    // Settle authored service calls before specialization reads their targets.
+    // Settle authored requirement calls before specialization reads their
+    // targets.
     // Cloning binds only its newly produced instance after substitution; no
     // final whole-program receiver repair or data-method search is needed.
     validation::resolve_dynamic_call_targets(&mut program)?;
@@ -347,8 +347,7 @@ pub fn prepare_typed_trees(
     })?;
     // A projected receiver reads its elaborated field telescope. Binding it
     // before that producer would borrow the declaration's open field instead
-    // of the caller's exact application. This is the ordinary dependency order,
-    // not a separate path for nested Binding carriers.
+    // of the caller's exact application. This is the ordinary dependency order.
     phase_profile::scope("psi.04.post_specialization.dynamic_call_targets", || {
         validation::resolve_dynamic_call_targets(&mut program)
     })?;

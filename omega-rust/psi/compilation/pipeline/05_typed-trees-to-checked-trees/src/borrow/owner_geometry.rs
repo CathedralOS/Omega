@@ -1,7 +1,7 @@
 //! Translate nominal loan owner paths to the checked structural namespace.
-//! Prepared application fields retain their original member symbols, but their
-//! child types include the exact type and region operands. Following the raw
-//! generic declaration would lose those operands at the next nested field.
+//! Prepared occurrences can own different field and case symbols. Their exact
+//! constructor correspondence selects one slot and retains its type and region
+//! operands; following another declaration would lose the next nested field.
 
 use checked_trees::{BorrowLoanOwnerSegment, CheckedUnitStructuralPathSegment};
 use typed_trees::data::DataMember;
@@ -47,9 +47,10 @@ pub(crate) fn carrier_path(
     mut reference: typed_trees::types::TypeReferenceHandle,
     owner_path: &[BorrowLoanOwnerSegment],
 ) -> Option<Vec<CheckedUnitStructuralPathSegment>> {
+    let owner_path = validation::corresponding_loan_owner_path(program, reference, owner_path)?;
     let mut output = Vec::with_capacity(owner_path.len());
     let mut payload = None;
-    for segment in owner_path {
+    for segment in &owner_path {
         reference = program
             .type_reference_table
             .peeled_type_reference(reference);
@@ -74,7 +75,8 @@ pub(crate) fn carrier_path(
                 reference = *element_type;
             }
             BorrowLoanOwnerSegment::Case(symbol) => {
-                let data = program.closed_data_definition(reference)?;
+                let (source, _) = program.variant_owner(*symbol)?;
+                let data = program.data_constructor_definition(reference, source.symbol)?;
                 if payload.is_some() {
                     return None;
                 }
@@ -103,7 +105,8 @@ pub(crate) fn carrier_path(
                         .iter()
                         .find(|field| field.symbol == *symbol)?
                 } else {
-                    let data = program.closed_data_definition(reference)?;
+                    let (source, _) = program.any_field_owner(*symbol)?;
+                    let data = program.data_constructor_definition(reference, source.symbol)?;
                     program
                         .data_members(data)
                         .iter()

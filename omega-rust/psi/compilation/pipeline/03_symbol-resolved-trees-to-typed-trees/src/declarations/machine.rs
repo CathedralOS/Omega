@@ -6,7 +6,6 @@ use crate::expressions::expression::lower_expression_handle;
 use crate::lowerer::Lowerer;
 use crate::lowerer::name::{lower_name, lower_names};
 use crate::signatures::type_parameters::{lower_type_parameter, lower_type_parameters};
-use crate::tables::expression_table_mut;
 use crate::tables::resolved_expressions;
 use crate::type_reference::{lower_type_reference_into_table, retain_type_reference_selection};
 use arena::HandleSpan;
@@ -222,7 +221,6 @@ fn lower_machine_contents(
         lifetime_parameters: lower_names(&machine.lifetime_parameters),
         type_parameters: HandleSpan::empty(),
         declared_type_equations: HandleSpan::empty(),
-        declared_type_predicates: HandleSpan::empty(),
         owned_data: HandleSpan::empty(),
         satisfies: HandleSpan::empty(),
         conformance_bounds: Vec::new(),
@@ -272,15 +270,6 @@ fn lower_machine_contents(
         .typed_trees
         .declared_type_equations
         .insert_many(equations);
-
-    let mut predicates = Vec::new();
-    for &expression in resolved_expressions(lowerer.source_trees)
-        .expression_handles(machine.declared_type_predicates)
-    {
-        predicates.push(lower_expression_handle(lowerer, expression)?);
-    }
-    typed_machine.declared_type_predicates =
-        expression_table_mut(&mut lowerer.typed_trees).insert_expression_handles(predicates);
 
     if let Some(application) = &machine.attached_data_application {
         typed_machine.attached_data_application =

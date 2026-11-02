@@ -237,13 +237,7 @@ fn admit_declaration_authority(
     request: &CheckingRequest<'_>,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     if let Some(authority) = request.declaration_authority {
-        let descriptor_occurrences =
-            validation::execution_projection::descriptor_selection_occurrences(&checked.typed);
-        validation::validate_authored_declaration_selections(
-            checked,
-            authority,
-            &descriptor_occurrences,
-        )?;
+        validation::validate_authored_declaration_selections(checked, authority)?;
     }
     Ok(())
 }
@@ -284,9 +278,29 @@ fn check_program(
     )?;
     let program = program
         .with_retained_borrow_custodies(declared_content.retained_borrow_custodies.clone().into());
+    let proof_plan = phase_profile::scope("psi.05.build_proof_plan", || {
+        proof::obligations::build_proof_plan(&program)
+    });
+    // Storage history first: validation's judgments read it instead of
+    // keeping their own. Its inputs are program-only effect plans.
+    let storage_graph = phase_profile::scope("psi.05.storage_graph", || {
+        let operational = validation::infer_operational_may(&program);
+        let service_reaches = validation::infer_service_reaches(&program, &operational);
+        crate::published::facts::build_storage_graph(
+            &program,
+            &proof_plan,
+            declared_content.clone(),
+            operational,
+            service_reaches,
+        )
+    });
+    if let Some(graph) = storage_graph {
+        program.attach_storage_graph(std::sync::Arc::new(graph));
+    }
     let mut validated = phase_profile::scope("psi.05.prepare_typed_program", || {
         prepare_typed_program(
             &program,
+            proof_plan,
             &opaque_property_receipts,
             admits_pending_inputs,
             prior_dependency_bodies,

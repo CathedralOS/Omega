@@ -350,8 +350,8 @@ impl Scope<'_> {
         }
     }
 
-    /// The value a call in an index position returns: the callee's single
-    /// returned value with its value binders and runtime parameters bound to
+    /// The value a call in an index position returns: the callee's published
+    /// result equation, else its single returned value, with its value binders and runtime parameters bound to
     /// the call's exact actuals under the supplying application. Only an index
     /// formed in this scope reads an unsubstituted static actual as its current
     /// value; a callee's own binder never falls back to a same-named caller
@@ -372,7 +372,11 @@ impl Scope<'_> {
             .program
             .machine_by_own_or_state_symbol(call.target_symbol)?;
         let entry = self.program.machine_states(callee).first()?;
-        let returned = crate::flow::state_returned_value(self.program, entry)?;
+        // The callee's published result equation is the call's value whatever
+        // control shape proves it; a body with one returned value supplies
+        // the same value when no equation is published.
+        let returned = crate::flow::contract_returned_value(self.program, callee)
+            .or_else(|| crate::flow::state_returned_value(self.program, entry))?;
         let values = self.values(formation)?;
         let mut callee_substitutions = Vec::new();
         for (parameter, actual) in self

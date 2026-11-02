@@ -153,9 +153,6 @@ impl<'module> TerminalBoundaryRecipes<'module> {
                     "case data is not yet classifiable as a boundary value; pass it by reference"
                         .into(),
                 ),
-                StructuralTypeShape::BindingCarrier => {
-                    return Err("routed binding has no selected boundary storage".into());
-                }
             };
         Ok(self.recipes.values.insert(recipe))
     }

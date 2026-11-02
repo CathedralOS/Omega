@@ -107,7 +107,7 @@ pub(super) fn validate_catalog_type_shape(
                 );
             }
         }
-        StructuralTypeShape::PrimitiveScalar(_) | StructuralTypeShape::BindingCarrier => {}
+        StructuralTypeShape::PrimitiveScalar(_) => {}
         // Completed owned concatenations retain their bounded carrier here.
         // Formation and readers independently validate result custody; the
         // carrier declaration alone creates no source or borrowing authority.
@@ -598,7 +598,6 @@ pub(super) fn attachment_storage_types(
             }
             StructuralTypeShape::FixedArray { element, .. } => pending.push(*element),
             StructuralTypeShape::PrimitiveScalar(_)
-            | StructuralTypeShape::BindingCarrier
             | StructuralTypeShape::ByteSequence(_)
             | StructuralTypeShape::Reference { .. }
             | StructuralTypeShape::ElementView { .. } => {}

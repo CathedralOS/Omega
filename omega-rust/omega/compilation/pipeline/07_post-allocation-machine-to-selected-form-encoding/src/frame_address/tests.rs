@@ -33,7 +33,7 @@ fn fixture() -> (
     };
     let frame = TargetFrameLayoutPlan {
         post_allocation_machine: physical_instructions::PostAllocationMachineIdentity::from_bytes([0;32]),
-        callee_saved_requirements: selected_instructions_to_register_homes::AllocatedCalleeSavedRequirementIdentity::from_bytes([0;32]),
+        callee_saved_requirements: register_homes::AllocatedCalleeSavedRequirementIdentity::from_bytes([0;32]),
         callee_save_storage: machine_code::NonAuthoritativeCalleeSaveStorageIdentity::from_bytes([0;32]),
         register_environment: register_model::TargetRegisterEnvironmentIdentity::from_bytes([0;32]),
         physical_register_model: register_model::PhysicalRegisterModelIdentity::from_bytes([0;32]),

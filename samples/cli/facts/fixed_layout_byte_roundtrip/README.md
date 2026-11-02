@@ -23,4 +23,13 @@ native/Terminal agreement. [Run 41387515883](https://github.com/CathedralOS/Omeg
 also checks seven intended rejection controls and reloads the retained Terminal
 artifact using the matching optimized Rust producer at `70ba9ee572b4`.
 The [typed interior-region prerequisite](../fixed_region_byte_roundtrip/README.md)
-is landed. The other eight transport places and other hosted targets remain open.
+is landed.
+
+The [field program](field/main.omg) moves the decoded optional into `Saved.value`
+before matching and consumption. It runs both payloads 42 and 41 and checks 1 and 0
+plus every field and canary; its twin removes only the decoder guard.
+[Run 41412055228](https://github.com/CathedralOS/Omega/actions/runs/41412055228)
+qualifies the field pair and ordinary samples on Linux x86_64, checks the local
+roundtrip and nested-result loan control, and records native/Terminal agreement
+with optimized producer `cfcadebbcc85`. The other seven transport places and
+other hosted targets remain open.

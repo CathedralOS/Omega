@@ -63,8 +63,10 @@ pub use facts::{
     CheckedStateRankCorrespondence,
 };
 pub use facts::{
-    CheckedDeclarationCapture, CheckedDeclarationDescription, CheckedDeclarationDescriptions,
-    CheckedDeclarationParameter, CheckedDeclarationSpecialization, CheckedMachineDescription,
+    CheckedCompilerEvaluationCall, CheckedCompilerEvaluationComponent,
+    CheckedCompilerEvaluationDependencies, CheckedDeclarationCapture,
+    CheckedDeclarationDescription, CheckedDeclarationDescriptions, CheckedDeclarationParameter,
+    CheckedDeclarationSpecialization, CheckedMachineDescription, CheckedSelectionRequirement,
 };
 pub use facts::{
     ProofApplicationMachine, ProofApplicationPlan, ProofApplicationTargetMember, ProofApplications,

@@ -351,7 +351,7 @@ pub(super) fn append_statement_calls<'plans>(
                     observations: writes,
                 });
             }
-            execution.install_call_stores(completed.stores);
+            execution.install_call_stores(completed.call, completed.stores);
         }
         StatementNode::AssemblyFact(_) | StatementNode::Transition(_) => {}
     }
@@ -1881,7 +1881,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                         observations: writes,
                     });
                 }
-                self.install_call_stores(completed.stores);
+                self.install_call_stores(completed.call, completed.stores);
                 self.capture_returned_retention(
                     expression,
                     destination,

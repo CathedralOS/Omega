@@ -82,7 +82,6 @@ impl MembershipReachability {
                     } => fields(rows) || cases.iter().any(|case| fields(&case.fields)),
                     StructuralTypeShape::PrimitiveScalar(_) => scalar_domains,
                     StructuralTypeShape::ByteSequence(_) => true,
-                    StructuralTypeShape::BindingCarrier => false,
                 };
                 if reachable {
                     result.rows[index].1 = true;
@@ -126,7 +125,7 @@ mod tests {
     #[test]
     fn domain_reachability_follows_children_and_conservatively_keeps_unknowns() {
         let types = vec![
-            declaration(1, StructuralTypeShape::BindingCarrier),
+            declaration(1, StructuralTypeShape::Sum { cases: Vec::new() }),
             declaration(
                 2,
                 StructuralTypeShape::FixedArray {
@@ -134,7 +133,7 @@ mod tests {
                     length: terminal_psi::ArrayExtent::Literal(4),
                 },
             ),
-            declaration(3, StructuralTypeShape::BindingCarrier),
+            declaration(3, StructuralTypeShape::Sum { cases: Vec::new() }),
             declaration(
                 4,
                 StructuralTypeShape::Reference {

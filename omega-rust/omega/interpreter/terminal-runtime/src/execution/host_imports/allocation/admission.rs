@@ -34,6 +34,17 @@ pub(super) fn select(
     Ok(None)
 }
 
+/// Where the virtual address lives inside the declared boundary contract.
+pub(super) enum AddressLocation {
+    /// The address is the bare scalar parameter or result itself.
+    BareScalar,
+    /// `free` consumes an owned record whose single scalar field is the address.
+    OwnedArgument(Vec<Path>),
+    /// `calloc` returns an owned record whose single scalar field receives
+    /// the minted virtual address.
+    RecordResult(semantic_vocabulary::StructuralTypeId, Vec<Path>),
+}
+
 pub(super) fn validate(
     program: &TerminalProgram,
     declaration: &BoundaryMachineDeclaration,
@@ -41,7 +52,7 @@ pub(super) fn validate(
     application: Option<&BoundaryCallingApplication>,
     signature: &TerminalImportSignature,
     operation: AllocationOperation,
-) -> Result<Option<Vec<Path>>, TerminalRuntimeError> {
+) -> Result<AddressLocation, TerminalRuntimeError> {
     let invalid = TerminalRuntimeError::InvalidProvision;
     let address = ScalarType::Integer(
         IntegerType::address(64)
@@ -51,17 +62,51 @@ pub(super) fn validate(
         IntegerType::new(IntegerSign::Unsigned, 64)
             .map_err(|_| invalid("allocation requires a supported size carrier"))?,
     );
-    let mut payload = None;
+    let mut location = AddressLocation::BareScalar;
     let native = match operation {
         AllocationOperation::Allocate => {
             if signature.scalar_parameters != [unsigned, unsigned]
                 || !signature.structural_parameters.is_empty()
-                || signature.result != BoundaryMachineResult::Scalar(address.into())
                 || declaration.parameter_order != [BoundaryParameterKind::Scalar; 2]
             {
                 return Err(invalid(
-                    "calloc requires two u64 sizes and a bare address result",
+                    "calloc requires two u64 sizes and an address result",
                 ));
+            }
+            match &signature.result {
+                BoundaryMachineResult::Scalar(actual)
+                    if *actual == address.into() => {}
+                BoundaryMachineResult::Structural(result) => {
+                    // An address-token record such as `Allocation { pointer }`
+                    // carries the minted address in exactly one payload field.
+                    let path = super::super::native_word::scalar_payload_path(
+                        program,
+                        result.structural_type,
+                        address,
+                    )?;
+                    let application = application.ok_or(invalid(
+                        "calloc record result requires the complete admitted calling application",
+                    ))?;
+                    let result_root = application.signature.result.ok_or(invalid(
+                        "calloc record result calling application carries no result shape",
+                    ))?;
+                    let envelope = super::super::native_word::native_word_envelope(
+                        &application.signature,
+                        result_root,
+                    )
+                    .map_err(invalid)?;
+                    if envelope.byte_size != 8 || envelope.alignment != 8 {
+                        return Err(invalid(
+                            "calloc record result must occupy one aligned pointer word",
+                        ));
+                    }
+                    location = AddressLocation::RecordResult(result.structural_type, path);
+                }
+                _ => {
+                    return Err(invalid(
+                        "calloc requires two u64 sizes and an address result",
+                    ))
+                }
             }
             CallSignature {
                 parameters: vec![ValueShape::integer(8, 8); 2],
@@ -116,7 +161,7 @@ pub(super) fn validate(
                         "free native argument must occupy one aligned pointer word",
                     ));
                 }
-                payload = Some(path);
+                location = AddressLocation::OwnedArgument(path);
             }
             CallSignature {
                 parameters: vec![ValueShape::integer(8, 8)],
@@ -135,5 +180,5 @@ pub(super) fn validate(
             ));
         }
     }
-    Ok(payload)
+    Ok(location)
 }

@@ -2,7 +2,7 @@
 data Packet<Element [copy], const Count: u64> [copy] { items: [Element; Count]; }
 data Context { packet: Packet<u8, 2>; }
 machine capacity<Length [copy], const Capacity: u64>(items: Length) -> u64
-where Length == [u8; Capacity]
+requires Length == [u8; Capacity]
 { Capacity }
 machine main(context: &mut Context) crashes Trap {
     context.packet.items[0] = 7;

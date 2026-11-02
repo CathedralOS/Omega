@@ -32,7 +32,7 @@ cargo nextest run -p checked-trees-to-lowered-psi --test structural_return_sourc
 ```
 
 Psi 05 decides call custody once with
-`omega-rust/psi/compilation/checking/src/machine_calls/structural_call_custody.rs`;
+`omega-rust/psi/compilation/validation/src/machine_calls/structural_call_custody.rs`;
 ordinary binding and completion belong to
 `05_typed-trees-to-checked-trees/src/execution/terminal_unit/control/statement_sequence.rs`.
 Whole-root linear input-origin forwarding uses the existing `CallStructural`

@@ -1070,6 +1070,70 @@ pub(crate) fn state_returned_value(
     returned
 }
 
+/// The value a machine's published result contract names: the first unnamed
+/// `ensures` conjunct `result == value` (either side) whose value does not
+/// itself read the result. The callee proves that equation on every normal
+/// exit, so a caller may use it whatever control shape the body has.
+pub(crate) fn contract_returned_value(
+    program: &dyn ::validation::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+) -> Option<typed_trees::expression::ExpressionHandle> {
+    use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+    use typed_trees::signature::SignatureContractKind;
+    let entry = program.machine_states(machine).first()?;
+    if program
+        .state_parameters(entry)
+        .iter()
+        .any(|parameter| parameter.name.as_str() == "result")
+    {
+        return None;
+    }
+    let names_result = |expression: ExpressionHandle| {
+        matches!(program.expression_table.expression(expression), ExpressionNode::Name(path)
+            if matches!(program.expression_table.name_path_members(path.members), [member]
+                if member.as_str() == "result"))
+    };
+    let reads_result = |expression: ExpressionHandle| {
+        let mut found = false;
+        ::validation::expression_traversal::visit_post_order(
+            program,
+            expression,
+            &mut Vec::new(),
+            |handle, _| found |= names_result(handle),
+        );
+        found
+    };
+    let mut pending = program
+        .machine_contracts(machine)
+        .iter()
+        .filter(|contract| contract.kind == SignatureContractKind::Ensures)
+        .filter(|contract| contract.binding.is_none())
+        .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
+        .filter_map(|fact| fact.as_expression().copied())
+        .collect::<Vec<_>>();
+    pending.reverse();
+    while let Some(expression) = pending.pop() {
+        let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+            continue;
+        };
+        match binary.operator {
+            BinaryOperator::And => {
+                pending.push(binary.right);
+                pending.push(binary.left);
+            }
+            BinaryOperator::Equal => {
+                for (result, value) in [(binary.left, binary.right), (binary.right, binary.left)] {
+                    if names_result(result) && !reads_result(value) {
+                        return Some(value);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
 /// The statements a state's statement span names, paired with their index.
 pub(crate) fn indexed_statements(
     program: &dyn ::validation::CheckingInput,

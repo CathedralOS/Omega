@@ -6,7 +6,7 @@ domain Cell::Ready
 requires self.value >= 73u64;
 
 machine identity<Value>(value: Value) -> Value
-where Value == &write Cell
+requires Value == &write Cell
 { value }
 
 machine consume(cell: &Cell) -> u64 {

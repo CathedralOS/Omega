@@ -137,7 +137,7 @@ fn product_provider_request_admission_belongs_to_psi() {
 
 #[test]
 fn selected_constant_evaluation_belongs_to_psi() {
-    let selection = include_str!("../../realization/selected-dispatch/src/constant_evaluation.rs");
+    let selection = include_str!("../../build-evaluation/src/admission/selected_constants.rs");
     assert_absent(&[selection], "selection drives", &[".finish(typed)"]);
     let geometry = include_str!("../../realization/provider-planning/src/data_layout_queries.rs");
     assert_absent(
@@ -436,7 +436,6 @@ fn terminal_calling_activation_uses_only_canonical_geometry() {
     );
 }
 
-
 #[test]
 fn native_telescope_construction_is_shared_by_preparation_and_canonical_replay() {
     let source = include_str!(
@@ -517,22 +516,6 @@ fn provider_derivation_consumes_the_prepared_service_census() {
         &[
             "PreparedServiceCatalog::prepare(context)",
             "derive_satisfies_plans(",
-        ],
-    );
-}
-
-#[test]
-fn service_catalog_consumers_do_not_keep_retired_binding_projection() {
-    let dispatch = include_str!(
-        "../../realization/selected-dispatch/src/checked_interpreter_dispatch/boundary_dispatch.rs"
-    );
-    assert_absent(
-        &[dispatch],
-        "dispatch retained",
-        &[
-            "classify_exact_bound_service_carrier(",
-            "classify_exact_service_parameter_carrier(",
-            "service_schema::from_typed",
         ],
     );
 }

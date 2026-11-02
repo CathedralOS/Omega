@@ -1015,7 +1015,6 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             checked,
             attachment,
             declaration,
-            &catalogs.structural_types,
             &plan.provider_attachment_requirements,
             &boundaries,
             &mut catalogs.next_place,

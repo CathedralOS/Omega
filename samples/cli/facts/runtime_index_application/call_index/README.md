@@ -65,6 +65,8 @@ the unspecialized body could not bind `Created` to its current value.
   Psi and native agreement on macOS arm64. The other three hosted targets keep
   their authored entries and are not executed here.
 
-Remaining open under `RUNTIME-VALUE-GENERICS`: callee result contracts as the
-source of a call index (instead of the callee body), effectful call indices,
+The [contract-proved production](../contract_index/README.md) takes the
+call's value from the callee's result contract instead of its body.
+
+Remaining open under `RUNTIME-VALUE-GENERICS`: effectful call indices,
 and execution on the Windows x86-64, Linux x86-64 and Linux arm64 hosts.

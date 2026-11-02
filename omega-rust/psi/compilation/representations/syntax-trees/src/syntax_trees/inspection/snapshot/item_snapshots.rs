@@ -138,8 +138,6 @@ pub enum ItemSnapshot {
         type_parameters: Vec<TypeParameterSnapshot>,
         satisfies: Vec<SatisfiesClauseSnapshot>,
         conformance_bounds: Vec<GenericConformanceBoundSnapshot>,
-        #[serde(skip_serializing_if = "Vec::is_empty")]
-        where_facts: Vec<ProofFactSnapshot>,
         terminates_guarantee: bool,
         ranking_subjects: Vec<ExpressionSnapshot>,
         ranking_view: Vec<IdentifierSnapshot>,
@@ -621,12 +619,6 @@ pub(crate) fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnap
                 .nested_machines
                 .handles()
                 .map(|handle| snapshot_item(syntax_trees, syntax_trees.items.item(handle)))
-                .collect(),
-            where_facts: syntax_trees
-                .items
-                .proof_facts(value.where_facts)
-                .iter()
-                .map(|fact| snapshot_proof_fact(syntax_trees, fact))
                 .collect(),
             name: snapshot_identifier(syntax_trees, &value.name),
             attached_data: value

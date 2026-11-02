@@ -1152,7 +1152,6 @@ fn machine_from_signature(
         authored_target: None,
         boundary: false,
         generic_data_template: Default::default(),
-        where_facts: HandleSpan::empty(),
         lifetime_parameters: signature.lifetime_parameters.clone(),
         type_parameters,
         satisfies,

@@ -96,8 +96,8 @@ pub(crate) fn emit_target(
         let encoding = phase_profile::scope("omega.07", || {
             observation.enter(NativePipelineStage::SelectedFormEncoding);
             stage_optimized_layout_independent_selected_form_encoding(
-                selected,
-                &machine,
+                selected.current_program(),
+                machine.machine().plan(),
                 registers,
                 Some(frame.layout().plan()),
             )
