@@ -189,6 +189,15 @@ retains the generated acceptance locks/admissions beside each command's raw
 checking and engine output. It performs no Rust build. These historical locks
 are replay inputs, not authority to install into a new checkout.
 
+Another actual conflict joined Main
+`91458311fe6a2659c87a3ae54137a9753c06d93f`. Independent consumer review retained
+the exact 08b observations: this row uses primitive comparisons and builtin
+wrapping operations, not the new data-identity, denotational or trait-selected
+token-operator routes. Its reachable selected calls remain demanded. The numeric
+arithmetic owner, native backend, Terminal encoding/interpreter and SDK are
+unchanged in that join; checking/lowering ownership moves are compiled by normal
+CI. These are applicability arguments, not executions of a 914 compiler.
+
 Only this fact's target-body frontier is removed. The remaining places are
 discoverable through the reproducible inventory query in `TASKS.md`; its
 handwritten aggregate count was removed after repeated actual merge conflicts. Both Build-owned
