@@ -316,18 +316,23 @@ retired-syntax deletions to completion.
     `samples/cli/audio/audio_playback` and its sine, square, and melody
     consumers through unchanged playback oracles; shared binding-value producers
     and helpers remain ordinary machines.
-    Frontier: 46 `samples/cli/facts/*/target_body` places still spell the
-    prefix.
+    Inventory: `rg -l --glob '**/target_body/main.omg' '^[[:space:]]*(windows_x86_64|linux_x86_64|macos_arm64|linux_arm64)[[:space:]]' samples/cli/facts` lists the remaining target-prefixed places.
   - Transport exact requirement and implementation identities, lifetimes,
     captured operands, const/evidence telescopes, callbacks, entry backing,
     ownership, reach, and public contracts through one checked Terminal artifact
     and Build companion to both engines without target-specific source rewriting.
   - Carry the facts that still refuse behind a selected implementation: opaque
     write-only boundaries require an admitted claim for the selected implementation;
-    evidence binders in requirement generics, the
-    invocation ceiling of boundary traits a body calls, and effectful performed
-    writes (`IntegerAt`). Their `target_body` places keep the retired prefix
-    until then.
+    a `&write`
+    slot whose referent carries a reference leaf (`write_only_reference_store`),
+    evidence binders in requirement signatures (`selected_crash_formal`,
+    `selected_value_application`: the requirement grammar admits none), and
+    effectful performed writes (`narrowed_integer_write`: IntegerAt fit is
+    judged only from a body, so a requirement call has none). Their
+    `target_body` places keep the retired prefix until then. A requirement
+    publishes `invokes` for each boundary trait its implementations invoke, and
+    a public caller with an explicit ceiling names the requirement; migrated
+    places follow that rule.
   - Pin missing/duplicate provider rows, incompatible selected ABI/import/ISA
     supply, invalid unselected implementations, and retired-prefix rejection;
     applicability is checked on the selected closure, not by accepting untyped
