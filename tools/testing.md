@@ -804,6 +804,27 @@ Name the fixtures the change can move: `--compare` refuses to run without
 `--filter` or `--shard`, because both sides of an unfiltered comparison run the
 whole corpus, about two hours on a Windows host.
 
+A compare over 40 fixtures runs on hosted CI with `--remote`, and a local one
+that large refuses without `--local`:
+
+```bash
+python3 tools/corpus_gate.py --compare origin/main --remote --filter calls/,host/
+```
+
+`--remote` pushes the committed HEAD to the work branch it continues (it must
+already be pushed, as the draft PR requires; `--remote work/NAME` names it),
+dispatches the `Compiler queue pilot` at the base and at the head with the same
+exact fixture list, waits for both, and diffs their rows with the local
+compare's exit codes. Hosted runners are free for this repository and start in
+about 0.1 minutes; a Linux run takes about 15 minutes including its build, no
+slower than a local base build, and the Mac builds nothing. The default leg is
+checking only on `linux_x86_64`; `--native` or `--both` also compares
+native/Terminal rows on the matching host (`linux_x86_64`, `linux_arm64`,
+`windows_x86_64` or `macos_arm64`). The base's rows are cached like local
+ones, so a second remote compare against that base dispatches only the head.
+The pilot takes exact `pass/` and `fail/` IDs, so `run/` fixtures and `--shard`
+stay local.
+
 The base is built from its commit in a separate worktree
 (`build/compare-bases/<sha>`) with its own build directory, so neither uncommitted edits nor artifacts from
 this tree can leak into it. That worktree and the base's cached rows live in the
