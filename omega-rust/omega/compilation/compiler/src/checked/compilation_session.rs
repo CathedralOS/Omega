@@ -177,7 +177,7 @@ impl CompilationSession {
                 .map_err(|failure| {
                     crate::CompilationProductError::Production(failure.into_diagnostics())
                 })?;
-            let mut outputs = crate::compiler::produce_products(vec![(
+            let mut outputs = crate::target_batch::produce_products(vec![(
                 (),
                 Ok(crate::product_execution::ProductRequest::Requested {
                     realization: selected,

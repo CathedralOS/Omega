@@ -464,7 +464,7 @@ impl CompilationSession {
                 };
                 requests.push((owner, request));
             }
-            for ((position, owner, cache), product) in crate::compiler::produce_products(requests) {
+            for ((position, owner, cache), product) in crate::target_batch::produce_products(requests) {
                 let description = match product.and_then(crate::CompilationOutput::into_component) {
                     Ok(product) => {
                         if let Some(cache) = cache
@@ -528,7 +528,7 @@ impl CompilationSession {
                     });
                 products.push((owner, request));
             }
-            Ok(crate::compiler::produce_products(products))
+            Ok(crate::target_batch::produce_products(products))
         })
     }
 }

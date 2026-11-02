@@ -439,7 +439,7 @@ narrows realization only.
   Enforce the connected single-pass Psi (`00–07`) + single-pass Build +
   per-target Omega (`00–09`) pipeline architecture and workspace dependency
   topology in [the pipeline contract](omega-rust/pipeline.md) end to end.
-  Owners: `omega-rust/omega/compilation/compiler/src/compiler.rs`,
+  Owners: `omega-rust/omega/compilation/compiler/src/target_batch.rs`,
   `omega-rust/psi/compilation/psi-compiler/`,
   `omega-rust/omega/compilation/native-production/`, and workspace architecture
   gates (`tools/check_native_boundary.py` and `cargo metadata` guards).
@@ -456,7 +456,7 @@ narrows realization only.
     direct-import fixture shape.
   - **BUILD-EVALUATES-ONCE / ONE-DRIVER-PER-STAGE:** evaluate `build.omg` once
     per compilation with no realized target observed, run Psi `00–07` once in
-    `compiler.rs` to produce one canonical Terminal Psi artifact, and run Omega
+    `target_batch.rs` to produce one canonical Terminal Psi artifact, and run Omega
     `00–09` and emission once per requested target without
     checked-tree/lowered-Psi sidecars. Preserve source-cohort sharing across
     package occurrences while completing provider readiness/resumption and
@@ -1460,7 +1460,7 @@ defines the complete product bar.
   - Preserve exact closed slot applications, call occurrences, and selected
     plans across activation/result/out-parameter joins to native execution via
     `omega-rust/omega/compilation/backend/plans/program-entry-plan/`,
-    `omega-rust/omega/compilation/compiler/terminal-production/`,
+    `omega-rust/psi/compilation/psi-compiler/terminal-production/`,
     `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/settlement/entry_settlement/`,
     `native-artifact`'s `publish_fragment_object`, and
     `omega-rust/omega/compilation/backend/images/image-emission/src/entries/hosted_receiver.rs`.
