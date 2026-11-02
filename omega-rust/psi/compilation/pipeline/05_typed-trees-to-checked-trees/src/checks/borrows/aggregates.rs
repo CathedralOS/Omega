@@ -206,6 +206,7 @@ fn check_formed_leaves<'p>(
             });
             let Some(conflict) = simultaneous_hold_conflict(
                 program,
+                &facts.borrow,
                 &first.place(),
                 first.kind,
                 &second.place(),

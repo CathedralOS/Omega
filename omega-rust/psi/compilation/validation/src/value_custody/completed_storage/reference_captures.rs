@@ -219,9 +219,17 @@ impl Resolver<'_> {
         if view && self.control.operand_retentions.is_valid(capture.retention) {
             let profile = self.control.operand_retentions.get(capture.retention);
             if profile.descriptor.is_valid() || !profile.alternatives.is_empty() {
-                return self
-                    .profile_descriptor(capture.retention, capture.type_reference, path)
-                    .unwrap_or(Selection::Unavailable);
+                match self.profile_descriptor(capture.retention, capture.type_reference, path) {
+                    Some(selected) => return selected,
+                    None if path.is_empty() => return Selection::Unavailable,
+                    // No descriptor association is not an unavailable current
+                    // slot. A nonempty path crosses this pointer: its exact
+                    // referents below select the slot at the consumer's cut,
+                    // rather than replaying captured pointee contents from a
+                    // lifetime profile. Explicit unknown alternatives above
+                    // still return Unavailable and cannot take this route.
+                    None => {}
+                }
             }
         }
         if view && path.is_empty() {

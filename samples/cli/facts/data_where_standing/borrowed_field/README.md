@@ -37,6 +37,10 @@ under `tests/omega/{pass,fail}/facts/data_where_standing_borrowed_field_*`.
 a rebound reference descriptor, a bounded field from an unrestricted sibling,
 a disjoint intervening write, and a join with one unbounded incoming reference.
 
+The [nested production](nested/README.md) carries the same fact through a
+reference to `Counter` whose scalar field is itself a reference. It separates
+the two completed pointer reads and their independently retained descriptors.
+
 ## Requirements and evidence
 
 - **Establishment:** construction establishes the full default predicate by

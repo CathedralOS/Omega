@@ -91,6 +91,15 @@ pub(super) fn append_state_borrow_facts(
             &mut backing_loans,
             &current_loans,
         );
+        super::loans::prepare_descriptor_loads(
+            program,
+            machine,
+            state,
+            statement_index,
+            statement,
+            &current_loans,
+            &mut backing_loans,
+        );
         append_carrier_loans(
             arenas,
             &mut loans_span,
