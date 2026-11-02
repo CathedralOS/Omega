@@ -22,9 +22,8 @@ Unsigned carriers retain every zero floor. The arithmetic, nested calls,
 concrete values, and runtime oracle are unchanged. This reconciles these five
 declarations, rather than claiming completion of the full historical audit.
 
-At compiler revision `3009cab5a41`, the unchanged program failed while checking
-constant-argument calls inside the standard library's generic macOS function.
-After call checking and write analysis use the same prepared contract, the
-unchanged program runs with native and Terminal exit 70. The new source keeps
-that same oracle. Raw results retain their actual source and compiler identities
-in the task's claim record.
+The pre-migration source failed with compiler `3009cab5a41` while checking
+constant arguments in the standard library's generic macOS function. With the
+call-checking repairs, that same source runs with native and Terminal exit 70.
+The migrated source retains exit 70 as its runtime oracle. The claim record
+identifies the source and compiler used for each run.

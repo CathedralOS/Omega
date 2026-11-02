@@ -1,13 +1,16 @@
 # Constant arguments inside a generic function
 
-A call inside a generic function must still be checked when that call supplies
-only constants. These programs call `Endpoint::upper<13>()` inside
-`selected_limit<Unused>()`. The enclosing function has not yet been specialized,
-so the call can still refer to the original trait method. The validator must
-recognize that method and check its arguments without demanding an executable
-version of the enclosing function too early.
+These programs check that a provider's constant result remains usable as a
+scalar bound inside a generic function. The compiler must keep the call's exact
+arguments and result contract, and evaluate a field bound in the declaration
+where that bound was written.
 
-A selected checked provider closes limit() to 7; requires value <= limit() carries that bound into exact subtraction 7 - value.
+Here, `selected_limit<Unused>()` calls `Endpoint::upper<13>()` before the enclosing
+function has a concrete executable version. The compiler checks the original
+trait method with those exact arguments; later executable copies still require
+a concrete call.
+
+The selected provider makes limit() equal to 7; requires value <= limit() preserves the bound needed to prove 7 - value.
 
 This is another production of the existing `provider_contract_endpoint` fact,
 owned by **CANONICALIZE-SCALAR-RANGE-CONTRACTS**. The original generic-wrapper
@@ -63,8 +66,10 @@ The requirement checks cover:
 
 The governing rules are [generic applications and specialization](../../../../../wiki/spec/language/generics.md#applications-and-specialization)
 and [exact application identity](../../../../../wiki/spec/language/generics.md#closed-applications-and-canonical-identity).
-All nine frozen positives refused the call in `selected_limit` with the optimized
-`3009cab5a41` producer before the compiler edit. The source, diagnostics, and
-later execution records remain in the task's claim evidence. The broader
+The optimized `3009cab5a41` producer rejected the `upper` call in `selected_limit`
+in all nine initial inputs. The selected-implementation input also omitted
+`invokes SelectedTransfer`; that source declaration was corrected before final
+validation. The claim record retains both source versions, the initial
+diagnostics, and the later execution results. The broader
 migration, temporary invariant violations, filesystem tests, and removal of the
 old range parser remain unfinished.
