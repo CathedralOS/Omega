@@ -1,1 +1,2 @@
-no exact incoming reference origin for values
+cannot prove ensures contract for exit from count
+result <= values.len
