@@ -11,7 +11,7 @@ path = "src/lib.rs"
 [dependencies]
 compiler-storage = { path = "../../../foundation/compiler-storage" }
 arena = { path = "../../../foundation/arena" }
-optimization = { path = "../../../foundation/optimization-selections" }
+optimization = { path = "../../../foundation/optimization" }
 numerics = { path = "../../../foundation/numerics" }
 source = { path = "../../../foundation/source" }
 semantic-vocabulary = { path = "../../../foundation/semantic-vocabulary" }

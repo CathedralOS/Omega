@@ -11,10 +11,10 @@ path = "src/lib.rs"
 [dependencies]
 provider-selection = { path = "../provider-selection" }
 backend-plan = { path = "../../backend/plans/backend-plan" }
-build-time-evaluation = { path = "../../../../psi/compilation/compile-time" }
+build-time-evaluation = { path = "../../../../psi/compilation/build-time-evaluation" }
 representation-planning = { path = "../../../../psi/compilation/checking/representation-planning" }
 trust-model = { path = "../trust-model" }
-effects = { path = "../../backend/plans/provider-evidence" }
+effects = { path = "../../backend/plans/effects" }
 package-compilation = { path = "../../../packages/compilation-inputs" }
 program-entry-plan = { path = "../../backend/plans/program-entry-plan" }
 provider-planning = { path = "../provider-planning" }

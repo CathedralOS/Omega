@@ -9,7 +9,7 @@ use calling_conventions::ValidatedBoundaryEntryPlan;
 use calling_conventions::callback_nominal_report_fingerprint;
 use calling_conventions::{CallingPolicy, evaluate_ordinary_boundary_entry_plan};
 use diagnostics::Diagnostic;
-use representation_planning::OpaqueRepresentationSelection;
+use representation_selections::OpaqueRepresentationSelection;
 use std::sync::{Arc, Weak};
 
 pub(crate) fn evaluate_default_calling_applications(

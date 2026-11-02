@@ -1818,7 +1818,7 @@ dependencies = [
  "package-compilation",
  "program-entry-plan",
  "provider-selection",
- "representation-planning",
+ "representation-selections",
  "runtime-abi",
  "semantic-vocabulary",
  "source",
