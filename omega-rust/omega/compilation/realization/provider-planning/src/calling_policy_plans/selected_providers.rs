@@ -104,6 +104,8 @@ pub(super) fn prepare(
         {
             continue;
         }
+        let application = checked.typed.closed_requirement_application(requirement);
+        let template = application.map_or(requirement, |application| application.template);
         let mut matching = selected.choices.iter().flat_map(|choice| {
             choice
                 .candidate
@@ -112,7 +114,7 @@ pub(super) fn prepare(
                 .iter()
                 .enumerate()
                 .filter_map(move |(ordinal, source)| {
-                    (*source == requirement).then_some((choice, ordinal))
+                    (*source == template).then_some((choice, ordinal))
                 })
         });
         let Some((choice, ordinal)) = matching.next() else {
@@ -135,7 +137,7 @@ pub(super) fn prepare(
         ) {
             return Err(failure("calling-policy evaluation requires a checked helper body; native supply is not semantic execution".into()));
         }
-        let body = owner
+        let mut body = owner
             .row_realizations
             .get(ordinal)
             .and_then(|realization| realization.authored())
@@ -146,6 +148,40 @@ pub(super) fn prepare(
         let declaration = owner.provider_type.ok_or_else(|| {
             failure("calling helper lost its selecting declaration correspondence".into())
         })?;
+        if let Some(application) =
+            application.filter(|application| application.template != requirement)
+        {
+            // A closed use names the checker's exact application, not a
+            // same-spelled generic template. Selection is already complete;
+            // only its original-to-closed body correspondence is substituted.
+            let mut instances = checked
+                .facts
+                .provider_closed_requirements
+                .iter()
+                .filter(|fact| {
+                    fact.template == template
+                        && fact.closed_requirement == requirement
+                        && fact.receiving_application == application.trait_application_identity
+                        && fact.selecting_declaration == declaration
+                        && checked.typed.requirement_realization_matches(
+                            requirement,
+                            body.symbol,
+                            fact.provider,
+                        )
+                });
+            let instance = instances.next().ok_or_else(|| {
+                failure("calling helper lost its exact checked closed application".into())
+            })?;
+            if instances.next().is_some() {
+                return Err(failure(
+                    "calling helper has competing checked closed applications".into(),
+                ));
+            }
+            body = checked
+                .typed
+                .machine(instance.provider)
+                .ok_or_else(|| failure("calling helper closed application lost its body".into()))?;
+        }
         bodies.push(
             build_time_evaluation::SelectedBuildTimeProviderBody::prepare(
                 &checked.typed,
