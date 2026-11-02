@@ -42,7 +42,39 @@ pub(super) fn realize(
             _ => None,
         })
         .collect::<Vec<_>>();
-    if runtime.is_empty() || count == expected {
+    if runtime.is_empty() {
+        return Ok(());
+    }
+    // Preparation may revisit this occurrence after rebuilding its static
+    // bindings. Its already evaluated Value operands still own those bindings;
+    // returning on arity alone would lose fields, which have no direct symbol.
+    // The closed signature's exact binder suffix authenticates the positions.
+    let (_, declared) = program
+        .trait_machine_signature(application.template)
+        .ok_or_else(|| super::super::failed("runtime requirement lost its authored signature"))?;
+    let ordinary = program
+        .applied_signature_authored_parameters(declared, application.signature)
+        .ok_or_else(|| {
+            super::super::failed("runtime requirement lost its Value formal correspondence")
+        })?
+        .len();
+    if ordinary + runtime.len() != expected {
+        return Err(super::super::failed(
+            "runtime requirement projection lost its complete Value formal roster",
+        ));
+    }
+    if count == expected {
+        let operands = match invocation.site {
+            super::super::CallSite::Expression(_) => {
+                expressions_of(program).expression_handles(arguments)[ordinary..].to_vec()
+            }
+            super::super::CallSite::Statement(_) => {
+                program.statement_table.expression_handles(arguments)[ordinary..].to_vec()
+            }
+        };
+        if let Some(application) = invocation.site.authored_machine_application(program) {
+            super::super::body_rewriting::stamp_field_subjects(program, application, &operands);
+        }
         return Ok(());
     }
     if count + runtime.len() != expected {
