@@ -1,6 +1,6 @@
 //! Describe declarations at a paused Build occurrence, without completing Build.
 
-use build_evaluation::terminal_bindings::{BuildProductDescription, BuildProductQuery};
+use build_evaluation::host::bindings::{BuildProductDescription, BuildProductQuery};
 use diagnostics::Diagnostic;
 use package_compilation::source_imports::{ProductQueryDependency, ProductQueryInputs};
 

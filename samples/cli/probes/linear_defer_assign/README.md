@@ -36,6 +36,6 @@ Before that refusal, `let mut receipt: Receipt;` itself fails Terminal
 validation ("zeroed structural establishment has an invalid result shape"):
 the local is established as zeroed storage with linear multiplicity, which
 spec/language/ownership.md rules out ("Implicit zero-filling establishes no
-linear obligation"). Routing it to a deferred home instead reaches stage 05's
+linear obligation"). Routing it to a deferred home instead reaches Psi 06's
 "linear local lost its exact call result custody": a linear home has no
 custody rule for a value established by a later whole assignment.

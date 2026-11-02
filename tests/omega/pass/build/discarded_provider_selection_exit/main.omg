@@ -1,5 +1,5 @@
 // The discard spelling of a provider selection, `_ = Build::select_provider
-// <..>(builder);`, is the same operation as the bare statement: stage 02
+// <..>(builder);`, is the same operation as the bare statement: Psi 02
 // retains every spelling of a Build declaration call as one expression, so
 // the selection reaches Omega's provider planning and the program runs with
 // the selected Console provider. Exits 70.

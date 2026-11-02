@@ -1,6 +1,6 @@
 //! Replay of an inline compiler float-arithmetic row against its boundary call.
 //!
-//! Stage 02 realizes a boundary whose admitted settlement is a compiler
+//! Omega 02 realizes a boundary whose admitted settlement is a compiler
 //! float-arithmetic builtin as one `NearestIeeeFloatArithmetic` row instead
 //! of a call. Legalization accepts that row only when it rejoins the abstract
 //! `BoundaryCall` it replaced: the same Terminal operation and boundary, the

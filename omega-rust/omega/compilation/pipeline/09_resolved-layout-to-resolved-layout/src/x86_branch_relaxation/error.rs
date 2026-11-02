@@ -2,8 +2,6 @@ use isa_x86_64::X86_64SelectedFormEncodingError;
 use selected_instructions::{SelectedBlockId, SelectedInstructionId};
 use target::NativeTarget;
 
-use selected_form_encoding_to_resolved_layout::OptimizedResolvedSelectedFormLayoutError;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum X86BranchRelaxationWorkAxis {
     RuleEvaluations,
@@ -15,7 +13,6 @@ pub enum X86BranchRelaxationWorkAxis {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptimizedX86BranchRelaxationError {
-    Source(OptimizedResolvedSelectedFormLayoutError),
     UnsupportedTarget(NativeTarget),
     BudgetExceeded(X86BranchRelaxationWorkAxis),
     DuplicateInstruction(SelectedInstructionId),

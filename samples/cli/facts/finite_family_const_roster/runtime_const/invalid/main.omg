@@ -1,11 +1,11 @@
 // Expected exit: 0
 trait Windowing {
  machine window<const Width: u32>(source: &[u8]) -> &[u8]
- where Width == 16 || Width == 32;
+ requires Width == 16 || Width == 32;
 }
 Header satisfies Windowing {
  machine window<const Width: u32>(source: &[u8]) -> &[u8]
- where Width == 16 || Width == 32 { source }
+ requires Width == 16 || Width == 32 { source }
 }
 machine dispatch(selected: dyn Windowing, source: &[u8], width: u32) -> &[u8]
 requires width == 16 || width == 32 {

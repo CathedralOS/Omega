@@ -26,7 +26,7 @@ The former receiver-based sample produced native and interpreted exit 45 on
 macOS ARM64. That result is not execution evidence for the static migration.
 
 On Windows at compiler revision `c252be7fa2d1`, the migrated sample passes
-`omega --check` after package review. Native production stops in stage 05's
+`omega --check` after package review. Native production stops in Omega 05's
 certificate search with `proof_search_integer_certificate_work` exhausted at
 65,536 work units. The original field-based accumulator also fails certificate
 production on this compiler, so this is not a new failure introduced by moving

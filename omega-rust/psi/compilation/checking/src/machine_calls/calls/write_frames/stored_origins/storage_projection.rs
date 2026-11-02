@@ -174,6 +174,28 @@ impl<'program> StorageProjectionCursor<'program> {
         Some(())
     }
 
+    /// Authenticate a final collection window without inventing an owned
+    /// array type. Descriptor crossings are handled by the address/read owner;
+    /// this supplies only the declared element-coordinate bounds.
+    pub(in crate::machine_calls::calls::write_frames) fn validate_fixed_window(
+        &mut self,
+        start: usize,
+        end: usize,
+    ) -> Option<()> {
+        if self.selected_case.is_some() {
+            return None;
+        }
+        let reference = self.normalize()?;
+        let TypeReferenceNode::FixedArray {
+            length: FixedArrayLength::Literal(extent),
+            ..
+        } = self.program.type_reference_table.type_reference(reference)
+        else {
+            return None;
+        };
+        (start <= end && end <= *extent).then_some(())
+    }
+
     pub(in crate::machine_calls::calls::write_frames) fn finish(
         mut self,
     ) -> Option<TypeReferenceHandle> {

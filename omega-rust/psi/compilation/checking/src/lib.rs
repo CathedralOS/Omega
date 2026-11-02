@@ -386,7 +386,7 @@ pub use proof_contracts::properties::{
     DeclaredPropertyRequirement, OpaqueDataPropertyReceipt, OpaqueDataPropertyReceiptKind,
     TypeCarryRequirements, declared_property_requirements, effective_data_carry_policy,
     effective_type_carry_policy, effective_type_carry_requirements,
-    type_satisfies_declared_property,
+    substituted_type_satisfies_copy, type_satisfies_declared_property,
 };
 pub use proof_contracts::proposition_entailment::select_named_evidence_implementation;
 pub use proof_contracts::quotients::{

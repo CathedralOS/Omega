@@ -193,10 +193,4 @@ pub struct StateSignature {
     /// (`terminates by ...` is rejected at parse: the witness belongs to
     /// implementations).
     pub terminates_guarantee: bool,
-    /// Signature-level `where` proof facts. A finite generic method family is
-    /// authored as explicit equality disjunctions over the signature's own
-    /// value binders (for example `where Width == 16 || Width == 32`); other
-    /// fact shapes remain ordinary proof obligations recorded here so the
-    /// later stages can reject them for dispatch purposes.
-    pub where_facts: HandleSpan<ProofFact>,
 }

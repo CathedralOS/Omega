@@ -109,7 +109,7 @@ pub(in crate::exit_contract) fn validate_internal_call(
             SelectedFormEncodingState::UnresolvedInternalMachineCall { fixup },
         ) => {
             fixup.callee == callee
-                && layout.internal_machine_fixup == Some(*fixup)
+                && layout.internal_machine_fixup() == Some(**fixup)
                 && footprint.encoded.control == MachineEncodedControlEffect::DirectRelativeCallV1
         }
         (SelectedCallTarget::Dynamic { .. }, SelectedFormEncodingState::Encoded) => {

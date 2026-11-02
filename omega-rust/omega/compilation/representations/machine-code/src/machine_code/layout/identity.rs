@@ -88,9 +88,9 @@ pub fn resolved_machine_layout_identity(
                         );
                     }
                 }
-                encode_internal_fixup(&mut hasher, instruction.internal_machine_fixup);
+                encode_internal_fixup(&mut hasher, instruction.internal_machine_fixup());
                 // A row without an image address keeps its earlier identity.
-                if let Some(fixup) = instruction.image_address_fixup {
+                if let Some(fixup) = instruction.image_address_fixup() {
                     let mut identity = b"image-address-v2".to_vec();
                     fixup.reference.encode_identity(&mut identity);
                     fixup.fields.encode_identity(&mut identity);

@@ -45,8 +45,7 @@ pub(crate) use place_queries::membership_field;
 pub use standing_requirements::standing_facts_prove_requirement;
 pub(crate) use symbolic_values::applied_const_integer;
 pub(crate) use where_fact_intervals::{
-    FieldRepresentationBound, data_where_field_representation_bounds, field_literal_where_interval,
-    stored_field_where_interval,
+    FieldRepresentationBound, data_where_field_representation_bounds, stored_field_where_interval,
 };
 pub use where_fact_intervals::{
     case_where_field_intervals, data_where_field_intervals, impossible_variant,

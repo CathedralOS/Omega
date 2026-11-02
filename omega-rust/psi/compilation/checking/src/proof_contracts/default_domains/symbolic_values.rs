@@ -176,17 +176,6 @@ pub(super) enum SymbolicValue {
     Subtract(Box<SymbolicValue>, Box<SymbolicValue>),
 }
 
-pub(super) fn integer_literal_value(
-    program: &dyn crate::CheckingInput,
-    expression: ExpressionHandle,
-) -> Option<i128> {
-    match expression_table(program).expression(expression) {
-        ExpressionNode::Integer(value) => value.decimal_value_i128(),
-        ExpressionNode::Borrow(inner) => integer_literal_value(program, inner.target),
-        _ => None,
-    }
-}
-
 /// Fold a where fact over the tracked valuation: tracked fields read their
 /// value (a non-literal write poisons), untracked fields read the ZII zero
 /// (machine-owned data is born zeroed).

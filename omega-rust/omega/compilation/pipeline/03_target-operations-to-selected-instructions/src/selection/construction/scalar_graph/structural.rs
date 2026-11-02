@@ -25,6 +25,7 @@ pub(super) use entry::entry;
 mod access_lifecycles;
 mod atomic_outcome;
 mod byte_concatenation;
+mod byte_copy;
 mod byte_field_read;
 mod byte_field_store;
 mod byte_view_field_store;

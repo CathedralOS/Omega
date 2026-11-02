@@ -590,7 +590,7 @@ pub(crate) fn validate_call_arguments(
         return;
     }
 
-    argument_bounds::report_referent_handbacks(
+    argument_bounds::report_declared_referent_ranges(
         program,
         current_machine,
         current_state,
@@ -598,7 +598,6 @@ pub(crate) fn validate_call_arguments(
         arguments,
         parameters,
         target_name,
-        value_environment,
         diagnostics,
     );
 
@@ -634,6 +633,19 @@ pub(crate) fn validate_call_arguments(
         // domain. Keep the same type correspondence and proof checks below.
 
         let slot_context = format!("argument `{}` for state `{argument_scope}`", parameter.name);
+
+        if let Some(state) = current_state {
+            crate::value_custody::recasts::pending_views::report_consumption(
+                program,
+                current_machine,
+                state,
+                prior_statements.len(),
+                *argument,
+                parameter.type_reference,
+                &slot_context,
+                diagnostics,
+            );
+        }
 
         if !type_matches(*argument, parameter.type_reference) {
             let expected_type =

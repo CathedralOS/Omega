@@ -596,9 +596,11 @@ fail/facts/dynamic_trait_input_arithmetic_through_parameter_weakened_input rejec
 	cannot prove requires contract for call dyn WeightedCombine::combine from probe: a >= 60 && a <= 60 (needs fact `left >= 60 && left <= 60` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/dynamic_trait_input_arithmetic_through_target_body_weakened_input rejected 7602ms expected @297562733b94
 	cannot prove requires contract for call dyn WeightedCombine::combine from probe: a >= 60 && a <= 60 (needs fact `left >= 60 && left <= 60` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/fixed_layout_byte_roundtrip_through_local_missing_validation_rejected rejected 1416ms expected @70ba9ee572b42c4d7f6ffe7d3051217e0906221c
+	construction of `Decoded` field `value`: unestablished recast target `Payload`; prove its predicate over current storage before consuming a valid value
 fail/facts/fixed_region_byte_roundtrip_through_local_overlap_rejected rejected 4491ms expected @ee194ea71d07
 	statement 4 mutates `destination[2]` while local borrow `output` is still active (borrowed at statement 3; its last use is at statement 5)
-fail/facts/fixed_region_byte_roundtrip_through_local_short_region_rejected rejected 2324ms expected @ee194ea71d07
+fail/facts/fixed_region_byte_roundtrip_through_local_short_region_rejected rejected 763ms expected @70ba9ee572b42c4d7f6ffe7d3051217e0906221c
 	machine `main` state `entry`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `[u8; 40]` are not representation-compatible
 fail/facts/float_comparison_route_nonnumeric_contract_rejected rejected 8727ms expected @cc26a0e67500
 	cannot prove requires contract for call bounded from select: value <= 1.0 (needs fact `value <= 1.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -828,6 +830,46 @@ fail/facts/machine_tuple_dispatch_through_target_body_rejected rejected 1465ms e
 	cannot prove requires contract for call hold from run_body: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call hold from run_body: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call hold from run_body: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/match_runtime_view_extent_through_call_result_rejected rejected 619ms expected @fc74098f66b9+wt
+	exact arithmetic in machine `store` state `entry` local `last` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/match_runtime_view_extent_through_const_name_rejected rejected 2357ms expected @fc74098f66b9+wt
+	exact arithmetic in machine `store` state `entry` local `last` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/match_runtime_view_extent_through_field_rejected rejected 1203ms expected @fc74098f66b9+wt
+	exact arithmetic in machine `store` state `entry` local `last` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/match_runtime_view_extent_through_local_rejected rejected 615ms expected @fc74098f66b9+wt
+	exact arithmetic in machine `store` state `entry` local `last` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/match_runtime_view_extent_through_match_join_rejected rejected 586ms expected @fc74098f66b9+wt
+	exact arithmetic in machine `store` state `entry` local `last` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/match_runtime_view_extent_through_other_machine_rejected rejected 487ms expected @fc74098f66b9+wt
+	exact arithmetic in machine `apply` state `entry` local `last` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/match_runtime_view_extent_through_other_state_rejected rejected 763ms expected @fc74098f66b9+wt
+	exact arithmetic in machine `pick` state `entry` local `last` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/match_runtime_view_extent_through_parameter_rejected rejected 803ms expected @fc74098f66b9+wt
+	exact arithmetic in machine `apply` state `entry` local `last` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/match_runtime_view_extent_through_target_body_rejected rejected 682ms expected @fc74098f66b9+wt
+	exact arithmetic in machine `X86Apply::apply` state `apply` local `last` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `ArmApply::apply` state `apply` local `last` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/method_array_operand_inference_element_not_copy_rejected rejected 5256ms expected @c79bb8268163+wt
+	generic machine `last` has a concrete specialization tuple that does not satisfy its authored type bounds
+	generic machine `SelectedBytes::last` has a concrete specialization tuple that does not satisfy its authored type bounds
+fail/facts/method_array_operand_inference_through_call_result_rejected rejected 5023ms expected @c79bb8268163+wt
+	argument `bytes` for state `last` expects `&[u8; 4]`, got `named value`; expected carrier `ref(array(named(name(u8)),literal(4)))`, declared place carrier `array(named(name(u8)),literal(3))`
+fail/facts/method_array_operand_inference_through_const_name_rejected rejected 5429ms expected @c79bb8268163+wt
+	argument `bytes` for state `last` expects `&[u8; 4]`, got `named value`; expected carrier `ref(array(named(name(u8)),literal(4)))`, declared place carrier `array(named(name(u8)),literal(3))`
+fail/facts/method_array_operand_inference_through_field_rejected rejected 2123ms expected @c79bb8268163+wt
+	argument `bytes` for state `last` expects `&[u8; 4]`, got `member access`; expected carrier `ref(array(named(name(u8)),literal(4)))`, declared place carrier `array(named(name(u8)),literal(3))`
+fail/facts/method_array_operand_inference_through_local_rejected rejected 2848ms expected @c79bb8268163+wt
+	argument `bytes` for state `last` expects `&[u8; 4]`, got `named value`; expected carrier `ref(array(named(name(u8)),literal(4)))`, declared place carrier `array(named(name(u8)),literal(3))`
+fail/facts/method_array_operand_inference_through_match_join_rejected rejected 3065ms expected @c79bb8268163+wt
+	argument `bytes` for state `last` expects `&[u8; 4]`, got `named value`; expected carrier `ref(array(named(name(u8)),literal(4)))`, declared place carrier `array(named(name(u8)),literal(3))`
+fail/facts/method_array_operand_inference_through_other_machine_rejected rejected 4541ms expected @c79bb8268163+wt
+	argument `bytes` for state `last` expects `&[u8; 4]`, got `named value`; expected carrier `ref(array(named(name(u8)),literal(4)))`, declared place carrier `array(named(name(u8)),literal(3))`
+fail/facts/method_array_operand_inference_through_other_state_rejected rejected 4405ms expected @c79bb8268163+wt
+	argument `bytes` for state `last` expects `&[u8; 4]`, got `named value`; expected carrier `ref(array(named(name(u8)),literal(4)))`, declared place carrier `array(named(name(u8)),literal(3))`
+fail/facts/method_array_operand_inference_through_parameter_rejected rejected 3478ms expected @c79bb8268163+wt
+	argument `bytes` for state `last` expects `&[u8; 4]`, got `named value`; expected carrier `ref(array(named(name(u8)),literal(4)))`, declared place carrier `array(named(name(u8)),literal(3))`
+fail/facts/method_array_operand_inference_through_target_body_rejected rejected 4000ms expected @c79bb8268163+wt
+	argument `bytes` for state `last` expects `&[u8; 4]`, got `named value`; expected carrier `ref(array(named(name(u8)),literal(4)))`, declared place carrier `array(named(name(u8)),literal(3))`
 fail/facts/named_const_callable_family_cross_module_alias_rejected rejected 739ms expected @75dd4e483f7a
 	generic machine `apply` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`: Const slot `Count` conflicts: 5 [identity named(integer-const(5)); supplier unretained] versus 4 [identity named(integer-const(4)); supplier unretained]
 fail/facts/named_const_callable_family_forwarded_family_rejected rejected 565ms expected @75dd4e483f7a
@@ -1670,6 +1712,52 @@ fail/facts/open_const_implementation_statement_const_result_rejected rejected 33
 fail/facts/open_const_implementation_statement_saved_output_rejected rejected 326ms expected @ea132c1fff8b
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+fail/facts/open_index_distributivity_commutative_semiring_rejected rejected 4923ms expected @af2cbd5e6837
+	index compatibility condition `index-equality:Indexed:rearrange::entry:statement-1:Indexed<(A + B) * (C + D)>==Indexed<D * B + C * A + A * D + B * C>` is not established: actual `Indexed<(A + B) * (C + D)>` and expected `Indexed<D * B + C * A + A * D + B * C>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses associativity, distributivity over `add`; `add` of `IndexSemiring` licenses commutativity, associativity
+	index compatibility condition `index-equality:Indexed:rearrange$specialized$71b9730bc4249a5a$0$2697::entry:statement-1:Indexed<(2 + 3) * (4 + 5)>==Indexed<5 * 3 + 4 * 2 + 2 * 5 + 3 * 4>` is not established: actual `Indexed<(2 + 3) * (4 + 5)>` and expected `Indexed<5 * 3 + 4 * 2 + 2 * 5 + 3 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses associativity, distributivity over `add`; `add` of `IndexSemiring` licenses commutativity, associativity
+fail/facts/open_index_distributivity_conditional_law_rejected rejected 6048ms expected @af2cbd5e6837
+	index compatibility condition `index-equality:Indexed:rearrange::entry:statement-1:Indexed<A * (B + C)>==Indexed<A * B + A * C>` is not established: actual `Indexed<A * (B + C)>` and expected `Indexed<A * B + A * C>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
+	index compatibility condition `index-equality:Indexed:rearrange$specialized$cdd8c007864398e7$0$2653::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
+fail/facts/open_index_distributivity_foreign_addition_rejected rejected 3393ms expected @af2cbd5e6837
+	index compatibility condition `index-equality:Indexed:rearrange::entry:statement-1:Indexed<A * (B + C)>==Indexed<A * B + A * C>` is not established: actual `Indexed<A * (B + C)>` and expected `Indexed<A * B + A * C>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexProduct` licenses distributivity over `add`; `add` of `IndexSum` licenses no law
+	index compatibility condition `index-equality:Indexed:rearrange$specialized$a9da6f701d472faf$0$2664::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexProduct` licenses distributivity over `add`; `add` of `IndexSum` licenses no law
+fail/facts/open_index_distributivity_missing_law_member_rejected rejected 593ms expected @af2cbd5e6837
+	closed conformance `Canonical satisfies IndexSemiring` is incomplete: missing `IndexSemiring::distribute`
+fail/facts/open_index_distributivity_mutual_distributivity_rejected rejected 5343ms expected @af2cbd5e6837
+	index compatibility condition `index-equality:Indexed:rearrange::entry:statement-1:Indexed<A * (B + C)>==Indexed<A * B + A * C>` is not established: actual `Indexed<A * (B + C)>` and expected `Indexed<A * B + A * C>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses distributivity over `add`; `add` of `IndexSemiring` licenses distributivity over `multiply`
+	index compatibility condition `index-equality:Indexed:rearrange$specialized$cdd8c007864398e7$0$2669::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses distributivity over `add`; `add` of `IndexSemiring` licenses distributivity over `multiply`
+fail/facts/open_index_distributivity_repeated_operand_law_rejected rejected 6790ms expected @af2cbd5e6837
+	index compatibility condition `index-equality:Indexed:rearrange::entry:statement-1:Indexed<A * (B + C)>==Indexed<A * B + A * C>` is not established: actual `Indexed<A * (B + C)>` and expected `Indexed<A * B + A * C>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
+	index compatibility condition `index-equality:Indexed:rearrange$specialized$cdd8c007864398e7$0$2647::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
+fail/facts/open_index_distributivity_through_call_result_rejected rejected 4965ms expected @af2cbd5e6837
+	index compatibility condition `index-equality:Indexed:rearrange::entry:statement-1:Indexed<A * (B + C)>==Indexed<A * B + A * C>` is not established: actual `Indexed<A * (B + C)>` and expected `Indexed<A * B + A * C>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
+	index compatibility condition `index-equality:Indexed:rearrange$specialized$cdd8c007864398e7$0$2641::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
+fail/facts/open_index_distributivity_through_const_name_rejected rejected 4884ms expected @af2cbd5e6837
+	index compatibility condition `index-equality:Indexed:rearrange::entry:statement-1:Indexed<A * (B + C)>==Indexed<A * B + A * C>` is not established: actual `Indexed<A * (B + C)>` and expected `Indexed<A * B + A * C>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
+	index compatibility condition `index-equality:Indexed:rearrange$specialized$cdd8c007864398e7$0$2641::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
+fail/facts/open_index_distributivity_through_field_rejected rejected 3437ms expected @af2cbd5e6837
+	index compatibility condition `index-equality:Indexed:rearrange::entry:statement-1:Indexed<A * (B + C)>==Indexed<A * B + A * C>` is not established: actual `Indexed<A * (B + C)>` and expected `Indexed<A * B + A * C>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
+	index compatibility condition `index-equality:Indexed:rearrange$specialized$cdd8c007864398e7$0$2641::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
+fail/facts/open_index_distributivity_through_local_rejected rejected 4992ms expected @af2cbd5e6837
+	index compatibility condition `index-equality:Indexed:rearrange::entry:statement-1:Indexed<A * (B + C)>==Indexed<A * B + A * C>` is not established: actual `Indexed<A * (B + C)>` and expected `Indexed<A * B + A * C>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
+	index compatibility condition `index-equality:Indexed:rearrange$specialized$cdd8c007864398e7$0$2639::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
+fail/facts/open_index_distributivity_through_match_join_rejected rejected 4891ms expected @af2cbd5e6837
+	index compatibility condition `index-equality:Indexed:rearrange::entry:statement-1:Indexed<A * (B + C)>==Indexed<A * B + A * C>` is not established: actual `Indexed<A * (B + C)>` and expected `Indexed<A * B + A * C>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
+	index compatibility condition `index-equality:Indexed:rearrange$specialized$cdd8c007864398e7$0$2640::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
+fail/facts/open_index_distributivity_through_other_machine_rejected rejected 3823ms expected @af2cbd5e6837
+	index compatibility condition `index-equality:Indexed:rearrange::entry:statement-1:Indexed<A * (B + C)>==Indexed<A * B + A * C>` is not established: actual `Indexed<A * (B + C)>` and expected `Indexed<A * B + A * C>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
+	index compatibility condition `index-equality:Indexed:rearrange$specialized$cdd8c007864398e7$0$2650::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
+fail/facts/open_index_distributivity_through_other_state_rejected rejected 3748ms expected @af2cbd5e6837
+	index compatibility condition `index-equality:Indexed:rearrange::entry:statement-1:Indexed<A * (B + C)>==Indexed<A * B + A * C>` is not established: actual `Indexed<A * (B + C)>` and expected `Indexed<A * B + A * C>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
+	index compatibility condition `index-equality:Indexed:rearrange$specialized$cdd8c007864398e7$0$2642::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
+fail/facts/open_index_distributivity_through_parameter_rejected rejected 3836ms expected @af2cbd5e6837
+	index compatibility condition `index-equality:Indexed:rearrange::entry:statement-1:Indexed<A * (B + C)>==Indexed<A * B + A * C>` is not established: actual `Indexed<A * (B + C)>` and expected `Indexed<A * B + A * C>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
+	index compatibility condition `index-equality:Indexed:rearrange$specialized$cdd8c007864398e7$0$2641::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
+fail/facts/open_index_distributivity_through_target_body_rejected rejected 4566ms expected @af2cbd5e6837
+	index compatibility condition `index-equality:Indexed:rearrange::entry:statement-1:Indexed<A * (B + C)>==Indexed<A * B + A * C>` is not established: actual `Indexed<A * (B + C)>` and expected `Indexed<A * B + A * C>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
+	index compatibility condition `index-equality:Indexed:rearrange$specialized$cdd8c007864398e7$0$2673::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
+fail/facts/open_index_distributivity_unproved_law_rejected rejected 4267ms expected @af2cbd5e6837
+	machine `times_index_distribute` realizes `IndexSemiring::distribute` but requires `times_index(a, plus_index(b, c)) == plus_index(times_index(a, b), times_index(a, c))`, which the requirement does not imply; callers of the requirement prove only its own `requires`
 fail/facts/open_record_const_closed_call_call_result_rejected rejected 2255ms expected @e9f492c5ccc6+wt
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
 fail/facts/open_record_const_closed_call_const_name_rejected rejected 797ms expected @e9f492c5ccc6+wt
@@ -1764,33 +1852,37 @@ fail/facts/projection_receiver_call_through_target_body_rejected rejected 1442ms
 	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
 	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
 	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
+fail/facts/recast_parent_restoration_argument_snapshot_rejected rejected 710ms expected @0a3a759c64e3
+	machine `inspect` cannot lend restricted field `start` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
 fail/facts/recast_parent_restoration_case_backing_overlap_rejected rejected 3289ms expected @8fce926f9735
 	machine `inspect` cannot lend restricted field `start` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
 fail/facts/recast_parent_restoration_changed_end_rejected rejected 804ms expected @8fce926f9735
 	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)
+fail/facts/recast_parent_restoration_completion_order_rejected rejected 784ms expected @0a3a759c64e3
+	machine `inspect` cannot lend restricted field `start` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
 fail/facts/recast_parent_restoration_dirty_forward_rejected rejected 800ms expected @8fce926f9735
 	data `Pair`'s default domain is still FALSE at a call: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)
 	machine `inspect` cannot lend restricted field `start` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
 fail/facts/recast_parent_restoration_forwarding_marker_rejected rejected 843ms expected @8fce926f9735
 	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)
-fail/facts/recast_parent_restoration_through_call_result_rejected rejected 827ms expected @8fce926f9735
-	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)
-fail/facts/recast_parent_restoration_through_const_name_rejected rejected 951ms expected @8fce926f9735
-	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)
-fail/facts/recast_parent_restoration_through_field_rejected rejected 1081ms expected @8fce926f9735
-	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)
-fail/facts/recast_parent_restoration_through_local_rejected rejected 1060ms expected @8fce926f9735
-	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)
-fail/facts/recast_parent_restoration_through_match_join_rejected rejected 848ms expected @8fce926f9735
-	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)
-fail/facts/recast_parent_restoration_through_other_machine_rejected rejected 858ms expected @8fce926f9735
-	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)
-fail/facts/recast_parent_restoration_through_other_state_rejected rejected 1310ms expected @8fce926f9735
-	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)
-fail/facts/recast_parent_restoration_through_parameter_rejected rejected 1155ms expected @8fce926f9735
-	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)
-fail/facts/recast_parent_restoration_through_target_body_rejected rejected 1209ms expected @8fce926f9735
-	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)
+fail/facts/recast_parent_restoration_through_call_result_rejected rejected 802ms expected @0a3a759c64e3
+	machine `inspect` cannot lend restricted field `start` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
+fail/facts/recast_parent_restoration_through_const_name_rejected rejected 955ms expected @0a3a759c64e3
+	machine `inspect` cannot lend restricted field `start` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
+fail/facts/recast_parent_restoration_through_field_rejected rejected 1816ms expected @0a3a759c64e3
+	machine `inspect` cannot lend restricted field `start` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
+fail/facts/recast_parent_restoration_through_local_rejected rejected 1674ms expected @0a3a759c64e3
+	machine `inspect` cannot lend restricted field `start` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
+fail/facts/recast_parent_restoration_through_match_join_rejected rejected 1387ms expected @0a3a759c64e3
+	machine `inspect` cannot lend restricted field `start` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
+fail/facts/recast_parent_restoration_through_other_machine_rejected rejected 986ms expected @0a3a759c64e3
+	machine `inspect` cannot lend restricted field `start` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
+fail/facts/recast_parent_restoration_through_other_state_rejected rejected 889ms expected @0a3a759c64e3
+	machine `inspect` cannot lend restricted field `start` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
+fail/facts/recast_parent_restoration_through_parameter_rejected rejected 869ms expected @0a3a759c64e3
+	machine `inspect` cannot lend restricted field `start` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
+fail/facts/recast_parent_restoration_through_target_body_rejected rejected 1542ms expected @0a3a759c64e3
+	machine `inspect` cannot lend restricted field `start` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
 fail/facts/recast_parent_restoration_unrestored_rejected rejected 917ms expected @8fce926f9735
 	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)
 fail/facts/recorded_build_role/call_result rejected 7895ms expected @1a41b8e686ed
@@ -2140,6 +2232,12 @@ fail/providers/selected_parent_and_descendant_overlap rejected 1846ms expected @
 	selected whole provider maps `<selected target>::ParentMap::satisfies::Parent` and `<selected target>::ChildMap::satisfies::Child` supply the same exact receiver application; inherited rows cannot be mixed across choosing owners
 fail/providers/table_leaf_without_dispatch_borrow rejected 3589ms expected @bad39459725b+wt
 	selected provider plan `<selected target>::satisfies::Measure` is not fully covering: external leaf for `Measure::length` uses a table field, but its first parameter is not a readable borrow of a data declaration
+fail/recast/pending_layout_view_call_requires_establishment rejected 1431ms expected @70ba9ee572b42c4d7f6ffe7d3051217e0906221c
+	argument `value` for state `consume::entry`: unestablished recast target `Payload`; prove its predicate over current storage before consuming a valid value
+fail/recast/pending_layout_view_mutable_escape_preserves_source_padding rejected 1337ms expected @70ba9ee572b42c4d7f6ffe7d3051217e0906221c
+	construction of `Decoded` field `value`: mutable recast target escape has no complete source-storage handback; target padding is not initialized field storage
+fail/recast/u64_open_upper_bound_is_not_signed_ceiling rejected 559ms expected @70ba9ee572b42c4d7f6ffe7d3051217e0906221c
+	machine `Main::main` state `main`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `Narrow` are not representation-compatible
 fail/termination/declared_measure_hidden_overflow_rejected rejected 721ms expected @4518281b90b2+wt
 	terminating machine walk_flat: cannot prove rank range `0..=10` for the rank produced by the selected view
 	terminating machine walk: cannot prove rank range `0..=limit` for the rank produced by the selected view
@@ -2958,8 +3056,12 @@ pass/build/dependency_implementation_closure rejected 1453ms regressed-from:chec
 	fixed-array length `[u8; placed_byte_count()]`: const evaluation of `placed_byte_count` failed: Lowering(InvalidDeclarationIdentity("checked machine identity: declaration `@array-extent-1-43` has non-hermetic source origin `User`"))
 pass/build/described_runner_entry_left_exit checked 17644ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/described_runner_entry_right_exit checked 19223ms check-target:macos_arm64 @ccdb99ca2214
-pass/build/discarded_provider_selection_exit rejected 18520ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	build selects provider `omega_language_std::ConsoleNativeProvider` for slot `Console`, but candidate `<selected target>::ConsoleNativeProvider::satisfies::Console` is partial (4/6) and cannot be selected
+pass/build/discarded_provider_selection_exit rejected 3180ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @b8f9f267c739+wt
+	machine `NativeAccess::initialize` state `initialize` calls `Access::initialize_from_profile` with write-only input authority; an opaque selected implementation requires an admitted write-only boundary claim
+	bodyless boundary symbol `view_from_profile` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
+	bodyless boundary symbol `view_mut_from_profile` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
+	bodyless boundary symbol `initialize_from_profile` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
+	bodyless boundary symbol `extract_resident` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
 pass/build/entry_schema_same_leaf_exit checked 3941ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/executed_dependency_shared_source_exit checked 3885ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/executed_dependency_source_join_exit checked 4489ms check-target:macos_arm64 @ccdb99ca2214
@@ -3097,7 +3199,12 @@ pass/calls/caller_structural_result_indexed_borrow_exit checked 15598ms check-ta
 pass/calls/case_arm_payload_receiver_arg checked 16898ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/case_payload_clone_observation_exit checked 19036ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/case_scrutinee_param_clone_exit checked 16163ms check-target:macos_arm64 @ccdb99ca2214
-pass/calls/case_scrutinee_self_dispatch_exit checked 50225ms check-target:macos_arm64 @2e34e43cf530
+pass/calls/case_scrutinee_self_dispatch_exit rejected 3244ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @b8f9f267c739+wt
+	machine `NativeAccess::initialize` state `initialize` calls `Access::initialize_from_profile` with write-only input authority; an opaque selected implementation requires an admitted write-only boundary claim
+	bodyless boundary symbol `view_from_profile` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
+	bodyless boundary symbol `view_mut_from_profile` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
+	bodyless boundary symbol `initialize_from_profile` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
+	bodyless boundary symbol `extract_resident` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
 pass/calls/completed_effectful_result_requirement_exit checked 3739ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/completed_narrowing_result_case_bounds checked 1857ms check-target:macos_arm64 @33b180036351
 pass/calls/computed_binding_argument_exit checked 3502ms check-target:macos_arm64 @ccdb99ca2214
@@ -3516,7 +3623,12 @@ pass/collections/element_view_whole_write rejected 0ms regressed-from:checked+ch
 pass/collections/element_view_write_transition checked 11948ms check-target:macos_arm64 @ccdb99ca2214
 pass/collections/empty_record_array_borrow_exit checked 3012ms check-target:macos_arm64 @ccdb99ca2214
 pass/collections/float_array_completed_call_store_exit checked 22636ms check-target:macos_arm64 @ccdb99ca2214
-pass/collections/indexed_row_array_literal_store checked 49440ms check-target:macos_arm64 @2e34e43cf530
+pass/collections/indexed_row_array_literal_store rejected 1958ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @b8f9f267c739+wt
+	machine `NativeAccess::initialize` state `initialize` calls `Access::initialize_from_profile` with write-only input authority; an opaque selected implementation requires an admitted write-only boundary claim
+	bodyless boundary symbol `view_from_profile` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
+	bodyless boundary symbol `view_mut_from_profile` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
+	bodyless boundary symbol `initialize_from_profile` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
+	bodyless boundary symbol `extract_resident` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
 pass/collections/integer_index_every_width checked 1969ms @ccdb99ca2214
 pass/collections/local_byte_array_input_state_loan_exit checked 17121ms check-target:macos_arm64 @ccdb99ca2214
 pass/collections/mutable_slice_view_edge_release checked 17361ms check-target:macos_arm64 @ccdb99ca2214
@@ -4557,7 +4669,7 @@ pass/effects/checked_boundary_unused_callback checked 2354ms @ccdb99ca2214
 pass/effects/checked_callback_provider_ceiling checked 2668ms @ccdb99ca2214
 pass/effects/core_critical_service_catalog checked 3360ms @ccdb99ca2214
 pass/effects/exact_synchronous_callback_rows checked 2545ms @ccdb99ca2214
-pass/effects/finite_requirement_block_acknowledged_exit checked 3232ms check-target:macos_arm64 @ccdb99ca2214
+pass/effects/finite_requirement_block_acknowledged_exit checked 8553ms check-target:macos_arm64 @05a6f6af37ec+wt
 pass/effects/generic_callback_schema_reach checked 3506ms check-target:macos_arm64 @ccdb99ca2214
 pass/effects/graphics_provider_declares_filesystem_write checked 3417ms @ccdb99ca2214
 pass/effects/gui_semantic_services checked 19747ms @ccdb99ca2214
@@ -5953,7 +6065,7 @@ pass/facts/crash_entry_boolean_view_match_join_exit checked 6488ms check-target:
 pass/facts/crash_entry_boolean_view_other_machine_exit checked 10773ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/crash_entry_boolean_view_other_state_exit checked 8433ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/crash_entry_boolean_view_parameter_exit checked 10246ms check-target:macos_arm64 @911f6617ba9e
-pass/facts/crash_entry_boolean_view_target_body_exit checked 6088ms check-target:macos_arm64 @911f6617ba9e
+pass/facts/crash_entry_boolean_view_target_body_exit checked 7513ms check-target:macos_arm64 @05a6f6af37ec+wt
 pass/facts/crash_entry_ieee_view_local_writable_exit rejected 5532ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	call from `read_bits` to `maybe_zero` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 pass/facts/crash_entry_ieee_view_through_call_result_exit rejected 4741ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
@@ -5972,7 +6084,7 @@ pass/facts/crash_entry_ieee_view_through_other_state_exit rejected 5279ms check-
 	call from `read_bits` to `step` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 pass/facts/crash_entry_ieee_view_through_parameter_exit rejected 4639ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	call from `read_bits` to `maybe_zero` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-pass/facts/crash_entry_ieee_view_through_target_body_exit rejected 4436ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
+pass/facts/crash_entry_ieee_view_through_target_body_exit rejected 7677ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @05a6f6af37ec+wt
 	call from `read_bits` to `forward` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 pass/facts/crash_entry_integer_view_call_result_exit rejected 3050ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	call from `read_bits` to `maybe_zero` at statement 3 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
@@ -5994,7 +6106,7 @@ pass/facts/crash_entry_nan_equality_through_match_join_exit checked 7014ms check
 pass/facts/crash_entry_nan_equality_through_other_machine_exit checked 6760ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/crash_entry_nan_equality_through_other_state_exit checked 5292ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/crash_entry_nan_equality_through_parameter_exit checked 7192ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/crash_entry_nan_equality_through_target_body_exit checked 5774ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/crash_entry_nan_equality_through_target_body_exit checked 12825ms check-target:macos_arm64 @05a6f6af37ec+wt
 pass/facts/crash_entry_nonempty_path_local_writable_exit checked 3977ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/crash_entry_nonempty_path_through_call_result_exit checked 3395ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/crash_entry_nonempty_path_through_const_name_exit checked 3589ms check-target:macos_arm64 @ccdb99ca2214
@@ -6004,7 +6116,7 @@ pass/facts/crash_entry_nonempty_path_through_match_join_exit checked 3691ms chec
 pass/facts/crash_entry_nonempty_path_through_other_machine_exit checked 3611ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/crash_entry_nonempty_path_through_other_state_exit checked 3171ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/crash_entry_nonempty_path_through_parameter_exit checked 3916ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/crash_entry_nonempty_path_through_target_body_exit checked 3589ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/crash_entry_nonempty_path_through_target_body_exit checked 7628ms check-target:macos_arm64 @05a6f6af37ec+wt
 pass/facts/crash_entry_representation_view_through_call_result_exit rejected 2826ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	call from `read_bits` to `maybe_zero` at statement 3 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 pass/facts/crash_entry_representation_view_through_const_name_exit checked 3457ms check-target:macos_arm64 @ccdb99ca2214
@@ -6014,7 +6126,7 @@ pass/facts/crash_entry_representation_view_through_match_join_exit checked 4232m
 pass/facts/crash_entry_representation_view_through_other_machine_exit checked 3942ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/crash_entry_representation_view_through_other_state_exit checked 3597ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/crash_entry_representation_view_through_parameter_exit checked 3779ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/crash_entry_representation_view_through_target_body_exit checked 4024ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/crash_entry_representation_view_through_target_body_exit checked 7493ms check-target:macos_arm64 @05a6f6af37ec+wt
 pass/facts/crash_entry_signed_zero_through_call_result_exit checked 6911ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/crash_entry_signed_zero_through_const_name_exit checked 7133ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/crash_entry_signed_zero_through_field_exit checked 7655ms check-target:macos_arm64 @ccdb99ca2214
@@ -6024,7 +6136,7 @@ pass/facts/crash_entry_signed_zero_through_match_join_exit checked 6345ms check-
 pass/facts/crash_entry_signed_zero_through_other_machine_exit checked 6168ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/crash_entry_signed_zero_through_other_state_exit checked 5748ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/crash_entry_signed_zero_through_parameter_exit checked 6815ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/crash_entry_signed_zero_through_target_body_exit checked 6697ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/crash_entry_signed_zero_through_target_body_exit checked 15533ms check-target:macos_arm64 @05a6f6af37ec+wt
 pass/facts/darwin_file_times_array_exit checked 78758ms check-target:macos_arm64 @1a31aa120cdd
 pass/facts/darwin_stat_abi_through_call_result_exit checked 65696ms check-target:macos_arm64 @79f174854e30
 pass/facts/darwin_stat_abi_through_const_name_exit checked 73112ms check-target:macos_arm64 @79f174854e30
@@ -6415,42 +6527,24 @@ pass/facts/field_where_index_through_other_machine_exit checked 4130ms check-tar
 pass/facts/field_where_index_through_other_state_exit checked 4757ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/field_where_index_through_parameter_exit checked 4901ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/field_where_index_through_target_body_exit checked 5170ms check-target:macos_arm64 @911f6617ba9e
-pass/facts/finite_family_const_roster/call_result rejected 1563ms check-target:macos_arm64 @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_const_roster/const_name rejected 1182ms check-target:macos_arm64 @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_const_roster/field rejected 1223ms check-target:macos_arm64 @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_const_roster/local rejected 1008ms check-target:macos_arm64 @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_const_roster/match_join rejected 1216ms check-target:macos_arm64 @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_const_roster/other_machine rejected 1067ms check-target:macos_arm64 @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_const_roster/other_state rejected 1429ms check-target:macos_arm64 @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_const_roster/parameter rejected 1519ms check-target:macos_arm64 @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_const_roster/target_body rejected 1503ms check-target:macos_arm64 @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_exclusive_result/call_result rejected 1350ms check-target:macos_arm64 @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_exclusive_result/const_name rejected 887ms check-target:macos_arm64 @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_exclusive_result/field rejected 1382ms check-target:macos_arm64 @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_exclusive_result/local rejected 1236ms check-target:macos_arm64 @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_exclusive_result/match_join rejected 1383ms check-target:macos_arm64 @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_exclusive_result/other_machine rejected 1856ms check-target:macos_arm64 @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_exclusive_result/other_state rejected 1197ms check-target:macos_arm64 @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_exclusive_result/parameter rejected 1436ms check-target:macos_arm64 @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_exclusive_result/target_body rejected 1268ms check-target:macos_arm64 @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
+pass/facts/finite_family_const_roster/call_result checked 7478ms check-target:macos_arm64 @05a6f6af37ec+wt
+pass/facts/finite_family_const_roster/const_name checked 7527ms check-target:macos_arm64 @05a6f6af37ec+wt
+pass/facts/finite_family_const_roster/field checked 6363ms check-target:macos_arm64 @05a6f6af37ec+wt
+pass/facts/finite_family_const_roster/local checked 7419ms check-target:macos_arm64 @05a6f6af37ec+wt
+pass/facts/finite_family_const_roster/match_join checked 7299ms check-target:macos_arm64 @05a6f6af37ec+wt
+pass/facts/finite_family_const_roster/other_machine checked 8570ms check-target:macos_arm64 @05a6f6af37ec+wt
+pass/facts/finite_family_const_roster/other_state checked 6276ms check-target:macos_arm64 @05a6f6af37ec+wt
+pass/facts/finite_family_const_roster/parameter checked 7519ms check-target:macos_arm64 @05a6f6af37ec+wt
+pass/facts/finite_family_const_roster/target_body checked 7389ms check-target:macos_arm64 @05a6f6af37ec+wt
+pass/facts/finite_family_exclusive_result/call_result checked 7369ms check-target:macos_arm64 @05a6f6af37ec+wt
+pass/facts/finite_family_exclusive_result/const_name checked 7497ms check-target:macos_arm64 @05a6f6af37ec+wt
+pass/facts/finite_family_exclusive_result/field checked 6585ms check-target:macos_arm64 @05a6f6af37ec+wt
+pass/facts/finite_family_exclusive_result/local checked 6831ms check-target:macos_arm64 @05a6f6af37ec+wt
+pass/facts/finite_family_exclusive_result/match_join checked 8153ms check-target:macos_arm64 @05a6f6af37ec+wt
+pass/facts/finite_family_exclusive_result/other_machine checked 8080ms check-target:macos_arm64 @05a6f6af37ec+wt
+pass/facts/finite_family_exclusive_result/other_state checked 7991ms check-target:macos_arm64 @05a6f6af37ec+wt
+pass/facts/finite_family_exclusive_result/parameter checked 8043ms check-target:macos_arm64 @05a6f6af37ec+wt
+pass/facts/finite_family_exclusive_result/target_body checked 7972ms check-target:macos_arm64 @05a6f6af37ec+wt
 pass/facts/finite_family_input_index/call_result checked 15899ms check-target:macos_arm64 @7b6988120e7e
 pass/facts/finite_family_input_index/const_name checked 15017ms check-target:macos_arm64 @7b6988120e7e
 pass/facts/finite_family_input_index/field checked 15381ms check-target:macos_arm64 @7b6988120e7e
@@ -6460,85 +6554,33 @@ pass/facts/finite_family_input_index/other_machine checked 13990ms check-target:
 pass/facts/finite_family_input_index/other_state checked 12316ms check-target:macos_arm64 @7b6988120e7e
 pass/facts/finite_family_input_index/parameter checked 12868ms check-target:macos_arm64 @7b6988120e7e
 pass/facts/finite_family_input_index/target_body checked 12216ms check-target:macos_arm64 @7b6988120e7e
-pass/facts/finite_family_returned_descriptor/call_result rejected 1675ms check-target:macos_arm64 @ccdb99ca2214
-	requirement `Windowing::window` is absent from `dyn Windowing`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_returned_descriptor/const_name rejected 1492ms check-target:macos_arm64 @ccdb99ca2214
-	requirement `Windowing::window` is absent from `dyn Windowing`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_returned_descriptor/field rejected 1339ms check-target:macos_arm64 @ccdb99ca2214
-	requirement `Windowing::window` is absent from `dyn Windowing`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_returned_descriptor/local rejected 1418ms check-target:macos_arm64 @ccdb99ca2214
-	requirement `Windowing::window` is absent from `dyn Windowing`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_returned_descriptor/match_join rejected 1237ms check-target:macos_arm64 @ccdb99ca2214
-	requirement `Windowing::window` is absent from `dyn Windowing`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_returned_descriptor/other_machine rejected 1550ms check-target:macos_arm64 @ccdb99ca2214
-	requirement `Windowing::window` is absent from `dyn Windowing`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_returned_descriptor/other_state rejected 1443ms check-target:macos_arm64 @ccdb99ca2214
-	requirement `Windowing::window` is absent from `dyn Windowing`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_returned_descriptor/parameter rejected 1379ms check-target:macos_arm64 @ccdb99ca2214
-	requirement `Windowing::window` is absent from `dyn Windowing`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_returned_descriptor/pointer_field rejected 1157ms check-target:macos_arm64 @ccdb99ca2214
-	requirement `Windowing::window` is absent from `dyn Windowing`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_returned_descriptor/replaced_source rejected 1324ms check-target:macos_arm64 @ccdb99ca2214
-	requirement `Windowing::window` is absent from `dyn Windowing`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_returned_descriptor/target_body rejected 1212ms check-target:macos_arm64 @ccdb99ca2214
-	requirement `Windowing::window` is absent from `dyn Windowing`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_returned_descriptor/target_qualification rejected 1413ms check-target:macos_arm64 @ccdb99ca2214
-	requirement `Windowing::window` is absent from `dyn Windowing`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_static_inline_result/argument_effect rejected 1193ms check-target:macos_arm64 @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_static_inline_result/authored_sum rejected 1487ms check-target:macos_arm64 @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_static_inline_result/call_result rejected 1408ms check-target:macos_arm64 @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_static_inline_result/const_name rejected 1517ms check-target:macos_arm64 @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_static_inline_result/field rejected 1961ms check-target:macos_arm64 @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_static_inline_result/local rejected 1114ms check-target:macos_arm64 @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_static_inline_result/match_join rejected 1777ms check-target:macos_arm64 @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_static_inline_result/nested_static rejected 1209ms check-target:macos_arm64 @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_static_inline_result/other_machine rejected 1345ms check-target:macos_arm64 @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_static_inline_result/other_state rejected 1117ms check-target:macos_arm64 @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_static_inline_result/parameter rejected 1604ms check-target:macos_arm64 @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_static_inline_result/stale_input rejected 1508ms check-target:macos_arm64 @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_static_inline_result/target_body rejected 1173ms check-target:macos_arm64 @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-pass/facts/finite_family_static_inline_result/uncalled_target rejected 1320ms check-target:macos_arm64 @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
+pass/facts/finite_family_returned_descriptor/call_result checked 8090ms check-target:macos_arm64 @05a6f6af37ec+wt
+pass/facts/finite_family_returned_descriptor/const_name checked 8868ms check-target:macos_arm64 @05a6f6af37ec+wt
+pass/facts/finite_family_returned_descriptor/field checked 6737ms check-target:macos_arm64 @05a6f6af37ec+wt
+pass/facts/finite_family_returned_descriptor/local checked 6994ms check-target:macos_arm64 @05a6f6af37ec+wt
+pass/facts/finite_family_returned_descriptor/match_join checked 7838ms check-target:macos_arm64 @05a6f6af37ec+wt
+pass/facts/finite_family_returned_descriptor/other_machine checked 6631ms check-target:macos_arm64 @05a6f6af37ec+wt
+pass/facts/finite_family_returned_descriptor/other_state checked 6447ms check-target:macos_arm64 @05a6f6af37ec+wt
+pass/facts/finite_family_returned_descriptor/parameter checked 6438ms check-target:macos_arm64 @05a6f6af37ec+wt
+pass/facts/finite_family_returned_descriptor/pointer_field checked 8881ms check-target:macos_arm64 @05a6f6af37ec+wt
+pass/facts/finite_family_returned_descriptor/replaced_source incomplete 4159ms check-target:macos_arm64 @05a6f6af37ec+wt
+	`main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data (last declined step: reference result has no complete captured origin paths)); in state `main::entry`, statement 3
+pass/facts/finite_family_returned_descriptor/target_body checked 9001ms check-target:macos_arm64 @05a6f6af37ec+wt
+pass/facts/finite_family_returned_descriptor/target_qualification checked 8807ms check-target:macos_arm64 @05a6f6af37ec+wt
+pass/facts/finite_family_static_inline_result/argument_effect checked 8888ms check-target:macos_arm64 @05a6f6af37ec+wt
+pass/facts/finite_family_static_inline_result/authored_sum checked 7554ms check-target:macos_arm64 @05a6f6af37ec+wt
+pass/facts/finite_family_static_inline_result/call_result checked 8583ms check-target:macos_arm64 @05a6f6af37ec+wt
+pass/facts/finite_family_static_inline_result/const_name checked 9939ms check-target:macos_arm64 @05a6f6af37ec+wt
+pass/facts/finite_family_static_inline_result/field checked 8186ms check-target:macos_arm64 @05a6f6af37ec+wt
+pass/facts/finite_family_static_inline_result/local checked 10022ms check-target:macos_arm64 @05a6f6af37ec+wt
+pass/facts/finite_family_static_inline_result/match_join checked 9946ms check-target:macos_arm64 @05a6f6af37ec+wt
+pass/facts/finite_family_static_inline_result/nested_static checked 13332ms check-target:macos_arm64 @05a6f6af37ec+wt
+pass/facts/finite_family_static_inline_result/other_machine checked 11484ms check-target:macos_arm64 @05a6f6af37ec+wt
+pass/facts/finite_family_static_inline_result/other_state checked 9881ms check-target:macos_arm64 @05a6f6af37ec+wt
+pass/facts/finite_family_static_inline_result/parameter checked 9648ms check-target:macos_arm64 @05a6f6af37ec+wt
+pass/facts/finite_family_static_inline_result/stale_input checked 11106ms check-target:macos_arm64 @05a6f6af37ec+wt
+pass/facts/finite_family_static_inline_result/target_body checked 8929ms check-target:macos_arm64 @05a6f6af37ec+wt
+pass/facts/finite_family_static_inline_result/uncalled_target checked 8502ms check-target:macos_arm64 @05a6f6af37ec+wt
 pass/facts/five_variant_enum_payload_bound_through_call_result_exit checked 3392ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/five_variant_enum_payload_bound_through_const_name_exit checked 3321ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/five_variant_enum_payload_bound_through_field_exit checked 3647ms check-target:macos_arm64 @ccdb99ca2214
@@ -6604,6 +6646,8 @@ pass/facts/fixed_layout_bit_observation_through_other_machine_exit checked 2956m
 pass/facts/fixed_layout_bit_observation_through_other_state_exit checked 2909ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
 pass/facts/fixed_layout_bit_observation_through_parameter_exit checked 2871ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
 pass/facts/fixed_layout_bit_observation_through_target_body_exit checked 3026ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
+pass/facts/fixed_layout_byte_roundtrip_rejected_payload_exit checked 4947ms check-target:macos_arm64 @70ba9ee572b42c4d7f6ffe7d3051217e0906221c
+pass/facts/fixed_layout_byte_roundtrip_through_local_exit checked 4946ms check-target:macos_arm64 @70ba9ee572b42c4d7f6ffe7d3051217e0906221c
 pass/facts/fixed_layout_storage_through_call_result_exit checked 2891ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
 pass/facts/fixed_layout_storage_through_const_name_exit checked 3053ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
 pass/facts/fixed_layout_storage_through_field_exit checked 2977ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
@@ -7301,6 +7345,15 @@ pass/facts/match_reference_referent_through_target_body_exit rejected 2907ms che
 	cannot prove requires contract for call read_through from apply: match choose() { true => chosen, false => spare } == 17 (needs fact `place == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `joined == 17`
 	cannot prove requires contract for call read_through from apply: match choose() { true => chosen, false => spare } == 17 (needs fact `place == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `joined == 17`
 	cannot prove requires contract for call read_through from apply: match choose() { true => chosen, false => spare } == 17 (needs fact `place == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `joined == 17`
+pass/facts/match_runtime_view_extent_through_call_result_exit checked 5885ms check-target:macos_arm64 @fc74098f66b9+wt
+pass/facts/match_runtime_view_extent_through_const_name_exit checked 6632ms check-target:macos_arm64 @fc74098f66b9+wt
+pass/facts/match_runtime_view_extent_through_field_exit checked 7111ms check-target:macos_arm64 @fc74098f66b9+wt
+pass/facts/match_runtime_view_extent_through_local_exit checked 5665ms check-target:macos_arm64 @fc74098f66b9+wt
+pass/facts/match_runtime_view_extent_through_match_join_exit checked 5860ms check-target:macos_arm64 @fc74098f66b9+wt
+pass/facts/match_runtime_view_extent_through_other_machine_exit checked 4496ms check-target:macos_arm64 @fc74098f66b9+wt
+pass/facts/match_runtime_view_extent_through_other_state_exit checked 6632ms check-target:macos_arm64 @fc74098f66b9+wt
+pass/facts/match_runtime_view_extent_through_parameter_exit checked 5983ms check-target:macos_arm64 @fc74098f66b9+wt
+pass/facts/match_runtime_view_extent_through_target_body_exit checked 4276ms check-target:macos_arm64 @fc74098f66b9+wt
 pass/facts/matched_field_windows_through_call_result_exit checked 3527ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/matched_field_windows_through_const_name_exit checked 3384ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/matched_field_windows_through_field_exit checked 3509ms check-target:macos_arm64 @ccdb99ca2214
@@ -7511,6 +7564,15 @@ pass/facts/may_write_stored_rebind_through_target_body_exit rejected 3218ms chec
 	cannot prove index `index` is within length 4 in probe::entry
 	cannot prove index `index` is within length 4 in probe::entry
 	cannot prove index `index` is within length 4 in probe::entry
+pass/facts/method_array_operand_inference_through_call_result_exit checked 22709ms check-target:macos_arm64 @c79bb8268163+wt
+pass/facts/method_array_operand_inference_through_const_name_exit checked 26258ms check-target:macos_arm64 @c79bb8268163+wt
+pass/facts/method_array_operand_inference_through_field_exit checked 18271ms check-target:macos_arm64 @c79bb8268163+wt
+pass/facts/method_array_operand_inference_through_local_exit checked 17883ms check-target:macos_arm64 @c79bb8268163+wt
+pass/facts/method_array_operand_inference_through_match_join_exit checked 17748ms check-target:macos_arm64 @c79bb8268163+wt
+pass/facts/method_array_operand_inference_through_other_machine_exit checked 25976ms check-target:macos_arm64 @c79bb8268163+wt
+pass/facts/method_array_operand_inference_through_other_state_exit checked 26881ms check-target:macos_arm64 @c79bb8268163+wt
+pass/facts/method_array_operand_inference_through_parameter_exit checked 22272ms check-target:macos_arm64 @c79bb8268163+wt
+pass/facts/method_array_operand_inference_through_target_body_exit checked 13067ms check-target:macos_arm64 @c79bb8268163+wt
 pass/facts/mixed_width_record_padding_geometry_through_call_result_exit checked 4547ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/mixed_width_record_padding_geometry_through_const_name_exit checked 2839ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/mixed_width_record_padding_geometry_through_field_exit checked 3889ms check-target:macos_arm64 @ccdb99ca2214
@@ -8658,6 +8720,16 @@ pass/facts/open_const_implementation_through_other_machine_exit checked 6729ms c
 pass/facts/open_const_implementation_through_other_state_exit checked 6704ms check-target:macos_arm64 @ea132c1fff8b
 pass/facts/open_const_implementation_through_parameter_exit checked 6683ms check-target:macos_arm64 @ea132c1fff8b
 pass/facts/open_const_implementation_through_target_body_exit checked 6705ms check-target:macos_arm64 @ea132c1fff8b
+pass/facts/open_index_distributivity_commutative_semiring_exit checked 7117ms check-target:macos_arm64 @af2cbd5e6837
+pass/facts/open_index_distributivity_through_call_result_exit checked 7094ms check-target:macos_arm64 @af2cbd5e6837
+pass/facts/open_index_distributivity_through_const_name_exit checked 6904ms check-target:macos_arm64 @af2cbd5e6837
+pass/facts/open_index_distributivity_through_field_exit checked 7078ms check-target:macos_arm64 @af2cbd5e6837
+pass/facts/open_index_distributivity_through_local_exit checked 7156ms check-target:macos_arm64 @af2cbd5e6837
+pass/facts/open_index_distributivity_through_match_join_exit checked 8527ms check-target:macos_arm64 @af2cbd5e6837
+pass/facts/open_index_distributivity_through_other_machine_exit checked 7141ms check-target:macos_arm64 @af2cbd5e6837
+pass/facts/open_index_distributivity_through_other_state_exit checked 8247ms check-target:macos_arm64 @af2cbd5e6837
+pass/facts/open_index_distributivity_through_parameter_exit checked 8195ms check-target:macos_arm64 @af2cbd5e6837
+pass/facts/open_index_distributivity_through_target_body_exit checked 8246ms check-target:macos_arm64 @af2cbd5e6837
 pass/facts/open_record_const_closed_call_call_result_exit checked 17674ms check-target:macos_arm64 @e9f492c5ccc6+wt
 pass/facts/open_record_const_closed_call_const_name_exit checked 17403ms check-target:macos_arm64 @e9f492c5ccc6+wt
 pass/facts/open_record_const_closed_call_data_argument_exit checked 12570ms check-target:macos_arm64 @e9f492c5ccc6+wt
@@ -8933,19 +9005,21 @@ pass/facts/readonly_byte_pool_relocation_bound_through_other_machine_exit checke
 pass/facts/readonly_byte_pool_relocation_bound_through_other_state_exit checked 3783ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/readonly_byte_pool_relocation_bound_through_parameter_exit checked 3869ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/readonly_byte_pool_relocation_bound_through_target_body_exit checked 2964ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/recast_parent_restoration_argument_snapshot_exit checked 6224ms check-target:macos_arm64 @0a3a759c64e3
 pass/facts/recast_parent_restoration_case_backing_exit checked 6412ms check-target:macos_arm64 @8fce926f9735
 pass/facts/recast_parent_restoration_case_backing_nonmutating_exit checked 6356ms check-target:macos_arm64 @8fce926f9735
+pass/facts/recast_parent_restoration_completion_order_exit checked 6263ms check-target:macos_arm64 @0a3a759c64e3
 pass/facts/recast_parent_restoration_forwarding_marker_exit checked 6178ms check-target:macos_arm64 @8fce926f9735
 pass/facts/recast_parent_restoration_preserved_end_exit checked 5639ms check-target:macos_arm64 @8fce926f9735
-pass/facts/recast_parent_restoration_through_call_result_exit checked 4929ms check-target:macos_arm64 @8fce926f9735
-pass/facts/recast_parent_restoration_through_const_name_exit checked 4674ms check-target:macos_arm64 @8fce926f9735
-pass/facts/recast_parent_restoration_through_field_exit checked 4643ms check-target:macos_arm64 @8fce926f9735
-pass/facts/recast_parent_restoration_through_local_exit checked 3727ms check-target:macos_arm64 @8fce926f9735
-pass/facts/recast_parent_restoration_through_match_join_exit checked 4203ms check-target:macos_arm64 @8fce926f9735
-pass/facts/recast_parent_restoration_through_other_machine_exit checked 10348ms check-target:macos_arm64 @8fce926f9735
-pass/facts/recast_parent_restoration_through_other_state_exit checked 5404ms check-target:macos_arm64 @8fce926f9735
-pass/facts/recast_parent_restoration_through_parameter_exit checked 10246ms check-target:macos_arm64 @8fce926f9735
-pass/facts/recast_parent_restoration_through_target_body_exit checked 10326ms check-target:macos_arm64 @8fce926f9735
+pass/facts/recast_parent_restoration_through_call_result_exit checked 4914ms check-target:macos_arm64 @0a3a759c64e3
+pass/facts/recast_parent_restoration_through_const_name_exit checked 7749ms check-target:macos_arm64 @0a3a759c64e3
+pass/facts/recast_parent_restoration_through_field_exit checked 3988ms check-target:macos_arm64 @0a3a759c64e3
+pass/facts/recast_parent_restoration_through_local_exit checked 5615ms check-target:macos_arm64 @0a3a759c64e3
+pass/facts/recast_parent_restoration_through_match_join_exit checked 5464ms check-target:macos_arm64 @0a3a759c64e3
+pass/facts/recast_parent_restoration_through_other_machine_exit checked 4077ms check-target:macos_arm64 @0a3a759c64e3
+pass/facts/recast_parent_restoration_through_other_state_exit checked 5097ms check-target:macos_arm64 @0a3a759c64e3
+pass/facts/recast_parent_restoration_through_parameter_exit checked 4876ms check-target:macos_arm64 @0a3a759c64e3
+pass/facts/recast_parent_restoration_through_target_body_exit checked 4926ms check-target:macos_arm64 @0a3a759c64e3
 pass/facts/record_layout_geometry_through_call_result_exit checked 3578ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/record_layout_geometry_through_const_name_exit checked 4172ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/record_layout_geometry_through_field_exit checked 3172ms check-target:macos_arm64 @ccdb99ca2214
@@ -10933,12 +11007,6 @@ pass/filesystem/windows_raw_read_link_exit rejected 38800ms check-target:windows
 	call to `finish` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
 	call to `finish` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
 	inspection Main::main admission: [Diagnostic { severity: Error, message: "call to `relative` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(223), span: Span { start: 1938, end: 1946 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("windows_raw_read_link_exit"), path: "tests/omega/pass/filesystem/windows_raw_read_link_exit/main.omg", line: 38, column: 39 }) }, Diagnostic { severity: Error, message: "call to `finish` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(223), span: Span { start: 1962, end: 1968 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("windows_raw_read_link_exit"), path: "tests/omega/pass/filesystem/windows_raw_read_link_exit/main.omg", line: 38, column: 63 }) }, Diagnostic { severity: Error, message: "call to `prefix` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(223), span: Span { start: 2534, end: 2540 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("windows_raw_read_link_exit"), path: "tests/omega/pass/filesystem/windows_raw_read_link_exit/main.omg", line: 47, column: 21 }) }, Diagnostic { severity: Error, message: "call to `finish` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(223), span: Span { start: 2568, end: 2574 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("windows_raw_read_link_exit"), path: "tests/omega/pass/filesystem/windows_raw_read_link_exit/main.omg", line: 48, column: 22 }) }, Diagnostic { severity: Error, message: "call to `arguments` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(223), span: Span { start: 2975, end: 2984 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("windows_raw_read_link_exit"), path: "tests/omega/pass/filesystem/windows_raw_read_link_exit/main.omg", line: 57, column: 21 }) }, Diagnostic { severity: Error, message: "call to `finish` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(223), span: Span { start: 3012, end: 3018 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("windows_raw_read_link_exit"), path: "tests/omega/pass/filesystem/windows_raw_read_link_exit/main.omg", line: 58, column: 22 }) }, Diagnostic { severity: Error, message: "call to `missing` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(223), span: Span { start: 3580, end: 3587 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("windows_raw_read_link_exit"), path: "tests/omega/pass/filesystem/windows_raw_read_link_exit/main.omg", line: 67, column: 21 }) }, Diagnostic { severity: Error, message: "call to `finish` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(223), span: Span { start: 3615, end: 3621 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("windows_raw_read_link_exit"), path: "tests/omega/pass/filesystem/windows_raw_read_link_exit/main.omg", line: 68, column: 22 }) }, Diagnostic { severity: Error, message: "call to `plain` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(223), span: Span { start: 3868, end: 3873 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("windows_raw_read_link_exit"), path: "tests/omega/pass/filesystem/windows_raw_read_link_exit/main.omg", line: 73, column: 65 }) }, Diagnostic { severity: Error, message: "call to `finish` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(223), span: Span { start: 3889, end: 3895 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("windows_raw_read_link_exit"), path: "tests/omega/pass/filesystem/windows_raw_read_link_exit/main.omg", line: 73, column: 86 }) }, Diagnostic { severity: Error, message: "call to `refuse_plain` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(223), span: Span { start: 4195, end: 4207 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("windows_raw_read_link_exit"), path: "tests/omega/pass/filesystem/windows_raw_read_link_exit/main.omg", line: 78, column: 43 }) }, Diagnostic { severity: Error, message: "call to `finish` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(223), span: Span { start: 4223, end: 4229 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("windows_raw_read_link_exit"), path: "tests/omega/pass/filesystem/windows_raw_read_link_exit/main.omg", line: 78, column: 71 }) }, Diagnostic { severity: Error, message: "call to `absolute_link` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(223), span: Span { start: 4729, end: 4742 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("windows_raw_read_link_exit"), path: "tests/omega/pass/filesystem/windows_raw_read_link_exit/main.omg", line: 85, column: 21 }) }, Diagnostic { severity: Error, message: "call to `finish` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(223), span: Span { start: 4770, end: 4776 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("windows_raw_read_link_exit"), path: "tests/omega/pass/filesystem/windows_raw_read_link_exit/main.omg", line: 86, column: 22 }) }, Diagnostic { severity: Error, message: "call to `absolute` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(223), span: Span { start: 5201, end: 5209 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("windows_raw_read_link_exit"), path: "tests/omega/pass/filesystem/windows_raw_read_link_exit/main.omg", line: 94, column: 59 }) }, Diagnostic { severity: Error, message: "call to `finish` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(223), span: Span { start: 5225, end: 5231 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("windows_raw_read_link_exit"), path: "tests/omega/pass/filesystem/windows_raw_read_link_exit/main.omg", line: 94, column: 83 }) }, Diagnostic { severity: Error, message: "call to `malformed_link` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(223), span: Span { start: 5789, end: 5803 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("windows_raw_read_link_exit"), path: "tests/omega/pass/filesystem/windows_raw_read_link_exit/main.omg", line: 103, column: 21 }) }, Diagnostic { severity: Error, message: "call to `finish` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(223), span: Span { start: 5831, end: 5837 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("windows_raw_read_link_exit"), path: "tests/omega/pass/filesystem/windows_raw_read_link_exit/main.omg", line: 104, column: 22 }) }, Diagnostic { severity: Error, message: "call to `malformed` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(223), span: Span { start: 6264, end: 6273 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("windows_raw_read_link_exit"), path: "tests/omega/pass/filesystem/windows_raw_read_link_exit/main.omg", line: 112, column: 59 }) }, Diagnostic { severity: Error, message: "call to `finish` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(223), span: Span { start: 6289, end: 6295 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("windows_raw_read_link_exit"), path: "tests/omega/pass/filesystem/windows_raw_read_link_exit/main.omg", line: 112, column: 84 }) }, Diagnostic { severity: Error, message: "call to `finish` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(223), span: Span { start: 6716, end: 6722 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("windows_raw_read_link_exit"), path: "tests/omega/pass/filesystem/windows_raw_read_link_exit/main.omg", line: 119, column: 70 }) }, Diagnostic { severity: Error, message: "call to `finish` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(223), span: Span { start: 6742, end: 6748 } }), resolved_location: Some(ResolvedSourceLocation { package: Some("windows_raw_read_link_exit"), path: "tests/omega/pass/filesystem/windows_raw_read_link_exit/main.omg", line: 119, column: 96 }) }]
-pass/filesystem/windows_set_file_time_exit rejected 20317ms check-target:windows_x86_64 regressed-from:checked+check-target:windows_x86_64 @ccdb99ca2214
-	call to `seed` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `reopen` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `stamp` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `reopen_metadata` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-	call to `metadata` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
 pass/filesystem/windows_wrapper_results_exit rejected 27963ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	machine `Main::main` publishes service reach `Console` but its checked body reaches undeclared services `FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation`
 pass/filesystem/wrapper_lock_metadata_exit rejected 26214ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
@@ -11493,7 +11561,7 @@ pass/generics/swapped_type_parameter_result checked 2268ms @ccdb99ca2214
 pass/generics/type_index_forwarding_exit checked 4402ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/typed_const_equation_helper_body_exit checked 8339ms check-target:macos_arm64 @911f6617ba9e
 pass/generics/unused_selected_value_carrier checked 2507ms @ccdb99ca2214
-pass/generics/unused_selected_value_proved_where checked 2292ms @ccdb99ca2214
+pass/generics/unused_selected_value_proved_where checked 6639ms @05a6f6af37ec+wt
 pass/host/console_exit_process_exit checked 11753ms check-target:macos_arm64 @ccdb99ca2214
 pass/host/efi_vtable_entry checked 3201ms @ccdb99ca2214
 pass/host/foreign_byte_recast checked 3516ms @ccdb99ca2214
@@ -11888,6 +11956,7 @@ pass/memory/runtime_indexed_resident_exchange_exit checked 4621ms check-target:m
 pass/memory/runtime_large_entry_record_field_exit checked 12528ms check-target:macos_arm64 @ccdb99ca2214
 pass/memory/runtime_large_frame_console_byte_homes_exit checked 11820ms check-target:macos_arm64 @ccdb99ca2214
 pass/memory/runtime_large_local_record_exit checked 12959ms check-target:macos_arm64 @ccdb99ca2214
+pass/memory/runtime_large_structural_copy_exit checked 590ms check-target:macos_arm64 @4b1bca34060d
 pass/memory/runtime_linear_native_allocation_call_result_exit checked 5305ms check-target:linux_x86_64 @ccdb99ca2214
 pass/memory/runtime_linear_native_allocation_exit checked 3556ms check-target:linux_x86_64 @ccdb99ca2214
 pass/memory/runtime_selected_resident_exchange_exit checked 4109ms check-target:macos_arm64 @ccdb99ca2214
@@ -12019,7 +12088,12 @@ pass/optimizer/equivalent_compare_selection_compile checked 3323ms check-target:
 pass/optimizer/join_invariant_copy_transport_selected checked 9469ms rollback:requested=[CopyPropagation];applied=[CopyPropagation];effective=[DeadPureScalarElimination] unrolled-receipt:none unrolled-semantic:d8cd114ef1c1caaa rolled-back-semantic:a66ff28341a461f3 module:differs check-target:macos_arm64 @ccdb99ca2214
 pass/optimizer/join_invariant_dead_scalar_transport_selected checked 11111ms rollback:requested=[DeadPureScalarElimination];applied=[DeadPureScalarElimination];effective=[CopyPropagation] unrolled-receipt:none unrolled-semantic:01f0c565166aa74f rolled-back-semantic:01f0c565166aa74f module:same check-target:macos_arm64 @ccdb99ca2214
 pass/optimizer/join_invariant_transport_control checked 3540ms check-target:macos_arm64 @ccdb99ca2214
-pass/optimizer/ordinary_copy_membership_selected checked 4002ms check-target:macos_arm64 @ccdb99ca2214
+pass/optimizer/ordinary_copy_membership_selected rejected 923ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @b8f9f267c739+wt
+	machine `NativeAccess::initialize` state `initialize` calls `Access::initialize_from_profile` with write-only input authority; an opaque selected implementation requires an admitted write-only boundary claim
+	bodyless boundary symbol `view_from_profile` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
+	bodyless boundary symbol `view_mut_from_profile` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
+	bodyless boundary symbol `initialize_from_profile` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
+	bodyless boundary symbol `extract_resident` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
 pass/optimizer/pre_allocation_joint_frontier_exit checked 3317ms check-target:macos_arm64 @ccdb99ca2214
 pass/optimizer/redundant_compare_selection_compile checked 4060ms check-target:macos_arm64 @ccdb99ca2214
 pass/optimizer/reference_storage_scalar_demand_exit checked 17498ms check-target:macos_arm64 @ccdb99ca2214
@@ -12495,8 +12569,7 @@ pass/providers/applied_entry_nested_binding_context_exit checked 3583ms check-ta
 pass/providers/applied_header_dependent_const_carrier_exit rejected 1202ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	const parameter `Count` of `Parent` requires an integer literal argument
 pass/providers/applied_requirement_calls_exit checked 3582ms check-target:macos_arm64 @ccdb99ca2214
-pass/providers/applied_requirement_computed_const_exit rejected 1559ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot prove declared where facts for static application of requirement `Service::echo` under its complete applied telescope
+pass/providers/applied_requirement_computed_const_exit checked 10784ms check-target:macos_arm64 @05a6f6af37ec+wt
 pass/providers/applied_routed_index_forwarding_exit rejected 1322ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64+terminal-inspections:match @ccdb99ca2214
 	provider choice must supply the declaration's complete static application
 	inspection main admission: [Diagnostic { severity: Error, message: "provider choice must supply the declaration's complete static application", exceeded_provision: None, source_span: Some(SourceSpan { source_id: SourceId(2), span: Span { start: 390, end: 405 } }), resolved_location: Some(ResolvedSourceLocation { package: None, path: "tests/omega/pass/providers/applied_routed_index_forwarding_exit/build.omg", line: 8, column: 12 }) }]
@@ -12556,10 +12629,11 @@ pass/providers/direct_foreign_tables_exit checked 3679ms check-target:windows_x8
 pass/providers/external_boundary_contract_exit checked 3622ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/external_boundary_requirement_via_exit checked 20380ms check-target:macos_arm64 @a562d4060f10+wt
 pass/providers/external_leaf_dllimport_compile checked 3165ms check-target:macos_arm64 @ccdb99ca2214
-pass/providers/finite_requirement_boolean_const_exit checked 4230ms check-target:macos_arm64 @ccdb99ca2214
-pass/providers/finite_requirement_correlated_tuple_exit checked 3800ms check-target:macos_arm64 @ccdb99ca2214
-pass/providers/finite_requirement_direct_provider_exit checked 3882ms check-target:macos_arm64 @ccdb99ca2214
-pass/providers/finite_requirement_forwarded_const_exit checked 3851ms check-target:macos_arm64 @ccdb99ca2214
+pass/providers/finite_requirement_boolean_const_exit checked 9568ms check-target:macos_arm64 @05a6f6af37ec+wt
+pass/providers/finite_requirement_correlated_tuple_exit checked 8288ms check-target:macos_arm64 @05a6f6af37ec+wt
+pass/providers/finite_requirement_direct_provider_exit checked 10288ms check-target:macos_arm64 @05a6f6af37ec+wt
+pass/providers/finite_requirement_forwarded_const_exit checked 8474ms check-target:macos_arm64 @05a6f6af37ec+wt
+pass/providers/float_operator_demands_its_provider_exit checked 11563ms check-target:macos_arm64 @05a6f6af37ec+wt
 pass/providers/foreign_address_result_release_exit checked 20459ms check-target:linux_x86_64 @a562d4060f10+wt
 pass/providers/foreign_indirect_record_distinct_exit rejected 20381ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @a562d4060f10+wt
 	native artifact fragment object publication failed: foreign-call custody: InvalidForeignCallArgument { caller: MachineId(7), owner: Operation(OperationId(218)) }
@@ -12579,7 +12653,7 @@ pass/providers/generic_result_recursive_reference_issuer checked 2643ms @ccdb99c
 pass/providers/independent_imported_data_exit checked 6891ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/inherited_applied_binding_borrowed_result_exit checked 3887ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/inherited_applied_binding_dispatch_exit checked 3757ms check-target:macos_arm64 @ccdb99ca2214
-pass/providers/inherited_applied_binding_finite_family_exit checked 3562ms check-target:macos_arm64 @ccdb99ca2214
+pass/providers/inherited_applied_binding_finite_family_exit checked 8993ms check-target:macos_arm64 @05a6f6af37ec+wt
 pass/providers/inherited_applied_binding_forwarded_value_exit checked 3659ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/inherited_boundary_field_postcondition_exit checked 3570ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/inherited_provider_borrowed_result_exit checked 3382ms check-target:macos_arm64 @ccdb99ca2214
@@ -13177,7 +13251,7 @@ pass/targets/runtime_family_projected_result_qualification_exit checked 4021ms c
 pass/targets/runtime_opaque_family_shared_provider_row_exit checked 13553ms check-target:macos_arm64 @ccdb99ca2214
 pass/targets/runtime_target_default_provider_rows_exit checked 3287ms check-target:macos_arm64 terminal-target.macos_arm64:0 terminal-target.windows_x86_64:trap terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
 pass/targets/runtime_target_inherited_named_provider_defaults_exit checked 2859ms check-target:macos_arm64 terminal-target.macos_arm64:0 terminal-target.windows_x86_64:trap terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
-pass/targets/runtime_target_inherited_provider_roster_exit checked 3760ms check-target:macos_arm64 terminal-target.macos_arm64:0 terminal-target.windows_x86_64:trap terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
+pass/targets/runtime_target_inherited_provider_roster_exit checked 8093ms check-target:macos_arm64 terminal-target.macos_arm64:0 terminal-target.windows_x86_64:trap terminal-target-artifact:unchanged terminal-targets:match @05a6f6af37ec+wt
 pass/targets/runtime_target_named_provider_defaults_exit checked 3562ms check-target:macos_arm64 terminal-target.macos_arm64:0 terminal-target.windows_x86_64:trap terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
 pass/targets/runtime_target_provider_build_override_exit checked 3943ms check-target:macos_arm64 terminal-target.macos_arm64:0 terminal-target.windows_x86_64:trap terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
 pass/targets/selected_family_distinct_results_exit checked 3173ms check-target:macos_arm64 @ccdb99ca2214
@@ -13586,16 +13660,8 @@ pass/traits/default_row_nested_captured_reference_exit checked 4131ms check-targ
 pass/traits/default_row_same_spelled_supplier_region_exit checked 3825ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/default_row_shadowed_captured_operand checked 2440ms @ccdb99ca2214
 pass/traits/default_row_shadowed_captured_operand_exit checked 3328ms check-target:macos_arm64 @ccdb99ca2214
-pass/traits/dyn_finite_family rejected 1379ms regressed-from:checked @ccdb99ca2214
-	cannot prove declared where facts for static application of requirement `Shape::code` under its complete applied telescope
-	cannot prove declared where facts for static application of requirement `Shape::code` under its complete applied telescope
-	retained requirement tuple lost its exact source call application: call `code` in `Main::run` binds declaration Handle { arena_index: 1469, generation: 1 }, but its retained targets are [(Handle { arena_index: 1469, generation: 1 }, Handle { arena_index: 0, generation: 0 })]
-	retained requirement tuple lost its exact source call application: call `code` in `Main::run` binds declaration Handle { arena_index: 1469, generation: 1 }, but its retained targets are [(Handle { arena_index: 1469, generation: 1 }, Handle { arena_index: 0, generation: 0 })]
-pass/traits/dyn_finite_family_dispatch rejected 641ms regressed-from:checked @ccdb99ca2214
-	cannot prove declared where facts for static application of requirement `Shape::code` under its complete applied telescope
-	cannot prove declared where facts for static application of requirement `Shape::code` under its complete applied telescope
-	retained requirement tuple lost its exact source call application: call `code` in `Main::run` binds declaration Handle { arena_index: 908, generation: 1 }, but its retained targets are [(Handle { arena_index: 908, generation: 1 }, Handle { arena_index: 0, generation: 0 })]
-	retained requirement tuple lost its exact source call application: call `code` in `Main::run` binds declaration Handle { arena_index: 908, generation: 1 }, but its retained targets are [(Handle { arena_index: 908, generation: 1 }, Handle { arena_index: 0, generation: 0 })]
+pass/traits/dyn_finite_family checked 7996ms @05a6f6af37ec+wt
+pass/traits/dyn_finite_family_dispatch checked 6343ms @05a6f6af37ec+wt
 pass/traits/equatable_implementation_selection_exit checked 13184ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/equatable_mixed_shape_equality_exit checked 11437ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/equatable_record_equality_exit checked 12391ms check-target:macos_arm64 @ccdb99ca2214
@@ -13674,20 +13740,11 @@ pass/traits/runtime_dyn_two_impl_dispatch_exit checked 12466ms check-target:maco
 pass/traits/runtime_exact_requirement_edge_exit checked 12334ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_explicit_implementation_arguments_exit checked 3576ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_explicit_implementation_requirement_call_exit checked 12754ms check-target:macos_arm64 @ccdb99ca2214
-pass/traits/runtime_finite_family_affine_result_exit rejected 8410ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot prove declared where facts for static application of requirement `Shape::code` under its complete applied telescope
-	retained requirement tuple lost its exact source call application: call `code` in `scan` binds declaration Handle { arena_index: 1986, generation: 1 }, but its retained targets are [(Handle { arena_index: 1986, generation: 1 }, Handle { arena_index: 0, generation: 0 })]
-pass/traits/runtime_finite_family_correlated_case_result_exit rejected 8834ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot prove declared where facts for static application of requirement `Shape::code` under its complete applied telescope
-	retained requirement tuple lost its exact source call application: call `code` in `scan` binds declaration Handle { arena_index: 19501, generation: 1 }, but its retained targets are [(Handle { arena_index: 19501, generation: 1 }, Handle { arena_index: 0, generation: 0 })]
-pass/traits/runtime_finite_family_owned_result_exit rejected 7692ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot prove declared where facts for static application of requirement `Shape::code` under its complete applied telescope
-	retained requirement tuple lost its exact source call application: call `code` in `scan` binds declaration Handle { arena_index: 1990, generation: 1 }, but its retained targets are [(Handle { arena_index: 1990, generation: 1 }, Handle { arena_index: 0, generation: 0 })]
-pass/traits/runtime_finite_family_owned_state_result_exit rejected 9770ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	requirement `Shape::code` is absent from `dyn Shape`: the requirement has requirement-local generic parameters outside one finite family
-pass/traits/runtime_finite_family_structural_result_exit rejected 8371ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot prove declared where facts for static application of requirement `Shape::code` under its complete applied telescope
-	retained requirement tuple lost its exact source call application: call `code` in `scan` binds declaration Handle { arena_index: 19496, generation: 1 }, but its retained targets are [(Handle { arena_index: 19496, generation: 1 }, Handle { arena_index: 0, generation: 0 })]
+pass/traits/runtime_finite_family_affine_result_exit checked 106422ms check-target:macos_arm64 @05a6f6af37ec+wt
+pass/traits/runtime_finite_family_correlated_case_result_exit checked 115725ms check-target:macos_arm64 @05a6f6af37ec+wt
+pass/traits/runtime_finite_family_owned_result_exit checked 118114ms check-target:macos_arm64 @05a6f6af37ec+wt
+pass/traits/runtime_finite_family_owned_state_result_exit checked 104719ms check-target:macos_arm64 @05a6f6af37ec+wt
+pass/traits/runtime_finite_family_structural_result_exit checked 38504ms check-target:macos_arm64 @4dafba37c631
 pass/traits/runtime_generic_exact_application_exit checked 3423ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_inherited_trait_default_exit checked 14462ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_named_implementation_selection_exit checked 14795ms check-target:macos_arm64 @ccdb99ca2214
@@ -16284,7 +16341,7 @@ fail/calls/nested_machine_private_descendant rejected 949ms expected @ccdb99ca22
 	qualified call `hidden` has no resolved callable declaration
 fail/calls/nested_machine_runtime_capture rejected 1858ms expected @ccdb99ca2214
 	machine `read` state `entry` uses `value`, which is not a declared local, parameter, field, or type in this state (check the spelling)
-fail/calls/nested_range_call_out_of_bounds rejected 2658ms expected @ccdb99ca2214
+fail/calls/nested_range_call_out_of_bounds rejected 1918ms expected @70ba9ee572b42c4d7f6ffe7d3051217e0906221c
 	cannot prove subslice range end bound `..4` is within slice length 3
 fail/calls/nested_static_implementation_wrong_carrier rejected 1090ms expected @02eca83b1303
 	argument `value` for state `read` expects `&Value`, got `named value`
@@ -18622,7 +18679,7 @@ fail/effects/directory_entry_query_requires_metadata_reach rejected 31543ms expe
 	machine `list_without_metadata` publishes service reach `DirectoryEnumeration + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation` but its checked body reaches undeclared service `FilesystemMetadataQuery`
 fail/effects/filesystem_readonly_requires_metadata_query rejected 32732ms expected @ccdb99ca2214
 	machine `mutate_without_query` publishes service reach `FilesystemMetadataMutation` but its checked body reaches undeclared service `FilesystemMetadataQuery`
-fail/effects/finite_requirement_block_required rejected 1543ms expected @ccdb99ca2214
+fail/effects/finite_requirement_block_required rejected 2937ms expected @05a6f6af37ec+wt
 	call to `echo` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
 	call to `echo` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
 fail/effects/global_key_polling_is_not_window_input rejected 12868ms expected @ccdb99ca2214
@@ -21762,9 +21819,9 @@ fail/facts/crash_entry_boolean_view_parameter_rejected rejected 4745ms expected 
 	call from `read_flag` to `maybe_clear` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/facts/crash_entry_boolean_view_rejected rejected 4495ms expected @911f6617ba9e
 	call from `read_flag` to `maybe_clear` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/facts/crash_entry_boolean_view_target_body_false_rejected rejected 3801ms expected @911f6617ba9e
+fail/facts/crash_entry_boolean_view_target_body_false_rejected rejected 4248ms expected @05a6f6af37ec+wt
 	call from `read_flag` to `forward` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/facts/crash_entry_boolean_view_target_body_rejected rejected 3751ms expected @911f6617ba9e
+fail/facts/crash_entry_boolean_view_target_body_rejected rejected 4327ms expected @05a6f6af37ec+wt
 	call from `read_flag` to `forward` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/facts/crash_entry_ieee_view_call_result_zero_rejected rejected 5364ms expected @ccdb99ca2214
 	call from `read_bits` to `maybe_zero` at statement 3 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
@@ -21784,7 +21841,7 @@ fail/facts/crash_entry_ieee_view_other_state_zero_rejected rejected 5681ms expec
 	call from `read_bits` to `step` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/facts/crash_entry_ieee_view_parameter_zero_rejected rejected 6763ms expected @ccdb99ca2214
 	call from `read_bits` to `maybe_zero` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/facts/crash_entry_ieee_view_target_body_zero_rejected rejected 4333ms expected @ccdb99ca2214
+fail/facts/crash_entry_ieee_view_target_body_zero_rejected rejected 8504ms expected @05a6f6af37ec+wt
 	call from `read_bits` to `forward` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/facts/crash_entry_ieee_view_through_call_result_rejected rejected 5358ms expected @ccdb99ca2214
 	call from `read_bits` to `maybe_zero` at statement 3 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
@@ -21802,7 +21859,7 @@ fail/facts/crash_entry_ieee_view_through_other_state_rejected rejected 4549ms ex
 	call from `read_bits` to `step` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/facts/crash_entry_ieee_view_through_parameter_rejected rejected 4712ms expected @ccdb99ca2214
 	call from `read_bits` to `maybe_zero` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/facts/crash_entry_ieee_view_through_target_body_rejected rejected 6275ms expected @ccdb99ca2214
+fail/facts/crash_entry_ieee_view_through_target_body_rejected rejected 6270ms expected @05a6f6af37ec+wt
 	call from `read_bits` to `forward` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/facts/crash_entry_integer_view_changed_guard rejected 3341ms expected @ccdb99ca2214
 	call from `read_bits` to `maybe_zero` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
@@ -21828,7 +21885,7 @@ fail/facts/crash_entry_nan_equality_through_other_state_rejected rejected 5030ms
 	call from `read_nan` to `step` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/facts/crash_entry_nan_equality_through_parameter_rejected rejected 5705ms expected @ccdb99ca2214
 	call from `main` to `read_nan` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/facts/crash_entry_nan_equality_through_target_body_rejected rejected 4989ms expected @ccdb99ca2214
+fail/facts/crash_entry_nan_equality_through_target_body_rejected rejected 6229ms expected @05a6f6af37ec+wt
 	call from `read_nan` to `forward` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/facts/crash_entry_nonempty_path_local_written_rejected rejected 2639ms expected @ccdb99ca2214
 	call from `read_bits` to `maybe_zero` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
@@ -21848,7 +21905,7 @@ fail/facts/crash_entry_nonempty_path_through_other_state_rejected rejected 3211m
 	call from `read_bits` to `step` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/facts/crash_entry_nonempty_path_through_parameter_rejected rejected 2653ms expected @ccdb99ca2214
 	call from `read_bits` to `take` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/facts/crash_entry_nonempty_path_through_target_body_rejected rejected 2998ms expected @ccdb99ca2214
+fail/facts/crash_entry_nonempty_path_through_target_body_rejected rejected 4674ms expected @05a6f6af37ec+wt
 	call from `read_bits` to `forward` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/facts/crash_entry_representation_view_through_call_result_rejected rejected 2876ms expected @ccdb99ca2214
 	call from `read_bits` to `maybe_zero` at statement 3 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
@@ -21866,7 +21923,7 @@ fail/facts/crash_entry_representation_view_through_other_state_rejected rejected
 	call from `read_bits` to `step` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/facts/crash_entry_representation_view_through_parameter_rejected rejected 2836ms expected @ccdb99ca2214
 	call from `read_bits` to `maybe_zero` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/facts/crash_entry_representation_view_through_target_body_rejected rejected 3305ms expected @ccdb99ca2214
+fail/facts/crash_entry_representation_view_through_target_body_rejected rejected 3809ms expected @05a6f6af37ec+wt
 	call from `read_bits` to `forward` at statement 2 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/facts/crash_entry_signed_zero_through_call_result_rejected rejected 13840ms expected @ccdb99ca2214
 	call from `read_zero` to `maybe_nonzero` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
@@ -21886,7 +21943,7 @@ fail/facts/crash_entry_signed_zero_through_other_state_rejected rejected 4208ms 
 	call from `read_zero` to `step` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/facts/crash_entry_signed_zero_through_parameter_rejected rejected 5382ms expected @ccdb99ca2214
 	call from `read_zero` to `maybe_nonzero` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
-fail/facts/crash_entry_signed_zero_through_target_body_rejected rejected 5164ms expected @ccdb99ca2214
+fail/facts/crash_entry_signed_zero_through_target_body_rejected rejected 7678ms expected @05a6f6af37ec+wt
 	call from `read_zero` to `forward` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/facts/data_where_private_write_multiple_arrivals_rejected rejected 2775ms expected @911f6617ba9e
 	machine `fill` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
@@ -22607,53 +22664,89 @@ fail/facts/field_where_index_through_target_body_rejected rejected 3644ms expect
 	cannot prove index `main.k + 1` is within length 5 in read_target::entry
 	cannot prove index `main.k + 1` is within length 5 in read_target::entry
 	cannot prove index `main.k + 1` is within length 5 in read_target::entry
-fail/facts/finite_family_const_roster/call_result rejected 1678ms unexpected @ccdb99ca2214
-	static application of requirement `Family::row` violates its declared where facts: the complete tuple is structurally false
-	static application of requirement `Family::row` violates its declared where facts: the complete tuple is structurally false
-fail/facts/finite_family_const_roster/const_name rejected 1348ms unexpected @ccdb99ca2214
-	static application of requirement `Family::row` violates its declared where facts: the complete tuple is structurally false
-	static application of requirement `Family::row` violates its declared where facts: the complete tuple is structurally false
-fail/facts/finite_family_const_roster/field rejected 1013ms unexpected @ccdb99ca2214
-	static application of requirement `Family::row` violates its declared where facts: the complete tuple is structurally false
-	static application of requirement `Family::row` violates its declared where facts: the complete tuple is structurally false
-fail/facts/finite_family_const_roster/local rejected 1366ms unexpected @ccdb99ca2214
-	static application of requirement `Family::row` violates its declared where facts: the complete tuple is structurally false
-	static application of requirement `Family::row` violates its declared where facts: the complete tuple is structurally false
-fail/facts/finite_family_const_roster/match_join rejected 1478ms unexpected @ccdb99ca2214
-	static application of requirement `Family::row` violates its declared where facts: the complete tuple is structurally false
-	static application of requirement `Family::row` violates its declared where facts: the complete tuple is structurally false
-fail/facts/finite_family_const_roster/other_machine rejected 1513ms unexpected @ccdb99ca2214
-	static application of requirement `Family::row` violates its declared where facts: the complete tuple is structurally false
-	static application of requirement `Family::row` violates its declared where facts: the complete tuple is structurally false
-fail/facts/finite_family_const_roster/other_state rejected 1338ms unexpected @ccdb99ca2214
-	static application of requirement `Family::row` violates its declared where facts: the complete tuple is structurally false
-	static application of requirement `Family::row` violates its declared where facts: the complete tuple is structurally false
-fail/facts/finite_family_const_roster/parameter rejected 1295ms unexpected @ccdb99ca2214
-	static application of requirement `Family::row` violates its declared where facts: the complete tuple is structurally false
-	static application of requirement `Family::row` violates its declared where facts: the complete tuple is structurally false
-fail/facts/finite_family_const_roster/runtime_const rejected 726ms expected @ccdb99ca2214
+fail/facts/finite_family_const_roster/call_result rejected 1643ms expected @05a6f6af37ec+wt
+	dynamic family call `Family::row` requires exactly one closed roster tuple ((16) or (32)); a runtime value cannot select a family row without proved membership -- ordinary runtime subjects of that arity discharge it at the call's own proof
+fail/facts/finite_family_const_roster/const_name rejected 2686ms expected @05a6f6af37ec+wt
+	dynamic family call `Family::row` requires exactly one closed roster tuple ((16) or (32)); a runtime value cannot select a family row without proved membership -- ordinary runtime subjects of that arity discharge it at the call's own proof
+fail/facts/finite_family_const_roster/field rejected 1647ms expected @05a6f6af37ec+wt
+	dynamic family call `Family::row` requires exactly one closed roster tuple ((16) or (32)); a runtime value cannot select a family row without proved membership -- ordinary runtime subjects of that arity discharge it at the call's own proof
+fail/facts/finite_family_const_roster/local rejected 1609ms expected @05a6f6af37ec+wt
+	dynamic family call `Family::row` requires exactly one closed roster tuple ((16) or (32)); a runtime value cannot select a family row without proved membership -- ordinary runtime subjects of that arity discharge it at the call's own proof
+fail/facts/finite_family_const_roster/match_join rejected 5950ms expected @05a6f6af37ec+wt
+	dynamic family call `Family::row` requires exactly one closed roster tuple ((16) or (32)); a runtime value cannot select a family row without proved membership -- ordinary runtime subjects of that arity discharge it at the call's own proof
+fail/facts/finite_family_const_roster/other_machine rejected 4839ms expected @05a6f6af37ec+wt
+	dynamic family call `Family::row` requires exactly one closed roster tuple ((16) or (32)); a runtime value cannot select a family row without proved membership -- ordinary runtime subjects of that arity discharge it at the call's own proof
+fail/facts/finite_family_const_roster/other_state rejected 4838ms expected @05a6f6af37ec+wt
+	dynamic family call `Family::row` requires exactly one closed roster tuple ((16) or (32)); a runtime value cannot select a family row without proved membership -- ordinary runtime subjects of that arity discharge it at the call's own proof
+fail/facts/finite_family_const_roster/parameter rejected 1606ms expected @05a6f6af37ec+wt
+	dynamic family call `Family::row` requires exactly one closed roster tuple ((16) or (32)); a runtime value cannot select a family row without proved membership -- ordinary runtime subjects of that arity discharge it at the call's own proof
+fail/facts/finite_family_const_roster/runtime_const rejected 1132ms expected @05a6f6af37ec+wt
 	callable expression argument does not name a const or value declaration
-fail/facts/finite_family_const_roster/target_body rejected 1405ms unexpected @ccdb99ca2214
-	static application of requirement `Family::row` violates its declared where facts: the complete tuple is structurally false
-	static application of requirement `Family::row` violates its declared where facts: the complete tuple is structurally false
-fail/facts/finite_family_exclusive_result/call_result rejected 1499ms unexpected @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-fail/facts/finite_family_exclusive_result/const_name rejected 1073ms unexpected @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-fail/facts/finite_family_exclusive_result/field rejected 1386ms unexpected @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-fail/facts/finite_family_exclusive_result/local rejected 1454ms unexpected @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-fail/facts/finite_family_exclusive_result/match_join rejected 1070ms unexpected @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-fail/facts/finite_family_exclusive_result/other_machine rejected 1341ms unexpected @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-fail/facts/finite_family_exclusive_result/other_state rejected 1300ms unexpected @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-fail/facts/finite_family_exclusive_result/parameter rejected 1741ms unexpected @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-fail/facts/finite_family_exclusive_result/target_body rejected 1252ms unexpected @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
+fail/facts/finite_family_const_roster/target_body rejected 1644ms expected @05a6f6af37ec+wt
+	dynamic family call `Family::row` requires exactly one closed roster tuple ((16) or (32)); a runtime value cannot select a family row without proved membership -- ordinary runtime subjects of that arity discharge it at the call's own proof
+fail/facts/finite_family_exclusive_result/call_result rejected 8489ms expected @05a6f6af37ec+wt
+	machine `First::row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `Second::row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+fail/facts/finite_family_exclusive_result/const_name rejected 4210ms expected @05a6f6af37ec+wt
+	machine `First::row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `Second::row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+fail/facts/finite_family_exclusive_result/field rejected 4131ms expected @05a6f6af37ec+wt
+	machine `First::row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `Second::row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+fail/facts/finite_family_exclusive_result/local rejected 2936ms expected @05a6f6af37ec+wt
+	machine `First::row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `Second::row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+fail/facts/finite_family_exclusive_result/match_join rejected 3721ms expected @05a6f6af37ec+wt
+	machine `First::row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `Second::row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+fail/facts/finite_family_exclusive_result/other_machine rejected 6408ms expected @05a6f6af37ec+wt
+	machine `First::row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `Second::row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+fail/facts/finite_family_exclusive_result/other_state rejected 7144ms expected @05a6f6af37ec+wt
+	machine `First::row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `Second::row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+fail/facts/finite_family_exclusive_result/parameter rejected 4081ms expected @05a6f6af37ec+wt
+	machine `First::row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `Second::row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+fail/facts/finite_family_exclusive_result/target_body rejected 4088ms expected @05a6f6af37ec+wt
+	machine `First::row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `Second::row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 fail/facts/finite_family_input_index/call_result rejected 9033ms expected @7b6988120e7e
 	machine `create` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
 fail/facts/finite_family_input_index/const_name rejected 7997ms expected @7b6988120e7e
@@ -22678,85 +22771,89 @@ fail/facts/finite_family_input_index/wrong_provider rejected 7226ms expected @7b
 	machine `produce` state `entry` does not satisfy trait `Family` machine `row`: expected return `Indexed<limit>`, got `Indexed<payload>`
 	machine `produce$specialized$bf862e295a8967d7$0` state `entry` does not satisfy trait `Family` machine `row`: expected return `Indexed<limit>`, got `Indexed<payload>`
 	machine `produce$specialized$d1322acad3338bfd$1` state `entry` does not satisfy trait `Family` machine `row`: expected return `Indexed<limit>`, got `Indexed<payload>`
-fail/facts/finite_family_returned_descriptor/call_result rejected 1304ms unexpected @ccdb99ca2214
-	requirement `Windowing::window` is absent from `dyn Windowing`: the requirement has requirement-local generic parameters outside one finite family
-fail/facts/finite_family_returned_descriptor/const_name rejected 1266ms unexpected @ccdb99ca2214
-	requirement `Windowing::window` is absent from `dyn Windowing`: the requirement has requirement-local generic parameters outside one finite family
-fail/facts/finite_family_returned_descriptor/field rejected 1473ms unexpected @ccdb99ca2214
-	requirement `Windowing::window` is absent from `dyn Windowing`: the requirement has requirement-local generic parameters outside one finite family
-fail/facts/finite_family_returned_descriptor/local rejected 1644ms unexpected @ccdb99ca2214
-	requirement `Windowing::window` is absent from `dyn Windowing`: the requirement has requirement-local generic parameters outside one finite family
-fail/facts/finite_family_returned_descriptor/match_join rejected 1150ms unexpected @ccdb99ca2214
-	requirement `Windowing::window` is absent from `dyn Windowing`: the requirement has requirement-local generic parameters outside one finite family
-fail/facts/finite_family_returned_descriptor/other_machine rejected 1151ms unexpected @ccdb99ca2214
-	requirement `Windowing::window` is absent from `dyn Windowing`: the requirement has requirement-local generic parameters outside one finite family
-fail/facts/finite_family_returned_descriptor/other_state rejected 1619ms unexpected @ccdb99ca2214
-	requirement `Windowing::window` is absent from `dyn Windowing`: the requirement has requirement-local generic parameters outside one finite family
-fail/facts/finite_family_returned_descriptor/parameter rejected 1316ms unexpected @ccdb99ca2214
-	requirement `Windowing::window` is absent from `dyn Windowing`: the requirement has requirement-local generic parameters outside one finite family
-fail/facts/finite_family_returned_descriptor/pointer_field rejected 1517ms unexpected @ccdb99ca2214
-	requirement `Windowing::window` is absent from `dyn Windowing`: the requirement has requirement-local generic parameters outside one finite family
-fail/facts/finite_family_returned_descriptor/replaced_source rejected 1100ms unexpected @ccdb99ca2214
-	requirement `Windowing::window` is absent from `dyn Windowing`: the requirement has requirement-local generic parameters outside one finite family
-fail/facts/finite_family_returned_descriptor/target_body rejected 1539ms unexpected @ccdb99ca2214
-	requirement `Windowing::window` is absent from `dyn Windowing`: the requirement has requirement-local generic parameters outside one finite family
-fail/facts/finite_family_returned_descriptor/target_qualification rejected 1886ms unexpected @ccdb99ca2214
-	requirement `Windowing::window` is absent from `dyn Windowing`: the requirement has requirement-local generic parameters outside one finite family
-fail/facts/finite_family_static_inline_result/argument_effect rejected 1922ms unexpected @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-fail/facts/finite_family_static_inline_result/call_result rejected 1461ms unexpected @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-fail/facts/finite_family_static_inline_result/const_name rejected 1501ms unexpected @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-fail/facts/finite_family_static_inline_result/field rejected 1572ms unexpected @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-fail/facts/finite_family_static_inline_result/local rejected 1850ms unexpected @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-fail/facts/finite_family_static_inline_result/match_join rejected 1474ms unexpected @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
+fail/facts/finite_family_returned_descriptor/call_result rejected 4026ms expected @05a6f6af37ec+wt
+	machine `Header::window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+fail/facts/finite_family_returned_descriptor/const_name rejected 4405ms expected @05a6f6af37ec+wt
+	machine `Header::window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+fail/facts/finite_family_returned_descriptor/field rejected 8720ms expected @05a6f6af37ec+wt
+	machine `Header::window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+fail/facts/finite_family_returned_descriptor/local rejected 7057ms expected @05a6f6af37ec+wt
+	machine `Header::window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+fail/facts/finite_family_returned_descriptor/match_join rejected 6881ms expected @05a6f6af37ec+wt
+	machine `Header::window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+fail/facts/finite_family_returned_descriptor/other_machine rejected 6909ms expected @05a6f6af37ec+wt
+	machine `Header::window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+fail/facts/finite_family_returned_descriptor/other_state rejected 5692ms expected @05a6f6af37ec+wt
+	machine `Header::window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+fail/facts/finite_family_returned_descriptor/parameter rejected 3974ms expected @05a6f6af37ec+wt
+	machine `Header::window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+fail/facts/finite_family_returned_descriptor/pointer_field rejected 3923ms expected @05a6f6af37ec+wt
+	machine `Header::window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+fail/facts/finite_family_returned_descriptor/replaced_source rejected 6032ms expected @05a6f6af37ec+wt
+	machine `replace_and_dispatch` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `replace_and_dispatch` stores a borrowed value without a complete normal-exit backing relation
+	machine `main` state `entry` statement 3: call stores a borrowed value without a complete destination/backing relation
+fail/facts/finite_family_returned_descriptor/target_body rejected 4662ms expected @05a6f6af37ec+wt
+	machine `Header::window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
+fail/facts/finite_family_returned_descriptor/target_qualification rejected 8460ms expected @05a6f6af37ec+wt
+	native execution input: TargetFamily("target family Boundary(BoundaryMachineId(3)) has no member for deployment tag `linux_x86_64`")
+fail/facts/finite_family_static_inline_result/argument_effect rejected 4621ms expected @05a6f6af37ec+wt
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
+fail/facts/finite_family_static_inline_result/call_result rejected 2129ms expected @05a6f6af37ec+wt
+	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
+	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
+fail/facts/finite_family_static_inline_result/const_name rejected 1747ms expected @05a6f6af37ec+wt
+	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
+	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
+fail/facts/finite_family_static_inline_result/field rejected 1662ms expected @05a6f6af37ec+wt
+	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
+	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
+fail/facts/finite_family_static_inline_result/local rejected 3179ms expected @05a6f6af37ec+wt
+	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
+	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
+fail/facts/finite_family_static_inline_result/match_join rejected 1935ms expected @05a6f6af37ec+wt
+	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
+	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
 fail/facts/finite_family_static_inline_result/nested_runtime_shape rejected 706ms expected @ccdb99ca2214
 	machine `escape` state `entry` result uses runtime value `width` for an inline fixed-array extent; a value index cannot determine a static inline layout; use a const extent, an authored sum or explicit storage/descriptor
-fail/facts/finite_family_static_inline_result/other_machine rejected 1447ms unexpected @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-fail/facts/finite_family_static_inline_result/other_state rejected 1225ms unexpected @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-fail/facts/finite_family_static_inline_result/parameter rejected 1841ms unexpected @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-fail/facts/finite_family_static_inline_result/runtime_shape rejected 1114ms expected @ccdb99ca2214
+fail/facts/finite_family_static_inline_result/other_machine rejected 1883ms expected @05a6f6af37ec+wt
+	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
+	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
+fail/facts/finite_family_static_inline_result/other_state rejected 1682ms expected @05a6f6af37ec+wt
+	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
+	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
+fail/facts/finite_family_static_inline_result/parameter rejected 1523ms expected @05a6f6af37ec+wt
+	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
+	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
+fail/facts/finite_family_static_inline_result/runtime_shape rejected 1330ms expected @05a6f6af37ec+wt
 	machine `escape` state `entry` result uses runtime value `width` for an inline fixed-array extent; a value index cannot determine a static inline layout; use a const extent, an authored sum or explicit storage/descriptor
-fail/facts/finite_family_static_inline_result/stale_input rejected 1587ms unexpected @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-fail/facts/finite_family_static_inline_result/target_body rejected 1496ms unexpected @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
-fail/facts/finite_family_static_inline_result/uncalled_target rejected 1317ms unexpected @ccdb99ca2214
-	requirement `Family::row` is absent from `dyn Family`: the requirement has requirement-local generic parameters outside one finite family
+fail/facts/finite_family_static_inline_result/stale_input rejected 6582ms expected @05a6f6af37ec+wt
+	machine `main` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
+fail/facts/finite_family_static_inline_result/target_body rejected 1610ms expected @05a6f6af37ec+wt
+	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
+	argument `value` for conformance requirement `Family::row` does not match the binder's trait arguments
+fail/facts/finite_family_static_inline_result/uncalled_target rejected 8410ms expected @05a6f6af37ec+wt
+	native execution input: TargetFamily("target family Boundary(BoundaryMachineId(4)) has no member for deployment tag `linux_x86_64`")
 fail/facts/five_variant_enum_payload_bound_through_call_result_rejected rejected 2789ms expected @ccdb99ca2214
 	cannot prove requires contract for call verify_payload from payload_call: res >= 40 && res <= 80 (needs fact `res >= 40 && res <= 80` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/five_variant_enum_payload_bound_through_const_name_rejected rejected 2908ms expected @ccdb99ca2214
@@ -30968,8 +31065,8 @@ fail/generics/grouped_decimal_const_suffix_rejected rejected 200ms unexpected @c
 	cannot form specification operator `/` in closed const argument: no exact selected meaning
 fail/generics/grouped_decimal_const_zero_division_rejected rejected 241ms unexpected @ccdb99ca2214
 	division by zero in closed const argument: the divisor is provably zero, which always traps at runtime. Remove the operation or use a nonzero divisor.
-fail/generics/index_algebra_law_requires_identity rejected 1777ms expected @ccdb99ca2214
-	index compatibility condition `index-equality:Indexed:reorder::entry:exit-0:Indexed<Left + Right>==Indexed<Right + Left>` is not established: actual `Indexed<Left + Right>` and expected `Indexed<Right + Left>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
+fail/generics/index_algebra_law_requires_identity rejected 2239ms expected @af2cbd5e6837
+	index compatibility condition `index-equality:Indexed:reorder::entry:exit-0:Indexed<Left + Right>==Indexed<Right + Left>` is not established: actual `Indexed<Left + Right>` and expected `Indexed<Right + Left>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `add` of `IndexOperations` licenses no law
 fail/generics/index_equality_foreign_algebra rejected 903ms unexpected @ccdb99ca2214
 	cannot form specification operator `==` in machine `establish_three` requires contract: no exact selected meaning
 	cannot form specification operator `==` in machine `establish_three` ensures contract: no exact selected meaning
@@ -31399,8 +31496,8 @@ fail/generics/typed_const_probe_unused_public_bad_array rejected 258ms expected 
 fail/generics/unused_selected_value_is_not_const rejected 744ms expected @ccdb99ca2214
 	const parameter `Index` of `read` cannot accept runtime-capable Value binder `Index`
 	retained requirement tuple lost its exact source call application: call `read` in `unused` binds declaration Handle { arena_index: 902, generation: 1 }, but its retained targets are [(Handle { arena_index: 1615, generation: 1 }, Handle { arena_index: 0, generation: 0 })]
-fail/generics/unused_selected_value_unproved_where rejected 600ms expected @ccdb99ca2214
-	cannot prove declared where facts for static application of requirement `Reader::read` under its complete applied telescope
+fail/generics/unused_selected_value_unproved_where rejected 5387ms expected @05a6f6af37ec+wt
+	cannot prove requires contract for call read from unused: Index <= 10 (needs fact `Index <= 10` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/generics/unused_selected_value_wrong_carrier rejected 762ms expected @ccdb99ca2214
 	const parameter `Index` of `read` requires `u32`, but `Index` declares `u64`
 fail/generics/value_binder_unknown_field rejected 575ms expected @ccdb99ca2214
@@ -33204,17 +33301,17 @@ fail/providers/explicit_unavailable_target_provider rejected 9055ms expected @cc
 	build selects provider `FirmwareValue` for slot `Value`, but no candidate exists in the loaded dependency closure
 fail/providers/external_boundary_requires_preserved rejected 1273ms expected @ccdb99ca2214
 	machine `Main::main` state `main` value call to `absolute` violates required fact `value > -2147483648`: the instantiated fact is structurally false (`-2147483648 > -2147483648`)
-fail/providers/finite_requirement_boolean_outside_roster rejected 1301ms expected @ccdb99ca2214
-	static application of requirement `Service::echo` violates its declared where facts: the complete tuple is structurally false
-	static application of requirement `Service::echo` violates its declared where facts: the complete tuple is structurally false
-fail/providers/finite_requirement_const_outside_roster rejected 1812ms expected @ccdb99ca2214
-	static application of requirement `Service::echo` violates its declared where facts: the complete tuple is structurally false
-	static application of requirement `Service::echo` violates its declared where facts: the complete tuple is structurally false
-fail/providers/finite_requirement_crossed_tuple rejected 1690ms expected @ccdb99ca2214
-	static application of requirement `Service::echo` violates its declared where facts: the complete tuple is structurally false
-	static application of requirement `Service::echo` violates its declared where facts: the complete tuple is structurally false
-fail/providers/finite_requirement_forwarded_const_without_predicate rejected 1806ms expected @ccdb99ca2214
-	cannot prove declared where facts for static application of requirement `Service::echo` under its complete applied telescope
+fail/providers/finite_requirement_boolean_outside_roster rejected 2185ms expected @05a6f6af37ec+wt
+	static application of requirement `Service::echo` violates its declared requires facts: the complete tuple is structurally false
+	retained requirement tuple lost its exact source call application: call `echo` in `Main::main::macos_arm64` binds declaration Handle { arena_index: 1486, generation: 1 }, but its retained targets are [(Handle { arena_index: 1486, generation: 1 }, Handle { arena_index: 0, generation: 0 })]
+fail/providers/finite_requirement_const_outside_roster rejected 2050ms expected @05a6f6af37ec+wt
+	static application of requirement `Service::echo` violates its declared requires facts: the complete tuple is structurally false
+	retained requirement tuple lost its exact source call application: call `echo` in `Main::main::macos_arm64` binds declaration Handle { arena_index: 1486, generation: 1 }, but its retained targets are [(Handle { arena_index: 1486, generation: 1 }, Handle { arena_index: 0, generation: 0 })]
+fail/providers/finite_requirement_crossed_tuple rejected 2195ms expected @05a6f6af37ec+wt
+	static application of requirement `Service::echo` violates its declared requires facts: the complete tuple is structurally false
+	retained requirement tuple lost its exact source call application: call `echo` in `Main::main::macos_arm64` binds declaration Handle { arena_index: 1486, generation: 1 }, but its retained targets are [(Handle { arena_index: 1486, generation: 1 }, Handle { arena_index: 0, generation: 0 })]
+fail/providers/finite_requirement_forwarded_const_without_predicate rejected 19716ms expected @05a6f6af37ec+wt
+	cannot prove requires contract for call echo from relay: Count == 4 || Count == 8 (needs fact `Count == 4 || Count == 8` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/providers/foreign_address_fixed_carrier_mismatch rejected 10875ms expected @a562d4060f10+wt
 	machine `Imports::release` state `release` does not satisfy trait `AddressProbe` machine `release` parameter `pointer`: expected `addr`, got `u64`
 fail/providers/generic_boundary_relay_wrong_argument_rejected rejected 980ms expected @ccdb99ca2214
@@ -33522,7 +33619,7 @@ fail/recast/recast_mut_range_bit_sets_differ rejected 1062ms expected @911f6617b
 	machine `Main::main` state `main`: mutable aggregate aliases require identical layout geometry and leaf fact implication in BOTH directions; the source and target `ShiftedUnsigned` are not representation-compatible
 fail/recast/recast_mut_record_fact_fenced rejected 1126ms expected @ccdb99ca2214
 	machine `Main::main` state `main`: byte-region recast target `Facted` must be recursively fact-free; unchecked bytes cannot establish constrained fields, bool, or record invariants; mutable views require fact implication in BOTH directions
-fail/recast/recast_mut_record_where_bounds_differ rejected 1047ms expected @911f6617ba9e
+fail/recast/recast_mut_record_where_bounds_differ rejected 613ms expected @70ba9ee572b42c4d7f6ffe7d3051217e0906221c
 	machine `Main::main` state `main`: mutable aggregate aliases require identical layout geometry and leaf fact implication in BOTH directions; the source and target `Wide` are not representation-compatible
 fail/recast/recast_mut_record_where_write_out_of_range rejected 1021ms expected @911f6617ba9e
 	machine `Main::main` state `main` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
@@ -34495,18 +34592,18 @@ fail/traits/dyn_array_whole_repeated_element rejected 1411ms expected @ccdb99ca2
 	machine `probe` state `entry` statement 3: reading `selectors` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `[dyn WeightedCombine<>; 2]`
 fail/traits/dyn_data_carrier_selector_retired rejected 2ms expected @ccdb99ca2214
 	tests/omega/fail/traits/dyn_data_carrier_selector_retired/main.omg:13:33: `dyn Data::Implementation` is retired; name the trait application (`dyn Trait<Data>`) and select an implementation with `Implementation as dyn Trait<Data>`
-fail/traits/dyn_finite_family_narrowed_provider rejected 7610ms unexpected @ccdb99ca2214
-	cannot prove declared where facts for static application of requirement `Shape::code` under its complete applied telescope
-	retained requirement tuple lost its exact source call application: call `code` in `scan` binds declaration Handle { arena_index: 19490, generation: 1 }, but its retained targets are [(Handle { arena_index: 19490, generation: 1 }, Handle { arena_index: 0, generation: 0 })]
-fail/traits/dyn_finite_family_non_member rejected 693ms unexpected @ccdb99ca2214
-	cannot prove declared where facts for static application of requirement `Shape::code` under its complete applied telescope
-	retained requirement tuple lost its exact source call application: call `code` in `Main::run` binds declaration Handle { arena_index: 908, generation: 1 }, but its retained targets are [(Handle { arena_index: 908, generation: 1 }, Handle { arena_index: 0, generation: 0 })]
-fail/traits/dyn_finite_family_unproved_membership rejected 7467ms expected @ccdb99ca2214
-	cannot prove declared where facts for static application of requirement `Shape::code` under its complete applied telescope
-	retained requirement tuple lost its exact source call application: call `code` in `scan` binds declaration Handle { arena_index: 19490, generation: 1 }, but its retained targets are [(Handle { arena_index: 19490, generation: 1 }, Handle { arena_index: 0, generation: 0 })]
-fail/traits/dyn_finite_family_wrong_tuple rejected 8433ms expected @ccdb99ca2214
-	cannot prove declared where facts for static application of requirement `Shape::code` under its complete applied telescope
-	retained requirement tuple lost its exact source call application: call `code` in `scan` binds declaration Handle { arena_index: 19490, generation: 1 }, but its retained targets are [(Handle { arena_index: 19490, generation: 1 }, Handle { arena_index: 0, generation: 0 })]
+fail/traits/dyn_finite_family_narrowed_provider rejected 55763ms expected @05a6f6af37ec+wt
+	machine `Item::code` realizes `Shape::code` but requires `Width == 16 || Width == 32`, which the requirement does not imply; callers of the requirement prove only its own `requires`
+	machine `Item::code` realizes `Shape::code` but requires `Width == 16 || Width == 32`, which the requirement does not imply; callers of the requirement prove only its own `requires`
+	machine `Item::code` realizes `Shape::code` but requires `Width == 16 || Width == 32`, which the requirement does not imply; callers of the requirement prove only its own `requires`
+	machine `Item::code` realizes `Shape::code` but requires `Width == 16 || Width == 32`, which the requirement does not imply; callers of the requirement prove only its own `requires`
+	machine `Item::code` realizes `Shape::code` but requires `Width == 16 || Width == 32`, which the requirement does not imply; callers of the requirement prove only its own `requires`
+fail/traits/dyn_finite_family_non_member rejected 762ms expected @05a6f6af37ec+wt
+	dynamic family call `Shape::code` requires exactly one closed roster tuple ((16) or (32)); a runtime value cannot select a family row without proved membership -- ordinary runtime subjects of that arity discharge it at the call's own proof
+fail/traits/dyn_finite_family_unproved_membership rejected 80821ms expected @05a6f6af37ec+wt
+	cannot prove requires contract for call dyn Shape<1 argument>::code from scan: Width == 16 || Width == 32 || Width == 64 (needs fact `Width == 16 || Width == 32 || Width == 64` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/traits/dyn_finite_family_wrong_tuple rejected 66345ms expected @05a6f6af37ec+wt
+	cannot prove requires contract for call dyn Shape<1 argument>::code from scan: Width == 16 || Width == 32 || Width == 64 (needs fact `Width == 16 || Width == 32 || Width == 64` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/traits/dyn_selector_from_data_place rejected 1644ms expected @ccdb99ca2214
 	`item as dyn Shape<Item>` converts a value to `dyn Shape`; a selector is constructed from a named implementation (`Implementation as dyn Shape<...>`) and the data is passed to each call
 fail/traits/dyn_selector_prefix_write_invalidates rejected 3267ms expected @ccdb99ca2214
@@ -34591,15 +34688,14 @@ fail/traits/external_row_does_not_capture_map_region rejected 799ms expected @cc
 	machine `read` state `entry` parameter `context` uses undeclared lifetime `'storage'; declare it in the owner's generic parameter list
 fail/traits/family_carrier_pack_dependent_storage_rejected rejected 1422ms expected @ccdb99ca2214
 	machine `hold_any` state `entry` does not satisfy trait `Holding` machine `hold`: conformance borrow contract: unimplemented: callable input region frontier is incomplete
-fail/traits/finite_family_machine_facts_do_not_bind_state rejected 719ms expected @ccdb99ca2214
-	cannot prove declared where facts for static application of requirement `Factory::make` under its complete applied telescope
-fail/traits/finite_family_mutable_state_subject rejected 710ms expected @ccdb99ca2214
-	cannot prove declared where facts for static application of requirement `Factory::make` under its complete applied telescope
-fail/traits/finite_family_owned_result_second_transfer rejected 806ms unexpected @ccdb99ca2214
-	cannot prove declared where facts for static application of requirement `Shape::code` under its complete applied telescope
-	retained requirement tuple lost its exact source call application: call `code` in `scan` binds declaration Handle { arena_index: 920, generation: 1 }, but its retained targets are [(Handle { arena_index: 920, generation: 1 }, Handle { arena_index: 0, generation: 0 })]
-fail/traits/finite_family_sibling_state_facts rejected 670ms expected @ccdb99ca2214
-	cannot prove declared where facts for static application of requirement `Factory::make` under its complete applied telescope
+fail/traits/finite_family_machine_facts_do_not_bind_state rejected 2700ms expected @05a6f6af37ec+wt
+	cannot prove requires contract for call dyn Factory::make from unproved: Width == 16 || Width == 32 (needs fact `Width == 16 || Width == 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/traits/finite_family_mutable_state_subject rejected 16125ms expected @05a6f6af37ec+wt
+	cannot prove requires contract for call dyn Factory::make from changed: Width == 16 || Width == 32 (needs fact `Width == 16 || Width == 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/traits/finite_family_owned_result_second_transfer rejected 3642ms expected @05a6f6af37ec+wt
+	cannot use `result` in machine `duplicate` state `entry` (statement 2) after `result` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `result` first
+fail/traits/finite_family_sibling_state_facts rejected 2778ms expected @05a6f6af37ec+wt
+	cannot prove requires contract for call dyn Factory::make from unproved: Width == 16 || Width == 32 (needs fact `Width == 16 || Width == 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/traits/float_contract_refinement_negated_order rejected 2532ms expected @ccdb99ca2214
 	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures result >= 0.0`; callers of the requirement assume it
 	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures result <= 0.5`; callers of the requirement assume it
@@ -35009,15 +35105,10 @@ run/domains/vacuous_tag_call_arguments rejected 3167ms check-target:macos_arm64 
 run/domains/zero_case_default_domain checked 2349ms check-target:macos_arm64 @cb9658535ae4
 run/domains/zero_case_default_payload checked 2278ms check-target:macos_arm64 @cb9658535ae4
 run/domains/zero_field_call_formation_exit checked 2966ms check-target:macos_arm64 @ccdb99ca2214
-run/dyn_finite_family_correlated rejected 7577ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
-	cannot prove declared where facts for static application of requirement `Shape::code` under its complete applied telescope
-	retained requirement tuple lost its exact source call application: call `code` in `scan` binds declaration Handle { arena_index: 19491, generation: 1 }, but its retained targets are [(Handle { arena_index: 19491, generation: 1 }, Handle { arena_index: 0, generation: 0 })]
-run/dyn_finite_family_owned_carrier rejected 10618ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
-	cannot prove declared where facts for static application of requirement `Shape::code` under its complete applied telescope
-	retained requirement tuple lost its exact source call application: call `code` in `scan` binds declaration Handle { arena_index: 1992, generation: 1 }, but its retained targets are [(Handle { arena_index: 1992, generation: 1 }, Handle { arena_index: 0, generation: 0 })]
-run/dyn_finite_family_runtime_dispatch rejected 7453ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot prove declared where facts for static application of requirement `Shape::code` under its complete applied telescope
-	retained requirement tuple lost its exact source call application: call `code` in `scan` binds declaration Handle { arena_index: 19491, generation: 1 }, but its retained targets are [(Handle { arena_index: 19491, generation: 1 }, Handle { arena_index: 0, generation: 0 })]
+run/dyn_finite_family_correlated checked 74721ms check-target:linux_x86_64 @05a6f6af37ec+wt
+run/dyn_finite_family_owned_carrier rejected 72151ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @05a6f6af37ec+wt
+	cannot prove requires contract for call dyn Shape<1 argument>::code from scan: Width == 16 || Width == 32 || Width == 64 (needs fact `Width == 16 || Width == 32 || Width == 64` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+run/dyn_finite_family_runtime_dispatch checked 63916ms check-target:macos_arm64 @05a6f6af37ec+wt
 run/facts/double_indexed_rmw_through_call_result_traps checked 2756ms check-target:macos_arm64 @ccdb99ca2214
 run/facts/double_indexed_rmw_through_const_name_traps checked 2851ms check-target:macos_arm64 @ccdb99ca2214
 run/facts/double_indexed_rmw_through_field_traps checked 3154ms check-target:macos_arm64 @ccdb99ca2214

@@ -483,7 +483,10 @@ trigger: only the user starts it, never an agent. Agents filter to the
 fixtures their change can move, named by fact or behavior, and count the
 selection before running it. A whole domain is a sweep: `facts/` selects
 nearly 14,000 fixtures and `fail/` about 11,000. See
-[validate with witnesses](../AGENTS.md#commands).
+[validate with witnesses](../AGENTS.md#commands). The gate counts the
+selection's fixture directories before any build and refuses more than 200
+(unfiltered runs included) unless `--sweep` or `OMEGA_CORPUS_SWEEP=1` says the
+user, the full baseline, `native_watch.py` or CI's cohort run started it.
 
 `--runner PATH` may reuse an immutable compiler built in another checkout.
 The gate supplies `OMEGA_CORPUS_ROOT` so fixture sources, oracles and discovery

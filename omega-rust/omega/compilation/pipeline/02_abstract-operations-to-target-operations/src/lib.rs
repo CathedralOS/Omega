@@ -7,14 +7,14 @@
 //! plan through `lowering/coordination.rs`, and retains the lowered program
 //! beside those inputs. Provider installation identity is joined while the
 //! program is produced; translation replay belongs to the independent audit,
-//! not this producer's default route. Stage 00 owns the admitted settlement
+//! not this producer's default route. Omega 00 owns the admitted settlement
 //! facts. The `access_view_inputs` route is the in-progress direct-entry
 //! access-view slice (TASKS.md PLAN-LAID-VIEWS).
 //!
 //! Operation dispatch does not preflight borrow legality, and calls transport
 //! the existing descriptor leaves of owned operands rather than reconstructing
 //! their permissions from types. Storage owners still join current homes,
-//! ordered pointer crossings and ABI placements; the stage 03 corpus audit
+//! ordered pointer crossings and ABI placements; the Omega 03 corpus audit
 //! independently exercises custody. Returns transport the current value home
 //! without replaying returned-loan admission. Formation, copying, release and
 //! control-flow joins carry descriptor types and possible backing origins,
@@ -24,7 +24,7 @@
 mod lowering;
 mod structural_shapes;
 
-// The referent root a descriptor's storage is named by. The stage-03 custody
+// The referent root a descriptor's storage is named by. The Omega 03 custody
 // replay resolves the same three cases, so it consumes this shape rather than
 // declaring a second one.
 pub use lowering::access_view_inputs;

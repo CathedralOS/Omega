@@ -4,6 +4,7 @@
 use super::instance_collection::IndexedInstance;
 use crate::flow::expressions;
 use facts::ProgramPoint;
+use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 /// The family spelling inside an instance label: `Resident<SlotPlacement, Slot>`
@@ -71,10 +72,50 @@ pub(super) fn index_argument_label(
                 .map_or_else(|| name.to_string(), |value| value.display)
         }
         TypeReferenceNode::ConstExpression(expression) => {
-            program.expression_table.display_name(*expression)
+            index_expression_label(program, *expression)
         }
         _ => program.display_type_reference(argument),
     }
+}
+
+/// An index expression with the parentheses its structure needs. The shared
+/// expression display writes `A * (B + C)` as `A * B + C`, a different
+/// expression, so a rejected compatibility would name the wrong operands.
+/// Only the index fragment's four operators bind here; any other operator
+/// keeps the shared display.
+fn index_expression_label(
+    program: &dyn ::validation::CheckingInput,
+    expression: ExpressionHandle,
+) -> String {
+    let Some(binary) = program.expression_table.binary_node(expression) else {
+        return program.expression_table.display_name(expression);
+    };
+    let strength = |operator| match operator {
+        BinaryOperator::Multiply | BinaryOperator::Divide => Some(2),
+        BinaryOperator::Add | BinaryOperator::Subtract => Some(1),
+        _ => None,
+    };
+    let operand = |child: ExpressionHandle, right: bool| {
+        let text = index_expression_label(program, child);
+        match program.expression_table.binary_node(child) {
+            Some(inner) => match (strength(inner.operator), strength(binary.operator)) {
+                (Some(inner_strength), Some(outer_strength))
+                    if inner_strength < outer_strength
+                        || (inner_strength == outer_strength && right) =>
+                {
+                    format!("({text})")
+                }
+                _ => text,
+            },
+            None => text,
+        }
+    };
+    format!(
+        "{} {} {}",
+        operand(binary.left, false),
+        binary.operator.display_name(),
+        operand(binary.right, true)
+    )
 }
 
 pub(super) fn point_label(

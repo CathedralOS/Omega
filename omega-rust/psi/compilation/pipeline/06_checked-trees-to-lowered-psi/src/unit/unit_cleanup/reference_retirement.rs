@@ -26,7 +26,7 @@ pub(crate) fn lower_reference_completion_regions(
     mut result_storage: impl FnMut(u32) -> Result<StructuralValueStorage, LoweringError>,
 ) -> Result<Vec<CleanupRegion>, LoweringError> {
     let mut carriers = Vec::new();
-    // Stage 05 already orders releases by actual holder dependencies. Reversing
+    // Psi 05 already orders releases by actual holder dependencies. Reversing
     // that schedule would retire backing before the descriptors borrowing it.
     for operation in planned_operations {
         let CheckedUnitEffectOperationPlan::ReleaseReference {

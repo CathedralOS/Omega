@@ -1,8 +1,8 @@
 // The Boolean carrier is valid, but the exact public predicate is false.
 public boundary trait Service {
-    machine echo<const Selected: bool>(value: i32) -> i32 reaches where Selected == true;
+    machine echo<const Selected: bool>(value: i32) -> i32 reaches requires Selected == true;
 }
-Provider satisfies Service { machine echo<const Selected: bool>(value: i32) -> i32 reaches where Selected == true { echo_realization<Selected>(value) } }
+Provider satisfies Service { machine echo<const Selected: bool>(value: i32) -> i32 reaches requires Selected == true { echo_realization<Selected>(value) } }
 machine echo_realization<const Selected: bool>(value: i32) -> i32 { value }
 data Providers {}
 macos_arm64 machine Providers::provider_defaults(defaults: &mut Providers) {
