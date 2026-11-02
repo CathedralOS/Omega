@@ -30,7 +30,7 @@ SelectedCopiedCaseApply satisfies CopiedCaseApply {
 machine main() crashes Trap {
     let chosen: Slot = Slot::Present { value: 7 };
     let observed: u64 = CopiedCaseApply::apply(chosen);
-    transition observed == 7 {
+    transition observed == 7 && chosen in Slot::Present && chosen.value == 7 {
         true -> done()
         false -> wrong()
     }
