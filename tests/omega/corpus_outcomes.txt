@@ -11673,6 +11673,7 @@ pass/modules/computed_nominal_constants checked 2435ms @ccdb99ca2214
 pass/modules/conformance_reference_scope checked 3734ms check-target:macos_arm64 @ccdb99ca2214
 pass/modules/constant_argument_projected_record_dependency checked 2657ms @ccdb99ca2214
 pass/modules/continued_domain_membership checked 3250ms check-target:macos_arm64 @ccdb99ca2214
+pass/modules/direct_file_import_exit checked 70526ms check-target:macos_arm64 @c79bb8268163+wt
 pass/modules/direct_file_import_process_exit checked 11490ms check-target:macos_arm64 @ccdb99ca2214
 pass/modules/direct_file_imports checked 2669ms @ccdb99ca2214
 pass/modules/domain_constant_indices checked 2497ms @ccdb99ca2214

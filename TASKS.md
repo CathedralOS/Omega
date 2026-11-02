@@ -1007,8 +1007,7 @@ defines the complete product bar.
   - Assign versioned content owners to nonempty authored anonymous `Build`
     activations after dependency requests join and before product declaration
     identities are interned (extending
-    `samples/cli/facts/nominal_declaration_owner`), and complete
-    `tests/omega/pending/modules/direct_file_import_exit`.
+    `samples/cli/facts/nominal_declaration_owner`).
   - Extend normalization and exact declaration selection for indexed constraints
     and operator homes in
     `omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation/`,
