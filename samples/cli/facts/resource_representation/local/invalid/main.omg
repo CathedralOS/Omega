@@ -14,7 +14,7 @@ data Failure<'buffer> { output: &'buffer mut [u8]; reason: Reason; }
 // No purity refinement or ambient allocator is imposed on TryFrom.
 trait BufferedEncoding<Source, Frame, Error, machine Capacity, const Required: u64> :
     TryFrom<Source, Frame, Error>
-requires machine Capacity(source: &Source) -> u64 reaches suspends false blocks false terminates;
+requires machine Capacity(source: &Source) -> u64 reaches terminates;
 {
     machine encode_sufficient(request: Source) -> Result<Frame, Error>
     requires Capacity(&request) >= Required
@@ -22,7 +22,7 @@ requires machine Capacity(source: &Source) -> u64 reaches suspends false blocks 
 }
 
 machine capacity<'buffer>(source: &Request<'buffer, Pair>) -> u64
-reaches suspends false blocks false terminates
+reaches terminates
 ensures result == source.output.len
 {
     source.output.len
@@ -36,6 +36,15 @@ WriteFirst<'buffer> satisfies BufferedEncoding<Request<'buffer, Pair>, FirstFram
             true -> emit(request)
             false -> Result::Err { error: Failure { output: request.output, reason: Reason::Exhausted } }
         }
+
+        machine emit(request: Request<'buffer, Pair>) -> Result<FirstFrame<'buffer>, Failure<'buffer>>
+        requires request.output.len >= 3u64
+        {
+            request.output[0u64] = 165u8;
+            request.output[1u64] = request.value.first;
+            request.output[2u64] = request.value.last;
+            Result::Ok { value: FirstFrame { output: request.output } }
+        }
     }
     machine encode_sufficient(request: Request<'buffer, Pair>) -> Result<FirstFrame<'buffer>, Failure<'buffer>>
     requires request.output.len >= 3u64
@@ -43,14 +52,7 @@ WriteFirst<'buffer> satisfies BufferedEncoding<Request<'buffer, Pair>, FirstFram
     {
         try_from(request)
     }
-    machine emit(request: Request<'buffer, Pair>) -> Result<FirstFrame<'buffer>, Failure<'buffer>>
-    requires request.output.len >= 3u64
-    {
-        request.output[0u64] = 165u8;
-        request.output[1u64] = request.value.first;
-        request.output[2u64] = request.value.last;
-        Result::Ok { value: FirstFrame { output: request.output } }
-    }
+
 }
 
 // Decoding hands the same explicit output resource to the next conversion.
@@ -61,18 +63,20 @@ ReadFirst<'buffer> satisfies TryFrom<FirstFrame<'buffer>, Request<'buffer, Pair>
             true -> inspect(source)
             false -> Result::Err { error: Failure { output: source.output, reason: Reason::Exhausted } }
         }
-    }
-    machine inspect(source: FirstFrame<'buffer>) -> Result<Request<'buffer, Pair>, Failure<'buffer>>
-    requires source.output.len >= 3u64
-    {
-        transition source.output[0u64] == 165u8 {
-            true -> Result::Ok { value: Request {
-                value: Pair { first: source.output[1u64], last: source.output[2u64] },
-                output: source.output
-            } }
-            false -> Result::Err { error: Failure { output: source.output, reason: Reason::InvalidTag } }
+
+        machine inspect(source: FirstFrame<'buffer>) -> Result<Request<'buffer, Pair>, Failure<'buffer>>
+        requires source.output.len >= 3u64
+        {
+            transition source.output[0u64] == 165u8 {
+                true -> Result::Ok { value: Request {
+                    value: Pair { first: source.output[1u64], last: source.output[2u64] },
+                    output: source.output
+                } }
+                false -> Result::Err { error: Failure { output: source.output, reason: Reason::InvalidTag } }
+            }
         }
     }
+
 }
 
 // Independently authored second format: a different tag and reversed fields.
@@ -84,6 +88,15 @@ WriteSecond<'buffer> satisfies BufferedEncoding<Request<'buffer, Pair>, SecondFr
             true -> emit(request)
             false -> Result::Err { error: Failure { output: request.output, reason: Reason::Exhausted } }
         }
+
+        machine emit(request: Request<'buffer, Pair>) -> Result<SecondFrame<'buffer>, Failure<'buffer>>
+        requires request.output.len >= 3u64
+        {
+            request.output[0u64] = 90u8;
+            request.output[1u64] = request.value.last;
+            request.output[2u64] = request.value.first;
+            Result::Ok { value: SecondFrame { output: request.output } }
+        }
     }
     machine encode_sufficient(request: Request<'buffer, Pair>) -> Result<SecondFrame<'buffer>, Failure<'buffer>>
     requires request.output.len >= 3u64
@@ -91,14 +104,7 @@ WriteSecond<'buffer> satisfies BufferedEncoding<Request<'buffer, Pair>, SecondFr
     {
         try_from(request)
     }
-    machine emit(request: Request<'buffer, Pair>) -> Result<SecondFrame<'buffer>, Failure<'buffer>>
-    requires request.output.len >= 3u64
-    {
-        request.output[0u64] = 90u8;
-        request.output[1u64] = request.value.last;
-        request.output[2u64] = request.value.first;
-        Result::Ok { value: SecondFrame { output: request.output } }
-    }
+
 }
 
 machine encode_sufficient<'buffer, Frame, Error,
