@@ -1,7 +1,7 @@
 //! Runtime implementation selection: the module's interface/table catalog.
 //!
 //! Checking fixes the implementation each `Impl as dyn Trait<Args>` selects
-//! (`DynamicSelectionFact`), and stage 05 publishes the call shape of every
+//! (`DynamicSelectionFact`), and Psi 05 publishes the call shape of every
 //! slot a selection or selector call reaches (`CheckedDynamicSlotPlan`).
 //! Every distinct selector type is one interface and every distinct
 //! (interface, implementation) pair is one table. Ids come from sorting those

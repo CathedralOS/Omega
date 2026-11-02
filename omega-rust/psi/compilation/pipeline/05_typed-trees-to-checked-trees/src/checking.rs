@@ -341,7 +341,7 @@ fn check_program(
     };
     phase_profile::checkpoint("after check-fact construction", "psi.05.build_check_facts");
     // Contract entailment judges each checked body once, after the flow facts
-    // it may read exist. The stage-04 prover reads those proved postconditions
+    // it may read exist. The Psi 05 prover reads those proved postconditions
     // at its own decision point; nobody rejudges them.
     let validation::ContractEntailment {
         proven_machine_contracts,

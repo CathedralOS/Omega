@@ -17,7 +17,7 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
     physical: &ValidatedPhysicalRegisterModel,
     pre_layout: &StagedOptimizedSelectedFormEncoding,
 ) -> Result<StagedOptimizedResolvedSelectedFormLayout, Error> {
-    // The encoding was produced by stage 07 in this compile; it is not
+    // The encoding was produced by Omega 07 in this compile; it is not
     // re-encoded here. The root checks below bind it to these inputs.
     let selected_plan = selected.selected_plan();
     let machine_plan = machine.machine().plan();

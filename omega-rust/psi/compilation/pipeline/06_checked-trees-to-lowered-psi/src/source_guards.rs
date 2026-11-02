@@ -1,5 +1,5 @@
 //! Source guards on what lowering may read and refuse. Lowering consumes
-//! stage 05's plans and checked facts; it never re-reads the authored program,
+//! Psi 05's plans and checked facts; it never re-reads the authored program,
 //! re-enters checking to reconstruct a decision checking already recorded, or
 //! re-validates the plan it receives. Split needles keep the guards' own
 //! source from matching forbidden names.
@@ -132,7 +132,7 @@ fn lowering_reads_no_authored_statements_or_expressions() {
 }
 
 /// A refusal names what lowering has no route for. A plan that breaks a stage
-/// 05 invariant is a stage 05 bug the corpus finds; lowering does not compare
+/// 05 invariant is a Psi 05 bug the corpus finds; lowering does not compare
 /// the plan against itself or against a recomputation, so no string literal
 /// states such a comparison.
 #[test]

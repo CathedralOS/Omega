@@ -2,7 +2,7 @@
 //! repeated admission step: `terminal_codec::decode_module` replays the scalar
 //! qualification, canonical ordering, structural foundation and module
 //! representation validations and then re-encodes the module to reject any
-//! non-canonical byte sequence. Stage 00, the backend plan, the object custody
+//! non-canonical byte sequence. Omega 00, the backend plan, the object custody
 //! and the native artifact each need the same module, and each used to decode
 //! the same bytes again to get it.
 //!

@@ -54,7 +54,7 @@ enum Operand {
 impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope> {
     /// Expand a call through a synthesized `equals` row
     /// (`PointEquality::equals(&a, &b)`) in the caller's storage scope,
-    /// exactly like `==`. Stage 02 routed the call to the row's realization
+    /// exactly like `==`. Psi 02 routed the call to the row's realization
     /// state; the row identifies the compared data type, so the operator
     /// route's selection plays no part and a second implementation for the
     /// same type does not make this explicit call ambiguous.

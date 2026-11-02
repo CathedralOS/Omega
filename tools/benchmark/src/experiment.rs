@@ -739,9 +739,9 @@ mod tests {
     #[test]
     fn keeps_each_samples_stage_values_and_accumulates_repeated_labels() {
         let rows = stage_timings(
-            "  1.25 ms  Stage 05\n  2.75 ms  Stage 05\n garbage ms  bad\n NaN ms  bad\n",
+            "  1.25 ms  Psi 05\n  2.75 ms  Psi 05\n garbage ms  bad\n NaN ms  bad\n",
         );
         assert_eq!(rows.len(), 1);
-        assert_eq!(rows["Stage 05"], 4.0);
+        assert_eq!(rows["Psi 05"], 4.0);
     }
 }

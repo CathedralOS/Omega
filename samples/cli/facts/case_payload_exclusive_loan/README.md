@@ -103,7 +103,7 @@ target legalization failed: SourceCustodyMismatch { machine: Some(MachineId(1)),
 The check leg accepted the same fixture (`checked`, `check-target:macos_arm64`)
 and the CLI built and ran it (`omega run --both` native exit 0, `omega --target
 macos_arm64` publishes), so the refusal was a legalization precision gap in
-stage 03, not a language rule. A probe matrix isolated the shape: a successor
+Omega 03, not a language rule. A probe matrix isolated the shape: a successor
 state passing one of its own reference parameters as a machine-call argument.
 The same call from a machine function builds, and states holding references
 without such a call build. The revealed site was

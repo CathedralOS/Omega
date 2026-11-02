@@ -939,7 +939,7 @@ pub(crate) fn lower_owned_operand_claims(
                 .then_some(event)
         })
         .collect::<Vec<_>>();
-    // Evaluated events own the transfer authority. Stage 05 records a selection
+    // Evaluated events own the transfer authority. Psi 05 records a selection
     // receipt only from these same events at this exact evaluation, so the
     // receipt supplies no claim and needs no second comparison here.
     if evaluated_transfers.is_empty() {

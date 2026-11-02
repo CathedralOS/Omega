@@ -271,7 +271,7 @@ pub(super) fn validate_symbolic_array_length(
     let FixedArrayLength::ConstParameter { symbol, name } = length else {
         return;
     };
-    // Stage 02 binds an extent to the binder its owner declares. A spelling
+    // Psi 02 binds an extent to the binder its owner declares. A spelling
     // that never resolved is not that binder, even when the scope holds a
     // same-named one: an attached machine that omits `<const N: ...>` names
     // its data's `N` without binding it.
@@ -1614,7 +1614,7 @@ fn validate_const_integer_range(
 /// The declaration twin of `validate_const_integer_range`. An integer const
 /// or value binder's carrier range is established by each argument from
 /// closed integer bounds, so a range that does not close (`const N: u64
-/// [0..K]`, naming a sibling binder) admits no argument. Stage 02 also leaves
+/// [0..K]`, naming a sibling binder) admits no argument. Psi 02 also leaves
 /// such an endpoint unbound; refusing the declaration keeps every carrier
 /// range a closed interval that index proofs read without a spelling.
 /// Preliminary checking tolerates an endpoint whose evaluation is pending.

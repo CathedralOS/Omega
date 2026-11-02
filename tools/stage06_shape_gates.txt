@@ -1,5 +1,5 @@
-# Stage 06 shape gates (unsupported(, Unsupported, unpinned() per file.
-# Counts may only fall: stage 06 is a mechanical lowering of stage 05's plans
+# Psi 06 shape gates (unsupported(, Unsupported, unpinned() per file.
+# Counts may only fall: Psi 06 is a mechanical lowering of Psi 05's plans
 # (TASKS.md owner ruling 2026-10-04; LOC-VALUE-CUSTODY retires these gates).
 # Written by `python tools/check_rules.py --update-shape-gates`.
 3 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/activation_storage.rs

@@ -16,7 +16,7 @@ use facts::FactPlan;
 ///
 /// The three arms below each ended in a `StateParameter::is_self` lookup for
 /// the retired implicit receiver, and the statement arm recognized a receiver
-/// path headed by the `self` keyword. Stage 01 rejects both spellings, so each
+/// path headed by the `self` keyword. Psi 01 rejects both spellings, so each
 /// was an unconditional refusal standing in front of the explicit operand.
 pub(crate) fn receiver_place_for_call(
     program: &dyn ::validation::CheckingInput,

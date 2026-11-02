@@ -608,7 +608,7 @@ fn constrained_minimum_of_type_reference(
 /// constraint whose maximum names the const binder `extent` — the
 /// `u64[0..N]`/`u64[0..=N]` binder-bounded shape. `end_inclusive == false`
 /// asserts `value < N` (a strict index bound); `true` only `value <= N`.
-/// The binder is matched by symbol. A maximum stage 02 left unbound is not
+/// The binder is matched by symbol. A maximum Psi 02 left unbound is not
 /// that binder even when spelled like it; checking refuses such a maximum in
 /// an integer range of every declared type and requires a binder's carrier
 /// range to close.
