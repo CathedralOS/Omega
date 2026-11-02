@@ -1,20 +1,18 @@
-//! Retain reusable whole entry values independently of scalar proof reads.
-//! A real state parameter supplies initialized storage; every selected prefix
-//! stays owned, and canonical Copy plus unrestricted multiplicity authorize
-//! duplication. Copy records may contain shared descriptors: copying those
-//! retains their existing backing and lifetime rather than copying referents.
-//! Exclusive descriptors and other dispositions still require their own
-//! loan/transfer evidence and cannot acquire this entry-copy receipt.
-//! This is source reuse permission, not disposal for a materialized carrier:
-//! the call's access mode separately decides whether its operand is only lent.
+//! Retain whole initialized entry homes independently of scalar proof reads.
+//! Every selected prefix stays owned; this receipt identifies that backing,
+//! without granting permission to copy or consume it. A pure, total declaration
+//! call can lend the home through a shared argument even when its descendants
+//! carry exclusive loans. The call planner separately requires Copy and
+//! unrestricted multiplicity for an owned argument, and closes a shared window
+//! before the invocation's body can move or mutate the original input.
 
-pub(super) fn owned_copy(
+pub(super) fn owned_input(
     program: &dyn validation::CheckingInput,
     admitted: &checked_trees::CheckedRankArrivalPlan,
     state: &typed_trees::state::State,
     formal: symbols::SymbolHandle,
     actual: checked_trees::CheckedRankCoordinateHandle,
-) -> Option<checked_trees::CheckedRankApplicationOwnedCopy> {
+) -> Option<checked_trees::CheckedRankApplicationOwnedInput> {
     admitted.coordinates.is_valid(actual).then_some(())?;
     let coordinate = admitted.coordinates.get(actual);
     let parameter = program
@@ -74,12 +72,10 @@ pub(super) fn owned_copy(
     }
     let actual_type =
         validation::project_type_reference_from_segments(program, parameter.type_reference, path)?;
-    if program.primitive_type_reference(actual_type).is_some()
-        || !validation::reference_result_custody::source_value_is_copied(program, actual_type)
-    {
+    if program.primitive_type_reference(actual_type).is_some() {
         return None;
     }
-    Some(checked_trees::CheckedRankApplicationOwnedCopy {
+    Some(checked_trees::CheckedRankApplicationOwnedInput {
         formal,
         actual,
         actual_type,

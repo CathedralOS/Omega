@@ -212,9 +212,9 @@ impl Expansion<'_> {
                     site.state,
                 )
                 .map_err(LoweringError::Unsupported)?;
-            if formation.owned_copy.is_none() {
+            if formation.owned_input.is_none() {
                 return unsupported(
-                    "declaration structural call has no retained whole-input copy receipt",
+                    "declaration structural call has no retained owned entry-home receipt",
                 );
             }
         }

@@ -1,8 +1,8 @@
 //! Declaration calls consume admitted whole entry inputs. This joins their
-//! copy receipt to the ordinary storage argument planner; it manufactures no
-//! statement occurrence or aggregate from the scalar read roster. A shared
+//! entry-home receipt to the ordinary storage argument planner; it manufactures
+//! no statement occurrence or aggregate from the scalar read roster. A shared
 //! call may lend this initialized entry home until its pure, total scalar
-//! invocation returns. Copyable shared descriptors retain their existing
+//! invocation returns. Loan-bearing descendants retain their existing
 //! backing and lifetimes through the ordinary argument planner; this receipt
 //! grants no referent observation. The complete application input, not a
 //! fictitious statement-access capture, supplies that loan's authority.
@@ -24,7 +24,7 @@ impl Builder<'_, '_> {
         let (formation, call) = checked_trees::CheckedCallOrigin::Declaration { application, call }
             .declaration(scope.plan, self.machine, self.state)
             .ok()?;
-        let input = formation.owned_copy?;
+        let input = formation.owned_input?;
         let declaration = self
             .program
             .measures()
@@ -54,12 +54,6 @@ impl Builder<'_, '_> {
                 .cloned()
                 .collect(),
         };
-        if !validation::reference_result_custody::source_value_is_copied(
-            self.program,
-            input.actual_type,
-        ) {
-            return None;
-        }
         let (_, state) = validation::find_state(self.program, self.state)?;
         let parameter = self
             .program
@@ -127,7 +121,10 @@ impl Builder<'_, '_> {
                 // materialized carriers still end exactly once. Lending the
                 // established home above creates no extra record carrier;
                 // an owned operand needs independent disposal evidence.
-                if validation::reference_result_custody::result_multiplicity(
+                if !validation::reference_result_custody::source_value_is_copied(
+                    self.program,
+                    target.type_reference,
+                ) || validation::reference_result_custody::result_multiplicity(
                     self.program,
                     target.type_reference,
                 ) != language_semantics::Multiplicity::Unrestricted
@@ -143,9 +140,9 @@ impl Builder<'_, '_> {
                 checked_trees::CheckedStructuralAccess::Owned
             }
         };
-        // The retained whole input proves initialized owned backing and Copy.
-        // Shared descriptor fields keep their ordinary loan obligations;
-        // Copy cannot duplicate exclusive descriptors or linear descendants.
+        // The retained whole input proves initialized owned backing. Only the
+        // selected owned operand above requires Copy; lending the home does
+        // not duplicate its exclusive descriptors or linear descendants.
         // The independently admitted pure/total declaration call finishes its
         // shared window before body effects or another cycle begins.
         let mut argument_plan = crate::execution::terminal_unit::calls::owned_argument(
