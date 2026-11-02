@@ -248,3 +248,22 @@ impl<'program> Engine<'program> {
         current
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn completed_wrapping_alias_repeated_equation_retains_one_normal_form() {
+        let program = typed_trees::TypedTrees::default();
+        let mut engine = Engine::for_explicit_bindings(&program);
+        let completed = Polynomial::atom("completed".to_owned());
+        let denotation = Polynomial::atom("denotation".to_owned());
+        engine.harvest_substitution(&completed, &denotation);
+        engine.harvest_substitution(&completed, &denotation);
+        assert_eq!(
+            engine.substituted(&completed),
+            engine.substituted(&denotation)
+        );
+    }
+}
