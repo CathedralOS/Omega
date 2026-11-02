@@ -19,7 +19,7 @@ mod selected_operands;
 mod signatures;
 mod trait_scopes;
 
-pub use requirement_instances::ClosedRequirementApplication;
+pub use requirement_instances::{ClosedRequirementApplication, RequirementLocalArgument};
 
 use crate::static_applications::StaticMachineLifetimeBinding;
 use crate::type_identity::lifetime_parameter_identity;
@@ -202,7 +202,7 @@ enum AppliedCallableOwner {
         portable_local_arguments: arena::HandleSpan<crate::type_identity::NormalizedTypeIdentity>,
         trait_scope: crate::trait_definition::RetainedTraitScope,
         trait_arguments: arena::HandleSpan<types::TypeReferenceHandle>,
-        local_arguments: arena::HandleSpan<types::TypeReferenceHandle>,
+        local_arguments: arena::HandleSpan<RequirementLocalArgument>,
         invocation_contract_parameters: arena::HandleSpan<data::TypeParameter>,
         application: crate::static_applications::StaticMachineApplicationHandle,
     },
@@ -252,6 +252,8 @@ struct CallableApplication {
     /// The freshly allocated executable signature whose entire child telescope
     /// this application may install. Logical checking views own no such range.
     owned_signature: SymbolHandle,
+    /// Value binders realized as ordinary formals by this owned signature.
+    runtime_values: Vec<SymbolHandle>,
     region_scope: SymbolHandle,
     /// Complete captured application during materialization. Local callable
     /// binders remain in `lifetimes` and mask same-spelled captured regions.

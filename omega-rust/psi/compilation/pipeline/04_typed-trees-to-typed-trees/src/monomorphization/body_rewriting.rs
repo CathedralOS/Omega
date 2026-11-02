@@ -421,7 +421,7 @@ pub(super) fn rewrite_selected_call_with_name(
 
 /// A field subject has no symbol. Record the member expression on the binding
 /// so index substitution sees the same read the call argument evaluates.
-fn stamp_field_subjects(
+pub(super) fn stamp_field_subjects(
     program: &mut TypedTrees,
     application: typed_trees::static_applications::StaticMachineApplicationHandle,
     operands: &[ExpressionHandle],

@@ -113,6 +113,7 @@ mod callable_applications;
 mod canonical_values;
 pub use callable_applications::{
     AppliedMachineCallable, CallableSubstitution, ClosedRequirementApplication,
+    RequirementLocalArgument,
 };
 pub mod calls;
 mod commitments;
@@ -470,6 +471,7 @@ pub struct TypedTreeTables {
     pub(crate) callable_substitutions: Arena<callable_applications::CallableSubstitution>,
     pub(crate) trait_application_frames: Arena<trait_definition::RetainedTraitApplicationFrame>,
     pub(crate) callable_argument_identities: Arena<crate::type_identity::NormalizedTypeIdentity>,
+    pub(crate) callable_arguments: Arena<callable_applications::RequirementLocalArgument>,
     pub(crate) callable_lifetime_substitutions:
         Arena<crate::static_applications::StaticMachineLifetimeBinding>,
     pub signature_invokes: Arena<signature::AuthoredInvocation>,

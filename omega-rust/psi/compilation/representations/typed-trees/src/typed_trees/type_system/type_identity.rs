@@ -1130,6 +1130,22 @@ impl TypedTrees {
             .with(|table| table.text(identity).map(str::to_owned))
     }
 
+    /// A runtime carrier occupies its declared invocation ordinal, but is not
+    /// the closed Value at that ordinal. Publication retains this distinction.
+    pub fn requirement_argument_identity_text(
+        &self,
+        argument: crate::typed_trees::RequirementLocalArgument,
+        identity: NormalizedTypeIdentity,
+    ) -> Option<String> {
+        let text = self.type_identity_text(identity)?;
+        Some(match argument {
+            crate::typed_trees::RequirementLocalArgument::Static(_) => text,
+            crate::typed_trees::RequirementLocalArgument::RuntimeValue { .. } => {
+                atom(CoordinateTag::RuntimeValueCarrier, &text)
+            }
+        })
+    }
+
     /// Convenience render of the ordinary identity for boundary encoding
     /// and diagnostics: one query instead of a handle plus a lookup.
     pub fn normalized_type_identity_text(&self, type_reference: TypeReferenceHandle) -> String {
@@ -1673,7 +1689,11 @@ impl TypedTrees {
             let local = application
                 .portable_local_arguments
                 .iter()
-                .map(|identity| self.type_identity_text(*identity).unwrap_or_default())
+                .zip(application.local_arguments)
+                .map(|(identity, argument)| {
+                    self.requirement_argument_identity_text(*argument, *identity)
+                        .unwrap_or_default()
+                })
                 .collect::<Vec<_>>();
             identity.parameters = compound(
                 CoordinateTag::ClosedRequirement,

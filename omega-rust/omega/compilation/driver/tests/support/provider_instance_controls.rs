@@ -52,8 +52,9 @@ pub(super) fn prepare(
             let [argument] = application.local_arguments else {
                 continue;
             };
-            if typed
-                .static_const_type_reference_identity(*argument)
+            if argument
+                .static_operand()
+                .and_then(|reference| typed.static_const_type_reference_identity(reference))
                 .as_deref()
                 != Some(&identity)
             {

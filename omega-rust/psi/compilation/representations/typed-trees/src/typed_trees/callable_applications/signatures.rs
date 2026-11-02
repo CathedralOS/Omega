@@ -129,7 +129,14 @@ impl CallableApplication {
                             .iter()
                             .any(|(parameter, _)| parameter == symbol)
                 })
-                .map(|(symbol, name)| (symbol, program.symbols.get(symbol).kind, name.to_owned()))
+                .map(|(symbol, name)| {
+                    let kind = if self.runtime_values.contains(&symbol) {
+                        symbols::SymbolKind::Parameter
+                    } else {
+                        program.symbols.get(symbol).kind
+                    };
+                    (symbol, kind, name.to_owned())
+                })
                 .collect::<Vec<_>>();
             let owner = self.symbol(declared.symbol);
             if owner.is_valid() && owner == self.owned_signature {
@@ -181,6 +188,40 @@ impl CallableApplication {
                     .collect::<Result<Vec<_>, _>>()?;
             }
             applied.parameters = self.parameters(program, &parameters)?;
+            // The same fresh symbol owns the retained invocation binder and
+            // executable formal. Contract substitution therefore reads its
+            // completed ordinary operand, without a second header observation.
+            for (declared, applied_parameter) in program
+                .state_signature_type_parameters(declared)
+                .iter()
+                .cloned()
+                .zip(
+                    program
+                        .state_signature_type_parameters(&applied)
+                        .iter()
+                        .cloned(),
+                )
+                .collect::<Vec<_>>()
+            {
+                if !self.runtime_values.contains(&declared.symbol) {
+                    continue;
+                }
+                let data::TypeParameterKind::Value { type_reference } = applied_parameter.kind
+                else {
+                    return Err("runtime requirement projection is not a Value binder");
+                };
+                program.state_parameters.append_to_span(
+                    &mut applied.parameters,
+                    signature::StateParameter {
+                        symbol: applied_parameter.symbol,
+                        name: applied_parameter.name,
+                        type_reference,
+                        is_const: false,
+                        is_mutable: false,
+                        relevance: language_core::BindingRelevance::Relevant,
+                    },
+                );
+            }
             applied.return_type = self.type_reference(program, declared.return_type)?;
             applied.contracts = HandleSpan::empty();
             for mut contract in program.state_signature_contracts(declared).to_vec() {

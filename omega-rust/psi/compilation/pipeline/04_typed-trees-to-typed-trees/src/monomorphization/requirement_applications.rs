@@ -14,6 +14,7 @@ use typed_trees::data::TypeParameterKind;
 mod calls;
 mod demands;
 mod inference;
+mod runtime_operands;
 use typed_trees::finite_family::FamilyProbe;
 use typed_trees::static_applications::{StaticMachineBinding, StaticMachineBindingValue};
 use typed_trees::typed_trees::{ClosedConformanceApplication, StaticRequirementDispatch};
@@ -140,13 +141,22 @@ pub(crate) fn instantiate_requirement_applications(
             let mut open = false;
             for (parameter, argument) in parameters.iter().zip(&arguments) {
                 match parameter.kind {
-                    TypeParameterKind::Type
-                    | TypeParameterKind::Const { .. }
-                    | TypeParameterKind::Value { .. } => {
+                    TypeParameterKind::Type | TypeParameterKind::Const { .. } => {
                         let actual = program
                             .static_operand_type_reference_in_scope(argument, invocation.owner)
                             .map_err(|message| vec![Diagnostic::error(message)])?;
                         open |= super::contextual_calls::operand_is_open(program, actual);
+                    }
+                    TypeParameterKind::Value { .. } => {
+                        // Runtime Values close the executable carrier, not an
+                        // input value. Their exact observations stay on calls.
+                        // Static Value recipes still need their normal closure.
+                        if !super::const_arguments::is_runtime_value_argument(program, argument) {
+                            let actual = program
+                                .static_operand_type_reference_in_scope(argument, invocation.owner)
+                                .map_err(|message| vec![Diagnostic::error(message)])?;
+                            open |= super::contextual_calls::operand_is_open(program, actual);
+                        }
                     }
                     TypeParameterKind::Machine { .. } => {
                         open |= program.symbols.get(argument.symbol).kind
@@ -254,16 +264,8 @@ pub(crate) fn invocation_bindings(
                         // The subject shape alone also fits an unresolved
                         // spelling such as a boolean atom, so require that no
                         // canonical const identity closes this operand.
-                        let forwarded_value = argument.symbol.is_valid()
-                            && program
-                                .data_type_parameter_by_symbol(argument.symbol)
-                                .is_some_and(|source| {
-                                    matches!(source.kind, TypeParameterKind::Value { .. })
-                                });
                         if matches!(parameter.kind, TypeParameterKind::Value { .. })
-                            && (super::const_arguments::is_runtime_value_subject(program, argument)
-                                || forwarded_value)
-                            && program.static_const_argument_identity(argument).is_none()
+                            && super::const_arguments::is_runtime_value_argument(program, argument)
                         {
                             StaticMachineBindingValue::RuntimeValue {
                                 type_reference: *type_reference,

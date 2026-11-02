@@ -9,6 +9,26 @@ pub(super) use validation::static_arguments::{
     forwarded_type, is_runtime_value_expression, is_runtime_value_subject, spelling,
 };
 
+/// A Value application transports an executable subject rather than closing a
+/// static operand. Forwarded Value binders retain that same runtime role.
+pub(super) fn is_runtime_value_argument(
+    program: &dyn validation::CheckingInput,
+    argument: &StaticMachineArgument,
+) -> bool {
+    program.static_const_argument_identity(argument).is_none()
+        && (is_runtime_value_subject(program, argument)
+            || is_runtime_value_expression(program, argument)
+            || argument.symbol.is_valid()
+                && program
+                    .data_type_parameter_by_symbol(argument.symbol)
+                    .is_some_and(|parameter| {
+                        matches!(
+                            parameter.kind,
+                            typed_trees::data::TypeParameterKind::Value { .. }
+                        )
+                    }))
+}
+
 /// The ordinary expression stored as this argument's const-expression
 /// payload. Field projections spelled `name.member` are not in that payload;
 /// they stay on `evidence_projection` until the value-binder slot reads them.

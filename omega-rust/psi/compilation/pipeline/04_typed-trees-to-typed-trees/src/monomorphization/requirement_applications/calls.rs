@@ -28,11 +28,12 @@ pub(super) struct InvocationTuple {
     pub lifetimes: Vec<typed_trees::static_applications::StaticMachineLifetimeBinding>,
 }
 
-struct PreparedInvocation {
-    site: super::super::CallSite,
-    owner: SymbolHandle,
-    target: SymbolHandle,
-    tuple: InvocationTuple,
+pub(super) struct PreparedInvocation {
+    pub(super) site: super::super::CallSite,
+    pub(super) owner: SymbolHandle,
+    pub(super) state: SymbolHandle,
+    pub(super) target: SymbolHandle,
+    pub(super) tuple: InvocationTuple,
 }
 
 fn occurrence(
@@ -334,7 +335,10 @@ fn instance_in_scope(
                             return false;
                         };
                         selected.next().is_none()
-                            && program.static_binding_matches_argument(
+                            && (if matches!(binding.value, typed_trees::static_applications::StaticMachineBindingValue::RuntimeValue { .. }) {
+                                matches!(parameter.kind, TypeParameterKind::Value { .. })
+                                    && super::super::const_arguments::is_runtime_value_argument(program, argument)
+                            } else { program.static_binding_matches_argument(
                                 &parameter.kind,
                                 &binding.value,
                                 argument,
@@ -342,7 +346,7 @@ fn instance_in_scope(
                                 expressions_of(program)
                                     .static_machine_application(application.application)
                                     .lexical_owner,
-                            )
+                            ) })
                     })
         });
     let Some(application) = matches.next() else {
@@ -399,6 +403,7 @@ fn prepare_invocations(
                             state.statement_nodes.handle_at(position as u32),
                         ),
                         owner: machine.symbol,
+                        state: state.symbol,
                         target: call.target_symbol,
                         tuple: occurrence(
                             program,
@@ -420,6 +425,7 @@ fn prepare_invocations(
                         invocations.push(PreparedInvocation {
                             site: super::super::CallSite::Expression(expression),
                             owner: machine.symbol,
+                            state: state.symbol,
                             target: call.target_symbol,
                             tuple: occurrence(
                                 program,
@@ -812,6 +818,9 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
         {
             dispatch.contract_signature = selected;
         }
+    }
+    for invocation in &invocations {
+        super::runtime_operands::realize(program, invocation)?;
     }
     for invocation in invocations {
         let (site, owner) = (invocation.site, invocation.owner);
