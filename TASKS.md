@@ -819,8 +819,9 @@ helper that passes does not close an item.
     compiler producers and retained artifacts.
     The Rust reference [qualified-case row](samples/cli/facts/transparent_generic_aliases/qualified_cases/README.md)
     preserves imported alias applications through construction and matching in
-    local, field, parameter and call-result places; the remaining five places
-    and broader pattern inference remain open.
+    local, field, parameter, call-result, match-join, const-name and nested-machine
+    places; other-machine/selected-target transport and broader pattern inference
+    remain open.
     The complete alias row, remaining binder/case/pattern cases, alias-RHS
     expression operands beyond the [Const-formal](samples/cli/facts/transparent_generic_aliases/rhs_const_expression/README.md),
     [declaration-scope](samples/cli/facts/transparent_generic_aliases/rhs_const_scope/README.md),
