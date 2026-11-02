@@ -31,6 +31,7 @@ pub struct TerminalComponentBinding<'host, 'artifact> {
     scalar_admission: Option<std::borrow::Cow<'artifact, AdmittedScalarApplications>>,
     required_imports: Vec<BoundaryMachineId>,
     bindings: BTreeMap<BoundaryMachineId, TerminalImportBinding<'host>>,
+    storage_resolver: Option<std::rc::Rc<dyn crate::TerminalProviderStorageResolver + 'host>>,
     components: ComponentBindings<'host, 'artifact>,
     pending: Option<PendingComponent<'host, 'artifact>>,
 }
@@ -92,6 +93,7 @@ impl<'host, 'artifact> TerminalComponentBinding<'host, 'artifact> {
             scalar_admission,
             required_imports: requirements.imports,
             bindings: BTreeMap::new(),
+            storage_resolver: None,
             components: BTreeMap::new(),
             pending: None,
         })
@@ -101,6 +103,17 @@ impl<'host, 'artifact> TerminalComponentBinding<'host, 'artifact> {
         self.required_imports.iter().copied().filter(|boundary| {
             !self.bindings.contains_key(boundary) && !self.components.contains_key(boundary)
         })
+    }
+
+    pub fn bind_storage_resolver(
+        &mut self,
+        resolver: std::rc::Rc<dyn crate::TerminalProviderStorageResolver + 'host>,
+    ) -> Result<(), String> {
+        if self.pending.is_some() || self.storage_resolver.is_some() {
+            return Err("component provider storage resolver is active or already bound".into());
+        }
+        self.storage_resolver = Some(resolver);
+        Ok(())
     }
 
     pub fn import(&self, boundary: BoundaryMachineId) -> Option<&BoundaryMachineDeclaration> {
@@ -246,6 +259,7 @@ impl<'host, 'artifact> TerminalComponentBinding<'host, 'artifact> {
             )
             .map_err(|error| format!("component lent input custody: {error:?}"))?;
         instance.bindings = std::mem::take(&mut self.bindings);
+        instance.storage_resolver = self.storage_resolver.clone();
         instance.components = std::mem::take(&mut self.components);
         self.pending = Some(PendingComponent {
             caller,

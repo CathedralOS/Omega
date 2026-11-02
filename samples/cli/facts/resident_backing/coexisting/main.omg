@@ -1,0 +1,108 @@
+// Expected exit: 0
+// A granted vacant extent retains actual backing through transport, initialization, permitted writes, and extraction.
+// Both resident windows coexist before either is extracted.
+use omega::language::core::extent;
+use omega::language::core::layout;
+use omega::language::core::process_exit;
+
+data TestMemory {}
+public data Word { value: u64; }
+public data WordPlacement {}
+
+machine WordPlacement::plan(schema: Schema) -> AccessPlan {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };
+    let layout: LayoutPlan = LayoutPlan { entries: entries, entry_count: 1, size_fixed: 8, size_is_dynamic: false, align: 8 };
+    AccessPlan::with(AccessPlan::inaccessible(layout), schema.fields[0].key,
+        FieldAccess::Stable { read: true, write: true, exposure: Exposure::Exported })
+}
+
+MemorySupply satisfies ResourceProfileSupply<TestMemory> {
+    machine profile(storage: &Extent in Granted) -> ResourceProfile {
+        let services: [u64; 32];
+        let mut regions: [ResourceRegion; 32];
+        regions[0] = ResourceRegion {
+            range: RelativeRange { offset: 0, length: storage.length },
+            peer: PeerWritability::Exclusive,
+            stable: StableCapability::ReadWrite,
+            external: ExternalCapability::None,
+            atomic: AtomicCapability::None,
+            reach: BoundaryReach { services: services, service_count: 0 },
+        };
+        ResourceProfile { regions: regions, region_count: 1 }
+    }
+}
+
+boundary trait NativeAllocation {
+    machine allocate(count: u64, width: u64) -> addr reaches;
+}
+TestRoots satisfies ExtentRootProvider {
+    machine grant(root: Extent) -> Extent { root }
+}
+TestVacant satisfies VacantContentTransfer {
+    machine transfer(storage: Extent in Granted) -> Extent
+        ensures result in Granted,
+            Granted::content(old(&storage)) == Granted::content(&result)
+    { storage as Extent }
+}
+
+machine main() crashes Trap {
+    let address: addr = NativeAllocation::allocate(1, 32);
+    transition address != 0 { true -> allocated(address) false -> bad() }
+    machine allocated(address: addr) {
+        let granted: Extent in Granted = ExtentRootProvider::grant(Extent { base: address, length: 32 });
+        let vacant: Extent in Granted & Vacant = VacantContentTransfer::transfer(granted);
+        transition vacant.length == 32 { true -> partition(vacant) false -> bad() }
+    }
+    machine partition(vacant: Extent in Granted & Vacant)
+    requires vacant.length == 32
+    {
+        let parts: VacantExtentParts = split_vacant_extent(vacant, 16);
+        exercise_two(parts.taken, parts.rest);
+    }
+    machine bad() { crash Trap; }
+}
+machine exercise_two(first: Extent in Granted & Vacant, second: Extent in Granted & Vacant) crashes Trap {
+    transition NativeAccess<WordPlacement, Word, TestMemory>::initialize(first, Word { value: 17 }) {
+        AccessOutcome::Ready { view } -> initialize_second(view, second)
+        AccessOutcome::Rejected { returned, reason } -> bad()
+    }
+    machine initialize_second(first: Extent in Granted & Resident<WordPlacement, Word>, second: Extent in Granted & Vacant) {
+        transition NativeAccess<WordPlacement, Word, TestMemory>::initialize(second, Word { value: 43 }) {
+            AccessOutcome::Ready { view } -> observe(first, view)
+            AccessOutcome::Rejected { returned, reason } -> bad()
+        }
+    }
+    machine observe(first: Extent in Granted & Resident<WordPlacement, Word>, second: Extent in Granted & Resident<WordPlacement, Word>) {
+        let mut left: Extent in Granted & Resident<WordPlacement, Word> = first;
+        let mut right: Extent in Granted & Resident<WordPlacement, Word> = second;
+        let left_view: &mut Access<WordPlacement, Word> = Access::view_resident_mut<WordPlacement, Word>(&mut left);
+        let before: u64 = read(&left_view.value);
+        write(&mut left_view.value, 29u64);
+        let right_view: &mut Access<WordPlacement, Word> = Access::view_resident_mut<WordPlacement, Word>(&mut right);
+        let neighbor: u64 = read(&right_view.value);
+        write(&mut right_view.value, 59u64);
+        transition before == 17 && neighbor == 43 {
+            true -> extract_left(left, right)
+            false -> bad()
+        }
+    }
+    machine extract_left(first: Extent in Granted & Resident<WordPlacement, Word>, second: Extent in Granted & Resident<WordPlacement, Word>) {
+        transition NativeAccess<WordPlacement, Word, TestMemory>::move_out(first) {
+            AccessExtraction::Moved { storage, value } -> extract_right(storage, value, second)
+        }
+    }
+    machine extract_right(first: Extent in Granted & Vacant, first_value: Word, second: Extent in Granted & Resident<WordPlacement, Word>) {
+        transition NativeAccess<WordPlacement, Word, TestMemory>::move_out(second) {
+            AccessExtraction::Moved { storage, value } -> finish(first, storage, first_value, value)
+        }
+    }
+    machine finish(first: Extent in Granted & Vacant, second: Extent in Granted & Vacant, first_value: Word, second_value: Word) {
+        transition first_value.value == 29 && second_value.value == 59 && first.length == 16 && second.length == 16 {
+            true -> done(first, second)
+            false -> bad()
+        }
+    }
+    machine done(first: Extent in Granted & Vacant, second: Extent in Granted & Vacant) { ProcessExit::exit_process(0); }
+    machine bad() { crash Trap; }
+}
