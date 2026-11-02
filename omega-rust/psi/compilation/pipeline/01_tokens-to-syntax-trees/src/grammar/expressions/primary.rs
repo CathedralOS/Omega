@@ -1,8 +1,6 @@
 use crate::grammar::expressions::context::ExpressionContext;
 use crate::grammar::expressions::match_dispatch::parse_match_expression_handle;
-use crate::grammar::expressions::parse_expression::{
-    parse_expression_handle, parse_expression_handle_in,
-};
+use crate::grammar::expressions::parse_expression::parse_expression_handle_in;
 use crate::grammar::expressions::parse_postfix::parse_argument_list_after_open_paren_handle;
 use crate::grammar::expressions::parse_postfix::try_parse_static_machine_arguments;
 use crate::grammar::type_syntax::parse_type::parse_type_reference_handle;

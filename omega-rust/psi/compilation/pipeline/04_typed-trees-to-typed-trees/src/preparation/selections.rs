@@ -2,14 +2,13 @@
 //! their generic parameter lists. This writes only a still-owned typed program;
 //! final checking resolutions publish into CheckFacts instead.
 
-use crate::tables::{expressions_of, expressions_of_mut};
+use crate::tables::expressions_of;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionLateBinding, AuthoredDeclarationSelectionTarget,
 };
 use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionNode;
-use validation::CheckingInput;
 use validation::selection_resolution::{
     AuthoredSelectionResolution, AuthoredSelectionResolutionTarget, authored_data_member,
     collect_checked_transition_target_selections, declaration_target, exact_named_operator_call,
