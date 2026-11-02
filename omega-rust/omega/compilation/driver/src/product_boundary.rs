@@ -410,9 +410,7 @@ fn component_handoff_retains_the_producing_join() {
 
 #[test]
 fn terminal_calling_activation_uses_only_canonical_geometry() {
-    let execution = include_str!(
-        "../../realization/provider-planning/src/calling_policy_plans/terminal_execution.rs"
-    );
+    let execution = include_str!("../../build-evaluation/src/calling_policy_execution.rs");
     let protocol = include_str!(
         "../../realization/provider-planning/src/calling_policy_plans/policy_signature.rs"
     );
