@@ -614,6 +614,8 @@ fail/facts/generic_calling_policy/missing_nested_provider rejected 19466ms expec
 	calling-policy helper requires an exact Build or target-default provider selection
 fail/facts/generic_calling_policy/missing_policy_provider rejected 18177ms expected @002791b61f14
 	slot `ValuePlan` has 3 covering provider plans for the selected target: `<selected target>::SysVValuePlan::satisfies::ValuePlan` [<fingerprint>], `<selected target>::MicrosoftValuePlan::satisfies::ValuePlan` [<fingerprint>], `<selected target>::AapcsValuePlan::satisfies::ValuePlan` [<fingerprint>] -- choose one in build.omg with `Build::select_provider<ValuePlan, ProviderType>(b);`
+fail/facts/generic_calling_policy/shared_parent_roots_rejected rejected 33510ms expected @f6ed16a77b4e+wt
+	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
 fail/facts/generic_calling_policy/unused_descendant_rejected rejected 20322ms expected @002791b61f14
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
 fail/facts/generic_nonempty_array_changed_to_zero rejected 619ms expected @a889c2d8b84c
@@ -6779,6 +6781,8 @@ pass/facts/generic_calling_policy/literal_arguments_exit checked 21185ms check-t
 pass/facts/generic_calling_policy/nested_argument_exit rejected 17926ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
 	executed provider choice lost its complete static application
 pass/facts/generic_calling_policy/nested_data_const_exit checked 19027ms check-target:linux_x86_64 @ccdb99ca2214
+pass/facts/generic_calling_policy/ordinary_parent_fused_exit checked 27013ms check-target:macos_arm64 @f6ed16a77b4e
+pass/facts/generic_calling_policy/shared_parent_roots_exit checked 25400ms check-target:macos_arm64 @f6ed16a77b4e
 pass/facts/generic_calling_policy/unused_descendant_exit checked 22124ms check-target:macos_arm64 @002791b61f14
 pass/facts/generic_calling_policy_through_call_result_exit checked 22159ms check-target:macos_arm64 @6416b0fdfbe3
 pass/facts/generic_calling_policy_through_const_name_exit checked 19953ms check-target:macos_arm64 @6416b0fdfbe3
@@ -23260,23 +23264,23 @@ fail/facts/generic_calling_policy/unresolved_argument rejected 9217ms expected @
 	conformance `GenericPolicy` parameter `Width` requires a const argument, but `UnknownWidth` has another static category
 fail/facts/generic_calling_policy/wrong_argument_kind rejected 8686ms expected @ccdb99ca2214
 	conformance `GenericPolicy` parameter `Width` requires a const argument, but `<structural type>` has another static category
-fail/facts/generic_calling_policy_through_call_result_rejected rejected 22548ms expected @002791b61f14
+fail/facts/generic_calling_policy_through_call_result_rejected rejected 37610ms expected @f6ed16a77b4e+wt
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
-fail/facts/generic_calling_policy_through_const_name_rejected rejected 22548ms expected @002791b61f14
+fail/facts/generic_calling_policy_through_const_name_rejected rejected 37016ms expected @f6ed16a77b4e+wt
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
-fail/facts/generic_calling_policy_through_field_rejected rejected 19620ms expected @002791b61f14
+fail/facts/generic_calling_policy_through_field_rejected rejected 39061ms expected @f6ed16a77b4e+wt
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
-fail/facts/generic_calling_policy_through_local_rejected rejected 17529ms expected @002791b61f14
+fail/facts/generic_calling_policy_through_local_rejected rejected 36537ms expected @f6ed16a77b4e+wt
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
-fail/facts/generic_calling_policy_through_match_join_rejected rejected 19472ms expected @002791b61f14
+fail/facts/generic_calling_policy_through_match_join_rejected rejected 42758ms expected @f6ed16a77b4e+wt
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
-fail/facts/generic_calling_policy_through_other_machine_rejected rejected 19626ms expected @002791b61f14
+fail/facts/generic_calling_policy_through_other_machine_rejected rejected 37031ms expected @f6ed16a77b4e+wt
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
-fail/facts/generic_calling_policy_through_other_state_rejected rejected 19477ms expected @002791b61f14
+fail/facts/generic_calling_policy_through_other_state_rejected rejected 45970ms expected @f6ed16a77b4e+wt
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
-fail/facts/generic_calling_policy_through_parameter_rejected rejected 19600ms expected @002791b61f14
+fail/facts/generic_calling_policy_through_parameter_rejected rejected 39203ms expected @f6ed16a77b4e+wt
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
-fail/facts/generic_calling_policy_through_target_body_rejected rejected 19598ms expected @002791b61f14
+fail/facts/generic_calling_policy_through_target_body_rejected rejected 39158ms expected @f6ed16a77b4e+wt
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
 fail/facts/generic_case_subject_through_call_result_rejected rejected 1886ms expected @ccdb99ca2214
 	case membership must test a value of the exact declaring data type (machine `observe`, state `entry`)
