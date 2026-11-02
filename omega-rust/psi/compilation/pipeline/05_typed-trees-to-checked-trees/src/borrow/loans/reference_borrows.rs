@@ -5,7 +5,6 @@ use super::super::tracker::StateLoanTracker;
 use super::StatementBorrowLoan;
 use super::call_views::*;
 use super::types::{is_reference_type, reference_borrow_access_kind};
-use crate::borrow::view_link::ViewReturnSource::NotApplicable;
 use crate::borrow::view_link::is_borrow_carrying_data;
 use crate::flow::expressions;
 use checked_trees::expression::ExpressionHandle;
@@ -48,51 +47,6 @@ pub(super) fn reference_local_borrow_loans(
     else {
         return Vec::new();
     };
-    // A normal reference result with no formal source is an external
-    // permission supplied by that exact invocation. Checked bodies must prove
-    // their own return escape; opaque providers still require admission.
-    // The descriptor local stores this permission, rather than lending itself.
-    if let checked_trees::expression::ExpressionNode::Call(call) =
-        expressions(program).expression(local_data.initial_value)
-        && let Some(contract) = call_view_return_contract(program, state.symbol, call)
-        && matches!(contract.source(program), NotApplicable)
-        && reference_borrow_access_kind(program, contract.return_type_reference(program)).is_some()
-    {
-        return vec![StatementBorrowLoan {
-            formation_owner_path: Some(Vec::new()),
-            incoming_origin: Some(super::PendingIncomingReference {
-                identity: checked_trees::IncomingReferenceIdentity {
-                    machine_symbol,
-                    state_symbol: state.symbol,
-                    origin: checked_trees::IncomingReferenceOrigin::Invocation {
-                        expression: local_data.initial_value,
-                        target: call.target_symbol,
-                    },
-                    carrier_type: contract.return_type_reference(program),
-                    owner_path: Default::default(),
-                },
-                owner_path: Vec::new(),
-            }),
-            formation_expression: local_data.initial_value,
-            representation_address: None,
-            owner_symbol: local_data.symbol,
-            storage_owner: facts::PlaceRoot::Symbol(local_data.symbol),
-            owner_name: local_data.name.clone(),
-            owner_path: Vec::new(),
-            place: accesses::BorrowAccessPlace {
-                incoming_reference: Default::default(),
-                incoming_owner_path: Default::default(),
-                root: facts::PlaceRoot::Expression(local_data.initial_value),
-                segments: Vec::new(),
-            },
-            retained_operand: None,
-            source_owner_symbol: SymbolHandle::invalid(),
-            supplying_loans: Vec::new(),
-            lineage: checked_trees::BorrowLoanLineage::DirectRoot,
-            kind: local_access,
-            call_result: true,
-        }];
-    }
     if let Some(mut loans) = super::returned_carriers::result_loans(
         program,
         state.symbol,

@@ -71,6 +71,7 @@ pub(crate) mod types;
 
 use types::{is_reference_type, reference_borrow_access_kind};
 
+mod independent_invocations;
 mod reference_borrows;
 pub(in crate::borrow) use aggregate_loans::borrowed_initializer_loans;
 use aggregate_loans::*;

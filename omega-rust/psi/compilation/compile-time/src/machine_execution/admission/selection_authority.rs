@@ -48,6 +48,7 @@ pub(super) fn selection_authority_violation(
     custody: Option<BuildTimeInvocationCustody>,
     authority: Option<&dyn BuildTimeSelectionAuthority>,
     selected: &[crate::SelectedBuildTimeBinaryOperator],
+    selected_providers: &[crate::SelectedBuildTimeProviderBody],
     checked_operators: Option<&checked_trees::CheckedOperatorFacts>,
 ) -> Option<SelectionViolation> {
     let program = input.typed_program();
@@ -130,7 +131,19 @@ pub(super) fn selection_authority_violation(
                 Ok(delegated) => delegated,
                 Err(reason) => return Some(SelectionViolation::unlocated(reason.to_owned())),
             };
+            // The source occurrence selected the public requirement. Omega's
+            // authenticated whole-provider choice supplies its body; it does
+            // not make the caller spell that implementation. Expression
+            // custody distinguishes this delegation from an ordinary direct
+            // call to the same body, whose source authority is still checked.
+            let provider_delegated = selected_providers.iter().any(|row| {
+                row.origin.machine_symbol() == Some(source_machine.symbol)
+                    && row.expression == call.expression
+                    && row.provider_machine == target_machine
+                    && row.provider_state == call.target_state_symbol
+            });
             if !delegated
+                && !provider_delegated
                 && let Some(authority) = authority
                 && let Some(violation) = require_selection(
                     program,

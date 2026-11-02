@@ -38,9 +38,15 @@ impl RuntimeRankComponents {
         runtime_ranking::require_tail_component(program, component)
     }
     pub fn requires_arrival_witness(&self, machine_position: usize) -> bool {
+        self.component_containing(machine_position).is_some()
+    }
+    /// The complete recurrent component, retaining source body positions.
+    /// A demand selects a component; it never removes its members or edges.
+    pub fn component_containing(&self, machine_position: usize) -> Option<&[usize]> {
         self.components
             .iter()
-            .any(|component| component.contains(&machine_position))
+            .find(|component| component.contains(&machine_position))
+            .map(Vec::as_slice)
     }
     /// Exact recurrent member positions. Self and mutual machine calls share
     /// one source-complete call-component judgment. A private unpromised
