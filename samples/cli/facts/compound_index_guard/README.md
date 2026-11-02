@@ -189,7 +189,9 @@ retains the generated acceptance locks/admissions beside each command's raw
 checking and engine output. It performs no Rust build. These historical locks
 are replay inputs, not authority to install into a new checkout.
 
-Only this fact's target-body frontier is subtracted (47 to 46). Both Build-owned
+Only this fact's target-body frontier is removed. The remaining places are
+discoverable through the reproducible inventory query in `TASKS.md`; its
+handwritten aggregate count was removed after repeated actual merge conflicts. Both Build-owned
 parent capabilities, broader target-family retirement, other-host runtime, and
 mutable retained-completion footprint closure remain open.
 
