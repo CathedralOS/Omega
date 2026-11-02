@@ -6,8 +6,9 @@
 //! Original padding stays occupied source storage, never invented T fields.
 
 use super::record_representation::{
-    fields_cover_source_extent, mutable_record_representations_equivalent, pending_record_fields,
-    source_supports_pending_fields, type_representation,
+    fields_cover_source_extent, mutable_record_representations_equivalent,
+    pending_record_definition, pending_record_fields, source_supports_pending_fields,
+    type_representation,
 };
 use diagnostics::Diagnostic;
 use typed_trees::data::DataDefinition;
