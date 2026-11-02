@@ -2,9 +2,11 @@
 //! An owned field beside a reference cannot acquire that reference's origin
 //! merely because indexing made their write footprints identical.
 
+use super::super::place_paths::{FramePathPrecision, FrameSourcePlace};
 use super::super::stored_calls::SlotSource;
 use super::{FramePlaceOrigin, StoredLocalOrigins, compose_origin, place_suffix};
 use facts::PlaceSegment;
+use typed_trees::types::TypeReferenceHandle;
 
 pub(in crate::machine_calls::calls::write_frames) fn canonical_reference_origins(
     program: &dyn crate::CheckingInput,
@@ -439,7 +441,6 @@ fn resolve_steps(
                 }
             }
         }
-        let mut source = compose_origin(program, &captured, suffix, origin.precision);
         // Loading a stored reference substitutes its captured referent before
         // any subsequent view. Trim storage-slot coordinates, never the logical
         // selectors inside a presentation, and retain every formation event.
@@ -452,6 +453,29 @@ fn resolve_steps(
                 return vec![None];
             }
             recast.segments.drain(..leaf.local_segments.len());
+        }
+        // The slot's containing collection may have a coarse write cover.
+        // Loading its complete descriptor yields the captured pointer instead:
+        // only selectors still beneath that pointer affect its precision.
+        // The loaded-slot record below retains the original cover, so replacing
+        // the descriptor can still retire its correspondence.
+        let mut source = compose_origin(
+            program,
+            &captured,
+            suffix,
+            remaining_projection_precision(&relative, origin.precision),
+        );
+        if origin.precision == FramePathPrecision::CollectionCoarse
+            && std::env::var_os("OMEGA_STRUCT_TRACE").is_some()
+        {
+            eprintln!(
+                "FRAME reference-load slot={:?} captured={:?} remaining={:?} builtin={} result={:?}",
+                leaf.local_segments,
+                captured.precision,
+                relative.segments,
+                relative.builtin_coordinates,
+                source.precision,
+            );
         }
         source.source = captured.source.append_source(&relative);
         let removed = origin.source.segments.len() - leaf.local_segments.len();
@@ -502,6 +526,42 @@ fn resolve_steps(
         vec![spatial_source(origin)]
     } else {
         sources
+    }
+}
+
+fn remaining_projection_precision(
+    source: &FrameSourcePlace,
+    known: FramePathPrecision,
+) -> FramePathPrecision {
+    // An exact query already owns its selector evidence. Rebuild only the
+    // coarse cover whose consumed slot selectors no longer name the pointee.
+    if known == FramePathPrecision::Exact {
+        return known;
+    }
+    let fixed = |segments: &[PlaceSegment]| {
+        segments.iter().all(|segment| match segment {
+            PlaceSegment::Field { symbol } => symbol.is_valid(),
+            PlaceSegment::Case { variant } => variant.is_valid(),
+            PlaceSegment::FixedIndex { .. } => true,
+            PlaceSegment::Index { .. }
+            | PlaceSegment::FixedRange { .. }
+            | PlaceSegment::OpaqueRange => false,
+        })
+    };
+    let fixed_presentation = |presentation: &Option<(TypeReferenceHandle, Vec<PlaceSegment>)>| {
+        presentation.as_ref().is_none_or(|(_, path)| fixed(path))
+    };
+    if source.builtin_coordinates
+        && fixed(&source.segments)
+        && fixed_presentation(&source.representation)
+        && source
+            .recasts
+            .iter()
+            .all(|recast| fixed(&recast.segments) && fixed_presentation(&recast.representation))
+    {
+        FramePathPrecision::Exact
+    } else {
+        FramePathPrecision::CollectionCoarse
     }
 }
 
