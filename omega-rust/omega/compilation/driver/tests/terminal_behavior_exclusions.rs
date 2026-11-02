@@ -201,7 +201,7 @@ fn assert_calling_review_outlives_source(
     use std::sync::Arc;
 
     let (
-        prepared,
+        package_inputs,
         substituted,
         code,
         wrong_code,
@@ -221,16 +221,12 @@ fn assert_calling_review_outlives_source(
         let execution = checked.execution();
         let source = execution.provider_source.program();
         let target = execution.selected_target_profile.expect("fixture target");
-        let prepare_policy = || {
-            provider_planning::calling_policy_plans::prepare_boundary_calling_plans(
-                target,
-                package_inputs.as_ref(),
-                &checked.providers().calling_program,
-            )
-            .expect("retain request/review correspondence and canonical helper choices")
-        };
-        let prepared = prepare_policy();
-        let substituted = prepare_policy();
+        let substituted = provider_planning::calling_policy_plans::prepare_boundary_calling_plans(
+            target,
+            package_inputs.as_ref(),
+            &checked.providers().calling_program,
+        )
+        .expect("retain request/review correspondence and canonical helper choices");
         let code = Arc::clone(&checked.providers().calling_program);
         let expected = checked
             .providers()
@@ -303,7 +299,7 @@ fn assert_calling_review_outlives_source(
             evaluator: code.evaluator,
         };
         (
-            prepared,
+            package_inputs,
             substituted,
             code,
             wrong_code,
@@ -346,6 +342,12 @@ fn assert_calling_review_outlives_source(
     if relative == "tests/omega/pass/build/terminal_calling_policy_execution/main.omg" {
         assert_live_calling_authority(&decoded_code.artifact);
     }
+    let prepared = provider_planning::calling_policy_plans::prepare_boundary_calling_plans(
+        target,
+        package_inputs.as_ref(),
+        &decoded_code,
+    )
+    .expect("prepare requests and helpers after Source drop and canonical transport");
     let realizations = prepared
         .evaluate(&decoded_code)
         .expect("activate and attach review after Source drop");
