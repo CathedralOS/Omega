@@ -92,7 +92,7 @@ fn conformance_and_value_binders_keep_distinct_admission() {
 }
 
 #[test]
-fn callable_data_and_alias_binders_do_not_start_as_trait_identities() {
+fn callable_binders_distinguish_identity_defaults_from_authored_contracts() {
     for syntax in [
         GenericParameterSyntax::DataDeclaration,
         GenericParameterSyntax::TraitRequirements,
@@ -114,18 +114,23 @@ fn callable_data_and_alias_binders_do_not_start_as_trait_identities() {
             assert!(contract.is_none());
         }
     }
-    for ending in ["{ value: u64; }", "= u64;"] {
+    for (declaration, ending) in [
+        ("data", "{ value: u64; }"),
+        ("data", "= u64;"),
+        ("trait", "{}"),
+    ] {
         for (clause, nominal) in [
             ("requires machine Selected(value: u64) -> u64;", false),
             ("requires machine Selected satisfies Hook::step;", true),
         ] {
-            let source = format!("data Carrier<machine Selected> {clause} {ending}");
+            let source = format!("{declaration} Carrier<machine Selected> {clause} {ending}");
             let tokens = Lexer::new(&source).tokenize().unwrap();
             let trees = crate::parse_syntax_trees(&tokens).expect("authored callable contract");
             let parameters = match trees.root_items().next().unwrap() {
                 Item::Data(data) => data.type_parameters,
                 Item::TypeAlias(alias) => alias.type_parameters,
-                _ => panic!("data or transparent alias"),
+                Item::Trait(trait_definition) => trait_definition.type_parameters,
+                _ => panic!("data, transparent alias or trait"),
             };
             let TypeParameterKind::Machine {
                 contract: Some(contract),
@@ -146,7 +151,10 @@ fn callable_data_and_alias_binders_do_not_start_as_trait_identities() {
             "",
             "requires machine Selected(value: u64) -> u64; requires machine Selected(value: u64) -> u64;",
         ] {
-            let source = format!("data Carrier<machine Selected> {clauses} {ending}");
+            if declaration == "trait" && clauses.is_empty() {
+                continue; // A bare trait machine slot retains declaration identity only.
+            }
+            let source = format!("{declaration} Carrier<machine Selected> {clauses} {ending}");
             let tokens = Lexer::new(&source).tokenize().unwrap();
             assert!(
                 crate::parse_syntax_trees(&tokens).is_err(),

@@ -27,6 +27,8 @@ The sufficient-output guarantee is the static coverage obligation. Ordinary
 loans retain the source identity, lifetime, exclusive access, and returned
 resource; matching bytes create no new authority. Failure returns the original
 slice, exposes no destination, and does not invoke the second conversion.
+The unrestricted semantic Pair may be discarded; this does not promise to
+return it as owned failure payload.
 Runtime observation receives the actual selected maps, not a post-hoc theorem
 that could make a corrupt result pass.
 

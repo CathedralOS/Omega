@@ -60,7 +60,10 @@ pub(crate) fn parse_machine_parameter_contracts<'tokens, 'source>(
         };
 
         match &syntax_trees.items.type_parameters(type_parameters)[parameter_index].kind {
-            syntax_trees::item::TypeParameterKind::Machine { contract: None } => {}
+            // A trait slot's identity-only default has no authored callable shape yet.
+            syntax_trees::item::TypeParameterKind::Machine {
+                contract: None | Some(MachineParameterContract::RequirementIdentity),
+            } => {}
             syntax_trees::item::TypeParameterKind::Type
                 if syntax_trees.items.type_parameters(type_parameters)[parameter_index].bounds
                     == syntax_trees::item::DataProperties::default() => {}
