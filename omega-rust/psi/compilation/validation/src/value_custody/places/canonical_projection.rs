@@ -271,7 +271,34 @@ fn exact_fixed_element(
         return usize::try_from(value).ok();
     }
     if let Some(initializer) = immutable_name_initializer(program, expression) {
+        if let Some(call) = expression_table(program).call_node(initializer) {
+            // The local snapshots one completed invocation. Its singleton
+            // postcondition names that value at every later read, against the
+            // caller that owns the local even when no argument names one.
+            let declaration = program
+                .symbols
+                .get(expression_name_symbol(program, expression)?);
+            let caller = program.symbols.get(declaration.parent).parent;
+            let (Some(low), Some(high)) =
+                crate::normal_return_integer_bounds(program, caller, initializer, call)?
+            else {
+                return None;
+            };
+            return (low == high)
+                .then_some(low)
+                .and_then(|value| usize::try_from(value).ok());
+        }
         return exact_fixed_element(program, initializer, depth + 1);
+    }
+    if let ExpressionNode::Match(dispatch) = expression_table(program).expression(expression) {
+        // Exactly one arm's value completes the match, so arms that all name
+        // one ordinal name it whichever arm is selected. The subject still
+        // executes; only the completed value is folded.
+        let mut arms = expression_table(program).match_arms(dispatch.arms).iter();
+        let first = exact_fixed_element(program, arms.next()?.value, depth + 1)?;
+        return arms
+            .all(|arm| exact_fixed_element(program, arm.value, depth + 1) == Some(first))
+            .then_some(first);
     }
     let ExpressionNode::Member(member) = expression_table(program).expression(expression) else {
         return None;
@@ -310,6 +337,16 @@ fn standing_fixed_element(
     element
 }
 
+fn expression_name_symbol(
+    program: &dyn CheckingInput,
+    expression: ExpressionHandle,
+) -> Option<SymbolHandle> {
+    let ExpressionNode::Name(path) = expression_table(program).expression(expression) else {
+        return None;
+    };
+    Some(path.symbol)
+}
+
 fn immutable_name_initializer(
     program: &dyn CheckingInput,
     expression: ExpressionHandle,
@@ -344,34 +381,35 @@ fn fixed_half_open_range(
     range: &typed_trees::expression::TableRangeExpression,
 ) -> Option<(usize, usize)> {
     let start = if range.start.is_valid() {
-        range_coordinate(program, range.start)?
+        window_coordinate(program, range.start)?
     } else {
         0
     };
     if !range.end.is_valid() {
         return None;
     }
-    let mut end = range_coordinate(program, range.end)?;
+    let mut end = window_coordinate(program, range.end)?;
     if range.end_inclusive {
         end = end.checked_add(1)?;
     }
     Some((start, end))
 }
 
-/// A half-open window coordinate. Literals fold as before. A selected match
-/// arm additionally substitutes its integer pattern for the subject, and an
-/// ensured call result substitutes that exact integer. `which + 2` in
-/// `match which { 0 -> items[0..which + 2] }` is therefore the same fixed
-/// window as `items[0..2]`. A wildcard arm assigns no pattern, so its
-/// endpoint stays a runtime index.
-fn range_coordinate(program: &dyn CheckingInput, endpoint: ExpressionHandle) -> Option<usize> {
-    let value = if let Some(value) = program.closed_integer_expression_value(endpoint) {
-        value.to_i64()?
-    } else {
-        let bindings = match_arm_bindings(program, endpoint)?;
-        folded_coordinate(program, endpoint, &bindings)?
-    };
-    usize::try_from(value).ok()
+/// A half-open window coordinate: the one element ordinal `endpoint` names.
+///
+/// A window's region is fixed geometry, so recast checking and place lowering
+/// both read its endpoints here; a second, narrower reading would let one
+/// layer admit a window the other cannot place. Coordinates use the same
+/// exact-ordinal routes as a fixed element selector: closed constants, a
+/// selected match arm's integer pattern substituted for its subject (`which +
+/// 2` in `match which { 0 -> items[0..which + 2] }` is `items[0..2]`), an
+/// ensured singleton call result, an immutable parameter's singleton
+/// `requires`, an immutable local's initializer or record-literal field, and
+/// a match whose every arm yields the same ordinal. Each route names a value
+/// that holds at every read of the endpoint, so the window needs no
+/// occurrence-specific fact. A wider interval keeps the window a runtime range.
+pub fn window_coordinate(program: &dyn CheckingInput, endpoint: ExpressionHandle) -> Option<usize> {
+    exact_fixed_element(program, endpoint, 0)
 }
 
 /// Bindings from value arms that contain `endpoint`. Contradictory patterns
