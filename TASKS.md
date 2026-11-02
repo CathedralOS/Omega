@@ -1866,13 +1866,12 @@ defines the complete product bar.
     (anonymous SQOS on owned path opens, HANDLE storage, explicit permissions and
     data sync), run `file_journal` (exit 7) and `note_vault` (exit 14), and provide trusted
     Terminal adapters for the exact authored foreign bindings.
-  - Run `tests/omega/pass/filesystem/windows_canonicalize_exit` (exit 70 on
-    Windows) and wire the occurrence-bound close proof helpers in
+  - Wire the occurrence-bound close proof helpers in
     `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/provider_admission/terminal_authority_policy/filesystem.rs`
     so a proved close earns an empty authority classification (with
     `tests/omega/pass/filesystem/native_close` as the unconstrained control).
-  Acceptance: `file_journal`, `note_vault`, `windows_canonicalize_exit`, and the
-  remaining Windows filesystem fixtures pass `omega run --both` on their matching
+  Acceptance: `file_journal`, `note_vault`, and the remaining Windows filesystem
+  fixtures pass `omega run --both` on their matching
   hosts with nested raw-provider closure checks and occurrence-bound close
   classifications, while failed acquisition, handle escape, or unproved close
   retains conservative authority.
