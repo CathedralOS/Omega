@@ -2399,6 +2399,12 @@ fn main() {
     // until it dies with this process, rather than letting a same-PID session
     // reuse the root while those paths remain live.
     sealed_fixture_staging::discard_staged_snapshots(still_live);
+    // Equal slice keys are checks a library-slice reuse would not repeat.
+    let slices = compiler::library_slice_totals();
+    eprintln!(
+        "corpus_runner: library slices: {} distinct, {} computed",
+        slices.distinct, slices.computed
+    );
     if phase_profile::enabled() {
         eprint!("{}", phase_profile::render());
     }
