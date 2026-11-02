@@ -16,9 +16,13 @@ use terminal_psi::{
 use super::{TerminalRuntimeError, matches_platform_c_symbol, native_provider::rejection};
 use crate::execution::TerminalFilesystemDelegation;
 
+pub(super) mod linux;
+pub(super) use linux::LinuxFilesystemWrite;
+
 #[derive(Clone)]
 pub(super) struct FilesystemContext {
     supplied: bool,
+    linux: Rc<RefCell<native_provider_runtime::LinuxFilesystem>>,
     descriptors: Rc<RefCell<BTreeMap<i32, NativeDescriptor>>>,
 }
 
@@ -72,6 +76,9 @@ impl FilesystemContext {
         Self {
             supplied: matches!(delegation, TerminalFilesystemDelegation::HostNamespace),
             descriptors: Rc::new(RefCell::new(BTreeMap::new())),
+            linux: Rc::new(RefCell::new(
+                native_provider_runtime::LinuxFilesystem::default(),
+            )),
         }
     }
 
@@ -371,17 +378,28 @@ fn matches_signature(
     result: Formal,
     layouts: &[NativeBorrowedStorageLayout],
 ) -> bool {
-    fn scalar_matches(scalar: ScalarType, expected: Formal) -> bool {
-        match (scalar, expected) {
-            (ScalarType::Integer(integer), Formal::Signed(bits)) => {
-                integer.sign() == IntegerSign::Signed && integer.bits() == bits
-            }
-            (ScalarType::Integer(integer), Formal::Unsigned(bits)) => {
-                integer.sign() == IntegerSign::Unsigned && integer.bits() == bits
-            }
-            _ => false,
+    matches_parameters(program, declaration, expected, layouts)
+        && matches!(declaration.result, BoundaryMachineResult::Scalar(value) if scalar_matches(value.scalar_type, result))
+}
+
+fn scalar_matches(scalar: ScalarType, expected: Formal) -> bool {
+    match (scalar, expected) {
+        (ScalarType::Integer(integer), Formal::Signed(bits)) => {
+            integer.sign() == IntegerSign::Signed && integer.bits() == bits
         }
+        (ScalarType::Integer(integer), Formal::Unsigned(bits)) => {
+            integer.sign() == IntegerSign::Unsigned && integer.bits() == bits
+        }
+        _ => false,
     }
+}
+
+fn matches_parameters(
+    program: &TerminalProgram,
+    declaration: &BoundaryMachineDeclaration,
+    expected: &[Formal],
+    layouts: &[NativeBorrowedStorageLayout],
+) -> bool {
     if declaration.parameter_order.len() != expected.len() {
         return false;
     }
@@ -450,7 +468,6 @@ fn matches_signature(
     }
     scalar == declaration.scalar_parameters.len()
         && structural == declaration.structural_parameters.len()
-        && matches!(declaration.result, BoundaryMachineResult::Scalar(value) if scalar_matches(value.scalar_type, result))
 }
 
 impl FilesystemCall {
