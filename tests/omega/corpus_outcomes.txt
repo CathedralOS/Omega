@@ -1100,6 +1100,31 @@ fail/facts/nested_machine_header_contracts_parameter_rejected rejected 200ms exp
 	tests/omega/fail/facts/nested_machine_header_contracts_parameter_rejected/main.omg:13:1: expected one of `use`, `data`, `domain`, `abi`, `machine`, `capability`, `let`, `library`, `measure`, `host`, `module`, `operator`, `package`, `platform`, `public`, `trait`, `boundary let`, `boundary operator`, `boundary requirement`, `boundary data`, `boundary trait`, found identifier `crashes`
 fail/facts/nested_machine_header_contracts_target_body_rejected rejected 202ms expected @2fc408782574
 	tests/omega/fail/facts/nested_machine_header_contracts_target_body_rejected/main.omg:13:1: expected one of `use`, `data`, `domain`, `abi`, `machine`, `capability`, `let`, `library`, `measure`, `host`, `module`, `operator`, `package`, `platform`, `public`, `trait`, `boundary let`, `boundary operator`, `boundary requirement`, `boundary data`, `boundary trait`, found identifier `crashes`
+fail/facts/nested_machine_invocation/callable_contracts/forwarded rejected 631ms expected @1572c6217fd7+wt
+	machine parameter `Candidate` forwarded into `apply` does not refine `Transform`: its ensures facts are not a conservative refinement
+fail/facts/nested_machine_invocation/callable_contracts/owned_reference rejected 702ms expected @1572c6217fd7+wt
+	machine argument `provider` for `apply` does not refine `Change`: its ensures facts are not a conservative refinement
+	machine argument `provider` for `inner` does not refine `Change`: its ensures facts are not a conservative refinement
+fail/facts/nested_machine_invocation/callable_contracts/owned_reference_changes rejected 842ms expected @1572c6217fd7+wt
+	machine argument `provider` for `apply` does not refine `Change`: its ensures facts are not a conservative refinement
+	machine argument `provider` for `inner` does not refine `Change`: its ensures facts are not a conservative refinement
+fail/facts/nested_machine_invocation/callable_contracts/owned_reference_eager_operands rejected 4080ms expected @1572c6217fd7+wt
+	cannot prove requires contract for call pair from main: value == 6 (needs fact `before == 6` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/nested_machine_invocation/callable_contracts/returned_reference rejected 4019ms expected @1572c6217fd7+wt
+	cannot prove requires contract for call require_five from main: value == 5 (needs fact `value == 5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/nested_machine_invocation/callable_contracts/returned_reference_stale_call rejected 4089ms expected @1572c6217fd7+wt
+	cannot prove requires contract for call require_five from main: value == 5 (needs fact `value == 5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/nested_machine_invocation/callable_contracts/returned_reference_stale_store rejected 4108ms expected @1572c6217fd7+wt
+	cannot prove requires contract for call require_five from main: value == 5 (needs fact `value == 5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/nested_machine_invocation/callable_contracts/stale_entry rejected 1313ms expected @1572c6217fd7+wt
+	machine argument `provider` for `apply` does not refine `Change`: its ensures facts are not a conservative refinement
+	machine argument `provider` for `inner` does not refine `Change`: its ensures facts are not a conservative refinement
+fail/facts/nested_machine_invocation/callable_contracts/stronger_precondition rejected 1320ms expected @1572c6217fd7+wt
+	machine argument `positive` for `apply` does not refine `Transform`: its requires facts are not a conservative refinement
+	machine argument `positive` for `inner` does not refine `Transform`: its requires facts are not a conservative refinement
+fail/facts/nested_machine_invocation/callable_contracts/weaker_guarantee rejected 1223ms expected @1572c6217fd7+wt
+	machine argument `positive` for `apply` does not refine `Transform`: its ensures facts are not a conservative refinement
+	machine argument `positive` for `inner` does not refine `Transform`: its ensures facts are not a conservative refinement
 fail/facts/nested_machine_invocation/generic_context rejected 1632ms expected @99a35aae42ec
 	machine `keep` state `entry` return value expects `T`, but the value is delivered as `U`
 	machine `keep$specialized$5d0e37fe7ba7ec68$0` state `entry` stores a boolean into a `u64` return value, which holds a numeric value
@@ -8270,7 +8295,16 @@ pass/facts/nested_machine_invocation/ancestor_cycle checked 3931ms check-target:
 pass/facts/nested_machine_invocation/attached_context checked 3575ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_machine_invocation/borrow_context checked 4834ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_machine_invocation/call_result checked 3796ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/nested_machine_invocation/callable_context checked 3703ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/nested_machine_invocation/callable_context checked 10452ms check-target:macos_arm64 @1572c6217fd7+wt
+pass/facts/nested_machine_invocation/callable_contracts/changes_poststate checked 10593ms check-target:macos_arm64 @1572c6217fd7+wt
+pass/facts/nested_machine_invocation/callable_contracts/compatible checked 10550ms check-target:macos_arm64 @1572c6217fd7+wt
+pass/facts/nested_machine_invocation/callable_contracts/forwarded checked 10622ms check-target:macos_arm64 @1572c6217fd7+wt
+pass/facts/nested_machine_invocation/callable_contracts/owned_reference checked 10707ms check-target:macos_arm64 @1572c6217fd7+wt
+pass/facts/nested_machine_invocation/callable_contracts/owned_reference_changes checked 10507ms check-target:macos_arm64 @1572c6217fd7+wt
+pass/facts/nested_machine_invocation/callable_contracts/owned_reference_eager_operands checked 10482ms check-target:macos_arm64 @1572c6217fd7+wt
+pass/facts/nested_machine_invocation/callable_contracts/preserves_poststate checked 10534ms check-target:macos_arm64 @1572c6217fd7+wt
+pass/facts/nested_machine_invocation/callable_contracts/returned_reference checked 10325ms check-target:macos_arm64 @1572c6217fd7+wt
+pass/facts/nested_machine_invocation/callable_contracts/weaker_precondition checked 10762ms check-target:macos_arm64 @1572c6217fd7+wt
 pass/facts/nested_machine_invocation/const_context checked 3598ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_machine_invocation/const_name checked 4014ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_machine_invocation/copied_payload checked 3545ms check-target:macos_arm64 @ccdb99ca2214
