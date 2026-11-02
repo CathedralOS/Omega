@@ -110,7 +110,7 @@ fn fixture_process(workspace: bool) {
     let tools = directory.join("operator-tools");
     std::fs::create_dir(&tools).unwrap();
     std::fs::copy(
-        repository.join("omega-rust/omega/compilation/driver/tests/support/git_source_proxy.py"),
+        repository.join("omega-rust/omega/compilation/compiler/tests/support/git_source_proxy.py"),
         tools.join("git"),
     )
     .unwrap();

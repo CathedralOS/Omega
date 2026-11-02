@@ -27,7 +27,7 @@ lowered-psi = { path = "../../../psi/compilation/representations/lowered-psi" }
 build-declarations = { path = "../../packages/build-declarations" }
 build-evaluation = { path = "../build-evaluation" }
 build-output = { path = "../../packages/build-output" }
-package-compilation = { path = "../../packages/compilation-inputs" }
+package-compilation = { path = "../../packages/package-compilation" }
 provider-planning = { path = "../realization/provider-planning" }
 trust-model = { path = "../realization/trust-model" }
 boundary-applications = { path = "../backend/artifacts/boundary-applications" }
@@ -36,7 +36,7 @@ optimization = { path = "../../../psi/foundation/optimization" }
 optimization-core = { path = "../../foundation/optimization-core" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 symbols = { path = "../../../psi/foundation/symbols" }
-psi-compiler = { path = "../../../psi/compilation/driver" }
+psi-compiler = { path = "../../../psi/compilation/psi-compiler" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
 source = { path = "../../../psi/foundation/source" }
 backend-plan = { path = "../backend/plans/backend-plan" }
@@ -80,7 +80,7 @@ checked-interpreter = { path = "../../../psi/interpreter/checked-interpreter" }
 installation-evidence = { path = "../backend/runtime/installation-evidence" }
 object-file = { path = "../backend/object/object-file" }
 mimalloc = { version = "0.1", default-features = false }
-package-compilation = { path = "../../packages/compilation-inputs", features = ["test-support"] }
+package-compilation = { path = "../../packages/package-compilation", features = ["test-support"] }
 language-core = { path = "../../../psi/foundation/language-core" }
 
 [target.'cfg(unix)'.dev-dependencies]

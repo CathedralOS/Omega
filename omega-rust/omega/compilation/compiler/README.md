@@ -8,7 +8,7 @@ The coordinator sequences typed owner results; it does
 not implement package loading, build evaluation, transformation algorithms or
 visualization semantics. See the [pipeline map](../../../pipeline.md).
 
-[Terminal production](../../../psi/compilation/driver/terminal-production/README.md)
+[Terminal production](../../../psi/compilation/psi-compiler/terminal-production/README.md)
 is the Psi 06–08 sequence called directly by ordinary, package and
 inspection consumers. This driver supplies its product exclusion policy and
 timing observer, not a second production entrance. Permission-ledger validation
@@ -213,7 +213,7 @@ separately owns output placement. Targetless Check uses one absent profile.
 Different caller inventories are different
 invocations, not target variants of one compilation. Each target independently
 admits the supplied custody without suppressing a sibling's failure.
-Package [compilation reuse](../../packages/compilation-inputs/src/reuse/compilation_reuse.rs)
+Package [compilation reuse](../../packages/package-compilation/src/reuse/compilation_reuse.rs)
 owns the source comparison: assembly observes imported content and entry
 bindings. There is no per-target Build result cache or live-output reuse key.
 Build observes its invocation's single staging account; its captured outputs
@@ -234,10 +234,10 @@ The [checked entrance](src/checked/checking.rs) shows the lifecycle:
 [evaluate Build and continue generated source](src/checked/checking/build_continuation.rs),
 [check Product and seal source custody](src/checked/checking/source_checking.rs),
 then [prepare each target's complete selected execution](src/execution_settlement.rs).
-The Build coordinator calls the [Psi source continuation](../../../psi/compilation/driver/src/source_compilation.rs)
+The Build coordinator calls the [Psi source continuation](../../../psi/compilation/psi-compiler/src/source_compilation.rs)
 for resolution, typing and generated-source completion. It owns package admission
 and Build authority, not the resolver/typing fixed points or their paired arenas.
-[Psi source checking](../../../psi/compilation/driver/src/source_checking.rs) then
+[Psi source checking](../../../psi/compilation/psi-compiler/src/source_checking.rs) then
 owns preparation, retained-judgment matching, checking and product pruning.
 Build admission uses that same checking sequence. Shared source projections and
 operator queries belong to semantic checking libraries, not a stage backdoor.
@@ -267,7 +267,7 @@ Generated-source bundles project the same retained outputs; source custody only
 adds their source-coordinate join. Build consent and the selected-machine check
 run visibly before and after execution, without extra checkpoint couriers.
 Restricted host-request vocabulary and normalization belong to package
-[build-execution custody](../../packages/compilation-inputs/src/build_execution/restricted_requests.rs),
+[build-execution custody](../../packages/package-compilation/src/build_execution/restricted_requests.rs),
 beside the filesystem grants, captured inventories and sponsor limits they
 describe. Build evaluation checks consent under its admitted execution mode
 before execution. Review and encoding consume that package
@@ -325,7 +325,7 @@ Project declaration grammar, retained build outputs and compilation-input custod
 belong to the package system's independent
 [declarations](../../packages/build-declarations/README.md),
 [outputs](../../packages/build-output/README.md) and
-[inputs](../../packages/compilation-inputs/README.md) packages. Consumers
+[inputs](../../packages/package-compilation/README.md) packages. Consumers
 depend on those contracts directly, not on the package-command application.
 
 Target-neutral build evaluation remains in
@@ -436,7 +436,7 @@ standalone artifact identity. The collection grants no support, test or audit
 claim.
 
 Today's implementation instead retains one immutable source parse checkpoint
-([package source preparation](../../packages/compilation-inputs/src/source/source_assembly.rs))
+([package source preparation](../../packages/package-compilation/src/source/source_assembly.rs))
 and runs an exact-target child per configuration: per-target source assembly,
 declaration filtering, build evaluation, provider settlement and checking, with
 request-level policy copied into each configuration.
@@ -451,7 +451,7 @@ target, providers, admissions or physical evidence as another child's authority.
 ## Checked settlement
 
 Physical, dependency-generated and activation-generated parsing all belong to
-[package source preparation](../../packages/compilation-inputs/src/source/source_assembly.rs).
+[package source preparation](../../packages/package-compilation/src/source/source_assembly.rs).
 The coordinator forwards its complete syntax products into resolution and
 typing. Loading, lexing, parsing and syntax construction are not compiler-private
 continuation work. Corpus discovery executes Build through the application owner

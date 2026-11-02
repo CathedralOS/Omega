@@ -46,7 +46,7 @@ fn final_representation_admission_belongs_to_psi_checking() {
             "CheckedSemanticCopy",
         ],
     );
-    let checking = include_str!("../../../../psi/compilation/driver/src/source_checking.rs");
+    let checking = include_str!("../../../../psi/compilation/psi-compiler/src/source_checking.rs");
     assert_in_order(
         checking,
         "Psi source checking",
@@ -82,7 +82,7 @@ fn product_policy_admission_has_one_source_owner() {
         ],
     );
     let source =
-        include_str!("../../../../psi/compilation/driver/src/source_compilation/product_policy.rs");
+        include_str!("../../../../psi/compilation/psi-compiler/src/source_compilation/product_policy.rs");
     assert_in_order(
         source,
         "Psi product policy",
@@ -596,7 +596,7 @@ fn exclusion_source_resolution_stays_out_of_terminal_policy() {
 #[test]
 fn terminal_composition_admission_follows_canonical_publication() {
     let producer = include_str!(
-        "../../../../psi/compilation/driver/terminal-production/src/terminal_production.rs"
+        "../../../../psi/compilation/psi-compiler/terminal-production/src/terminal_production.rs"
     );
     assert_eq!(producer.matches("application.attach(").count(), 1);
     assert_in_order(
@@ -610,7 +610,7 @@ fn terminal_composition_admission_follows_canonical_publication() {
         &["admission.admit(", "policy.admit("],
     );
     let composition = include_str!(
-        "../../../../psi/compilation/driver/terminal-production/src/composition_roots.rs"
+        "../../../../psi/compilation/psi-compiler/terminal-production/src/composition_roots.rs"
     );
     assert_absent(
         &[composition],
@@ -652,7 +652,7 @@ fn terminal_composition_admission_follows_canonical_publication() {
         ],
     );
     let custody =
-        include_str!("../../../../psi/compilation/driver/terminal-production/src/custody.rs");
+        include_str!("../../../../psi/compilation/psi-compiler/terminal-production/src/custody.rs");
     let portable = custody
         .split("impl PortableTerminalProgram {")
         .nth(1)
@@ -793,7 +793,7 @@ fn selected_callback_custody_carries_declarations_not_source_symbols() {
     let selection = include_str!("../../realization/selected-dispatch/src/selected_execution.rs");
     assert!(selection.contains("pub callback_roots: terminal_psi::PreparedTerminalRoots"));
     let custody =
-        include_str!("../../../../psi/compilation/driver/terminal-production/src/custody.rs");
+        include_str!("../../../../psi/compilation/psi-compiler/terminal-production/src/custody.rs");
     assert!(!custody.contains("pub admission_roots: &'a [symbols::SymbolHandle]"));
     let preparation = include_str!(
         "../../../../psi/compilation/representations/terminal-psi/src/prepared_roots.rs"
@@ -831,7 +831,7 @@ fn selected_callback_custody_carries_declarations_not_source_symbols() {
     assert!(declarations.contains("usage.selected_actual_envelope"));
     assert!(declarations.contains("usage.callback_entry.map("));
     let admission = include_str!(
-        "../../../../psi/compilation/driver/terminal-production/src/composition_roots.rs"
+        "../../../../psi/compilation/psi-compiler/terminal-production/src/composition_roots.rs"
     );
     assert!(admission.contains("roots.push(project_root(module, provenance, entry))"));
     assert!(admission.contains("callbacks.retained_roots(module)"));

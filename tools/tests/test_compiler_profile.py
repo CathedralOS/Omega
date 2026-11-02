@@ -373,7 +373,7 @@ class CargoOptimizationGuardTests(unittest.TestCase):
                 profile.effective_optimization("1", ["-C", "@uninspected-flags"])
 
     def test_cargo_profiles_and_rustflags_cannot_produce_an_unoptimized_compiler(self):
-        guard = Path(__file__).resolve().parents[2] / "omega-rust/omega/compilation/driver/build_profile.rs"
+        guard = Path(__file__).resolve().parents[2] / "omega-rust/omega/compilation/compiler/build_profile.rs"
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             (root / "src").mkdir()
