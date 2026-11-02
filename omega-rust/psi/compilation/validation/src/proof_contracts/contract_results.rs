@@ -20,6 +20,17 @@ pub struct ReservedResultPlace {
     pub root: ExpressionHandle,
     pub type_reference: TypeReferenceHandle,
     pub segments: Vec<facts::PlaceSegment>,
+    pub members: Vec<ReservedResultMember>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ReservedResultMember {
+    pub expression: ExpressionHandle,
+    pub receiver_type: TypeReferenceHandle,
+    pub authored_field: symbols::SymbolHandle,
+    pub applied_field: symbols::SymbolHandle,
+    pub applied_case: symbols::SymbolHandle,
+    pub authored_case: symbols::SymbolHandle,
 }
 
 /// Resolve declared fields and literal fixed indices rooted at the contract result.
@@ -60,6 +71,7 @@ pub fn reserved_result_place(
         return None;
     }
     let mut segments = Vec::with_capacity(projections.len());
+    let mut members = Vec::new();
     for projection in projections.into_iter().rev() {
         if let ExpressionNode::Indexed(indexed) = expression_table(program).expression(projection) {
             // Storage spelling does not select [] meaning. Authenticate the
@@ -166,6 +178,7 @@ pub fn reserved_result_place(
         {
             return None;
         }
+        let mut applied_case = symbols::SymbolHandle::invalid();
         if declaration.parent != data.symbol {
             let mut cases = program.data_members(data).iter().filter_map(|member| {
                 let typed_trees::data::DataMember::Variant(case) = member else {
@@ -187,7 +200,32 @@ pub fn reserved_result_place(
             segments.push(facts::PlaceSegment::Case {
                 variant: case.symbol,
             });
+            applied_case = case.symbol;
         }
+        let authored_field =
+            crate::selection_resolution::authored_data_member(program, field.symbol);
+        if program
+            .data_constructor_field(receiver, data.symbol, authored_field)?
+            .symbol
+            != field.symbol
+        {
+            return None;
+        }
+        members.push(ReservedResultMember {
+            expression: projection,
+            receiver_type: receiver,
+            authored_field,
+            applied_field: field.symbol,
+            applied_case,
+            authored_case: {
+                let parent = program.symbols.get(authored_field).parent;
+                if program.symbols.get(parent).kind == SymbolKind::Variant {
+                    parent
+                } else {
+                    symbols::SymbolHandle::invalid()
+                }
+            },
+        });
         segments.push(facts::PlaceSegment::Field {
             symbol: field.symbol,
         });
@@ -198,6 +236,7 @@ pub fn reserved_result_place(
         root,
         type_reference,
         segments,
+        members,
     })
 }
 
