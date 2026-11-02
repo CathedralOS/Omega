@@ -1,7 +1,21 @@
-// Rank-two descriptors describe caller-owned storage, never own or allocate it.
-// Bounds use division against remaining capacity before multiplication; wrapping
-// arithmetic is used only after those guards establish mathematical exactness.
-// Mutable injectivity follows the minimal integer solution of dr*sr = dc*sc.
+// Rank-two strided layouts over caller-owned slices. A layout never owns,
+// allocates or copies its backing; copying a descriptor copies no data.
+//
+// The offset of (row, column) is origin + row*row_stride + column*column_stride.
+// Strides are nonnegative and every admitted element lies inside the supplied
+// backing slice. Empty layouts admit no coordinates; origin may equal
+// backing_length. Read-only layouts may alias; mutable layouts require distinct
+// offsets: for positive strides the smallest colliding step is
+// (column_stride/gcd, -row_stride/gcd), so a mutable layout fits iff rows
+// exceeds the first magnitude and columns the second, and a zero stride
+// rejects when repeated.
+//
+// try_offset checks one coordinate. try_read and try_write admit the whole
+// layout before selecting a coordinate and report invalid runtime data;
+// read_checked is the proof boundary, so a statically out-of-bounds call
+// rejects rather than returning Invalid. Bounds divide against remaining
+// capacity before multiplying; wrapping arithmetic is used only once those
+// guards establish exactness.
 
 public data Layout2 [copy] {
     rows: u64; columns: u64; origin: u64;

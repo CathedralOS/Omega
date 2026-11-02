@@ -100,7 +100,7 @@ machine rat_eq(p: Rat, q: Rat) -> Nat
     }
 }
 
-// N8 metric kernel. Cross-multiplication puts both signed numerators over the
+// Metric kernel. Cross-multiplication puts both signed numerators over the
 // common denominator p.den * q.den. The public result remains the nonnegative
 // absolute numerator gap.
 //

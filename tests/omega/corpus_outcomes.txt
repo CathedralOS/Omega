@@ -11071,7 +11071,8 @@ pass/generics/runtime_result_destination_inference_exit checked 3637ms check-tar
 pass/generics/runtime_selected_map_capture_invocation_scopes rejected 2864ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	cleanup effect preparation for `invoke$specialized$d4f0094e26d9f87c$0` requires a complete specialization of `Selected::borrow`
 pass/generics/runtime_selected_operator_body_exit checked 12412ms check-target:macos_arm64 @ccdb99ca2214
-pass/generics/runtime_static_requirement_complex_composition_exit checked 8799ms check-target:macos_arm64 @2fbf0edf0329+wt
+pass/generics/runtime_static_requirement_complex_composition_exit rejected 7111ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @4f87c9e08b1a+wt
+	Terminal boundary application has no unique exact selected row
 pass/generics/runtime_symbolic_receiver_extent_exit rejected 1802ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	machine `nested_window` state `entry` local `view` may read, but the source supplies only write-only authority
 pass/generics/runtime_transition_result_inference_exit checked 3433ms check-target:macos_arm64 @ccdb99ca2214
