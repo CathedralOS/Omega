@@ -1065,19 +1065,21 @@ impl StructuralJudge<'_> {
                         // current owned value. Consume the independent tag
                         // through the shared typed projection owner; the path
                         // itself establishes neither the tag nor its predicate.
-                        let current = if self.runtime_body_values {
-                            self.completed_value_identity(value)
-                        } else {
-                            self.resolve_at(value, 1)
-                        };
-                        if self.require_closed_computation && !current.is_closed_value() {
-                            return None;
+                        if self.require_closed_computation {
+                            let closed = if self.runtime_body_values {
+                                self.completed_value_identity(value.clone())
+                            } else {
+                                self.resolve_at(value.clone(), 1)
+                            };
+                            if !closed.is_closed_value() {
+                                return None;
+                            }
                         }
                         super::super::observed_projections::project_observed_value_in_scope(
                             self.program,
                             self,
                             reference,
-                            current,
+                            value,
                             std::slice::from_ref(segment),
                         )?
                     }

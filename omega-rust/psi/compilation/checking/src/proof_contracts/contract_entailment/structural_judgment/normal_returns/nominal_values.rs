@@ -15,7 +15,7 @@ impl StructuralJudge<'_> {
         scope: ValueScope<'_>,
     ) -> Option<StructuralTerm> {
         let value = self.capture_unknown_value(expression, scope)?;
-        self.assume_normal_equation(value.clone(), observed.clone());
+        self.assume_completed_value_equation(reference, value.clone(), observed.clone());
         std::sync::Arc::make_mut(&mut self.completed_nominal_values).push(
             super::super::CompletedNominalValue {
                 anchor: expression,
