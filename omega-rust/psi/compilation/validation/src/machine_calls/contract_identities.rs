@@ -862,10 +862,7 @@ fn formal_parameter_binders(
 fn signature_lifetime_binders(
     program: &dyn crate::CheckingInput,
     signature: &typed_trees::signature::StateSignature,
-) -> Vec<(
-    typed_trees::type_identity::LifetimeParameterIdentity,
-    usize,
-)> {
+) -> Vec<(typed_trees::type_identity::LifetimeParameterIdentity, usize)> {
     let mut owners = Vec::new();
     let mut owner = signature.symbol;
     while owner.is_valid() && !owners.contains(&owner) {

@@ -7,14 +7,15 @@ independent Value and explicit evidence telescopes compose without treating
 realized Value arguments as extra public formals, losing their exact subjects,
 replacing a caller's evidence with a Build provider, or dropping returned facts.
 
-The Build-selection migration is unfinished. Its new source signatures carry
-explicit implementation evidence, and all nine places now select ordinary
-providers through Build. Optimized producer `42cf0d10208` enforces the unused
-provider's exact `Choose<Cell>` bound, but still refuses forwarded runtime
-operands. Producer `47518b109d6` gets past that formation failure and wrongly
-refuses the argument-order probe with `state choose expects 2 argument(s), got
-3`. The successor is under focused Source and execution validation. Earlier
-ordinary-wrapper execution does not qualify these changed sources.
+The Build-selection migration is under execution validation. All nine places
+select ordinary providers through Build, retaining their explicit implementation
+evidence. Optimized producer `31929612cef` passes the sample gate for the target
+place, unused evidence, and header observation order; all four selected reject
+controls still reject. Its nominal callable probe reaches provider emission but
+has no exact emitted public candidate, while its explicitly disambiguated member
+still fails Source lookup. The successors repair those two correspondence paths.
+Full row, source-free policy recovery, and explicit native/Terminal exit captures
+remain pending. Earlier ordinary-wrapper execution does not qualify these sources.
 
 Fact: A selected member preserves runtime index 9 below bound 10, so exact
 10 - right yields 1, while returning the second Cell and closed left 7.
@@ -84,12 +85,12 @@ The additional producers stay in this fact folder:
   evidence namespace through synthesis.
 - [A nominal callable](probes/nominal_evidence/main.omg) exercises the same full
   telescope through an explicitly selected callable parameter. Its exact
-  satisfaction admission remains unqualified.
+  satisfaction admission and executable public demand remain under validation.
 - [Header observation order](probes/header_observation_order/main.omg) reads
   runtime index 9 before a later ordinary argument changes its storage to 3.
   The returned right field must retain 9, and its invalid twin changes only
-  the initial index to 11. Current recorded baselines refuse formation before
-  execution; no ordering failure or runtime repair is claimed yet.
+  the initial index to 11. Producer `31929612cef` passes this sample and its
+  reject control; explicit engine-exit capture is still pending.
 - [Wrong argument](probes/wrong_evidence_argument/main.omg) and
   [wrong nominal trait](probes/wrong_evidence_trait/main.omg) controls retain
   complete static admission.
@@ -114,7 +115,7 @@ oracle change from the new requirement declaration.
   Unused-template controls retain complete source tuple admission.
 - Soundness: runtime Value is not Const. Mathematical facts do not authorize
   access, erase call formation, or establish repeated effectful-call equality.
-- Psi 06–08: ordinary Value actuals and the returned record survive lowering
+- Psi 05–07: ordinary Value actuals and the returned record survive lowering
   into Terminal Psi and interpreter execution. No new proof-only, cleanup or
   loan construct is claimed by these programs.
 - Omega 00–02: existing Build providers, applied record layouts and calling
