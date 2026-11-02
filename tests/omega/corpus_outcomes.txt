@@ -1165,6 +1165,32 @@ fail/facts/nested_machine_joint_rank_declared_scalar_helper_non_decreasing_rejec
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_declared_wrong_field_rejected rejected 711ms expected @b22c0a34ea0d
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_exclusive_child_call_result rejected 6705ms expected @ff8fd23a7ba0+wt
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_exclusive_child_const_name rejected 5298ms expected @ff8fd23a7ba0+wt
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_exclusive_child_false_copy rejected 1658ms expected @ff8fd23a7ba0+wt
+	data `Progress` declares `[copy]` but field `guard` is not `copy`: only primitives, shared references and data types declaring `[copy]` qualify
+fail/facts/nested_machine_joint_rank_exclusive_child_field rejected 5345ms expected @ff8fd23a7ba0+wt
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_exclusive_child_independent_match_siblings rejected 7956ms expected @ff8fd23a7ba0+wt
+	state `invoke` receives `guard` as mutable more than once
+fail/facts/nested_machine_joint_rank_exclusive_child_local rejected 4369ms expected @ff8fd23a7ba0+wt
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_exclusive_child_match_join rejected 6294ms expected @ff8fd23a7ba0+wt
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_exclusive_child_other_machine rejected 5147ms expected @ff8fd23a7ba0+wt
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_exclusive_child_other_state rejected 5214ms expected @ff8fd23a7ba0+wt
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_exclusive_child_overlapping_sibling rejected 5121ms expected @ff8fd23a7ba0+wt
+	state `invoke` receives `guard` as mutable more than once
+fail/facts/nested_machine_joint_rank_exclusive_child_parameter rejected 4760ms expected @ff8fd23a7ba0+wt
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_exclusive_child_shared_mutation rejected 3560ms expected @ff8fd23a7ba0+wt
+	machine `distance` state `entry` assignment cannot write `value` because it is not mutable in this state (if `value` is undeclared -- a typo -- no such field or local exists)
+fail/facts/nested_machine_joint_rank_exclusive_child_target_body rejected 4311ms expected @ff8fd23a7ba0+wt
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_indexed_payload_call_result_rejected rejected 764ms expected @00e93f641615+wt
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_indexed_payload_const_name_rejected rejected 767ms expected @00e93f641615+wt
@@ -7851,6 +7877,17 @@ pass/facts/nested_machine_joint_rank_descriptor_indexed_value_other_machine_exit
 pass/facts/nested_machine_joint_rank_descriptor_indexed_value_other_state_exit checked 1048ms check-target:macos_arm64 @02a2d6944961
 pass/facts/nested_machine_joint_rank_descriptor_indexed_value_parameter_exit checked 1030ms check-target:macos_arm64 @02a2d6944961
 pass/facts/nested_machine_joint_rank_descriptor_indexed_value_target_body_exit checked 992ms check-target:macos_arm64 @02a2d6944961
+pass/facts/nested_machine_joint_rank_exclusive_child_call_result checked 9801ms check-target:macos_arm64 @ff8fd23a7ba0+wt
+pass/facts/nested_machine_joint_rank_exclusive_child_const_name checked 9602ms check-target:macos_arm64 @ff8fd23a7ba0+wt
+pass/facts/nested_machine_joint_rank_exclusive_child_field checked 8006ms check-target:macos_arm64 @ff8fd23a7ba0+wt
+pass/facts/nested_machine_joint_rank_exclusive_child_local checked 7778ms check-target:macos_arm64 @ff8fd23a7ba0+wt
+pass/facts/nested_machine_joint_rank_exclusive_child_match_join checked 8578ms check-target:macos_arm64 @ff8fd23a7ba0+wt
+pass/facts/nested_machine_joint_rank_exclusive_child_other_machine checked 8950ms check-target:macos_arm64 @ff8fd23a7ba0+wt
+pass/facts/nested_machine_joint_rank_exclusive_child_other_state checked 10320ms check-target:macos_arm64 @ff8fd23a7ba0+wt
+pass/facts/nested_machine_joint_rank_exclusive_child_owned_copy_child checked 9928ms check-target:macos_arm64 @ff8fd23a7ba0+wt
+pass/facts/nested_machine_joint_rank_exclusive_child_parameter checked 9120ms check-target:macos_arm64 @ff8fd23a7ba0+wt
+pass/facts/nested_machine_joint_rank_exclusive_child_target_body checked 10243ms check-target:macos_arm64 @ff8fd23a7ba0+wt
+pass/facts/nested_machine_joint_rank_exclusive_child_two_shared_arguments checked 10766ms check-target:macos_arm64 @ff8fd23a7ba0+wt
 pass/facts/nested_machine_joint_rank_field_exit checked 3282ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nested_machine_joint_rank_increasing_to_overshoot_exit checked 949ms check-target:macos_arm64 @5c5c178f82c7
 pass/facts/nested_machine_joint_rank_indexed_copied_selector_exit checked 1657ms check-target:macos_arm64 @ed258e523481
