@@ -107,7 +107,32 @@ attributed this to the return replay-stability gate. The repair reuses the
 bounded completed-return/closed-endpoint owner already exercised by the
 `target_layout_derived_constant` work, retaining its genuine target-dependency
 fence. Older retained producer exploration is distinct from exact-candidate
-qualification; fresh migration acceptance is pending.
+qualification. Fresh optimized producer
+`8f2c19e0ef15827d4d064c318896b2d005ad490d` now closes this migration on macOS ARM64:
+22 Source pins are 11 checked / 11 intended refusals, and all 11 runnable pins
+have native exit zero / Terminal exit zero / agreement. This includes the legal
+extent-two helper and distinct-query opposite. All 13 public positives also
+execute with zero/zero agreement; all 13 public negatives refuse their authored
+obligation through normal package preparation. Five focused existing Source
+controls and two existing runtime controls preserve their complete baseline
+tuples.
+
+The exact selected-provider-result counterfactual and a flipped first match arm
+both produce actual native signal 5 and Terminal `Trap`, contradicting their
+unchanged authored zero exit. Four separate explicit single-target requests
+produce hashed PE, ELF and Mach-O artifacts with the original target choices;
+foreign execution is not claimed. These are separate requests because the
+provider-derived constant selects different providers across target rows; this
+migration does not claim a new multi-target consistency closure.
+
+The old false-provider-guarantee matcher is also preserved as an observed harness
+failure: the same unselected `Small::get` guarantee `result == 5` now reports a
+specific disproof by constant arithmetic. Its corrected oracle retains the exact
+machine, conclusion and disproof; no valid helper or provider contract was
+restricted. CLI-first checks, corrected-oracle record, full Source/runtime
+observations and all compiler/SDK fingerprints retain their actual producer
+identities. Only the 22 owned Source blocks and 11 owned runtime blocks are
+recorded; all prior keys, headers and unrelated golden blocks remain byte equal.
 
 Execution receipts, frozen original/migrated inputs and producer identities live
 in the existing ignored qualification directory

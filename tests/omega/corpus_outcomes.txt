@@ -1695,6 +1695,8 @@ fail/facts/target_family_contract_operand/callback_capability rejected 517ms exp
 	machine argument `bounded_matches` for `choose` does not refine `Callback`: its requires facts are not a conservative refinement
 fail/facts/target_family_contract_operand/stronger_provider_requirement rejected 1609ms expected @b0315c8f656c
 	machine parameter `Selected` of provider machine `ArmChoice::choose` for trait requirement `Choosing::choose` does not refine `Callback`: its requires facts are not a conservative refinement
+fail/facts/target_scoped_constant_helper_wrong_query rejected 2024ms expected @206fda648679
+	constant checking: scalar range condition 0: bounds [1, 1] lie outside [0, 0]
 fail/facts/transparent_alias_rhs_const_expression_overflow_rejected rejected 957ms expected @143d3f1669fb
 	const argument expression: Exact integer constant operation overflows, divides by zero, or has an invalid shift count
 fail/facts/transparent_alias_rhs_declaration_scope_overflow_rejected rejected 604ms expected @8436ab6a7742
@@ -9775,18 +9777,18 @@ pass/facts/target_recursive_bound_through_other_machine_exit checked 2686ms chec
 pass/facts/target_recursive_bound_through_other_state_exit checked 2491ms check-target:macos_arm64 @5dc7fa33c4de
 pass/facts/target_recursive_bound_through_parameter_exit checked 3034ms check-target:macos_arm64 @5dc7fa33c4de
 pass/facts/target_recursive_bound_through_target_body_exit checked 2554ms check-target:macos_arm64 @5dc7fa33c4de
+pass/facts/target_scoped_constant_helper_two_exit checked 2489ms check-target:macos_arm64 @206fda648679
 pass/facts/target_scoped_constant_multi_method_exit checked 4107ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_scoped_constant_realization_exit checked 3677ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_scoped_constant_realization_through_call_result_exit checked 5061ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_scoped_constant_realization_through_const_name_exit checked 3926ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_scoped_constant_realization_through_field_exit checked 4619ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_scoped_constant_realization_through_local_exit checked 4272ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_scoped_constant_realization_through_match_join_exit checked 4115ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_scoped_constant_realization_through_other_machine_exit checked 4288ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_scoped_constant_realization_through_other_state_exit rejected 1586ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	exact arithmetic in machine `verify` state `entry` local `slack` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-pass/facts/target_scoped_constant_realization_through_parameter_exit checked 4661ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/target_scoped_constant_realization_through_target_body_exit checked 3867ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/target_scoped_constant_realization_exit checked 2355ms check-target:macos_arm64 @206fda648679
+pass/facts/target_scoped_constant_realization_through_call_result_exit checked 2348ms check-target:macos_arm64 @206fda648679
+pass/facts/target_scoped_constant_realization_through_const_name_exit checked 2356ms check-target:macos_arm64 @206fda648679
+pass/facts/target_scoped_constant_realization_through_field_exit checked 2737ms check-target:macos_arm64 @206fda648679
+pass/facts/target_scoped_constant_realization_through_local_exit checked 2513ms check-target:macos_arm64 @206fda648679
+pass/facts/target_scoped_constant_realization_through_match_join_exit checked 2397ms check-target:macos_arm64 @206fda648679
+pass/facts/target_scoped_constant_realization_through_other_machine_exit checked 2373ms check-target:macos_arm64 @206fda648679
+pass/facts/target_scoped_constant_realization_through_other_state_exit checked 2398ms check-target:macos_arm64 @206fda648679
+pass/facts/target_scoped_constant_realization_through_parameter_exit checked 2395ms check-target:macos_arm64 @206fda648679
+pass/facts/target_scoped_constant_realization_through_target_body_exit checked 2450ms check-target:macos_arm64 @206fda648679
 pass/facts/target_scoped_constant_zero_extent_exit checked 4106ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/temporary_case_cleanup_original_exit checked 3927ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/temporary_case_cleanup_through_call_result_exit checked 3450ms check-target:macos_arm64 @ccdb99ca2214
@@ -29177,25 +29179,25 @@ fail/facts/target_scoped_constant_false_contract rejected 3347ms expected @ccdb9
 	cannot prove ensures contract for exit from Small::get at statement 0: result == 5
 fail/facts/target_scoped_constant_missing_method rejected 616ms expected @ccdb99ca2214
 	closed conformance `Small satisfies Answer` is incomplete: missing `Answer::other`
-fail/facts/target_scoped_constant_realization_absent rejected 4067ms expected @ccdb99ca2214
+fail/facts/target_scoped_constant_realization_absent rejected 1961ms expected @206fda648679
 	slot `Answer` has 3 covering provider plans for the selected target: `<selected target>::Small::satisfies::Answer` [<fingerprint>], `<selected target>::Large::satisfies::Answer` [<fingerprint>], `<selected target>::Same::satisfies::Answer` [<fingerprint>] -- choose one in build.omg with `Build::select_provider<Answer, ProviderType>(b);`
-fail/facts/target_scoped_constant_realization_through_call_result_rejected rejected 3719ms unexpected @ccdb99ca2214
+fail/facts/target_scoped_constant_realization_through_call_result_rejected rejected 2162ms expected @206fda648679
 	constant checking: scalar range condition 0: bounds [-2, -2] lie outside [0, 18446744073709551615]
-fail/facts/target_scoped_constant_realization_through_const_name_rejected rejected 3932ms unexpected @ccdb99ca2214
+fail/facts/target_scoped_constant_realization_through_const_name_rejected rejected 2110ms expected @206fda648679
 	constant checking: scalar range condition 0: bounds [-2, -2] lie outside [0, 18446744073709551615]
-fail/facts/target_scoped_constant_realization_through_field_rejected rejected 3715ms unexpected @ccdb99ca2214
+fail/facts/target_scoped_constant_realization_through_field_rejected rejected 2079ms expected @206fda648679
 	constant checking: scalar range condition 0: bounds [-2, -2] lie outside [0, 18446744073709551615]
-fail/facts/target_scoped_constant_realization_through_local_rejected rejected 4235ms unexpected @ccdb99ca2214
+fail/facts/target_scoped_constant_realization_through_local_rejected rejected 2085ms expected @206fda648679
 	constant checking: scalar range condition 0: bounds [-2, -2] lie outside [0, 18446744073709551615]
-fail/facts/target_scoped_constant_realization_through_match_join_rejected rejected 4492ms unexpected @ccdb99ca2214
+fail/facts/target_scoped_constant_realization_through_match_join_rejected rejected 2095ms expected @206fda648679
 	constant checking: scalar range condition 0: bounds [-2, -2] lie outside [0, 18446744073709551615]
-fail/facts/target_scoped_constant_realization_through_other_machine_rejected rejected 3807ms unexpected @ccdb99ca2214
+fail/facts/target_scoped_constant_realization_through_other_machine_rejected rejected 2127ms expected @206fda648679
 	constant checking: scalar range condition 0: bounds [-2, -2] lie outside [0, 18446744073709551615]
-fail/facts/target_scoped_constant_realization_through_other_state_rejected rejected 1418ms unexpected @ccdb99ca2214
-	exact arithmetic in machine `verify` state `entry` local `slack` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/target_scoped_constant_realization_through_parameter_rejected rejected 4361ms unexpected @ccdb99ca2214
+fail/facts/target_scoped_constant_realization_through_other_state_rejected rejected 2119ms expected @206fda648679
 	constant checking: scalar range condition 0: bounds [-2, -2] lie outside [0, 18446744073709551615]
-fail/facts/target_scoped_constant_realization_through_target_body_rejected rejected 5062ms unexpected @ccdb99ca2214
+fail/facts/target_scoped_constant_realization_through_parameter_rejected rejected 2077ms expected @206fda648679
+	constant checking: scalar range condition 0: bounds [-2, -2] lie outside [0, 18446744073709551615]
+fail/facts/target_scoped_constant_realization_through_target_body_rejected rejected 2168ms expected @206fda648679
 	constant checking: scalar range condition 0: bounds [-2, -2] lie outside [0, 18446744073709551615]
 fail/facts/temporary_case_cleanup_through_call_result_rejected rejected 1509ms expected @ccdb99ca2214
 	machine `main` state `entry` value call to `consume` violates required fact `value.value == 2`: the instantiated fact is structurally false (`1 == 2`)
