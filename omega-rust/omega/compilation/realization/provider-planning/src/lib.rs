@@ -63,6 +63,7 @@ pub use build_time_evaluation::provider_declarations::{
 pub use intrinsic_requirements::{
     IntrinsicRequirement, IntrinsicRequirementKind, primitive_numeric_type,
 };
+pub(crate) use provider_planning::extract_native_external_binding_rows;
 pub use provider_planning::provider_rows::{
     DirectBoundaryInput, DirectBoundaryMechanism, DirectBoundarySource, PreparedProviderRows,
     ProviderPlanCandidate, ProviderRowDeclarations, UnpreparedProviderRows,
@@ -78,9 +79,6 @@ pub use provider_planning::{
 };
 pub(crate) use provider_planning::{
     DerivedProviderPlan, ProviderPlanProvenance, SelectedTargetMachineOrigin,
-};
-pub(crate) use provider_planning::{
-    extract_native_external_binding_rows, validate_selected_synchronous_invocation_cycles,
 };
 
 pub use provider_planning::ProviderRowRealization;

@@ -120,6 +120,7 @@ dependencies = [
  "function-identity",
  "optimization-core",
  "semantic-vocabulary",
+ "target",
  "terminal-codec",
  "terminal-installation",
  "terminal-psi",

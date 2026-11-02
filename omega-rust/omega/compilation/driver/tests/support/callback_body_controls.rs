@@ -254,7 +254,7 @@ impl PreparedCallbackBodies {
                 .free(*handle);
             let omitted = load(omitted)?;
             match self.select(omitted.semantic_module()) {
-                Err(reason) if reason.contains("has no exact canonical checked-body header") => {}
+                Err(reason) if reason.contains("has no exact canonical declaration header") => {}
                 other => {
                     return Err(format!(
                         "omitted consumed callback header did not refuse: {other:?}"
