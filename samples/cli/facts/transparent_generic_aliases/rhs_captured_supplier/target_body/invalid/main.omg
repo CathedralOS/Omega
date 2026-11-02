@@ -3,7 +3,7 @@
 use leaf::buffers;
 machine observe(value: &[u8; 4]) -> u8 { value[3u64] }
 boundary trait SelectedForward {
-    machine forward(value: leaf::buffers::Padded<3u64>) -> [u8; 4];
+    machine forward(value: leaf::buffers::Padded<3u64>) -> [u8; 4] reaches;
 }
 ArrayForward satisfies SelectedForward {
     machine forward(value: leaf::buffers::Padded<3u64>) -> [u8; 4] {
