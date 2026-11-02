@@ -738,9 +738,6 @@ helper that passes does not close an item.
     tests where it implements the retired surface; other bootstrap languages
     keep their own syntax. Delete the old keyword, grammar, recommending
     diagnostics and compatibility paths, not just their documentation.
-  - Reword checker diagnostics that still name a data declaration's `where`
-    facts (such as ``stores a value not provably within its data's `where`
-    facts``) together with their expected fragments and corpus rows.
   Acceptance: both producers accept the new data, generic, callable and assembly
   forms; all affected authored sources migrate without changing their result or
   refusal obligation. Existing applicable fact rows and their sensitive reject

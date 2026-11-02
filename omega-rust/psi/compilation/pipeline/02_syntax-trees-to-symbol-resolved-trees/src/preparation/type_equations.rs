@@ -254,7 +254,7 @@ pub(crate) fn template_type_equation_offsets(
             } => {}
             EquationShape::KindMismatch { span, description } => {
                 return Err(Diagnostic::error(format!(
-                    "generic data `{}` where equation mixes type and value kinds: {description}",
+                    "generic data `{}` requires equation mixes type and value kinds: {description}",
                     definition.name.as_str(syntax),
                 ))
                 .with_source_span(span));
@@ -273,7 +273,7 @@ fn validate_closed_name_type(
 ) -> Result<(), String> {
     let Some(identity) = closed_name_identity(syntax, selection, name) else {
         return Err(format!(
-            "where type equation operand `{}` does not name a closed type",
+            "requires type equation operand `{}` does not name a closed type",
             name.as_str(syntax),
         ));
     };
@@ -293,7 +293,7 @@ fn validate_closed_name_type(
     };
     if !complete {
         return Err(
-            "where type equation requires a complete constructor argument tuple".to_owned(),
+            "requires type equation requires a complete constructor argument tuple".to_owned(),
         );
     }
     Ok(())
@@ -1157,12 +1157,12 @@ impl<'a, 's> Solver<'a, 's> {
             let binder = self.binder_name(index);
             if self.defined_through_cycle(index) {
                 return Err(self.reject(format!(
-                    "where equations define `{binder}` through itself; supply the argument explicitly"
+                    "requires equations define `{binder}` through itself; supply the argument explicitly"
                 )));
             }
             if let Some(owner) = self.expression_endpoint_mentioning(index) {
                 return Err(self.reject(format!(
-                    "where equation on `{}` cannot bind `{binder}`: structural inference binds a bare const binder, not an expression over it; supply the argument explicitly",
+                    "requires equation on `{}` cannot bind `{binder}`: structural inference binds a bare const binder, not an expression over it; supply the argument explicitly",
                     self.binder_name(owner)
                 )));
             }
@@ -1175,7 +1175,7 @@ impl<'a, 's> Solver<'a, 's> {
                 )));
             }
             return Err(self.reject(format!(
-                "cannot determine `{binder}` from its where equations; supply the argument explicitly"
+                "cannot determine `{binder}` from its requires equations; supply the argument explicitly"
             )));
         }
         if let Some(index) = self.settled.iter().position(|settled| !settled) {
@@ -1183,7 +1183,7 @@ impl<'a, 's> Solver<'a, 's> {
             {
                 return Err(self
                     .reject(
-                        "where type predicate cannot be decided from the supplied arguments"
+                        "requires type predicate cannot be decided from the supplied arguments"
                             .to_owned(),
                     )
                     .with_source_span(*span));
@@ -1195,7 +1195,7 @@ impl<'a, 's> Solver<'a, 's> {
             };
             return Err(self
                 .reject(format!(
-                    "where equation on `{}` cannot be decided from the supplied arguments",
+                    "requires equation on `{}` cannot be decided from the supplied arguments",
                     self.binder_name(*binder)
                 ))
                 .with_source_span(*span));
@@ -1298,7 +1298,7 @@ impl<'a, 's> Solver<'a, 's> {
                     Some(true) => Ok(Outcome::Settled),
                     Some(false) => Err(self
                         .reject(
-                            "where type predicate does not hold for the supplied arguments"
+                            "requires type predicate does not hold for the supplied arguments"
                                 .to_owned(),
                         )
                         .with_source_span(*span)),
@@ -1307,7 +1307,7 @@ impl<'a, 's> Solver<'a, 's> {
             }
             EquationShape::KindMismatch { span, description } => Err(self
                 .reject(format!(
-                    "where equation mixes type and value kinds: {description}"
+                    "requires equation mixes type and value kinds: {description}"
                 ))
                 .with_source_span(*span)),
             EquationShape::Structural {
@@ -1325,7 +1325,7 @@ impl<'a, 's> Solver<'a, 's> {
                 {
                     return Err(self
                         .reject(format!(
-                            "where equations define `{}` through itself; supply the argument explicitly",
+                            "requires equations define `{}` through itself; supply the argument explicitly",
                             self.binder_name(*binder)
                         ))
                         .with_source_span(*span));
@@ -1352,7 +1352,7 @@ impl<'a, 's> Solver<'a, 's> {
                     }
                     Some(Binding::Integer(_) | Binding::Boolean(_) | Binding::Constant(_)) => Err(self
                         .reject(format!(
-                            "where equation mixes type and value kinds: type binder `{}` received a value argument",
+                            "requires equation mixes type and value kinds: type binder `{}` received a value argument",
                             self.binder_name(*binder)
                         ))
                         .with_source_span(*span)),
@@ -1431,13 +1431,13 @@ impl<'a, 's> Solver<'a, 's> {
             }
             Some(Binding::Integer(_) | Binding::Boolean(_) | Binding::Constant(_)) => {
                 return Err(self
-                    .reject("where type predicate received a value operand".to_owned())
+                    .reject("requires type predicate received a value operand".to_owned())
                     .with_source_span(span));
             }
         };
         identity.map(Some).ok_or_else(|| {
             self.reject(
-                "where type predicate operand has no complete exact type identity".to_owned(),
+                "requires type predicate operand has no complete exact type identity".to_owned(),
             )
             .with_source_span(span)
         })
@@ -1586,7 +1586,7 @@ impl<'a, 's> Solver<'a, 's> {
                 Some(Binding::Integer(value)) => Ok(Some(value.clone())),
                 Some(Binding::Boolean(_) | Binding::Constant(_)) => Err(self
                     .reject(format!(
-                        "where equation mixes type and value kinds: const binder `{}` holds a non-integer argument",
+                        "requires equation mixes type and value kinds: const binder `{}` holds a non-integer argument",
                         self.binder_name(*index)
                     ))
                     .with_source_span(span)),
@@ -1709,7 +1709,7 @@ impl<'a, 's> Solver<'a, 's> {
                         .or_else(|| value.to_u64().map(i128::from))
                     else {
                         return Err(self.reject(format!(
-                            "where equation on `{binder_name}` cannot be decided: `{}` exceeds the endpoint evaluator's 64-bit envelope",
+                            "requires equation on `{binder_name}` cannot be decided: `{}` exceeds the endpoint evaluator's 64-bit envelope",
                             self.binder_name(mention)
                         )).with_source_span(span));
                     };
@@ -1718,7 +1718,7 @@ impl<'a, 's> Solver<'a, 's> {
                 Some(_) => {
                     return Err(self
                         .reject(format!(
-                            "where equation mixes type and value kinds: `{}` is not an integer const binder",
+                            "requires equation mixes type and value kinds: `{}` is not an integer const binder",
                             self.binder_name(mention)
                         ))
                         .with_source_span(span));
@@ -1740,13 +1740,13 @@ impl<'a, 's> Solver<'a, 's> {
         })
         .map_err(|reason| {
             self.reject(format!(
-                "where equation on `{binder_name}` has an invalid {position} endpoint: {reason}"
+                "requires equation on `{binder_name}` has an invalid {position} endpoint: {reason}"
             ))
             .with_source_span(span)
         })?;
         let Some(value) = value else {
             return Err(self.reject(format!(
-                "where equation on `{binder_name}` cannot be decided: its {position} endpoint is not a closed integer; structural inference binds a bare const binder, not an expression over it"
+                "requires equation on `{binder_name}` cannot be decided: its {position} endpoint is not a closed integer; structural inference binds a bare const binder, not an expression over it"
             )).with_source_span(span));
         };
         Ok(Some(BigInt::from_i128(value)))
@@ -1792,7 +1792,7 @@ impl<'a, 's> Solver<'a, 's> {
                 } = self.syntax.tables.type_references.type_reference(handle)
                 else {
                     return Err(self.reject(format!(
-                        "cannot match the where equation on `{binder_name}`: the supplied `{binder_name}` argument lacks a declared range shell; supply the omitted arguments explicitly"
+                        "cannot match the requires equation on `{binder_name}`: the supplied `{binder_name}` argument lacks a declared range shell; supply the omitted arguments explicitly"
                     )).with_source_span(span));
                 };
                 let constraints = self.syntax.tables.type_references.constraints(*constraints);
@@ -1807,20 +1807,20 @@ impl<'a, 's> Solver<'a, 's> {
                 let ordinal = match ranges.as_slice() {
                     [] => {
                         return Err(self.reject(format!(
-                            "cannot match the where equation on `{binder_name}`: the supplied `{binder_name}` argument lacks a declared range shell; supply the omitted arguments explicitly"
+                            "cannot match the requires equation on `{binder_name}`: the supplied `{binder_name}` argument lacks a declared range shell; supply the omitted arguments explicitly"
                         )).with_source_span(span));
                     }
                     [ordinal] => *ordinal,
                     _ => {
                         return Err(self.reject(format!(
-                            "cannot match the where equation on `{binder_name}`: the supplied `{binder_name}` argument carries {} range constraints, so its endpoint is ambiguous",
+                            "cannot match the requires equation on `{binder_name}`: the supplied `{binder_name}` argument carries {} range constraints, so its endpoint is ambiguous",
                             ranges.len()
                         )).with_source_span(span));
                     }
                 };
                 if constraints.len() != 1 {
                     return Err(self.reject(format!(
-                        "where equation on `{binder_name}` does not hold: the supplied `{binder_name}` argument carries qualification beyond the equation's range shell"
+                        "requires equation on `{binder_name}` does not hold: the supplied `{binder_name}` argument carries qualification beyond the equation's range shell"
                     )).with_source_span(span));
                 }
                 let base_type = *base_type;
@@ -1871,7 +1871,7 @@ impl<'a, 's> Solver<'a, 's> {
                     .integer_range_normalization(handle, ordinal)
                 else {
                     return Err(self.reject(format!(
-                        "cannot match the where equation on `{binder_name}`: the supplied `{binder_name}` argument has no canonical range endpoint; supply the omitted arguments explicitly"
+                        "cannot match the requires equation on `{binder_name}`: the supplied `{binder_name}` argument has no canonical range endpoint; supply the omitted arguments explicitly"
                     )).with_source_span(span));
                 };
                 let actual_minimum = normalization.minimum.clone();
@@ -1913,13 +1913,13 @@ impl<'a, 's> Solver<'a, 's> {
             (Some(expected), Some(actual)) if expected == actual => Ok(()),
             (Some(_), Some(_)) => Err(self
                 .reject(format!(
-                    "where equation on `{binder_name}` does not hold: the supplied range carrier is not `{}`",
+                    "requires equation on `{binder_name}` does not hold: the supplied range carrier is not `{}`",
                     carrier.as_str(self.syntax)
                 ))
                 .with_source_span(span)),
             _ => Err(self
                 .reject(format!(
-                    "where equation on `{binder_name}` cannot be decided: `{}` or the supplied carrier does not name a closed type",
+                    "requires equation on `{binder_name}` cannot be decided: `{}` or the supplied carrier does not name a closed type",
                     carrier.as_str(self.syntax)
                 ))
                 .with_source_span(span)),
@@ -1961,13 +1961,13 @@ impl<'a, 's> Solver<'a, 's> {
             (Some(expected), Some(actual)) if expected == actual => Ok(Outcome::Settled),
             (Some(_), Some(_)) => Err(self
                 .reject(format!(
-                    "where equation on `{binder_name}` does not hold: the supplied `{binder_name}` argument is not `{}`",
+                    "requires equation on `{binder_name}` does not hold: the supplied `{binder_name}` argument is not `{}`",
                     name.as_str(self.syntax)
                 ))
                 .with_source_span(span)),
             _ => Err(self
                 .reject(format!(
-                    "where equation on `{binder_name}` cannot be decided: `{}` or the supplied `{binder_name}` argument does not name a closed type",
+                    "requires equation on `{binder_name}` cannot be decided: `{}` or the supplied `{binder_name}` argument does not name a closed type",
                     name.as_str(self.syntax)
                 ))
                 .with_source_span(span)),
@@ -1986,7 +1986,7 @@ impl<'a, 's> Solver<'a, 's> {
         match endpoint {
             Endpoint::Absent => Err(self
                 .reject(format!(
-                    "where equation on `{binder_name}` has no {position} endpoint to match"
+                    "requires equation on `{binder_name}` has no {position} endpoint to match"
                 ))
                 .with_source_span(span)),
             Endpoint::Literal(expected) => {
@@ -1995,7 +1995,7 @@ impl<'a, 's> Solver<'a, 's> {
                 } else {
                     Err(self
                         .reject(format!(
-                            "where equation on `{binder_name}` does not hold: its {position} endpoint {expected} differs from the supplied {actual}"
+                            "requires equation on `{binder_name}` does not hold: its {position} endpoint {expected} differs from the supplied {actual}"
                         ))
                         .with_source_span(span))
                 }
@@ -2020,7 +2020,7 @@ impl<'a, 's> Solver<'a, 's> {
                 } else {
                     Err(self
                         .reject(format!(
-                            "where equation on `{binder_name}` does not hold: its {position} endpoint {value} differs from the supplied {actual}"
+                            "requires equation on `{binder_name}` does not hold: its {position} endpoint {value} differs from the supplied {actual}"
                         ))
                         .with_source_span(span))
                 }
@@ -2040,15 +2040,15 @@ impl<'a, 's> Solver<'a, 's> {
             Some(Binding::Integer(existing)) => Err(self
                 .reject(if index < self.supplied_count {
                     format!(
-                        "where equation binds `{name}` to {value} but its explicit argument is {existing}"
+                        "requires equation binds `{name}` to {value} but its explicit argument is {existing}"
                     )
                 } else {
-                    format!("where equations bind `{name}` to both {existing} and {value}")
+                    format!("requires equations bind `{name}` to both {existing} and {value}")
                 })
                 .with_source_span(span)),
             Some(Binding::Boolean(_) | Binding::Constant(_)) => Err(self
                 .reject(format!(
-                    "where equation mixes type and value kinds: const binder `{name}` holds a non-integer argument"
+                    "requires equation mixes type and value kinds: const binder `{name}` holds a non-integer argument"
                 ))
                 .with_source_span(span)),
             Some(Binding::Type(_) | Binding::NamedType(_)) => {
@@ -2058,7 +2058,7 @@ impl<'a, 's> Solver<'a, 's> {
                 let Some(parameter_type) = self.base_info.const_parameter_types[index] else {
                     return Err(self
                         .reject(format!(
-                            "where equation cannot recover `{name}` statically: it is a runtime-capable value binder, not a `const` binder"
+                            "requires equation cannot recover `{name}` statically: it is a runtime-capable value binder, not a `const` binder"
                         ))
                         .with_source_span(span));
                 };
@@ -2069,14 +2069,14 @@ impl<'a, 's> Solver<'a, 's> {
                     .type_reference(parameter_type).as_named() else {
                     return Err(self
                         .reject(format!(
-                            "where equation mixes type and value kinds: const binder `{name}` is not a builtin integer"
+                            "requires equation mixes type and value kinds: const binder `{name}` is not a builtin integer"
                         ))
                         .with_source_span(span));
                 };
                 let Some((minimum, maximum)) = const_binder_envelope(type_name.as_str(self.syntax)) else {
                     return Err(self
                         .reject(format!(
-                            "where equation mixes type and value kinds: const binder `{name}` of type `{}` cannot hold a range endpoint",
+                            "requires equation mixes type and value kinds: const binder `{name}` of type `{}` cannot hold a range endpoint",
                             type_name.as_str(self.syntax)
                         ))
                         .with_source_span(span));
@@ -2084,7 +2084,7 @@ impl<'a, 's> Solver<'a, 's> {
                 if value < minimum || value > maximum {
                     return Err(self
                         .reject(format!(
-                            "where equation binds `{name}` to {value}, outside its declared `{}`",
+                            "requires equation binds `{name}` to {value}, outside its declared `{}`",
                             type_name.as_str(self.syntax)
                         ))
                         .with_source_span(span));

@@ -52,7 +52,7 @@ pub(crate) fn refuse_open_windows(
         diagnostics.push(Diagnostic::error(format!(
             "data `{}`'s default domain is still FALSE at {consumption_point}: the \
              invariant window opened on `{}` must close first -- restore the \
-             `where` facts before this consumption point (ch11)",
+             `requires` facts before this consumption point (ch11)",
             place.definition.name.as_str(),
             place.spelling
         )));
@@ -65,7 +65,7 @@ pub(crate) fn refuse_open_windows(
         diagnostics.push(Diagnostic::error(format!(
             "data `{data_name}`'s default domain is still FALSE at {consumption_point}: \
              the invariant window opened on `{spelling}` in a predecessor state must \
-             close first -- restore the `where` facts before this consumption point \
+             close first -- restore the `requires` facts before this consumption point \
              (ch11 window transport)"
         )));
     }
