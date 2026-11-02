@@ -168,14 +168,14 @@ impl StructuralJudge<'_> {
         })
     }
 
-    pub(super) fn entry_scalar_read_backing(
+    pub(super) fn entry_read_backing(
         &self,
         machine: &Machine,
         state: &State,
         root: symbols::SymbolHandle,
         path: &[facts::PlaceSegment],
     ) -> Option<crate::machine_calls::calls::CapturedStorageReadBacking> {
-        let geometry = crate::structural_scalar_coordinate(
+        let geometry = crate::structural_coordinate(
             self.program,
             self.program.state_parameters(state),
             root,
@@ -324,14 +324,14 @@ impl StructuralJudge<'_> {
             .state_parameter_by_symbol(state, root)
             .ok_or("the rank entry input is not rooted in its state formals")?;
         let backing = self
-            .entry_scalar_read_backing(machine, state, root, &canonical.segments)
+            .entry_read_backing(machine, state, root, &canonical.segments)
             .ok_or(
                 "the rank entry input has an unauthenticated carrier or reference-load requirement",
             )?;
         let coordinate = self
             .capture_entry_storage_place(canonical)
             .ok_or("the rank entry input has no exact formal selector snapshot")?;
-        let backing = self.freeze_entry_scalar_read_backing(state, backing);
+        let backing = self.freeze_entry_read_backing(state, backing);
         self.retain_storage_value(coordinate.clone(), value, true);
         let stored = std::sync::Arc::make_mut(&mut self.stored_values)
             .iter_mut()

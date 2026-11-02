@@ -1011,7 +1011,7 @@ impl<'program> StructuralJudge<'program> {
         judge.body_type_parameters = program.machine_type_parameters(machine);
         if let Some(state) = state {
             judge.declaration_state = state.symbol;
-            judge.retain_entry_owned_values(state);
+            judge.retain_entry_values(state);
             judge.retain_entry_scalar_parameters(machine, state);
         }
         judge.premise_facts.extend_from_slice(requires);

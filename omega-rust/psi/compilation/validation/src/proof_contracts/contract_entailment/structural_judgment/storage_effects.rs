@@ -30,7 +30,7 @@ pub(in crate::proof_contracts::contract_entailment) use graph_versions::{
 type StorageScope<'scope> = Option<(&'scope Machine, &'scope State)>;
 
 /// A canonical place with live selectors replaced by completed value identities.
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct CapturedStorageCoordinate {
     root: facts::PlaceRoot,
     segments: Vec<CapturedStorageSegment>,
@@ -87,7 +87,7 @@ impl CapturedStorageCoordinate {
     }
 }
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 enum CapturedStorageSegment {
     Place(PlaceSegment),
     Index(super::StructuralTerm),
@@ -398,16 +398,44 @@ impl StructuralJudge<'_> {
     /// Retain that entry observation before the first effect, just as completed
     /// local bindings do. A disjoint write may erase pointee observations without
     /// erasing this copy's descriptor words. No reference formal is seeded.
-    pub(super) fn retain_entry_owned_values(&mut self, state: &State) {
+    pub(super) fn retain_entry_values(&mut self, state: &State) {
         if self.storage_version.is_none() {
             self.storage_version = self.incoming_storage_version(state);
         }
         for parameter in self.program.state_parameters(state) {
             let reference = parameter.type_reference;
+            let mut value = super::StructuralTerm::Variable(parameter.name.to_string());
+            let mut backing = None;
             if crate::reference_shell(self.program, reference).is_some() {
-                continue;
+                let Some(observed) =
+                    crate::value_custody::expression_types::readable_observation_type_reference(
+                        self.program,
+                        reference,
+                    )
+                else {
+                    continue;
+                };
+                // A nominal record's initialized inline cells are a complete
+                // entry observation, independently of which scalar leaves a
+                // declaration later demands. Views keep their descriptor-only
+                // contract; contained references acquire no pointee facts.
+                if self.program.closed_data_definition(observed).is_none() {
+                    continue;
+                }
+                let Some(machine) = self.program.machine(self.machine_symbol) else {
+                    continue;
+                };
+                let Some(read) = self.entry_read_backing(machine, state, parameter.symbol, &[])
+                else {
+                    continue;
+                };
+                backing = Some(self.freeze_entry_read_backing(state, read));
+                value = super::super::structural_terms::owned_projection_observation(
+                    self.program,
+                    observed,
+                    value,
+                );
             }
-            let value = super::StructuralTerm::Variable(parameter.name.to_string());
             // Entry permissions still expose readable pointees. The existing
             // write transfer masks them at the first effect; masking here
             // would lose independently declared entry contracts before use.
@@ -419,6 +447,16 @@ impl StructuralJudge<'_> {
                 value,
                 true,
             );
+            if let Some(backing) = backing
+                && let Some(stored) = std::sync::Arc::make_mut(&mut self.stored_values)
+                    .iter_mut()
+                    .find(|stored| {
+                        stored.coordinate.root == facts::PlaceRoot::Symbol(parameter.symbol)
+                            && stored.coordinate.segments.is_empty()
+                    })
+            {
+                stored.backing = Some(backing);
+            }
         }
     }
 
@@ -461,15 +499,14 @@ impl StructuralJudge<'_> {
             let Some(root) = place.root.as_symbol() else {
                 continue;
             };
-            let Some(backing) =
-                self.entry_scalar_read_backing(machine, state, root, &canonical.segments)
+            let Some(backing) = self.entry_read_backing(machine, state, root, &canonical.segments)
             else {
                 continue;
             };
             let Some(value) = self.declaration_term(expression) else {
                 continue;
             };
-            let backing = self.freeze_entry_scalar_read_backing(state, backing);
+            let backing = self.freeze_entry_read_backing(state, backing);
             self.retain_storage_value(place.clone(), value, true);
             if let Some(stored) = std::sync::Arc::make_mut(&mut self.stored_values)
                 .iter_mut()
