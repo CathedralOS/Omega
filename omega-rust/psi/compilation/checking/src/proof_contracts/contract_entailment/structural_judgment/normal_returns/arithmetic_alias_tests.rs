@@ -296,3 +296,87 @@ fn completed_wrapping_alias_keeps_completed_operation_identity() {
         ));
     }
 }
+
+#[test]
+fn completed_wrapping_alias_preserves_conjunctive_guard() {
+    let mut program = TypedTrees::default();
+    let (exact, wrapping) = references(&mut program);
+    let boolean = program
+        .type_reference_table
+        .insert(TypeReferenceNode::Named {
+            symbol: SymbolHandle::invalid(),
+            name: Identifier::generated("bool"),
+        });
+    let mut judge = StructuralJudge::from_declaration_requires(
+        &program,
+        SymbolHandle::invalid(),
+        &[],
+        &[],
+        false,
+    );
+    judge.runtime_body_values = true;
+    let original = compound(field("a"), exact, wrapping);
+    std::sync::Arc::make_mut(&mut judge.normal_results)
+        .push((Default::default(), original.clone()));
+    let comparison = |operator, limit| StructuralTerm::ScalarBinary {
+        operator,
+        references: [wrapping, exact],
+        meaning: [
+            (PrimitiveType::I32, ArithmeticDomain::Wrapping),
+            (PrimitiveType::I32, ArithmeticDomain::Exact),
+        ],
+        left: Box::new(original.clone()),
+        right: Box::new(integer(limit)),
+    };
+    judge.intake_equation(
+        StructuralTerm::ScalarBinary {
+            operator: BinaryOperator::And,
+            references: [boolean; 2],
+            meaning: [(PrimitiveType::Bool, ArithmeticDomain::Exact); 2],
+            left: Box::new(comparison(BinaryOperator::GreaterOrEqual, 0)),
+            right: Box::new(comparison(BinaryOperator::Less, 200)),
+        },
+        super::boolean_term(true),
+        0,
+    );
+    for (operator, limit) in [
+        (BinaryOperator::GreaterOrEqual, 0),
+        (BinaryOperator::Less, 200),
+    ] {
+        let judgment = bound(&judge, original.clone(), wrapping, operator, limit);
+        assert!(
+            matches!(judgment, StructuralJudgment::Proven),
+            "before call: {judgment:?}"
+        );
+    }
+    let result = captured(wrapping);
+    judge.intake_normal_call_equations(vec![
+        CapturedResultEquation::public((result.clone(), field("a"))),
+        CapturedResultEquation::completed_call(
+            result.clone(),
+            StructuralTerm::Application {
+                result_type: wrapping,
+                target: SymbolHandle::invalid(),
+                selections: Vec::new(),
+                machine: "coordinate".to_owned(),
+                arguments: vec![field("a")],
+            },
+        ),
+    ]);
+    let current = compound(result, exact, wrapping);
+    std::sync::Arc::make_mut(&mut judge.normal_results)
+        .push((Default::default(), original.clone()));
+    std::sync::Arc::make_mut(&mut judge.normal_results).push((Default::default(), current.clone()));
+    for value in [original, current] {
+        for (operator, limit) in [
+            (BinaryOperator::GreaterOrEqual, 0),
+            (BinaryOperator::Less, 200),
+        ] {
+            let judgment = bound(&judge, value.clone(), wrapping, operator, limit);
+            assert!(
+                matches!(judgment, StructuralJudgment::Proven),
+                "{value:?}: {judgment:?}"
+            );
+        }
+    }
+}
