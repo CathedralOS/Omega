@@ -94,8 +94,14 @@ or removal from the queue. Waiting never re-enqueues a removed entry. A later
 and enqueues an already-armed green head. An armed request alone does not
 guarantee unattended publication; verify the final state.
 
-`PR_BODY` is a file containing the change's explanation and focused evidence.
-Include actual agent/model provenance there when known, not in commit trailers.
+Write `PR_BODY` using [Explain the change](../AGENTS.md#explain-the-change).
+Pass multiline prose through a UTF-8 file with `--body-file`, as above, or a
+structured API body field. Do not interpolate it into shell command text:
+backticks and escape sequences can execute commands or corrupt identifiers.
+Check its opening against the submitted diff before creating the PR or marking
+it ready; update the whole explanation when the scope changes. Summarize focused
+validation after the behavior and mechanism, then link or include the detailed
+records. Include actual agent/model provenance there when known, not in commit trailers.
 GitHub records the submitter and publication without a separate notes push.
 An existing PR for the owned branch is reused, not duplicated. Do not include
 unrelated local commits. Keep the candidate clean and committed before push.

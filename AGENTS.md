@@ -47,6 +47,30 @@ the time goes and remove the cause rather than waiting on it or working around i
   may invoke, stamp, compare, and report but never parse, lower, manufacture
   semantic evidence, or decide trust.
 
+## Explain the change
+
+Use an inverted pyramid in PR descriptions, commit bodies, progress/final
+reports, and explanatory documentation. Start with one or two plain-language
+sentences saying what changes and why it matters. Write for someone who has
+not followed the session or learned this subsystem's vocabulary. A reader who
+stops after the opening should still understand the result and its significance.
+
+Then show the previous and resulting behavior, with a small example when useful.
+Explain the mechanism after its purpose is clear; introduce technical terms
+where they help the reader follow that explanation. Put validation and detailed
+provenance afterward, linking existing evidence or using a details section for
+long records. Keep any limitation that materially qualifies the result beside
+that result. Preserve exact evidence identities, failures and unverified cases.
+A small change may need only one paragraph; this is a reading order, not a form
+to fill with headings or a fixed word count.
+
+Before publishing, check the explanation against the final diff and observed
+behavior. Rewrite it when the scope changes instead of appending the session's
+history. If the behavior or benefit is unclear, inspect the relevant code and
+witness rather than inventing a clearer-sounding claim. Read the opening alone:
+does it explain what changed and why without requiring the diff? Then check
+that the technical explanation and evidence support it.
+
 ## Law of completion
 
 Our superhuman advantage is carrying the entire difficult task end to end.
@@ -729,7 +753,6 @@ The rules that touch every edit:
   165 spelling-only asserts, and three PRs added 14 more within an hour of
   this rule. `tools/check_rules.py` now fails admission when a file's reads
   exceed its count in `tools/source_text_reads.txt`.
-- Write direct prose: state the idea in literal words.
 - Read the matching skill before starting: `.agents/skills/` — `advance` for
   the sample loop, `rust-systems-programmer` for Rust implementation and review,
   `architecture-cleanup`, `task-board-cleanup`, `local-swarm`, `devin-swarm`,
@@ -976,12 +999,11 @@ follow the same rule: they take the lane of the behavior they pin, or
 Oct 25 to Nov 1. A squash merge takes the pull request title as its subject,
 so `compiler-check` checks the title against this table.
 
-The body is prose paragraphs after a blank line, with numbers in place of
-adjectives. Cover what applies: what the previous behavior was and why it
-was wrong; which alternatives were rejected; which constraint shaped the
-diff; which gates ran, named with counts rather than the word `pass`; what
-is known red or deliberately left undone. Omit the body only when the
-subject carries the full reasoning (typo, rename, mechanical revert).
+The body follows [Explain the change](#explain-the-change), after a blank line.
+Include design constraints or rejected alternatives only when they help explain
+the final change. Describe validation by what it establishes, with measured
+results where relevant. Omit the body only when the subject carries the full
+reasoning (typo, rename, mechanical revert).
 
 Commit messages carry no tool attribution: no "Generated with ..." line, no
 `Co-Authored-By` trailer naming an agent or vendor.

@@ -144,8 +144,10 @@ may be recorded; affected regressions must be resolved. A packaged binary
 validates only its pinned source, not subsequent compiler edits. Validate
 compiler changes using the changed compiler, not a previously published binary.
 
-Reports name outcome, revision, host, commands/results, ticket, commits, remaining
-acceptance and background processes. A source checkpoint is not a passing gate.
+User-facing reports follow [Explain the change](../../../AGENTS.md#explain-the-change).
+Lead with the changed behavior and remaining acceptance, then give the revision,
+host, commands/results, ticket, commits and background processes. A source
+checkpoint is not a passing gate.
 Count completed outcomes, not commits or occupied slots.
 
 Use the native PR/merge queue in tools/landing.md. Open the pull request as a
