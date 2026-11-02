@@ -1778,6 +1778,16 @@ impl<'program> StructuralJudge<'program> {
                     }
                     return resolved;
                 }
+                StructuralTerm::BoundProjection { .. } => {
+                    // Header-field observations keep their declaration-rooted
+                    // identity. An independently admitted scalar equality may
+                    // relate them just like another completed projection.
+                    if let Some((_, replacement)) = self.rewrites.find(&term) {
+                        term = replacement.clone();
+                        continue;
+                    }
+                    return term;
+                }
                 StructuralTerm::Projection { subject, path } => {
                     let subject = self.resolve_with_at(*subject, depth + 1, purpose);
                     let resolved = StructuralTerm::Projection {
