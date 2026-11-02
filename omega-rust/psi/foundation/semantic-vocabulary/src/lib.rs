@@ -17,57 +17,41 @@
 //! admitting ambient proof assumptions. `qualified_scalar_type.rs`
 //! pairs a scalar type with its qualification set, and
 //! `ieee_float_comparison_operation.rs` names the executable float relations.
+//! The scalar modules live in `scalars/`, places, content and storage geometry in
+//! `storage/`, and callback, locator and entry coordinates in `boundary/`.
 
 #![forbid(unsafe_code)]
 
 pub(crate) use optimization::codec_bytes;
 
-mod authored_storage;
 mod behavior_policy;
+mod boundary;
+mod scalars;
+mod storage;
 pub use behavior_policy::{CrashCause, TerminalAuthorityClass};
-mod bounded_integer_type;
-mod callback_identities;
-pub use callback_identities::{
+pub use boundary::callback_identities::{
     BoundaryNativeParameterOrigin, CallbackRequirementId, NativeParameterId, StaticMachineBinderId,
     callback_nominal_report_fingerprint, callback_requirement_id, nominal_callback_binder_id,
     nominal_callback_native_parameter_id,
 };
 pub mod byte_predicates;
 pub mod compiler_evaluation;
-mod content;
 pub mod fnv1a;
 mod identity;
-mod ieee_float_comparison_operation;
-mod program_entry;
 pub mod proof_applications;
 mod proposition;
-mod qualified_scalar_type;
-pub use program_entry::{
+pub use boundary::program_entry::{
     ProgramEntrySchema, ProgramEntrySourceCatalog, ProgramEntrySourceContract,
     ProgramEntryVisibleParameters,
 };
-mod reference_origins;
-mod scalar_refinement;
-mod structural_places;
-mod target_carrier_layout;
-pub use target_carrier_layout::TargetCarrierLayout;
+pub use storage::target_carrier_layout::TargetCarrierLayout;
 
-pub use ieee_float_comparison_operation::IeeeFloatComparisonOperation;
-pub use qualified_scalar_type::QualifiedScalarType;
-pub use reference_origins::ReferenceOriginExtent;
-pub use scalar_refinement::{ScalarRefinement, ScalarRefinementError};
+pub use scalars::ieee_float_comparison_operation::IeeeFloatComparisonOperation;
+pub use scalars::qualified_scalar_type::QualifiedScalarType;
+pub use scalars::scalar_refinement::{ScalarRefinement, ScalarRefinementError};
+pub use storage::reference_origins::ReferenceOriginExtent;
 
-pub use authored_storage::{
-    AuthoredBitFragment, AuthoredBitFragments, AuthoredFieldStorage, AuthoredRecordStorage,
-};
-pub use bounded_integer_type::BoundedIntegerType;
 pub use byte_predicates::{ByteSequencePredicate, ByteSequencePredicateSet};
-pub use content::{
-    ContentAlgebra, ContentAlgebraKind, ContentConservation, ContentPlaceSegment,
-    ContentPlaceVersion, ContentProjectionExpression, ContentProjectionIdentity,
-    ContentProjectionScalar, ContentStructuralPlace, ContentTerm,
-    content_conservation_report_fingerprint, encode_fingerprint_string,
-};
 pub use fnv1a::Fnv1a;
 pub use identity::{
     AdmissionSiteId, BlockId, BoundaryCompletion, BoundaryMachineId, BoundaryRequirementKind,
@@ -87,7 +71,16 @@ pub use proposition::{
     ProofFormalScope, ProofTerm, ProofTermField, Proposition, PropositionContext, PropositionError,
     ScalarReadProjection, ScalarTerm, ScalarType, StructuralCaseSubject, StructuralIdentitySubject,
 };
-pub use structural_places::{AffineConstructionElement, StructuralPlaceKind};
+pub use scalars::bounded_integer_type::BoundedIntegerType;
+pub use storage::authored_storage::{
+    AuthoredBitFragment, AuthoredBitFragments, AuthoredFieldStorage, AuthoredRecordStorage,
+};
+pub use storage::content::{
+    ContentAlgebra, ContentAlgebraKind, ContentConservation, ContentPlaceSegment,
+    ContentPlaceVersion, ContentProjectionExpression, ContentProjectionIdentity,
+    ContentProjectionScalar, ContentStructuralPlace, ContentTerm,
+    content_conservation_report_fingerprint, encode_fingerprint_string,
+};
+pub use storage::structural_places::{AffineConstructionElement, StructuralPlaceKind};
 
-mod foreign_locator;
-pub use foreign_locator::{ForeignLocatorCandidate, NativeBindingLocator};
+pub use boundary::foreign_locator::{ForeignLocatorCandidate, NativeBindingLocator};
