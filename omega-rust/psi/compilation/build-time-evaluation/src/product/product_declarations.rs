@@ -4,7 +4,7 @@
 //! authenticated execution ledger selects outputs. Runtime provider compatibility
 //! and package review consume these declarations; admission executes neither.
 
-use crate::assumed_bindings::AssumedBindingContract;
+use crate::product::assumed_bindings::AssumedBindingContract;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
     BuildOperation, ExecutedProductSelection, ProductDeclarationRequest, ProductOperandRole,

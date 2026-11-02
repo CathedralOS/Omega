@@ -1,5 +1,7 @@
 //! Checked fixed representation application evaluation and installation.
-use crate::provider_declarations::{retain_provider_defaults, source_checking_applications};
+use crate::product::provider_declarations::{
+    retain_provider_defaults, source_checking_applications,
+};
 use source::DependencyScope;
 use typed_trees::references::collect_selected_program_type_occurrences;
 
@@ -18,7 +20,7 @@ pub struct FixedLayoutTargetScope {
     pub target: String,
     pub facts: Option<layout_plans::LayoutTargetFacts>,
     pub entry_declarations: Option<Vec<symbols::SymbolHandle>>,
-    pub provider_declarations: Vec<crate::provider_declarations::ProviderSelection>,
+    pub provider_declarations: Vec<crate::product::provider_declarations::ProviderSelection>,
 }
 
 /// Close Source representation applications before the settled judgment.
@@ -41,7 +43,10 @@ pub fn evaluate_fixed_layout_applications(
     }
     typed_trees_to_typed_trees::prepare_execution_applications(typed)?;
     let defaults = retain_provider_defaults(
-        crate::provider_declarations::ProviderPlanningContext::new(typed, DependencyScope::Product),
+        crate::product::provider_declarations::ProviderPlanningContext::new(
+            typed,
+            DependencyScope::Product,
+        ),
     )?;
     let mut topology =
         typed_trees::typed_trees::calls::application_graph::source_application_plan(typed);
