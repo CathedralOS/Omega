@@ -14,6 +14,10 @@ use symbols::SymbolHandle;
 
 pub(crate) fn retain_declaration_descriptions(checked: &mut CheckedTrees) {
     let mut descriptions = CheckedDeclarationDescriptions::default();
+    descriptions.selections = validation::checked_selection_requirements(checked);
+    descriptions.evaluation_dependencies =
+        validation::compiler_evaluation::checked_dependencies(checked);
+    let sidecars = typed_trees::references::MachineSidecarIndex::build(&checked.typed);
     // Invocation summaries are keyed by exact machine, not iteration position.
     // Sort borrowed rows once rather than scanning the whole table per header.
     let mut summaries = checked
@@ -39,6 +43,12 @@ pub(crate) fn retain_declaration_descriptions(checked: &mut CheckedTrees) {
                     source::DependencyScope::Product,
                 ),
             supplies_checked_body: machine.supplies_checked_body(),
+            compiler_evaluation: validation::compiler_evaluation::checked_declaration(
+                checked,
+                machine,
+                &descriptions.selections,
+                &sidecars,
+            ),
             synchronous_invocations,
         });
         let row = match describe(checked, &mut descriptions, machine.symbol) {

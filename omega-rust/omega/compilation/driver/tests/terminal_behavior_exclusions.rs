@@ -245,7 +245,7 @@ fn assert_calling_review_outlives_source(
                 },
                 &checked.providers().calling_program,
             )
-            .expect("retain source admission and review correspondence")
+            .expect("retain request/review correspondence and canonical helper choices")
         };
         let prepared = prepare_policy();
         let substituted = prepare_policy();
@@ -316,7 +316,6 @@ fn assert_calling_review_outlives_source(
         let wrong_code = provider_planning::calling_policy_plans::CallingProgram {
             source_owner: wrong_owner.clone(),
             artifact: Arc::clone(&code.artifact),
-            entries: code.entries.clone(),
             source_records: Arc::clone(&code.source_records),
             evaluator: code.evaluator,
         };
@@ -351,8 +350,20 @@ fn assert_calling_review_outlives_source(
         "{rejected:?}"
     );
 
+    let decoded_code = provider_planning::calling_policy_plans::CallingProgram {
+        source_owner: code.source_owner.clone(),
+        evaluator: code.evaluator,
+        artifact: Arc::new(
+            terminal_codec::CanonicalTerminalArtifact::from_bytes(&code.artifact.to_bytes())
+                .expect("checked Calling facts survive canonical transport"),
+        ),
+        source_records: Arc::clone(&code.source_records),
+    };
+    if relative == "tests/omega/pass/build/terminal_calling_policy_execution/main.omg" {
+        assert_live_calling_authority(&decoded_code.artifact);
+    }
     let realizations = prepared
-        .evaluate(&code)
+        .evaluate(&decoded_code)
         .expect("activate and attach review after Source drop");
     let actual = realizations
         .iter()
@@ -372,7 +383,6 @@ fn assert_calling_review_outlives_source(
             terminal_codec::CanonicalTerminalArtifact::from_bytes(&code.artifact.to_bytes())
                 .expect("ordinary published artifact ingress"),
         ),
-        entries: Vec::new(),
         source_records: Arc::from([]),
         evaluator: code.evaluator,
     };
@@ -414,6 +424,69 @@ fn assert_calling_review_outlives_source(
         }
     }
     (realizations, plans)
+}
+
+/// The real decoded policy keeps its package obligations, not a serialized
+/// permission. A custom live predicate need not export a comparison scope.
+fn assert_live_calling_authority(artifact: &terminal_codec::CanonicalTerminalArtifact) {
+    use semantic_vocabulary::compiler_evaluation::{
+        DeclarationCustody, DeclarationSelectionAuthority,
+    };
+    struct LiveAuthority(bool);
+    impl DeclarationSelectionAuthority for LiveAuthority {
+        fn allows_declaration_selection(
+            &self,
+            _: semantic_vocabulary::PackageKeyIdentity,
+            _: semantic_vocabulary::PackageKeyIdentity,
+        ) -> bool {
+            self.0
+        }
+        fn package_label(&self, package: semantic_vocabulary::PackageKeyIdentity) -> String {
+            format!("{package:?}")
+        }
+    }
+    let module = artifact.semantic_module();
+    let root = module
+        .calling_policy_requests
+        .iter()
+        .flat_map(|request| request.instances.as_ref().expect("real policy instances"))
+        .next()
+        .expect("fixture must retain an actual policy")
+        .policy_declaration
+        .as_ref()
+        .expect("policy has exact checked declaration");
+    let custody = module
+        .scalar_applications
+        .proof_scope
+        .callable_headers
+        .iter()
+        .find(|(_, header)| header.declaration == *root)
+        .expect("policy has retained compiler facts")
+        .1
+        .compiler_evaluation
+        .as_ref()
+        .expect("policy floor facts")
+        .custody;
+    assert!(matches!(custody, DeclarationCustody::Package(_)));
+    let admit = |authority: &LiveAuthority| {
+        provider_planning::calling_policy_plans::admit_terminal_calling_policy(
+            artifact,
+            *root,
+            target::TargetProfile::MacosArm64,
+            &[],
+            custody,
+            Some(authority),
+        )
+    };
+    let deny = LiveAuthority(false);
+    assert!(deny.declaration_selection_scope().is_none());
+    let refusal = admit(&deny)
+        .err()
+        .expect("decoded facts grant no permission");
+    assert!(refusal.contains("direct dependency authority"), "{refusal}");
+    let allow = LiveAuthority(true);
+    assert!(allow.declaration_selection_scope().is_none());
+    admit(&allow).expect("live custom authority works without a stored scope");
 }
 
 #[test]
@@ -460,6 +533,14 @@ fn opaque_policy_review_activates_after_source_drop() {
 fn private_callback_policy_review_activates_after_source_drop() {
     assert_calling_review_outlives_source(
         "tests/omega/pass/build/terminal_private_callback_calling/main.omg",
+        None,
+    );
+}
+
+#[test]
+fn ranked_policy_admission_activates_after_source_drop() {
+    assert_calling_review_outlives_source(
+        "tests/omega/pass/facts/generic_calling_policy/ranked_helper_exit/main.omg",
         None,
     );
 }

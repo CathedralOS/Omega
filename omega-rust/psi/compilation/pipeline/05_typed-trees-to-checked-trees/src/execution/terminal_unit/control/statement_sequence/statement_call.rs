@@ -97,8 +97,12 @@ pub(super) fn plan(
         .iter()
         .copied()
         .filter(|call| call.statement_index == index);
-    let call = matching.next()?;
+    let Some(call) = matching.next() else {
+        call_phase("statement sequence: call: missing exact flow occurrence");
+        return None;
+    };
     if matching.next().is_some() {
+        call_phase("statement sequence: call: competing flow occurrences");
         return None;
     }
     if matches!(statement, StatementNode::Transition(_))
@@ -106,6 +110,7 @@ pub(super) fn plan(
             program, machine, state, call,
         )
     {
+        call_phase("statement sequence: call: transition is not its completing occurrence");
         return None;
     }
     let authored_expression = match statement {

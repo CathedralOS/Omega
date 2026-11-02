@@ -37,6 +37,7 @@ wire_record! {
     }
     PolicyInstance: CallingPolicyInstance {
         declaring_application: Index,
+        policy_declaration: ResultField<ProofDeclaration, Text>,
         policy: ResultField<super::target_family_wire::Callable, Text>,
         signatures: ResultField<List<Id>, Text>,
     }
@@ -94,6 +95,19 @@ impl Field<semantic_vocabulary::CallingDeclarationOwner> for DeclarationOwner {
 }
 
 struct OperandKind;
+struct ProofDeclaration;
+impl Field<terminal_psi::ProofDeclarationId> for ProofDeclaration {
+    fn write(
+        writer: &mut Writer,
+        value: &terminal_psi::ProofDeclarationId,
+    ) -> Result<(), CodecError> {
+        writer.u32(value.0);
+        Ok(())
+    }
+    fn read(reader: &mut Reader<'_>) -> Result<terminal_psi::ProofDeclarationId, CodecError> {
+        Ok(terminal_psi::ProofDeclarationId(reader.u32()?))
+    }
+}
 impl Field<semantic_vocabulary::CallingOperandKind> for OperandKind {
     fn write(
         writer: &mut Writer,
