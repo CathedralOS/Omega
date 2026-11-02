@@ -155,7 +155,10 @@ impl TerminalExecution<'_> {
             result.qualifications.clone(),
         );
         let view = TerminalStructuralValue {
-            opaque_identity: value.opaque_identity,
+            // The referent's cells root at their own identity, not beneath the
+            // carrier's tree: storing the descriptor relocates carrier-keyed
+            // rows while the referent's identity stays pinned for the loan.
+            opaque_identity: self.local_structural_identities.allocate()?,
             structural_type: referent,
             qualifications: Vec::new(),
             projected_qualifications: Vec::new(),
