@@ -139,21 +139,23 @@ impl<'a> BorrowAccessCollection<'a> {
         }
     }
 
-    pub(super) fn finish_nested_call(&mut self, first_access: usize, expression: ExpressionHandle) {
-        // A borrow-free return finishes this invocation's direct access
-        // window. Stored outputs can retain descendants independently: their
-        // completed descriptors and staged-value exclusions keep those loans.
-        // Ending a temporary access is not retirement of the stored frontier.
-        if !self
-            .value_type_reference(expression)
-            .is_some_and(|reference| {
-                validation::has_contents(
-                    self.program,
-                    reference,
-                    &[],
-                    validation::ContentsRequirement::BorrowFree,
-                )
-            })
+    pub(super) fn finish_completed_value(
+        &mut self,
+        first_access: usize,
+        expression: ExpressionHandle,
+        reference: typed_trees::types::TypeReferenceHandle,
+    ) {
+        // Once a value containing no references has completed, its inputs are
+        // no longer held for a later operand. Use the receiving type: reading
+        // through a reference to produce an integer finishes an integer copy.
+        // Stored outputs retain their own independently recorded loans.
+        if !reference.is_valid()
+            || !validation::has_contents(
+                self.program,
+                reference,
+                &[],
+                validation::ContentsRequirement::BorrowFree,
+            )
         {
             return;
         }
