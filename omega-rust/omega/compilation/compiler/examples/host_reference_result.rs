@@ -116,13 +116,15 @@ impl TerminalEffectHandler for Host {
                 .collect();
             return Ok(TerminalEffectResult::Reference(
                 terminal_interpreter::TerminalReferenceResult {
-                referent: terminal_interpreter::TerminalReferencePayload::ScalarAggregate(terminal_interpreter::TerminalScalarAggregateValue {
-                        structural_type: buffer.structural_type(),
-                        result_case: None,
-                        fields,
-                    },
-                }),
-                references: Vec::new(),
+                    referent: terminal_interpreter::TerminalReferencePayload::ScalarAggregate(
+                        terminal_interpreter::TerminalScalarAggregateValue {
+                            structural_type: buffer.structural_type(),
+                            result_case: None,
+                            fields,
+                        },
+                    ),
+                    references: Vec::new(),
+                },
             ));
         }
         let access = if self.mode == Mode::Shared {
