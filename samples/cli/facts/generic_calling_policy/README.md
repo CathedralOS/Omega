@@ -98,43 +98,52 @@ recorded separately.
    Terminal execution at exit 0. The native row tests final emitted behavior;
    it does not claim unmeasured instruction encodings or cross-host execution.
 
-## Current Build-selection frontier
+## Current Build-selection evidence
 
-The canonical row and its pinned sources now use ordinary implementations and
-explicit target-keyed Build selections. The Width-8 and Width-4 inputs, original
-calling geometry and authored result 42 are unchanged. This migration is not yet
-accepted. The frozen optimized producer
-`e67b77c61f99ca9971d1d4b0640a3f8cce88d5ce` executes the root and the local,
-field, parameter, call-result, match-join and const-name places at native and
-Terminal exit 0. Its prerequisite repair carries independently issued returned
-descriptors through ordinary forwarding calls. The later exact producer
-`1da39b67596f6bb9549d72b8cef3d994f9e6fdbe` also executes a saved-local forwarding
-call and the composite descriptor fixture at native and Terminal exit 0;
-returning a descriptor borrowing a callee-local array still rejects. These
-observations retain their original producer identities.
+The canonical row and its pins use ordinary implementations and explicit
+Build selections. The exact optimized `6416b0fdfbe3cd7db319e5c4803f64d3254160cd`
+producer checks all nine positives, rejects every Width-4 twin at byte-coverage
+validation, and runs all nine pins at native/Terminal exit 0 on macOS arm64.
+The field checks both neighboring values and the match checks both selected
+arms. A joint-recursion preservation control also checks and runs 0/0; its
+initial stale package-acceptance refusal was refreshed through normal review
+and is excluded from compiler-failure evidence.
 
-The exact optimized producer `9f23a5b84ed0f35bab3261c68648faef69b7a13f`
-now checks all nine positives and rejects all nine Width-4 twins with their
-byte-coverage diagnostic. All nine pinned positives execute natively and in
-Terminal Psi at exit 0, including strengthened field-neighbor and both-arm
-match observations. Six public projects (root, field, match join, nested
-machine, other machine and target body) complete ordinary package review and
-run at native/Terminal exit 0. The four unchanged public observations above
-retain their original `e67b77c` producer identity. These observations do not
-claim execution by a later compiler or on foreign hosts.
+The selected unranked helper now rejects for the actual recursive call-cycle
+obligation. Local state acyclicity no longer stands in for a complete call
+ranking. The source checker owns the whole demanded SCC and independently
+retains proof-recursion rules. Borrowing its existing immutable query context
+reduced the same 52 component queries from 145.45 seconds to 2.96 seconds; the
+full normal-preparation refusal fell from 205.31 to 52.08 seconds with identical
+Main, Build, expected diagnostic and SDK inputs.
 
-The selected unranked helper exposed a distinct admission defect: a locally
-acyclic state graph was incorrectly used as proof of a recursive machine-call
-cycle. Its current failure reaches an unrelated lowering refusal and does not
-count as the intended termination rejection. The repair must use the ordinary
-complete call-component ranking judgment, preserve valid joint recursion and
-keep proof recursion under its separate existing checker. The row remains open
-until that control, the exact provider-selection controls, current integration,
-scoped golden recording and final review pass.
+The five exact selection controls retain an explicit helper rejection reason,
+refuse missing policy and nested provider choices, accept a helper whose callee
+has the same policy as metadata without an executable cycle, and reject an
+unselected implementation's stronger precondition. Changing the selected
+result from 42 to 43 while retaining the 42 observer produces native SIGTRAP
+and Terminal Trap; changing the observer to 43 restores 0/0. Six focused
+termination/default-ABI controls pass. The 17 earlier generic-policy controls
+retain their outcomes; the negative unsigned Width literal still rejects for
+`u64(-1)` not fitting `u64`, with its obsolete diagnostic wrapper removed.
 
-Package review also exposed a workflow defect: the private retained source
-graph exceeds its 512 MiB encoding limit, so repeated preparations cannot reuse
-that graph. Its limit and admission checks remain intact.
+Six public preparations/runs from exact producer `9f23a5b` and four unchanged
+public observations from `e67b77c` retain those actual producer identities.
+The current selected-helper public preparation also runs 0/0 at `6416b0f`.
+All nine sample/pin Main and Build pairs retain the same authored program.
+These observations establish matching-host behavior, not foreign execution.
+
+The later actual Main reconciliation retains owned source-free calling review,
+canonical request/instance identities, Terminal provider-demand settlement,
+and the same selected helper plans for ABI completion and policy activation.
+Its focused hosted integration replay, four-target preparation and final review
+remain pending; historical observations are not relabelled as that producer.
+The parent migration remains open for other facts, library/product sources,
+and retirement of target-family parsing and runtime paths.
+
+Package review still cannot retain its private source graph within the 512 MiB
+encoding limit. The limit and admission checks remain intact; that independent
+workflow limitation is not reported as repaired here.
 
 ## Historical target-family evidence
 
