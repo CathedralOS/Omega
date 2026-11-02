@@ -435,6 +435,7 @@ pub(super) fn access_interferes<'p>(
                         // projected access through the parent cannot fake it.
                         && captured_place_compatibility(
                             program,
+                            borrow,
                             &CapturedPlace {
                                 incoming_reference: ancestor.incoming_reference,
                                 incoming_owner_path: borrow.access_segments.span_or_empty(ancestor.incoming_owner_path).to_vec(),
@@ -467,6 +468,7 @@ pub(super) fn access_interferes<'p>(
         };
         captured_place_compatibility(
             program,
+            borrow,
             &backing.place,
             kind,
             &loan_place,

@@ -31,6 +31,7 @@ fn prepare(
         source.terminal_publication.optimizations(),
         &mut crate::observations::PsiStageTimings::new(timings),
     )?;
+    let capture_profile = phase_profile::guard("omega.product.calling.prepare_source");
     let source_preparation = CallingSourcePreparation::capture(
         &source.program,
         source
@@ -55,6 +56,7 @@ fn prepare(
             exact_toolchain_sources: source.sources.exact_toolchain_sources(),
         },
     )?;
+    drop(capture_profile);
     Ok(Arc::new(CallingProgram {
         source_owner: Arc::downgrade(&source.program),
         artifact: Arc::clone(program.artifact()),

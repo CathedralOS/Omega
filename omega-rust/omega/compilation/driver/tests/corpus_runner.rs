@@ -2401,6 +2401,9 @@ fn main() {
     // until it dies with this process, rather than letting a same-PID session
     // reuse the root while those paths remain live.
     sealed_fixture_staging::discard_staged_snapshots(still_live);
+    if phase_profile::enabled() {
+        eprint!("{}", phase_profile::render());
+    }
     // Detached stragglers from timed-out fixtures die with the process here.
     process::exit(0);
 }
