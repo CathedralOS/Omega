@@ -95,18 +95,9 @@ jobs:
         if: github.event_name != 'workflow_dispatch'
         id: compiler-check
         run: cargo check --locked -p omega
-      - name: Restore exact qualified case-where pair and completed corpus evidence
+      - name: Qualify the exact joined case-where compiler and affected consumers
         if: github.event_name == 'workflow_dispatch'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh run download 41424258406 --name compiler-pilot-linux_x86_64-9e8d26cb3293f8d46b8bab86f2dfc60288fef6de-1 --dir build/case-retained-input
-          git fetch --depth=1 origin 70036176871cda9279a6a401987d0ca4325918e2
-      - name: Record the full case-where row and preserved controls
-        if: github.event_name == 'workflow_dispatch'
-        env:
-          OMEGA_CASE_RETAINED_INPUT: ${{ github.workspace }}/build/case-retained-input
-        run: python tools/build_slot.py -- python tools/ci/case_where_row_resume2.py
+        run: python tools/build_slot.py -- python tools/ci/case_where_integrated1.py
       - name: Optional executable observations
         if: github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
         env:
