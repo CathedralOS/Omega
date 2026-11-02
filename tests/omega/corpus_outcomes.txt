@@ -1822,6 +1822,8 @@ fail/machines/private_where_store_through_cycle_control rejected 1737ms expected
 	machine `next` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
 fail/ownership/completed_case_claim_return_double_consume rejected 2699ms expected @02336e3b5381+wt
 	cannot use `pair.first` in machine `retire_pair` state `entry` (statement 1) after `pair.first` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `pair.first` first
+fail/ownership/nonreturning_claim_alternative_double_consume rejected 2928ms expected @475a84244f9e+wt
+	cannot use `first` in machine `main` state `entry` (statement 3) after `first` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `first` first
 fail/ownership/selected_constructor_missing_linear_move rejected 1028ms expected @a92f16431042
 	linear match custody requires every reachable arm to move the same live source claims; a missing move leaves an obligation live on only some edges
 fail/parse/retired_standalone_boundary_requirement rejected 28ms @409a3e82132d+wt
@@ -11940,6 +11942,7 @@ pass/ownership/runtime_nested_selected_cleanup_exit checked 3407ms check-target:
 pass/ownership/runtime_nested_selected_owner_call_exit checked 3781ms check-target:macos_arm64 @ccdb99ca2214
 pass/ownership/runtime_nested_view_affine_window_exit rejected 4356ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	terminal-artifact production failed: Lowering(Unsupported("runtime contract extent cannot discard selectors"))
+pass/ownership/runtime_nonreturning_claim_alternative_exit checked 5184ms check-target:macos_arm64 @475a84244f9e+wt
 pass/ownership/runtime_owned_carried_loan_extract_transform_exit checked 12446ms check-target:macos_arm64 @ccdb99ca2214
 pass/ownership/runtime_owned_parameter_restoration_exit checked 3944ms check-target:macos_arm64 @ccdb99ca2214
 pass/ownership/runtime_owned_sum_store_completion_exit checked 3113ms check-target:macos_arm64 @ccdb99ca2214

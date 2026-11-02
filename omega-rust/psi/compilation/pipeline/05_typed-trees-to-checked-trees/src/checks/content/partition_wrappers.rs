@@ -122,7 +122,7 @@ pub(crate) fn ordinary_returns<'facts>(
     state: &typed_trees::state::State,
 ) -> Vec<arena::Handle<checked_trees::FlowStateOutgoingFact>> {
     rows.filter_map(|(handle, outgoing)| {
-        if outgoing.state_symbol != state.symbol {
+        if outgoing.state_symbol != state.symbol || outgoing.cannot_return_normally {
             return None;
         }
         if outgoing.transition_target.is_valid() {

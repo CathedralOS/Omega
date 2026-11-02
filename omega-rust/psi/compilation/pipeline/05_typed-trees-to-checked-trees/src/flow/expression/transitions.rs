@@ -22,6 +22,7 @@ impl Execution<'_, '_, '_> {
             self.capture_dispatch_payloads(transition, target, contexts, constraints);
         let mut returned_value = arena::Handle::invalid();
         let mut normal_outgoing = true;
+        let mut cannot_return_normally = false;
         let mut operands = Vec::new();
         let mut captured_operands = Vec::new();
         let mut values = Vec::new();
@@ -93,6 +94,7 @@ impl Execution<'_, '_, '_> {
                 normal_outgoing =
                     validation::expression_normal_completion_possible(self.program, *expression)
                         != Some(false);
+                cannot_return_normally = !normal_outgoing;
                 if normal_outgoing {
                     returned_value = self.context.control.operands.append(completed.capture);
                 }
@@ -153,6 +155,7 @@ impl Execution<'_, '_, '_> {
                 operand_entry_constraints,
                 *constraints,
                 returned_value,
+                cannot_return_normally,
                 self.context.active_completed_copies,
             );
         }

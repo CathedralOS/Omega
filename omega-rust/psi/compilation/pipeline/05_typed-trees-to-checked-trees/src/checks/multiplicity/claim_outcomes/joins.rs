@@ -369,6 +369,11 @@ fn state_frontiers(
         let mut frontiers = Vec::new();
         let mut conditions = crate::flow::SelectionConditions::new();
         for outgoing in facts.flow.control.outgoing.span_or_empty(flow.outgoing) {
+            // A nonreturning completing call still transports custody. It
+            // contributes no result alternative to the caller's return join.
+            if outgoing.cannot_return_normally {
+                continue;
+            }
             let (kind, target) = if outgoing.transition_target.is_valid() {
                 let StatementNode::Transition(transition) = program
                     .statement_table
